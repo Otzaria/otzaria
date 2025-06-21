@@ -156,17 +156,7 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
                     //   focusNode.requestFocus();
                     // },
                   ),
-                  if (widget.textSearcher.hasMatches)
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: Text(
-                        '${widget.textSearcher.currentIndex! + 1} / ${widget.textSearcher.matches.length}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ),
+                  // Match count overlay removed
                 ],
               ),
             ),
@@ -209,6 +199,22 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
             ),
           ],
         ),
+        if (widget.textSearcher.matches.isNotEmpty)
+          Padding(
+            padding:
+                const EdgeInsets.symmetric(vertical: 4.0, horizontal: 16.0),
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Text(
+                'נמצאו ${widget.textSearcher.matches.length} תוצאות',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).textTheme.bodySmall?.color ??
+                      Colors.grey[700],
+                ),
+              ),
+            ),
+          ),
         const SizedBox(height: 4),
         Expanded(
           child: ListView.builder(
