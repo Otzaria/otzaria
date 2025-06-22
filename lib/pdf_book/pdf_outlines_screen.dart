@@ -182,7 +182,8 @@ class _OutlineViewState extends State<OutlineView> {
             ? Material(
                 color: Colors.transparent,
                 child: ListTile(
-                  key: node.dest?.pageNumber != null
+                  key: node.dest?.pageNumber != null &&
+                          !_itemKeys.containsKey(node.dest!.pageNumber)
                       ? _keyForPage(node.dest!.pageNumber)
                       : null,
                   title: Text(node.title),
@@ -205,7 +206,8 @@ class _OutlineViewState extends State<OutlineView> {
                   initiallyExpanded: level == 0,
                   // גם לכותרת של הצומת המורחב נוסיף ListTile
                   title: ListTile(
-                    key: node.dest?.pageNumber != null
+                    key: node.dest?.pageNumber != null &&
+                            !_itemKeys.containsKey(node.dest!.pageNumber)
                         ? _keyForPage(node.dest!.pageNumber)
                         : null,
                     title: Text(node.title),
