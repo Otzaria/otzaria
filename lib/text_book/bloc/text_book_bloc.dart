@@ -82,6 +82,14 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           scrollController: scrollController,
           scrollOffsetController: scrollOffsetController,
           positionsListener: positionsListener,
+          // Initialize selectedIndex with the initially requested index (state.index from TextBookInitial).
+          // This ensures that selectedIndex is non-null from the moment TextBookLoaded is first emitted.
+          // A non-null, stable initial selectedIndex is crucial for:
+          //  - Consistent ToC highlighting from the start.
+          //  - Preventing potential flickers or inconsistent states that could arise if selectedIndex
+          //    were to transition from null to a numeric value due to other events or scroll updates
+          //    occurring shortly after load.
+          selectedIndex: state.index,
         ));
       } catch (e) {
         emit(TextBookError(e.toString(), book, state.index, state.showLeftPane,

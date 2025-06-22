@@ -28,9 +28,23 @@ class _TocViewerState extends State<TocViewer>
   TextEditingController searchController = TextEditingController();
 
   late final ScrollController _scrollController;
+
+  // Flag to track if the user has manually scrolled the Table of Contents (ToC).
+  // If true, automatic scrolling to the current item is disabled.
+  // It is reset to false when:
+  // 1. The selected item in the main content view changes (detected via _lastKnownSelectedIndex).
+  // 2. The ToC pane is (re)opened (detected via _lastShowLeftPane).
+  // When false, the ToC will attempt to scroll to center the current selected item.
   bool _userScrolled = false;
+
   final Map<int, GlobalKey> _itemKeys = {};
   bool _lastShowLeftPane = false;
+
+  // Stores the last known selectedIndex from the TextBookBloc state.
+  // This is used to reliably detect if the selected item in the main content view
+  // has actually changed. A change in selectedIndex triggers a reset of `_userScrolled`
+  // to `false`, allowing the ToC to auto-scroll to the new item.
+  int? _lastKnownSelectedIndex;
 
   @override
   void initState() {
@@ -39,6 +53,7 @@ class _TocViewerState extends State<TocViewer>
     final state = context.read<TextBookBloc>().state;
     if (state is TextBookLoaded) {
       _lastShowLeftPane = state.showLeftPane;
+      _lastKnownSelectedIndex = state.selectedIndex; // Initialize here
     }
   }
 
@@ -203,12 +218,19 @@ class _TocViewerState extends State<TocViewer>
         }
         return false;
       },
-      listener: (context, state) {
+      listener: (context, state) { // state is 'current'
         if (state is TextBookLoaded) {
+          if (_lastKnownSelectedIndex != state.selectedIndex) {
+            // SelectedIndex changed
+            _userScrolled = false;
+            _lastKnownSelectedIndex = state.selectedIndex;
+          }
           if (state.showLeftPane && !_lastShowLeftPane) {
+            // Left pane just opened
             _userScrolled = false;
           }
           _lastShowLeftPane = state.showLeftPane;
+
           if (state.showLeftPane) {
             _scrollToSelectedIndex(state.selectedIndex);
           }

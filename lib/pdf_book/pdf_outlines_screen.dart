@@ -19,6 +19,11 @@ class _OutlineViewState extends State<OutlineView> {
   TextEditingController searchController = TextEditingController();
 
   late final ScrollController _scrollController;
+
+  // Flag to track if the user has manually scrolled the outline list.
+  // If true, automatic scrolling to the current page's outline item is disabled.
+  // It's reset to `false` by `_onControllerChanged` (which is called when the PDF page changes),
+  // allowing the outline to attempt auto-scrolling again to the new current page.
   bool _userScrolled = false;
   final Map<int, GlobalKey> _itemKeys = {};
 
@@ -48,6 +53,7 @@ class _OutlineViewState extends State<OutlineView> {
   }
 
   void _onControllerChanged() {
+    _userScrolled = false;
     if (mounted) {
       setState(() {});
       _scrollToCurrentPage();
@@ -182,8 +188,7 @@ class _OutlineViewState extends State<OutlineView> {
             ? Material(
                 color: Colors.transparent,
                 child: ListTile(
-                  key: node.dest?.pageNumber != null &&
-                          !_itemKeys.containsKey(node.dest!.pageNumber)
+                  key: node.dest?.pageNumber != null
                       ? _keyForPage(node.dest!.pageNumber)
                       : null,
                   title: Text(node.title),
@@ -206,8 +211,7 @@ class _OutlineViewState extends State<OutlineView> {
                   initiallyExpanded: level == 0,
                   // גם לכותרת של הצומת המורחב נוסיף ListTile
                   title: ListTile(
-                    key: node.dest?.pageNumber != null &&
-                            !_itemKeys.containsKey(node.dest!.pageNumber)
+                    key: node.dest?.pageNumber != null
                         ? _keyForPage(node.dest!.pageNumber)
                         : null,
                     title: Text(node.title),
