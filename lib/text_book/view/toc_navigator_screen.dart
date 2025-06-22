@@ -27,6 +27,45 @@ class _TocViewerState extends State<TocViewer>
 
   TextEditingController searchController = TextEditingController();
 
+  late final ScrollController _scrollController;
+  bool _userScrolled = false;
+  final Map<int, GlobalKey> _itemKeys = {};
+  bool _lastShowLeftPane = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+    final state = context.read<TextBookBloc>().state;
+    if (state is TextBookLoaded) {
+      _lastShowLeftPane = state.showLeftPane;
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    searchController.dispose();
+    super.dispose();
+  }
+
+  GlobalKey _keyForIndex(int index) {
+    return _itemKeys.putIfAbsent(index, () => GlobalKey());
+  }
+
+  void _scrollToSelectedIndex(int? index) {
+    if (_userScrolled || index == null) return;
+    final key = _itemKeys[index];
+    final ctx = key?.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 250),
+        alignment: 0.5,
+      );
+    }
+  }
+
   Widget _buildFilteredList(List<TocEntry> entries, BuildContext context) {
     List<TocEntry> allEntries = [];
     void getAllEntries(List<TocEntry> entries) {
@@ -42,30 +81,36 @@ class _TocViewerState extends State<TocViewer>
         .toList();
 
     return ListView.builder(
-        physics: const NeverScrollableScrollPhysics(),
-        shrinkWrap: true,
-        itemCount: allEntries.length,
-        itemBuilder: (context, index) {
-          return Padding(
-            padding: EdgeInsets.fromLTRB(
-                0, 0, 10 * allEntries[index].level.toDouble(), 0),
-            child: allEntries[index].children.isEmpty
-                ? ListTile(
-                    title: Text(allEntries[index].fullText),
-                    onTap: () {
-                      widget.scrollController.scrollTo(
-                        index: allEntries[index].index,
-                        duration: const Duration(milliseconds: 250),
-                        curve: Curves.ease,
-                      );
-                      if (Platform.isAndroid) {
-                        widget.closeLeftPaneCallback();
-                      }
-                    },
-                  )
-                : _buildTocItem(allEntries[index], showFullText: true),
-          );
-        });
+      physics: const NeverScrollableScrollPhysics(),
+      shrinkWrap: true,
+      itemCount: allEntries.length,
+      itemBuilder: (context, index) {
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            0,
+            0,
+            10 * allEntries[index].level.toDouble(),
+            0,
+          ),
+          child: allEntries[index].children.isEmpty
+              ? ListTile(
+                  key: _keyForIndex(allEntries[index].index),
+                  title: Text(allEntries[index].fullText),
+                  onTap: () {
+                    widget.scrollController.scrollTo(
+                      index: allEntries[index].index,
+                      duration: const Duration(milliseconds: 250),
+                      curve: Curves.ease,
+                    );
+                    if (Platform.isAndroid) {
+                      widget.closeLeftPaneCallback();
+                    }
+                  },
+                )
+              : _buildTocItem(allEntries[index], showFullText: true),
+        );
+      },
+    );
   }
 
   Widget _buildTocItem(TocEntry entry, {bool showFullText = false}) {
@@ -85,14 +130,16 @@ class _TocViewerState extends State<TocViewer>
         padding: EdgeInsets.fromLTRB(0, 0, 10 * entry.level.toDouble(), 0),
         child: BlocBuilder<TextBookBloc, TextBookState>(
           builder: (context, state) {
-            final bool selected = state is TextBookLoaded &&
-                state.selectedIndex == entry.index;
+            final bool selected =
+                state is TextBookLoaded && state.selectedIndex == entry.index;
             return ListTile(
+              key: _keyForIndex(entry.index),
               title: Text(entry.text),
               selected: selected,
               selectedColor: Theme.of(context).colorScheme.onSecondary,
-              selectedTileColor:
-                  Theme.of(context).colorScheme.secondary.withOpacity(0.2),
+              selectedTileColor: Theme.of(
+                context,
+              ).colorScheme.secondary.withOpacity(0.2),
               onTap: navigateToEntry,
             );
           },
@@ -102,24 +149,22 @@ class _TocViewerState extends State<TocViewer>
       return Padding(
         padding: EdgeInsets.fromLTRB(0, 0, 10 * entry.level.toDouble(), 0),
         child: Theme(
-          data: Theme.of(context).copyWith(
-            dividerColor: Colors.transparent,
-          ),
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
           child: ExpansionTile(
             initiallyExpanded: entry.level == 1,
             title: BlocBuilder<TextBookBloc, TextBookState>(
               builder: (context, state) {
-                final bool selected = state is TextBookLoaded &&
+                final bool selected =
+                    state is TextBookLoaded &&
                     state.selectedIndex == entry.index;
                 return ListTile(
+                  key: _keyForIndex(entry.index),
                   title: Text(showFullText ? entry.fullText : entry.text),
                   selected: selected,
-                  selectedColor:
-                      Theme.of(context).colorScheme.onSecondary,
-                  selectedTileColor: Theme.of(context)
-                      .colorScheme
-                      .secondary
-                      .withOpacity(0.2),
+                  selectedColor: Theme.of(context).colorScheme.onSecondary,
+                  selectedTileColor: Theme.of(
+                    context,
+                  ).colorScheme.secondary.withOpacity(0.2),
                   onTap: navigateToEntry,
                   contentPadding: EdgeInsets.zero,
                 );
@@ -150,7 +195,26 @@ class _TocViewerState extends State<TocViewer>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return BlocBuilder<TextBookBloc, TextBookState>(
+    return BlocListener<TextBookBloc, TextBookState>(
+      listenWhen: (previous, current) {
+        if (previous is TextBookLoaded && current is TextBookLoaded) {
+          return previous.selectedIndex != current.selectedIndex ||
+              previous.showLeftPane != current.showLeftPane;
+        }
+        return false;
+      },
+      listener: (context, state) {
+        if (state is TextBookLoaded) {
+          if (state.showLeftPane && !_lastShowLeftPane) {
+            _userScrolled = false;
+          }
+          _lastShowLeftPane = state.showLeftPane;
+          if (state.showLeftPane) {
+            _scrollToSelectedIndex(state.selectedIndex);
+          }
+        }
+      },
+      child: BlocBuilder<TextBookBloc, TextBookState>(
         bloc: context.read<TextBookBloc>(),
         builder: (context, state) {
           if (state is! TextBookLoaded) return const Center();
@@ -178,19 +242,31 @@ class _TocViewerState extends State<TocViewer>
                 ),
               ),
               Expanded(
-                child: SingleChildScrollView(
-                  child: searchController.text.isEmpty
-                      ? ListView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: state.tableOfContents.length,
-                          itemBuilder: (context, index) =>
-                              _buildTocItem(state.tableOfContents[index]))
-                      : _buildFilteredList(state.tableOfContents, context),
+                child: NotificationListener<ScrollNotification>(
+                  onNotification: (notification) {
+                    if (notification is UserScrollNotification) {
+                      _userScrolled = true;
+                    }
+                    return false;
+                  },
+                  child: SingleChildScrollView(
+                    controller: _scrollController,
+                    child: searchController.text.isEmpty
+                        ? ListView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: state.tableOfContents.length,
+                            itemBuilder: (context, index) =>
+                                _buildTocItem(state.tableOfContents[index]),
+                          )
+                        : _buildFilteredList(state.tableOfContents, context),
+                  ),
                 ),
               ),
             ],
           );
-        });
+        },
+      ),
+    );
   }
 }

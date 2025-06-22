@@ -18,10 +18,16 @@ class OutlineView extends StatefulWidget {
 class _OutlineViewState extends State<OutlineView> {
   TextEditingController searchController = TextEditingController();
 
+  late final ScrollController _scrollController;
+  bool _userScrolled = false;
+  final Map<int, GlobalKey> _itemKeys = {};
+
   @override
   void initState() {
     super.initState();
+    _scrollController = ScrollController();
     widget.controller.addListener(_onControllerChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToCurrentPage());
   }
 
   @override
@@ -36,21 +42,43 @@ class _OutlineViewState extends State<OutlineView> {
   @override
   void dispose() {
     widget.controller.removeListener(_onControllerChanged);
+    _scrollController.dispose();
     searchController.dispose();
     super.dispose();
   }
 
   void _onControllerChanged() {
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() {});
+      _scrollToCurrentPage();
+    }
+  }
+
+  GlobalKey _keyForPage(int page) {
+    return _itemKeys.putIfAbsent(page, () => GlobalKey());
+  }
+
+  void _scrollToCurrentPage() {
+    if (_userScrolled) return;
+    if (!widget.controller.isReady) return;
+    final page = widget.controller.pageNumber;
+    if (page == null) return;
+    final key = _itemKeys[page];
+    final ctx = key?.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(
+        ctx,
+        alignment: 0.5,
+        duration: const Duration(milliseconds: 250),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final outline = widget.outline;
     if (outline == null || outline.isEmpty) {
-      return const Center(
-        child: Text('אין תוכן עניינים'),
-      );
+      return const Center(child: Text('אין תוכן עניינים'));
     }
 
     return Column(
@@ -76,9 +104,17 @@ class _OutlineViewState extends State<OutlineView> {
           ),
         ),
         Expanded(
-          child: searchController.text.isEmpty
-              ? _buildOutlineList(outline)
-              : _buildFilteredOutlineList(outline),
+          child: NotificationListener<ScrollNotification>(
+            onNotification: (notification) {
+              if (notification is UserScrollNotification) {
+                _userScrolled = true;
+              }
+              return false;
+            },
+            child: searchController.text.isEmpty
+                ? _buildOutlineList(outline)
+                : _buildFilteredOutlineList(outline),
+          ),
         ),
       ],
     );
@@ -86,6 +122,7 @@ class _OutlineViewState extends State<OutlineView> {
 
   Widget _buildOutlineList(List<PdfOutlineNode> outline) {
     return SingleChildScrollView(
+      controller: _scrollController,
       child: ListView.builder(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
@@ -113,13 +150,15 @@ class _OutlineViewState extends State<OutlineView> {
         .toList();
 
     return SingleChildScrollView(
+      controller: _scrollController,
       child: ListView.builder(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         itemCount: filteredNodes.length,
         itemBuilder: (context, index) => _buildOutlineItem(
-            filteredNodes[index].node,
-            level: filteredNodes[index].level),
+          filteredNodes[index].node,
+          level: filteredNodes[index].level,
+        ),
       ),
     );
   }
@@ -127,28 +166,33 @@ class _OutlineViewState extends State<OutlineView> {
   Widget _buildOutlineItem(PdfOutlineNode node, {int level = 0}) {
     void navigateToEntry() {
       if (node.dest != null) {
-        widget.controller.goTo(widget.controller
-            .calcMatrixFitWidthForPage(pageNumber: node.dest?.pageNumber ?? 1));
+        widget.controller.goTo(
+          widget.controller.calcMatrixFitWidthForPage(
+            pageNumber: node.dest?.pageNumber ?? 1,
+          ),
+        );
       }
     }
 
     return Padding(
       padding: EdgeInsets.fromLTRB(0, 0, 10 * level.toDouble(), 0),
       child: Theme(
-        data: Theme.of(context).copyWith(
-          dividerColor: Colors.transparent,
-        ),
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: node.children.isEmpty
             ? Material(
                 color: Colors.transparent,
                 child: ListTile(
+                  key: node.dest?.pageNumber != null
+                      ? _keyForPage(node.dest!.pageNumber)
+                      : null,
                   title: Text(node.title),
-                  selected: widget.controller.isReady &&
-                      node.dest?.pageNumber ==
-                          widget.controller.pageNumber,
+                  selected:
+                      widget.controller.isReady &&
+                      node.dest?.pageNumber == widget.controller.pageNumber,
                   selectedColor: Theme.of(context).colorScheme.onSecondary,
-                  selectedTileColor:
-                      Theme.of(context).colorScheme.secondary.withOpacity(0.2),
+                  selectedTileColor: Theme.of(
+                    context,
+                  ).colorScheme.secondary.withOpacity(0.2),
                   onTap: navigateToEntry,
                   hoverColor: Theme.of(context).hoverColor,
                   mouseCursor: SystemMouseCursors.click,
@@ -161,16 +205,17 @@ class _OutlineViewState extends State<OutlineView> {
                   initiallyExpanded: level == 0,
                   // גם לכותרת של הצומת המורחב נוסיף ListTile
                   title: ListTile(
+                    key: node.dest?.pageNumber != null
+                        ? _keyForPage(node.dest!.pageNumber)
+                        : null,
                     title: Text(node.title),
-                    selected: widget.controller.isReady &&
-                        node.dest?.pageNumber ==
-                            widget.controller.pageNumber,
-                    selectedColor:
-                        Theme.of(context).colorScheme.onSecondary,
-                    selectedTileColor: Theme.of(context)
-                        .colorScheme
-                        .secondary
-                        .withOpacity(0.2),
+                    selected:
+                        widget.controller.isReady &&
+                        node.dest?.pageNumber == widget.controller.pageNumber,
+                    selectedColor: Theme.of(context).colorScheme.onSecondary,
+                    selectedTileColor: Theme.of(
+                      context,
+                    ).colorScheme.secondary.withOpacity(0.2),
                     onTap: navigateToEntry,
                     hoverColor: Theme.of(context).hoverColor,
                     mouseCursor: SystemMouseCursors.click,
