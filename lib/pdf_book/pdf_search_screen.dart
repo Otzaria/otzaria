@@ -14,7 +14,7 @@ class PdfBookSearchView extends StatefulWidget {
     required this.focusNode,
     this.outline,
     this.initialSearchText = '',
-    this.onSearchResultNavigated, // Add this
+    this.onSearchResultNavigated,
     super.key,
   });
 
@@ -24,7 +24,7 @@ class PdfBookSearchView extends StatefulWidget {
   final List<PdfOutlineNode>? outline;
   final String initialSearchText; // Remains for now, parent will provide tab.searchText
 
-  final VoidCallback? onSearchResultNavigated; // Add this
+  final VoidCallback? onSearchResultNavigated;
 
 
   @override
@@ -32,7 +32,7 @@ class PdfBookSearchView extends StatefulWidget {
 }
 
 class _PdfBookSearchViewState extends State<PdfBookSearchView> {
-  // final searchTextController = TextEditingController(); // Removed
+  // final searchTextController = TextEditingController();
   late final pageTextStore =
       PdfPageTextCache(textSearcher: widget.textSearcher);
   final scrollController = ScrollController();
@@ -57,8 +57,8 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
   void dispose() {
     scrollController.dispose();
     widget.textSearcher.removeListener(_searchResultUpdated);
-    widget.searchController.removeListener(_searchTextUpdated); // Changed
-    // searchTextController.dispose(); // Removed
+    widget.searchController.removeListener(_searchTextUpdated);
+    // searchTextController.dispose();
     super.dispose();
   }
 
@@ -187,7 +187,15 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
                     //   focusNode.requestFocus();
                     // },
                   ),
-                  // Result count moved below
+                  if (widget.textSearcher.hasMatches)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        '${widget.textSearcher.currentIndex! + 1} / ${widget.textSearcher.matches.length}',
+                        style:
+                            const TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -212,7 +220,7 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
         const SizedBox(height: 4),
         Expanded(
           child: ListView.builder(
-            key: Key(widget.searchController.text), // Changed
+            key: Key(widget.searchController.text),
             controller: scrollController,
             itemCount: _listIndexToMatchIndex.length,
             itemBuilder: (context, index) {
@@ -225,7 +233,7 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
                   match: match,
                   onTap: () async {
                     await widget.textSearcher.goToMatchOfIndex(matchIndex);
-                    widget.onSearchResultNavigated?.call(); // Add this line
+                    widget.onSearchResultNavigated?.call();
                     if (mounted) setState(() {});
                   },
                   pageTextStore: pageTextStore,
@@ -235,7 +243,7 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
               } else {
                 return Container(
                   height: itemHeight,
-                  alignment: Alignment.bottomRight, // Changed from bottomLeft
+                  alignment: Alignment.bottomRight,
                   padding: const EdgeInsets.only(bottom: 10),
                   child: Text(
                     _pageTitles[-matchIndex]?.isNotEmpty == true
@@ -245,7 +253,7 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
-                    textDirection: TextDirection.rtl, // Added this
+                    textDirection: TextDirection.rtl,
                   ),
                 );
               }
