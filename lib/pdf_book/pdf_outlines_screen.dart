@@ -21,6 +21,7 @@ class _OutlineViewState extends State<OutlineView>
     with AutomaticKeepAliveClientMixin {
   TextEditingController searchController = TextEditingController();
   final ScrollController scrollController = ScrollController();
+  final Map<PdfOutlineNode, GlobalKey> _nodeKeys = {};
 
   @override
   bool get wantKeepAlive => true;
@@ -28,7 +29,11 @@ class _OutlineViewState extends State<OutlineView>
   @override
   void initState() {
     super.initState();
+    _initNodeKeys();
     widget.controller.addListener(_onControllerChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToCurrentPage();
+    });
   }
 
   @override
@@ -37,6 +42,12 @@ class _OutlineViewState extends State<OutlineView>
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller.removeListener(_onControllerChanged);
       widget.controller.addListener(_onControllerChanged);
+    }
+    if (oldWidget.outline != widget.outline) {
+      _initNodeKeys();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToCurrentPage();
+      });
     }
   }
 
@@ -50,6 +61,53 @@ class _OutlineViewState extends State<OutlineView>
 
   void _onControllerChanged() {
     if (mounted) setState(() {});
+    _scrollToCurrentPage();
+  }
+
+  void _initNodeKeys() {
+    _nodeKeys.clear();
+    void traverse(List<PdfOutlineNode>? nodes) {
+      if (nodes == null) return;
+      for (final node in nodes) {
+        _nodeKeys[node] = GlobalKey();
+        traverse(node.children);
+      }
+    }
+
+    traverse(widget.outline);
+  }
+
+  PdfOutlineNode? _findBestNode(List<PdfOutlineNode>? nodes, int page) {
+    PdfOutlineNode? best;
+    void search(List<PdfOutlineNode>? nodes) {
+      if (nodes == null) return;
+      for (final node in nodes) {
+        final destPage = node.dest?.pageNumber;
+        if (destPage != null && destPage <= page) {
+          if (best == null || destPage >= (best!.dest?.pageNumber ?? 0)) {
+            best = node;
+          }
+        }
+        search(node.children);
+      }
+    }
+
+    search(nodes);
+    return best;
+  }
+
+  void _scrollToCurrentPage() {
+    final node =
+        _findBestNode(widget.outline, widget.controller.pageNumber ?? 1);
+    final key = node != null ? _nodeKeys[node] : null;
+    final context = key?.currentContext;
+    if (context != null) {
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 250),
+        alignment: 0.5,
+      );
+    }
   }
 
   @override
@@ -148,7 +206,10 @@ class _OutlineViewState extends State<OutlineView>
       }
     }
 
+    final key = _nodeKeys[node];
+
     return Padding(
+      key: key,
       padding: EdgeInsets.fromLTRB(0, 0, 10 * level.toDouble(), 0),
       child: Theme(
         data: Theme.of(context).copyWith(

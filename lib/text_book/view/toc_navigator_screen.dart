@@ -28,6 +28,53 @@ class _TocViewerState extends State<TocViewer>
   bool get wantKeepAlive => true;
 
   TextEditingController searchController = TextEditingController();
+  final ScrollController scrollController = ScrollController();
+  final Map<int, GlobalKey> _indexKeys = {};
+  int? _lastIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    final state = context.read<TextBookBloc>().state;
+    if (state is TextBookLoaded) {
+      _populateKeys(state.tableOfContents);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (state.selectedIndex != null) {
+          _scrollToIndex(state.selectedIndex!);
+          _lastIndex = state.selectedIndex;
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    scrollController.dispose();
+    searchController.dispose();
+    super.dispose();
+  }
+
+  void _populateKeys(List<TocEntry> entries) {
+    void traverse(List<TocEntry> nodes) {
+      for (final e in nodes) {
+        _indexKeys.putIfAbsent(e.index, () => GlobalKey());
+        traverse(e.children);
+      }
+    }
+
+    traverse(entries);
+  }
+
+  void _scrollToIndex(int index) {
+    final context = _indexKeys[index]?.currentContext;
+    if (context != null) {
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 250),
+        alignment: 0.5,
+      );
+    }
+  }
 
   Widget _buildFilteredList(List<TocEntry> entries, BuildContext context) {
     List<TocEntry> allEntries = [];
@@ -48,15 +95,18 @@ class _TocViewerState extends State<TocViewer>
         shrinkWrap: true,
         itemCount: allEntries.length,
         itemBuilder: (context, index) {
+          final entry = allEntries[index];
+          final key = _indexKeys.putIfAbsent(entry.index, () => GlobalKey());
           return Padding(
-            padding: EdgeInsets.fromLTRB(
-                0, 0, 10 * allEntries[index].level.toDouble(), 0),
-            child: allEntries[index].children.isEmpty
+            key: key,
+            padding:
+                EdgeInsets.fromLTRB(0, 0, 10 * entry.level.toDouble(), 0),
+            child: entry.children.isEmpty
                 ? ListTile(
-                    title: Text(allEntries[index].fullText),
+                    title: Text(entry.fullText),
                     onTap: () {
                       widget.scrollController.scrollTo(
-                        index: allEntries[index].index,
+                        index: entry.index,
                         duration: const Duration(milliseconds: 250),
                         curve: Curves.ease,
                       );
@@ -65,7 +115,7 @@ class _TocViewerState extends State<TocViewer>
                       }
                     },
                   )
-                : _buildTocItem(allEntries[index], showFullText: true),
+                : _buildTocItem(entry, showFullText: true),
           );
         });
   }
@@ -82,8 +132,11 @@ class _TocViewerState extends State<TocViewer>
       }
     }
 
+    final key = _indexKeys.putIfAbsent(entry.index, () => GlobalKey());
+
     if (entry.children.isEmpty) {
       return Padding(
+        key: key,
         padding: EdgeInsets.fromLTRB(0, 0, 10 * entry.level.toDouble(), 0),
         child: BlocBuilder<TextBookBloc, TextBookState>(
           builder: (context, state) {
@@ -102,6 +155,7 @@ class _TocViewerState extends State<TocViewer>
       );
     } else {
       return Padding(
+        key: key,
         padding: EdgeInsets.fromLTRB(0, 0, 10 * entry.level.toDouble(), 0),
         child: Theme(
           data: Theme.of(context).copyWith(
@@ -156,6 +210,13 @@ class _TocViewerState extends State<TocViewer>
         bloc: context.read<TextBookBloc>(),
         builder: (context, state) {
           if (state is! TextBookLoaded) return const Center();
+          _populateKeys(state.tableOfContents);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (state.selectedIndex != null && state.selectedIndex != _lastIndex) {
+              _scrollToIndex(state.selectedIndex!);
+              _lastIndex = state.selectedIndex;
+            }
+          });
           return Column(
             children: [
               TextField(
@@ -185,6 +246,7 @@ class _TocViewerState extends State<TocViewer>
               ),
               Expanded(
                 child: SingleChildScrollView(
+                  controller: scrollController,
                   child: searchController.text.isEmpty
                       ? ListView.builder(
                           shrinkWrap: true,
