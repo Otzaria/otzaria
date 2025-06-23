@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 class OutlineView extends StatefulWidget {
@@ -64,6 +65,24 @@ class _OutlineViewState extends State<OutlineView>
     _scrollToCurrentPage();
   }
 
+  void _scrollToKey(GlobalKey key) {
+    final context = key.currentContext;
+    if (context == null) return;
+    final render = context.findRenderObject();
+    if (render == null) return;
+    final viewport = RenderAbstractViewport.of(render);
+    if (viewport == null) return;
+    final offset = viewport.getOffsetToReveal(render, 0.5).offset;
+    scrollController.animateTo(
+      offset.clamp(
+        scrollController.position.minScrollExtent,
+        scrollController.position.maxScrollExtent,
+      ),
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.ease,
+    );
+  }
+
   void _initNodeKeys() {
     _nodeKeys.clear();
     void traverse(List<PdfOutlineNode>? nodes) {
@@ -100,13 +119,8 @@ class _OutlineViewState extends State<OutlineView>
     final node =
         _findBestNode(widget.outline, widget.controller.pageNumber ?? 1);
     final key = node != null ? _nodeKeys[node] : null;
-    final context = key?.currentContext;
-    if (context != null) {
-      Scrollable.ensureVisible(
-        context,
-        duration: const Duration(milliseconds: 250),
-        alignment: 0.5,
-      );
+    if (key != null) {
+      _scrollToKey(key);
     }
   }
 

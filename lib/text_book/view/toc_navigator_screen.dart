@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
@@ -55,6 +56,7 @@ class _TocViewerState extends State<TocViewer>
   }
 
   void _populateKeys(List<TocEntry> entries) {
+    _indexKeys.clear();
     void traverse(List<TocEntry> nodes) {
       for (final e in nodes) {
         _indexKeys.putIfAbsent(e.index, () => GlobalKey());
@@ -66,14 +68,23 @@ class _TocViewerState extends State<TocViewer>
   }
 
   void _scrollToIndex(int index) {
-    final context = _indexKeys[index]?.currentContext;
-    if (context != null) {
-      Scrollable.ensureVisible(
-        context,
-        duration: const Duration(milliseconds: 250),
-        alignment: 0.5,
-      );
-    }
+    final key = _indexKeys[index];
+    if (key == null) return;
+    final context = key.currentContext;
+    if (context == null) return;
+    final render = context.findRenderObject();
+    if (render == null) return;
+    final viewport = RenderAbstractViewport.of(render);
+    if (viewport == null) return;
+    final offset = viewport.getOffsetToReveal(render, 0.5).offset;
+    scrollController.animateTo(
+      offset.clamp(
+        scrollController.position.minScrollExtent,
+        scrollController.position.maxScrollExtent,
+      ),
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.ease,
+    );
   }
 
   Widget _buildFilteredList(List<TocEntry> entries, BuildContext context) {
