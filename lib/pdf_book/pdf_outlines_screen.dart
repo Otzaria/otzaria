@@ -21,6 +21,8 @@ class _OutlineViewState extends State<OutlineView>
     with AutomaticKeepAliveClientMixin {
   TextEditingController searchController = TextEditingController();
   final ScrollController scrollController = ScrollController();
+  PdfOutlineNode? _currentNode;
+  final Map<PdfOutlineNode, GlobalKey> _itemKeys = {};
 
   @override
   bool get wantKeepAlive => true;
@@ -29,6 +31,7 @@ class _OutlineViewState extends State<OutlineView>
   void initState() {
     super.initState();
     widget.controller.addListener(_onControllerChanged);
+    _scrollToCurrentPage();
   }
 
   @override
@@ -49,7 +52,9 @@ class _OutlineViewState extends State<OutlineView>
   }
 
   void _onControllerChanged() {
-    if (mounted) setState(() {});
+    if (mounted) {
+      _scrollToCurrentPage();
+    }
   }
 
   @override
@@ -140,7 +145,54 @@ class _OutlineViewState extends State<OutlineView>
     );
   }
 
+  PdfOutlineNode? _findBestNode(List<PdfOutlineNode>? nodes, int page) {
+    PdfOutlineNode? best;
+    void search(List<PdfOutlineNode>? entries) {
+      if (entries == null) return;
+      for (final n in entries) {
+        final p = n.dest?.pageNumber;
+        if (p != null && p <= page) {
+          if (best == null || p > (best!.dest?.pageNumber ?? -1)) {
+            best = n;
+          }
+        }
+        search(n.children);
+      }
+    }
+
+    search(nodes);
+    return best;
+  }
+
+  void _scrollToKey(GlobalKey key) {
+    final context = key.currentContext;
+    if (context != null) {
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 300),
+        alignment: 0.5,
+      );
+    }
+  }
+
+  void _scrollToCurrentPage() {
+    if (!widget.controller.isReady) return;
+    final page = widget.controller.pageNumber ?? 1;
+    final node = _findBestNode(widget.outline, page);
+    if (node == null) return;
+    if (node != _currentNode) {
+      setState(() {
+        _currentNode = node;
+      });
+    }
+    final key = _itemKeys[node];
+    if (key != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToKey(key));
+    }
+  }
+
   Widget _buildOutlineItem(PdfOutlineNode node, {int level = 0}) {
+    final key = _itemKeys.putIfAbsent(node, () => GlobalObjectKey(node));
     void navigateToEntry() {
       if (node.dest != null) {
         widget.controller.goTo(widget.controller
@@ -158,10 +210,9 @@ class _OutlineViewState extends State<OutlineView>
             ? Material(
                 color: Colors.transparent,
                 child: ListTile(
+                  key: key,
                   title: Text(node.title),
-                  selected: widget.controller.isReady &&
-                      node.dest?.pageNumber ==
-                          widget.controller.pageNumber,
+                  selected: node == _currentNode,
                   selectedColor: Theme.of(context).colorScheme.onSecondary,
                   selectedTileColor:
                       Theme.of(context).colorScheme.secondary.withOpacity(0.2),
@@ -177,10 +228,9 @@ class _OutlineViewState extends State<OutlineView>
                   initiallyExpanded: level == 0,
                   // גם לכותרת של הצומת המורחב נוסיף ListTile
                   title: ListTile(
+                    key: key,
                     title: Text(node.title),
-                    selected: widget.controller.isReady &&
-                        node.dest?.pageNumber ==
-                            widget.controller.pageNumber,
+                    selected: node == _currentNode,
                     selectedColor:
                         Theme.of(context).colorScheme.onSecondary,
                     selectedTileColor: Theme.of(context)
