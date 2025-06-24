@@ -9,10 +9,17 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
+import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/models/books.dart';
 
 class BookmarkView extends StatelessWidget {
   const BookmarkView({Key? key}) : super(key: key);
+
+  bool _isSameBook(Book a, Book b) {
+    if (a.runtimeType != b.runtimeType) return false;
+    if (a is PdfBook && b is PdfBook) return a.path == b.path;
+    return a.title == b.title;
+  }
 
   void _openBook(
       BuildContext context, Book book, int index, List<String>? commentators) {
@@ -34,31 +41,68 @@ class BookmarkView extends StatelessWidget {
             : Column(
                 children: [
                   Expanded(
-                    child: ListView.builder(
-                      itemCount: state.bookmarks.length,
-                      itemBuilder: (context, index) => ListTile(
-                          selected: false,
-                          title: Text(state.bookmarks[index].ref),
-                          onTap: () => _openBook(
-                              context,
-                              state.bookmarks[index].book,
-                              state.bookmarks[index].index,
-                              state.bookmarks[index].commentatorsToShow),
-                          trailing: IconButton(
-                            icon: const Icon(
-                              Icons.delete_forever,
-                            ),
-                            onPressed: () {
-                              context
-                                  .read<BookmarkBloc>()
-                                  .removeBookmark(index);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('הסימניה נמחקה'),
+                    child: BlocBuilder<TabsBloc, TabsState>(
+                      builder: (context, tabsState) {
+                        final currentTab = tabsState.currentTab;
+                        Book? currentBook;
+                        int? currentIndex;
+                        if (currentTab is TextBookTab) {
+                          currentBook = currentTab.book;
+                          final st = currentTab.bloc.state;
+                          if (st is TextBookLoaded) {
+                            currentIndex = st.visibleIndices.first;
+                          } else {
+                            currentIndex = currentTab.index;
+                          }
+                        } else if (currentTab is PdfBookTab) {
+                          currentBook = currentTab.book;
+                          currentIndex = currentTab.pdfViewerController.isReady
+                              ? (currentTab.pdfViewerController.pageNumber ??
+                                  currentTab.pageNumber)
+                              : currentTab.pageNumber;
+                        }
+
+                        return ListView.builder(
+                          itemCount: state.bookmarks.length,
+                          itemBuilder: (context, index) {
+                            final bookmark = state.bookmarks[index];
+                            final bool isSelected = currentBook != null &&
+                                currentIndex != null &&
+                                _isSameBook(bookmark.book, currentBook) &&
+                                bookmark.index == currentIndex;
+                            return ListTile(
+                              selected: isSelected,
+                              selectedColor:
+                                  Theme.of(context).colorScheme.onSecondary,
+                              selectedTileColor: Theme.of(context)
+                                  .colorScheme
+                                  .secondary
+                                  .withOpacity(0.2),
+                              title: Text(bookmark.ref),
+                              onTap: () => _openBook(
+                                  context,
+                                  bookmark.book,
+                                  bookmark.index,
+                                  bookmark.commentatorsToShow),
+                              trailing: IconButton(
+                                icon: const Icon(
+                                  Icons.delete_forever,
                                 ),
-                              );
-                            },
-                          )),
+                                onPressed: () {
+                                  context
+                                      .read<BookmarkBloc>()
+                                      .removeBookmark(index);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('הסימניה נמחקה'),
+                                    ),
+                                  );
+                                },
+                              ),
+                            );
+                          },
+                        );
+                      },
                     ),
                   ),
                   Padding(
