@@ -72,10 +72,11 @@ class BookmarkView extends StatelessWidget {
                                 bookmark.index == currentIndex;
                             return ListTile(
                               selected: isSelected,
-                              // Use onSurface for selected text so it stays
-                              // readable in both light and dark themes.
+                              // Match other screens by using onSecondary
+                              // for the selected text so it remains legible
+                              // against the highlight background in dark mode.
                               selectedColor:
-                                  Theme.of(context).colorScheme.onSurface,
+                                  Theme.of(context).colorScheme.onSecondary,
                               selectedTileColor: Theme.of(context)
                                   .colorScheme
                                   .secondary
