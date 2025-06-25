@@ -53,6 +53,7 @@ class TextBookLoaded extends TextBookState {
   final List<int> visibleIndices;
   final int? selectedIndex;
   final bool pinLeftPane;
+  final double leftPaneWidth;
   final String searchText;
   final String? currentTitle;
 
@@ -75,6 +76,7 @@ class TextBookLoaded extends TextBookState {
     required this.visibleIndices,
     this.selectedIndex,
     required this.pinLeftPane,
+    required this.leftPaneWidth,
     required this.searchText,
     required this.scrollController,
     required this.scrollOffsetController,
@@ -101,6 +103,7 @@ class TextBookLoaded extends TextBookState {
       tableOfContents: const [],
       removeNikud: false,
       pinLeftPane: false,
+      leftPaneWidth: 400,
       searchText: '',
       scrollController: ItemScrollController(),
       scrollOffsetController: ScrollOffsetController(),
@@ -123,6 +126,7 @@ class TextBookLoaded extends TextBookState {
     int? selectedIndex,
     List<int>? visibleIndices,
     bool? pinLeftPane,
+    double? leftPaneWidth,
     String? searchText,
     ItemScrollController? scrollController,
     ScrollOffsetController? scrollOffsetController,
@@ -144,6 +148,7 @@ class TextBookLoaded extends TextBookState {
       visibleIndices: visibleIndices ?? this.visibleIndices,
       selectedIndex: selectedIndex,
       pinLeftPane: pinLeftPane ?? this.pinLeftPane,
+      leftPaneWidth: leftPaneWidth ?? this.leftPaneWidth,
       searchText: searchText ?? this.searchText,
       scrollController: scrollController ?? this.scrollController,
       scrollOffsetController:
@@ -168,6 +173,7 @@ class TextBookLoaded extends TextBookState {
         visibleIndices,
         selectedIndex,
         pinLeftPane,
+        leftPaneWidth,
         searchText,
         currentTitle,
       ];

@@ -19,11 +19,13 @@ abstract class OpenedTab {
         index: tab.index,
         book: tab.book,
         commentators: tab.commentators,
+        leftPaneWidth: tab.leftPaneWidth,
       );
     } else if (tab is PdfBookTab) {
       return PdfBookTab(
         book: tab.book,
         pageNumber: tab.pageNumber,
+        leftPaneWidth: tab.leftPaneWidth.value,
       );
     }
     return tab;

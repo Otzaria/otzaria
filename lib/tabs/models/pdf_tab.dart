@@ -38,6 +38,9 @@ class PdfBookTab extends OpenedTab {
   ///a flag that tells if the left pane should be pinned on scrolling
   final pinLeftPane = ValueNotifier<bool>(false);
 
+  /// The width of the left pane.
+  late final ValueNotifier<double> leftPaneWidth;
+
   /// Creates a new instance of [PdfBookTab].
   ///
   /// The [book] parameter represents the PDF book, and the [pageNumber]
@@ -46,11 +49,13 @@ class PdfBookTab extends OpenedTab {
     required this.book,
     required this.pageNumber,
     bool openLeftPane = false,
+    double leftPaneWidth = 300,
     this.searchText = '',
     this.pdfSearchMatches,
     this.pdfSearchCurrentMatchIndex,
   }) : super(book.title) {
     showLeftPane = ValueNotifier<bool>(openLeftPane);
+    this.leftPaneWidth = ValueNotifier<double>(leftPaneWidth);
     searchController.text = searchText;
   }
 
@@ -61,7 +66,8 @@ class PdfBookTab extends OpenedTab {
     return PdfBookTab(
         book:
             PdfBook(title: getTitleFromPath(json['path']), path: json['path']),
-        pageNumber: json['pageNumber']);
+        pageNumber: json['pageNumber'],
+        leftPaneWidth: (json['leftPaneWidth'] ?? 300).toDouble());
   }
 
   /// Converts the [PdfBookTab] instance into a JSON map.
@@ -73,6 +79,7 @@ class PdfBookTab extends OpenedTab {
       'path': book.path,
       'pageNumber':
           (pdfViewerController.isReady ? pdfViewerController.pageNumber : 1),
+      'leftPaneWidth': leftPaneWidth.value,
       'type': 'PdfBookTab'
     };
   }

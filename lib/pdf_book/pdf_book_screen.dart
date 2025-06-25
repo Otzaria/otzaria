@@ -12,6 +12,7 @@ import 'package:otzaria/utils/open_book.dart';
 import 'package:otzaria/utils/ref_helper.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:provider/provider.dart';
+import 'package:multi_split_view/multi_split_view.dart';
 import 'pdf_search_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'pdf_outlines_screen.dart';
@@ -301,11 +302,24 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                   }),
             ],
           ),
-          body: Row(
-            children: [
-              _buildLeftPane(),
-              Expanded(
-                child: ColorFiltered(
+          body: LayoutBuilder(builder: (context, constraints) {
+            final controller = MultiSplitViewController(
+              areas: [
+                Area(size: widget.tab.showLeftPane.value ? widget.tab.leftPaneWidth.value : 0),
+                Area(weight: 1),
+              ],
+            );
+            return MultiSplitView(
+              controller: controller,
+              axis: Axis.horizontal,
+              resizable: true,
+              dividerBuilder: (axis, index, resizable, dragging, highlighted, themeData) => const VerticalDivider(),
+              onDividerDragEnd: (index) {
+                widget.tab.leftPaneWidth.value = controller.areas[0].size ?? widget.tab.leftPaneWidth.value;
+              },
+              children: [
+                _buildLeftPane(),
+                ColorFiltered(
                   colorFilter: ColorFilter.mode(
                       Colors.white,
                       Provider.of<SettingsBloc>(context, listen: true)
@@ -417,19 +431,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   });
   }
 
-  AnimatedSize _buildLeftPane() {
-    return AnimatedSize(
-      duration: const Duration(milliseconds: 300),
-      child: ValueListenableBuilder(
-        valueListenable: widget.tab.showLeftPane,
-        builder: (context, showLeftPane, child) => SizedBox(
-          width: showLeftPane ? 300 : 0,
-          child: child!,
-        ),
-        child: Container(
-          color: Theme.of(context).colorScheme.surface,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(1, 0, 4, 0),
+  Widget _buildLeftPane() {
+    return Container(
+      color: Theme.of(context).colorScheme.surface,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(1, 0, 4, 0),
             child: Column(
               children: [
                 Row(

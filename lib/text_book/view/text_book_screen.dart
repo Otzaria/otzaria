@@ -21,6 +21,7 @@ import 'package:otzaria/text_book/view/links_screen.dart';
 import 'package:otzaria/text_book/view/splited_view/splited_view_screen.dart';
 import 'package:otzaria/text_book/view/text_book_search_screen.dart';
 import 'package:otzaria/text_book/view/toc_navigator_screen.dart';
+import 'package:multi_split_view/multi_split_view.dart';
 import 'package:otzaria/utils/open_book.dart';
 import 'package:otzaria/utils/page_converter.dart';
 import 'package:otzaria/utils/ref_helper.dart';
@@ -613,12 +614,28 @@ $selectedText
                 ),
               ],
             )
-          : Row(
-              children: [
-                _buildTabBar(state),
-                Expanded(child: _buildHTMLViewer(state)),
-              ],
-            ),
+          : (() {
+              final controller = MultiSplitViewController(areas: [
+                Area(size: state.showLeftPane ? state.leftPaneWidth : 0),
+                Area(weight: 1),
+              ]);
+              return MultiSplitView(
+                controller: controller,
+                axis: Axis.horizontal,
+                resizable: true,
+                dividerBuilder:
+                    (axis, index, resizable, dragging, highlighted, themeData) =>
+                        const VerticalDivider(),
+                onDividerDragEnd: (index) {
+                  context.read<TextBookBloc>().add(
+                      UpdateLeftPaneWidth(controller.areas[0].size ?? state.leftPaneWidth));
+                },
+                children: [
+                  _buildTabBar(state),
+                  _buildHTMLViewer(state),
+                ],
+              );
+            })(),
     );
   }
 

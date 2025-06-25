@@ -24,6 +24,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     on<UpdateSelectedIndex>(_onUpdateSelectedIndex);
     on<TogglePinLeftPane>(_onTogglePinLeftPane);
     on<UpdateSearchText>(_onUpdateSearchText);
+    on<UpdateLeftPaneWidth>(_onUpdateLeftPaneWidth);
   }
 
   Future<void> _onLoadContent(
@@ -211,6 +212,19 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       final currentState = state as TextBookLoaded;
       emit(currentState.copyWith(
         searchText: event.text,
+        selectedIndex: currentState.selectedIndex,
+      ));
+    }
+  }
+
+  void _onUpdateLeftPaneWidth(
+    UpdateLeftPaneWidth event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is TextBookLoaded) {
+      final currentState = state as TextBookLoaded;
+      emit(currentState.copyWith(
+        leftPaneWidth: event.width,
         selectedIndex: currentState.selectedIndex,
       ));
     }

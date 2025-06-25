@@ -84,6 +84,15 @@ class TogglePinLeftPane extends TextBookEvent {
   List<Object?> get props => [pin];
 }
 
+class UpdateLeftPaneWidth extends TextBookEvent {
+  final double width;
+
+  const UpdateLeftPaneWidth(this.width);
+
+  @override
+  List<Object?> get props => [width];
+}
+
 class UpdateSearchText extends TextBookEvent {
   final String text;
 

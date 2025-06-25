@@ -21,6 +21,8 @@ class TextBookTab extends OpenedTab {
 
   List<String>? commentators;
 
+  double leftPaneWidth;
+
   /// Creates a new instance of [TextBookTab].
   ///
   /// The [index] parameter represents the initial index of the item in the scrollable list,
@@ -34,6 +36,7 @@ class TextBookTab extends OpenedTab {
     this.commentators,
     bool openLeftPane = false,
     bool splitedView = true,
+    this.leftPaneWidth = 400,
   }) : super(book.title) {
     // Initialize the bloc with initial state
     bloc = TextBookBloc(
@@ -61,6 +64,7 @@ class TextBookTab extends OpenedTab {
       ),
       commentators: List<String>.from(json['commentators']),
       splitedView: json['splitedView'],
+      leftPaneWidth: (json['leftPaneWidth'] ?? 400).toDouble(),
     );
   }
 
@@ -78,6 +82,7 @@ class TextBookTab extends OpenedTab {
       commentators = loadedState.activeCommentators;
       splitedView = loadedState.showSplitView;
       index = loadedState.visibleIndices.first;
+      leftPaneWidth = loadedState.leftPaneWidth;
     }
 
     return {
@@ -85,6 +90,7 @@ class TextBookTab extends OpenedTab {
       'initalIndex': index,
       'commentators': commentators,
       'splitedView': splitedView,
+      'leftPaneWidth': leftPaneWidth,
       'type': 'TextBookTab'
     };
   }
