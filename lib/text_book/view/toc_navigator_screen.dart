@@ -137,6 +137,7 @@ class _TocViewerState extends State<TocViewer>
     }
 
     final tile = ListTile(
+      contentPadding: EdgeInsets.zero,
       title: Text(entry.text, overflow: TextOverflow.ellipsis),
       selected: isSelected,
       selectedColor: Theme.of(context).colorScheme.onSecondaryContainer,
@@ -146,7 +147,7 @@ class _TocViewerState extends State<TocViewer>
 
     if (entry.children.isEmpty || _searchController.text.isNotEmpty) {
       return Padding(
-        padding: EdgeInsets.fromLTRB(10.0 * level, 0, 0, 0),
+        padding: EdgeInsetsDirectional.only(start: 10.0 * level),
         child: tile,
       );
     }
@@ -154,15 +155,13 @@ class _TocViewerState extends State<TocViewer>
     final expanded = _expandedEntries.contains(entry);
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(10.0 * level, 0, 0, 0),
+      padding: EdgeInsetsDirectional.only(start: 10.0 * level),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
           key: PageStorageKey(entry),
           tilePadding: EdgeInsets.zero,
           childrenPadding: EdgeInsets.zero,
-          trailing: const SizedBox.shrink(),
-          leading: const Icon(Icons.chevron_right_rounded),
           onExpansionChanged: (value) {
             setState(() {
               if (value) {

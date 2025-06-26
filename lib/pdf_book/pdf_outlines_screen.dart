@@ -245,6 +245,7 @@ class _OutlineViewState extends State<OutlineView>
     }
 
     final tile = ListTile(
+      contentPadding: EdgeInsets.zero,
       title: Text(node.title, overflow: TextOverflow.ellipsis),
       selected: widget.controller.isReady &&
           node.dest?.pageNumber == widget.controller.pageNumber,
@@ -255,7 +256,7 @@ class _OutlineViewState extends State<OutlineView>
 
     if (node.children.isEmpty || _searchController.text.isNotEmpty) {
       return Padding(
-        padding: EdgeInsets.fromLTRB(10 * level.toDouble(), 0, 0, 0),
+        padding: EdgeInsetsDirectional.only(start: 10.0 * level),
         child: Material(color: Colors.transparent, child: tile),
       );
     }
@@ -263,15 +264,13 @@ class _OutlineViewState extends State<OutlineView>
     final expanded = _expandedNodes.contains(node);
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(10 * level.toDouble(), 0, 0, 0),
+      padding: EdgeInsetsDirectional.only(start: 10.0 * level),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
           key: PageStorageKey(node),
           tilePadding: EdgeInsets.zero,
           childrenPadding: EdgeInsets.zero,
-          trailing: const SizedBox.shrink(),
-          leading: const Icon(Icons.chevron_right_rounded),
           onExpansionChanged: (value) {
             setState(() {
               if (value) {
