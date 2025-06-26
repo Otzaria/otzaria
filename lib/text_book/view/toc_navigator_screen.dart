@@ -29,17 +29,23 @@ class _TocViewerState extends State<TocViewer>
   final _searchController = TextEditingController();
   final _itemScrollController = ItemScrollController();
   bool _isManuallyScrolling = false;
+  final Map<TocEntry, TocEntry?> _parentMap = {};
+  final Set<TocEntry> _expandedEntries = {};
 
   @override
   bool get wantKeepAlive => true;
 
   List<({TocEntry entry, int level})> _flattenToc(
-      List<TocEntry> entries, int level) {
+      List<TocEntry> entries, int level, [TocEntry? parent]) {
     final List<({TocEntry entry, int level})> list = [];
     for (final entry in entries) {
+      _parentMap[entry] = parent;
       list.add((entry: entry, level: level));
+      if (level == 0) {
+        _expandedEntries.add(entry);
+      }
       if (entry.children.isNotEmpty) {
-        list.addAll(_flattenToc(entry.children, level + 1));
+        list.addAll(_flattenToc(entry.children, level + 1, entry));
       }
     }
     return list;
@@ -53,26 +59,61 @@ class _TocViewerState extends State<TocViewer>
         state.selectedIndex ?? state.visibleIndices.first;
 
     int targetTocIndex = -1;
+    TocEntry? targetEntry;
     for (int i = 0; i < flattenedToc.length; i++) {
       if (flattenedToc[i].entry.index <= currentContentIndex) {
         targetTocIndex = i;
+        targetEntry = flattenedToc[i].entry;
       } else {
         break;
       }
     }
 
-    if (targetTocIndex != -1) {
-      SchedulerBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _itemScrollController.isAttached) {
-          _itemScrollController.scrollTo(
-            index: targetTocIndex,
-            duration: const Duration(milliseconds: 300),
-            alignment: 0.5,
-            curve: Curves.easeInOut,
-          );
-        }
-      });
+    if (targetTocIndex != -1 && targetEntry != null) {
+      TocEntry? parent = _parentMap[targetEntry];
+      while (parent != null) {
+        _expandedEntries.add(parent);
+        parent = _parentMap[parent];
+      }
+
+      final visibleToc = _searchController.text.isEmpty
+          ? _visibleToc(state.tableOfContents)
+          : flattenedToc
+              .where((item) => item.entry.text
+                  .toLowerCase()
+                  .contains(_searchController.text.toLowerCase()))
+              .toList();
+
+      final visibleIndex =
+          visibleToc.indexWhere((item) => item.entry == targetEntry);
+
+      if (visibleIndex != -1) {
+        SchedulerBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _itemScrollController.isAttached) {
+            _itemScrollController.scrollTo(
+              index: visibleIndex,
+              duration: const Duration(milliseconds: 300),
+              alignment: 0.5,
+              curve: Curves.easeInOut,
+            );
+          }
+        });
+      }
     }
+  }
+
+  List<({TocEntry entry, int level})> _visibleToc(List<TocEntry> entries,
+      [int level = 0]) {
+    final List<({TocEntry entry, int level})> list = [];
+
+    for (final entry in entries) {
+      list.add((entry: entry, level: level));
+      if (_expandedEntries.contains(entry)) {
+        list.addAll(_visibleToc(entry.children, level + 1));
+      }
+    }
+
+    return list;
   }
 
   Widget _buildTocItem(TocEntry entry, int level, bool isSelected) {
@@ -92,14 +133,46 @@ class _TocViewerState extends State<TocViewer>
       }
     }
 
+    final tile = ListTile(
+      title: Text(entry.text, overflow: TextOverflow.ellipsis),
+      selected: isSelected,
+      selectedColor: Theme.of(context).colorScheme.onSecondaryContainer,
+      selectedTileColor: Theme.of(context).colorScheme.secondaryContainer,
+      onTap: () => navigateToEntry(true),
+    );
+
+    if (entry.children.isEmpty || _searchController.text.isNotEmpty) {
+      return Padding(
+        padding: EdgeInsets.fromLTRB(0, 0, 10.0 * level, 0),
+        child: tile,
+      );
+    }
+
+    final expanded = _expandedEntries.contains(entry);
+
     return Padding(
       padding: EdgeInsets.fromLTRB(0, 0, 10.0 * level, 0),
-      child: ListTile(
-        title: Text(entry.text, overflow: TextOverflow.ellipsis),
-        selected: isSelected,
-        selectedColor: Theme.of(context).colorScheme.onSecondaryContainer,
-        selectedTileColor: Theme.of(context).colorScheme.secondaryContainer,
-        onTap: () => navigateToEntry(true),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          key: PageStorageKey(entry),
+          tilePadding: EdgeInsets.zero,
+          childrenPadding: EdgeInsets.zero,
+          trailing: const SizedBox.shrink(),
+          leading: const Icon(Icons.chevron_right_rounded),
+          onExpansionChanged: (value) {
+            setState(() {
+              if (value) {
+                _expandedEntries.add(entry);
+              } else {
+                _expandedEntries.remove(entry);
+              }
+            });
+          },
+          initiallyExpanded: expanded,
+          title: tile,
+          children: const [],
+        ),
       ),
     );
   }
@@ -110,12 +183,14 @@ class _TocViewerState extends State<TocViewer>
     return BlocBuilder<TextBookBloc, TextBookState>(builder: (context, state) {
       if (state is! TextBookLoaded) return const Center();
 
-      _scrollToCurrent(state);
-
+      _parentMap.clear();
+      _expandedEntries.clear();
       final flattenedToc = _flattenToc(state.tableOfContents, 0);
 
-      final filteredToc = _searchController.text.isEmpty
-          ? flattenedToc
+      _scrollToCurrent(state);
+
+      final visibleToc = _searchController.text.isEmpty
+          ? _visibleToc(state.tableOfContents)
           : flattenedToc
               .where((item) => item.entry.text
                   .toLowerCase()
@@ -175,9 +250,9 @@ class _TocViewerState extends State<TocViewer>
               },
               child: ScrollablePositionedList.builder(
                   itemScrollController: _itemScrollController,
-                  itemCount: filteredToc.length,
+                  itemCount: visibleToc.length,
                   itemBuilder: (context, index) {
-                    final item = filteredToc[index];
+                    final item = visibleToc[index];
                     bool isSelected = item.entry == currentTocEntry;
                     return _buildTocItem(item.entry, item.level, isSelected);
                   }),

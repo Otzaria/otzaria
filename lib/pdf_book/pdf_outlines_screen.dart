@@ -24,6 +24,8 @@ class _OutlineViewState extends State<OutlineView>
   final _searchController = TextEditingController();
   final _itemScrollController = ItemScrollController();
   List<({PdfOutlineNode node, int level})>? _flattenedOutline;
+  final Map<PdfOutlineNode, PdfOutlineNode?> _parentMap = {};
+  final Set<PdfOutlineNode> _expandedNodes = {};
   bool _isManuallyScrolling = false;
 
   @override
@@ -40,11 +42,15 @@ class _OutlineViewState extends State<OutlineView>
   void didUpdateWidget(covariant OutlineView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.controller != widget.controller) {
+      _parentMap.clear();
+      _expandedNodes.clear();
       _flattenedOutline = _flattenOutline(widget.outline, 0);
       oldWidget.controller.removeListener(_onControllerChanged);
       widget.controller.addListener(_onControllerChanged);
     }
     if (widget.outline != oldWidget.outline) {
+      _parentMap.clear();
+      _expandedNodes.clear();
       _flattenedOutline = _flattenOutline(widget.outline, 0);
     }
   }
@@ -72,26 +78,45 @@ class _OutlineViewState extends State<OutlineView>
     if (currentPage == null) return;
 
     int targetIndex = -1;
+    PdfOutlineNode? targetNode;
     for (int i = 0; i < _flattenedOutline!.length; i++) {
       final page = _flattenedOutline![i].node.dest?.pageNumber;
       if (page != null && page <= currentPage) {
         targetIndex = i;
+        targetNode = _flattenedOutline![i].node;
       } else if (page != null && page > currentPage) {
         break;
       }
     }
 
-    if (targetIndex != -1) {
-      // Use SchedulerBinding to ensure the scroll happens after the build phase
-      SchedulerBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _itemScrollController.isAttached) {
-          _itemScrollController.scrollTo(
-              index: targetIndex,
-              duration: const Duration(milliseconds: 300),
-              alignment: 0.5,
-              curve: Curves.ease);
-        }
-      });
+    if (targetIndex != -1 && targetNode != null) {
+      PdfOutlineNode? parent = _parentMap[targetNode];
+      while (parent != null) {
+        _expandedNodes.add(parent);
+        parent = _parentMap[parent];
+      }
+
+      final visibleNodes = _searchController.text.isEmpty
+          ? _visibleNodes()
+          : _flattenedOutline!
+              .where((item) => item.node.title
+                  .toLowerCase()
+                  .contains(_searchController.text.toLowerCase()))
+              .toList();
+      final visibleIndex =
+          visibleNodes.indexWhere((item) => item.node == targetNode);
+
+      if (visibleIndex != -1) {
+        SchedulerBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _itemScrollController.isAttached) {
+            _itemScrollController.scrollTo(
+                index: visibleIndex,
+                duration: const Duration(milliseconds: 300),
+                alignment: 0.5,
+                curve: Curves.ease);
+          }
+        });
+      }
     }
   }
 
@@ -151,13 +176,18 @@ class _OutlineViewState extends State<OutlineView>
   }
 
   List<({PdfOutlineNode node, int level})> _flattenOutline(
-      List<PdfOutlineNode>? outline, int level) {
+      List<PdfOutlineNode>? outline, int level,
+      [PdfOutlineNode? parent]) {
     if (outline == null) return [];
     final List<({PdfOutlineNode node, int level})> list = [];
     for (final node in outline) {
+      _parentMap[node] = parent;
       list.add((node: node, level: level));
+      if (level == 0) {
+        _expandedNodes.add(node); // root nodes expanded by default
+      }
       if (node.children.isNotEmpty) {
-        list.addAll(_flattenOutline(node.children, level + 1));
+        list.addAll(_flattenOutline(node.children, level + 1, node));
       }
     }
     return list;
@@ -167,8 +197,8 @@ class _OutlineViewState extends State<OutlineView>
     final items = _flattenedOutline;
     if (items == null) return const SizedBox.shrink();
 
-    final filteredNodes = _searchController.text.isEmpty
-        ? items
+    final visibleNodes = _searchController.text.isEmpty
+        ? _visibleNodes()
         : items
             .where((item) => item.node.title
                 .toLowerCase()
@@ -177,10 +207,27 @@ class _OutlineViewState extends State<OutlineView>
 
     return ScrollablePositionedList.builder(
         itemScrollController: _itemScrollController,
-        itemCount: filteredNodes.length,
+        itemCount: visibleNodes.length,
         itemBuilder: (context, index) => _buildOutlineItem(
-            filteredNodes[index].node,
-            level: filteredNodes[index].level));
+            visibleNodes[index].node,
+            level: visibleNodes[index].level));
+  }
+
+  List<({PdfOutlineNode node, int level})> _visibleNodes() {
+    final List<({PdfOutlineNode node, int level})> list = [];
+
+    void addNodes(List<PdfOutlineNode>? nodes, int level) {
+      if (nodes == null) return;
+      for (final node in nodes) {
+        list.add((node: node, level: level));
+        if (_expandedNodes.contains(node)) {
+          addNodes(node.children, level + 1);
+        }
+      }
+    }
+
+    addNodes(widget.outline, 0);
+    return list;
   }
 
   Widget _buildOutlineItem(PdfOutlineNode node, {int level = 0}) {
@@ -197,20 +244,48 @@ class _OutlineViewState extends State<OutlineView>
       }
     }
 
-    return Padding(
+    final tile = ListTile(
+      title: Text(node.title, overflow: TextOverflow.ellipsis),
+      selected: widget.controller.isReady &&
+          node.dest?.pageNumber == widget.controller.pageNumber,
+      selectedColor: Theme.of(context).colorScheme.onSecondaryContainer,
+      selectedTileColor: Theme.of(context).colorScheme.secondaryContainer,
+      onTap: () => navigateToEntry(true),
+    );
+
+    if (node.children.isEmpty || _searchController.text.isNotEmpty) {
+      return Padding(
         padding: EdgeInsets.fromLTRB(0, 0, 10 * level.toDouble(), 0),
-        child: Material(
-          color: Colors.transparent,
-          child: ListTile(
-            title: Text(node.title, overflow: TextOverflow.ellipsis),
-            selected: widget.controller.isReady &&
-                node.dest?.pageNumber == widget.controller.pageNumber,
-            selectedColor: Theme.of(context).colorScheme.onSecondaryContainer,
-            selectedTileColor: Theme.of(context).colorScheme.secondaryContainer,
-            onTap: () => navigateToEntry(true),
-            hoverColor: Theme.of(context).hoverColor,
-            mouseCursor: SystemMouseCursors.click,
-          ),
-        ));
+        child: Material(color: Colors.transparent, child: tile),
+      );
+    }
+
+    final expanded = _expandedNodes.contains(node);
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(0, 0, 10 * level.toDouble(), 0),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          key: PageStorageKey(node),
+          tilePadding: EdgeInsets.zero,
+          childrenPadding: EdgeInsets.zero,
+          trailing: const SizedBox.shrink(),
+          leading: const Icon(Icons.chevron_right_rounded),
+          onExpansionChanged: (value) {
+            setState(() {
+              if (value) {
+                _expandedNodes.add(node);
+              } else {
+                _expandedNodes.remove(node);
+              }
+            });
+          },
+          initiallyExpanded: expanded,
+          title: tile,
+          children: const [],
+        ),
+      ),
+    );
   }
 }
