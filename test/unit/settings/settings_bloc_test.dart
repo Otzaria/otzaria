@@ -40,6 +40,7 @@ void main() {
         'replaceHolyNames': false,
         'autoUpdateIndex': false,
         'defaultRemoveNikud': true,
+        'defaultSidebarOpen': true,
       };
 
       blocTest<SettingsBloc, SettingsState>(
@@ -65,6 +66,7 @@ void main() {
             replaceHolyNames: mockSettings['replaceHolyNames'] as bool,
             autoUpdateIndex: mockSettings['autoUpdateIndex'] as bool,
             defaultRemoveNikud: mockSettings['defaultRemoveNikud'] as bool,
+            defaultSidebarOpen: mockSettings['defaultSidebarOpen'] as bool,
           ),
         ],
         verify: (_) {
@@ -145,6 +147,20 @@ void main() {
         ],
         verify: (_) {
           verify(mockRepository.updateDefaultRemoveNikud(true)).called(1);
+        },
+      );
+    });
+
+    group('UpdateDefaultSidebarOpen', () {
+      blocTest<SettingsBloc, SettingsState>(
+        'emits updated state when UpdateDefaultSidebarOpen is added',
+        build: () => settingsBloc,
+        act: (bloc) => bloc.add(const UpdateDefaultSidebarOpen(true)),
+        expect: () => [
+          settingsBloc.state.copyWith(defaultSidebarOpen: true),
+        ],
+        verify: (_) {
+          verify(mockRepository.updateDefaultSidebarOpen(true)).called(1);
         },
       );
     });
