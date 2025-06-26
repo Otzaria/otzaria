@@ -255,7 +255,7 @@ class _OutlineViewState extends State<OutlineView>
 
     if (node.children.isEmpty || _searchController.text.isNotEmpty) {
       return Padding(
-        padding: EdgeInsets.fromLTRB(0, 0, 10 * level.toDouble(), 0),
+        padding: EdgeInsets.fromLTRB(10 * level.toDouble(), 0, 0, 0),
         child: Material(color: Colors.transparent, child: tile),
       );
     }
@@ -263,7 +263,7 @@ class _OutlineViewState extends State<OutlineView>
     final expanded = _expandedNodes.contains(node);
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(0, 0, 10 * level.toDouble(), 0),
+      padding: EdgeInsets.fromLTRB(10 * level.toDouble(), 0, 0, 0),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(

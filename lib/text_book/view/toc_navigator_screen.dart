@@ -31,6 +31,8 @@ class _TocViewerState extends State<TocViewer>
   bool _isManuallyScrolling = false;
   final Map<TocEntry, TocEntry?> _parentMap = {};
   final Set<TocEntry> _expandedEntries = {};
+  List<({TocEntry entry, int level})>? _flattenedToc;
+  List<TocEntry>? _tocCache;
 
   @override
   bool get wantKeepAlive => true;
@@ -41,7 +43,7 @@ class _TocViewerState extends State<TocViewer>
     for (final entry in entries) {
       _parentMap[entry] = parent;
       list.add((entry: entry, level: level));
-      if (level == 0) {
+      if (level == 0 && _expandedEntries.isEmpty) {
         _expandedEntries.add(entry);
       }
       if (entry.children.isNotEmpty) {
@@ -54,7 +56,8 @@ class _TocViewerState extends State<TocViewer>
   void _scrollToCurrent(TextBookLoaded state) {
     if (_isManuallyScrolling || !_itemScrollController.isAttached) return;
 
-    final flattenedToc = _flattenToc(state.tableOfContents, 0);
+    final flattenedToc =
+        _flattenedToc ?? _flattenToc(state.tableOfContents, 0);
     final currentContentIndex =
         state.selectedIndex ?? state.visibleIndices.first;
 
@@ -143,7 +146,7 @@ class _TocViewerState extends State<TocViewer>
 
     if (entry.children.isEmpty || _searchController.text.isNotEmpty) {
       return Padding(
-        padding: EdgeInsets.fromLTRB(0, 0, 10.0 * level, 0),
+        padding: EdgeInsets.fromLTRB(10.0 * level, 0, 0, 0),
         child: tile,
       );
     }
@@ -151,7 +154,7 @@ class _TocViewerState extends State<TocViewer>
     final expanded = _expandedEntries.contains(entry);
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(0, 0, 10.0 * level, 0),
+      padding: EdgeInsets.fromLTRB(10.0 * level, 0, 0, 0),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
@@ -183,9 +186,14 @@ class _TocViewerState extends State<TocViewer>
     return BlocBuilder<TextBookBloc, TextBookState>(builder: (context, state) {
       if (state is! TextBookLoaded) return const Center();
 
-      _parentMap.clear();
-      _expandedEntries.clear();
-      final flattenedToc = _flattenToc(state.tableOfContents, 0);
+      if (_tocCache != state.tableOfContents) {
+        _parentMap.clear();
+        _expandedEntries.clear();
+        _flattenedToc = _flattenToc(state.tableOfContents, 0);
+        _tocCache = state.tableOfContents;
+      }
+      final flattenedToc = _flattenedToc ??
+          _flattenToc(state.tableOfContents, 0);
 
       _scrollToCurrent(state);
 
