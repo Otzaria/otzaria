@@ -237,7 +237,7 @@ class TextFileSearchScreenState extends State<TextFileSearchScreen>
           ),
           subtitle: SearchHighlightText(
             result.snippet,
-            searchText: result.query,
+            searchRegExp: RegExp(RegExp.escape(result.query)),
             textAlign: TextAlign.justify,
           ),
           onTap: () {

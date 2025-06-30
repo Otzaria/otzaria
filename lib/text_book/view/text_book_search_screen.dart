@@ -150,8 +150,10 @@ class TextBookSearchViewState extends State<TextBookSearchView>
               } else {
                 final result = item.result!;
                 return ListTile(
-                    subtitle: SearchHighlightText(result.snippet,
-                        searchText: result.query),
+                    subtitle: SearchHighlightText(
+                        result.snippet,
+                        searchRegExp: RegExp(RegExp.escape(result.query)),
+                    ),
                     onTap: () {
                       widget.scrollControler.scrollTo(
                         index: result.index,
