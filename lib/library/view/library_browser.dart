@@ -22,8 +22,7 @@ import 'package:otzaria/file_sync/file_sync_repository.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/daf_yomi/daf_yomi.dart';
 import 'package:otzaria/file_sync/file_sync_widget.dart';
-import 'package:otzaria/widgets/filter_list/src/filter_list_dialog.dart';
-import 'package:otzaria/widgets/filter_list/src/theme/filter_list_theme.dart';
+import 'package:search_engine/search_engine.dart';
 import 'package:otzaria/library/view/grid_items.dart';
 import 'package:otzaria/library/view/otzar_book_dialog.dart';
 
@@ -151,13 +150,6 @@ class _LibraryBrowserState extends State<LibraryBrowser>
             body: Column(
               children: [
                 _buildSearchBar(state),
-                if (context
-                        .read<FocusRepository>()
-                        .librarySearchController
-                        .text
-                        .length >
-                    2)
-                  _buildTopicsSelection(context, state, settingsState),
                 Expanded(
                   child: _buildContent(state),
                 ),
@@ -216,73 +208,6 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     );
   }
 
-  Widget _buildTopicsSelection(
-      BuildContext context, LibraryState state, SettingsState settingsState) {
-    if (state.searchResults == null) {
-      return const SizedBox.shrink();
-    }
-
-    final categoryTopics = [
-      "תנך",
-      "מדרש",
-      "משנה",
-      "תלמוד בבלי",
-      "תלמוד ירושלמי",
-      "הלכה",
-      "משנה תורה",
-      "שולחן ערוך",
-      "חסידות",
-      "קבלה",
-      "ספרי מוסר",
-      "שות",
-      "ראשונים",
-      "אחרונים",
-      "מחברי זמננו"
-    ];
-
-    final allTopics = _getAllTopics(state.searchResults!);
-
-    final relevantTopics =
-        categoryTopics.where((element) => allTopics.contains(element)).toList();
-
-    return FilterListWidget<String>(
-      hideSearchField: true,
-      controlButtons: const [],
-      themeData: FilterListThemeData(
-        context,
-        wrapAlignment: WrapAlignment.center,
-      ),
-      onApplyButtonClick: (list) {
-        context.read<LibraryBloc>().add(SelectTopics(list ?? []));
-        _update(context, state, settingsState);
-        _refocusSearchBar();
-      },
-      validateSelectedItem: (list, item) => list != null && list.contains(item),
-      onItemSearch: (item, query) => item == query,
-      listData: relevantTopics,
-      selectedListData: state.selectedTopics ?? [],
-      choiceChipLabel: (p0) => p0,
-      hideSelectedTextCount: true,
-      choiceChipBuilder: (context, item, isSelected) => Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 3,
-          vertical: 2,
-        ),
-        child: Chip(
-          label: Text(item),
-          backgroundColor:
-              isSelected! ? Theme.of(context).colorScheme.secondary : null,
-          labelStyle: TextStyle(
-            color:
-                isSelected ? Theme.of(context).colorScheme.onSecondary : null,
-            fontSize: 11,
-          ),
-          labelPadding: const EdgeInsets.all(0),
-        ),
-      ),
-    );
-  }
-
   Widget _buildContent(LibraryState state) {
     final items = state.searchResults != null
         ? _buildSearchResults(state.searchResults!)
@@ -319,21 +244,19 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     );
   }
 
-  Future<List<Widget>> _buildSearchResults(List<Book> books) async {
-    return [
-      Column(
-        children: [
-          MyGridView(
-            items: Future.value(
-              books
-                  .take(100)
-                  .map((book) => _buildBookItem(book, showTopics: true))
-                  .toList(),
-            ),
+  Future<List<Widget>> _buildSearchResults(
+      List<ReferenceSearchResult> results) async {
+    return results
+        .take(100)
+        .map(
+          (r) => ListTile(
+            leading: r.isPdf ? const Icon(Icons.picture_as_pdf) : null,
+            title: Text(r.reference),
+            subtitle: Text(r.title),
+            onTap: () => _openSearchResult(r),
           ),
-        ],
-      ),
-    ];
+        )
+        .toList();
   }
 
   Future<List<Widget>> _buildCategoryContent(Category category) async {
@@ -450,6 +373,25 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     _refocusSearchBar();
   }
 
+  void _openSearchResult(ReferenceSearchResult result) {
+    final tabsBloc = context.read<TabsBloc>();
+    final navigationBloc = context.read<NavigationBloc>();
+    if (result.isPdf) {
+      tabsBloc.add(AddTab(PdfBookTab(
+          book: PdfBook(title: result.title, path: result.filePath),
+          pageNumber: result.segment.toInt(),
+          openLeftPane: (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
+              (Settings.getValue<bool>('key-default-sidebar-open') ?? false))));
+    } else {
+      tabsBloc.add(AddTab(TextBookTab(
+          book: TextBook(title: result.title),
+          index: result.segment.toInt(),
+          openLeftPane: (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
+              (Settings.getValue<bool>('key-default-sidebar-open') ?? false))));
+    }
+    navigationBloc.add(const NavigateToScreen(Screen.reading));
+  }
+
   void _showFilterDialog(BuildContext context, LibraryState state) {
     showDialog(
       context: context,
@@ -488,14 +430,6 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         }),
       ),
     ).then((_) => _refocusSearchBar());
-  }
-
-  List<String> _getAllTopics(List<Book> books) {
-    final Set<String> topics = {};
-    for (final book in books) {
-      topics.addAll(book.topics.split(', '));
-    }
-    return topics.toList();
   }
 
   void _update(

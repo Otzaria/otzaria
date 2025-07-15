@@ -2,11 +2,13 @@ import 'dart:isolate';
 
 import 'package:fuzzywuzzy/fuzzywuzzy.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
+import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
 import 'package:otzaria/indexing/bloc/indexing_event.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/isar_collections/ref.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:search_engine/search_engine.dart';
 
 /// DataRepository acts as a centralized data access layer that coordinates between different
 /// data providers (file system, Isar database, and Tantivy search engine).
@@ -177,5 +179,10 @@ class DataRepository {
           .toList();
     }
     return filteredBooks;
+  }
+
+  Future<List<ReferenceSearchResult>> searchBookRefs(
+      String query, int limit, bool fuzzy) async {
+    return TantivyDataProvider.instance.searchRefs(query, limit, fuzzy);
   }
 }

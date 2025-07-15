@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import 'package:otzaria/models/books.dart';
+import 'package:search_engine/search_engine.dart';
 import 'package:otzaria/library/models/library.dart';
 
 class LibraryState extends Equatable {
@@ -7,7 +7,7 @@ class LibraryState extends Equatable {
   final bool isLoading;
   final String? error;
   final Category? currentCategory;
-  final List<Book>? searchResults;
+  final List<ReferenceSearchResult>? searchResults;
   final String? searchQuery;
   final List<String>? selectedTopics;
 
@@ -30,7 +30,7 @@ class LibraryState extends Equatable {
     bool? isLoading,
     String? error,
     Category? currentCategory,
-    List<Book>? searchResults,
+    List<ReferenceSearchResult>? searchResults,
     String? searchQuery,
     List<String>? selectedTopics,
   }) {

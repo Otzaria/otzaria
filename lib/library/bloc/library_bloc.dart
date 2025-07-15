@@ -156,13 +156,8 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     }
 
     try {
-      final results = await _repository.findBooks(
-        state.searchQuery!,
-        state.currentCategory,
-        topics: state.selectedTopics,
-        includeOtzar: event.showOtzarHachochma ?? false,
-        includeHebrewBooks: event.showHebrewBooks ?? false,
-      );
+      final results =
+          await _repository.searchBookRefs(state.searchQuery!, 100, false);
 
       emit(state.copyWith(
         searchResults: results,
