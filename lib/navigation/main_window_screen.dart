@@ -33,8 +33,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
     with TickerProviderStateMixin {
   late final PageController pageController;
   Orientation? _previousOrientation;
-  Screen? _lastNonFindScreen;
-  Screen? _lastNonFindScreen;
+  // Tracks the last non-find screen so we can restore it after closing the
+  // find dialog.
+  Screen _trackedCurrentScreen = Screen.library;
 
   // Keep the pages list as templates; the actual first page (library)
   // will be built dynamically in build() to allow showing the
@@ -157,14 +158,12 @@ class MainWindowScreenState extends State<MainWindowScreen>
       // If navigation requested the Find popup, show it as a dialog
       // above the current content and then restore the previous screen.
       if (state.currentScreen == Screen.find) {
-        // store last non-find screen
-        _lastNonFindScreen ??= context.read<NavigationBloc>().state.currentScreen == Screen.find
-            ? Screen.library
-            : context.read<NavigationBloc>().state.currentScreen;
+        final prev = _trackedCurrentScreen;
 
         // show dialog
         await showDialog(
           context: context,
+          barrierDismissible: true,
           builder: (context) => Dialog(
             insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 80),
             child: SizedBox(
@@ -175,72 +174,32 @@ class MainWindowScreenState extends State<MainWindowScreen>
           ),
         );
 
-        // after dialog closed, restore previous screen if it exists
-        final prev = _lastNonFindScreen ?? Screen.library;
-        _lastNonFindScreen = null;
+        // after dialog closed, restore previous screen
         context.read<NavigationBloc>().add(NavigateToScreen(prev));
         return;
       }
 
-      // If the navigation target is the special 'find' screen,
-      // open it as a centered dialog above the current UI and then
-      // restore the previous screen when the dialog closes.
-      if (state.currentScreen == Screen.find) {
-        // remember previous screen to restore after dialog
-        _lastNonFindScreen ??= state.previousScreen ?? Screen.library;
+      // Update tracked screen and animate page to the requested screen
+      _trackedCurrentScreen = state.currentScreen;
 
-        // ensure any existing page animation finishes
-        if (pageController.hasClients) {
-          await pageController.animateToPage(
-            state.previousScreen?.index ?? Screen.library.index,
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeInOut,
-          );
-        }
+      final targetPage = state.currentScreen == Screen.search
+          ? Screen.reading.index
+          : state.currentScreen.index;
 
-        // show the dialog with a constrained size
-        if (mounted && context.mounted) {
-          await showDialog(
-            context: context,
-            barrierDismissible: true,
-            builder: (context) {
-              return Dialog(
-                insetPadding: const EdgeInsets.symmetric(horizontal: 80, vertical: 80),
-                child: SizedBox(
-                  width: 700,
-                  height: 520,
-                  child: const FindRefScreen(),
-                ),
-              );
-            },
-          );
-
-          // restore previous screen in the navigation bloc
-          if (!mounted || !context.mounted) return;
-          final navBloc = context.read<NavigationBloc>();
-          final restore = _lastNonFindScreen ?? Screen.library;
-          _lastNonFindScreen = null;
-          navBloc.add(NavigateToScreen(restore));
-        }
-      } else {
-        final targetPage = state.currentScreen == Screen.search
-            ? Screen.reading.index
-            : state.currentScreen.index;
-
-        if (pageController.page?.round() != targetPage) {
-          await pageController.animateToPage(
-            targetPage,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-          );
-          if (!mounted || !context.mounted) return;
-        }
-        if (state.currentScreen == Screen.library) {
-          context
-              .read<FocusRepository>()
-              .requestLibrarySearchFocus(selectAll: true);
-        }
+      if (pageController.page?.round() != targetPage) {
+        await pageController.animateToPage(
+          targetPage,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+        if (!mounted || !context.mounted) return;
       }
+      if (state.currentScreen == Screen.library) {
+        context
+            .read<FocusRepository>()
+            .requestLibrarySearchFocus(selectAll: true);
+      }
+    }
     }
   }
 
