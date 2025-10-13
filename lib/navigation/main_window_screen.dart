@@ -200,7 +200,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
             .requestLibrarySearchFocus(selectAll: true);
       }
     }
-    }
   }
 
   @override
