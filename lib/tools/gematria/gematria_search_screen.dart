@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'gematria_search.dart';
+import 'package:otzaria/models/books.dart';
+import 'package:otzaria/utils/open_book.dart';
 
 class GematriaSearchScreen extends StatefulWidget {
   const GematriaSearchScreen({super.key});
@@ -390,7 +392,10 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
       ),
       child: InkWell(
         onTap: () {
-          // כאן תוסיף פעולה בלחיצה על התוצאה
+          final book = TextBook(title: result.bookTitle);
+          final index = result.data.line - 1;
+          final searchQuery = result.preview;
+          openBook(context, book, index, searchQuery, ignoreHistory: true);
         },
         borderRadius: BorderRadius.circular(12),
         child: Padding(

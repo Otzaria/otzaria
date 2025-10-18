@@ -37,6 +37,7 @@ import 'package:otzaria/notes/notes_system.dart';
 import 'package:otzaria/models/phone_report_data.dart';
 import 'package:otzaria/services/data_collection_service.dart';
 import 'package:otzaria/services/phone_report_service.dart';
+import 'package:search_highlight_text/search_highlight_text.dart';
 
 import 'package:otzaria/widgets/phone_report_tab.dart';
 import 'package:otzaria/widgets/responsive_action_bar.dart';
