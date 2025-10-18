@@ -66,7 +66,7 @@ dependencies:
   url_launcher: ^6.3.1
   flutter_widget_from_html: ^0.17.0
   scrollable_positioned_list: ^0.3.8
-  search_highlight_text: ^1.0.1
+  search_highlight_text: ^1.0.0+2
   fuzzywuzzy: ^1.1.6
   file_picker: ^10.2.1
   permission_handler: ^11.3.0
