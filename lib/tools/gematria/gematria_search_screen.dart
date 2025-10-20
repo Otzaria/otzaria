@@ -36,16 +36,38 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
     final searchText = _searchController.text.trim();
     if (searchText.isEmpty) return;
 
+    int? targetGimatria;
+
+    // Check if input is a number
+    final numericValue = int.tryParse(searchText);
+    if (numericValue != null) {
+      targetGimatria = numericValue;
+    } else {
+      // Check for invalid characters (allow Hebrew letters, spaces, and quotes)
+      final validChars = RegExp(r'^[א-ת\s"''\\]+$');
+      if (!validChars.hasMatch(searchText)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('קלט לא תקין. יש להזין אותיות עבריות או מספרים בלבד.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+      targetGimatria = GimatriaSearch.gimatria(searchText);
+    }
+
+    if (targetGimatria == null) return;
+
     setState(() {
       _isSearching = true;
       _searchResults = [];
+      _lastGematriaValue = targetGimatria;
     });
 
     try {
-      // חישוב הגימטריה של הטקסט שהוזן
-      final targetGimatria = GimatriaSearch.gimatria(searchText);
-      _lastGematriaValue = targetGimatria;
-
       // קבלת נתיב הספרייה מההגדרות
       final libraryPath = Settings.getValue<String>('key-library-path') ?? '.';
 
