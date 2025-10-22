@@ -144,7 +144,8 @@ class GimatriaSearch {
       int fileLimit = 1000,
       bool wholeVerseOnly = false,
       bool debug = false,
-      String gematriaMethod = 'regular'}) async {
+      String gematriaMethod = 'regular',
+      bool useWithKolel = false}) async {
     final List<SearchResult> found = [];
     final dir = Directory(folder);
     if (!await dir.exists()) return found;
@@ -194,8 +195,14 @@ class GimatriaSearch {
 
           // אם מחפשים פסוק שלם, בדוק את כל השורה
           if (wholeVerseOnly) {
-            final totalValue =
+            var totalValue =
                 words.map((w) => gimatria(w, method: gematriaMethod)).fold(0, (a, b) => a + b);
+            
+            // הוספת הכולל אם נדרש
+            if (useWithKolel) {
+              totalValue += words.length;
+            }
+            
             if (totalValue == targetGimatria) {
               final phrase = words.join(' ');
               final path = _extractPathFromLines(lines, i);
@@ -217,7 +224,14 @@ class GimatriaSearch {
                   offset < maxPhraseWords && start + offset < words.length;
                   offset++) {
                 acc += wordValues[start + offset];
-                if (acc == targetGimatria) {
+                
+                // הוספת הכולל אם נדרש
+                var finalValue = acc;
+                if (useWithKolel) {
+                  finalValue += (offset + 1); // מספר המילים בקטע הנוכחי
+                }
+                
+                if (finalValue == targetGimatria) {
                   final phrase =
                       words.sublist(start, start + offset + 1).join(' ');
                   final path = _extractPathFromLines(lines, i);
@@ -230,7 +244,7 @@ class GimatriaSearch {
                       path: path,
                       verseNumber: verseNumber));
                   if (found.length >= fileLimit) return found;
-                } else if (acc > targetGimatria) {
+                } else if (finalValue > targetGimatria) {
                   break;
                 }
               }

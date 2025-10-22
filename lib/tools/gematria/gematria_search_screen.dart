@@ -22,6 +22,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
   bool _hasSearched = false; // האם בוצע חיפוש בפועל
   bool _useSmallGematria = false; // שימוש בגימטריה קטנה
   bool _useFinalLetters = false; // שימוש באותיות סופיות שונות
+  bool _useWithKolel = false; // שימוש בגימטריה עם הכולל
 
   @override
   void initState() {
@@ -42,7 +43,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
     if (searchText.isEmpty) return;
 
     int? targetGimatria;
-    
+
     // קביעת שיטת החישוב
     String gematriaMethod = 'regular';
     if (_useSmallGematria) {
@@ -71,8 +72,17 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
         }
         return;
       }
+
+      targetGimatria = GimatriaSearch.gimatria(
+        searchText,
+        method: gematriaMethod,
+      );
       
-      targetGimatria = GimatriaSearch.gimatria(searchText, method: gematriaMethod);
+      // הוספת הכולל - מספר המילים
+      if (_useWithKolel) {
+        final wordCount = searchText.trim().split(RegExp(r'\s+')).length;
+        targetGimatria += wordCount;
+      }
     }
 
     if (targetGimatria == null) return;
@@ -104,6 +114,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
           fileLimit: _maxResults,
           wholeVerseOnly: _wholeVerseOnly,
           gematriaMethod: gematriaMethod,
+          useWithKolel: _useWithKolel,
         );
         allResults.addAll(results);
         if (allResults.length >= _maxResults) break;
@@ -324,6 +335,22 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
                 controlAffinity: ListTileControlAffinity.leading,
                 contentPadding: EdgeInsets.zero,
               ),
+              const SizedBox(height: 16),
+              CheckboxListTile(
+                title: const Text(
+                  'עם הכולל (הוספת מספר המילים לערך הגימטריה)',
+                  textAlign: TextAlign.right,
+                ),
+                value: _useWithKolel,
+                onChanged: (value) {
+                  setState(() {
+                    _useWithKolel = value ?? false;
+                  });
+                  setDialogState(() {});
+                },
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+              ),
             ],
           ),
           actions: [
@@ -350,28 +377,20 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          // כפתור הגדרות
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: showSettingsDialog,
-            color: Theme.of(context).colorScheme.primary,
-            tooltip: 'הגדרות חיפוש',
-          ),
-          const SizedBox(width: 8),
-          // שדה החיפוש
-          Expanded(
-            child: TextField(
+      child: TextField(
               controller: _searchController,
               textAlign: TextAlign.right,
               decoration: InputDecoration(
                 hintText: 'חפש גימטריה...',
                 hintStyle: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.5),
                 ),
                 filled: true,
-                fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                fillColor: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
@@ -400,9 +419,6 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
                     : null,
               ),
               onSubmitted: (_) => _performSearch(),
-            ),
-          ),
-        ],
       ),
     );
   }
