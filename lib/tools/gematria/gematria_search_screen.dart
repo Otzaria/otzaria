@@ -19,6 +19,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
   int? _lastGematriaValue; // ערך הגימטריה האחרון שחיפשנו
   bool _filterDuplicates = false; // סינון תוצאות כפולות
   bool _wholeVerseOnly = false; // חיפוש פסוק שלם בלבד
+  bool _hasSearched = false; // האם בוצע חיפוש בפועל
 
   @override
   void initState() {
@@ -51,7 +52,9 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('קלט לא תקין. יש להזין אותיות עבריות או מספרים בלבד.'),
+              content: Text(
+                'קלט לא תקין. יש להזין אותיות עבריות או מספרים בלבד.',
+              ),
               backgroundColor: Colors.red,
             ),
           );
@@ -67,6 +70,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
       _isSearching = true;
       _searchResults = [];
       _lastGematriaValue = targetGimatria;
+      _hasSearched = true;
     });
 
     try {
@@ -112,8 +116,9 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
       setState(() {
         _searchResults = results.map((result) {
           // חילוץ שם הקובץ
-          final relativePath =
-              result.file.replaceFirst(libraryPath, '').replaceAll('\\', '/');
+          final relativePath = result.file
+              .replaceFirst(libraryPath, '')
+              .replaceAll('\\', '/');
           final fileName = relativePath.split('/').last.replaceAll('.txt', '');
 
           // בניית הנתיב עם מספר הפסוק
@@ -140,9 +145,9 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
         _searchResults = [];
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('שגיאה בחיפוש: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('שגיאה בחיפוש: $e')));
       }
     }
   }
@@ -154,9 +159,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
         children: [
           _buildSearchBar(),
           if (_lastGematriaValue != null) _buildStatusBar(),
-          Expanded(
-            child: _buildResultsList(),
-          ),
+          Expanded(child: _buildResultsList()),
         ],
       ),
     );
@@ -321,6 +324,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
                     setState(() {
                       _searchResults = [];
                       _lastGematriaValue = null;
+                      _hasSearched = false;
                     });
                   },
                 )
@@ -333,12 +337,10 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
 
   Widget _buildResultsList() {
     if (_isSearching) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
-    if (_searchResults.isEmpty && _searchController.text.isNotEmpty) {
+    if (_searchResults.isEmpty && _hasSearched) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -346,20 +348,18 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
             Icon(
               Icons.search_off,
               size: 64,
-              color: Theme.of(context)
-                  .colorScheme
-                  .onSurface
-                  .withValues(alpha: 0.3),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.3),
             ),
             const SizedBox(height: 16),
             Text(
               'לא נמצאו תוצאות',
               style: TextStyle(
                 fontSize: 18,
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurface
-                    .withValues(alpha: 0.6),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.6),
               ),
             ),
           ],
@@ -375,20 +375,18 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
             Icon(
               Icons.calculate_outlined,
               size: 64,
-              color: Theme.of(context)
-                  .colorScheme
-                  .onSurface
-                  .withValues(alpha: 0.3),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.3),
             ),
             const SizedBox(height: 16),
             Text(
               'הזן ערך לחיפוש גימטריה',
               style: TextStyle(
                 fontSize: 18,
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurface
-                    .withValues(alpha: 0.6),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.6),
               ),
             ),
           ],
@@ -409,9 +407,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: () {
           final book = TextBook(title: result.bookTitle);
