@@ -43,8 +43,8 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
     if (numericValue != null) {
       targetGimatria = numericValue;
     } else {
-      // Check for invalid characters (allow Hebrew letters, final forms, spaces, and quotes)
-      final validChars = RegExp(r'^[א-תםןךףץ\s"''\\]+$');
+      // Check for invalid characters (allow Hebrew letters, final forms, spaces, and numbers)
+      final validChars = RegExp(r'^[א-תםןךףץ\s0-9]+$');
       if (!validChars.hasMatch(searchText)) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
