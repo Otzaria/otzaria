@@ -77,7 +77,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
         searchText,
         method: gematriaMethod,
       );
-      
+
       // הוספת הכולל - מספר המילים
       if (_useWithKolel) {
         final wordCount = searchText.trim().split(RegExp(r'\s+')).length;
@@ -301,7 +301,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
               const SizedBox(height: 8),
               CheckboxListTile(
                 title: const Text(
-                  'גימטריה קטנה (א=1, ב=2, י=1, כ=2, ק=1, ר=2...)',
+                  'גימטריה קטנה',
                   textAlign: TextAlign.right,
                 ),
                 value: _useSmallGematria,
@@ -319,7 +319,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
               ),
               CheckboxListTile(
                 title: const Text(
-                  'אותיות סופיות שונות (ך=500, ם=600, ן=700, ף=800, ץ=900)',
+                  'אותיות סופיות שונות',
                   textAlign: TextAlign.right,
                 ),
                 value: _useFinalLetters,
@@ -338,7 +338,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
               const SizedBox(height: 16),
               CheckboxListTile(
                 title: const Text(
-                  'עם הכולל (הוספת מספר המילים לערך הגימטריה)',
+                  'עם הכולל',
                   textAlign: TextAlign.right,
                 ),
                 value: _useWithKolel,
@@ -378,47 +378,43 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
         ],
       ),
       child: TextField(
-              controller: _searchController,
-              textAlign: TextAlign.right,
-              decoration: InputDecoration(
-                hintText: 'חפש גימטריה...',
-                hintStyle: TextStyle(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withOpacity(0.5),
-                ),
-                filled: true,
-                fillColor: Theme.of(
-                  context,
-                ).colorScheme.surfaceContainerHighest,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                prefixIcon: IconButton(
-                  icon: const Icon(Icons.search),
-                  onPressed: _performSearch,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() {
-                            _searchResults = [];
-                            _lastGematriaValue = null;
-                            _hasSearched = false;
-                          });
-                        },
-                      )
-                    : null,
-              ),
-              onSubmitted: (_) => _performSearch(),
+        controller: _searchController,
+        textAlign: TextAlign.right,
+        decoration: InputDecoration(
+          hintText: 'חפש גימטריה...',
+          hintStyle: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+          ),
+          filled: true,
+          fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 14,
+          ),
+          prefixIcon: IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: _performSearch,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          suffixIcon: _searchController.text.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() {
+                      _searchResults = [];
+                      _lastGematriaValue = null;
+                      _hasSearched = false;
+                    });
+                  },
+                )
+              : null,
+        ),
+        onSubmitted: (_) => _performSearch(),
       ),
     );
   }
