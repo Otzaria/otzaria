@@ -20,6 +20,8 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
   bool _filterDuplicates = false; // סינון תוצאות כפולות
   bool _wholeVerseOnly = false; // חיפוש פסוק שלם בלבד
   bool _hasSearched = false; // האם בוצע חיפוש בפועל
+  bool _useSmallGematria = false; // שימוש בגימטריה קטנה
+  bool _useFinalLetters = false; // שימוש באותיות סופיות שונות
 
   @override
   void initState() {
@@ -40,6 +42,14 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
     if (searchText.isEmpty) return;
 
     int? targetGimatria;
+    
+    // קביעת שיטת החישוב
+    String gematriaMethod = 'regular';
+    if (_useSmallGematria) {
+      gematriaMethod = 'small';
+    } else if (_useFinalLetters) {
+      gematriaMethod = 'finalLetters';
+    }
 
     // Check if input is a number
     final numericValue = int.tryParse(searchText);
@@ -61,7 +71,8 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
         }
         return;
       }
-      targetGimatria = GimatriaSearch.gimatria(searchText);
+      
+      targetGimatria = GimatriaSearch.gimatria(searchText, method: gematriaMethod);
     }
 
     if (targetGimatria == null) return;
@@ -92,6 +103,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
           maxPhraseWords: 8,
           fileLimit: _maxResults,
           wholeVerseOnly: _wholeVerseOnly,
+          gematriaMethod: gematriaMethod,
         );
         allResults.addAll(results);
         if (allResults.length >= _maxResults) break;
@@ -267,6 +279,51 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
                 controlAffinity: ListTileControlAffinity.leading,
                 contentPadding: EdgeInsets.zero,
               ),
+              const SizedBox(height: 16),
+              const Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  'שיטת חישוב גימטריה:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              const SizedBox(height: 8),
+              CheckboxListTile(
+                title: const Text(
+                  'גימטריה קטנה (א=1, ב=2, י=1, כ=2, ק=1, ר=2...)',
+                  textAlign: TextAlign.right,
+                ),
+                value: _useSmallGematria,
+                onChanged: (value) {
+                  setState(() {
+                    _useSmallGematria = value ?? false;
+                    if (_useSmallGematria) {
+                      _useFinalLetters = false; // לא יכול להיות שתי שיטות יחד
+                    }
+                  });
+                  setDialogState(() {});
+                },
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+              ),
+              CheckboxListTile(
+                title: const Text(
+                  'אותיות סופיות שונות (ך=500, ם=600, ן=700, ף=800, ץ=900)',
+                  textAlign: TextAlign.right,
+                ),
+                value: _useFinalLetters,
+                onChanged: (value) {
+                  setState(() {
+                    _useFinalLetters = value ?? false;
+                    if (_useFinalLetters) {
+                      _useSmallGematria = false; // לא יכול להיות שתי שיטות יחד
+                    }
+                  });
+                  setDialogState(() {});
+                },
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+              ),
             ],
           ),
           actions: [
@@ -293,44 +350,59 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
           ),
         ],
       ),
-      child: TextField(
-        controller: _searchController,
-        textAlign: TextAlign.right,
-        decoration: InputDecoration(
-          hintText: 'חפש גימטריה...',
-          hintStyle: TextStyle(
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-          ),
-          filled: true,
-          fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 14,
-          ),
-          prefixIcon: IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: _performSearch,
+      child: Row(
+        children: [
+          // כפתור הגדרות
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: showSettingsDialog,
             color: Theme.of(context).colorScheme.primary,
+            tooltip: 'הגדרות חיפוש',
           ),
-          suffixIcon: _searchController.text.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.clear),
-                  onPressed: () {
-                    _searchController.clear();
-                    setState(() {
-                      _searchResults = [];
-                      _lastGematriaValue = null;
-                      _hasSearched = false;
-                    });
-                  },
-                )
-              : null,
-        ),
-        onSubmitted: (_) => _performSearch(),
+          const SizedBox(width: 8),
+          // שדה החיפוש
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              textAlign: TextAlign.right,
+              decoration: InputDecoration(
+                hintText: 'חפש גימטריה...',
+                hintStyle: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                ),
+                filled: true,
+                fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                prefixIcon: IconButton(
+                  icon: const Icon(Icons.search),
+                  onPressed: _performSearch,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() {
+                            _searchResults = [];
+                            _lastGematriaValue = null;
+                            _hasSearched = false;
+                          });
+                        },
+                      )
+                    : null,
+              ),
+              onSubmitted: (_) => _performSearch(),
+            ),
+          ),
+        ],
       ),
     );
   }

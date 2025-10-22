@@ -18,7 +18,8 @@ class SearchResult {
 }
 
 class GimatriaSearch {
-  static const Map<String, int> _values = {
+  // גימטריה רגילה (ברירת מחדל)
+  static const Map<String, int> _regularValues = {
     'א': 1,
     'ב': 2,
     'ג': 3,
@@ -48,11 +49,87 @@ class GimatriaSearch {
     'ת': 400
   };
 
-  static int gimatria(String text) {
+  // גימטריה קטנה
+  static const Map<String, int> _smallValues = {
+    'א': 1,
+    'ב': 2,
+    'ג': 3,
+    'ד': 4,
+    'ה': 5,
+    'ו': 6,
+    'ז': 7,
+    'ח': 8,
+    'ט': 9,
+    'י': 1,
+    'כ': 2,
+    'ך': 2,
+    'ל': 3,
+    'מ': 4,
+    'ם': 4,
+    'נ': 5,
+    'ן': 5,
+    'ס': 6,
+    'ע': 7,
+    'פ': 8,
+    'ף': 8,
+    'צ': 9,
+    'ץ': 9,
+    'ק': 1,
+    'ר': 2,
+    'ש': 3,
+    'ת': 4
+  };
+
+  // גימטריה עם אותיות סופיות שונות
+  static const Map<String, int> _finalLettersValues = {
+    'א': 1,
+    'ב': 2,
+    'ג': 3,
+    'ד': 4,
+    'ה': 5,
+    'ו': 6,
+    'ז': 7,
+    'ח': 8,
+    'ט': 9,
+    'י': 10,
+    'כ': 20,
+    'ך': 500,
+    'ל': 30,
+    'מ': 40,
+    'ם': 600,
+    'נ': 50,
+    'ן': 700,
+    'ס': 60,
+    'ע': 70,
+    'פ': 80,
+    'ף': 800,
+    'צ': 90,
+    'ץ': 900,
+    'ק': 100,
+    'ר': 200,
+    'ש': 300,
+    'ת': 400
+  };
+
+  static int gimatria(String text, {String method = 'regular'}) {
+    Map<String, int> values;
+    switch (method) {
+      case 'small':
+        values = _smallValues;
+        break;
+      case 'finalLetters':
+        values = _finalLettersValues;
+        break;
+      case 'regular':
+      default:
+        values = _regularValues;
+        break;
+    }
+
     var sum = 0;
     for (final r in text.runes) {
       final ch = String.fromCharCode(r);
-      final v = _values[ch];
+      final v = values[ch];
       if (v != null) sum += v;
     }
     return sum;
@@ -66,7 +143,8 @@ class GimatriaSearch {
       {int maxPhraseWords = 8,
       int fileLimit = 1000,
       bool wholeVerseOnly = false,
-      bool debug = false}) async {
+      bool debug = false,
+      String gematriaMethod = 'regular'}) async {
     final List<SearchResult> found = [];
     final dir = Directory(folder);
     if (!await dir.exists()) return found;
@@ -117,7 +195,7 @@ class GimatriaSearch {
           // אם מחפשים פסוק שלם, בדוק את כל השורה
           if (wholeVerseOnly) {
             final totalValue =
-                words.map((w) => gimatria(w)).fold(0, (a, b) => a + b);
+                words.map((w) => gimatria(w, method: gematriaMethod)).fold(0, (a, b) => a + b);
             if (totalValue == targetGimatria) {
               final phrase = words.join(' ');
               final path = _extractPathFromLines(lines, i);
@@ -132,7 +210,7 @@ class GimatriaSearch {
             }
           } else {
             // חיפוש רגיל - כל קטע
-            final wordValues = words.map((w) => gimatria(w)).toList();
+            final wordValues = words.map((w) => gimatria(w, method: gematriaMethod)).toList();
             for (int start = 0; start < words.length; start++) {
               int acc = 0;
               for (int offset = 0;
