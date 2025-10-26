@@ -11,7 +11,7 @@
 	.st5{fill:none;stroke:#1FFF26;stroke-width:10;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
 	.st6{fill:none;stroke:#FFFFFF;stroke-width:10;stroke-linejoin:round;stroke-miterlimit:10;}
 </style>
-<path d="M104.6,124.7H3.7V20.9c0-9.6,8-17.5,17.7-17.5h101v103.8C122.3,116.9,114.3,124.7,104.6,124.7z"/>
+<path d="M104.6,124.7H21.4c-9.7,0-17.7-7.9-17.7-17.5V20.9c0-9.6,8-17.5,17.7-17.5h83.2c9.7,0,17.7,7.9,17.7,17.5v86.3C122.3,116.9,114.3,124.7,104.6,124.7z"/>
 <g id="BACKGROUND" class="st0">
 	<path class="st1" d="M56,17.9"/>
 	<path class="st1" d="M56,27.9"/>
