@@ -1,7 +1,7 @@
 // ignore_for_file: prefer_const_constructors
 
 import 'package:flutter/material.dart';
-import 'package:pdfrx/pdfrx.dart';
+import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 class PageNumberDisplay extends StatefulWidget {
   final PdfViewerController controller;
@@ -48,8 +48,8 @@ class _PageNumberDisplayState extends State<PageNumberDisplay> {
   void _handleSubmitted(String value) {
     final page = int.tryParse(value);
     if (page != null) {
-      widget.controller.goToPage(
-        pageNumber: page.clamp(1, widget.controller.pageCount),
+      widget.controller.jumpToPage(
+        page.clamp(1, widget.controller.pageCount),
       );
     }
     setState(() {
@@ -59,11 +59,12 @@ class _PageNumberDisplayState extends State<PageNumberDisplay> {
 
   @override
   Widget build(BuildContext context) {
-    if (!widget.controller.isReady) {
+    // Syncfusion: Check if pageCount > 0 instead of isReady
+    if (widget.controller.pageCount == 0) {
       return SizedBox.shrink();
     }
 
-    final pageNumber = widget.controller.pageNumber ?? 1;
+    final pageNumber = widget.controller.pageNumber;
     final pageCount = widget.controller.pageCount;
 
     return Center(

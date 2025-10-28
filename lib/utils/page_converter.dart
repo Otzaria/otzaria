@@ -1,7 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/models/books.dart';
-import 'package:pdfrx/pdfrx.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 // A cache for the generated page maps to avoid rebuilding them on every conversion.
 final _pageMapCache = <String, _PageMap>{};
@@ -18,11 +19,18 @@ Future<int?> textToPdfPage(TextBook textBook, int textIndex) async {
 
   // It's better to get the outline from a provider/tab if available than to load it every time.
   // For now, we load it directly as a fallback.
-  final outline =
-      await PdfDocument.openFile(pdfBook.path).then((doc) => doc.loadOutline());
+  final document =
+      PdfDocument(inputBytes: await File(pdfBook.path).readAsBytes());
+  final bookmarks = document.bookmarks;
+  final outline = bookmarks.count > 0
+      ? List<PdfBookmark>.generate(bookmarks.count, (index) => bookmarks[index])
+      : <PdfBookmark>[];
+
   final key = '${pdfBook.path}::${textBook.title}';
-  final map =
-      _pageMapCache[key] ??= await _buildPageMap(pdfBook, outline, textBook);
+  final map = _pageMapCache[key] ??=
+      await _buildPageMap(pdfBook, outline, textBook, document);
+
+  document.dispose();
 
   return map.textToPdf(textIndex);
 }
@@ -30,7 +38,7 @@ Future<int?> textToPdfPage(TextBook textBook, int textIndex) async {
 /// Converts a PDF page number to the corresponding text book index.
 ///
 /// This function uses a cached, anchor-based map with local interpolation for accuracy and performance.
-Future<int?> pdfToTextPage(PdfBook pdfBook, List<PdfOutlineNode> outline,
+Future<int?> pdfToTextPage(PdfBook pdfBook, List<PdfBookmark> outline,
     int pdfPage, BuildContext ctx) async {
   final textBook = (await DataRepository.instance.library)
       .findBookByTitle(pdfBook.title, TextBook) as TextBook?;
@@ -38,8 +46,24 @@ Future<int?> pdfToTextPage(PdfBook pdfBook, List<PdfOutlineNode> outline,
     return null;
   }
   final key = '${pdfBook.path}::${textBook.title}';
-  final map =
-      _pageMapCache[key] ??= await _buildPageMap(pdfBook, outline, textBook);
+
+  // Check if we already have a cached map
+  if (_pageMapCache.containsKey(key)) {
+    return _pageMapCache[key]!.pdfToText(pdfPage);
+  }
+
+  // Need to load document to build map
+  final document =
+      PdfDocument(inputBytes: await File(pdfBook.path).readAsBytes());
+  final bookmarks = document.bookmarks;
+  final outlineList = bookmarks.count > 0
+      ? List<PdfBookmark>.generate(bookmarks.count, (index) => bookmarks[index])
+      : <PdfBookmark>[];
+
+  final map = await _buildPageMap(pdfBook, outlineList, textBook, document);
+  _pageMapCache[key] = map;
+
+  document.dispose();
 
   return map.pdfToText(pdfPage);
 }
@@ -105,10 +129,10 @@ class _PageMap {
 }
 
 /// Builds the synchronized anchor map from PDF outline and text Table of Contents.
-Future<_PageMap> _buildPageMap(
-    PdfBook pdf, List<PdfOutlineNode> outline, TextBook text) async {
+Future<_PageMap> _buildPageMap(PdfBook pdf, List<PdfBookmark> outline,
+    TextBook text, PdfDocument document) async {
   // 1. Collect PDF anchors: (page, normalized_path)
-  final anchorsPdf = _collectPdfAnchors(outline);
+  final anchorsPdf = _collectPdfAnchors(document, outline);
 
   // 2. Collect text anchors from TOC: (index, normalized_path)
   final toc = await text.tableOfContents;
@@ -154,18 +178,42 @@ Future<_PageMap> _buildPageMap(
   return _PageMap(sortedPdfPages, sortedTextIndices);
 }
 
-List<({int page, String ref})> _collectPdfAnchors(List<PdfOutlineNode> nodes,
+List<({int page, String ref})> _collectPdfAnchors(
+    PdfDocument document, List<PdfBookmark> nodes,
     [String prefix = '']) {
   final List<({int page, String ref})> anchors = [];
-  for (final node in nodes) {
-    final page = node.dest?.pageNumber;
-    if (page != null && page > 0) {
-      final currentPath =
-          prefix.isEmpty ? node.title.trim() : '$prefix/${node.title.trim()}';
-      anchors.add((page: page, ref: _normalize(currentPath)));
-      anchors.addAll(_collectPdfAnchors(node.children, currentPath));
+
+  void collectRecursive(List<PdfBookmark> bookmarks, String currentPrefix) {
+    for (final bookmark in bookmarks) {
+      try {
+        final dest = bookmark.destination;
+        if (dest != null) {
+          final pageIndex = document.pages.indexOf(dest.page);
+          final page = pageIndex + 1; // Convert to 1-based
+          if (page > 0) {
+            final currentPath = currentPrefix.isEmpty
+                ? bookmark.title.trim()
+                : '$currentPrefix/${bookmark.title.trim()}';
+            anchors.add((page: page, ref: _normalize(currentPath)));
+
+            // Process children
+            if (bookmark.count > 0) {
+              final children = List<PdfBookmark>.generate(
+                bookmark.count,
+                (index) => bookmark[index],
+              );
+              collectRecursive(children, currentPath);
+            }
+          }
+        }
+      } catch (e) {
+        // Skip bookmarks with invalid pages or destinations
+      }
     }
   }
+
+  collectRecursive(nodes, prefix);
+
   return anchors;
 }
 

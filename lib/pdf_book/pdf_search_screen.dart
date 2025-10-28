@@ -1,414 +1,230 @@
 // ignore_for_file: public_member_api_docs, sort_constructors_first
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:pdfrx/pdfrx.dart';
-import 'package:synchronized/extension.dart';
-import 'package:otzaria/utils/ref_helper.dart';
+import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:otzaria/widgets/search_pane_base.dart';
 
 //
-// Simple Text Search View
+// Simple Text Search View for Syncfusion PDF Viewer
+// Note: Syncfusion provides automatic highlighting but doesn't expose match details
+// This is a simplified version that shows count and navigation
 //
 class PdfBookSearchView extends StatefulWidget {
   const PdfBookSearchView({
-    required this.textSearcher,
+    required this.pdfController,
     required this.searchController,
     required this.focusNode,
     this.outline,
     this.bookTitle,
     this.initialSearchText = '',
-    this.onSearchResultNavigated, // Add this
+    this.onSearchResultNavigated,
     super.key,
   });
 
-  final PdfTextSearcher textSearcher;
+  final PdfViewerController pdfController;
   final TextEditingController searchController;
   final FocusNode focusNode;
-  final List<PdfOutlineNode>? outline;
+  final List<PdfBookmark>? outline;
   final String? bookTitle;
-  final String
-      initialSearchText; // Remains for now, parent will provide tab.searchText
-
-  final VoidCallback? onSearchResultNavigated; // Add this
+  final String initialSearchText;
+  final VoidCallback? onSearchResultNavigated;
 
   @override
   State<PdfBookSearchView> createState() => _PdfBookSearchViewState();
 }
 
 class _PdfBookSearchViewState extends State<PdfBookSearchView> {
-  // final searchTextController = TextEditingController(); // Removed
-  late final pageTextStore =
-      PdfPageTextCache(textSearcher: widget.textSearcher);
-  final scrollController = ScrollController();
-  @override
-  void initState() {
-    super.initState(); // Moved to the top
-    widget.textSearcher.addListener(_searchResultUpdated);
-    widget.searchController.addListener(_searchTextUpdated);
-
-    // If the controller (from PdfBookTab) already has text when view is initialized,
-    // start the search. This ensures that if the sidebar is reopened with existing
-    // search text, the search is re-executed and results are displayed.
-    if (widget.searchController.text.isNotEmpty) {
-      // We pass goToFirstMatch: false because the _onTextSearcherUpdated listener
-      // in _PdfBookScreenState is responsible for restoring the specific currentIndex later.
-      widget.textSearcher
-          .startTextSearch(widget.searchController.text, goToFirstMatch: false);
-      _searchResultUpdated();
-    }
-  }
-
-  @override
-  void dispose() {
-    scrollController.dispose();
-    widget.textSearcher.removeListener(_searchResultUpdated);
-    widget.searchController.removeListener(_searchTextUpdated); // Changed
-    // searchTextController.dispose(); // Removed
-    super.dispose();
-  }
-
-  void _searchTextUpdated() {
-    widget.textSearcher
-        .startTextSearch(widget.searchController.text, goToFirstMatch: false);
-    _searchResultUpdated();
-  }
-
-  int? _currentSearchSession;
-  final _matchIndexToListIndex = <int>[];
-  final _listIndexToMatchIndex = <int>[];
-  final _pageTitles = <int, String>{};
-
-  void _searchResultUpdated() {
-    final previousListCount = _listIndexToMatchIndex.length;
-
-    // Force a full rebuild of the internal lists if:
-    // 1. The search session ID from the textSearcher has changed.
-    // 2. Or, our internal list for ListView (_listIndexToMatchIndex) is empty,
-    //    but the textSearcher actually has matches. This covers cases where
-    //    the view might be reconstructed/refreshed and lost its local list state,
-    //    but the underlying searcher still holds valid results.
-    if (_currentSearchSession != widget.textSearcher.searchSession ||
-        (_listIndexToMatchIndex.isNotEmpty &&
-            !widget.textSearcher.hasMatches) ||
-        (_listIndexToMatchIndex.isEmpty && widget.textSearcher.hasMatches)) {
-      _currentSearchSession = widget.textSearcher.searchSession;
-      _matchIndexToListIndex.clear();
-      _listIndexToMatchIndex.clear();
-      _pageTitles.clear();
-    }
-
-    // Populate _listIndexToMatchIndex and _matchIndexToListIndex.
-    // This loop will either:
-    //  - Fully rebuild the lists if they were cleared above.
-    //  - Or, append new matches if the session is the same and lists weren't cleared
-    //    (e.g., during an incremental search update).
-    for (int i = _matchIndexToListIndex
-            .length; // Start from the current end of _matchIndexToListIndex
-        i < widget.textSearcher.matches.length;
-        i++) {
-      if (i == 0 ||
-          widget.textSearcher.matches[i - 1].pageNumber !=
-              widget.textSearcher.matches[i].pageNumber) {
-        final pageNumber = widget.textSearcher.matches[i].pageNumber;
-        // Add a negative page number to indicate a page header in the list
-        _listIndexToMatchIndex.add(-pageNumber);
-        if (!_pageTitles.containsKey(pageNumber)) {
-          () async {
-            final title = await refFromPageNumber(
-                pageNumber, widget.outline, widget.bookTitle);
-            if (mounted) {
-              setState(() {
-                _pageTitles[pageNumber] = title;
-              });
-            } else {
-              _pageTitles[pageNumber] = title;
-            }
-          }();
-        }
-      }
-      _matchIndexToListIndex
-          .add(_listIndexToMatchIndex.length); // Store mapping for scrolling
-      _listIndexToMatchIndex.add(i); // Add actual match index
-    }
-
-    // Call setState to rebuild the UI if:
-    // - The component is still mounted.
-    // - And, either the new list has items (implying a change or initial population)
-    // - Or, the previous list had items (implying a potential clear or change).
-    // This avoids unnecessary rebuilds if the list was and remains empty.
-    if (mounted &&
-        (_listIndexToMatchIndex.isNotEmpty || previousListCount > 0)) {
-      setState(() {});
-    }
-    // _conditionScrollPosition(); // Consider if this is needed here or if current item highlighting handles it.
-    // The original code had setState({}) and then _conditionScrollPosition() was called from button presses.
-    // The highlighting of the current search item is based on `widget.textSearcher.currentIndex`
-    // which is managed by the `PdfTextSearcher` itself when `goToMatchOfIndex` or arrow buttons are used.
-    // So, simply ensuring the list is correctly built should be sufficient.
-  }
-
-  // Public method to scroll to current match - can be called from parent
-  void scrollToCurrentMatch() {
-    if (widget.textSearcher.currentIndex != null &&
-        widget.textSearcher.currentIndex! < _matchIndexToListIndex.length) {
-      _conditionScrollPosition();
-    }
-  }
-
-  static const double itemHeight = 50;
-
-  @override
-  Widget build(BuildContext context) {
-    return SearchPaneBase(
-      searchController: widget.searchController,
-      focusNode: widget.focusNode,
-      progressWidget: widget.textSearcher.isSearching
-          ? LinearProgressIndicator(
-              value: widget.textSearcher.searchProgress,
-              minHeight: 4,
-            )
-          : null,
-      resultCountString: widget.textSearcher.matches.isNotEmpty
-          ? 'נמצאו ${widget.textSearcher.matches.length} תוצאות'
-          : null,
-      resultsWidget: ListView.builder(
-        key: Key(widget.searchController.text),
-        controller: scrollController,
-        itemCount: _listIndexToMatchIndex.length,
-        itemBuilder: (context, index) {
-          final matchIndex = _listIndexToMatchIndex[index];
-          if (matchIndex >= 0 &&
-              matchIndex < widget.textSearcher.matches.length) {
-            final match = widget.textSearcher.matches[matchIndex];
-            return SearchResultTile(
-              key: ValueKey(index),
-              match: match,
-              onTap: () async {
-                await widget.textSearcher.goToMatchOfIndex(matchIndex);
-                widget.onSearchResultNavigated?.call();
-                if (mounted) setState(() {});
-              },
-              pageTextStore: pageTextStore,
-              height: itemHeight,
-              isCurrent: matchIndex == widget.textSearcher.currentIndex,
-            );
-          } else {
-            return Container(
-              height: itemHeight,
-              alignment: Alignment.bottomRight,
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Text(
-                _pageTitles[-matchIndex]?.isNotEmpty == true
-                    ? _pageTitles[-matchIndex]!
-                    : 'עמוד ${-matchIndex}',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-                textDirection: TextDirection.rtl,
-              ),
-            );
-          }
-        },
-      ),
-      isNoResults: widget.searchController.text.isNotEmpty &&
-          widget.textSearcher.matches.isEmpty,
-      onSearchTextChanged: (_) => _searchTextUpdated(),
-      resetSearchCallback: () => widget.textSearcher.resetTextSearch(),
-      hintText: 'חפש כאן..',
-    );
-  }
-
-  void _conditionScrollPosition() {
-    final pos = scrollController.position;
-    final newPos =
-        itemHeight * _matchIndexToListIndex[widget.textSearcher.currentIndex!];
-    if (newPos + itemHeight > pos.pixels + pos.viewportDimension) {
-      scrollController.animateTo(
-        newPos + itemHeight - pos.viewportDimension,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.decelerate,
-      );
-    } else if (newPos < pos.pixels) {
-      scrollController.animateTo(
-        newPos,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.decelerate,
-      );
-    }
-
-    if (mounted) setState(() {});
-  }
-}
-
-class SearchResultTile extends StatefulWidget {
-  const SearchResultTile({
-    required this.match,
-    required this.onTap,
-    required this.pageTextStore,
-    required this.height,
-    required this.isCurrent,
-    super.key,
-  });
-
-  final PdfTextRangeWithFragments match;
-  final void Function() onTap;
-  final PdfPageTextCache pageTextStore;
-  final double height;
-  final bool isCurrent;
-
-  @override
-  State<SearchResultTile> createState() => _SearchResultTileState();
-}
-
-class _SearchResultTileState extends State<SearchResultTile> {
-  PdfPageText? pageText;
+  PdfTextSearchResult? _searchResult;
+  bool _isSearching = false;
+  Timer? _debounceTimer;
 
   @override
   void initState() {
     super.initState();
-    _load();
-  }
+    widget.searchController.addListener(_searchTextUpdated);
 
-  void _release() {
-    if (pageText != null) {
-      widget.pageTextStore.releaseText(pageText!.pageNumber);
-    }
-  }
-
-  Future<void> _load() async {
-    _release();
-    pageText = await widget.pageTextStore.loadText(widget.match.pageNumber);
-    if (mounted) {
-      setState(() {});
+    // If there's initial search text, perform the search
+    if (widget.searchController.text.isNotEmpty) {
+      _performSearch(widget.searchController.text);
     }
   }
 
   @override
   void dispose() {
-    _release();
+    _debounceTimer?.cancel();
+    _searchResult?.removeListener(_onSearchResultChanged);
+    _searchResult?.clear();
+    widget.searchController.removeListener(_searchTextUpdated);
     super.dispose();
+  }
+
+  void _searchTextUpdated() {
+    // Cancel previous timer
+    _debounceTimer?.cancel();
+
+    final query = widget.searchController.text.trim();
+    if (query.isEmpty) {
+      _clearSearch();
+      return;
+    }
+
+    // Wait 300ms before searching (reduced from 500ms)
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+      _performSearch(query);
+    });
+  }
+
+  void _onSearchResultChanged() {
+    // This is called when search progresses (page by page on mobile/desktop)
+    if (mounted && _searchResult != null && _searchResult!.hasResult) {
+      setState(() {
+        // Update UI with new results
+        _isSearching = !_searchResult!.isSearchCompleted;
+      });
+    }
+  }
+
+  Future<void> _performSearch(String query) async {
+    if (query.isEmpty) return;
+
+    setState(() {
+      _isSearching = true;
+    });
+
+    try {
+      // Clear previous search and remove its listener
+      _searchResult?.removeListener(_onSearchResultChanged);
+      _searchResult?.clear();
+
+      // Start new search - this returns immediately
+      final result = widget.pdfController.searchText(query);
+      _searchResult = result;
+
+      // Add listener to get updates as search progresses
+      // On mobile/desktop, search is async and results come page by page
+      _searchResult!.addListener(_onSearchResultChanged);
+
+      // Initial state update
+      if (mounted) {
+        setState(() {
+          // Search is now in progress
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSearching = false;
+        });
+      }
+    }
+  }
+
+  void _clearSearch() {
+    _searchResult?.clear();
+    setState(() {
+      _searchResult = null;
+    });
+  }
+
+  void _goToNextMatch() {
+    if (_searchResult != null && _searchResult!.hasResult) {
+      _searchResult!.nextInstance();
+      widget.onSearchResultNavigated?.call();
+      setState(() {});
+    }
+  }
+
+  void _goToPreviousMatch() {
+    if (_searchResult != null && _searchResult!.hasResult) {
+      _searchResult!.previousInstance();
+      widget.onSearchResultNavigated?.call();
+      setState(() {});
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final text = Text.rich(createTextSpanForMatch(pageText, widget.match));
+    final hasResults = _searchResult != null && _searchResult!.hasResult;
+    final totalCount = _searchResult?.totalInstanceCount ?? 0;
+    final currentIndex = _searchResult?.currentInstanceIndex ?? 0;
 
-    return SizedBox(
-      height: widget.height,
-      child: Material(
-        color: widget.isCurrent
-            ? DefaultSelectionStyle.of(context).selectionColor!
-            : null,
-        child: InkWell(
-          onTap: () => widget.onTap(),
-          child: Container(
-            decoration: const BoxDecoration(
-              border: Border(
-                bottom: BorderSide(
-                  color: Colors.black12,
-                  width: 0.5,
+    return SearchPaneBase(
+      searchController: widget.searchController,
+      focusNode: widget.focusNode,
+      progressWidget:
+          _isSearching ? const LinearProgressIndicator(minHeight: 4) : null,
+      resultCountString: hasResults
+          ? 'נמצאו $totalCount תוצאות (${currentIndex + 1}/$totalCount)'
+          : null,
+      resultsWidget: hasResults
+          ? Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_upward),
+                        tooltip: 'תוצאה קודמת',
+                        onPressed: _goToPreviousMatch,
+                      ),
+                      const SizedBox(width: 16),
+                      Text(
+                        '${currentIndex + 1} / $totalCount',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(width: 16),
+                      IconButton(
+                        icon: const Icon(Icons.arrow_downward),
+                        tooltip: 'תוצאה הבאה',
+                        onPressed: _goToNextMatch,
+                      ),
+                    ],
+                  ),
                 ),
+                const Divider(),
+                Expanded(
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.search,
+                          size: 64,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'השתמש בחצים לניווט בין התוצאות',
+                          style: Theme.of(context).textTheme.bodyLarge,
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'התוצאות מסומנות במסמך',
+                          style: Theme.of(context).textTheme.bodySmall,
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : Center(
+              child: Text(
+                'הזן טקסט לחיפוש',
+                style: Theme.of(context).textTheme.bodyLarge,
               ),
             ),
-            padding: const EdgeInsets.all(3),
-            child: text,
-          ),
-        ),
-      ),
+      isNoResults: widget.searchController.text.isNotEmpty &&
+          !_isSearching &&
+          (_searchResult == null || !_searchResult!.hasResult),
+      onSearchTextChanged: (_) => _searchTextUpdated(),
+      resetSearchCallback: _clearSearch,
+      hintText: 'חפש כאן..',
     );
   }
-
-  TextSpan createTextSpanForMatch(
-      PdfPageText? pageText, PdfTextRangeWithFragments match,
-      {TextStyle? style}) {
-    style ??= const TextStyle(
-      fontSize: 14,
-    );
-    if (pageText == null) {
-      return TextSpan(
-        text: match.fragments.map((f) => f.text).join(),
-        style: style,
-      );
-    }
-    final fullText = pageText.fullText;
-    int first = 0;
-    for (int i = match.fragments.first.index - 1; i >= 0;) {
-      if (fullText[i] == '\n') {
-        first = i + 1;
-        break;
-      }
-      i--;
-    }
-    int last = fullText.length;
-    for (int i = match.fragments.last.end; i < fullText.length; i++) {
-      if (fullText[i] == '\n') {
-        last = i;
-        break;
-      }
-    }
-
-    final header =
-        fullText.substring(first, match.fragments.first.index + match.start);
-    final body = fullText.substring(match.fragments.first.index + match.start,
-        match.fragments.last.index + match.end);
-    final footer =
-        fullText.substring(match.fragments.last.index + match.end, last);
-
-    return TextSpan(
-      children: [
-        TextSpan(text: header),
-        TextSpan(
-          text: body,
-          style: const TextStyle(
-            color: Colors.red,
-          ),
-        ),
-        TextSpan(text: footer),
-      ],
-      style: style,
-    );
-  }
-}
-
-/// A helper class to cache loaded page texts.
-class PdfPageTextCache {
-  final PdfTextSearcher textSearcher;
-  PdfPageTextCache({
-    required this.textSearcher,
-  });
-
-  final _pageTextRefs = <int, _PdfPageTextRefCount>{};
-
-  /// load the text of the given page number.
-  Future<PdfPageText> loadText(int pageNumber) async {
-    final ref = _pageTextRefs[pageNumber];
-    if (ref != null) {
-      ref.refCount++;
-      return ref.pageText;
-    }
-    return await synchronized(() async {
-      var ref = _pageTextRefs[pageNumber];
-      if (ref == null) {
-        final pageText = await textSearcher.loadText(pageNumber: pageNumber);
-        ref = _pageTextRefs[pageNumber] = _PdfPageTextRefCount(pageText!);
-      }
-      ref.refCount++;
-      return ref.pageText;
-    });
-  }
-
-  /// Release the text of the given page number.
-  void releaseText(int pageNumber) {
-    final ref = _pageTextRefs[pageNumber]!;
-    ref.refCount--;
-    if (ref.refCount == 0) {
-      _pageTextRefs.remove(pageNumber);
-    }
-  }
-}
-
-class _PdfPageTextRefCount {
-  _PdfPageTextRefCount(this.pageText);
-  final PdfPageText pageText;
-  int refCount = 0;
 }

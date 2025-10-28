@@ -1,8 +1,9 @@
+import 'dart:io';
 import 'package:isar/isar.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/isar_collections/ref.dart';
 import 'package:otzaria/library/models/library.dart';
-import 'package:pdfrx/pdfrx.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 Future<void> createRefsFromLibrary(
     Library library, Isar isar, int startIndex) async {
@@ -40,30 +41,57 @@ Future<void> createRefsFromLibrary(
   }
 
   for (PdfBook book in library.getAllBooks().whereType<PdfBook>()) {
-    final List<PdfOutlineNode> outlines = await PdfDocument.openFile(book.path)
-        .then((value) => value.loadOutline());
+    final document =
+        PdfDocument(inputBytes: await File(book.path).readAsBytes());
+    final bookmarks = document.bookmarks;
+    final List<PdfBookmark> outlines = bookmarks.count > 0
+        ? List<PdfBookmark>.generate(
+            bookmarks.count, (index) => bookmarks[index])
+        : [];
 
     //get all TocEntries recursively
-    List<PdfOutlineNode> alloutlines = [];
+    List<PdfBookmark> alloutlines = [];
 
-    void searchOutline(List<PdfOutlineNode> entries) {
-      for (final PdfOutlineNode entry in entries) {
+    void searchOutline(List<PdfBookmark> entries) {
+      for (final PdfBookmark entry in entries) {
         alloutlines.add(entry);
-        searchOutline(entry.children);
+        // Syncfusion: Get children bookmarks
+        if (entry.count > 0) {
+          final children = List<PdfBookmark>.generate(
+            entry.count,
+            (index) => entry[index],
+          );
+          searchOutline(children);
+        }
       }
     }
 
     searchOutline(outlines);
 
-    for (final PdfOutlineNode entry in alloutlines) {
+    for (final PdfBookmark entry in alloutlines) {
+      // Get page number from PdfPage
+      int pageNumber = 0;
+      try {
+        final dest = entry.destination;
+        if (dest != null) {
+          final pageIndex = document.pages.indexOf(dest.page);
+          pageNumber = pageIndex + 1;
+        }
+      } catch (e) {
+        // Bookmark has invalid or null destination
+        pageNumber = 0;
+      }
+
       final ref = Ref(
           id: isar.refs.autoIncrement(),
           ref: entry.title.replaceAll('\n', ''),
           bookTitle: book.title,
-          index: entry.dest?.pageNumber ?? 0,
+          index: pageNumber,
           pdfBook: true);
       isar.write((isar) => isar.refs.put(ref));
     }
+
+    document.dispose();
   }
 }
 
@@ -96,17 +124,33 @@ Future<String> refFromIndex(
 
 Future<String> refFromPageNumber(
   int pageNumber,
-  List<PdfOutlineNode>? outline,
-  [String? bookTitle,
-  ]) async {
+  List<PdfBookmark>? outline, [
+  String? bookTitle,
+  PdfDocument? document,
+]) async {
   if (outline == null) return "";
 
   List<String> texts = [];
 
-  void searchOutline(List<PdfOutlineNode> entries, {int level = 0}) {
+  // Helper to get page number from bookmark
+  int? getPageNumber(PdfBookmark bookmark) {
+    if (document == null) return null;
+    try {
+      final dest = bookmark.destination;
+      if (dest == null) return null;
+
+      final pageIndex = document.pages.indexOf(dest.page);
+      return pageIndex + 1;
+    } catch (e) {
+      // Bookmark has invalid or null destination
+      return null;
+    }
+  }
+
+  void searchOutline(List<PdfBookmark> entries, {int level = 0}) {
     for (final entry in entries) {
-      if (entry.dest?.pageNumber == null ||
-          entry.dest!.pageNumber > pageNumber) {
+      final entryPage = getPageNumber(entry);
+      if (entryPage == null || entryPage > pageNumber) {
         return;
       }
       if (level + 1 > texts.length) {
@@ -116,10 +160,17 @@ Future<String> refFromPageNumber(
         texts = texts.getRange(0, level + 1).toList();
       }
 
-      searchOutline(
-        entry.children,
-        level: level + 1,
-      );
+      // Syncfusion: Get children bookmarks
+      if (entry.count > 0) {
+        final children = List<PdfBookmark>.generate(
+          entry.count,
+          (index) => entry[index],
+        );
+        searchOutline(
+          children,
+          level: level + 1,
+        );
+      }
     }
   }
 

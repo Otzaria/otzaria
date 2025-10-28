@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/utils/text_manipulation.dart';
-import 'package:pdfrx/pdfrx.dart';
+import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 
 /// Represents a tab with a PDF book.
@@ -20,16 +21,19 @@ class PdfBookTab extends OpenedTab {
   /// The pdf viewer controller.
   PdfViewerController pdfViewerController = PdfViewerController();
 
-  final outline = ValueNotifier<List<PdfOutlineNode>?>(null);
+  final outline = ValueNotifier<List<PdfBookmark>?>(null);
 
-  final documentRef = ValueNotifier<PdfDocumentRef?>(null);
+  final document = ValueNotifier<PdfDocument?>(null);
 
   final TextEditingController searchController = TextEditingController();
 
   String searchText;
 
-  List<PdfTextRangeWithFragments>? pdfSearchMatches;
+  PdfTextSearchResult? pdfSearchResult;
   int? pdfSearchCurrentMatchIndex;
+
+  /// Flag to track if document is loaded
+  bool isDocumentLoaded = false;
 
   final currentTitle = ValueNotifier<String>("");
 
@@ -48,7 +52,7 @@ class PdfBookTab extends OpenedTab {
     required this.pageNumber,
     bool openLeftPane = false,
     this.searchText = '',
-    this.pdfSearchMatches,
+    this.pdfSearchResult,
     this.pdfSearchCurrentMatchIndex,
   }) : super(book.title) {
     showLeftPane = ValueNotifier<bool>(openLeftPane);
@@ -78,7 +82,7 @@ class PdfBookTab extends OpenedTab {
     return {
       'path': book.path,
       'pageNumber':
-          (pdfViewerController.isReady ? pdfViewerController.pageNumber : 1),
+          (isDocumentLoaded ? pdfViewerController.pageNumber : pageNumber),
       'type': 'PdfBookTab'
     };
   }

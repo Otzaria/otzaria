@@ -1,9 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/library/models/library.dart';
-import 'package:pdfrx/pdfrx.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:otzaria/utils/open_book.dart';
 import 'package:otzaria/core/scaffold_messenger.dart';
 
@@ -113,8 +114,25 @@ Future<int?> findReference(Book book, String ref) async {
     final tocEntry = await _findDafInToc(book, ref);
     return tocEntry?.index;
   } else if (book is PdfBook) {
-    final outline = await getDafYomiOutline(book, ref);
-    return outline?.dest?.pageNumber;
+    final bookmark = await getDafYomiBookmark(book, ref);
+    if (bookmark == null) return null;
+
+    // Get page number from bookmark
+    final document =
+        PdfDocument(inputBytes: await File(book.path).readAsBytes());
+    int? pageNumber;
+    try {
+      final dest = bookmark.destination;
+      if (dest != null) {
+        final pageIndex = document.pages.indexOf(dest.page);
+        pageNumber = pageIndex + 1;
+      }
+    } catch (e) {
+      // Bookmark has invalid or null destination
+      pageNumber = null;
+    }
+    document.dispose();
+    return pageNumber;
   }
   return null;
 }
@@ -129,14 +147,26 @@ Future<TocEntry?> _findDafInToc(TextBook book, String daf) async {
   );
 }
 
-Future<PdfOutlineNode?> getDafYomiOutline(PdfBook book, String daf) async {
-  final outlines = await PdfDocument.openFile(book.path)
-      .then((value) => value.loadOutline());
+Future<PdfBookmark?> getDafYomiBookmark(PdfBook book, String daf) async {
+  final document = PdfDocument(inputBytes: await File(book.path).readAsBytes());
+  final bookmarksBase = document.bookmarks;
+  final outlines = bookmarksBase.count > 0
+      ? List<PdfBookmark>.generate(
+          bookmarksBase.count, (index) => bookmarksBase[index])
+      : <PdfBookmark>[];
+  document.dispose();
+
   return await findEntryInTree(
     Future.value(outlines),
     daf,
     (entry) => entry.title,
-    (entry) => Future.value(entry.children),
+    (entry) {
+      if (entry.count > 0) {
+        return Future.value(
+            List<PdfBookmark>.generate(entry.count, (index) => entry[index]));
+      }
+      return Future.value(<PdfBookmark>[]);
+    },
   );
 }
 

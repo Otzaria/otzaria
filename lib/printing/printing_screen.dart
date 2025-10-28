@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/utils/text_manipulation.dart';
-import 'package:pdfrx/pdfrx.dart';
+import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:printing/printing.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -336,8 +336,11 @@ class _PrintingScreenState extends State<PrintingScreen> {
                     future: pdf,
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.done) {
-                        return PdfViewer.data(snapshot.data!,
-                            sourceName: 'printing');
+                        return SfPdfViewer.memory(
+                          snapshot.data!,
+                          canShowScrollHead: false,
+                          canShowScrollStatus: false,
+                        );
                       }
                       return const Center(
                         child: CircularProgressIndicator(),

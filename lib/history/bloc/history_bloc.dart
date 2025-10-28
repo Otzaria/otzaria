@@ -94,8 +94,9 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
         );
       }
     } else if (tab is PdfBookTab) {
-      if (!tab.pdfViewerController.isReady) return null;
-      final page = tab.pdfViewerController.pageNumber ?? 1;
+      // Syncfusion: Check if document is loaded via pageCount > 0
+      if (tab.pdfViewerController.pageCount == 0) return null;
+      final page = tab.pdfViewerController.pageNumber;
       return Bookmark(
         ref: '${tab.title} עמוד $page',
         book: tab.book,

@@ -53,6 +53,7 @@ import 'package:shamor_zachor/providers/shamor_zachor_progress_provider.dart';
 import 'package:shamor_zachor/services/shamor_zachor_service_factory.dart';
 import 'package:shamor_zachor/services/dynamic_data_loader_service.dart';
 import 'package:otzaria/utils/toc_parser.dart';
+import 'package:syncfusion_flutter_core/core.dart';
 
 // Global reference to window listener for cleanup
 AppWindowListener? _appWindowListener;
@@ -67,6 +68,10 @@ DynamicDataLoaderService? _shamorZachorDataLoader;
 /// 2. Calls [initialize] to set up required services and configurations
 /// 3. Launches the main application widget
 void main() async {
+  // Register Syncfusion license
+  // Note: Replace 'YOUR_LICENSE_KEY' with your actual Syncfusion license key
+  SyncfusionLicense.registerLicense('YOUR_LICENSE_KEY');
+
   // write errors to file
   FlutterError.onError = (FlutterErrorDetails details) {
     if (kDebugMode) {
@@ -235,7 +240,8 @@ Future<void> initialize() async {
 
   // Initialize Shamor Zachor dynamic data loader
   try {
-    if (kDebugMode) debugPrint('Initializing Shamor Zachor dynamic data loader...');
+    if (kDebugMode)
+      debugPrint('Initializing Shamor Zachor dynamic data loader...');
 
     final libraryBasePath = await AppPaths.getLibraryPath();
     if (kDebugMode) debugPrint('Library base path: $libraryBasePath');

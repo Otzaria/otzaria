@@ -6,7 +6,7 @@ import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/utils/text_manipulation.dart';
-import 'package:pdfrx/pdfrx.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:otzaria/utils/ref_helper.dart';
 
 class IndexingRepository {
@@ -74,8 +74,7 @@ class IndexingRepository {
         await Future.delayed(Duration.zero);
       }
 
-    await Future.delayed(Duration.zero); 
-
+      await Future.delayed(Duration.zero);
     }
 
     // Reset indexing flag after completion
@@ -98,7 +97,7 @@ class IndexingRepository {
       if (!_tantivyDataProvider.isIndexing.value) {
         return;
       }
-      
+
       // Yield control periodically to prevent blocking
       if (i % 100 == 0) {
         await Future.delayed(Duration.zero);
@@ -156,26 +155,47 @@ class IndexingRepository {
     final index = await _tantivyDataProvider.engine;
 
     // Extract text from each page
-    final document = await PdfDocument.openFile(book.path);
-    final pages = document.pages;
-    final outline = await document.loadOutline();
+    final document =
+        PdfDocument(inputBytes: await File(book.path).readAsBytes());
+    final pageCount = document.pages.count;
+    final bookmarks = document.bookmarks;
+    final outline = bookmarks.count > 0
+        ? List<PdfBookmark>.generate(
+            bookmarks.count, (index) => bookmarks[index])
+        : <PdfBookmark>[];
     final title = book.title;
     final topics = "/${book.topics.replaceAll(', ', '/')}";
 
+    // Create text extractor
+    final textExtractor = PdfTextExtractor(document);
+
     // Process each page
-    for (int i = 0; i < pages.length; i++) {
-      final texts = (await pages[i].loadText()).fullText.split('\n');
+    for (int i = 0; i < pageCount; i++) {
+      if (!_tantivyDataProvider.isIndexing.value) {
+        document.dispose();
+        return;
+      }
+
+      // Extract text from page
+      final pageText = textExtractor.extractText(
+        startPageIndex: i,
+        endPageIndex: i,
+      );
+      final texts = pageText.split('\n');
+
       // Index each line from the page
       for (int j = 0; j < texts.length; j++) {
         if (!_tantivyDataProvider.isIndexing.value) {
+          document.dispose();
           return;
         }
-        
+
         // Yield control periodically to prevent blocking
         if (j % 50 == 0) {
           await Future.delayed(Duration.zero);
         }
-        final bookmark = await refFromPageNumber(i + 1, outline, title);
+        final bookmark =
+            await refFromPageNumber(i + 1, outline, title, document);
         final ref = bookmark.isNotEmpty
             ? '$title, $bookmark, עמוד ${i + 1}'
             : '$title, עמוד ${i + 1}';
@@ -191,6 +211,7 @@ class IndexingRepository {
       }
     }
 
+    document.dispose();
     await index.commit();
     saveIndexedBooks();
   }
