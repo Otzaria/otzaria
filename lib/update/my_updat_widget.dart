@@ -270,30 +270,19 @@ class MyUpdatWidget extends StatelessWidget {
             },
             appName: "otzaria", // This is used to name the downloaded files.
             getChangelog: (_, __) async {
-              // That same latest endpoint gives us access to a markdown-flavored release body. Perfect!
-              final isDevChannel =
-                  Settings.getValue<bool>('key-dev-channel') ?? false;
+              // Load changelog directly from GitHub repository
+              try {
+                final response = await http.get(
+                  Uri.parse('https://raw.githubusercontent.com/Y-PLONI/otzaria/refs/heads/dev/assets/%D7%99%D7%95%D7%9E%D7%9F%20%D7%A9%D7%99%D7%A0%D7%95%D7%99%D7%99%D7%9D.md'),
+                ).timeout(const Duration(seconds: 10));
 
-              if (isDevChannel) {
-                // For dev channel, get changelog from the latest pre-release
-                final data = await http.get(Uri.parse(
-                  "https://api.github.com/repos/Y-PLONI/otzaria/releases",
-                ));
-                final releases = jsonDecode(data.body) as List;
-                final preRelease = releases.firstWhere(
-                  (release) =>
-                      release["prerelease"] == true &&
-                      release["draft"] == false &&
-                      !release["tag_name"].toString().contains('-pr-'),
-                  orElse: () => releases.first,
-                );
-                return preRelease["body"];
-              } else {
-                // For stable channel, get changelog from latest stable release
-                final data = await http.get(Uri.parse(
-                  "https://api.github.com/repos/sivan22/otzaria/releases/latest",
-                ));
-                return jsonDecode(data.body)["body"];
+                if (response.statusCode == 200) {
+                  return response.body;
+                } else {
+                  return 'שגיאה בטעינת יומן השינויים.\nקוד שגיאה: ${response.statusCode}';
+                }
+              } catch (e) {
+                return 'שגיאה בטעינת יומן השינויים: $e';
               }
             },
             currentVersion: snapshot.data!.version,

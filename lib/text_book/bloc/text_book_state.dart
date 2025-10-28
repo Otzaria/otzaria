@@ -62,7 +62,6 @@ class TextBookLoaded extends TextBookState {
   final bool pinLeftPane;
   final String searchText;
   final String? currentTitle;
-  final bool showNotesSidebar;
   final String? selectedTextForNote;
   final int? selectedTextStart;
   final int? selectedTextEnd;
@@ -99,7 +98,6 @@ class TextBookLoaded extends TextBookState {
     required this.scrollController,
     required this.positionsListener,
     this.currentTitle,
-    required this.showNotesSidebar,
     this.selectedTextForNote,
     this.selectedTextStart,
     this.selectedTextEnd,
@@ -136,7 +134,6 @@ class TextBookLoaded extends TextBookState {
       scrollController: ItemScrollController(),
       positionsListener: ItemPositionsListener.create(),
       visibleIndices: [index],
-      showNotesSidebar: false,
       selectedTextForNote: null,
       selectedTextStart: null,
       selectedTextEnd: null,
@@ -169,7 +166,6 @@ class TextBookLoaded extends TextBookState {
     ItemScrollController? scrollController,
     ItemPositionsListener? positionsListener,
     String? currentTitle,
-    bool? showNotesSidebar,
     String? selectedTextForNote,
     int? selectedTextStart,
     int? selectedTextEnd,
@@ -201,7 +197,6 @@ class TextBookLoaded extends TextBookState {
       scrollController: scrollController ?? this.scrollController,
       positionsListener: positionsListener ?? this.positionsListener,
       currentTitle: currentTitle ?? this.currentTitle,
-      showNotesSidebar: showNotesSidebar ?? this.showNotesSidebar,
       selectedTextForNote: selectedTextForNote ?? this.selectedTextForNote,
       selectedTextStart: selectedTextStart ?? this.selectedTextStart,
       selectedTextEnd: selectedTextEnd ?? this.selectedTextEnd,
@@ -233,7 +228,6 @@ class TextBookLoaded extends TextBookState {
         pinLeftPane,
         searchText,
         currentTitle,
-        showNotesSidebar,
         selectedTextForNote,
         selectedTextStart,
         selectedTextEnd,

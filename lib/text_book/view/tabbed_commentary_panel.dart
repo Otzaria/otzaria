@@ -5,6 +5,8 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:otzaria/text_book/view/selected_line_links_view.dart';
+import 'package:otzaria/notes/widgets/notes_sidebar.dart';
+import 'package:otzaria/core/scaffold_messenger.dart';
 
 /// Widget שמציג כרטיסיות עם מפרשים וקישורים בחלונית הצד
 class TabbedCommentaryPanel extends StatefulWidget {
@@ -42,7 +44,7 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
   void initState() {
     super.initState();
     _tabController = TabController(
-      length: 2,
+      length: 3,
       vsync: this,
       initialIndex: widget.initialTabIndex ?? 0, // כרטיסייה ראשונית
     );
@@ -93,6 +95,7 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
                       tabs: const [
                         Tab(text: 'מפרשים'),
                         Tab(text: 'קישורים'),
+                        Tab(text: 'הערות אישיות'),
                       ],
                       labelColor: Theme.of(context).colorScheme.primary,
                       unselectedLabelColor: Theme.of(context)
@@ -152,6 +155,15 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
                     fontSize: widget.fontSize,
                     showVisibleLinksIfNoSelection:
                         widget.initialTabIndex == 1, // אם נפתח ישירות לקישורים
+                  ),
+                  // כרטיסיית ההערות האישיות
+                  NotesSidebar(
+                    bookId: state.book.title,
+                    onClose: null, // לא צריך כפתור סגירה - יש את הכפתור הכללי
+                    onNavigateToPosition: (start, end) {
+                      // ניווט למיקום ההערה בטקסט
+                      UiSnack.show('ניווט למיקום $start-$end');
+                    },
                   ),
                 ],
               ),

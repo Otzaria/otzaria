@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/models/books.dart';
+import 'package:otzaria/settings/settings_bloc.dart';
+import 'package:otzaria/settings/settings_state.dart';
+import 'package:otzaria/utils/text_manipulation.dart' as utils;
+import 'package:otzaria/core/scaffold_messenger.dart';
 import 'gematria_search.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/utils/open_book.dart';
@@ -30,6 +36,31 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
     _searchController.addListener(() {
       setState(() {});
     });
+    _loadSettings();
+  }
+
+  // טעינת הגדרות שמורות
+  void _loadSettings() {
+    setState(() {
+      _maxResults = Settings.getValue<int>('key-gematria-max-results') ?? 100;
+      _filterDuplicates = Settings.getValue<bool>('key-gematria-filter-duplicates') ?? false;
+      _wholeVerseOnly = Settings.getValue<bool>('key-gematria-whole-verse-only') ?? false;
+      _torahOnly = Settings.getValue<bool>('key-gematria-torah-only') ?? false;
+      _useSmallGematria = Settings.getValue<bool>('key-gematria-use-small') ?? false;
+      _useFinalLetters = Settings.getValue<bool>('key-gematria-use-final-letters') ?? false;
+      _useWithKolel = Settings.getValue<bool>('key-gematria-use-with-kolel') ?? false;
+    });
+  }
+
+  // שמירת הגדרות
+  Future<void> _saveSettings() async {
+    await Settings.setValue<int>('key-gematria-max-results', _maxResults);
+    await Settings.setValue<bool>('key-gematria-filter-duplicates', _filterDuplicates);
+    await Settings.setValue<bool>('key-gematria-whole-verse-only', _wholeVerseOnly);
+    await Settings.setValue<bool>('key-gematria-torah-only', _torahOnly);
+    await Settings.setValue<bool>('key-gematria-use-small', _useSmallGematria);
+    await Settings.setValue<bool>('key-gematria-use-final-letters', _useFinalLetters);
+    await Settings.setValue<bool>('key-gematria-use-with-kolel', _useWithKolel);
   }
 
   @override
@@ -98,12 +129,14 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
       // קבלת נתיב הספרייה מההגדרות
       final libraryPath = Settings.getValue<String>('key-library-path') ?? '.';
 
-      // חיפוש בתיקיות ספציפיות בלבד: תנך/תורה, תנך/נביאים, תנך/כתובים
-      final searchPaths = [
-        '$libraryPath/אוצריא/תנך/תורה',
-        '$libraryPath/אוצריא/תנך/נביאים',
-        '$libraryPath/אוצריא/תנך/כתובים',
-      ];
+      // חיפוש בתיקיות ספציפיות בלבד
+      final searchPaths = _torahOnly
+          ? ['$libraryPath/אוצריא/תנך/תורה']
+          : [
+              '$libraryPath/אוצריא/תנך/תורה',
+              '$libraryPath/אוצריא/תנך/נביאים',
+              '$libraryPath/אוצריא/תנך/כתובים',
+            ];
 
       final List<SearchResult> allResults = [];
       for (final path in searchPaths) {
@@ -111,22 +144,25 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
           path,
           targetGimatria,
           maxPhraseWords: 8,
-          fileLimit: _maxResults,
+          fileLimit: _maxResults + 1, // מבקשים אחד יותר כדי לדעת אם יש עוד
           wholeVerseOnly: _wholeVerseOnly,
           gematriaMethod: gematriaMethod,
           useWithKolel: _useWithKolel,
         );
         allResults.addAll(results);
-        if (allResults.length >= _maxResults) break;
+        if (allResults.length > _maxResults) break;
       }
 
+      // בדיקה אם יש יותר תוצאות מהמקסימום
+      _hasMoreResults = allResults.length > _maxResults;
       var results = allResults.take(_maxResults).toList();
 
       // סינון כפילויות אם נדרש
       if (_filterDuplicates) {
         final seen = <String>{};
         results = results.where((result) {
-          final key = result.text;
+          // הסרת ניקוד וטעמים לפני השוואה
+          final key = utils.removeVolwels(result.text);
           if (seen.contains(key)) {
             return false;
           }
@@ -160,6 +196,20 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
             data: result,
           );
         }).toList();
+
+        // מיון התוצאות לפי סדר התנ"ך
+        _searchResults.sort((a, b) {
+          final aOrder = _getBookOrder(a.bookTitle);
+          final bOrder = _getBookOrder(b.bookTitle);
+          if (aOrder != bOrder) {
+            return aOrder.compareTo(bOrder);
+          }
+          // אם אותו ספר, מיין לפי מספר השורה
+          final aResult = a.data as SearchResult;
+          final bResult = b.data as SearchResult;
+          return aResult.line.compareTo(bResult.line);
+        });
+
         _isSearching = false;
       });
     } catch (e) {
@@ -189,8 +239,12 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
   }
 
   Widget _buildStatusBar() {
+    final resultsText = _hasMoreResults
+        ? 'הוגבל ל-${_searchResults.length} תוצאות'
+        : 'נמצאו ${_searchResults.length} תוצאות';
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
         border: Border(
@@ -204,18 +258,25 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
-            'נמצאו ${_searchResults.length} תוצאות',
+            resultsText,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: 14,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
-          Text(
-            'ערך גימטריה: $_lastGematriaValue',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              'ערך גימטריה: $_lastGematriaValue',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
+              ),
             ),
           ),
         ],
@@ -224,6 +285,12 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
   }
 
   void showSettingsDialog() {
+    // שמירת הגדרות קודמות
+    final oldMaxResults = _maxResults;
+    final oldTorahOnly = _torahOnly;
+    final oldWholeVerseOnly = _wholeVerseOnly;
+    final oldFilterDuplicates = _filterDuplicates;
+
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -255,6 +322,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
                     setState(() {
                       _maxResults = value;
                     });
+                    _saveSettings();
                     setDialogState(() {});
                   }
                 },
@@ -270,6 +338,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
                   setState(() {
                     _filterDuplicates = value ?? false;
                   });
+                  _saveSettings();
                   setDialogState(() {});
                 },
                 controlAffinity: ListTileControlAffinity.leading,
@@ -285,6 +354,87 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
                   setState(() {
                     _wholeVerseOnly = value ?? false;
                   });
+                  _saveSettings();
+                  setDialogState(() {});
+                },
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+              ),
+              CheckboxListTile(
+                title: const Text(
+                  'חיפוש בתורה בלבד',
+                  textAlign: TextAlign.right,
+                ),
+                value: _torahOnly,
+                onChanged: (value) {
+                  setState(() {
+                    _torahOnly = value ?? false;
+                  });
+                  _saveSettings();
+                  setDialogState(() {});
+                },
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+              ),
+              const SizedBox(height: 16),
+              const Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  'שיטת חישוב גימטריה:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              const SizedBox(height: 8),
+              CheckboxListTile(
+                title: const Text(
+                  'גימטריה קטנה',
+                  textAlign: TextAlign.right,
+                ),
+                value: _useSmallGematria,
+                onChanged: (value) {
+                  setState(() {
+                    _useSmallGematria = value ?? false;
+                    if (_useSmallGematria) {
+                      _useFinalLetters = false; // לא יכול להיות שתי שיטות יחד
+                    }
+                  });
+                  _saveSettings();
+                  setDialogState(() {});
+                },
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+              ),
+              CheckboxListTile(
+                title: const Text(
+                  'אותיות סופיות שונות',
+                  textAlign: TextAlign.right,
+                ),
+                value: _useFinalLetters,
+                onChanged: (value) {
+                  setState(() {
+                    _useFinalLetters = value ?? false;
+                    if (_useFinalLetters) {
+                      _useSmallGematria = false; // לא יכול להיות שתי שיטות יחד
+                    }
+                  });
+                  _saveSettings();
+                  setDialogState(() {});
+                },
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+              ),
+              const SizedBox(height: 16),
+              CheckboxListTile(
+                title: const Text(
+                  'עם הכולל',
+                  textAlign: TextAlign.right,
+                ),
+                value: _useWithKolel,
+                onChanged: (value) {
+                  setState(() {
+                    _useWithKolel = value ?? false;
+                  });
+                  _saveSettings();
                   setDialogState(() {});
                 },
                 controlAffinity: ListTileControlAffinity.leading,
@@ -355,7 +505,19 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () {
+                Navigator.of(context).pop();
+                // בדיקה אם השתנו הגדרות שדורשות חיפוש מחדש
+                final settingsChanged = oldMaxResults != _maxResults ||
+                    oldTorahOnly != _torahOnly ||
+                    oldWholeVerseOnly != _wholeVerseOnly ||
+                    oldFilterDuplicates != _filterDuplicates;
+
+                // אם יש טקסט חיפוש והגדרות השתנו, בצע חיפוש מחדש
+                if (settingsChanged && _lastSearchText.isNotEmpty) {
+                  _performSearch();
+                }
+              },
               child: const Text('סגור'),
             ),
           ],
@@ -371,7 +533,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
         color: Theme.of(context).colorScheme.surface,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -383,7 +545,8 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
         decoration: InputDecoration(
           hintText: 'חפש גימטריה...',
           hintStyle: TextStyle(
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+            color:
+                Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
           ),
           filled: true,
           fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -531,31 +694,94 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // נתיב (כותרות) - אם קיים, אחרת שם הקובץ
-                    Text(
-                      result.internalPath.isNotEmpty
-                          ? result.internalPath
-                          : result.bookTitle,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                      textAlign: TextAlign.right,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    BlocBuilder<SettingsBloc, SettingsState>(
+                      builder: (context, settingsState) {
+                        String displayPath = result.internalPath.isNotEmpty
+                            ? result.internalPath
+                            : result.bookTitle;
+                        if (settingsState.replaceHolyNames) {
+                          displayPath = utils.replaceHolyNames(displayPath);
+                        }
+                        return Text(
+                          displayPath,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                          textAlign: TextAlign.right,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        );
+                      },
                     ),
                     const SizedBox(height: 8),
-                    // המילים שנמצאו - בולטות
+                    // המילים שנמצאו עם הקשר
                     if (result.preview.isNotEmpty)
-                      Text(
-                        result.preview,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onSurface,
-                          height: 1.5,
-                        ),
-                        textAlign: TextAlign.right,
+                      BlocBuilder<SettingsBloc, SettingsState>(
+                        builder: (context, settingsState) {
+                          String displayText = result.preview;
+                          if (settingsState.replaceHolyNames) {
+                            displayText = utils.replaceHolyNames(displayText);
+                          }
+
+                          // הוספת הקשר אם קיים
+                          final searchResult = result.data as SearchResult;
+                          String contextBefore = searchResult.contextBefore;
+                          String contextAfter = searchResult.contextAfter;
+
+                          if (settingsState.replaceHolyNames) {
+                            contextBefore =
+                                utils.replaceHolyNames(contextBefore);
+                            contextAfter = utils.replaceHolyNames(contextAfter);
+                          }
+
+                          return RichText(
+                            textAlign: TextAlign.right,
+                            text: TextSpan(
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Theme.of(context).colorScheme.onSurface,
+                                height: 1.5,
+                              ),
+                              children: [
+                                // הקשר לפני - אפור וחלש
+                                if (contextBefore.isNotEmpty)
+                                  TextSpan(
+                                    text: '$contextBefore ',
+                                    style: TextStyle(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurface
+                                          .withValues(alpha: 0.4),
+                                      fontWeight: FontWeight.w300,
+                                    ),
+                                  ),
+                                // הטקסט המרכזי - בולט
+                                TextSpan(
+                                  text: displayText,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 18,
+                                  ),
+                                ),
+                                // הקשר אחרי - אפור וחלש
+                                if (contextAfter.isNotEmpty)
+                                  TextSpan(
+                                    text: ' $contextAfter',
+                                    style: TextStyle(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurface
+                                          .withValues(alpha: 0.4),
+                                      fontWeight: FontWeight.w300,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          );
+                        },
                       ),
                   ],
                 ),

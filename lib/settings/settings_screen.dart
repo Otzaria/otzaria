@@ -14,6 +14,7 @@ import 'package:otzaria/settings/settings_event.dart';
 import 'package:otzaria/settings/settings_state.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
+import 'package:otzaria/settings/reading_settings_dialog.dart';
 import 'dart:async';
 
 class MySettingsScreen extends StatefulWidget {
@@ -245,6 +246,12 @@ class _MySettingsScreenState extends State<MySettingsScreen>
                             .add(UpdateReplaceHolyNames(value));
                       },
                       activeColor: Theme.of(context).cardColor,
+                    ),
+                    SimpleSettingsTile(
+                      title: 'הגדרות תצוגת הספרים',
+                      subtitle: 'גופן, ניקוד, סרגל צד ועוד',
+                      leading: const Icon(Icons.menu_book),
+                      onTap: () => showReadingSettingsDialog(context),
                     ),
                   ],
                 ),

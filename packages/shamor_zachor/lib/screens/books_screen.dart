@@ -67,8 +67,12 @@ class _BooksScreenState extends State<BooksScreen>
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAliveClientMixin
 
+    _logger.info('BooksScreen.build() called');
+
     return Consumer<ShamorZachorDataProvider>(
       builder: (context, dataProvider, child) {
+        _logger.info('BooksScreen Consumer builder - hasData: ${dataProvider.hasData}, isLoading: ${dataProvider.isLoading}');
+
         if (dataProvider.isLoading) {
           return const Center(
             child: Column(
@@ -120,6 +124,18 @@ class _BooksScreenState extends State<BooksScreen>
         }
 
         final allCategories = dataProvider.getCategoryNames();
+
+        _logger.info('All categories: $allCategories');
+
+        // Get custom (user-added) books directly from provider
+        final customBooksData = dataProvider.getCustomBooks();
+        final hasCustomBooks = customBooksData.isNotEmpty;
+
+        _logger.info('Custom books count: ${customBooksData.length}');
+        if (hasCustomBooks) {
+          _logger.info('Custom books: ${customBooksData.map((b) => "${b['categoryName']} - ${b['bookName']}").toList()}');
+        }
+
         final customOrder = [
           'תנ"ך',
           'משנה',
@@ -128,10 +144,19 @@ class _BooksScreenState extends State<BooksScreen>
           'רמב"ם',
           'הלכה'
         ];
+
         final categories =
             customOrder.where((c) => allCategories.contains(c)).toList();
-        // Add any categories not in custom order at the end
-        categories.addAll(allCategories.where((c) => !customOrder.contains(c)));
+
+        // Add "Custom Books" tab if there are any custom books
+        if (hasCustomBooks) {
+          _logger.info('Adding "ספרים אישיים" tab');
+          categories.add('ספרים אישיים');
+        } else {
+          _logger.warning('No custom books found!');
+        }
+
+        _logger.info('Final tabs: $categories');
 
         return DefaultTabController(
           length: categories.length,
@@ -301,9 +326,72 @@ class _BooksScreenState extends State<BooksScreen>
     );
   }
 
+  /// Build view for custom (user-added) books
+  Widget _buildCustomBooksView(ShamorZachorDataProvider dataProvider) {
+    final customBooksData = dataProvider.getCustomBooks();
+    _logger.info('_buildCustomBooksView: ${customBooksData.length} custom books');
+
+    final items = <_BookItem>[];
+
+    // Convert custom books data to BookItems
+    for (final bookData in customBooksData) {
+      items.add(_BookItem(
+        topLevelCategoryKey: bookData['topLevelCategoryKey'] as String,
+        categoryName: bookData['categoryName'] as String,
+        bookName: bookData['bookName'] as String,
+        bookDetails: bookData['bookDetails'] as BookDetails,
+      ));
+    }
+
+    if (items.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.library_add,
+              size: 64,
+              color: Theme.of(context)
+                  .colorScheme
+                  .onSurface
+                  .withValues(alpha: 0.5),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'אין ספרים אישיים',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.6),
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'הוסף ספרים מהספרייה לשמור וזכור',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.5),
+                  ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return _buildBookGrid(items);
+  }
+
   /// Build view for a specific category
   Widget _buildCategoryView(
       ShamorZachorDataProvider dataProvider, String categoryName) {
+    // Special handling for "Custom Books" tab
+    if (categoryName == 'ספרים אישיים') {
+      return _buildCustomBooksView(dataProvider);
+    }
+
     final category = dataProvider.getCategory(categoryName);
     if (category == null) {
       return const Center(child: Text('קטגוריה לא נמצאה'));

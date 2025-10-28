@@ -4,11 +4,35 @@ import 'dart:math' as math;
 import 'measurement_data.dart';
 
 // START OF ADDITIONS - MODERN UNITS
-const List<String> modernLengthUnits = ['ס"מ', 'מטר', 'ק"מ'];
-const List<String> modernAreaUnits = ['מ"ר', 'דונם'];
-const List<String> modernVolumeUnits = ['סמ"ק', 'ליטר'];
-const List<String> modernWeightUnits = ['גרם', 'ק"ג'];
-const List<String> modernTimeUnits = ['שניות', 'דקות', 'שעות', 'ימים'];
+const List<String> modernLengthUnits = ['מ"מ', 'ס"מ', 'מטר', 'ק"מ'];
+const List<String> modernAreaUnits = ['ס"מ רבוע', 'מ"ר', 'ק"מ רבוע', 'דונם'];
+const List<String> modernVolumeUnits = [
+  'מ"מ מעוקב',
+  'ס"מ מעוקב',
+  'סמ"ק',
+  'מ"ל',
+  'ליטר',
+  'מטר מעוקב',
+  'קוב'
+];
+const List<String> modernWeightUnits = ['מ"ג', 'גרם', 'ק"ג', 'טון'];
+const List<String> modernTimeUnits = ['שניות', 'חלקים', 'דקות', 'שעות', 'ימים'];
+
+// Basic ancient time units (first row)
+const List<String> basicAncientTimeUnits = [
+  'הילוך אמה',
+  'הילוך מיל',
+  'הילוך פרסה'
+];
+
+// Complex ancient time units (second row) - ordered by size
+const List<String> complexAncientTimeUnits = [
+  'הילוך ארבע אמות',
+  'הילוך מאה אמה',
+  'הילוך שלושה רבעי מיל',
+  'הילוך ארבעה מילים',
+  'הילוך עשרה פרסאות'
+];
 // END OF ADDITIONS
 
 class MeasurementConverterScreen extends StatefulWidget {
@@ -43,7 +67,11 @@ class _MeasurementConverterScreenState
     'שטח': areaConversionFactors.keys.toList()..addAll(modernAreaUnits),
     'נפח': volumeConversionFactors.keys.toList()..addAll(modernVolumeUnits),
     'משקל': weightConversionFactors.keys.toList()..addAll(modernWeightUnits),
-    'זמן': timeConversionFactors.keys.toList()..addAll(modernTimeUnits),
+    'זמן': [
+      ...basicAncientTimeUnits,
+      ...complexAncientTimeUnits,
+      ...modernTimeUnits
+    ],
   };
 
   final Map<String, List<String>> _opinions = {
@@ -164,10 +192,14 @@ class _MeasurementConverterScreenState
     switch (category) {
       case 'אורך': // Base unit: cm
         if (modernLengthUnits.contains(unit)) {
+          if (unit == 'מ"מ') return 0.1;
           if (unit == 'ס"מ') return 1.0;
           if (unit == 'מטר') return 100.0;
           if (unit == 'ק"מ') return 100000.0;
         } else {
+          if (opinion.isEmpty) {
+            return null; // Opinion required for ancient units
+          }
           final value = modernLengthFactors[opinion]![normalizedUnit];
           if (value == null) return null;
           // Units in data are cm, m, km. Convert all to cm.
@@ -182,9 +214,14 @@ class _MeasurementConverterScreenState
         break;
       case 'שטח': // Base unit: m^2
         if (modernAreaUnits.contains(unit)) {
+          if (unit == 'ס"מ רבוע') return 0.0001;
           if (unit == 'מ"ר') return 1.0;
+          if (unit == 'ק"מ רבוע') return 1000000.0;
           if (unit == 'דונם') return 1000.0;
         } else {
+          if (opinion.isEmpty) {
+            return null; // Opinion required for ancient units
+          }
           final value = modernAreaFactors[opinion]![normalizedUnit];
           if (value == null) return null;
           // Units in data are m^2, dunam. Convert all to m^2
@@ -197,9 +234,17 @@ class _MeasurementConverterScreenState
         break;
       case 'נפח': // Base unit: cm^3
         if (modernVolumeUnits.contains(unit)) {
+          if (unit == 'מ"מ מעוקב') return 0.001;
+          if (unit == 'ס"מ מעוקב') return 1.0;
           if (unit == 'סמ"ק') return 1.0;
+          if (unit == 'מ"ל') return 1.0;
           if (unit == 'ליטר') return 1000.0;
+          if (unit == 'מטר מעוקב') return 1000000.0;
+          if (unit == 'קוב') return 1000000.0;
         } else {
+          if (opinion.isEmpty) {
+            return null; // Opinion required for ancient units
+          }
           final value = modernVolumeFactors[opinion]![normalizedUnit];
           if (value == null) return null;
           // Units in data are cm^3, L. Convert all to cm^3
@@ -212,9 +257,14 @@ class _MeasurementConverterScreenState
         break;
       case 'משקל': // Base unit: g
         if (modernWeightUnits.contains(unit)) {
+          if (unit == 'מ"ג') return 0.001;
           if (unit == 'גרם') return 1.0;
           if (unit == 'ק"ג') return 1000.0;
+          if (unit == 'טון') return 1000000.0;
         } else {
+          if (opinion.isEmpty) {
+            return null; // Opinion required for ancient units
+          }
           final value = modernWeightFactors[opinion]![_normalizeUnitName(unit)];
           if (value == null) return null;
           // Units in data are g, kg. Convert all to g
@@ -227,10 +277,16 @@ class _MeasurementConverterScreenState
       case 'זמן': // Base unit: seconds
         if (modernTimeUnits.contains(unit)) {
           if (unit == 'שניות') return 1.0;
+          if (unit == 'חלקים') {
+            return 10.0 / 3.0; // 3.333... seconds (3 seconds and 1/3)
+          }
           if (unit == 'דקות') return 60.0;
           if (unit == 'שעות') return 3600.0;
           if (unit == 'ימים') return 86400.0;
         } else {
+          if (opinion.isEmpty) {
+            return null; // Opinion required for ancient units
+          }
           final value = modernTimeFactors[opinion]![unit];
           if (value == null) return null;
           return value; // Already in seconds
@@ -286,8 +342,23 @@ class _MeasurementConverterScreenState
           break;
       }
       result = input * conversionFactor;
+    } else if (!fromIsAncient && !toIsAncient) {
+      // Case 2: Modern to Modern conversion (doesn't need opinion)
+      // Convert directly using base unit factors
+      final factorFrom =
+          _getFactorToBaseUnit(_selectedCategory, _selectedFromUnit!, '');
+      final factorTo =
+          _getFactorToBaseUnit(_selectedCategory, _selectedToUnit!, '');
+
+      if (factorFrom == null || factorTo == null) {
+        _resultController.clear();
+        return;
+      }
+
+      final valueInBaseUnit = input * factorFrom;
+      result = valueInBaseUnit / factorTo;
     } else {
-      // Case 2: Conversion involving any modern unit (requires an opinion)
+      // Case 3: Conversion between ancient and modern units (requires an opinion)
       if (_selectedOpinion == null) {
         _resultController.text = "נא לבחור שיטה";
         return;
@@ -563,7 +634,47 @@ class _MeasurementConverterScreenState
       String label, String? selectedValue, ValueChanged<String?> onChanged) {
     final units = _units[_selectedCategory]!;
 
-    // Separate modern and ancient units
+    // Special handling for time category
+    if (_selectedCategory == 'זמן') {
+      final modernUnits = _getModernUnitsForCategory(_selectedCategory);
+
+      // Filter units that exist in our data
+      final availableBasicUnits =
+          basicAncientTimeUnits.where((unit) => units.contains(unit)).toList();
+      final availableComplexUnits = complexAncientTimeUnits
+          .where((unit) => units.contains(unit))
+          .toList();
+
+      return InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle:
+              const TextStyle(fontSize: 19.0, fontWeight: FontWeight.w500),
+          border: const OutlineInputBorder(),
+          contentPadding: const EdgeInsets.fromLTRB(12.0, 26.0, 12.0, 12.0),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Basic ancient time units (first row)
+            if (availableBasicUnits.isNotEmpty) ...[
+              _buildUnitsWrap(availableBasicUnits, selectedValue, onChanged),
+              const SizedBox(height: 12.0),
+            ],
+            // Complex ancient time units (second row)
+            if (availableComplexUnits.isNotEmpty) ...[
+              _buildUnitsWrap(availableComplexUnits, selectedValue, onChanged),
+              if (modernUnits.isNotEmpty) const SizedBox(height: 12.0),
+            ],
+            // Modern units (third row)
+            if (modernUnits.isNotEmpty)
+              _buildUnitsWrap(modernUnits, selectedValue, onChanged),
+          ],
+        ),
+      );
+    }
+
+    // Default handling for other categories
     final modernUnits = _getModernUnitsForCategory(_selectedCategory);
     final ancientUnits =
         units.where((unit) => !modernUnits.contains(unit)).toList();
@@ -684,8 +795,11 @@ class _MeasurementConverterScreenState
     final bool isFromModern = moderns.contains(_selectedFromUnit);
     final bool isToModern = moderns.contains(_selectedToUnit);
 
-    // Show opinion selector ONLY if at least one unit is modern
-    bool isOpinionEnabled = isFromModern || isToModern;
+    // Show opinion selector ONLY if:
+    // 1. At least one unit is modern AND
+    // 2. NOT both units are modern (modern-to-modern doesn't need opinion)
+    bool isOpinionEnabled =
+        (isFromModern || isToModern) && !(isFromModern && isToModern);
 
     // If not enabled, don't show the selector at all
     if (!isOpinionEnabled) {
@@ -846,9 +960,26 @@ class _MeasurementConverterScreenState
     return TextField(
       controller: _inputController,
       focusNode: _inputFocusNode,
-      decoration: const InputDecoration(
+      decoration: InputDecoration(
         labelText: 'ערך להמרה',
-        border: OutlineInputBorder(),
+        border: const OutlineInputBorder(),
+        suffixIcon: _inputController.text.isNotEmpty
+            ? IconButton(
+                icon: const Icon(Icons.clear),
+                onPressed: () {
+                  setState(() {
+                    _inputController.clear();
+                    _showResultField = false;
+                    _resultController.clear();
+                    _rememberedInputValues.remove(_selectedCategory);
+                  });
+                  // Restore focus to the screen after clearing
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    _screenFocusNode.requestFocus();
+                  });
+                },
+              )
+            : null,
       ),
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       inputFormatters: [

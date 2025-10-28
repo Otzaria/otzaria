@@ -6,6 +6,9 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/combined_view/commentary_content.dart';
 import 'package:otzaria/widgets/progressive_scrolling.dart';
+import 'package:otzaria/settings/settings_bloc.dart';
+import 'package:otzaria/settings/settings_state.dart';
+import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 class CommentaryListBase extends StatefulWidget {
@@ -250,7 +253,7 @@ class _CommentaryListBaseState extends State<CommentaryListBase> {
                 if (thisLinksSnapshot.data!.isEmpty) {
                   // בדיקה אם אין מפרשים פעילים כלל
                   if (state.activeCommentators.isEmpty) {
-                    return const Center(child: Text("בחר מפרשים להצגה"));
+                    return const Center(child: Text("לא נבחרו מפרשים להצגה"));
                   } else {
                     return const Center(child: Text("לא נמצאו מפרשים להצגה"));
                   }
@@ -279,9 +282,19 @@ class _CommentaryListBaseState extends State<CommentaryListBase> {
                     shrinkWrap: true,
                     itemCount: data.length,
                     itemBuilder: (context, index1) => ListTile(
-                      title: Text(thisLinksSnapshot.data![index1].heRef),
+                      title: BlocBuilder<SettingsBloc, SettingsState>(
+                        builder: (context, settingsState) {
+                          String displayTitle =
+                              thisLinksSnapshot.data![index1].heRef;
+                          if (settingsState.replaceHolyNames) {
+                            displayTitle = utils.replaceHolyNames(displayTitle);
+                          }
+                          return Text(displayTitle);
+                        },
+                      ),
                       subtitle: CommentaryContent(
-                        key: ValueKey('${thisLinksSnapshot.data![index1].path2}_${thisLinksSnapshot.data![index1].index2}_$indexesKey'),
+                        key: ValueKey(
+                            '${thisLinksSnapshot.data![index1].path2}_${thisLinksSnapshot.data![index1].index2}_$indexesKey'),
                         link: thisLinksSnapshot.data![index1],
                         fontSize: widget.fontSize,
                         openBookCallback: widget.openBookCallback,

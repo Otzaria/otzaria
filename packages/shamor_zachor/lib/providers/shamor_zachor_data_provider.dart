@@ -4,13 +4,18 @@ import 'package:logging/logging.dart';
 import '../models/book_model.dart';
 import '../models/error_model.dart';
 import '../services/data_loader_service.dart';
+import '../services/dynamic_data_loader_service.dart';
 
 /// Provider for managing book data in Shamor Zachor
 /// This provider is scoped locally within the ShamorZachorWidget
+///
+/// Supports both legacy DataLoaderService (static JSON) and new
+/// DynamicDataLoaderService (dynamic scanning with cache)
 class ShamorZachorDataProvider with ChangeNotifier {
   static final Logger _logger = Logger('ShamorZachorDataProvider');
 
-  final DataLoaderService _dataLoaderService;
+  final DataLoaderService? _dataLoaderService;
+  final DynamicDataLoaderService? _dynamicDataLoaderService;
   Map<String, BookCategory> _allBookData = {};
   bool _isLoading = false;
   ShamorZachorError? _error;
@@ -27,10 +32,22 @@ class ShamorZachorDataProvider with ChangeNotifier {
   /// Check if data has been loaded
   bool get hasData => _allBookData.isNotEmpty;
 
+  /// Check if using dynamic loader (new architecture)
+  bool get useDynamicLoader => _dynamicDataLoaderService != null;
+
+  /// Legacy constructor with DataLoaderService (static JSON)
   ShamorZachorDataProvider({DataLoaderService? dataLoaderService})
       : _dataLoaderService = dataLoaderService ??
             DataLoaderService(
-                assetsBasePath: 'packages/shamor_zachor/assets/data/') {
+                assetsBasePath: 'packages/shamor_zachor/assets/data/'),
+        _dynamicDataLoaderService = null {
+    _loadInitialData();
+  }
+
+  /// New constructor with DynamicDataLoaderService (dynamic scanning)
+  ShamorZachorDataProvider.dynamic(DynamicDataLoaderService dynamicService)
+      : _dynamicDataLoaderService = dynamicService,
+        _dataLoaderService = null {
     _loadInitialData();
   }
 
@@ -41,17 +58,44 @@ class ShamorZachorDataProvider with ChangeNotifier {
 
   /// Load all book categories and data
   Future<void> loadAllData() async {
-    if (_isLoading) return; // Prevent concurrent loads
+    // Wait for any pending load to complete (with timeout)
+    int waitCount = 0;
+    while (_isLoading && waitCount < 100) { // Max 10 seconds
+      _logger.fine('Waiting for pending load to complete... ($waitCount)');
+      await Future.delayed(const Duration(milliseconds: 100));
+      waitCount++;
+    }
+
+    if (_isLoading) {
+      _logger.warning('Load timeout - forcing reload anyway');
+      // Don't return, continue with reload
+    }
 
     _logger.info('Starting to load all data...');
-    _dataLoaderService.clearCache();
+
+    // Clear cache based on service type
+    if (_dynamicDataLoaderService != null) {
+      _dynamicDataLoaderService.clearCache();
+    } else {
+      _dataLoaderService?.clearCache();
+    }
+
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
       _logger.info('Calling dataLoaderService.loadData()...');
-      _allBookData = await _dataLoaderService.loadData();
+
+      // Load data from appropriate service
+      if (_dynamicDataLoaderService != null) {
+        _allBookData = await _dynamicDataLoaderService.loadData();
+        _logger.info('Data loaded from DynamicDataLoaderService');
+      } else {
+        _allBookData = await _dataLoaderService!.loadData();
+        _logger.info('Data loaded from legacy DataLoaderService');
+      }
+
       _logger.info(
           'Data loaded successfully. Categories: ${_allBookData.keys.toList()}');
       _logger.info('Successfully loaded ${_allBookData.length} categories');
@@ -221,6 +265,80 @@ class ShamorZachorDataProvider with ChangeNotifier {
   /// Check if a specific book exists in a category
   bool hasBook(String categoryName, String bookName) {
     return getBookDetails(categoryName, bookName) != null;
+  }
+
+  /// Reload data from service (useful after adding custom books)
+  Future<void> reload() async {
+    await loadAllData();
+  }
+
+  /// Add a custom book to tracking (only for DynamicDataLoaderService)
+  Future<void> addCustomBook({
+    required String bookName,
+    required String categoryName,
+    required String bookPath,
+    required String contentType,
+  }) async {
+    if (_dynamicDataLoaderService == null) {
+      throw UnsupportedError(
+        'Adding custom books is only supported with DynamicDataLoaderService'
+      );
+    }
+
+    _logger.info('Provider: Adding custom book: $categoryName - $bookName');
+
+    await _dynamicDataLoaderService.addCustomBook(
+      bookName: bookName,
+      categoryName: categoryName,
+      bookPath: bookPath,
+      contentType: contentType,
+    );
+
+    _logger.info('Provider: Book added to service, now reloading...');
+
+    // Reload data to reflect the new book
+    await reload();
+
+    _logger.info('Provider: Reload complete. Categories: ${_allBookData.keys.toList()}');
+    _logger.info('Provider: Category "$categoryName" exists: ${_allBookData.containsKey(categoryName)}');
+    if (_allBookData.containsKey(categoryName)) {
+      final category = _allBookData[categoryName]!;
+      _logger.info('Provider: Books in "$categoryName": ${category.books.keys.toList()}');
+    }
+  }
+
+  /// Check if a book is already tracked
+  bool isBookTracked(String categoryName, String bookName) {
+    if (_dynamicDataLoaderService != null) {
+      return _dynamicDataLoaderService.isBookTracked(categoryName, bookName);
+    }
+    // Legacy: check if book exists in loaded data
+    return hasBook(categoryName, bookName);
+  }
+
+  /// Get all custom (user-added) books across all categories
+  /// Returns a list of tuples: (categoryName, bookName, bookDetails)
+  List<Map<String, dynamic>> getCustomBooks() {
+    if (_dynamicDataLoaderService == null) {
+      // Legacy mode: no custom books
+      return [];
+    }
+    final customBooks = <Map<String, dynamic>>[];
+    // Get all tracked books from the service
+    final allTrackedBooks = _dynamicDataLoaderService.getAllTrackedBooks();
+    // Filter only non-built-in books
+    for (final trackedBook in allTrackedBooks) {
+      if (!trackedBook.isBuiltIn) {
+        customBooks.add({
+          'categoryName': trackedBook.categoryName,
+          'bookName': trackedBook.bookName,
+          'bookDetails': trackedBook.bookDetails,
+          'topLevelCategoryKey': trackedBook.categoryName,
+        });
+      }
+    }
+    _logger.info('getCustomBooks: Found ${customBooks.length} custom books');
+    return customBooks;
   }
 
   @override

@@ -98,8 +98,6 @@ class _CombinedViewState extends State<CombinedView> {
     }
   }
 
-  // הוסרנו את _showNotesSidebar המקומי - נשתמש ב-state מה-BLoC
-
   // מעקב אחר בחירת טקסט בלי setState
   String? _selectedText;
   int? _selectionStart;
@@ -557,9 +555,6 @@ $textWithBreaks
 
   /// הצגת עורך ההערות
   void _showNoteEditor(String selectedText, int charStart, int charEnd) {
-    // שמירת ה-bloc לצורך עדכון המצב לאחר סגירת הדיאלוג
-    final textBookBloc = context.read<TextBookBloc>();
-
     showDialog(
       context: context,
       builder: (dialogContext) => NoteEditorDialog(
@@ -583,12 +578,6 @@ $textWithBreaks
 
             if (mounted) {
               // Dialog is already closed by NoteEditorDialog
-              // הצגת סרגל ההערות אם הוא לא פתוח
-              final currentState = textBookBloc.state;
-              if (currentState is TextBookLoaded &&
-                  !currentState.showNotesSidebar) {
-                textBookBloc.add(const ToggleNotesSidebar());
-              }
               UiSnack.show(UiSnack.noteCreated);
             }
           } catch (e) {
@@ -718,63 +707,67 @@ $textWithBreaks
             collapsedBackgroundColor: Colors.transparent,
             // ביטול אפקטי hover ו-splash
             visualDensity: VisualDensity.compact,
-            onExpansionChanged: (expanded) {
-              // עדכון המצב בהתאם למצב החדש של ה-ExpansionTile
-              if (expanded) {
-                _textBookBloc.add(UpdateSelectedIndex(index));
-              } else {
-                _textBookBloc.add(const UpdateSelectedIndex(null));
-              }
-            },
-            title: Padding(
-              // padding קטן לעיצוב
-              padding: const EdgeInsets.symmetric(vertical: 4.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  BlocBuilder<SettingsBloc, SettingsState>(
-                    builder: (context, settingsState) {
-                      String data = widget.data[index];
-                      if (!settingsState.showTeamim) {
-                        data = utils.removeTeamim(data);
-                      }
-                      if (settingsState.replaceHolyNames) {
-                        data = utils.replaceHolyNames(data);
-                      }
+            // הסרת onExpansionChanged - נטפל בלחיצות ידנית
+            title: GestureDetector(
+              // רק לחיצה על ה-title תפתח/תסגור את המפרשים
+              onTap: () {
+                if (controller.isExpanded) {
+                  controller.collapse();
+                  _textBookBloc.add(const UpdateSelectedIndex(null));
+                } else {
+                  controller.expand();
+                  _textBookBloc.add(UpdateSelectedIndex(index));
+                }
+              },
+              child: Padding(
+                // padding קטן לעיצוב
+                padding: const EdgeInsets.symmetric(vertical: 4.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    BlocBuilder<SettingsBloc, SettingsState>(
+                      builder: (context, settingsState) {
+                        String data = widget.data[index];
+                        if (!settingsState.showTeamim) {
+                          data = utils.removeTeamim(data);
+                        }
+                        if (settingsState.replaceHolyNames) {
+                          data = utils.replaceHolyNames(data);
+                        }
 
-                      return HtmlWidget(
-                        '''
+                        return HtmlWidget(
+                          '''
                         <div style="text-align: justify; direction: rtl;">
                           ${() {
-                          String processedData = state.removeNikud
-                              ? utils.highLight(utils.removeVolwels('$data\n'),
-                                  state.searchText)
-                              : utils.highLight('$data\n', state.searchText);
-                          // החלת עיצוב הסוגריים העגולים
-                          return utils.formatTextWithParentheses(processedData);
-                        }()}
+                            String processedData = state.removeNikud
+                                ? utils.highLight(utils.removeVolwels('$data\n'),
+                                    state.searchText)
+                                : utils.highLight('$data\n', state.searchText);
+                            // החלת עיצוב הסוגריים העגולים
+                            return utils.formatTextWithParentheses(processedData);
+                          }()}
                         </div>
                         ''',
-                        textStyle: TextStyle(
-                          fontSize: widget.textSize,
-                          fontFamily: settingsState.fontFamily,
-                          height: 1.5,
-                        ),
-                      );
-                    },
-                  ),
-                ],
+                          textStyle: TextStyle(
+                            fontSize: widget.textSize,
+                            fontFamily: settingsState.fontFamily,
+                            height: 1.5,
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
             children: [
-              widget.showCommentaryAsExpansionTiles
-                  ? CommentaryListBase(
-                      indexes: [index],
-                      fontSize: widget.textSize,
-                      openBookCallback: widget.openBookCallback,
-                      showSearch: false,
-                    )
-                  : const SizedBox.shrink(),
+              if (widget.showCommentaryAsExpansionTiles)
+                CommentaryListBase(
+                  indexes: [index],
+                  fontSize: widget.textSize,
+                  openBookCallback: widget.openBookCallback,
+                  showSearch: false,
+                ),
             ],
           ),
         ),
@@ -784,37 +777,7 @@ $textWithBreaks
 
   @override
   Widget build(BuildContext context) {
-    final bookView = buildKeyboardListener();
-
-    // אם סרגל ההערות פתוח, הצג אותו לצד התוכן
-    return BlocBuilder<TextBookBloc, TextBookState>(
-      builder: (context, state) {
-        if (state is! TextBookLoaded) return bookView;
-
-        if (state.showNotesSidebar) {
-          return Row(
-            children: [
-              Expanded(flex: 3, child: bookView),
-              Container(
-                width: 1,
-                color: Theme.of(context).dividerColor,
-              ),
-              Expanded(
-                flex: 1,
-                child: _NotesSection(
-                  bookId: widget.tab.book.title,
-                  onClose: () => context
-                      .read<TextBookBloc>()
-                      .add(const ToggleNotesSidebar()),
-                ),
-              ),
-            ],
-          );
-        }
-
-        return bookView;
-      },
-    );
+    return buildKeyboardListener();
   }
 
   /// Opens the text editor for a specific paragraph
@@ -822,28 +785,5 @@ $textWithBreaks
     if (paragraphIndex >= 0 && paragraphIndex < widget.data.length) {
       context.read<TextBookBloc>().add(OpenEditor(index: paragraphIndex));
     }
-  }
-}
-
-/// Widget נפרד לסרגל ההערות כדי למנוע rebuilds מיותרים של הטקסט
-class _NotesSection extends StatelessWidget {
-  final String bookId;
-  final VoidCallback onClose;
-
-  const _NotesSection({
-    required this.bookId,
-    required this.onClose,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return NotesSidebar(
-      bookId: bookId,
-      onClose: onClose,
-      onNavigateToPosition: (start, end) {
-        // ניווט למיקום ההערה בטקסט
-        UiSnack.show('ניווט למיקום $start-$end');
-      },
-    );
   }
 }

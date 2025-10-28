@@ -8,6 +8,8 @@ import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/settings/settings_bloc.dart';
+import 'package:otzaria/settings/settings_state.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 
 /// Widget שמציג את הקישורים של השורה הנבחרת בלבד
@@ -232,21 +234,37 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
       maintainState: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
       collapsedBackgroundColor: Theme.of(context).colorScheme.surface,
-      title: Text(
-        link.heRef,
-        style: TextStyle(
-          fontSize: widget.fontSize * 0.75,
-          fontWeight: FontWeight.w600,
-          fontFamily: 'FrankRuhlCLM',
-        ),
+      title: BlocBuilder<SettingsBloc, SettingsState>(
+        builder: (context, settingsState) {
+          String displayTitle = link.heRef;
+          if (settingsState.replaceHolyNames) {
+            displayTitle = utils.replaceHolyNames(displayTitle);
+          }
+          return Text(
+            displayTitle,
+            style: TextStyle(
+              fontSize: widget.fontSize * 0.75,
+              fontWeight: FontWeight.w600,
+              fontFamily: 'FrankRuhlCLM',
+            ),
+          );
+        },
       ),
-      subtitle: Text(
-        utils.getTitleFromPath(link.path2),
-        style: TextStyle(
-          fontSize: widget.fontSize * 0.65,
-          fontFamily: 'FrankRuhlCLM',
-          color: Theme.of(context).colorScheme.onSurface.withAlpha(180),
-        ),
+      subtitle: BlocBuilder<SettingsBloc, SettingsState>(
+        builder: (context, settingsState) {
+          String displaySubtitle = utils.getTitleFromPath(link.path2);
+          if (settingsState.replaceHolyNames) {
+            displaySubtitle = utils.replaceHolyNames(displaySubtitle);
+          }
+          return Text(
+            displaySubtitle,
+            style: TextStyle(
+              fontSize: widget.fontSize * 0.65,
+              fontFamily: 'FrankRuhlCLM',
+              color: Theme.of(context).colorScheme.onSurface.withAlpha(180),
+            ),
+          );
+        },
       ),
       onExpansionChanged: (isExpanded) {
         // טוען תוכן רק אם נפתח ועדיין לא נטען
@@ -329,38 +347,47 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
   }
 
   Widget _buildHighlightedText(String content, Link link) {
-    String cleanContent = utils.stripHtmlIfNeeded(content);
+    return BlocBuilder<SettingsBloc, SettingsState>(
+      builder: (context, settingsState) {
+        String cleanContent = utils.stripHtmlIfNeeded(content);
 
-    // אם יש חיפוש בתוכן והקישור הזה מכיל תוצאות, מדגיש
-    if (_searchQuery.isNotEmpty && _searchInContent) {
-      final keyStr = '${link.path2}_${link.index2}';
-      if (_linksWithSearchResults.contains(keyStr)) {
-        cleanContent = utils.highLight(cleanContent, _searchQuery);
-      }
-    }
+        // החלפת שמות קדושים אם נדרש
+        if (settingsState.replaceHolyNames) {
+          cleanContent = utils.replaceHolyNames(cleanContent);
+        }
 
-    // אם יש תגי HTML (הדגשה), משתמש ב-HtmlWidget
-    if (cleanContent.contains('<font color=')) {
-      return HtmlWidget(
-        cleanContent,
-        textStyle: TextStyle(
-          fontSize: widget.fontSize * 0.75,
-          height: 1.5,
-          fontFamily: 'FrankRuhlCLM',
-        ),
-      );
-    } else {
-      // אם אין הדגשה, משתמש ב-Text רגיל
-      return Text(
-        cleanContent,
-        style: TextStyle(
-          fontSize: widget.fontSize * 0.75,
-          height: 1.5,
-          fontFamily: 'FrankRuhlCLM',
-        ),
-        textAlign: TextAlign.justify,
-        textDirection: TextDirection.rtl,
-      );
-    }
+        // אם יש חיפוש בתוכן והקישור הזה מכיל תוצאות, מדגיש
+        if (_searchQuery.isNotEmpty && _searchInContent) {
+          final keyStr = '${link.path2}_${link.index2}';
+          if (_linksWithSearchResults.contains(keyStr)) {
+            cleanContent = utils.highLight(cleanContent, _searchQuery);
+          }
+        }
+
+        // אם יש תגי HTML (הדגשה), משתמש ב-HtmlWidget
+        if (cleanContent.contains('<font color=')) {
+          return HtmlWidget(
+            cleanContent,
+            textStyle: TextStyle(
+              fontSize: widget.fontSize * 0.75,
+              height: 1.5,
+              fontFamily: 'FrankRuhlCLM',
+            ),
+          );
+        } else {
+          // אם אין הדגשה, משתמש ב-Text רגיל
+          return Text(
+            cleanContent,
+            style: TextStyle(
+              fontSize: widget.fontSize * 0.75,
+              height: 1.5,
+              fontFamily: 'FrankRuhlCLM',
+            ),
+            textAlign: TextAlign.justify,
+            textDirection: TextDirection.rtl,
+          );
+        }
+      },
+    );
   }
 }

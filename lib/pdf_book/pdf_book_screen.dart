@@ -3,7 +3,6 @@ import 'dart:math';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
 import 'package:otzaria/core/scaffold_messenger.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
@@ -704,7 +703,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     } else if (screenWidth < 900) {
       maxButtons = 10; // 10 כפתורים + "..." במסכים גדולים
     } else {
-      maxButtons = 999; // כל הכפתורים החיצוניים במסכים רחבים (ההדפסה תמיד בתפריט)
+      maxButtons =
+          999; // כל הכפתורים החיצוניים במסכים רחבים (ההדפסה תמיד בתפריט)
     }
 
     return [
@@ -720,28 +720,16 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   /// בניית רשימת כפתורים בסדר ההצגה (מימין לשמאל ב-RTL)
   List<ActionButtonData> _buildDisplayOrderPdfActions(BuildContext context) {
     return [
-      // 1) Text Button (ראשון מימין - יעלם אחרון!)
+      // 1) Text Button
       ActionButtonData(
         widget: _buildTextButton(
             context, widget.tab.book, widget.tab.pdfViewerController),
         icon: Icons.article,
-        tooltip: 'פתח טקסט',
+        tooltip: 'פתח ספר במהדורת טקסט',
         onPressed: () => _handleTextButtonPress(context),
       ),
 
-      // 2) Bookmark Button
-      ActionButtonData(
-        widget: IconButton(
-          icon: const Icon(Icons.bookmark_add),
-          tooltip: 'הוספת סימניה',
-          onPressed: () => _handleBookmarkPress(context),
-        ),
-        icon: Icons.bookmark_add,
-        tooltip: 'הוספת סימניה',
-        onPressed: () => _handleBookmarkPress(context),
-      ),
-
-      // 3) Zoom In Button
+      // 2) Zoom In Button
       ActionButtonData(
         widget: IconButton(
           icon: const Icon(Icons.zoom_in),
@@ -753,7 +741,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         onPressed: () => widget.tab.pdfViewerController.zoomUp(),
       ),
 
-      // 4) Zoom Out Button
+      // 3) Zoom Out Button
       ActionButtonData(
         widget: IconButton(
           icon: const Icon(Icons.zoom_out),
@@ -765,7 +753,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         onPressed: () => widget.tab.pdfViewerController.zoomDown(),
       ),
 
-      // 5) Search Button
+      // 4) Search Button
       ActionButtonData(
         widget: IconButton(
           icon: const Icon(Icons.search),
@@ -777,7 +765,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         onPressed: _ensureSearchTabIsActive,
       ),
 
-      // 6) First Page Button
+      // 5) First Page Button
       ActionButtonData(
         widget: IconButton(
           icon: const Icon(Icons.first_page),
@@ -790,15 +778,15 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         onPressed: () => widget.tab.pdfViewerController.goToPage(pageNumber: 1),
       ),
 
-      // 7) Previous Page Button
+      // 6) Previous Page Button
       ActionButtonData(
         widget: IconButton(
           icon: const Icon(Icons.chevron_left),
           tooltip: 'הקודם',
           onPressed: () => widget.tab.pdfViewerController.isReady
               ? widget.tab.pdfViewerController.goToPage(
-                  pageNumber: max(
-                      widget.tab.pdfViewerController.pageNumber! - 1, 1))
+                  pageNumber:
+                      max(widget.tab.pdfViewerController.pageNumber! - 1, 1))
               : null,
         ),
         icon: Icons.chevron_left,
@@ -810,7 +798,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             : null,
       ),
 
-      // 8) Page Number Display - תמיד מוצג!
+      // 7) Page Number Display - תמיד מוצג!
       ActionButtonData(
         widget: PageNumberDisplay(controller: widget.tab.pdfViewerController),
         icon: Icons.text_fields,
@@ -818,12 +806,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         onPressed: null, // לא ניתן ללחיצה
       ),
 
-      // 9) Next Page Button
+      // 8) Next Page Button
       ActionButtonData(
         widget: IconButton(
           onPressed: () => widget.tab.pdfViewerController.isReady
               ? widget.tab.pdfViewerController.goToPage(
-                  pageNumber: min(widget.tab.pdfViewerController.pageNumber! + 1,
+                  pageNumber: min(
+                      widget.tab.pdfViewerController.pageNumber! + 1,
                       widget.tab.pdfViewerController.pageCount))
               : null,
           icon: const Icon(Icons.chevron_right),
@@ -838,7 +827,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             : null,
       ),
 
-      // 10) Last Page Button
+      // 9) Last Page Button
       ActionButtonData(
         widget: IconButton(
           icon: const Icon(Icons.last_page),
@@ -854,10 +843,22 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     ];
   }
 
-  /// כפתורים שתמיד יהיו בתפריט "..." (רק הדפסה)
+  /// כפתורים שתמיד יהיו בתפריט "..."
   List<ActionButtonData> _buildAlwaysInMenuPdfActions(BuildContext context) {
     return [
-      // הדפסה - תמיד בתפריט
+      // 1) הוספת סימניה
+      ActionButtonData(
+        widget: IconButton(
+          icon: const Icon(Icons.bookmark_add),
+          tooltip: 'הוספת סימניה',
+          onPressed: () => _handleBookmarkPress(context),
+        ),
+        icon: Icons.bookmark_add,
+        tooltip: 'הוספת סימניה',
+        onPressed: () => _handleBookmarkPress(context),
+      ),
+
+      // 2) הדפסה
       ActionButtonData(
         widget: IconButton(
           icon: const Icon(Icons.print),
@@ -882,6 +883,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     final library = await DataRepository.instance.library;
     final textBook = library.findBookByTitle(widget.tab.book.title, TextBook);
     if (textBook == null) return;
+
+    if (!context.mounted) return;
 
     final index = await pdfToTextPage(
         widget.tab.book, currentOutline, currentPage, context);
@@ -925,7 +928,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       builder: (context, snapshot) => snapshot.hasData
           ? IconButton(
               icon: const Icon(Icons.article),
-              tooltip: 'פתח טקסט',
+              tooltip: 'פתח ספר במהדורת טקסט',
               onPressed: () async {
                 final currentPage = controller.isReady
                     ? controller.pageNumber ?? 1

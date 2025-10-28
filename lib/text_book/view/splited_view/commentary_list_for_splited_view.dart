@@ -6,6 +6,9 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/combined_view/commentary_content.dart';
 import 'package:otzaria/widgets/progressive_scrolling.dart';
+import 'package:otzaria/settings/settings_bloc.dart';
+import 'package:otzaria/settings/settings_state.dart';
+import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 class CommentaryList extends StatefulWidget {
@@ -242,25 +245,36 @@ class _CommentaryListState extends State<CommentaryList> {
                 if (thisLinksSnapshot.data!.isEmpty) {
                   return const Center(child: Text("לא נמצאו מפרשים להצגה"));
                 }
-                
+
                 // יצירת מפתח ייחודי לאינדקסים הנוכחיים
                 final indexesKey = indexes.join(',');
-                
+
                 return ProgressiveScroll(
                   scrollController: scrollController,
                   maxSpeed: 10000.0,
                   curve: 10.0,
                   accelerationFactor: 5,
                   child: ScrollablePositionedList.builder(
-                    key: PageStorageKey('${thisLinksSnapshot.data![0].heRef}_$indexesKey'),
+                    key: PageStorageKey(
+                        '${thisLinksSnapshot.data![0].heRef}_$indexesKey'),
                     physics: const ClampingScrollPhysics(),
                     scrollOffsetController: scrollController,
                     shrinkWrap: true,
                     itemCount: thisLinksSnapshot.data!.length,
                     itemBuilder: (context, index1) => ListTile(
-                      title: Text(thisLinksSnapshot.data![index1].heRef),
+                      title: BlocBuilder<SettingsBloc, SettingsState>(
+                        builder: (context, settingsState) {
+                          String displayTitle =
+                              thisLinksSnapshot.data![index1].heRef;
+                          if (settingsState.replaceHolyNames) {
+                            displayTitle = utils.replaceHolyNames(displayTitle);
+                          }
+                          return Text(displayTitle);
+                        },
+                      ),
                       subtitle: CommentaryContent(
-                        key: ValueKey('${thisLinksSnapshot.data![index1].path2}_${thisLinksSnapshot.data![index1].index2}_$indexesKey'),
+                        key: ValueKey(
+                            '${thisLinksSnapshot.data![index1].path2}_${thisLinksSnapshot.data![index1].index2}_$indexesKey'),
                         link: thisLinksSnapshot.data![index1],
                         fontSize: widget.fontSize,
                         openBookCallback: widget.openBookCallback,

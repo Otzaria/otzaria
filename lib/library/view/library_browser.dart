@@ -615,7 +615,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         widget: BlocProvider(
           create: (context) => FileSyncBloc(
             repository: FileSyncRepository(
-              githubOwner: "zevisvei",
+              githubOwner: "Y-PLONI",
               repositoryName: "otzaria-library",
               branch: "main",
             ),
@@ -790,7 +790,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         widget: BlocProvider(
           create: (context) => FileSyncBloc(
             repository: FileSyncRepository(
-              githubOwner: "zevisvei",
+              githubOwner: "Y-PLONI",
               repositoryName: "otzaria-library",
               branch: "main",
             ),

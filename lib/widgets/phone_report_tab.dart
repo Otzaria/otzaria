@@ -35,7 +35,6 @@ class PhoneReportTab extends StatefulWidget {
 class _PhoneReportTabState extends State<PhoneReportTab> {
   String? _selectedText;
   ErrorType? _selectedErrorType;
-  bool _isSubmitting = false;
 
   late int _updatedLineNumber;
   int? _selectionStart;
@@ -52,15 +51,6 @@ class _PhoneReportTabState extends State<PhoneReportTab> {
   @override
   void dispose() {
     super.dispose();
-  }
-
-  bool get _canSubmit {
-    return !_isSubmitting &&
-        _selectedText != null &&
-        _selectedText!.isNotEmpty &&
-        _selectedErrorType != null &&
-        widget.bookId != null &&
-        widget.libraryVersion != 'unknown';
   }
 
   List<String> get _validationErrors {
@@ -383,41 +373,7 @@ class _PhoneReportTabState extends State<PhoneReportTab> {
           onPressed: widget.onCancel,
           child: const Text('ביטול'),
         ),
-        const SizedBox(width: 8),
-        ElevatedButton(
-          onPressed: _canSubmit ? _handleSubmit : null,
-          child: _isSubmitting
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('שלח דיווח'),
-        ),
       ],
     );
-  }
-
-  void _handleSubmit() {
-    if (!_canSubmit) return;
-
-    setState(() {
-      _isSubmitting = true;
-    });
-
-    try {
-      widget.onSubmit?.call(
-        _selectedText!,
-        _selectedErrorType!.id,
-        '', // Empty string instead of moreInfo
-        _updatedLineNumber,
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSubmitting = false;
-        });
-      }
-    }
   }
 }

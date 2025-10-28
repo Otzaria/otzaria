@@ -40,7 +40,6 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     on<UpdateSelectedIndex>(_onUpdateSelectedIndex);
     on<TogglePinLeftPane>(_onTogglePinLeftPane);
     on<UpdateSearchText>(_onUpdateSearchText);
-    on<ToggleNotesSidebar>(_onToggleNotesSidebar);
     on<CreateNoteFromToolbar>(_onCreateNoteFromToolbar);
     on<UpdateSelectedTextForNote>(_onUpdateSelectedTextForNote);
 
@@ -165,9 +164,6 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         positionsListener: positionsListener,
         currentTitle: currentTitle,
         visibleLinks: visibleLinks,
-        showNotesSidebar: state is TextBookLoaded
-            ? (state as TextBookLoaded).showNotesSidebar
-            : false,
         selectedTextForNote: state is TextBookLoaded
             ? (state as TextBookLoaded).selectedTextForNote
             : null,
@@ -366,18 +362,6 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       emit(currentState.copyWith(
         searchText: event.text,
         selectedIndex: currentState.selectedIndex,
-      ));
-    }
-  }
-
-  void _onToggleNotesSidebar(
-    ToggleNotesSidebar event,
-    Emitter<TextBookState> emit,
-  ) {
-    if (state is TextBookLoaded) {
-      final currentState = state as TextBookLoaded;
-      emit(currentState.copyWith(
-        showNotesSidebar: !currentState.showNotesSidebar,
       ));
     }
   }

@@ -51,25 +51,51 @@ class _ShamorZachorWidgetState extends State<ShamorZachorWidget>
     final textDirection =
         widget.config.textDirection ?? Directionality.of(context);
 
+    // If the host app already provides the providers, don't shadow them.
+    // Try to detect existing providers safely; if missing, create fallbacks locally.
+    ShamorZachorDataProvider? externalDataProvider;
+    ShamorZachorProgressProvider? externalProgressProvider;
+    try {
+      externalDataProvider = context.read<ShamorZachorDataProvider>();
+    } catch (_) {
+      externalDataProvider = null;
+    }
+    try {
+      externalProgressProvider = context.read<ShamorZachorProgressProvider>();
+    } catch (_) {
+      externalProgressProvider = null;
+    }
+
+    final navigator = Navigator(
+      key: _navigatorKey,
+      initialRoute: '/',
+      onGenerateRoute: _generateRoute,
+    );
+
+    Widget child;
+    if (externalDataProvider != null && externalProgressProvider != null) {
+      // Use the externally provided providers (from host app)
+      child = navigator;
+    } else {
+      // Fallback to local providers for standalone usage/tests
+      child = MultiProvider(
+        providers: [
+          ChangeNotifierProvider(
+            create: (_) => ShamorZachorDataProvider(),
+          ),
+          ChangeNotifierProvider(
+            create: (_) => ShamorZachorProgressProvider(),
+          ),
+        ],
+        child: navigator,
+      );
+    }
+
     return Theme(
       data: theme,
       child: Directionality(
         textDirection: textDirection,
-        child: MultiProvider(
-          providers: [
-            ChangeNotifierProvider(
-              create: (_) => ShamorZachorDataProvider(),
-            ),
-            ChangeNotifierProvider(
-              create: (_) => ShamorZachorProgressProvider(),
-            ),
-          ],
-          child: Navigator(
-            key: _navigatorKey,
-            initialRoute: '/',
-            onGenerateRoute: _generateRoute,
-          ),
-        ),
+        child: child,
       ),
     );
   }

@@ -101,8 +101,14 @@ class _CommentaryContentState extends State<CommentaryContent> {
 
               return BlocBuilder<SettingsBloc, SettingsState>(
                 builder: (context, settingsState) {
+                  // החלפת שמות קדושים אם נדרש
+                  String displayText = text;
+                  if (settingsState.replaceHolyNames) {
+                    displayText = utils.replaceHolyNames(displayText);
+                  }
+
                   return HtmlWidget(
-                    '<div style="text-align: justify; direction: rtl;">$text</div>',
+                    '<div style="text-align: justify; direction: rtl;">$displayText</div>',
                     textStyle: TextStyle(
                       fontSize: widget.fontSize / 1.2,
                       fontFamily: settingsState.fontFamily,

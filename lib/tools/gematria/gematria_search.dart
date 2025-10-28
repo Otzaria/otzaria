@@ -8,12 +8,17 @@ class SearchResult {
   final String text;
   final String path; // הנתיב ההיררכי (כותרות)
   final String verseNumber; // מספר הפסוק
+  final String contextBefore; // מילים לפני התוצאה
+  final String contextAfter; // מילים אחרי התוצאה
+  
   const SearchResult({
     required this.file,
     required this.line,
     required this.text,
     this.path = '',
     this.verseNumber = '',
+    this.contextBefore = '',
+    this.contextAfter = '',
   });
 }
 
@@ -212,7 +217,9 @@ class GimatriaSearch {
                   line: i + 1,
                   text: cleanPhrase,
                   path: path,
-                  verseNumber: verseNumber));
+                  verseNumber: verseNumber,
+                  contextBefore: '',
+                  contextAfter: ''));
               if (found.length >= fileLimit) return found;
             }
           } else {
@@ -237,12 +244,31 @@ class GimatriaSearch {
                   final path = _extractPathFromLines(lines, i);
                   // ניקוי תגיות HTML מהטקסט
                   final cleanPhrase = _cleanHtml(phrase);
+                  
+                  // חילוץ ההקשר - 2-3 מילים לפני ואחרי
+                  final contextWordsCount = 3;
+                  final contextStart = start > contextWordsCount 
+                      ? start - contextWordsCount 
+                      : 0;
+                  final contextEnd = start + offset + 1 + contextWordsCount < words.length
+                      ? start + offset + 1 + contextWordsCount
+                      : words.length;
+                  
+                  final contextBefore = contextStart < start
+                      ? words.sublist(contextStart, start).join(' ')
+                      : '';
+                  final contextAfter = start + offset + 1 < contextEnd
+                      ? words.sublist(start + offset + 1, contextEnd).join(' ')
+                      : '';
+                  
                   found.add(SearchResult(
                       file: file.path,
                       line: i + 1,
                       text: cleanPhrase,
                       path: path,
-                      verseNumber: verseNumber));
+                      verseNumber: verseNumber,
+                      contextBefore: contextBefore,
+                      contextAfter: contextAfter));
                   if (found.length >= fileLimit) return found;
                 } else if (finalValue > targetGimatria) {
                   break;
@@ -304,9 +330,28 @@ class GimatriaSearch {
     return parts.join(', ');
   }
 
-  /// ניקוי תגיות HTML
+  /// ניקוי תגיות HTML ו-HTML entities
   static String _cleanHtml(String s) {
-    final noTags = s.replaceAll(RegExp(r'<[^>]*>'), '');
-    return noTags.replaceAll(RegExp(r'\s+'), ' ').trim();
+    // הסרת תגיות HTML
+    var cleaned = s.replaceAll(RegExp(r'<[^>]*>'), '');
+    
+    // הסרת HTML entities נפוצות
+    cleaned = cleaned.replaceAll('&nbsp;', ' ');
+    cleaned = cleaned.replaceAll('&thinsp;', ' ');
+    cleaned = cleaned.replaceAll('&ensp;', ' ');
+    cleaned = cleaned.replaceAll('&emsp;', ' ');
+    cleaned = cleaned.replaceAll('&lt;', '<');
+    cleaned = cleaned.replaceAll('&gt;', '>');
+    cleaned = cleaned.replaceAll('&amp;', '&');
+    cleaned = cleaned.replaceAll('&quot;', '"');
+    cleaned = cleaned.replaceAll('&#39;', "'");
+    
+    // הסרת כל HTML entities שנשארו (פורמט &#xxxx; או &name;)
+    cleaned = cleaned.replaceAll(RegExp(r'&[a-zA-Z]+;'), '');
+    cleaned = cleaned.replaceAll(RegExp(r'&#\d+;'), '');
+    cleaned = cleaned.replaceAll(RegExp(r'&#x[0-9a-fA-F]+;'), '');
+    
+    // ניקוי רווחים מיותרים
+    return cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 }

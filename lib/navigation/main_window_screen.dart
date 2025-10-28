@@ -133,7 +133,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
       ),
       NavigationDestination(
         icon: Icon(Icons.more_horiz),
-        label: 'עוד',
+        label: 'עזרים',
       ),
       NavigationDestination(
         icon: Icon(Icons.settings),

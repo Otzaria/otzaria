@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:updat/updat.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// רכיב לחיצה (chip) בעברית - דומה ל-flatChip המקורי
 Widget hebrewFlatChip({
@@ -15,7 +16,18 @@ Widget hebrewFlatChip({
 }) {
   if (UpdatStatus.available == status ||
       UpdatStatus.availableWithChangelog == status) {
-    WidgetsBinding.instance.addPostFrameCallback((_) => openDialog());
+    // בדוק אם הדיאלוג כבר הוצג לגרסה זו
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final prefs = await SharedPreferences.getInstance();
+      final shownKey = 'update_dialog_shown_$latestVersion';
+      final alreadyShown = prefs.getBool(shownKey) ?? false;
+      
+      if (!alreadyShown && context.mounted) {
+        // סמן שהדיאלוג הוצג לגרסה זו
+        await prefs.setBool(shownKey, true);
+        openDialog();
+      }
+    });
     return Tooltip(
       message: 'עדכון לגרסה ${latestVersion!.toString()}',
       child: TextButton.icon(

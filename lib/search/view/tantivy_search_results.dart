@@ -360,96 +360,169 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
     }
 
     // תמיד נשתמש ב-ListView גם לתוצאה אחת - כך היא תופיע למעלה
-    return Container(
-      clipBehavior: Clip.hardEdge,
-      decoration: const BoxDecoration(),
-      child: ListView.builder(
-        itemCount: state.results.length,
-        itemBuilder: (context, index) {
-          final result = state.results[index];
-          return BlocBuilder<SettingsBloc, SettingsState>(
-            builder: (context, settingsState) {
-              String titleText = '[תוצאה ${index + 1}] ${result.reference}';
-              String rawHtml = result.text;
-              // Debug info removed for production
-              if (settingsState.replaceHolyNames) {
-                titleText = utils.replaceHolyNames(titleText);
-                rawHtml = utils.replaceHolyNames(rawHtml);
-              }
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: state.results.length,
+      itemBuilder: (context, index) {
+        final result = state.results[index];
+        return BlocBuilder<SettingsBloc, SettingsState>(
+          builder: (context, settingsState) {
+            String titleText = result.reference;
+            String rawHtml = result.text;
+            // Debug info removed for production
+            if (settingsState.replaceHolyNames) {
+              titleText = utils.replaceHolyNames(titleText);
+              rawHtml = utils.replaceHolyNames(rawHtml);
+            }
 
-              // חישוב רוחב זמין לטקסט (מינוס אייקון ו-padding)
-              final availableWidth = constrains.maxWidth -
-                  (result.isPdf ? 56.0 : 16.0) - // רוחב האייקון או padding
-                  32.0; // padding נוסף של ListTile
+            // חישוב רוחב זמין לטקסט
+            final availableWidth = constrains.maxWidth - 100.0;
 
-              // Create the snippet using the new robust function
-              final snippetSpans = createSnippetSpans(
-                rawHtml,
-                state.searchQuery,
-                TextStyle(
-                  fontSize: settingsState.fontSize,
-                  fontFamily: settingsState.fontFamily,
-                ),
-                TextStyle(
-                  fontSize: settingsState.fontSize,
-                  fontFamily: settingsState.fontFamily,
-                  color: const Color(0xFFD32F2F), // צבע אדום חזק יותר
-                  fontWeight: FontWeight.bold,
-                ),
-                availableWidth,
-              );
+            // Create the snippet using the new robust function
+            final snippetSpans = createSnippetSpans(
+              rawHtml,
+              state.searchQuery,
+              TextStyle(
+                fontSize: 16,
+                color: Theme.of(context).colorScheme.onSurface,
+                height: 1.5,
+              ),
+              const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+                color: Color(0xFFD32F2F), // צבע אדום חזק למילות החיפוש
+              ),
+              availableWidth,
+            );
 
-              return Material(
-                clipBehavior: Clip.hardEdge,
-                child: ListTile(
-                  leading:
-                      result.isPdf ? const Icon(Icons.picture_as_pdf) : null,
-                  onTap: () {
-                    if (result.isPdf) {
-                      context.read<TabsBloc>().add(AddTab(
-                            PdfBookTab(
-                              book: PdfBook(
-                                  title: result.title, path: result.filePath),
-                              pageNumber: result.segment.toInt() + 1,
-                              searchText: widget.tab.queryController.text,
-                              openLeftPane:
-                                  (Settings.getValue<bool>('key-pin-sidebar') ??
-                                          false) ||
-                                      (Settings.getValue<bool>(
-                                              'key-default-sidebar-open') ??
-                                          false),
-                            ),
-                          ));
-                    } else {
-                      context.read<TabsBloc>().add(AddTab(
-                            TextBookTab(
-                                book: TextBook(
-                                  title: result.title,
-                                ),
-                                index: result.segment.toInt(),
-                                searchText: widget.tab.queryController.text,
-                                openLeftPane: (Settings.getValue<bool>(
-                                            'key-pin-sidebar') ??
+            return Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+              child: InkWell(
+                onTap: () {
+                  if (result.isPdf) {
+                    context.read<TabsBloc>().add(AddTab(
+                          PdfBookTab(
+                            book: PdfBook(
+                                title: result.title, path: result.filePath),
+                            pageNumber: result.segment.toInt() + 1,
+                            searchText: widget.tab.queryController.text,
+                            openLeftPane:
+                                (Settings.getValue<bool>('key-pin-sidebar') ??
                                         false) ||
                                     (Settings.getValue<bool>(
                                             'key-default-sidebar-open') ??
-                                        false)),
-                          ));
-                    }
-                  },
-                  title: Text(titleText),
-                  subtitle: Text.rich(
-                    TextSpan(children: snippetSpans),
-                    maxLines: null, // אין הגבלה על מספר השורות!
-                    textAlign: TextAlign.justify,
-                    textDirection: TextDirection.rtl,
+                                        false),
+                          ),
+                        ));
+                  } else {
+                    context.read<TabsBloc>().add(AddTab(
+                          TextBookTab(
+                              book: TextBook(
+                                title: result.title,
+                              ),
+                              index: result.segment.toInt(),
+                              searchText: widget.tab.queryController.text,
+                              openLeftPane: (Settings.getValue<bool>(
+                                          'key-pin-sidebar') ??
+                                      false) ||
+                                  (Settings.getValue<bool>(
+                                          'key-default-sidebar-open') ??
+                                      false)),
+                        ));
+                  }
+                },
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // מספר התוצאה
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '${index + 1}',
+                            style: TextStyle(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onPrimaryContainer,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      // תוכן התוצאה
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // נתיב (כותרת + הפניה)
+                            Row(
+                              children: [
+                                if (result.isPdf)
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 8),
+                                    child: Icon(
+                                      Icons.picture_as_pdf,
+                                      size: 16,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                    ),
+                                  ),
+                                Expanded(
+                                  child: Text(
+                                    titleText,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                    ),
+                                    textAlign: TextAlign.right,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            // הטקסט שנמצא
+                            RichText(
+                              textAlign: TextAlign.right,
+                              text: TextSpan(
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color:
+                                      Theme.of(context).colorScheme.onSurface,
+                                  height: 1.5,
+                                ),
+                                children: snippetSpans,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              );
-            },
-          );
-        },
-      ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

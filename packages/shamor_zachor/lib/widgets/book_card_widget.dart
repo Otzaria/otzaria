@@ -128,12 +128,13 @@ class _BookCardWidgetState extends State<BookCardWidget> {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () => _onCardTap(context),
-        child: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
               // Header
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -221,6 +222,7 @@ class _BookCardWidgetState extends State<BookCardWidget> {
           ),
         ),
       ),
+    ),
     );
   }
 
@@ -298,19 +300,25 @@ class _BookCardWidgetState extends State<BookCardWidget> {
         ]),
         const SizedBox(height: 8),
         Row(children: [
-          Text('$completedItems מתוך $totalItems',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.7))),
-          const Spacer(),
+          Flexible(
+            child: Text('$completedItems מתוך $totalItems',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.7)),
+                overflow: TextOverflow.ellipsis),
+          ),
+          const SizedBox(width: 8),
           if (learnProgress > 0)
-            Text(
-              _getProgressStatusText(),
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.primary,
-                  fontWeight: FontWeight.w500),
+            Flexible(
+              child: Text(
+                _getProgressStatusText(),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w500),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
         ]),
       ],

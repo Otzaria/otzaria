@@ -29,6 +29,43 @@ class FileSyncRepository {
     return await AppPaths.getLibraryPath();
   }
 
+  /// Normalizes file paths from the manifest to local paths.
+  /// 
+  /// The manifest contains full paths from the GitHub repository structure,
+  /// but we need to extract only the relevant local path.
+  /// 
+  /// Handles three cases:
+  /// 1. Paths containing 'אוצריא/' - extracts from 'אוצריא/' onwards
+  ///    Example: 'otzaria-library/sefariaToOtzaria/sefaria_export/ספרים/אוצריא/תנך/תורה/בראשית.txt'
+  ///    Returns: 'אוצריא/תנך/תורה/בראשית.txt'
+  /// 
+  /// 2. Paths containing 'links/' - extracts from 'links/' onwards
+  ///    Example: 'otzaria-library/sefariaToOtzaria/sefaria_export/links/בראשית_links.json'
+  ///    Returns: 'links/בראשית_links.json'
+  /// 
+  /// 3. Root files (metadata.json, files_manifest.json, etc.) - returns as-is
+  ///    Example: 'metadata.json'
+  ///    Returns: 'metadata.json'
+  String _normalizeFilePath(String manifestPath) {
+    // Case 1: Files in אוצריא directory
+    const ozariaDir = 'אוצריא/';
+    final ozariaIndex = manifestPath.indexOf(ozariaDir);
+    if (ozariaIndex != -1) {
+      return manifestPath.substring(ozariaIndex);
+    }
+
+    // Case 2: Link files
+    const linksDir = 'links/';
+    final linksIndex = manifestPath.indexOf(linksDir);
+    if (linksIndex != -1) {
+      return manifestPath.substring(linksIndex);
+    }
+
+    // Case 3: Root files (metadata.json, etc.)
+    // Return as-is if no special directory found
+    return manifestPath;
+  }
+
   Future<Map<String, dynamic>> _getLocalManifest() async {
     final path = await _localManifestPath;
     final file = File(path);
@@ -67,6 +104,9 @@ class FileSyncRepository {
   }
 
   Future<Map<String, dynamic>> _getRemoteManifest() async {
+    // Using files_manifest.json which contains full paths from source directories
+    // This allows direct file access without the need for merged folders
+    // The _normalizeFilePath function extracts the correct local path from these full paths
     final url =
         'https://raw.githubusercontent.com/$githubOwner/$repositoryName/$branch/files_manifest.json';
     try {
@@ -101,7 +141,9 @@ class FileSyncRepository {
       );
       if (response.statusCode == 200) {
         final directory = await _localDirectory;
-        final file = File('$directory/$filePath');
+        // Normalize the file path to get the local path
+        final localFilePath = _normalizeFilePath(filePath);
+        final file = File('$directory/$localFilePath');
 
         // Create directories if they don't exist
         await file.parent.create(recursive: true);
@@ -192,7 +234,9 @@ class FileSyncRepository {
     try {
       // Try to remove the actual file if it exists
       final directory = await _localDirectory;
-      final file = File('$directory/$filePath');
+      // Normalize the file path to get the local path
+      final localFilePath = _normalizeFilePath(filePath);
+      final file = File('$directory/$localFilePath');
       if (await file.exists()) {
         await file.delete();
       }

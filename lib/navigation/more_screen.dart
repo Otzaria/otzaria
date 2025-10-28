@@ -110,7 +110,7 @@ class _MoreScreenState extends State<MoreScreen> {
       case 3:
         return 'גימטריות';
       default:
-        return 'עוד';
+        return 'עזרים';
     }
   }
 

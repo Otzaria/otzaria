@@ -70,11 +70,22 @@ class _PrintingScreenState extends State<PrintingScreen> {
     if (widget.removeNikud) {
       dataString = removeVolwels(dataString);
     }
+
+    // החלפת שמות קדושים אם נדרש
+    final shouldReplaceHolyNames =
+        Settings.getValue<bool>('key-replace-holy-names') ?? true;
+    if (shouldReplaceHolyNames) {
+      dataString = replaceHolyNames(dataString);
+    }
+
     List<String> data = stripHtmlIfNeeded(dataString).split('\n').toList();
     final pageMargin = this.pageMargin;
     final fontSize = this.fontSize;
 
-    final bookName = data[0];
+    String bookName = data[0];
+    if (shouldReplaceHolyNames) {
+      bookName = replaceHolyNames(bookName);
+    }
     data = data.getRange(startLine, endLine).toList();
 
     final result = await Isolate.run(() async {

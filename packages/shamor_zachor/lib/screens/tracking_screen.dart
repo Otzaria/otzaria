@@ -84,8 +84,13 @@ class _TrackingScreenState extends State<TrackingScreen>
         }
 
         final allBookData = dataProvider.allBookData;
+        _logger.info('TrackingScreen - Categories in allBookData: ${allBookData.keys.toList()}');
+        _logger.info('TrackingScreen - Total categories: ${allBookData.length}');
+
         final (inProgressItems, completedItems) =
             progressProvider.getCategorizedTrackedBooks(allBookData);
+
+        _logger.info('TrackingScreen - In progress: ${inProgressItems.length}, Completed: ${completedItems.length}');
 
         final List<Map<String, dynamic>> itemsToShow;
         switch (_selectedFilter) {

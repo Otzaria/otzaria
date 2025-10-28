@@ -11,6 +11,7 @@ import 'package:otzaria/utils/text_manipulation.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/links.dart';
+import 'package:otzaria/utils/toc_parser.dart';
 
 /// A data provider that manages file system operations for the library.
 ///
@@ -543,39 +544,8 @@ class FileSystemData {
   Future<List<TocEntry>> _parseToc(Future<String> bookContentFuture) async {
     final String bookContent = await bookContentFuture;
 
-    return Isolate.run(() {
-      List<String> lines = bookContent.split('\n');
-      List<TocEntry> toc = [];
-      Map<int, TocEntry> parents = {}; // Track parent nodes for hierarchy
-
-      for (int i = 0; i < lines.length; i++) {
-        final String line = lines[i];
-        if (line.startsWith('<h')) {
-          final int level = int.parse(line[2]); // Extract heading level
-          final String text = stripHtmlIfNeeded(line);
-
-          if (level == 1) {
-            // Add h1 headings as root nodes
-            TocEntry entry = TocEntry(text: text, index: i, level: level);
-            toc.add(entry);
-            parents[level] = entry;
-          } else {
-            TocEntry entry = TocEntry(
-                text: text, index: i, level: level, parent: parents[level - 1]);
-            // Add other headings under their parent
-            final TocEntry? parent = parents[level - 1];
-            if (parent != null) {
-              parent.children.add(entry);
-              parents[level] = entry;
-            } else {
-              toc.add(entry);
-            }
-          }
-        }
-      }
-
-      return toc;
-    });
+    // Build the hierarchy using the shared parser in an isolate
+    return Isolate.run(() => TocParser.parseEntriesFromContent(bookContent));
   }
 
   /// Gets the path to the JSON file containing links for a specific book.
