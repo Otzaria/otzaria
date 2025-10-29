@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
@@ -58,13 +59,16 @@ class BookScannerService {
         );
       }
 
-      // Convert TOC to BookParts
-      final parts = _convertTocToParts(toc, contentType);
+      final sections = _buildSectionsFromToc(toc, contentType);
+      final parts = sections.isNotEmpty
+          ? sections.map(BookPart.fromSection).toList()
+          : _convertTocToParts(toc, contentType);
 
       return BookDetails(
         contentType: contentType,
         parts: parts,
         isCustom: true,
+        sections: sections.isNotEmpty ? sections : null,
       );
     } catch (e, stackTrace) {
       _logger.severe('Failed to scan book: $bookPath', e, stackTrace);
@@ -244,4 +248,111 @@ class BookScannerService {
       _logger.warning('Failed to clear cache for $bookId', e, stackTrace);
     }
   }
+
+  List<BookSection> _buildSectionsFromToc(
+    List<Map<String, dynamic>> toc,
+    String contentType,
+  ) {
+    if (toc.isEmpty) {
+      return const [];
+    }
+
+    final entries = toc
+        .map((entry) => _TocEntry(
+              level: entry['level'] as int? ?? 1,
+              index: entry['index'] as int? ?? 0,
+              text: (entry['text'] as String? ?? '').trim(),
+            ))
+        .where((entry) => entry.text.isNotEmpty && entry.level > 1)
+        .toList();
+
+    if (entries.isEmpty) {
+      return const [];
+    }
+
+    entries.sort((a, b) => a.index.compareTo(b.index));
+    final minLevel = entries.map((e) => e.level).reduce(math.min);
+    final List<_SectionNode> roots = [];
+    final List<_SectionNode> stack = [];
+    final int lastIndex =
+        (toc.isNotEmpty ? toc.last['index'] as int? : null) ?? entries.last.index;
+
+    for (final entry in entries) {
+      final normalizedLevel = math.max(1, entry.level - (minLevel - 1));
+      final node = _SectionNode(
+        id: '${entry.index}_${entry.level}_${entry.text.hashCode}',
+        title: entry.text,
+        level: normalizedLevel,
+        startIndex: entry.index,
+      );
+
+      while (stack.isNotEmpty && stack.last.level >= normalizedLevel) {
+        final completed = stack.removeLast();
+        completed.endIndex ??= entry.index - 1;
+        if (completed.endIndex! < completed.startIndex) {
+          completed.endIndex = completed.startIndex;
+        }
+      }
+
+      if (stack.isEmpty) {
+        roots.add(node);
+      } else {
+        stack.last.children.add(node);
+      }
+
+      stack.add(node);
+    }
+
+    while (stack.isNotEmpty) {
+      final completed = stack.removeLast();
+      completed.endIndex ??= lastIndex;
+      if (completed.endIndex! < completed.startIndex) {
+        completed.endIndex = completed.startIndex;
+      }
+      // Remaining nodes are already referenced by their parents or roots
+    }
+
+    BookSection toSection(_SectionNode node) {
+      final children = node.children.map(toSection).toList();
+      final endIndex = node.endIndex ?? node.startIndex;
+      return BookSection(
+        id: node.id,
+        title: node.title,
+        level: node.level,
+        startPage: _indexToPage(node.startIndex, contentType),
+        endPage: _indexToPage(endIndex, contentType),
+        children: children,
+      );
+    }
+
+    return roots.map(toSection).toList();
+  }
+}
+
+class _TocEntry {
+  final int level;
+  final int index;
+  final String text;
+
+  const _TocEntry({
+    required this.level,
+    required this.index,
+    required this.text,
+  });
+}
+
+class _SectionNode {
+  final String id;
+  final String title;
+  final int level;
+  final int startIndex;
+  int? endIndex;
+  final List<_SectionNode> children = [];
+
+  _SectionNode({
+    required this.id,
+    required this.title,
+    required this.level,
+    required this.startIndex,
+  });
 }

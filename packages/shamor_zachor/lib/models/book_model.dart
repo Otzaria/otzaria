@@ -116,36 +116,66 @@ class BookCategory {
   }
 }
 
-/// Represents a learnable item (page, chapter, etc.)
-class LearnableItem {
-  final String partName;
-  final int pageNumber;
-  final String amudKey;
-  final int absoluteIndex;
+/// Hierarchical section generated from a table of contents entry
+class BookSection {
+  final String id;
+  final String title;
+  final int level;
+  final int startPage;
+  final int endPage;
+  final List<BookSection> children;
 
-  const LearnableItem({
-    required this.partName,
-    required this.pageNumber,
-    required this.amudKey,
-    required this.absoluteIndex,
+  const BookSection({
+    required this.id,
+    required this.title,
+    required this.level,
+    required this.startPage,
+    required this.endPage,
+    this.children = const [],
   });
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is LearnableItem &&
-          runtimeType == other.runtimeType &&
-          partName == other.partName &&
-          pageNumber == other.pageNumber &&
-          amudKey == other.amudKey &&
-          absoluteIndex == other.absoluteIndex;
+  bool get isLeaf => children.isEmpty;
 
-  @override
-  int get hashCode =>
-      partName.hashCode ^
-      pageNumber.hashCode ^
-      amudKey.hashCode ^
-      absoluteIndex.hashCode;
+  factory BookSection.fromJson(Map<String, dynamic> json) {
+    return BookSection(
+      id: JsonUtils.asString(json['id']),
+      title: JsonUtils.asString(json['title']),
+      level: JsonUtils.asInt(json['level']),
+      startPage: JsonUtils.asInt(json['startPage']),
+      endPage: JsonUtils.asInt(json['endPage']),
+      children: (json['children'] as List<dynamic>? ?? const [])
+          .map((child) => BookSection.fromJson(JsonUtils.asMap(child)))
+          .toList(),
+    );
+  }
+
+  BookSection copyWith({
+    String? id,
+    String? title,
+    int? level,
+    int? startPage,
+    int? endPage,
+    List<BookSection>? children,
+  }) {
+    return BookSection(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      level: level ?? this.level,
+      startPage: startPage ?? this.startPage,
+      endPage: endPage ?? this.endPage,
+      children: children ?? this.children,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'level': level,
+        'startPage': startPage,
+        'endPage': endPage,
+        if (children.isNotEmpty)
+          'children': children.map((child) => child.toJson()).toList(),
+      };
 }
 
 /// Represents a part of a book (e.g., volume, section)
@@ -155,6 +185,9 @@ class BookPart {
   final int endPage;
   final List<int> excludedPages;
   final bool hasHalfPageAtEnd;
+  final List<BookPart> children;
+  final int level;
+  final String? sectionId;
 
   const BookPart({
     required this.name,
@@ -162,6 +195,9 @@ class BookPart {
     required this.endPage,
     this.excludedPages = const [],
     this.hasHalfPageAtEnd = false,
+    this.children = const [],
+    this.level = 1,
+    this.sectionId,
   });
 
   factory BookPart.fromJson(Map<String, dynamic> json) {
@@ -173,6 +209,11 @@ class BookPart {
               ?.map((e) => JsonUtils.asInt(e))
               .toList() ??
           [],
+      children: (json['children'] as List<dynamic>? ?? const [])
+          .map((child) => BookPart.fromJson(JsonUtils.asMap(child)))
+          .toList(),
+      level: JsonUtils.asInt(json['level'] ?? 1),
+      sectionId: json['sectionId'] as String?,
     );
   }
 
@@ -181,7 +222,22 @@ class BookPart {
         'start': startPage,
         'end': endPage,
         if (excludedPages.isNotEmpty) 'exclude': excludedPages,
+        if (children.isNotEmpty)
+          'children': children.map((child) => child.toJson()).toList(),
+        if (level != 1) 'level': level,
+        if (sectionId != null) 'sectionId': sectionId,
       };
+
+  factory BookPart.fromSection(BookSection section) {
+    return BookPart(
+      name: section.title,
+      startPage: section.startPage,
+      endPage: section.endPage,
+      children: section.children.map(BookPart.fromSection).toList(),
+      level: section.level,
+      sectionId: section.id,
+    );
+  }
 }
 
 /// Detailed information about a book
@@ -191,8 +247,11 @@ class BookDetails {
   final String? id;
   final List<BookPart> parts;
   final num? originalPageCount;
+  final List<BookSection>? sections;
 
   List<LearnableItem>? _learnableItemsCache;
+  Map<String, List<int>>? _sectionLeafIndexMapCache;
+  Map<String, List<String>>? _sectionPathCache;
 
   BookDetails({
     required this.contentType,
@@ -200,6 +259,7 @@ class BookDetails {
     this.isCustom = false,
     this.id,
     this.originalPageCount,
+    this.sections,
   });
 
   factory BookDetails.fromJson(
@@ -210,6 +270,7 @@ class BookDetails {
   }) {
     List<BookPart> parts = [];
     num? pageCount;
+    List<BookSection>? sections;
 
     if (json['parts'] is List) {
       parts = (json['parts'] as List)
@@ -240,12 +301,19 @@ class BookDetails {
       ));
     }
 
+    if (json['sections'] is List) {
+      sections = (json['sections'] as List)
+          .map((raw) => BookSection.fromJson(JsonUtils.asMap(raw)))
+          .toList();
+    }
+
     return BookDetails(
       contentType: contentType,
       parts: parts,
       isCustom: isCustom,
       id: id,
       originalPageCount: pageCount,
+      sections: sections,
     );
   }
 
@@ -268,6 +336,11 @@ class BookDetails {
   /// Get all learnable items (cached for performance)
   List<LearnableItem> get learnableItems {
     if (_learnableItemsCache != null) return _learnableItemsCache!;
+
+    if (sections != null && sections!.isNotEmpty) {
+      _learnableItemsCache = _buildLearnableItemsFromSections();
+      return _learnableItemsCache!;
+    }
 
     final List<LearnableItem> items = [];
     int currentIndex = 0;
@@ -308,11 +381,14 @@ class BookDetails {
   int get totalLearnableItems => learnableItems.length;
 
   /// Check if this book has multiple parts
-  bool get hasMultipleParts => parts.length > 1;
+  bool get hasMultipleParts =>
+      (sections != null && sections!.length > 1) || parts.length > 1;
 
   /// Clear the learnable items cache (useful for testing)
   void clearCache() {
     _learnableItemsCache = null;
+    _sectionLeafIndexMapCache = null;
+    _sectionPathCache = null;
   }
 
   Map<String, dynamic> toJson() => {
@@ -321,5 +397,137 @@ class BookDetails {
         if (id != null) 'id': id,
         'parts': parts.map((p) => p.toJson()).toList(),
         if (originalPageCount != null) 'originalPageCount': originalPageCount,
+        if (sections != null)
+          'sections': sections!.map((section) => section.toJson()).toList(),
       };
+
+  bool get hasNestedSections =>
+      sections != null && sections!.any((section) => !section.isLeaf);
+
+  Map<String, List<int>> get sectionLeafIndexMap {
+    if (_sectionLeafIndexMapCache != null) {
+      return _sectionLeafIndexMapCache!;
+    }
+    if (sections == null || sections!.isEmpty) {
+      _sectionLeafIndexMapCache = {};
+      return _sectionLeafIndexMapCache!;
+    }
+    _learnableItemsCache ??= _buildLearnableItemsFromSections();
+    return _sectionLeafIndexMapCache ?? {};
+  }
+
+  Map<String, List<String>> get sectionPathMap {
+    if (_sectionPathCache != null) {
+      return _sectionPathCache!;
+    }
+    if (sections == null || sections!.isEmpty) {
+      _sectionPathCache = {};
+      return _sectionPathCache!;
+    }
+    _learnableItemsCache ??= _buildLearnableItemsFromSections();
+    return _sectionPathCache ?? {};
+  }
+
+  List<LearnableItem> _buildLearnableItemsFromSections() {
+    final List<LearnableItem> items = [];
+    final Map<String, List<int>> leafMap = {};
+    final Map<String, List<String>> pathMap = {};
+    int currentIndex = 0;
+
+    void traverse(BookSection section, List<String> path) {
+      final currentPath = [...path, section.title];
+      if (section.isLeaf) {
+        final learnable = LearnableItem(
+          partName: path.isNotEmpty ? path.first : section.title,
+          pageNumber: section.startPage,
+          amudKey: 'a',
+          absoluteIndex: currentIndex,
+          sectionId: section.id,
+          displayLabel: section.title,
+          hierarchyPath: currentPath,
+        );
+        items.add(learnable);
+        leafMap[section.id] = [currentIndex];
+        pathMap[section.id] = currentPath;
+        currentIndex++;
+      } else {
+        final List<int> descendantIndices = [];
+        for (final child in section.children) {
+          traverse(child, currentPath);
+          descendantIndices.addAll(leafMap[child.id] ?? const []);
+        }
+        if (descendantIndices.isNotEmpty) {
+          leafMap[section.id] = descendantIndices;
+          pathMap[section.id] = currentPath;
+        }
+      }
+    }
+
+    for (final section in sections ?? const []) {
+      traverse(section, []);
+    }
+
+    _sectionLeafIndexMapCache = leafMap;
+    _sectionPathCache = pathMap;
+    return items;
+  }
+}
+
+/// Represents a learnable item (page, chapter, etc.)
+class LearnableItem {
+  final String partName;
+  final int pageNumber;
+  final String amudKey;
+  final int absoluteIndex;
+  final String? sectionId;
+  final String? displayLabel;
+  final List<String> hierarchyPath;
+
+  const LearnableItem({
+    required this.partName,
+    required this.pageNumber,
+    required this.amudKey,
+    required this.absoluteIndex,
+    this.sectionId,
+    this.displayLabel,
+    this.hierarchyPath = const [],
+  });
+
+  LearnableItem copyWith({
+    String? partName,
+    int? pageNumber,
+    String? amudKey,
+    int? absoluteIndex,
+    String? sectionId,
+    String? displayLabel,
+    List<String>? hierarchyPath,
+  }) {
+    return LearnableItem(
+      partName: partName ?? this.partName,
+      pageNumber: pageNumber ?? this.pageNumber,
+      amudKey: amudKey ?? this.amudKey,
+      absoluteIndex: absoluteIndex ?? this.absoluteIndex,
+      sectionId: sectionId ?? this.sectionId,
+      displayLabel: displayLabel ?? this.displayLabel,
+      hierarchyPath: hierarchyPath ?? this.hierarchyPath,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LearnableItem &&
+          runtimeType == other.runtimeType &&
+          partName == other.partName &&
+          pageNumber == other.pageNumber &&
+          amudKey == other.amudKey &&
+          absoluteIndex == other.absoluteIndex &&
+          sectionId == other.sectionId;
+
+  @override
+  int get hashCode => partName.hashCode ^
+      pageNumber.hashCode ^
+      amudKey.hashCode ^
+      absoluteIndex.hashCode ^
+      sectionId.hashCode;
 }

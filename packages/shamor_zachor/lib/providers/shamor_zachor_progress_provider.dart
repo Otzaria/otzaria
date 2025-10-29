@@ -188,7 +188,9 @@ class ShamorZachorProgressProvider with ChangeNotifier {
             categoryName, bookName, columnName, bookDetails);
       }
 
-      notifyListeners();
+      if (!isBulkUpdate) {
+        notifyListeners();
+      }
     } catch (e, stackTrace) {
       _error = ShamorZachorError.fromException(
         e,
@@ -320,9 +322,134 @@ class ShamorZachorProgressProvider with ChangeNotifier {
     }
   }
 
+  /// Toggle selection for a specific section (group of items)
+  Future<void> toggleSectionColumn(
+    String categoryName,
+    String bookName,
+    BookDetails bookDetails,
+    String sectionId,
+    String columnName,
+    bool select,
+  ) async {
+    final indices = bookDetails.sectionLeafIndexMap[sectionId] ?? const [];
+    if (indices.isEmpty) {
+      _logger.fine('No leaf indices found for section $sectionId');
+      return;
+    }
+
+    try {
+      for (final index in indices) {
+        await updateProgress(
+          categoryName,
+          bookName,
+          index,
+          columnName,
+          select,
+          bookDetails,
+          isBulkUpdate: true,
+        );
+      }
+
+      if (select && columnName == learnColumn) {
+        final wasAlreadyCompleted =
+            getCompletionDateSync(categoryName, bookName) != null;
+        final isNowComplete =
+            isBookCompleted(categoryName, bookName, bookDetails);
+
+        if (isNowComplete && !wasAlreadyCompleted) {
+          await _progressService.saveCompletionDate(categoryName, bookName);
+          _completionDates = await _progressService.loadCompletionDates();
+        }
+      }
+
+      notifyListeners();
+    } catch (e, stackTrace) {
+      _error = ShamorZachorError.fromException(
+        e,
+        stackTrace: stackTrace,
+        customMessage: 'Failed to update section progress',
+      );
+      _logger.severe(
+          'Error updating section: ${_error!.message}', e, stackTrace);
+      notifyListeners();
+    }
+  }
+
   /// Get completion date for a book (synchronous)
   String? getCompletionDateSync(String categoryName, String bookName) {
     return _completionDates[categoryName]?[bookName];
+  }
+
+  /// Clear all progress for a specific book
+  Future<void> clearBookProgress(
+    String categoryName,
+    String bookName,
+    BookDetails bookDetails,
+  ) async {
+    try {
+      await _progressService.saveAllBookAsLearned(
+        categoryName,
+        bookName,
+        bookDetails,
+        false,
+      );
+
+      _fullProgress[categoryName]?.remove(bookName);
+      if (_fullProgress[categoryName]?.isEmpty ?? false) {
+        _fullProgress.remove(categoryName);
+      }
+
+      _completionDates[categoryName]?.remove(bookName);
+      if (_completionDates[categoryName]?.isEmpty ?? false) {
+        _completionDates.remove(categoryName);
+      }
+
+      notifyListeners();
+    } catch (e, stackTrace) {
+      _error = ShamorZachorError.fromException(
+        e,
+        stackTrace: stackTrace,
+        customMessage: 'Failed to clear book progress',
+      );
+      _logger.severe(
+          'Error clearing progress: ${_error!.message}', e, stackTrace);
+      notifyListeners();
+    }
+  }
+
+  /// Get tristate selection state for a section and column
+  bool? getSectionColumnState(
+    String categoryName,
+    String bookName,
+    BookDetails bookDetails,
+    String sectionId,
+    String columnName,
+  ) {
+    final indices = bookDetails.sectionLeafIndexMap[sectionId] ?? const [];
+    if (indices.isEmpty) {
+      return false;
+    }
+
+    bool anySelected = false;
+    bool anyUnselected = false;
+
+    for (final index in indices) {
+      final progress = getProgressForItem(categoryName, bookName, index);
+      final value = progress.getProperty(columnName);
+      if (value) {
+        anySelected = true;
+      } else {
+        anyUnselected = true;
+      }
+      if (anySelected && anyUnselected) {
+        return null; // partial
+      }
+    }
+
+    if (anySelected) {
+      return true;
+    }
+    return false;
   }
 
   /// Check if a book is completed (all items learned)

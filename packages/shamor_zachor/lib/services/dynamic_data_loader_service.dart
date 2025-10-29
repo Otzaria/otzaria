@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:isolate';
+
 import 'package:logging/logging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -30,6 +33,7 @@ class DynamicDataLoaderService {
 
   Map<String, BookCategory>? _cachedData;
   bool _isInitialized = false;
+  Future<void>? _initialScanFuture;
 
   static const String _initKey = 'shamor_zachor_initialized';
 
@@ -55,9 +59,9 @@ class DynamicDataLoaderService {
       final isFirstRun = !_prefs.containsKey(_initKey);
 
       if (isFirstRun) {
-        _logger.info('First run detected - performing one-time scan of built-in books');
-        await _scanAndCacheBuiltInBooks();
-        await _prefs.setBool(_initKey, true);
+        _logger.info(
+            'First run detected - scheduling one-time scan of built-in books');
+        _initialScanFuture ??= _scheduleInitialScan();
       } else {
         // NOT first run - load ALL books from cache (no scanning!)
         _logger.info('Loading built-in books from cache');
@@ -70,6 +74,25 @@ class DynamicDataLoaderService {
       _logger.severe('Failed to initialize', e, stackTrace);
       rethrow;
     }
+  }
+
+  Future<void> _scheduleInitialScan() {
+    final completer = Completer<void>();
+    Future<void>(() async {
+      try {
+        await _scanAndCacheBuiltInBooks();
+        await _prefs.setBool(_initKey, true);
+        if (!completer.isCompleted) {
+          completer.complete();
+        }
+      } catch (e, stackTrace) {
+        _logger.severe('Failed during initial scan', e, stackTrace);
+        if (!completer.isCompleted) {
+          completer.completeError(e, stackTrace);
+        }
+      }
+    });
+    return completer.future;
   }
 
   /// Load all built-in books from cache (no scanning)
@@ -151,6 +174,7 @@ class DynamicDataLoaderService {
   /// This runs only on first initialization and saves all data to cache
   Future<void> _scanAndCacheBuiltInBooks() async {
     final categories = BuiltInBooksConfig.builtInBookPaths;
+    final List<Map<String, dynamic>> pendingScans = [];
 
     _logger.info('Starting one-time scan of built-in books');
 
@@ -160,48 +184,123 @@ class DynamicDataLoaderService {
 
       for (final bookEntry in books.entries) {
         final bookName = bookEntry.key;
-        final bookPath = bookEntry.value;
+        final relativePath = bookEntry.value;
+        final bookId = '$categoryName:$bookName';
 
         try {
-          _logger.info('Scanning built-in book: $categoryName - $bookName');
+          final existing = await _scannerService.loadScanCache(bookId);
+          if (existing != null) {
+            _logger.fine('Cache already exists for $bookId, skipping scan');
+            await _customBooksService.addBook(existing);
+            continue;
+          }
 
-          // Determine content type based on category
           final contentType = _getContentTypeForCategory(categoryName);
+          final fullPath = '${_scannerService.libraryBasePath}/$relativePath';
 
-          final bookId = '$categoryName:$bookName';
-
-          // Create the full path
-          final fullPath =
-              '${_scannerService.libraryBasePath}/$bookPath';
-
-          // Scan the book (ONE TIME ONLY)
-          final trackedBook = await _scannerService.createTrackedBook(
-            bookName: bookName,
-            categoryName: categoryName,
-            bookPath: fullPath,
-            contentType: contentType,
-            isBuiltIn: true,
-          );
-
-          // Save to cache (this is the permanent storage)
-          await _scannerService.saveScanCache(trackedBook);
-
-          // Add to custom books service
-          await _customBooksService.addBook(trackedBook);
-
-          _logger.info('Successfully scanned and cached $bookId');
+          pendingScans.add({
+            'bookId': bookId,
+            'bookName': bookName,
+            'categoryName': categoryName,
+            'bookPath': fullPath,
+            'contentType': contentType,
+            'isBuiltIn': true,
+          });
         } catch (e, stackTrace) {
           _logger.warning(
-            'Failed to scan built-in book: $categoryName - $bookName',
+            'Failed preparing scan for built-in book: $categoryName - $bookName',
             e,
             stackTrace,
           );
-          // Continue with other books
         }
       }
     }
 
-    _logger.info('Completed one-time scan of built-in books');
+    if (pendingScans.isEmpty) {
+      _logger.info('Completed one-time scan of built-in books (all cached)');
+      return;
+    }
+
+    try {
+      final results = await _runBuiltInScanIsolate(
+        libraryBasePath: _scannerService.libraryBasePath,
+        getTocFromFile: _scannerService.getTocFromFile,
+        booksToScan: pendingScans,
+      );
+
+      for (final result in results) {
+        final success = result['success'] as bool? ?? false;
+        final bookId = result['bookId'] as String? ?? 'unknown';
+
+        if (!success) {
+          _logger.warning(
+            'Isolate scan failed for built-in book: $bookId',
+            result['error'],
+            result['stackTrace'],
+          );
+          continue;
+        }
+
+        final bookJson =
+            Map<String, dynamic>.from(result['book'] as Map<String, dynamic>);
+        final trackedBook = TrackedBook.fromJson(bookJson);
+
+        await _scannerService.saveScanCache(trackedBook);
+        await _customBooksService.addBook(trackedBook);
+
+        _logger.info('Successfully scanned and cached $bookId');
+      }
+
+      _logger.info('Completed one-time scan of built-in books');
+    } on UnsupportedError catch (e, stackTrace) {
+      _logger.warning(
+        'Background isolate unsupported; falling back to sequential scan',
+        e,
+        stackTrace,
+      );
+      await _scanBuiltInBooksSequentially(pendingScans);
+      _logger.info('Completed one-time scan of built-in books (sequential fallback)');
+    } on IsolateSpawnException catch (e, stackTrace) {
+      _logger.warning(
+        'Isolate spawn failed; falling back to sequential scan',
+        e,
+        stackTrace,
+      );
+      await _scanBuiltInBooksSequentially(pendingScans);
+      _logger.info('Completed one-time scan of built-in books (sequential fallback)');
+    } catch (e, stackTrace) {
+      _logger.severe('Failed to complete isolate scan of built-in books', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  Future<void> _scanBuiltInBooksSequentially(
+    List<Map<String, dynamic>> pendingScans,
+  ) async {
+    for (final job in pendingScans) {
+      final bookId = job['bookId'] as String? ?? 'unknown';
+
+      try {
+        final trackedBook = await _scannerService.createTrackedBook(
+          bookName: job['bookName'] as String? ?? 'unknown',
+          categoryName: job['categoryName'] as String? ?? 'לא ידוע',
+          bookPath: job['bookPath'] as String? ?? '',
+          contentType: job['contentType'] as String? ?? 'פרק',
+          isBuiltIn: job['isBuiltIn'] as bool? ?? true,
+        );
+
+        await _scannerService.saveScanCache(trackedBook);
+        await _customBooksService.addBook(trackedBook);
+
+        _logger.info('Successfully scanned and cached $bookId (sequential)');
+      } catch (e, stackTrace) {
+        _logger.warning(
+          'Sequential scan failed for built-in book: $bookId',
+          e,
+          stackTrace,
+        );
+      }
+    }
   }
 
   /// Get content type based on category name
@@ -230,6 +329,14 @@ class DynamicDataLoaderService {
   Future<Map<String, BookCategory>> loadData() async {
     if (!_isInitialized) {
       await initialize();
+    }
+
+    if (_initialScanFuture != null) {
+      try {
+        await _initialScanFuture;
+      } catch (e, stackTrace) {
+        _logger.severe('Initial scan failed', e, stackTrace);
+      }
     }
 
     if (_cachedData != null) {
@@ -398,4 +505,60 @@ class DynamicDataLoaderService {
       ..._customBooksService.getStatistics(),
     };
   }
+}
+
+Future<List<Map<String, dynamic>>> _runBuiltInScanIsolate({
+  required String libraryBasePath,
+  required Future<List<Map<String, dynamic>>> Function(String bookPath)
+      getTocFromFile,
+  required List<Map<String, dynamic>> booksToScan,
+}) async {
+  if (booksToScan.isEmpty) {
+    return const [];
+  }
+
+  return Isolate.run(() async {
+    final scanner = BookScannerService(
+      libraryBasePath: libraryBasePath,
+      getTocFromFile: getTocFromFile,
+    );
+
+    final Logger logger = Logger('DynamicDataLoaderService.Isolate');
+    final List<Map<String, dynamic>> results = [];
+
+    for (final job in booksToScan) {
+      final bookId = job['bookId'] as String? ?? 'unknown';
+
+      try {
+        final trackedBook = await scanner.createTrackedBook(
+          bookName: job['bookName'] as String? ?? 'unknown',
+          categoryName: job['categoryName'] as String? ?? 'לא ידוע',
+          bookPath: job['bookPath'] as String? ?? '',
+          contentType: job['contentType'] as String? ?? 'פרק',
+          isBuiltIn: job['isBuiltIn'] as bool? ?? true,
+        );
+
+        results.add({
+          'success': true,
+          'bookId': bookId,
+          'book': trackedBook.toJson(),
+        });
+      } catch (e, stackTrace) {
+        logger.warning(
+          'Failed to scan built-in book in isolate: $bookId',
+          e,
+          stackTrace,
+        );
+
+        results.add({
+          'success': false,
+          'bookId': bookId,
+          'error': e.toString(),
+          'stackTrace': stackTrace.toString(),
+        });
+      }
+    }
+
+    return results;
+  });
 }

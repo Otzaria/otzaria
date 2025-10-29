@@ -6,6 +6,8 @@ import '../providers/shamor_zachor_data_provider.dart';
 import '../providers/shamor_zachor_progress_provider.dart';
 import '../widgets/book_card_widget.dart';
 import '../models/book_model.dart';
+import '../models/progress_model.dart';
+import '../utils/message_utils.dart';
 
 /// Screen for browsing and searching books
 class BooksScreen extends StatefulWidget {
@@ -340,6 +342,7 @@ class _BooksScreenState extends State<BooksScreen>
         categoryName: bookData['categoryName'] as String,
         bookName: bookData['bookName'] as String,
         bookDetails: bookData['bookDetails'] as BookDetails,
+        isCustom: true,
       ));
     }
 
@@ -381,7 +384,7 @@ class _BooksScreenState extends State<BooksScreen>
       );
     }
 
-    return _buildBookGrid(items);
+    return _buildBookGrid(items, dataProvider);
   }
 
   /// Build view for a specific category
@@ -406,6 +409,7 @@ class _BooksScreenState extends State<BooksScreen>
         categoryName: categoryName,
         bookName: bookName,
         bookDetails: bookDetails,
+        isCustom: false,
       ));
     });
 
@@ -418,6 +422,7 @@ class _BooksScreenState extends State<BooksScreen>
             categoryName: subCategory.name,
             bookName: bookName,
             bookDetails: bookDetails,
+            isCustom: false,
           ));
         });
       }
@@ -451,11 +456,12 @@ class _BooksScreenState extends State<BooksScreen>
       );
     }
 
-    return _buildBookGrid(items);
+    return _buildBookGrid(items, dataProvider);
   }
 
   /// Build grid of books
-  Widget _buildBookGrid(List<_BookItem> items) {
+  Widget _buildBookGrid(
+      List<_BookItem> items, ShamorZachorDataProvider dataProvider) {
     return LayoutBuilder(
       builder: (context, constraints) {
         // קובעים כמה עמודות להציג לפי רוחב המסך
@@ -495,6 +501,15 @@ class _BooksScreenState extends State<BooksScreen>
                   bookName: item.bookName,
                   bookDetails: item.bookDetails,
                   bookProgressData: bookProgress,
+                  onDelete: item.isCustom
+                      ? () => _confirmDeleteCustomBook(
+                            context,
+                            item,
+                            bookProgress,
+                            dataProvider,
+                            progressProvider,
+                          )
+                      : null,
                 );
               },
             );
@@ -502,6 +517,63 @@ class _BooksScreenState extends State<BooksScreen>
         );
       },
     );
+  }
+
+  Future<void> _confirmDeleteCustomBook(
+    BuildContext context,
+    _BookItem item,
+    Map<String, PageProgress> bookProgress,
+    ShamorZachorDataProvider dataProvider,
+    ShamorZachorProgressProvider progressProvider,
+  ) async {
+    final hasProgress = bookProgress.isNotEmpty;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('הסרת ספר אישי'),
+          content: Text(hasProgress
+              ? 'בספר זה קיימים סימוני לימוד. הסרת הספר תמחק גם את כל הסימונים. האם להמשיך?'
+              : 'האם להסיר את הספר "${item.bookName}" מרשימת הספרים האישיים?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('ביטול'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('אישור'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      if (hasProgress) {
+        await progressProvider.clearBookProgress(
+          item.topLevelCategoryKey,
+          item.bookName,
+          item.bookDetails,
+        );
+      }
+
+      await dataProvider.removeCustomBook(
+        categoryName: item.topLevelCategoryKey,
+        bookName: item.bookName,
+      );
+
+      ShamorZachorMessenger.showSuccess(
+          'הספר "${item.bookName}" הוסר מהמעקב');
+    } catch (e, stackTrace) {
+      _logger.severe('Failed to delete custom book ${item.bookName}', e, stackTrace);
+      ShamorZachorMessenger.showError('שגיאה בהסרת הספר: $e');
+    }
   }
 }
 
@@ -511,11 +583,13 @@ class _BookItem {
   final String categoryName;
   final String bookName;
   final BookDetails bookDetails;
+  final bool isCustom;
 
   const _BookItem({
     required this.topLevelCategoryKey,
     required this.categoryName,
     required this.bookName,
     required this.bookDetails,
+    required this.isCustom,
   });
 }

@@ -17,6 +17,7 @@ class BookCardWidget extends StatefulWidget {
   final bool isFromTrackingScreen;
   final String? completionDate;
   final bool isInCompletedListContext;
+  final VoidCallback? onDelete;
 
   const BookCardWidget({
     super.key,
@@ -28,6 +29,7 @@ class BookCardWidget extends StatefulWidget {
     this.isFromTrackingScreen = false,
     this.completionDate,
     this.isInCompletedListContext = false,
+    this.onDelete,
   });
 
   @override
@@ -173,6 +175,14 @@ class _BookCardWidgetState extends State<BookCardWidget> {
                     const SizedBox(width: 8),
                     const Icon(Icons.check_circle,
                         color: Colors.green, size: 24),
+                  ],
+                  if (widget.onDelete != null) ...[
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline),
+                      tooltip: 'הסר ספר',
+                      onPressed: widget.onDelete,
+                    ),
                   ],
                 ],
               ),

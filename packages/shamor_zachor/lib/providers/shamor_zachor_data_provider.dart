@@ -307,6 +307,23 @@ class ShamorZachorDataProvider with ChangeNotifier {
     }
   }
 
+  /// Remove a custom book from tracking
+  Future<void> removeCustomBook({
+    required String categoryName,
+    required String bookName,
+  }) async {
+    if (_dynamicDataLoaderService == null) {
+      throw UnsupportedError(
+        'Removing custom books is only supported with DynamicDataLoaderService',
+      );
+    }
+
+    final bookId = '$categoryName:$bookName';
+    _logger.info('Removing custom book: $bookId');
+    await _dynamicDataLoaderService.removeBook(bookId);
+    await reload();
+  }
+
   /// Check if a book is already tracked
   bool isBookTracked(String categoryName, String bookName) {
     if (_dynamicDataLoaderService != null) {

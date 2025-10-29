@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:logging/logging.dart';
 
+import '../models/book_model.dart';
+import '../models/progress_model.dart';
 import '../providers/shamor_zachor_data_provider.dart';
 import '../providers/shamor_zachor_progress_provider.dart';
 import '../widgets/hebrew_utils.dart';
@@ -223,10 +225,10 @@ class _BookDetailScreenState extends State<BookDetailScreen>
 
   Widget _buildBookContent(
     BuildContext context,
-    dynamic bookDetails,
+    BookDetails bookDetails,
     ShamorZachorProgressProvider progressProvider,
   ) {
-    final learnableItems = bookDetails.learnableItems ?? [];
+    final learnableItems = bookDetails.learnableItems;
 
     if (learnableItems.isEmpty) {
       return const Center(
@@ -234,20 +236,25 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       );
     }
 
+    final hasNested = bookDetails.sections != null &&
+        bookDetails.sections!.isNotEmpty &&
+        bookDetails.hasNestedSections;
+
+    final sliverList = hasNested
+        ? _buildNestedItemsSliver(context, bookDetails, progressProvider)
+        : _buildFlatItemsSliver(context, bookDetails, progressProvider);
+
     return CustomScrollView(
       slivers: [
-        // Sliver 1: הכותרת. היא לא נגללת, פשוט יושבת למעלה.
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
             child: _buildHeader(context, bookDetails, progressProvider),
           ),
         ),
-
-        // Sliver 2: הרשימה עצמה, עטופה ב-Padding.
         SliverPadding(
           padding: const EdgeInsets.all(12.0),
-          sliver: _buildItemsSliver(context, bookDetails, progressProvider),
+          sliver: sliverList,
         ),
       ],
     );
@@ -342,13 +349,13 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     );
   }
 
-  Widget _buildItemsSliver(
+  Widget _buildFlatItemsSliver(
     BuildContext context,
-    dynamic bookDetails,
+    BookDetails bookDetails,
     ShamorZachorProgressProvider progressProvider,
   ) {
     final theme = Theme.of(context);
-    final learnableItems = bookDetails.learnableItems ?? [];
+    final learnableItems = bookDetails.learnableItems;
 
     return SliverList(
       delegate: SliverChildBuilderDelegate(
@@ -458,4 +465,213 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       ),
     );
   }
+
+  Widget _buildNestedItemsSliver(
+    BuildContext context,
+    BookDetails bookDetails,
+    ShamorZachorProgressProvider progressProvider,
+  ) {
+    final theme = Theme.of(context);
+    final rows = _buildSectionRows(bookDetails);
+
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (ctx, index) {
+          final row = rows[index];
+          if (row.isLeaf) {
+            if (row.leafIndex == null) {
+              return const SizedBox.shrink();
+            }
+            final learnable = bookDetails.learnableItems
+                .firstWhere((item) => item.absoluteIndex == row.leafIndex);
+            final pageProgress = progressProvider.getProgressForItem(
+              widget.topLevelCategoryKey,
+              widget.bookName,
+              row.leafIndex!,
+            );
+
+            return _buildLeafRow(
+              context,
+              theme,
+              row,
+              learnable,
+              pageProgress,
+              bookDetails,
+              progressProvider,
+            );
+          } else {
+            return _buildGroupRow(
+              context,
+              theme,
+              row,
+              bookDetails,
+              progressProvider,
+            );
+          }
+        },
+        childCount: rows.length,
+      ),
+    );
+  }
+
+  Widget _buildGroupRow(
+    BuildContext context,
+    ThemeData theme,
+    _SectionRowData row,
+    BookDetails bookDetails,
+    ShamorZachorProgressProvider progressProvider,
+  ) {
+    final padding = EdgeInsetsDirectional.only(start: row.level * 16.0);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: padding,
+              child: Text(
+                row.title,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 10,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: _columnData.map((col) {
+                final columnId = col['id']!;
+                final state = progressProvider.getSectionColumnState(
+                  widget.topLevelCategoryKey,
+                  widget.bookName,
+                  bookDetails,
+                  row.sectionId,
+                  columnId,
+                );
+
+                return Expanded(
+                  child: Checkbox(
+                    value: state,
+                    tristate: true,
+                    onChanged: (value) => progressProvider.toggleSectionColumn(
+                      widget.topLevelCategoryKey,
+                      widget.bookName,
+                      bookDetails,
+                      row.sectionId,
+                      columnId,
+                      value == true,
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLeafRow(
+    BuildContext context,
+    ThemeData theme,
+    _SectionRowData row,
+    LearnableItem learnable,
+    PageProgress pageProgress,
+    BookDetails bookDetails,
+    ShamorZachorProgressProvider progressProvider,
+  ) {
+    final padding = EdgeInsetsDirectional.only(start: row.level * 16.0);
+    final rowLabel = learnable.displayLabel ?? learnable.partName;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 8),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: padding,
+              child: Text(
+                rowLabel,
+                style: theme.textTheme.bodyMedium,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 10,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: _columnData.map((col) {
+                final columnName = col['id']!;
+                return Expanded(
+                  child: Tooltip(
+                    message: col['label']!,
+                    child: Checkbox(
+                      visualDensity: VisualDensity.compact,
+                      value: pageProgress.getProperty(columnName),
+                      onChanged: (val) => progressProvider.updateProgress(
+                        widget.topLevelCategoryKey,
+                        widget.bookName,
+                        row.leafIndex!,
+                        columnName,
+                        val ?? false,
+                        bookDetails,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<_SectionRowData> _buildSectionRows(BookDetails bookDetails) {
+    final List<_SectionRowData> rows = [];
+
+    void traverse(BookSection section, int level) {
+      final isLeaf = section.children.isEmpty;
+      final leafIndices = bookDetails.sectionLeafIndexMap[section.id] ?? const [];
+
+      rows.add(_SectionRowData(
+        sectionId: section.id,
+        title: section.title,
+        level: level,
+        isLeaf: isLeaf,
+        leafIndex: isLeaf && leafIndices.isNotEmpty ? leafIndices.first : null,
+      ));
+
+      for (final child in section.children) {
+        traverse(child, level + 1);
+      }
+    }
+
+    for (final section in bookDetails.sections ?? const []) {
+      traverse(section, 0);
+    }
+
+    return rows;
+  }
+}
+
+class _SectionRowData {
+  final String sectionId;
+  final String title;
+  final int level;
+  final bool isLeaf;
+  final int? leafIndex;
+
+  const _SectionRowData({
+    required this.sectionId,
+    required this.title,
+    required this.level,
+    required this.isLeaf,
+    this.leafIndex,
+  });
 }
