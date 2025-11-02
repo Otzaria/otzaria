@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- בסיס הנר -->
+  <ellipse cx="12" cy="21" rx="6" ry="1.5" fill="currentColor" opacity="0.3"/>
+  
+  <!-- גוף הנר -->
+  <rect x="8" y="10" width="8" height="11" rx="1" fill="currentColor" opacity="0.7"/>
+  
+  <!-- כוס הזכוכית -->
+  <rect x="7.5" y="9" width="9" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.8"/>
+  
+  <!-- הפתיל -->
+  <line x1="12" y1="9" x2="12" y2="7" stroke="currentColor" stroke-width="1"/>
+  
+  <!-- הלהבה -->
+  <path d="M12 7 C11 6, 11 4, 12 3 C13 4, 13 6, 12 7 Z" fill="currentColor"/>
+  
+  <!-- זוהר סביב הלהבה -->
+  <circle cx="12" cy="5" r="3" fill="currentColor" opacity="0.1"/>
+</svg>
