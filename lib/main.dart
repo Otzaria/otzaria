@@ -42,8 +42,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:otzaria/app_bloc_observer.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/data/data_providers/hive_data_provider.dart';
-import 'package:otzaria/notes/data/database_schema.dart';
-import 'package:otzaria/notes/bloc/notes_bloc.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:search_engine/search_engine.dart';
 import 'package:otzaria/core/app_paths.dart';
@@ -149,9 +147,6 @@ void main() async {
               create: (context) => FindRefBloc(
                   findRefRepository: FindRefRepository(
                       dataRepository: DataRepository.instance))),
-          BlocProvider<NotesBloc>(
-            create: (context) => NotesBloc(),
-          ),
           BlocProvider<BookmarkBloc>(
             create: (context) => BookmarkBloc(BookmarkRepository()),
           ),
@@ -219,16 +214,6 @@ Future<void> initialize() async {
   await initHive();
   await createDirs();
   await loadCerts();
-
-  // Initialize notes database
-  try {
-    await DatabaseSchema.initializeDatabase();
-  } catch (e) {
-    if (kDebugMode) {
-      debugPrint('Failed to initialize notes database: $e');
-    }
-    // Continue without notes functionality if database fails
-  }
 
   // Initialize Shamor Zachor dynamic data loader
   try {

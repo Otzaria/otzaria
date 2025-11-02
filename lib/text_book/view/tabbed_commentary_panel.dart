@@ -5,7 +5,7 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:otzaria/text_book/view/selected_line_links_view.dart';
-import 'package:otzaria/notes/widgets/notes_sidebar.dart';
+import 'package:otzaria/simple_notes/widgets/simple_notes_screen.dart';
 import 'package:otzaria/core/scaffold_messenger.dart';
 
 /// Widget שמציג כרטיסיות עם מפרשים וקישורים בחלונית הצד
@@ -157,12 +157,21 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
                         widget.initialTabIndex == 1, // אם נפתח ישירות לקישורים
                   ),
                   // כרטיסיית ההערות האישיות
-                  NotesSidebar(
-                    bookId: state.book.title,
-                    onClose: null, // לא צריך כפתור סגירה - יש את הכפתור הכללי
-                    onNavigateToPosition: (start, end) {
-                      // ניווט למיקום ההערה בטקסט
-                      UiSnack.show('ניווט למיקום $start-$end');
+                  SimpleNotesScreen(
+                    bookTitle: state.book.title,
+                    onNavigateToLine: (lineNumber) {
+                      // ניווט לשורה בטקסט
+                      final index = lineNumber - 1; // המרה לאינדקס (מתחיל מ-0)
+                      if (index >= 0 && index < state.content.length) {
+                        state.scrollController.scrollTo(
+                          index: index,
+                          duration: const Duration(milliseconds: 500),
+                          curve: Curves.easeInOut,
+                        );
+
+                        // הצגת הודעה
+                        UiSnack.show('עובר לשורה $lineNumber');
+                      }
                     },
                   ),
                 ],

@@ -16,10 +16,11 @@ import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
-import 'package:otzaria/notes/notes_system.dart';
 import 'package:otzaria/utils/copy_utils.dart';
 import 'package:otzaria/core/scaffold_messenger.dart';
 import 'package:super_clipboard/super_clipboard.dart';
+import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
+import 'package:otzaria/simple_notes/widgets/create_note_dialog.dart';
 
 class CombinedView extends StatefulWidget {
   CombinedView({
@@ -283,15 +284,7 @@ class _CombinedViewState extends State<CombinedView> {
         const ctx.MenuDivider(),
         // הערות אישיות
         ctx.MenuItem(
-          label: () {
-            final text = _lastSelectedText ?? _selectedText;
-            if (text == null || text.trim().isEmpty) {
-              return 'הוסף הערה אישית';
-            }
-            final preview =
-                text.length > 12 ? '${text.substring(0, 12)}...' : text;
-            return 'הוסף הערה ל: "$preview"';
-          }(),
+          label: 'הוסף הערה לקטע זה',
           onSelected: () => _createNoteFromSelection(),
         ),
         const ctx.MenuDivider(),
@@ -554,41 +547,67 @@ $textWithBreaks
   }
 
   /// הצגת עורך ההערות
-  void _showNoteEditor(String selectedText, int charStart, int charEnd) {
-    showDialog(
-      context: context,
-      builder: (dialogContext) => NoteEditorDialog(
-        selectedText: selectedText,
-        bookId: widget.tab.book.title,
-        charStart: charStart,
-        charEnd: charEnd,
-        onSave: (noteRequest) async {
-          try {
-            final notesService = NotesIntegrationService.instance;
-            final bookId = widget.tab.book.title;
-            await notesService.createNoteFromSelection(
-              bookId,
-              selectedText,
-              charStart,
-              charEnd,
-              noteRequest.contentMarkdown,
-              tags: noteRequest.tags,
-              privacy: noteRequest.privacy,
-            );
+  Future<void> _showNoteEditor(
+      String selectedText, int charStart, int charEnd) async {
+    try {
+      // קבלת טקסט הספר
+      final bookText =
+          await FileSystemData.instance.getBookText(widget.tab.book.title);
+      final lines = bookText.split('\n');
 
-            if (mounted) {
-              // Dialog is already closed by NoteEditorDialog
-              UiSnack.show(UiSnack.noteCreated);
-            }
-          } catch (e) {
-            if (mounted) {
-              // Dialog is already closed by NoteEditorDialog
-              UiSnack.showError('שגיאה ביצירת הערה: $e');
-            }
+      // אם אין בחירה, נשתמש במיקום הנוכחי בגלילה
+      int lineNumber = 1;
+      String lineText = '';
+
+      if (charStart > 0) {
+        // יש בחירה - חישוב מספר שורה מ-charStart
+        int currentPos = 0;
+        for (int i = 0; i < lines.length; i++) {
+          final lineLength = lines[i].length + 1; // +1 לירידת שורה
+          if (currentPos + lineLength > charStart) {
+            lineNumber = i + 1;
+            lineText = lines[i];
+            break;
           }
-        },
-      ),
-    );
+          currentPos += lineLength;
+        }
+      } else {
+        // אין בחירה - נשתמש בשורה הראשונה הנראית
+        final positions = widget.tab.positionsListener.itemPositions.value;
+        if (positions.isNotEmpty) {
+          lineNumber = positions.first.index + 1;
+          if (lineNumber > 0 && lineNumber <= lines.length) {
+            lineText = lines[lineNumber - 1];
+          }
+        }
+      }
+
+      // אם לא מצאנו טקסט, נשתמש בשורה הראשונה
+      if (lineText.isEmpty && lines.isNotEmpty) {
+        lineText = lines[0];
+        lineNumber = 1;
+      }
+
+      if (!mounted) return;
+
+      // הצגת דיאלוג יצירת הערה
+      final result = await showDialog<bool>(
+        context: context,
+        builder: (context) => CreateNoteDialog(
+          bookTitle: widget.tab.book.title,
+          lineNumber: lineNumber,
+          lineText: lineText,
+        ),
+      );
+
+      if (result == true && mounted) {
+        UiSnack.show('ההערה נשמרה בהצלחה');
+      }
+    } catch (e) {
+      if (mounted) {
+        UiSnack.showError('שגיאה ביצירת הערה: $e');
+      }
+    }
   }
 
   Widget buildKeyboardListener() {
@@ -613,10 +632,6 @@ $textWithBreaks
                 _selectionStart = null;
                 _selectionEnd = null;
                 _currentSelectedIndex = null;
-                // עדכון ה-BLoC שאין טקסט נבחר
-                context
-                    .read<TextBookBloc>()
-                    .add(const UpdateSelectedTextForNote(null, null, null));
               } else {
                 _selectedText = text;
                 _selectionStart = 0;
@@ -629,11 +644,6 @@ $textWithBreaks
                 _lastSelectedText = text;
                 _lastSelectionStart = 0;
                 _lastSelectionEnd = text.length;
-
-                // עדכון ה-BLoC עם הטקסט הנבחר
-                context
-                    .read<TextBookBloc>()
-                    .add(UpdateSelectedTextForNote(text, 0, text.length));
               }
               // בלי setState – כדי לא לרנדר את כל העץ תוך כדי גרירת הבחירה
             },
@@ -740,11 +750,13 @@ $textWithBreaks
                         <div style="text-align: justify; direction: rtl;">
                           ${() {
                             String processedData = state.removeNikud
-                                ? utils.highLight(utils.removeVolwels('$data\n'),
+                                ? utils.highLight(
+                                    utils.removeVolwels('$data\n'),
                                     state.searchText)
                                 : utils.highLight('$data\n', state.searchText);
                             // החלת עיצוב הסוגריים העגולים
-                            return utils.formatTextWithParentheses(processedData);
+                            return utils
+                                .formatTextWithParentheses(processedData);
                           }()}
                         </div>
                         ''',

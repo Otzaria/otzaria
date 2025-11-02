@@ -6,8 +6,6 @@ import 'package:logging/logging.dart';
 import 'package:otzaria/bookmarks/repository/bookmark_repository.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
 import 'package:otzaria/history/history_repository.dart';
-import 'package:otzaria/notes/data/notes_data_provider.dart';
-import 'package:otzaria/notes/models/note.dart';
 import 'package:otzaria/workspaces/workspace_repository.dart';
 import 'package:otzaria/workspaces/workspace.dart';
 import 'package:otzaria/core/app_paths.dart';
@@ -171,11 +169,43 @@ class BackupService {
     return history.map((h) => h.toJson()).toList();
   }
 
-  /// Backup notes
+  /// Backup notes (simple notes only)
   static Future<List<Map<String, dynamic>>> _backupNotes() async {
-    final notesProvider = NotesDataProvider.instance;
-    final notes = await notesProvider.getAllNotes();
-    return notes.map((n) => n.toJson()).toList();
+    // גיבוי קבצי ההערות החדשים
+    await _backupSimpleNotesFiles();
+
+    // מחזיר רשימה ריקה (אין יותר הערות ישנות)
+    return [];
+  }
+
+  /// Backup simple notes files (TXT and JSON)
+  static Future<void> _backupSimpleNotesFiles() async {
+    try {
+      final libraryPath = await AppPaths.getLibraryPath();
+      final notesDir = Directory(p.join(libraryPath, 'אוצריא', 'הערות אישיות'));
+
+      if (!await notesDir.exists()) {
+        return; // אין תיקיית הערות
+      }
+
+      final backupDir = await getBackupDirectory();
+      final simpleNotesBackupDir = Directory(p.join(backupDir, 'simple_notes'));
+
+      if (!await simpleNotesBackupDir.exists()) {
+        await simpleNotesBackupDir.create(recursive: true);
+      }
+
+      // העתקת כל קבצי ההערות
+      await for (final entity in notesDir.list()) {
+        if (entity is File) {
+          final fileName = p.basename(entity.path);
+          final targetPath = p.join(simpleNotesBackupDir.path, fileName);
+          await entity.copy(targetPath);
+        }
+      }
+    } catch (e) {
+      _logger.warning('Failed to backup simple notes files: $e');
+    }
   }
 
   /// Backup workspaces
@@ -299,15 +329,13 @@ class BackupService {
     await repo.saveHistory(history);
   }
 
-  /// Restore notes
+  /// Restore notes (simple notes only - old notes are no longer supported)
   static Future<void> _restoreNotes(
     List<Map<String, dynamic>> notesData,
   ) async {
-    final notesProvider = NotesDataProvider.instance;
-    for (final noteData in notesData) {
-      final note = Note.fromJson(noteData);
-      await notesProvider.createNote(note);
-    }
+    // הערות ישנות לא נתמכות יותר
+    // המערכת החדשה משתמשת בקבצי TXT ו-JSON
+    _logger.info('Skipping old notes restore - use simple notes system');
   }
 
   /// Restore workspaces
