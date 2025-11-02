@@ -279,7 +279,7 @@ class _AboutScreenState extends State<AboutScreen> {
         elevation: 2,
         child: InkWell(
           onTap: () async {
-            const url = 'https://forms.gle/Dq8bn7mw7he4wtTC';
+            const url = 'https://forms.gle/Dq8bn7mw7he4wtTC9';
             final uri = Uri.parse(url);
             if (await canLaunchUrl(uri)) {
               await launchUrl(uri);
@@ -424,8 +424,7 @@ class _AboutScreenState extends State<AboutScreen> {
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: () async {
-                    const url =
-                        'https://nedar.im/ejco';
+                    const url = 'https://nedar.im/ejco';
                     final uri = Uri.parse(url);
                     if (await canLaunchUrl(uri)) {
                       await launchUrl(uri);
