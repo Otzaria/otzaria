@@ -13,7 +13,7 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/empty_library/empty_library_screen.dart';
-import 'package:otzaria/find_ref/find_ref_screen.dart';
+import 'package:otzaria/find_ref/find_ref_dialog.dart';
 import 'package:otzaria/library/view/library_browser.dart';
 import 'package:otzaria/tabs/reading_screen.dart';
 import 'package:otzaria/settings/settings_screen.dart';
@@ -153,9 +153,31 @@ class MainWindowScreenState extends State<MainWindowScreen>
     }
 
     if (pageController.hasClients) {
-      final targetPage = state.currentScreen == Screen.search
-          ? Screen.reading.index
-          : state.currentScreen.index;
+      // מיפוי מחדש של האינדקסים כיון שהסרנו את דף האיתור
+      int targetPage;
+      switch (state.currentScreen) {
+        case Screen.library:
+          targetPage = 0;
+          break;
+        case Screen.find:
+          // לא נווט לדף כי זה דיאלוג
+          return;
+        case Screen.reading:
+          targetPage = 1;
+          break;
+        case Screen.search:
+          targetPage = 1; // נווט לדף העיון
+          break;
+        case Screen.more:
+          targetPage = 3;
+          break;
+        case Screen.settings:
+          targetPage = 4;
+          break;
+        case Screen.about:
+          // לא נווט לדף כי זה דיאלוג
+          return;
+      }
 
       if (pageController.page?.round() != targetPage) {
         await pageController.animateToPage(
@@ -169,10 +191,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
         context
             .read<FocusRepository>()
             .requestLibrarySearchFocus(selectAll: true);
-      } else if (state.currentScreen == Screen.find) {
-        context
-            .read<FocusRepository>()
-            .requestFindRefSearchFocus(selectAll: true);
       }
     }
   }
@@ -197,7 +215,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
                     )
                   : const LibraryBrowser(),
             ),
-            const KeepAlivePage(child: FindRefScreen()),
             const KeepAlivePage(child: ReadingScreen()),
             const KeepAlivePage(child: SizedBox.shrink()),
             const KeepAlivePage(child: MoreScreen()),
@@ -248,10 +265,12 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                             : null,
                                       ),
                                   ],
-                                  selectedIndex: state.currentScreen.index,
+                                  selectedIndex: _getSelectedIndex(state.currentScreen),
                                   onDestinationSelected: (index) {
                                     if (index == Screen.search.index) {
                                       _handleSearchTabOpen(context);
+                                    } else if (index == Screen.find.index) {
+                                      _handleFindRefOpen(context);
                                     } else if (index == Screen.about.index) {
                                       showDialog(
                                         context: context,
@@ -269,12 +288,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                           .requestLibrarySearchFocus(
                                               selectAll: true);
                                     }
-                                    if (index == Screen.find.index) {
-                                      context
-                                          .read<FocusRepository>()
-                                          .requestFindRefSearchFocus(
-                                              selectAll: true);
-                                    }
                                   },
                                 ),
                               ),
@@ -289,10 +302,12 @@ class MainWindowScreenState extends State<MainWindowScreen>
                             Expanded(child: pageView),
                             NavigationBar(
                               destinations: _buildNavigationDestinations(),
-                              selectedIndex: state.currentScreen.index,
+                              selectedIndex: _getSelectedIndex(state.currentScreen),
                               onDestinationSelected: (index) {
                                 if (index == Screen.search.index) {
                                   _handleSearchTabOpen(context);
+                                } else if (index == Screen.find.index) {
+                                  _handleFindRefOpen(context);
                                 } else if (index == Screen.about.index) {
                                   showDialog(
                                     context: context,
@@ -307,12 +322,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                   context
                                       .read<FocusRepository>()
                                       .requestLibrarySearchFocus(
-                                          selectAll: true);
-                                }
-                                if (index == Screen.find.index) {
-                                  context
-                                      .read<FocusRepository>()
-                                      .requestFindRefSearchFocus(
                                           selectAll: true);
                                 }
                               },
@@ -347,6 +356,33 @@ class MainWindowScreenState extends State<MainWindowScreen>
           .indexWhere((tab) => tab.runtimeType == SearchingTab)));
     }
     navigationBloc.add(const NavigateToScreen(Screen.search));
+  }
+
+  void _handleFindRefOpen(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => FindRefDialog(),
+    );
+  }
+
+  int _getSelectedIndex(Screen currentScreen) {
+    // מיפוי מחדש של האינדקסים כיון שהסרנו את דף האיתור
+    switch (currentScreen) {
+      case Screen.library:
+        return 0;
+      case Screen.find:
+        return -1; // לא נבחר
+      case Screen.reading:
+        return 2;
+      case Screen.search:
+        return 3;
+      case Screen.more:
+        return 4;
+      case Screen.settings:
+        return 5;
+      case Screen.about:
+        return 6;
+    }
   }
 }
 

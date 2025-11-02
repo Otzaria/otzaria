@@ -45,7 +45,11 @@ class _AboutScreenState extends State<AboutScreen> {
 
   Widget _buildDevelopersList() {
     final developers = [
-      {'name': 'sivan22', 'url': 'https://github.com/Sivan22'},
+      {
+        'name': 'sivan22',
+        'url': 'https://github.com/Sivan22',
+        'description': 'יוצר התוכנה'
+      },
       {'name': 'Y.PL.', 'url': 'https://github.com/Y-PLONI'},
       {'name': 'YOSEFTT', 'url': 'https://github.com/YOSEFTT'},
       {'name': 'zevisvei', 'url': 'https://github.com/zevisvei'},
@@ -58,6 +62,10 @@ class _AboutScreenState extends State<AboutScreen> {
         'name': 'evel-avalim',
         'url': 'https://github.com/evel-avalim',
         'description': 'פיתוח הגימטריות'
+      },
+      {
+        'name': 'userbot',
+        'url': 'https://github.com/userbot000',
       },
     ];
 
@@ -131,21 +139,19 @@ class _AboutScreenState extends State<AboutScreen> {
         Expanded(
           child: _buildMemorialCard(
             'לע"נ ר\' משה בן יהודה ראה ז"ל',
-            'סכום משמעותי לפיתוח התוכנה נתרם לעילוי נשמתו',
+            'סכום משמעותי לפיתוח התוכנה',
           ),
         ),
         const SizedBox(width: 16),
         Expanded(
           child: _buildDonationMemorialCard(
             'מקום זה יכול להיות מונצח לע"נ יקירך',
-            'לפרטים לחץ כאן',
           ),
         ),
         const SizedBox(width: 16),
         Expanded(
           child: _buildDonationMemorialCard(
             'מקום זה יכול להיות מונצח לע"נ יקירך',
-            'לפרטים לחץ כאן',
           ),
         ),
       ],
@@ -215,68 +221,18 @@ class _AboutScreenState extends State<AboutScreen> {
   }
 
   Widget _buildMemorialCard(String name, String description) {
-    return Card(
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                SvgPicture.asset(
-                  'assets/icons/memorial_candle.svg',
-                  width: 20,
-                  height: 20,
-                  colorFilter: ColorFilter.mode(
-                    Colors.orange[700]!,
-                    BlendMode.srcIn,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    name,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              description,
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.grey[600],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDonationMemorialCard(String name, String description) {
-    return Card(
-      elevation: 2,
-      child: InkWell(
-        onTap: () async {
-          const url = 'https://forms.gle/Dq8bn7mw7he4wtTC9';
-          final uri = Uri.parse(url);
-          if (await canLaunchUrl(uri)) {
-            await launchUrl(uri);
-          }
-        },
-        borderRadius: BorderRadius.circular(8),
+    return SizedBox(
+      height: 140, // גודל קבוע לכל הכארדים
+      child: Card(
+        elevation: 2,
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   SvgPicture.asset(
                     'assets/icons/memorial_candle.svg',
@@ -291,8 +247,9 @@ class _AboutScreenState extends State<AboutScreen> {
                   Expanded(
                     child: Text(
                       name,
+                      textAlign: TextAlign.center,
                       style: const TextStyle(
-                        fontSize: 16,
+                        fontSize: 14,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -302,13 +259,75 @@ class _AboutScreenState extends State<AboutScreen> {
               const SizedBox(height: 12),
               Text(
                 description,
+                textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 13,
-                  color: Colors.blue[600],
-                  decoration: TextDecoration.underline,
+                  color: Colors.grey[600],
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDonationMemorialCard(String name) {
+    return SizedBox(
+      height: 140, // גודל קבוע לכל הכארדים
+      child: Card(
+        elevation: 2,
+        child: InkWell(
+          onTap: () async {
+            const url = 'https://forms.gle/Dq8bn7mw7he4wtTC';
+            final uri = Uri.parse(url);
+            if (await canLaunchUrl(uri)) {
+              await launchUrl(uri);
+            }
+          },
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SvgPicture.asset(
+                      'assets/icons/memorial_candle.svg',
+                      width: 20,
+                      height: 20,
+                      colorFilter: ColorFilter.mode(
+                        Colors.orange[700]!,
+                        BlendMode.srcIn,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        name,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'לחץ כאן',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -371,14 +390,16 @@ class _AboutScreenState extends State<AboutScreen> {
       decoration: BoxDecoration(
         color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Theme.of(context).primaryColor.withValues(alpha: 0.3)),
+        border: Border.all(
+            color: Theme.of(context).primaryColor.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.favorite, color: Theme.of(context).primaryColor, size: 24),
+              Icon(Icons.favorite,
+                  color: Theme.of(context).primaryColor, size: 24),
               const SizedBox(width: 8),
               Text(
                 'תרום לפרויקט',
@@ -396,44 +417,56 @@ class _AboutScreenState extends State<AboutScreen> {
             style: TextStyle(fontSize: 14),
           ),
           const SizedBox(height: 16),
-          // כפתור נדרים פלוס
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () async {
-                const url = 'https://www.jgive.com/new/he/ils/donation-targets/77';
-                final uri = Uri.parse(url);
-                if (await canLaunchUrl(uri)) {
-                  await launchUrl(uri);
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).primaryColor,
-                foregroundColor: Colors.white,
+          // שורה עם שני כפתורים אחד לצד השני
+          Row(
+            children: [
+              // כפתור נדרים פלוס
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    const url =
+                        'https://nedar.im/ejco';
+                    final uri = Uri.parse(url);
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri);
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  icon: Image.asset(
+                    'assets/icons/logo_nedarim.png',
+                    width: 18,
+                    height: 18,
+                    errorBuilder: (context, error, stackTrace) =>
+                        const Icon(Icons.credit_card, size: 18),
+                  ),
+                  label: const Text('נדרים+', style: TextStyle(fontSize: 12)),
+                ),
               ),
-              icon: const Icon(Icons.credit_card, size: 18),
-              label: const Text('תרום דרך נדרים פלוס'),
-            ),
-          ),
-          const SizedBox(height: 8),
-          // כפתור תרומה רגילה
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () async {
-                const url = 'https://forms.gle/Dq8bn7mw7he4wtTC9';
-                final uri = Uri.parse(url);
-                if (await canLaunchUrl(uri)) {
-                  await launchUrl(uri);
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.grey[600],
-                foregroundColor: Colors.white,
+              const SizedBox(width: 8),
+              // כפתור תרומה רגילה
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    const url = 'https://forms.gle/Dq8bn7mw7he4wtTC9';
+                    final uri = Uri.parse(url);
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri);
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.grey[600],
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  icon: const Icon(Icons.credit_card, size: 18),
+                  label: const Text('אחר', style: TextStyle(fontSize: 12)),
+                ),
               ),
-              icon: const Icon(Icons.favorite, size: 18),
-              label: const Text('תרום בדרך אחרת'),
-            ),
+            ],
           ),
         ],
       ),
@@ -548,65 +581,72 @@ class _AboutScreenState extends State<AboutScreen> {
           ),
 
           // כארד צדדי - מצד שמאל
-          Container(
-            width: 300,
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height - 32,
-            ),
-            child: Card(
-              margin: const EdgeInsets.all(16),
-              elevation: 4,
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // כארד הצטרפות למפתחים
-                    _buildActionCard(
-                      title: 'הצטרף לפיתוח!',
-                      description:
-                          'מפתחים מוזמנים להצטרף לפיתוח אוצריא ולתרום לקהילה התורנית.',
-                      buttonText: 'הצטרף עכשיו',
-                      icon: Icons.code,
-                      color: Colors.grey[600]!,
-                      showGitHubIcon: true,
-                      onTap: () async {
-                        const url = 'https://github.com/Sivan22/otzaria';
-                        final uri = Uri.parse(url);
-                        if (await canLaunchUrl(uri)) {
-                          await launchUrl(uri);
-                        }
-                      },
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final screenWidth = MediaQuery.of(context).size.width;
+
+              final isSmallScreen = screenWidth < 800;
+
+              return Container(
+                width: isSmallScreen ? screenWidth * 0.9 : 300,
+                child: SingleChildScrollView(
+                  child: Card(
+                    margin: const EdgeInsets.all(16),
+                    elevation: 4,
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // כארד הצטרפות למפתחים
+                          _buildActionCard(
+                            title: 'הצטרף לפיתוח!',
+                            description:
+                                'מפתחים מוזמנים להצטרף לפיתוח אוצריא ולתרום לקהילה התורנית.',
+                            buttonText: 'הצטרף עכשיו',
+                            icon: Icons.code,
+                            color: Colors.grey[600]!,
+                            showGitHubIcon: true,
+                            onTap: () async {
+                              const url = 'https://github.com/Sivan22/otzaria';
+                              final uri = Uri.parse(url);
+                              if (await canLaunchUrl(uri)) {
+                                await launchUrl(uri);
+                              }
+                            },
+                          ),
+
+                          const SizedBox(height: 20),
+
+                          // כארד הצטרפות לצוות העריכה
+                          _buildActionCard(
+                            title: 'הצטרף לצוות העריכה',
+                            description:
+                                'עזור לנו להוסיף ספרים חדשים לספריית אוצריא ולהרחיב את המאגר התורני.',
+                            buttonText: 'הצטרף לעריכה',
+                            icon: Icons.edit,
+                            color: Colors.green[600]!,
+                            onTap: () async {
+                              const url = 'https://forms.gle/editing-form-url';
+                              final uri = Uri.parse(url);
+                              if (await canLaunchUrl(uri)) {
+                                await launchUrl(uri);
+                              }
+                            },
+                          ),
+
+                          const SizedBox(height: 20),
+
+                          // כארד תרומות
+                          _buildDonationCard(),
+                        ],
+                      ),
                     ),
-
-                    const SizedBox(height: 20),
-
-                    // כארד הצטרפות לצוות העריכה
-                    _buildActionCard(
-                      title: 'הצטרף לצוות העריכה',
-                      description:
-                          'עזור לנו להוסיף ספרים חדשים לספריית אוצריא ולהרחיב את המאגר התורני.',
-                      buttonText: 'הצטרף לעריכה',
-                      icon: Icons.edit,
-                      color: Colors.green[600]!,
-                      onTap: () async {
-                        const url = 'https://forms.gle/Dq8bn7mw7he4wtTC9';
-                        final uri = Uri.parse(url);
-                        if (await canLaunchUrl(uri)) {
-                          await launchUrl(uri);
-                        }
-                      },
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // כארד תרומות
-                    _buildDonationCard(),
-                  ],
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         ],
       ),
