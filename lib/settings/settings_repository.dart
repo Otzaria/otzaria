@@ -26,6 +26,7 @@ class SettingsRepository {
   static const String keyCalendarEvents = 'key-calendar-events';
   static const String keyCopyWithHeaders = 'key-copy-with-headers';
   static const String keyCopyHeaderFormat = 'key-copy-header-format';
+  static const String keyEnableHtmlLinks = 'key-enable-html-links';
 
   final SettingsWrapper _settings;
 
@@ -115,6 +116,10 @@ class SettingsRepository {
       'copyHeaderFormat': _settings.getValue<String>(
         keyCopyHeaderFormat,
         defaultValue: 'same_line_after_brackets',
+      ),
+      'enableHtmlLinks': _settings.getValue<bool>(
+        keyEnableHtmlLinks,
+        defaultValue: true,
       ),
     };
   }
@@ -211,6 +216,10 @@ class SettingsRepository {
     await _settings.setValue(keyCopyHeaderFormat, value);
   }
 
+  Future<void> updateEnableHtmlLinks(bool value) async {
+    await _settings.setValue(keyEnableHtmlLinks, value);
+  }
+
   /// Initialize default settings to disk if this is the first app launch
   Future<void> _initializeDefaultsIfNeeded() async {
     if (await _checkIfDefaultsNeeded()) {
@@ -250,6 +259,7 @@ class SettingsRepository {
     await _settings.setValue(keyCalendarEvents, '[]');
     await _settings.setValue(keyCopyWithHeaders, 'none');
     await _settings.setValue(keyCopyHeaderFormat, 'same_line_after_brackets');
+    await _settings.setValue(keyEnableHtmlLinks, true);
 
     // Mark as initialized
     await _settings.setValue('settings_initialized', true);

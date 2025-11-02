@@ -21,6 +21,7 @@ import 'package:otzaria/core/scaffold_messenger.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/simple_notes/widgets/create_note_dialog.dart';
+import 'package:otzaria/utils/html_link_handler.dart';
 
 class CombinedView extends StatefulWidget {
   CombinedView({
@@ -765,6 +766,15 @@ $textWithBreaks
                             fontFamily: settingsState.fontFamily,
                             height: 1.5,
                           ),
+                          onTapUrl: settingsState.enableHtmlLinks
+                              ? (url) async {
+                                  return await HtmlLinkHandler.handleLink(
+                                    context,
+                                    url,
+                                    (tab) => widget.openBookCallback(tab),
+                                  );
+                                }
+                              : null,
                         );
                       },
                     ),
