@@ -21,7 +21,8 @@ class LoadContent extends TextBookEvent {
   });
 
   @override
-  List<Object?> get props => [fontSize, showSplitView, removeNikud, preserveState];
+  List<Object?> get props =>
+      [fontSize, showSplitView, removeNikud, preserveState];
 }
 
 class UpdateFontSize extends TextBookEvent {
@@ -103,24 +104,6 @@ class UpdateSearchText extends TextBookEvent {
 
   @override
   List<Object?> get props => [text];
-}
-
-class CreateNoteFromToolbar extends TextBookEvent {
-  const CreateNoteFromToolbar();
-
-  @override
-  List<Object?> get props => [];
-}
-
-class UpdateSelectedTextForNote extends TextBookEvent {
-  final String? text;
-  final int? start;
-  final int? end;
-
-  const UpdateSelectedTextForNote(this.text, this.start, this.end);
-
-  @override
-  List<Object?> get props => [text, start, end];
 }
 
 // Editor Events

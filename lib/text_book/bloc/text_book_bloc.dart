@@ -40,8 +40,6 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     on<UpdateSelectedIndex>(_onUpdateSelectedIndex);
     on<TogglePinLeftPane>(_onTogglePinLeftPane);
     on<UpdateSearchText>(_onUpdateSearchText);
-    on<CreateNoteFromToolbar>(_onCreateNoteFromToolbar);
-    on<UpdateSelectedTextForNote>(_onUpdateSelectedTextForNote);
 
     // Editor events
     on<OpenEditor>(_onOpenEditor);
@@ -362,28 +360,6 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       emit(currentState.copyWith(
         searchText: event.text,
         selectedIndex: currentState.selectedIndex,
-      ));
-    }
-  }
-
-  void _onCreateNoteFromToolbar(
-    CreateNoteFromToolbar event,
-    Emitter<TextBookState> emit,
-  ) {
-    // כרגע זה רק מציין שהאירוע התקבל
-    // הלוגיקה האמיתית תהיה בכפתור בשורת הכלים
-  }
-
-  void _onUpdateSelectedTextForNote(
-    UpdateSelectedTextForNote event,
-    Emitter<TextBookState> emit,
-  ) {
-    if (state is TextBookLoaded) {
-      final currentState = state as TextBookLoaded;
-      emit(currentState.copyWith(
-        selectedTextForNote: event.text,
-        selectedTextStart: event.start,
-        selectedTextEnd: event.end,
       ));
     }
   }
