@@ -200,7 +200,7 @@ class _AboutScreenState extends State<AboutScreen> {
                 foregroundColor: Colors.white,
               ),
               icon: showGitHubIcon
-                  ? const FaIcon(
+                  ? FaIcon(
                       FontAwesomeIcons.github,
                       size: 18,
                       color: Colors.white,
