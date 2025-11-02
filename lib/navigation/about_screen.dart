@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/data_collection_service.dart';
@@ -9,7 +11,7 @@ class AboutScreen extends StatefulWidget {
   const AboutScreen({super.key});
 
   @override
-  _AboutScreenState createState() => _AboutScreenState();
+  State<AboutScreen> createState() => _AboutScreenState();
 }
 
 class _AboutScreenState extends State<AboutScreen> {
@@ -36,6 +38,278 @@ class _AboutScreenState extends State<AboutScreen> {
         style: const TextStyle(
           color: Colors.blue,
           decoration: TextDecoration.underline,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDevelopersList() {
+    final developers = [
+      {'name': 'sivan22', 'url': 'https://github.com/Sivan22'},
+      {'name': 'Y.PL.', 'url': 'https://github.com/Y-PLONI'},
+      {'name': 'YOSEFTT', 'url': 'https://github.com/YOSEFTT'},
+      {'name': 'zevisvei', 'url': 'https://github.com/zevisvei'},
+      {
+        'name': 'NHLOCAL',
+        'url': 'https://github.com/NHLOCAL/Shamor-Zachor',
+        'description': 'פיתוח "זכור ושמור"'
+      },
+      {
+        'name': 'evel-avalim',
+        'url': 'https://github.com/evel-avalim',
+        'description': 'פיתוח הגימטריות'
+      },
+    ];
+
+    return Wrap(
+      spacing: 40,
+      runSpacing: 8,
+      children: developers
+          .map((dev) => SizedBox(
+                width: 250,
+                child: Row(
+                  children: [
+                    const Icon(Icons.person, size: 16, color: Colors.grey),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildContributor(dev['name']!, dev['url']!),
+                          if (dev['description'] != null)
+                            Text(
+                              '(${dev['description']})',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ))
+          .toList(),
+    );
+  }
+
+  Widget _buildTechnicalDetails() {
+    return Wrap(
+      spacing: 30,
+      runSpacing: 8,
+      children: [
+        _buildCompactInfoItem('גרסת תוכנה', appVersion ?? 'לא ידוע'),
+        _buildCompactInfoItem('גרסת ספרייה', libraryVersion ?? 'לא ידוע'),
+        _buildCompactInfoItem('מספר ספרים', '${bookCount ?? 'לא ידוע'}'),
+      ],
+    );
+  }
+
+  Widget _buildCompactInfoItem(String label, String value) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '$label: ',
+          style: TextStyle(
+            fontWeight: FontWeight.w500,
+            color: Colors.grey[700],
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMemorialCardsRow() {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildMemorialCard(
+            'לע"נ ר\' משה בן יהודה ראה ז"ל',
+            'סכום משמעותי לפיתוח התוכנה נתרם לעילוי נשמתו',
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _buildDonationMemorialCard(
+            'מקום זה יכול להיות מונצח לע"נ יקירך',
+            'לפרטים לחץ כאן',
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _buildDonationMemorialCard(
+            'מקום זה יכול להיות מונצח לע"נ יקירך',
+            'לפרטים לחץ כאן',
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActionCard({
+    required String title,
+    required String description,
+    required String buttonText,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+    bool showGitHubIcon = false,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 24),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            description,
+            style: const TextStyle(fontSize: 14),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: onTap,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: color,
+                foregroundColor: Colors.white,
+              ),
+              icon: showGitHubIcon
+                  ? const FaIcon(
+                      FontAwesomeIcons.github,
+                      size: 18,
+                      color: Colors.white,
+                    )
+                  : Icon(icon, size: 18),
+              label: Text(buttonText),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMemorialCard(String name, String description) {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                SvgPicture.asset(
+                  'assets/icons/memorial_candle.svg',
+                  width: 20,
+                  height: 20,
+                  colorFilter: ColorFilter.mode(
+                    Colors.orange[700]!,
+                    BlendMode.srcIn,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    name,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              description,
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDonationMemorialCard(String name, String description) {
+    return Card(
+      elevation: 2,
+      child: InkWell(
+        onTap: () async {
+          const url = 'https://forms.gle/Dq8bn7mw7he4wtTC9';
+          final uri = Uri.parse(url);
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(uri);
+          }
+        },
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  SvgPicture.asset(
+                    'assets/icons/memorial_candle.svg',
+                    width: 20,
+                    height: 20,
+                    colorFilter: ColorFilter.mode(
+                      Colors.orange[700]!,
+                      BlendMode.srcIn,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      name,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                description,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.blue[600],
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -91,234 +365,250 @@ class _AboutScreenState extends State<AboutScreen> {
     );
   }
 
+  Widget _buildDonationCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Theme.of(context).primaryColor.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.favorite, color: Theme.of(context).primaryColor, size: 24),
+              const SizedBox(width: 8),
+              Text(
+                'תרום לפרויקט',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).primaryColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'תרומתך תעזור לנו להמשיך לפתח ולשפר את אוצריא עבור כלל הציבור.',
+            style: TextStyle(fontSize: 14),
+          ),
+          const SizedBox(height: 16),
+          // כפתור נדרים פלוס
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () async {
+                const url = 'https://www.jgive.com/new/he/ils/donation-targets/77';
+                final uri = Uri.parse(url);
+                if (await canLaunchUrl(uri)) {
+                  await launchUrl(uri);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).primaryColor,
+                foregroundColor: Colors.white,
+              ),
+              icon: const Icon(Icons.credit_card, size: 18),
+              label: const Text('תרום דרך נדרים פלוס'),
+            ),
+          ),
+          const SizedBox(height: 8),
+          // כפתור תרומה רגילה
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () async {
+                const url = 'https://forms.gle/Dq8bn7mw7he4wtTC9';
+                final uri = Uri.parse(url);
+                if (await canLaunchUrl(uri)) {
+                  await launchUrl(uri);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.grey[600],
+                foregroundColor: Colors.white,
+              ),
+              icon: const Icon(Icons.favorite, size: 18),
+              label: const Text('תרום בדרך אחרת'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            // Upper part with icon and title
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Image.asset(
-                  'assets/icon/icon.png',
-                  width: 128,
-                  height: 128,
-                ),
-                const SizedBox(height: 16),
-                Text.rich(
-                  TextSpan(
-                    text: 'אוצריא ',
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // תוכן ראשי - מצד ימין
+          Expanded(
+            flex: 3,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // סמל וכותרת משנה
+                  Row(
                     children: [
-                      TextSpan(
-                        text: 'מאגר תורני חינמי',
-                        style: TextStyle(
-                          fontSize: 24,
-                          color: Colors.grey[700],
-                        ),
+                      Image.asset(
+                        'assets/icon/icon.png',
+                        width: 80,
+                        height: 80,
+                      ),
+                      const SizedBox(width: 16),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'אוצריא',
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            'מאגר תורני חינמי',
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 32),
-                Wrap(
-                  alignment: WrapAlignment.center,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    const Text(
-                      'תוכנה זו נוצרה והוקדשה על ידי: ',
-                      style: TextStyle(
-                        fontSize: 16,
-                      ),
-                    ),
-                    _buildContributor('sivan22', 'https://github.com/Sivan22'),
-                    const Text(', '),
-                    _buildContributor('Y.PL.', 'https://github.com/Y-PLONI'),
-                    const Text(', '),
-                    _buildContributor('YOSEFTT', 'https://github.com/YOSEFTT'),
-                    const Text(', '),
-                    _buildContributor(
-                        'zevisvei', 'https://github.com/zevisvei'),
-                    const Text(', '),
-                    _buildContributor('NHLOCAL (פיתוח "זכור ושמור")',
-                        'https://github.com/NHLOCAL/Shamor-Zachor'),
-                    const Text(', '),
-                    _buildContributor('evel-avalim (פיתוח הגימטריות)',
-                        'https://github.com/evel-avalim'),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                const Divider(color: Colors.grey),
-                const SizedBox(height: 16),
-                Column(
-                  children: [
-                    // Title aligned to the right
-                    Container(
-                      alignment: Alignment.centerRight,
-                      padding: const EdgeInsets.only(right: 16.0),
-                      child: const Text(
-                        'סכום משמעותי לפיתוח התוכנה, נתרם לעילוי נשמת:',
-                        style: TextStyle(fontSize: 16),
-                        textDirection: TextDirection.rtl,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
+                  const SizedBox(height: 24),
 
-                    // Scrollable and Centered Name
-                    SizedBox(
-                      height: 100, // Max height for the scrollable area
-                      child: SingleChildScrollView(
-                        child: Center(
-                          // Center the RichText
-                          child: RichText(
-                            textAlign: TextAlign.center,
-                            textDirection: TextDirection.rtl,
-                            text: const TextSpan(
-                              style: TextStyle(
-                                fontSize: 24, // Default size
-                                color: Colors.black,
-                              ),
-                              children: [
-                                TextSpan(
-                                  text: 'ר\' ',
-                                  style: TextStyle(
-                                    fontSize: 20, // Smaller
-                                    fontWeight: FontWeight.normal,
-                                  ),
-                                ),
-                                TextSpan(
-                                  text: 'משה',
-                                  style: TextStyle(
-                                    fontSize: 32, // Clearly larger
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                TextSpan(
-                                  text: ' בן ',
-                                  style: TextStyle(
-                                    fontSize: 20, // Smaller
-                                    fontWeight: FontWeight.normal,
-                                  ),
-                                ),
-                                TextSpan(
-                                  text: 'יהודה ראה',
-                                  style: TextStyle(
-                                    fontSize: 32,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                TextSpan(
-                                  text: ' ז"ל',
-                                  style: TextStyle(
-                                    fontSize: 20, // Smaller
-                                    fontWeight: FontWeight.normal,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
+                  // תיאור התוכנה
+                  const Text(
+                    'מאגר תורני רחב עם ממשק מודרני ומהיר, לשימוש במחשב אישי או במכשיר הנייד, ללימוד תורה בקלות ובנוחות בכל מקום.',
+                    style: TextStyle(
+                      fontSize: 16,
+                      height: 1.5,
                     ),
-                  ],
-                ),
-              ],
+                  ),
+                  const SizedBox(height: 32),
+
+                  // כארדים תורמים
+                  const Text(
+                    'תורמים',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildMemorialCardsRow(),
+                  const SizedBox(height: 32),
+
+                  // רשימת מפתחים
+                  const Text(
+                    'מפתחים',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildDevelopersList(),
+                  const SizedBox(height: 32),
+
+                  // פרטים טכניים
+                  const Text(
+                    'פרטים טכניים',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildTechnicalDetails(),
+                  const SizedBox(height: 16),
+
+                  // כפתור יומן שינויים
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _showChangelogDialog(context),
+                      icon: const Icon(Icons.history),
+                      label: const Text('יומן שינויים'),
+                    ),
+                  ),
+                ],
+              ),
             ),
+          ),
 
-// Lower part with versions and donations
-            Column(
-              children: [
-                InkWell(
-                  onTap: () async {
-                    const url = 'https://forms.gle/Dq8bn7mw7he4wtTC9';
-                    final uri = Uri.parse(url);
-                    if (await canLaunchUrl(uri)) {
-                      await launchUrl(uri);
-                    }
-                  },
-                  child: const Text(
-                    'לתרומות והנצחות, ולסיוע למאגר הספרים של אוצריא [פשוט וקל, כל אחד יכול!]',
-                    style: TextStyle(
-                      color: Colors.blue,
-                      decoration: TextDecoration.underline,
-                      fontSize: 16,
-                    ),
-                    textAlign: TextAlign.center,
-                    softWrap: true,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                InkWell(
-                  onTap: () async {
-                    const url = 'https://nedar.im/ejco';
-                    final uri = Uri.parse(url);
-                    if (await canLaunchUrl(uri)) {
-                      await launchUrl(uri);
-                    }
-                  },
-                  child: const Text(
-                    'לתרומה ישירה דרך נדרים פלוס, לחצו כאן',
-                    style: TextStyle(
-                      color: Colors.blue,
-                      decoration: TextDecoration.underline,
-                      fontSize: 16,
-                    ),
-                    textAlign: TextAlign.center,
-                    softWrap: true,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          // כארד צדדי - מצד שמאל
+          Container(
+            width: 300,
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height - 32,
+            ),
+            child: Card(
+              margin: const EdgeInsets.all(16),
+              elevation: 4,
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Right Column (App Version, Changelog Button)
-                    // ב-RTL (עברית), `start` ב-CrossAxisAlignment של Column מיישר את התוכן לימין.
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'גרסת תוכנה: ${appVersion ?? 'לא ידוע'}',
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                        const SizedBox(height: 8),
-                        ElevatedButton(
-                          onPressed: () => _showChangelogDialog(context),
-                          child: const Text('יומן שינויים'),
-                        ),
-                      ],
+                    // כארד הצטרפות למפתחים
+                    _buildActionCard(
+                      title: 'הצטרף לפיתוח!',
+                      description:
+                          'מפתחים מוזמנים להצטרף לפיתוח אוצריא ולתרום לקהילה התורנית.',
+                      buttonText: 'הצטרף עכשיו',
+                      icon: Icons.code,
+                      color: Colors.grey[600]!,
+                      showGitHubIcon: true,
+                      onTap: () async {
+                        const url = 'https://github.com/Sivan22/otzaria';
+                        final uri = Uri.parse(url);
+                        if (await canLaunchUrl(uri)) {
+                          await launchUrl(uri);
+                        }
+                      },
                     ),
-                    // Left Column (Library Version, Book Count)
-                    // ב-RTL (עברית), `end` ב-CrossAxisAlignment של Column מיישר את התוכן לשמאל.
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          'גרסת ספריה: ${libraryVersion ?? 'לא ידוע'}',
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                        const SizedBox(
-                            height:
-                                16), // מרווח גדול יותר כדי להתאים למבנה התמונה
-                        Text(
-                          'מספר הספרים שבמאגר כעת: ${bookCount ?? 'לא ידוע'}',
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                      ],
+
+                    const SizedBox(height: 20),
+
+                    // כארד הצטרפות לצוות העריכה
+                    _buildActionCard(
+                      title: 'הצטרף לצוות העריכה',
+                      description:
+                          'עזור לנו להוסיף ספרים חדשים לספריית אוצריא ולהרחיב את המאגר התורני.',
+                      buttonText: 'הצטרף לעריכה',
+                      icon: Icons.edit,
+                      color: Colors.green[600]!,
+                      onTap: () async {
+                        const url = 'https://forms.gle/Dq8bn7mw7he4wtTC9';
+                        final uri = Uri.parse(url);
+                        if (await canLaunchUrl(uri)) {
+                          await launchUrl(uri);
+                        }
+                      },
                     ),
+
+                    const SizedBox(height: 20),
+
+                    // כארד תרומות
+                    _buildDonationCard(),
                   ],
                 ),
-              ],
+              ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
