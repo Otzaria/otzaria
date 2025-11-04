@@ -1,38 +1,38 @@
 import 'dart:async';
-import 'dart:isolate';
+import 'dart:convert';
 
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:logging/logging.dart';
+import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../config/built_in_books_config.dart';
 import '../models/book_model.dart';
 import '../models/error_model.dart';
 import '../models/tracked_book_model.dart';
-import '../config/built_in_books_config.dart';
 import 'book_scanner_service.dart';
 import 'custom_books_service.dart';
-import '../utils/category_aliases.dart';
 
-/// Service for loading book data dynamically
+/// Service for loading book data without scanning built-in content on startup.
 ///
-/// IMPORTANT: Books are scanned ONLY ONCE:
-/// - Built-in books: Scanned on first app launch and cached permanently
-/// - Custom books: Scanned when user adds them and cached permanently
-/// - After scanning, all data is loaded from cache (no re-scanning)
-///
-/// This new implementation:
-/// - Loads built-in books by scanning them on first run ONLY
-/// - Supports user-added custom books (scanned once when added)
-/// - Caches scanned data permanently for performance
-/// - All subsequent loads use cached data exclusively
+/// Built-in books are distributed as a pre-generated JSON asset and are loaded
+/// directly from disk. Custom books that users add are still scanned once at
+/// the moment of addition and stored in SharedPreferences.
 class DynamicDataLoaderService {
   static final Logger _logger = Logger('DynamicDataLoaderService');
+
+  static const String _builtInAssetPath =
+      'packages/shamor_zachor/assets/data/built_in_tracked_books.json';
 
   final BookScannerService _scannerService;
   final CustomBooksService _customBooksService;
 
   Map<String, BookCategory>? _cachedData;
   bool _isInitialized = false;
-  Future<void>? _initialScanFuture;
+  List<TrackedBook> _builtInTrackedBooks = const [];
+  Map<String, TrackedBook> _builtInBookMap = const {};
+  Future<void>? _builtInLoadFuture;
+  bool _builtInLoadFailed = false;
 
   DynamicDataLoaderService({
     required BookScannerService scannerService,
@@ -41,333 +41,229 @@ class DynamicDataLoaderService {
   })  : _scannerService = scannerService,
         _customBooksService = customBooksService;
 
-  /// Initialize the service and load/scan books
+  /// Initialize the service and load built-in books from the static asset.
   Future<void> initialize() async {
     if (_isInitialized) {
-      _logger.info('Already initialized, skipping');
+      _logger.fine('Already initialized, skipping');
       return;
     }
 
     try {
       _logger.info('Starting DynamicDataLoaderService initialization');
 
-      // Initialize custom books service first
       await _customBooksService.init();
+      _scheduleBuiltInBooksLoad();
 
-      // Mark as initialized immediately to not block app startup
       _isInitialized = true;
       _logger.info(
-          'DynamicDataLoaderService initialized (loading cache in background)');
-
-      // Load cache in background without blocking
-      _loadCacheInBackground();
+          'DynamicDataLoaderService initialized (custom: ${_customBooksService.getCustomBooks().length})');
     } catch (e, stackTrace) {
       _logger.severe('Failed to initialize', e, stackTrace);
       rethrow;
     }
   }
 
-  /// Load cache in background without blocking initialization
-  void _loadCacheInBackground() {
-    Future<void>(() async {
-      try {
-        final loadedFromCache = await _loadBuiltInBooksFromCache();
-
-        // Check if we need to scan (no books loaded from cache)
-        final needsScanning = loadedFromCache == 0;
-
-        if (needsScanning) {
-          _logger.warning('No cached books found - scheduling background scan');
-          _scheduleBackgroundScan();
-        } else {
-          _logger.info(
-              'Loaded $loadedFromCache books from cache - no scanning needed');
-        }
-      } catch (e, stackTrace) {
-        _logger.severe('Failed to load cache in background', e, stackTrace);
-      }
-    });
-  }
-
-  void _scheduleBackgroundScan() {
-    // Run in background without blocking initialization
-    Future<void>(() async {
-      try {
-        _logger.info('Starting background scan of built-in books');
-        await _scanAndCacheBuiltInBooks();
-        _logger.info('Background scan completed successfully');
-
-        // Refresh cache after scan completes
-        clearCache();
-      } catch (e, stackTrace) {
-        _logger.severe('Failed during background scan', e, stackTrace);
-        // Don't rethrow - this is a background operation
-      }
-    });
-  }
-
-  /// Load all built-in books from cache (no scanning)
-  /// Returns the number of books loaded from cache
-  Future<int> _loadBuiltInBooksFromCache() async {
-    final categories = BuiltInBooksConfig.builtInBookPaths;
-    int loadedCount = 0;
-
-    for (final categoryEntry in categories.entries) {
-      final categoryName = categoryEntry.key;
-      final books = categoryEntry.value;
-
-      for (final bookEntry in books.entries) {
-        final bookName = bookEntry.key;
-        final bookId = '$categoryName:$bookName';
-
-        try {
-          // Load from cache
-          TrackedBook? cachedBook = await _scannerService.loadScanCache(bookId);
-
-          // If not found, try legacy aliases (migration path)
-          if (cachedBook == null) {
-            final legacyNames =
-                CategoryAliases.legacyAliasesForNew(categoryName);
-            for (final legacy in legacyNames) {
-              final legacyId = '$legacy:$bookName';
-              final legacyBook = await _scannerService.loadScanCache(legacyId);
-              if (legacyBook != null) {
-                // Migrate to new category key and new bookId
-                final migrated = legacyBook.copyWith(
-                  categoryName: categoryName,
-                  bookId: bookId,
-                );
-                // Save under the new id for future loads
-                await _scannerService.saveScanCache(migrated);
-                cachedBook = migrated;
-                _logger.info(
-                    'Migrated cached book ID from "$legacyId" to "$bookId"');
-                break;
-              }
-            }
-          }
-
-          if (cachedBook != null) {
-            // Add to custom books service (in memory)
-            await _customBooksService.addBook(cachedBook);
-            loadedCount++;
-          } else {
-            _logger.fine('⚠️ Cache missing for: $bookId');
-          }
-        } catch (e, stackTrace) {
-          _logger.warning(
-            '❌ Failed to load cached book: $bookId',
-            e,
-            stackTrace,
-          );
-        }
-      }
-    }
-
-    return loadedCount;
-  }
-
-  // Legacy alias mapping moved to utils/category_aliases.dart
-
-  /// Scan all built-in books and cache them (ONE TIME ONLY)
-  /// This runs only on first initialization and saves all data to cache
-  Future<void> _scanAndCacheBuiltInBooks() async {
-    final categories = BuiltInBooksConfig.builtInBookPaths;
-    final List<Map<String, dynamic>> pendingScans = [];
-
-    for (final categoryEntry in categories.entries) {
-      final categoryName = categoryEntry.key;
-      final books = categoryEntry.value;
-
-      for (final bookEntry in books.entries) {
-        final bookName = bookEntry.key;
-        final relativePath = bookEntry.value;
-        final bookId = '$categoryName:$bookName';
-
-        try {
-          final existing = await _scannerService.loadScanCache(bookId);
-          if (existing != null) {
-            _logger.fine('Cache already exists for $bookId, skipping scan');
-            await _customBooksService.addBook(existing);
-            continue;
-          }
-
-          final contentType = _getContentTypeForCategory(categoryName);
-          final fullPath = '${_scannerService.libraryBasePath}/$relativePath';
-
-          pendingScans.add({
-            'bookId': bookId,
-            'bookName': bookName,
-            'categoryName': categoryName,
-            'bookPath': fullPath,
-            'contentType': contentType,
-            'isBuiltIn': true,
-          });
-        } catch (e, stackTrace) {
-          _logger.warning(
-            'Failed preparing scan for built-in book: $categoryName - $bookName',
-            e,
-            stackTrace,
-          );
-        }
-      }
-    }
-
-    if (pendingScans.isEmpty) {
-      _logger.info('Completed background scan of built-in books (all cached)');
+  Future<void> _loadBuiltInBooksFromAsset() async {
+    if (_builtInTrackedBooks.isNotEmpty) {
       return;
     }
 
     try {
-      final results = await _runBuiltInScanIsolate(
-        libraryBasePath: _scannerService.libraryBasePath,
-        getTocFromFile: _scannerService.getTocFromFile,
-        booksToScan: pendingScans,
-      );
+      final jsonString = await rootBundle.loadString(_builtInAssetPath);
+      final Map<String, dynamic> jsonData = jsonDecode(jsonString);
+      final List<dynamic> booksJson =
+          jsonData['books'] as List<dynamic>? ?? const [];
 
-      for (final result in results) {
-        final success = result['success'] as bool? ?? false;
-        final bookId = result['bookId'] as String? ?? 'unknown';
+      final List<TrackedBook> parsed = [];
+      final Map<String, TrackedBook> mapById = {};
 
-        if (!success) {
-          _logger.warning(
-            'Isolate scan failed for built-in book: $bookId',
-            result['error'],
-            result['stackTrace'],
-          );
+      for (final dynamic rawEntry in booksJson) {
+        if (rawEntry is! Map<String, dynamic>) {
           continue;
         }
 
-        final bookJson =
-            Map<String, dynamic>.from(result['book'] as Map<String, dynamic>);
-        final trackedBook = TrackedBook.fromJson(bookJson);
+        final entry = Map<String, dynamic>.from(rawEntry);
+        final bookId = entry['bookId'] as String? ?? '';
+        final bookName = entry['bookName'] as String? ?? '';
+        final categoryName = entry['categoryName'] as String? ?? '';
 
-        await _scannerService.saveScanCache(trackedBook);
-        await _customBooksService.addBook(trackedBook);
+        if (bookId.isEmpty || bookName.isEmpty || categoryName.isEmpty) {
+          _logger
+              .warning('Skipping malformed built-in book entry: ${entry.keys}');
+          continue;
+        }
 
-        _logger.info('Successfully scanned and cached $bookId');
+        final Map<String, dynamic> detailsJson = Map<String, dynamic>.from(
+            entry['bookDetails'] as Map<String, dynamic>? ?? const {});
+        final contentType = detailsJson['contentType'] as String? ?? 'פרק';
+        final bookDetails = BookDetails.fromJson(
+          detailsJson,
+          contentType: contentType,
+          isCustom: false,
+          id: detailsJson['id'] as String?,
+        );
+
+        final relativePath = _resolveRelativePath(
+          categoryName,
+          bookName,
+          entry['relativePath'] as String? ?? '',
+        );
+        final fullPath = _buildFullPath(relativePath);
+
+        final dateAddedStr = entry['dateAdded'] as String?;
+        final lastScannedStr = entry['lastScanned'] as String?;
+        final dateAdded = dateAddedStr != null
+            ? DateTime.tryParse(dateAddedStr) ??
+                DateTime.fromMillisecondsSinceEpoch(0)
+            : DateTime.fromMillisecondsSinceEpoch(0);
+        final lastScanned =
+            lastScannedStr != null ? DateTime.tryParse(lastScannedStr) : null;
+
+        final trackedBook = TrackedBook(
+          bookId: bookId,
+          bookName: bookName,
+          categoryName: categoryName,
+          isBuiltIn: true,
+          bookPath: fullPath,
+          bookDetails: bookDetails,
+          sourceFile:
+              entry['sourceFile'] as String? ?? 'built_in_tracked_books.json',
+          dateAdded: dateAdded,
+          lastScanned: lastScanned,
+        );
+
+        parsed.add(trackedBook);
+        mapById[bookId] = trackedBook;
       }
 
-      _logger.info('Completed background scan of built-in books');
-    } on UnsupportedError catch (e, stackTrace) {
-      _logger.warning(
-        'Background isolate unsupported; falling back to sequential scan',
-        e,
-        stackTrace,
-      );
-      await _scanBuiltInBooksSequentially(pendingScans);
+      _builtInTrackedBooks = List.unmodifiable(parsed);
+      _builtInBookMap = Map.unmodifiable(mapById);
+      _builtInLoadFailed = false;
+
       _logger.info(
-          'Completed one-time scan of built-in books (sequential fallback)');
-    } on IsolateSpawnException catch (e, stackTrace) {
-      _logger.warning(
-        'Isolate spawn failed; falling back to sequential scan',
-        e,
-        stackTrace,
-      );
-      await _scanBuiltInBooksSequentially(pendingScans);
-      _logger.info(
-          'Completed one-time scan of built-in books (sequential fallback)');
+          'Loaded ${_builtInTrackedBooks.length} built-in books from static asset');
     } catch (e, stackTrace) {
-      _logger.severe(
-          'Failed to complete isolate scan of built-in books', e, stackTrace);
+      _builtInLoadFailed = true;
+      _logger.severe('Failed to load built-in books from asset', e, stackTrace);
       rethrow;
     }
   }
 
-  Future<void> _scanBuiltInBooksSequentially(
-    List<Map<String, dynamic>> pendingScans,
-  ) async {
-    for (final job in pendingScans) {
-      final bookId = job['bookId'] as String? ?? 'unknown';
+  void _scheduleBuiltInBooksLoad() {
+    if (_builtInLoadFuture != null || _builtInTrackedBooks.isNotEmpty) {
+      return;
+    }
 
+    final completer = Completer<void>();
+    _builtInLoadFuture = completer.future;
+
+    Future<void>(() async {
       try {
-        final trackedBook = await _scannerService.createTrackedBook(
-          bookName: job['bookName'] as String? ?? 'unknown',
-          categoryName: job['categoryName'] as String? ?? 'לא ידוע',
-          bookPath: job['bookPath'] as String? ?? '',
-          contentType: job['contentType'] as String? ?? 'פרק',
-          isBuiltIn: job['isBuiltIn'] as bool? ?? true,
-        );
-
-        await _scannerService.saveScanCache(trackedBook);
-        await _customBooksService.addBook(trackedBook);
-
-        _logger.info('Successfully scanned and cached $bookId (sequential)');
+        await _loadBuiltInBooksFromAsset();
+        completer.complete();
       } catch (e, stackTrace) {
-        _logger.warning(
-          'Sequential scan failed for built-in book: $bookId',
-          e,
-          stackTrace,
-        );
+        _builtInLoadFailed = true;
+        _logger.severe(
+            'Background load of built-in books failed', e, stackTrace);
+        if (!completer.isCompleted) {
+          completer.completeError(e, stackTrace);
+        }
+      }
+    });
+  }
+
+  Future<void> _ensureBuiltInBooksLoaded() async {
+    if (_builtInTrackedBooks.isNotEmpty) {
+      return;
+    }
+
+    _builtInLoadFuture ??= _loadBuiltInBooksFromAsset();
+    try {
+      await _builtInLoadFuture;
+    } catch (e) {
+      _builtInLoadFuture = null;
+      _builtInLoadFailed = true;
+      rethrow;
+    }
+  }
+
+  String _resolveRelativePath(
+    String categoryName,
+    String bookName,
+    String storedRelativePath,
+  ) {
+    if (storedRelativePath.isNotEmpty) {
+      return storedRelativePath;
+    }
+
+    final categoryMap = BuiltInBooksConfig.builtInBookPaths[categoryName];
+    if (categoryMap != null) {
+      final direct = categoryMap[bookName];
+      if (direct != null && direct.isNotEmpty) {
+        return direct;
       }
     }
+
+    _logger.warning(
+      'Unable to resolve path for built-in book "$categoryName:$bookName" - using book name as fallback',
+    );
+    return bookName;
   }
 
-  /// Get content type based on category name
-  String _getContentTypeForCategory(String categoryName) {
-    switch (categoryName) {
-      case 'תנ"ך':
-        return 'פרק';
-      case 'משנה':
-        return 'משנה';
-      case 'תלמוד בבלי':
-      case 'תלמוד ירושלמי':
-      // תמיכה לאחור
-      case 'ש"ס':
-      case 'ירושלמי':
-        return 'דף';
-      case 'רמב"ם':
-        return 'הלכה';
-      case 'הלכה':
-        return 'הלכה';
-      default:
-        return 'פרק';
+  String _buildFullPath(String relativePath) {
+    final parts = relativePath
+        .split(RegExp(r'[\\/]+'))
+        .where((segment) => segment.isNotEmpty)
+        .toList();
+
+    if (parts.isEmpty) {
+      return _scannerService.libraryBasePath;
     }
+
+    return p.joinAll([_scannerService.libraryBasePath, ...parts]);
   }
 
-  /// Load all book categories (from tracked books)
+  /// Load all book categories (built-in + custom).
   Future<Map<String, BookCategory>> loadData() async {
     if (!_isInitialized) {
       await initialize();
     }
 
-    if (_initialScanFuture != null) {
-      try {
-        await _initialScanFuture;
-      } catch (e, stackTrace) {
-        _logger.severe('Initial scan failed', e, stackTrace);
-      }
-    }
+    await _ensureBuiltInBooksLoaded();
 
     if (_cachedData != null) {
       return _cachedData!;
     }
 
     try {
-      final trackedBooks = _customBooksService.getAllTrackedBooks();
+      final customBooks = _customBooksService.getCustomBooks();
+      final combined = <TrackedBook>[
+        ..._builtInTrackedBooks,
+        ...customBooks,
+      ];
+
       final Map<String, BookCategory> categories = {};
 
-      // Group books by category
-      for (final book in trackedBooks) {
-        if (!categories.containsKey(book.categoryName)) {
-          categories[book.categoryName] = BookCategory(
+      for (final book in combined) {
+        final category = categories.putIfAbsent(
+          book.categoryName,
+          () => BookCategory(
             name: book.categoryName,
             contentType: book.bookDetails.contentType,
             books: {},
             defaultStartPage: book.bookDetails.contentType == "דף" ? 2 : 1,
             isCustom: false,
             sourceFile: book.sourceFile,
-          );
-        }
+          ),
+        );
 
-        // Add book to category
-        final category = categories[book.categoryName]!;
         category.books[book.bookName] = book.bookDetails;
       }
 
       _cachedData = categories;
       _logger.info(
-          'Loaded ${categories.length} categories with ${trackedBooks.length} books');
+        'Loaded ${categories.length} categories (custom: ${customBooks.length})',
+      );
       return categories;
     } catch (e, stackTrace) {
       _logger.severe('Failed to load data', e, stackTrace);
@@ -379,8 +275,7 @@ class DynamicDataLoaderService {
     }
   }
 
-  /// Add a custom book to tracking
-  /// This will scan the book ONE TIME and save to cache
+  /// Add a custom book to tracking (still scanned exactly once).
   Future<void> addCustomBook({
     required String bookName,
     required String categoryName,
@@ -392,18 +287,14 @@ class DynamicDataLoaderService {
 
       final bookId = '$categoryName:$bookName';
 
-      // Check if already exists in cache
       final existingBook = await _scannerService.loadScanCache(bookId);
       if (existingBook != null) {
         _logger.info('Book already exists in cache: $bookId');
-        // Just add to custom books service
         await _customBooksService.addBook(existingBook);
         clearCache();
         return;
       }
 
-      // Scan the book (ONE TIME ONLY - when user adds it)
-      _logger.info('Performing one-time scan of custom book: $bookId');
       final trackedBook = await _scannerService.createTrackedBook(
         bookName: bookName,
         categoryName: categoryName,
@@ -412,25 +303,30 @@ class DynamicDataLoaderService {
         isBuiltIn: false,
       );
 
-      // Save to cache (permanent storage - will not be scanned again)
       await _scannerService.saveScanCache(trackedBook);
-
-      // Add to custom books service
       await _customBooksService.addBook(trackedBook);
-
-      // Clear cached data to force reload
       clearCache();
 
-      _logger.info(
-          'Successfully added and cached custom book: ${trackedBook.bookId}');
+      _logger.info('Successfully added custom book: ${trackedBook.bookId}');
     } catch (e, stackTrace) {
       _logger.severe('Failed to add custom book', e, stackTrace);
-      rethrow;
+      throw ShamorZachorError.fromException(
+        e,
+        stackTrace: stackTrace,
+        customMessage: 'Failed to add custom book',
+      );
     }
   }
 
-  /// Remove a book from tracking
+  /// Remove a custom book from tracking.
   Future<void> removeBook(String bookId) async {
+    if (_builtInBookMap.containsKey(bookId)) {
+      throw ShamorZachorError(
+        type: ShamorZachorErrorType.permissionDenied,
+        message: 'Cannot remove built-in book: $bookId',
+      );
+    }
+
     try {
       await _customBooksService.removeBook(bookId);
       await _scannerService.clearBookCache(bookId);
@@ -442,124 +338,80 @@ class DynamicDataLoaderService {
     }
   }
 
-  /// Check if a book is tracked
+  /// Check if a book is tracked (built-in or custom).
   bool isBookTracked(String categoryName, String bookName) {
+    _scheduleBuiltInBooksLoad();
+
+    if (_builtInTrackedBooks.isEmpty) {
+      _builtInLoadFuture ??= _loadBuiltInBooksFromAsset();
+    }
+
+    if (_builtInLoadFailed) {
+      _logger.warning(
+        'Built-in books failed to load previously; treating $categoryName:$bookName as custom-only',
+      );
+    }
+
+    if (BuiltInBooksConfig.isBuiltInBook(categoryName, bookName)) {
+      return true;
+    }
+
     return _customBooksService.isBookTrackedByName(categoryName, bookName);
   }
 
-  /// Check if a book is built-in
+  /// Check if a book is built-in.
   bool isBuiltInBook(String categoryName, String bookName) {
     return BuiltInBooksConfig.isBuiltInBook(categoryName, bookName);
   }
 
-  /// Get all tracked books (both built-in and custom)
-  List<TrackedBook> getAllTrackedBooks() {
-    return _customBooksService.getAllTrackedBooks();
+  /// Get all tracked books (built-in + custom).
+  ///
+  /// The first call awaits the built-in cache so that the returned list
+  /// is always complete.
+  Future<List<TrackedBook>> getAllTrackedBooks() async {
+    _scheduleBuiltInBooksLoad();
+    await _ensureBuiltInBooksLoaded();
+
+    final customTracked = await _customBooksService.getAllTrackedBooks();
+
+    return [
+      ..._builtInTrackedBooks,
+      ...customTracked,
+    ];
   }
 
-  /// Load a specific category by name
+  /// Load a specific category by name.
   Future<BookCategory?> loadCategory(String categoryName) async {
-    try {
-      final allData = await loadData();
-      return allData[categoryName];
-    } catch (e) {
-      _logger.severe('Failed to load category $categoryName: $e');
-      rethrow;
-    }
+    final allData = await loadData();
+    return allData[categoryName];
   }
 
-  /// Get list of available category names
+  /// Get list of available category names.
   Future<List<String>> getAvailableCategories() async {
-    try {
-      final allData = await loadData();
-      return allData.keys.toList();
-    } catch (e) {
-      _logger.severe('Failed to get available categories: $e');
-      rethrow;
-    }
+    final allData = await loadData();
+    return allData.keys.toList();
   }
 
-  /// Clear the cached data
   void clearCache() {
     _cachedData = null;
   }
 
-  /// Check if data is cached
   bool get isDataCached => _cachedData != null;
 
-  /// Get cache size (number of categories)
   int get cacheSize => _cachedData?.length ?? 0;
 
-  /// Force re-scan of all built-in books
   Future<void> rescanBuiltInBooks() async {
-    _logger.info('Re-scanning all built-in books');
-    await _scanAndCacheBuiltInBooks();
-    clearCache();
+    _logger.warning('rescanBuiltInBooks() is not supported in static mode');
   }
 
-  /// Get statistics
   Map<String, dynamic> getStatistics() {
+    final customStats = _customBooksService.getStatistics();
     return {
       'initialized': _isInitialized,
       'cached': isDataCached,
       'cacheSize': cacheSize,
-      ..._customBooksService.getStatistics(),
+      'builtInBooks': _builtInTrackedBooks.length,
+      ...customStats,
     };
   }
-}
-
-Future<List<Map<String, dynamic>>> _runBuiltInScanIsolate({
-  required String libraryBasePath,
-  required Future<List<Map<String, dynamic>>> Function(String bookPath)
-      getTocFromFile,
-  required List<Map<String, dynamic>> booksToScan,
-}) async {
-  if (booksToScan.isEmpty) {
-    return const [];
-  }
-
-  return Isolate.run(() async {
-    final scanner = BookScannerService(
-      libraryBasePath: libraryBasePath,
-      getTocFromFile: getTocFromFile,
-    );
-
-    final Logger logger = Logger('DynamicDataLoaderService.Isolate');
-    final List<Map<String, dynamic>> results = [];
-
-    for (final job in booksToScan) {
-      final bookId = job['bookId'] as String? ?? 'unknown';
-
-      try {
-        final trackedBook = await scanner.createTrackedBook(
-          bookName: job['bookName'] as String? ?? 'unknown',
-          categoryName: job['categoryName'] as String? ?? 'לא ידוע',
-          bookPath: job['bookPath'] as String? ?? '',
-          contentType: job['contentType'] as String? ?? 'פרק',
-          isBuiltIn: job['isBuiltIn'] as bool? ?? true,
-        );
-
-        results.add({
-          'success': true,
-          'bookId': bookId,
-          'book': trackedBook.toJson(),
-        });
-      } catch (e, stackTrace) {
-        logger.warning(
-          'Failed to scan built-in book in isolate: $bookId',
-          e,
-          stackTrace,
-        );
-
-        results.add({
-          'success': false,
-          'bookId': bookId,
-          'error': e.toString(),
-          'stackTrace': stackTrace.toString(),
-        });
-      }
-    }
-
-    return results;
-  });
 }

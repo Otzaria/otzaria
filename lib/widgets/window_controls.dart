@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:window_manager/window_manager.dart';
 
 class WindowControls extends StatefulWidget {
@@ -33,7 +34,7 @@ class _WindowControlsState extends State<WindowControls> {
       children: [
         IconButton(
           onPressed: () => windowManager.minimize(),
-          icon: const Icon(Icons.minimize),
+          icon: const Icon(FluentIcons.subtract_24_regular),
           tooltip: 'מזער',
         ),
         IconButton(
@@ -43,12 +44,12 @@ class _WindowControlsState extends State<WindowControls> {
             });
             await windowManager.setFullScreen(_isFullscreen);
           },
-          icon: Icon(_isFullscreen ? Icons.fullscreen_exit : Icons.fullscreen),
+          icon: Icon(_isFullscreen ? FluentIcons.full_screen_minimize_24_regular : FluentIcons.full_screen_maximize_24_regular),
           tooltip: _isFullscreen ? 'צא ממסך מלא' : 'מסך מלא',
         ),
         IconButton(
           onPressed: () => windowManager.close(),
-          icon: const Icon(Icons.close),
+          icon: const Icon(FluentIcons.dismiss_24_regular),
           tooltip: 'סגור',
         ),
       ],

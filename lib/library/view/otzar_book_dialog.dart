@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import '../../models/books.dart';
 import '../../utils/otzar_utils.dart';
 import '../../core/scaffold_messenger.dart';
@@ -55,16 +56,16 @@ class OtzarBookDialog extends StatelessWidget {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 24),
-                    _buildInfoRow(context, Icons.description, 'תיאור',
+                    _buildInfoRow(context, FluentIcons.document_text_24_regular, 'תיאור',
                         book.heShortDesc ?? 'לא קיים'),
-                    _buildInfoRow(context, Icons.person, 'מחבר',
+                    _buildInfoRow(context, FluentIcons.person_24_regular, 'מחבר',
                         book.author ?? 'לא ידוע'),
-                    _buildInfoRow(context, Icons.location_on, 'מקום הדפסה',
+                    _buildInfoRow(context, FluentIcons.location_24_regular, 'מקום הדפסה',
                         book.pubPlace ?? 'לא ידוע'),
-                    _buildInfoRow(context, Icons.calendar_today, 'שנת הדפסה',
+                    _buildInfoRow(context, FluentIcons.calendar_24_regular, 'שנת הדפסה',
                         book.pubDate ?? 'לא ידוע'),
                     _buildInfoRow(
-                        context, Icons.category, 'נושאים', book.topics),
+                        context, FluentIcons.apps_24_regular, 'נושאים', book.topics),
                     const SizedBox(height: 24),
                     _buildButtons(context, canLaunchLocally, bookExists),
                   ],
@@ -114,7 +115,7 @@ class OtzarBookDialog extends StatelessWidget {
       children: <Widget>[
         if (canLaunchLocally && bookExists)
           ElevatedButton.icon(
-            icon: const Icon(Icons.computer),
+            icon: const Icon(FluentIcons.desktop_24_regular),
             label: const Text('פתח מקומית'),
             onPressed: () {
               Navigator.of(context).pop();
@@ -126,7 +127,7 @@ class OtzarBookDialog extends StatelessWidget {
             ),
           ),
         ElevatedButton.icon(
-          icon: const Icon(Icons.open_in_new),
+          icon: const Icon(FluentIcons.open_24_regular),
           label: const Text('פתח באתר'),
           onPressed: () async {
             final errorColor = Theme.of(context).colorScheme.error;

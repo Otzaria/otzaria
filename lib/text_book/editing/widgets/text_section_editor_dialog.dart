@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:isolate';
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -495,18 +496,18 @@ class _TextSectionEditorDialogState extends State<TextSectionEditorDialog> {
             style: const TextStyle(fontSize: 16),
           ),
           leading: IconButton(
-            icon: const Icon(Icons.close),
+            icon: const Icon(FluentIcons.dismiss_24_regular),
             onPressed: _discardChanges,
           ),
           actions: [
             TextButton.icon(
               onPressed: _hasUnsavedChanges ? _save : null,
-              icon: const Icon(Icons.save),
+              icon: const Icon(FluentIcons.save_24_regular),
               label: const Text('שמור'),
             ),
             TextButton.icon(
               onPressed: _saveAndClose,
-              icon: const Icon(Icons.save_alt),
+              icon: const Icon(FluentIcons.save_arrow_right_24_regular),
               label: const Text('שמור וצא'),
             ),
           ],
@@ -675,7 +676,7 @@ class _SearchDialogState extends State<_SearchDialog> {
             decoration: const InputDecoration(
               labelText: 'הכנס טקסט לחיפוש',
               hintText: 'מה לחפש...',
-              prefixIcon: Icon(Icons.search),
+              prefixIcon: Icon(FluentIcons.search_24_regular),
             ),
             textDirection: TextDirection.rtl,
             autofocus: true,

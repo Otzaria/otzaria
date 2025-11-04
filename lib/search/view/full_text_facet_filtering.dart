@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
@@ -98,10 +99,10 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
         controller: _filterQuery,
         decoration: InputDecoration(
           hintText: 'איתור ספר…',
-          prefixIcon: const Icon(Icons.filter_list_alt),
+          prefixIcon: const Icon(FluentIcons.filter_24_regular),
           suffixIcon: IconButton(
             onPressed: _clearFilter,
-            icon: const Icon(Icons.close),
+            icon: const Icon(FluentIcons.dismiss_24_regular),
           ),
           border: InputBorder.none,
           enabledBorder: InputBorder.none,
@@ -237,8 +238,8 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
                       onTap: toggle,
                       child: Icon(
                         isExpanded
-                            ? Icons.expand_more // חץ מטה כשהשורה פתוחה
-                            : Icons.chevron_right_rounded,
+                            ? FluentIcons.chevron_down_24_regular // חץ מטה כשהשורה פתוחה
+                            : FluentIcons.chevron_right_24_regular,
                         color: primaryColor,
                       ),
                     ),

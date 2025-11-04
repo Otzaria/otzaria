@@ -3,6 +3,7 @@ import 'package:logging/logging.dart';
 
 import '../models/book_model.dart';
 import '../models/error_model.dart';
+import '../models/tracked_book_model.dart';
 import '../services/data_loader_service.dart';
 import '../services/dynamic_data_loader_service.dart';
 
@@ -19,6 +20,8 @@ class ShamorZachorDataProvider with ChangeNotifier {
   Map<String, BookCategory> _allBookData = {};
   bool _isLoading = false;
   ShamorZachorError? _error;
+  List<TrackedBook> _trackedBooksCache = const [];
+  bool _trackedBooksReady = false;
 
   /// Get all book data
   Map<String, BookCategory> get allBookData => _allBookData;
@@ -60,7 +63,8 @@ class ShamorZachorDataProvider with ChangeNotifier {
   Future<void> loadAllData() async {
     // Wait for any pending load to complete (with timeout)
     int waitCount = 0;
-    while (_isLoading && waitCount < 100) { // Max 10 seconds
+    while (_isLoading && waitCount < 100) {
+      // Max 10 seconds
       _logger.fine('Waiting for pending load to complete... ($waitCount)');
       await Future.delayed(const Duration(milliseconds: 100));
       waitCount++;
@@ -90,6 +94,9 @@ class ShamorZachorDataProvider with ChangeNotifier {
       // Load data from appropriate service
       if (_dynamicDataLoaderService != null) {
         _allBookData = await _dynamicDataLoaderService.loadData();
+        _trackedBooksCache =
+            await _dynamicDataLoaderService.getAllTrackedBooks();
+        _trackedBooksReady = true;
         _logger.info('Data loaded from DynamicDataLoaderService');
       } else {
         _allBookData = await _dataLoaderService!.loadData();
@@ -281,8 +288,7 @@ class ShamorZachorDataProvider with ChangeNotifier {
   }) async {
     if (_dynamicDataLoaderService == null) {
       throw UnsupportedError(
-        'Adding custom books is only supported with DynamicDataLoaderService'
-      );
+          'Adding custom books is only supported with DynamicDataLoaderService');
     }
 
     _logger.info('Provider: Adding custom book: $categoryName - $bookName');
@@ -299,11 +305,14 @@ class ShamorZachorDataProvider with ChangeNotifier {
     // Reload data to reflect the new book
     await reload();
 
-    _logger.info('Provider: Reload complete. Categories: ${_allBookData.keys.toList()}');
-    _logger.info('Provider: Category "$categoryName" exists: ${_allBookData.containsKey(categoryName)}');
+    _logger.info(
+        'Provider: Reload complete. Categories: ${_allBookData.keys.toList()}');
+    _logger.info(
+        'Provider: Category "$categoryName" exists: ${_allBookData.containsKey(categoryName)}');
     if (_allBookData.containsKey(categoryName)) {
       final category = _allBookData[categoryName]!;
-      _logger.info('Provider: Books in "$categoryName": ${category.books.keys.toList()}');
+      _logger.info(
+          'Provider: Books in "$categoryName": ${category.books.keys.toList()}');
     }
   }
 
@@ -340,9 +349,13 @@ class ShamorZachorDataProvider with ChangeNotifier {
       // Legacy mode: no custom books
       return [];
     }
+    if (!_trackedBooksReady) {
+      _logger.fine(
+          'getCustomBooks called before tracked books cache ready, returning empty list');
+      return [];
+    }
     final customBooks = <Map<String, dynamic>>[];
-    // Get all tracked books from the service
-    final allTrackedBooks = _dynamicDataLoaderService.getAllTrackedBooks();
+    final allTrackedBooks = _trackedBooksCache;
     // Filter only non-built-in books
     for (final trackedBook in allTrackedBooks) {
       if (!trackedBook.isBuiltIn) {

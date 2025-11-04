@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/focus/focus_repository.dart';
@@ -43,8 +44,12 @@ class MainWindowScreenState extends State<MainWindowScreen>
   @override
   void initState() {
     super.initState();
+    final initialPage = _pageIndexForScreen(
+          context.read<NavigationBloc>().state.currentScreen,
+        ) ??
+        Screen.library.index;
     pageController = PageController(
-      initialPage: Screen.library.index,
+      initialPage: initialPage,
     );
     // Auto start indexing
     if (context.read<SettingsBloc>().state.autoUpdateIndex) {
@@ -65,16 +70,18 @@ class MainWindowScreenState extends State<MainWindowScreen>
     if (_previousOrientation != orientation) {
       _previousOrientation = orientation;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && pageController.hasClients) {
-          final currentScreen =
-              context.read<NavigationBloc>().state.currentScreen;
-          final targetPage = currentScreen == Screen.search
-              ? Screen.reading.index
-              : currentScreen.index;
+        if (!mounted || !pageController.hasClients) {
+          return;
+        }
+        final currentScreen =
+            context.read<NavigationBloc>().state.currentScreen;
+        final targetPage = _pageIndexForScreen(currentScreen);
+        if (targetPage == null) {
+          return;
+        }
 
-          if (pageController.page?.round() != targetPage) {
-            pageController.jumpToPage(targetPage);
-          }
+        if (pageController.page?.round() != targetPage) {
+          pageController.jumpToPage(targetPage);
         }
       });
     }
@@ -100,7 +107,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
         icon: Tooltip(
           preferBelow: false,
           message: formatShortcut(libraryShortcut),
-          child: const Icon(Icons.library_books),
+          child: const Icon(FluentIcons.library_24_regular),
         ),
         label: 'ספרייה',
       ),
@@ -109,7 +116,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
         icon: Tooltip(
           preferBelow: false,
           message: formatShortcut(findShortcut),
-          child: const Icon(Icons.auto_stories_rounded),
+          child: const Icon(FluentIcons.book_search_24_regular),
         ),
         label: 'איתור',
       ),
@@ -118,7 +125,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
         icon: Tooltip(
           preferBelow: false,
           message: formatShortcut(browseShortcut),
-          child: const Icon(Icons.menu_book),
+          child: const Icon(FluentIcons.book_open_24_regular),
         ),
         label: 'עיון',
       ),
@@ -127,20 +134,20 @@ class MainWindowScreenState extends State<MainWindowScreen>
         icon: Tooltip(
           preferBelow: false,
           message: formatShortcut(searchShortcut),
-          child: const Icon(Icons.search),
+          child: const Icon(FluentIcons.search_24_regular),
         ),
         label: 'חיפוש',
       ),
       NavigationDestination(
-        icon: Icon(Icons.more_horiz),
+        icon: Icon(FluentIcons.more_horizontal_24_regular),
         label: 'עזרים',
       ),
       NavigationDestination(
-        icon: Icon(Icons.settings),
+        icon: Icon(FluentIcons.settings_24_regular),
         label: 'הגדרות',
       ),
       NavigationDestination(
-        icon: Icon(Icons.info_outline),
+        icon: Icon(FluentIcons.info_24_regular),
         label: 'אודות',
       ),
     ];
@@ -153,33 +160,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
     }
 
     if (pageController.hasClients) {
-      // מיפוי מחדש של האינדקסים כיון שהסרנו את דף האיתור
-      int targetPage;
-      switch (state.currentScreen) {
-        case Screen.library:
-          targetPage = 0;
-          break;
-        case Screen.find:
-          // לא נווט לדף כי זה דיאלוג
-          return;
-        case Screen.reading:
-          targetPage = 1;
-          break;
-        case Screen.search:
-          targetPage = 1; // נווט לדף העיון
-          break;
-        case Screen.more:
-          targetPage = 3;
-          break;
-        case Screen.settings:
-          targetPage = 4;
-          break;
-        case Screen.about:
-          // לא נווט לדף כי זה דיאלוג
-          return;
-      }
-
-      if (pageController.page?.round() != targetPage) {
+      final targetPage = _pageIndexForScreen(state.currentScreen);
+      if (targetPage != null && pageController.page?.round() != targetPage) {
         await pageController.animateToPage(
           targetPage,
           duration: const Duration(milliseconds: 300),
@@ -340,6 +322,23 @@ class MainWindowScreenState extends State<MainWindowScreen>
         },
       ),
     );
+  }
+
+  int? _pageIndexForScreen(Screen screen) {
+    switch (screen) {
+      case Screen.library:
+        return 0;
+      case Screen.reading:
+      case Screen.search:
+        return 1;
+      case Screen.more:
+        return 3;
+      case Screen.settings:
+        return 4;
+      case Screen.find:
+      case Screen.about:
+        return null;
+    }
   }
 
   void _handleSearchTabOpen(BuildContext context) {

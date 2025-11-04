@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'package:otzaria/core/scaffold_messenger.dart';
@@ -18,8 +19,8 @@ class PersonalNotesManagerScreen extends StatefulWidget {
       _PersonalNotesManagerScreenState();
 }
 
-class _PersonalNotesManagerScreenState
-    extends State<PersonalNotesManagerScreen> with TickerProviderStateMixin {
+class _PersonalNotesManagerScreenState extends State<PersonalNotesManagerScreen>
+    with TickerProviderStateMixin {
   late final TabController _tabController;
   final PersonalNotesRepository _repository = PersonalNotesRepository();
 
@@ -46,12 +47,13 @@ class _PersonalNotesManagerScreenState
       if (!mounted) return;
       setState(() {
         _books = books;
-        _selectedBook =
-            books.isNotEmpty ? books.first.bookId : null;
+        _selectedBook = books.isNotEmpty ? books.first.bookId : null;
         _isLoadingBooks = false;
       });
       if (_selectedBook != null) {
-        context.read<PersonalNotesBloc>().add(LoadPersonalNotes(_selectedBook!));
+        context
+            .read<PersonalNotesBloc>()
+            .add(LoadPersonalNotes(_selectedBook!));
       }
     } catch (e) {
       if (!mounted) return;
@@ -149,7 +151,7 @@ class _PersonalNotesManagerScreenState
               IconButton(
                 tooltip: 'רענון',
                 onPressed: _reloadCurrentBook,
-                icon: const Icon(Icons.refresh),
+                icon: const Icon(FluentIcons.arrow_clockwise_24_regular),
               ),
             ],
           ),
@@ -217,9 +219,7 @@ class _PersonalNotesManagerScreenState
             title: Row(
               children: [
                 Text(
-                  located
-                      ? 'שורה ${note.lineNumber}'
-                      : 'הערה ללא מיקום',
+                  located ? 'שורה ${note.lineNumber}' : 'הערה ללא מיקום',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -239,12 +239,8 @@ class _PersonalNotesManagerScreenState
                     padding: const EdgeInsets.only(top: 6, bottom: 8),
                     child: Text(
                       note.referenceWords.join(' '),
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.primary,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.primary,
                           ),
                     ),
                   ),
@@ -262,26 +258,24 @@ class _PersonalNotesManagerScreenState
                   ),
               ],
             ),
-            onTap: located
-                ? null
-                : () => _repositionMissing(note),
+            onTap: located ? null : () => _repositionMissing(note),
             trailing: Wrap(
               spacing: 4,
               children: [
                 IconButton(
                   tooltip: 'עריכה',
-                  icon: const Icon(Icons.edit),
+                  icon: const Icon(FluentIcons.edit_24_regular),
                   onPressed: () => _editNote(note),
                 ),
                 if (!located)
                   IconButton(
                     tooltip: 'מיקום מחדש',
-                    icon: const Icon(Icons.place),
+                    icon: const Icon(FluentIcons.location_24_regular),
                     onPressed: () => _repositionMissing(note),
                   ),
                 IconButton(
                   tooltip: 'מחיקה',
-                  icon: const Icon(Icons.delete),
+                  icon: const Icon(FluentIcons.delete_24_regular),
                   onPressed: () => _deleteNote(note),
                 ),
               ],
@@ -309,6 +303,7 @@ class _PersonalNotesManagerScreenState
       return;
     }
 
+    if (!mounted) return;
     context.read<PersonalNotesBloc>().add(
           UpdatePersonalNote(
             bookId: note.bookId,
@@ -339,6 +334,7 @@ class _PersonalNotesManagerScreenState
     );
 
     if (shouldDelete == true) {
+      if (!mounted) return;
       context.read<PersonalNotesBloc>().add(
             DeletePersonalNote(
               bookId: note.bookId,
@@ -393,6 +389,7 @@ class _PersonalNotesManagerScreenState
     );
 
     if (newLine != null) {
+      if (!mounted) return;
       context.read<PersonalNotesBloc>().add(
             RepositionPersonalNote(
               bookId: note.bookId,

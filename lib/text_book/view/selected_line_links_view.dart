@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
@@ -65,10 +66,10 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
                     controller: _searchController,
                     decoration: InputDecoration(
                       hintText: 'חפש בתוך הקישורים המוצגים...',
-                      prefixIcon: const Icon(Icons.search),
+                      prefixIcon: const Icon(FluentIcons.search_24_regular),
                       suffixIcon: _searchQuery.isNotEmpty
                           ? IconButton(
-                              icon: const Icon(Icons.close),
+                              icon: const Icon(FluentIcons.dismiss_24_regular),
                               onPressed: () {
                                 _searchController.clear();
                                 setState(() {

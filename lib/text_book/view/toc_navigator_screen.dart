@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
@@ -296,7 +297,7 @@ class _TocViewerState extends State<TocViewer>
                 );
               },
             ),
-            leading: const Icon(Icons.chevron_right_rounded),
+            leading: const Icon(FluentIcons.chevron_right_24_regular),
             trailing: const SizedBox.shrink(),
             tilePadding: EdgeInsets.zero,
             childrenPadding: EdgeInsets.zero,
@@ -362,7 +363,7 @@ class _TocViewerState extends State<TocViewer>
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.clear),
+                          icon: const Icon(FluentIcons.dismiss_24_regular),
                           onPressed: () {
                             setState(() {
                               searchController.clear();

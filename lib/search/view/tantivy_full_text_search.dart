@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
 import 'package:otzaria/indexing/bloc/indexing_state.dart';
@@ -221,7 +222,7 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
       padding: const EdgeInsets.fromLTRB(0, 0, 8, 0),
       child: IconButton(
         tooltip: "הגדרות חיפוש",
-        icon: const Icon(Icons.menu),
+        icon: const Icon(FluentIcons.navigation_24_regular),
         onPressed: () {
           widget.tab.isLeftPaneOpen.value = !widget.tab.isLeftPaneOpen.value;
         },
@@ -303,7 +304,7 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
       ),
       child: Row(
         children: [
-          Icon(Icons.warning_amber, color: Colors.orange[700]),
+          Icon(FluentIcons.warning_24_regular, color: Colors.orange[700]),
           const SizedBox(width: 8),
           const Expanded(
             child: Text(
@@ -313,7 +314,7 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.close),
+            icon: const Icon(FluentIcons.dismiss_24_regular),
             onPressed: () {
               setState(() {
                 _showIndexWarning = false;

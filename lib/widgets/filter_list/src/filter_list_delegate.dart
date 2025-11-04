@@ -3,6 +3,7 @@ import 'state/filter_state.dart';
 import 'state/provider.dart';
 import 'theme/filter_list_delegate_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 typedef SuggestionBuilder<T> = Widget Function(
     BuildContext context, T suggestion, bool isSelected);
@@ -220,7 +221,7 @@ One of the tileLabel or suggestionBuilder is required
             width: 25,
             height: 25,
             child: IconButton(
-              icon: const Icon(Icons.clear),
+              icon: const Icon(FluentIcons.dismiss_24_regular),
               onPressed: () => query = '',
             ),
           ),

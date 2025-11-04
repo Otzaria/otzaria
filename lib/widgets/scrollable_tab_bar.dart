@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 /// TabBar גלילה עם חיצים לשמאל/ימין.
 class ScrollableTabBarWithArrows extends StatefulWidget {
@@ -126,7 +127,7 @@ class _ScrollableTabBarWithArrowsState
               child: IconButton(
                 key: const ValueKey('left-arrow'),
                 onPressed: _scrollLeft,
-                icon: const Icon(Icons.chevron_left),
+                icon: const Icon(FluentIcons.chevron_left_24_regular),
                 iconSize: 20,
                 constraints: const BoxConstraints(
                   minWidth: 32,
@@ -197,7 +198,7 @@ class _ScrollableTabBarWithArrowsState
               child: IconButton(
                 key: const ValueKey('right-arrow'),
                 onPressed: _scrollRight,
-                icon: const Icon(Icons.chevron_right),
+                icon: const Icon(FluentIcons.chevron_right_24_regular),
                 iconSize: 20,
                 constraints: const BoxConstraints(
                   minWidth: 32,

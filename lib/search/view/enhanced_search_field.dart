@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/rendering.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
@@ -80,7 +81,7 @@ class _PlusButtonState extends State<_PlusButton> {
               ],
             ),
             child: const Icon(
-              Icons.add,
+              FluentIcons.add_24_regular,
               size: 12,
               color: Colors.white,
             ),
@@ -127,7 +128,7 @@ class _SpacingButtonState extends State<_SpacingButton> {
               ],
             ),
             child: const Icon(
-              Icons.swap_horiz,
+              FluentIcons.arrow_swap_24_regular,
               size: 12,
               color: Colors.white,
             ),
@@ -245,7 +246,7 @@ class _SpacingFieldState extends State<_SpacingField> {
               child: Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.close, size: 14),
+                    icon: const Icon(FluentIcons.dismiss_24_regular, size: 14),
                     onPressed: widget.onRemove,
                     splashRadius: 16,
                     padding: const EdgeInsets.only(left: 4, right: 2),
@@ -420,7 +421,7 @@ class _AlternativeFieldState extends State<_AlternativeField> {
               child: Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.close, size: 14),
+                    icon: const Icon(FluentIcons.dismiss_24_regular, size: 14),
                     onPressed: widget.onRemove,
                     splashRadius: 16,
                     padding: const EdgeInsets.only(left: 4, right: 2),
@@ -1943,7 +1944,7 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
                                   widget.widget.tab.alternativeWords,
                               searchOptions: widget.widget.tab.searchOptions));
                         },
-                        icon: const Icon(Icons.search),
+                        icon: const Icon(FluentIcons.search_24_regular),
                       ),
                       suffixIcon: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -1956,7 +1957,7 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
                               return IconButton(
                                 onPressed: () => _toggleSearchOptions(
                                     !_isSearchOptionsVisible),
-                                icon: const Icon(Icons.keyboard_arrow_down),
+                                icon: const Icon(FluentIcons.chevron_down_24_regular),
                                 focusNode: FocusNode(
                                   canRequestFocus: false,
                                   skipTraversal: true,
@@ -1965,7 +1966,7 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
                             },
                           ),
                           IconButton(
-                            icon: const Icon(Icons.clear),
+                            icon: const Icon(FluentIcons.dismiss_24_regular),
                             onPressed: () {
                               // ניקוי מלא של כל הנתונים
                               widget.widget.tab.queryController.clear();

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 /// Widget for displaying side-by-side diff of original vs edited content
 class DiffViewer extends StatelessWidget {
@@ -20,7 +21,7 @@ class DiffViewer extends StatelessWidget {
         title: Text('השוואה - $title'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.close),
+            icon: const Icon(FluentIcons.dismiss_24_regular),
             onPressed: () => Navigator.of(context).pop(),
           ),
         ],

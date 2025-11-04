@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
@@ -33,7 +34,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
   @override
   void didUpdateWidget(BookPreviewPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    
+
     // אם הספר השתנה, נצור tab חדש
     if (widget.book != oldWidget.book && widget.book != null) {
       _disposeCurrentTab();
@@ -82,16 +83,22 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              Icons.menu_book,
+              FluentIcons.book_24_regular,
               size: 64,
-              color: Theme.of(context).colorScheme.secondary.withOpacity(0.3),
+              color: Theme.of(context)
+                  .colorScheme
+                  .secondary
+                  .withValues(alpha: 0.3),
             ),
             const SizedBox(height: 16),
             Text(
               'בחר ספר לתצוגה מקדימה',
               style: TextStyle(
                 fontSize: 16,
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurface
+                    .withValues(alpha: 0.6),
               ),
             ),
           ],
@@ -106,9 +113,14 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              widget.book is PdfBook ? Icons.picture_as_pdf : Icons.link,
+              widget.book is PdfBook
+                  ? FluentIcons.document_pdf_24_regular
+                  : FluentIcons.link_24_regular,
               size: 64,
-              color: Theme.of(context).colorScheme.secondary.withOpacity(0.3),
+              color: Theme.of(context)
+                  .colorScheme
+                  .secondary
+                  .withValues(alpha: 0.3),
             ),
             const SizedBox(height: 16),
             Text(
@@ -126,14 +138,17 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                   : 'ספר חיצוני - לחץ פעמיים לפתיחה',
               style: TextStyle(
                 fontSize: 14,
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurface
+                    .withValues(alpha: 0.6),
               ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: widget.onOpenInReader,
-              icon: const Icon(Icons.open_in_new),
+              icon: const Icon(FluentIcons.open_24_regular),
               label: const Text('פתח בעיון'),
             ),
           ],
@@ -205,11 +220,12 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
           left: 8,
           child: Container(
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface.withOpacity(0.95),
+              color:
+                  Theme.of(context).colorScheme.surface.withValues(alpha: 0.95),
               borderRadius: BorderRadius.circular(8),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
+                  color: Colors.black.withValues(alpha: 0.2),
                   blurRadius: 4,
                   offset: const Offset(0, 2),
                 ),
@@ -220,7 +236,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
               children: [
                 // כפתור פתיחה בעיון
                 IconButton(
-                  icon: const Icon(Icons.open_in_new, size: 20),
+                  icon: const Icon(FluentIcons.open_24_regular, size: 20),
                   tooltip: 'פתח בעיון (או לחץ פעמיים על הספר)',
                   onPressed: widget.onOpenInReader,
                   padding: const EdgeInsets.all(8),
@@ -239,7 +255,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                 // כפתור סגירה
                 if (widget.onClose != null)
                   IconButton(
-                    icon: const Icon(Icons.close, size: 20),
+                    icon: const Icon(FluentIcons.dismiss_24_regular, size: 20),
                     tooltip: 'הסתר תצוגה מקדימה',
                     onPressed: widget.onClose,
                     padding: const EdgeInsets.all(8),

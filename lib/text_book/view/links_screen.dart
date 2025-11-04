@@ -4,6 +4,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/models/links.dart';
@@ -45,8 +46,8 @@ class _LinksViewerState extends State<LinksViewer>
             child: ElevatedButton.icon(
               onPressed: widget.openInSidebarCallback,
               icon: Icon(widget.isSplitViewOpen
-                  ? Icons.keyboard_arrow_right
-                  : Icons.keyboard_arrow_left),
+                  ? FluentIcons.chevron_right_24_regular
+                  : FluentIcons.chevron_left_24_regular),
               label: Text(
                   widget.isSplitViewOpen ? 'סגור חלונית צד' : 'פתח בחלונית צד'),
               style: ElevatedButton.styleFrom(

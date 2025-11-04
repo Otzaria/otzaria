@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:html/parser.dart' as html_parser;
@@ -474,7 +475,7 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                                   Padding(
                                     padding: const EdgeInsets.only(left: 8),
                                     child: Icon(
-                                      Icons.picture_as_pdf,
+                                      FluentIcons.document_pdf_24_regular,
                                       size: 16,
                                       color: Theme.of(context)
                                           .colorScheme

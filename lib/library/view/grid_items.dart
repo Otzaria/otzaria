@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'dart:math';
@@ -79,7 +80,7 @@ class CategoryGridItem extends StatelessWidget {
                         child: IconButton(
                           mouseCursor: SystemMouseCursors.basic,
                           onPressed: () {},
-                          icon: const Icon(Icons.info_outline),
+                          icon: const Icon(FluentIcons.info_24_regular),
                           color: Theme.of(context)
                               .colorScheme
                               .secondary
@@ -123,7 +124,7 @@ class BookGridItem extends StatelessWidget {
                 book is PdfBook
                     ? Padding(
                         padding: const EdgeInsets.fromLTRB(0, 0, 10, 0),
-                        child: Icon(Icons.picture_as_pdf,
+                        child: Icon(FluentIcons.document_pdf_24_regular,
                             color: Theme.of(context)
                                 .colorScheme
                                 .secondary
@@ -146,7 +147,7 @@ class BookGridItem extends StatelessWidget {
                           )
                         : Padding(
                             padding: const EdgeInsets.fromLTRB(0, 0, 10, 0),
-                            child: Icon(Icons.article,
+                            child: Icon(FluentIcons.document_text_24_regular,
                                 color: Theme.of(context)
                                     .colorScheme
                                     .secondary
@@ -207,7 +208,7 @@ class BookGridItem extends StatelessWidget {
                         child: IconButton(
                           mouseCursor: SystemMouseCursors.basic,
                           onPressed: () {},
-                          icon: const Icon(Icons.info_outline),
+                          icon: const Icon(FluentIcons.info_24_regular),
                           color: Theme.of(context)
                               .colorScheme
                               .secondary

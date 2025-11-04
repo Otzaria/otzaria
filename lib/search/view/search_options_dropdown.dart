@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 class SearchOptionsDropdown extends StatefulWidget {
   final Function(bool)? onToggle;
@@ -44,7 +45,7 @@ class _SearchOptionsDropdownState extends State<SearchOptionsDropdown> {
   Widget build(BuildContext context) {
     return IconButton(
       icon: Icon(
-          _isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down),
+          _isExpanded ? FluentIcons.chevron_up_24_regular : FluentIcons.chevron_down_24_regular),
       tooltip: 'אפשרויות חיפוש',
       onPressed: _toggleExpanded,
     );
@@ -163,7 +164,7 @@ class _SearchOptionsRowState extends State<SearchOptionsRow> {
                 ),
                 child: currentOptions[option]!
                     ? Icon(
-                        Icons.check,
+                        FluentIcons.checkmark_24_regular,
                         size: 14,
                         color: Theme.of(context).primaryColor,
                       )

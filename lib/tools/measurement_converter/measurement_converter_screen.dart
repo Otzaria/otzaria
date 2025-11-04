@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
 import 'dart:math' as math;
 import 'measurement_data.dart';
@@ -600,7 +601,7 @@ class _MeasurementConverterScreenState
         ),
         const SizedBox(width: 10),
         IconButton(
-          icon: const Icon(Icons.swap_horiz),
+          icon: const Icon(FluentIcons.arrow_swap_24_regular),
           onPressed: () {
             setState(() {
               final temp = _selectedFromUnit;
@@ -965,7 +966,7 @@ class _MeasurementConverterScreenState
         border: const OutlineInputBorder(),
         suffixIcon: _inputController.text.isNotEmpty
             ? IconButton(
-                icon: const Icon(Icons.clear),
+                icon: const Icon(FluentIcons.dismiss_24_regular),
                 onPressed: () {
                   setState(() {
                     _inputController.clear();

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_bloc.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_event.dart';
@@ -132,7 +133,7 @@ class _DownloadProgress extends StatelessWidget {
             backgroundColor: Colors.red,
             foregroundColor: Colors.white,
           ),
-          icon: const Icon(Icons.stop),
+          icon: const Icon(FluentIcons.stop_24_regular),
           label: Text(state.isCancelling ? 'מבטל...' : 'בטל'),
         ),
       ],

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 class ReusableItemsDialog extends StatelessWidget {
   final String title;
@@ -32,7 +33,7 @@ class ReusableItemsDialog extends StatelessWidget {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close),
+                  icon: const Icon(FluentIcons.dismiss_24_regular),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ],

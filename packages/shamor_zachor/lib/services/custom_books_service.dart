@@ -35,9 +35,27 @@ class CustomBooksService {
       }
 
       final List<dynamic> jsonList = jsonDecode(jsonString);
-      _customBooks = jsonList
+      final loadedBooks = jsonList
           .map((json) => TrackedBook.fromJson(json as Map<String, dynamic>))
           .toList();
+
+      bool hadBuiltIns = false;
+      _customBooks = [];
+      for (final book in loadedBooks) {
+        if (book.isBuiltIn) {
+          hadBuiltIns = true;
+          _logger.fine(
+              'Ignoring persisted built-in book during load: ${book.bookId}');
+          continue;
+        }
+        _customBooks.add(book);
+      }
+
+      if (hadBuiltIns) {
+        await _saveCustomBooks();
+        _logger.info('Removed ${loadedBooks.length - _customBooks.length} '
+            'built-in books from persisted custom list');
+      }
 
       _logger.info('Loaded ${_customBooks.length} custom books');
     } catch (e, stackTrace) {
@@ -65,14 +83,20 @@ class CustomBooksService {
   }
 
   /// Get all tracked books (both built-in and custom)
-  List<TrackedBook> getAllTrackedBooks() {
+  Future<List<TrackedBook>> getAllTrackedBooks() async {
     return List.unmodifiable(_customBooks);
   }
 
   /// Add a book to tracking
   Future<void> addBook(TrackedBook book) async {
+    if (book.isBuiltIn) {
+      _logger.fine('Skipping persistence for built-in book: ${book.bookId}');
+      return;
+    }
+
     // Check if already exists
-    final existingIndex = _customBooks.indexWhere((b) => b.bookId == book.bookId);
+    final existingIndex =
+        _customBooks.indexWhere((b) => b.bookId == book.bookId);
 
     if (existingIndex >= 0) {
       // Update existing book

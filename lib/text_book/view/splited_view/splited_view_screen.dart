@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_context_menu/flutter_context_menu.dart';
 import 'package:multi_split_view/multi_split_view.dart';
@@ -193,7 +194,7 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                       minHeight: 36,
                     ),
                     icon: Icon(
-                      Icons.menu_open,
+                      FluentIcons.navigation_24_regular,
                       color: Theme.of(context).colorScheme.onSurface,
                     ),
                     onPressed: _togglePane,

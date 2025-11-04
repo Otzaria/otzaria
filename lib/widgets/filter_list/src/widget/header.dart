@@ -2,6 +2,7 @@ import 'package:otzaria/widgets/filter_list/src/theme/filter_list_theme.dart';
 
 import 'search_field_widget.dart';
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 class Header extends StatelessWidget {
   const Header({
@@ -69,7 +70,7 @@ class Header extends StatelessWidget {
                                 shape: BoxShape.circle,
                               ),
                               child: Icon(
-                                Icons.close,
+                                FluentIcons.dismiss_24_regular,
                                 size: 16,
                                 color: headerTheme.closeIconColor,
                               ),

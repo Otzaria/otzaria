@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/navigation/calendar_cubit.dart';
 import 'package:otzaria/settings/settings_repository.dart';
@@ -114,8 +115,8 @@ class _CalendarSettingsDialogState extends State<_CalendarSettingsDialog> {
                             const SizedBox(width: 8),
                             Icon(
                               _showCitySearch
-                                  ? Icons.arrow_drop_up
-                                  : Icons.arrow_drop_down,
+                                  ? FluentIcons.chevron_up_24_regular
+                                  : FluentIcons.chevron_down_24_regular,
                               size: 20,
                             ),
                           ],
@@ -259,7 +260,7 @@ class _CitySearchWidgetState extends State<_CitySearchWidget> {
               autofocus: true,
               decoration: const InputDecoration(
                 hintText: 'הקלד שם עיר...',
-                prefixIcon: Icon(Icons.search),
+                prefixIcon: Icon(FluentIcons.search_24_regular),
                 border: OutlineInputBorder(),
                 isDense: true,
               ),

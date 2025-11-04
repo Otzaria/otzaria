@@ -1,5 +1,6 @@
 import '../theme/filter_list_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 class SearchFieldWidget<T> extends StatelessWidget {
   final ValueChanged<String> onChanged;
@@ -25,7 +26,7 @@ class SearchFieldWidget<T> extends StatelessWidget {
           style: headerTheme.searchFieldTextStyle,
           decoration: InputDecoration(
             prefixIcon:
-                Icon(Icons.search, color: headerTheme.searchFieldIconColor),
+                Icon(FluentIcons.search_24_regular, color: headerTheme.searchFieldIconColor),
             hintText: headerTheme.searchFieldHintText,
             hintStyle: headerTheme.searchFieldHintTextStyle,
             border: headerTheme.searchFieldInputBorder,

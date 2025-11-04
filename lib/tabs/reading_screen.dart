@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_context_menu/flutter_context_menu.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
@@ -175,12 +176,12 @@ class _ReadingScreenState extends State<ReadingScreen>
                     children: [
                       // קבוצת היסטוריה וסימניות
                       IconButton(
-                        icon: const Icon(Icons.history),
+                        icon: const Icon(FluentIcons.history_24_regular),
                         tooltip: 'הצג היסטוריה',
                         onPressed: () => _showHistoryDialog(context),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.bookmark),
+                        icon: const Icon(FluentIcons.bookmark_24_regular),
                         tooltip: 'הצג סימניות',
                         onPressed: () => _showBookmarksDialog(context),
                       ),
@@ -193,7 +194,7 @@ class _ReadingScreenState extends State<ReadingScreen>
                       ),
                       // קבוצת שולחן עבודה עם אנימציה
                       IconButton(
-                        icon: const Icon(Icons.add_to_queue),
+                        icon: const Icon(FluentIcons.add_square_24_regular),
                         tooltip: 'החלף שולחן עבודה',
                         onPressed: () => _showSaveWorkspaceDialog(context),
                       ),
@@ -236,7 +237,7 @@ class _ReadingScreenState extends State<ReadingScreen>
                               (_kActionButtonsCount * _kActionButtonWidth)),
                     // כפתור מסך מלא - פעיל תמיד
                     IconButton(
-                      icon: const Icon(Icons.fullscreen),
+                      icon: const Icon(FluentIcons.full_screen_maximize_24_regular),
                       tooltip: 'מסך מלא',
                       onPressed: () async {
                         final isFullScreen = await windowManager.isFullScreen();
@@ -247,7 +248,7 @@ class _ReadingScreenState extends State<ReadingScreen>
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4.0),
                       child: IconButton(
-                        icon: const Icon(Icons.settings_outlined),
+                        icon: const Icon(FluentIcons.settings_24_regular),
                         tooltip: 'הגדרות תצוגת הספרים',
                         onPressed: () => showReadingSettingsDialog(context),
                         style: IconButton.styleFrom(
@@ -388,7 +389,7 @@ class _ReadingScreenState extends State<ReadingScreen>
                         children: [
                           const Padding(
                             padding: EdgeInsets.all(8.0),
-                            child: Icon(Icons.picture_as_pdf, size: 16),
+                            child: Icon(FluentIcons.document_pdf_24_regular, size: 16),
                           ),
                           Text(truncate(tab.title, 12)),
                         ],
@@ -412,7 +413,7 @@ class _ReadingScreenState extends State<ReadingScreen>
                         maxHeight: 25,
                       ),
                       onPressed: () => closeTab(tab, context),
-                      icon: const Icon(Icons.close, size: 10),
+                      icon: const Icon(FluentIcons.dismiss_24_regular, size: 10),
                     ),
                   ),
                 ],

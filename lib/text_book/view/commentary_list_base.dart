@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
@@ -121,7 +122,7 @@ class _CommentaryListBaseState extends State<CommentaryListBase> {
                       controller: _searchController,
                       decoration: InputDecoration(
                         hintText: 'חפש בתוך המפרשים המוצגים...',
-                        prefixIcon: const Icon(Icons.search),
+                        prefixIcon: const Icon(FluentIcons.search_24_regular),
                         suffixIcon: _searchQuery.isNotEmpty
                             ? Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -134,7 +135,7 @@ class _CommentaryListBaseState extends State<CommentaryListBase> {
                                     ),
                                     const SizedBox(width: 4),
                                     IconButton(
-                                      icon: const Icon(Icons.keyboard_arrow_up),
+                                      icon: const Icon(FluentIcons.chevron_up_24_regular),
                                       iconSize: 20,
                                       padding: EdgeInsets.zero,
                                       constraints: const BoxConstraints(
@@ -152,7 +153,7 @@ class _CommentaryListBaseState extends State<CommentaryListBase> {
                                     ),
                                     IconButton(
                                       icon:
-                                          const Icon(Icons.keyboard_arrow_down),
+                                          const Icon(FluentIcons.chevron_down_24_regular),
                                       iconSize: 20,
                                       padding: EdgeInsets.zero,
                                       constraints: const BoxConstraints(
@@ -171,7 +172,7 @@ class _CommentaryListBaseState extends State<CommentaryListBase> {
                                     ),
                                   ],
                                   IconButton(
-                                    icon: const Icon(Icons.close),
+                                    icon: const Icon(FluentIcons.dismiss_24_regular),
                                     onPressed: () {
                                       _searchController.clear();
                                       setState(() {
@@ -227,7 +228,7 @@ class _CommentaryListBaseState extends State<CommentaryListBase> {
                           minWidth: 36,
                           minHeight: 36,
                         ),
-                        icon: const Icon(Icons.close),
+                        icon: const Icon(FluentIcons.dismiss_24_regular),
                         onPressed: widget.onClosePane,
                       ),
                     ),

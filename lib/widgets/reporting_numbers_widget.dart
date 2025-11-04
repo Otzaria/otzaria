@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:otzaria/core/scaffold_messenger.dart';
@@ -130,7 +131,7 @@ class ReportingNumbersWidget extends StatelessWidget {
         const SizedBox(width: 8),
         IconButton(
           onPressed: enabled ? () => _copyToClipboard(context, value) : null,
-          icon: const Icon(Icons.copy, size: 18),
+          icon: const Icon(FluentIcons.copy_24_regular, size: 18),
           tooltip: 'העתק',
           visualDensity: VisualDensity.compact,
         ),
@@ -181,7 +182,7 @@ class ReportingNumbersWidget extends StatelessWidget {
             // 4. כפתור ההעתקה
             IconButton(
               onPressed: () => _copyToClipboard(context, _phoneNumber),
-              icon: const Icon(Icons.copy, size: 18),
+              icon: const Icon(FluentIcons.copy_24_regular, size: 18),
               tooltip: 'העתק מספר טלפון',
               visualDensity: VisualDensity.compact,
             ),
@@ -191,7 +192,7 @@ class ReportingNumbersWidget extends StatelessWidget {
               const SizedBox(width: 4),
               IconButton(
                 onPressed: () => _makePhoneCall(context),
-                icon: const Icon(Icons.phone, size: 18),
+                icon: const Icon(FluentIcons.phone_24_regular, size: 18),
                 tooltip: 'התקשר',
                 visualDensity: VisualDensity.compact,
               ),

@@ -3,6 +3,7 @@ import 'dart:isolate';
 import 'dart:math';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/utils/text_manipulation.dart';
@@ -153,7 +154,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
                 await file.writeAsBytes(await pdf);
               }
             },
-            icon: const Icon(Icons.save),
+            icon: const Icon(FluentIcons.save_24_regular),
             tooltip: 'שמירה כקובץ PDF',
           ),
           IconButton(
@@ -166,7 +167,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
                 format: format,
               );
             },
-            icon: const Icon(Icons.print),
+            icon: const Icon(FluentIcons.print_24_regular),
             tooltip: 'הדפסה',
           ),
         ],
@@ -349,7 +350,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
                 //   allowSharing: false,
                 //   actions: [
                 //     PdfPreviewAction(
-                //       icon: const Icon(Icons.save),
+                //       icon: const Icon(FluentIcons.save_24_regular),
                 //       onPressed: _saveAsFile,
                 //     )
                 //   ],

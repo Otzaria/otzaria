@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/tools/measurement_converter/measurement_converter_screen.dart';
 import 'package:otzaria/tools/gematria/gematria_search_screen.dart';
@@ -76,7 +77,7 @@ class _MoreScreenState extends State<MoreScreen> {
             labelType: NavigationRailLabelType.all,
             destinations: const [
               NavigationRailDestination(
-                icon: Icon(Icons.calendar_today),
+                icon: Icon(FluentIcons.calendar_24_regular),
                 label: Text('לוח שנה'),
               ),
               NavigationRailDestination(
@@ -84,15 +85,15 @@ class _MoreScreenState extends State<MoreScreen> {
                 label: Text('זכור ושמור'),
               ),
               NavigationRailDestination(
-                icon: Icon(Icons.straighten),
+                icon: Icon(FluentIcons.ruler_24_regular),
                 label: Text('מדות ושיעורים'),
               ),
               NavigationRailDestination(
-                icon: Icon(Icons.note_alt_outlined),
+                icon: Icon(FluentIcons.note_24_regular),
                 label: Text('הערות אישיות'),
               ),
               NavigationRailDestination(
-                icon: Icon(Icons.calculate),
+                icon: Icon(FluentIcons.calculator_24_regular),
                 label: Text('גימטריות'),
               ),
             ],
@@ -128,7 +129,7 @@ class _MoreScreenState extends State<MoreScreen> {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8.0),
         child: IconButton(
-          icon: const Icon(Icons.settings_outlined),
+          icon: const Icon(FluentIcons.settings_24_regular),
           tooltip: 'הגדרות',
           onPressed: onPressed,
           style: IconButton.styleFrom(

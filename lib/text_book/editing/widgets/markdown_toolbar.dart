@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 /// Toolbar widget providing markdown formatting controls
 class MarkdownToolbar extends StatelessWidget {
@@ -53,12 +54,12 @@ class MarkdownToolbar extends StatelessWidget {
         children: [
           // Text formatting
           _ToolbarButton(
-            icon: Icons.format_bold,
+            icon: FluentIcons.text_bold_24_regular,
             tooltip: 'מודגש (Ctrl+B)',
             onPressed: onBold,
           ),
           _ToolbarButton(
-            icon: Icons.format_italic,
+            icon: FluentIcons.text_italic_24_regular,
             tooltip: 'נטוי (Ctrl+I)',
             onPressed: onItalic,
           ),
@@ -67,21 +68,21 @@ class MarkdownToolbar extends StatelessWidget {
           
           // Headers
           _ToolbarButton(
-            icon: Icons.title,
+            icon: FluentIcons.text_header_1_24_regular,
             tooltip: hasLinksFile ? 'כותרת 1 - מושבת בספר עם לינקים' : 'כותרת 1',
             onPressed: hasLinksFile ? () {} : onHeader1,
             text: 'H1',
             enabled: !hasLinksFile,
           ),
           _ToolbarButton(
-            icon: Icons.title,
+            icon: FluentIcons.text_header_1_24_regular,
             tooltip: hasLinksFile ? 'כותרת 2 - מושבת בספר עם לינקים' : 'כותרת 2',
             onPressed: hasLinksFile ? () {} : onHeader2,
             text: 'H2',
             enabled: !hasLinksFile,
           ),
           _ToolbarButton(
-            icon: Icons.title,
+            icon: FluentIcons.text_header_1_24_regular,
             tooltip: hasLinksFile ? 'כותרת 3 - מושבת בספר עם לינקים' : 'כותרת 3',
             onPressed: hasLinksFile ? () {} : onHeader3,
             text: 'H3',
@@ -92,13 +93,13 @@ class MarkdownToolbar extends StatelessWidget {
           
           // Lists
           _ToolbarButton(
-            icon: Icons.format_list_bulleted,
+            icon: FluentIcons.text_bullet_list_24_regular,
             tooltip: hasLinksFile ? 'רשימה לא ממוספרת - מושבת בספר עם לינקים' : 'רשימה לא ממוספרת',
             onPressed: hasLinksFile ? () {} : onUnorderedList,
             enabled: !hasLinksFile,
           ),
           _ToolbarButton(
-            icon: Icons.format_list_numbered,
+            icon: FluentIcons.text_number_list_ltr_24_regular,
             tooltip: hasLinksFile ? 'רשימה ממוספרת - מושבת בספר עם לינקים' : 'רשימה ממוספרת',
             onPressed: hasLinksFile ? () {} : onOrderedList,
             enabled: !hasLinksFile,
@@ -108,17 +109,17 @@ class MarkdownToolbar extends StatelessWidget {
           
           // Links and code
           _ToolbarButton(
-            icon: Icons.link,
+            icon: FluentIcons.link_24_regular,
             tooltip: 'קישור (Ctrl+K)',
             onPressed: onLink,
           ),
           _ToolbarButton(
-            icon: Icons.code,
+            icon: FluentIcons.code_24_regular,
             tooltip: 'קוד',
             onPressed: onCode,
           ),
           _ToolbarButton(
-            icon: Icons.format_quote,
+            icon: FluentIcons.text_quote_24_regular,
             tooltip: hasLinksFile ? 'ציטוט - מושבת בספר עם לינקים' : 'ציטוט',
             onPressed: hasLinksFile ? () {} : onQuote,
             enabled: !hasLinksFile,
@@ -128,7 +129,7 @@ class MarkdownToolbar extends StatelessWidget {
 
           // Search and navigation
           _ToolbarButton(
-            icon: Icons.search,
+            icon: FluentIcons.search_24_regular,
             tooltip: 'חיפוש (Ctrl+F)',
             onPressed: onSearch,
           ),
@@ -137,12 +138,12 @@ class MarkdownToolbar extends StatelessWidget {
           
           // Undo/Redo
           _ToolbarButton(
-            icon: Icons.undo,
+            icon: FluentIcons.arrow_undo_24_regular,
             tooltip: 'בטל (Ctrl+Z)',
             onPressed: onUndo,
           ),
           _ToolbarButton(
-            icon: Icons.redo,
+            icon: FluentIcons.arrow_redo_24_regular,
             tooltip: 'חזור (Ctrl+Y)',
             onPressed: onRedo,
           ),
@@ -161,7 +162,7 @@ class MarkdownToolbar extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    Icons.warning,
+                    FluentIcons.warning_24_regular,
                     size: 16,
                     color: Colors.orange,
                   ),

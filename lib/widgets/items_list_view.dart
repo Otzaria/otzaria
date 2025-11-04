@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 class ItemsListView extends StatefulWidget {
   final List<dynamic> items;
@@ -78,10 +79,10 @@ class _ItemsListViewState extends State<ItemsListView> {
             focusNode: _searchFocusNode,
             decoration: InputDecoration(
               hintText: widget.hintText,
-              prefixIcon: const Icon(Icons.search),
+              prefixIcon: const Icon(FluentIcons.search_24_regular),
               suffixIcon: _searchQuery.isNotEmpty
                   ? IconButton(
-                      icon: const Icon(Icons.clear),
+                      icon: const Icon(FluentIcons.dismiss_24_regular),
                       onPressed: () {
                         _searchController.clear();
                         setState(() {
@@ -111,7 +112,7 @@ class _ItemsListViewState extends State<ItemsListView> {
                       onTap: () =>
                           widget.onItemTap(context, item, originalIndex),
                       trailing: IconButton(
-                        icon: const Icon(Icons.delete_forever),
+                        icon: const Icon(FluentIcons.delete_24_regular),
                         onPressed: () =>
                             widget.onDelete(context, originalIndex),
                       ),

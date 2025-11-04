@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/models/books.dart';
@@ -88,7 +89,7 @@ class TextFileSearchScreenState extends State<TextFileSearchScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
-                  icon: const Icon(Icons.clear),
+                  icon: const Icon(FluentIcons.dismiss_24_regular),
                   onPressed: () {
                     setState(() {
                       widget.searcher.queryController.clear();
@@ -106,7 +107,7 @@ class TextFileSearchScreenState extends State<TextFileSearchScreen>
               ],
             )
           : IconButton(
-              icon: const Icon(Icons.search),
+              icon: const Icon(FluentIcons.search_24_regular),
               onPressed: () {
                 widget.searcher.search();
               },

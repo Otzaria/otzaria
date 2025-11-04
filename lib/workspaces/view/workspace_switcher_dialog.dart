@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/workspaces/bloc/workspace_event.dart';
@@ -68,7 +69,7 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close),
+                  icon: const Icon(FluentIcons.dismiss_24_regular),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ],
@@ -139,7 +140,7 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Icon(
-                    Icons.add,
+                    FluentIcons.add_24_regular,
                     size: 48,
                     color: Colors.grey,
                   ),
@@ -239,7 +240,7 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
                                   ),
                                 ),
                                 IconButton(
-                                    icon: const Icon(Icons.edit),
+                                    icon: const Icon(FluentIcons.edit_24_regular),
                                     onPressed: () {
                                       setState(() {
                                         editController = TextEditingController(
@@ -265,7 +266,7 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
             top: 4,
             right: 4,
             child: IconButton(
-              icon: const Icon(Icons.close, size: 16),
+              icon: const Icon(FluentIcons.dismiss_24_regular, size: 16),
               onPressed: () {
                 // Remove the workspace
                 if (isActive) {

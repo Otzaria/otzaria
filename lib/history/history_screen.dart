@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
@@ -39,16 +40,16 @@ class HistoryView extends StatelessWidget {
 
   Widget? _getLeadingIcon(Book book, bool isSearch) {
     if (isSearch) {
-      return const Icon(Icons.search);
+      return const Icon(FluentIcons.search_24_regular);
     }
     if (book is PdfBook) {
       if (book.path.toLowerCase().endsWith('.docx')) {
-        return const Icon(Icons.description);
+        return const Icon(FluentIcons.document_text_24_regular);
       }
-      return const Icon(Icons.picture_as_pdf);
+      return const Icon(FluentIcons.document_pdf_24_regular);
     }
     if (book is TextBook) {
-      return const Icon(Icons.article);
+      return const Icon(FluentIcons.document_text_24_regular);
     }
     return null;
   }

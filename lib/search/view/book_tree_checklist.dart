@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/utils/text_manipulation.dart';
 import 'dart:io';
 import 'package:path/path.dart' as path;
@@ -53,8 +54,8 @@ class FileTreeViewScreenState extends State<FileTreeViewScreen> {
             Checkbox(
                 value: widget.checkedItems.contains(directory.path),
                 onChanged: (value) => _onItemChecked(directory, value!)),
-            const Icon(Icons.folder),
-          ], // Icon(Icons.folder,
+            const Icon(FluentIcons.folder_24_regular),
+          ], // Icon(FluentIcons.folder_24_regular,
         ),
       ),
 

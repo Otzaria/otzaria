@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import '../models/phone_report_data.dart';
 import '../widgets/reporting_numbers_widget.dart';
@@ -317,7 +318,7 @@ class _PhoneReportTabState extends State<PhoneReportTab> {
             Row(
               children: [
                 Icon(
-                  Icons.error_outline,
+                  FluentIcons.error_circle_24_regular,
                   color: Theme.of(context).colorScheme.onErrorContainer,
                   size: 20,
                 ),

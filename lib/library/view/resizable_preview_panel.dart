@@ -80,7 +80,7 @@ class _ResizablePreviewPanelState extends State<ResizablePreviewPanel> {
                 child: Container(
                   width: 8,
                   color: _isResizing
-                      ? Theme.of(context).colorScheme.primary.withOpacity(0.3)
+                      ? Theme.of(context).colorScheme.primary.withValues(alpha:0.3)
                       : Colors.transparent,
                 ),
               ),

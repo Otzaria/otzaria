@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/settings/settings_bloc.dart';
@@ -60,7 +61,8 @@ void showReadingSettingsDialog(BuildContext context) {
                                 children: [
                                   Row(
                                     children: [
-                                      const Icon(Icons.format_size),
+                                      const Icon(FluentIcons
+                                          .text_font_size_24_regular),
                                       const SizedBox(width: 12),
                                       Expanded(
                                         child: Text(
@@ -111,7 +113,8 @@ void showReadingSettingsDialog(BuildContext context) {
                                 children: [
                                   Row(
                                     children: [
-                                      const Icon(Icons.font_download_outlined),
+                                      const Icon(
+                                          FluentIcons.text_font_24_regular),
                                       const SizedBox(width: 8),
                                       Expanded(
                                         child: Text(
@@ -199,7 +202,8 @@ void showReadingSettingsDialog(BuildContext context) {
                       return Column(
                         children: [
                           ListTile(
-                            leading: const Icon(Icons.horizontal_distribute),
+                            leading: const Icon(
+                                FluentIcons.text_align_justify_24_regular),
                             title: const Text('רוחב השוליים בצידי הטקסט'),
                             trailing: Text(
                               currentPadding.toStringAsFixed(0),
@@ -396,7 +400,7 @@ void showReadingSettingsDialog(BuildContext context) {
                                 children: [
                                   Row(
                                     children: [
-                                      const Icon(Icons.content_copy),
+                                      const Icon(FluentIcons.copy_24_regular),
                                       const SizedBox(width: 8),
                                       Expanded(
                                         child: Text(
@@ -454,7 +458,8 @@ void showReadingSettingsDialog(BuildContext context) {
                                 children: [
                                   Row(
                                     children: [
-                                      const Icon(Icons.format_align_right),
+                                      const Icon(FluentIcons
+                                          .text_align_right_24_regular),
                                       const SizedBox(width: 8),
                                       Expanded(
                                         child: Text(
@@ -468,7 +473,8 @@ void showReadingSettingsDialog(BuildContext context) {
                                   ),
                                   const SizedBox(height: 8),
                                   DropdownButtonFormField<String>(
-                                    initialValue: settingsState.copyHeaderFormat,
+                                    initialValue:
+                                        settingsState.copyHeaderFormat,
                                     decoration: InputDecoration(
                                       contentPadding:
                                           const EdgeInsets.symmetric(
@@ -564,7 +570,7 @@ void showReadingSettingsDialog(BuildContext context) {
                               children: [
                                 Row(
                                   children: [
-                                    const Icon(Icons.timer_outlined),
+                                    const Icon(FluentIcons.timer_24_regular),
                                     const SizedBox(width: 12),
                                     Expanded(
                                       child: Text(
@@ -608,7 +614,8 @@ void showReadingSettingsDialog(BuildContext context) {
                               children: [
                                 Row(
                                   children: [
-                                    const Icon(Icons.delete_sweep_outlined),
+                                    const Icon(
+                                        FluentIcons.delete_dismiss_24_regular),
                                     const SizedBox(width: 12),
                                     Expanded(
                                       child: Text(
@@ -652,7 +659,7 @@ void showReadingSettingsDialog(BuildContext context) {
                               children: [
                                 Row(
                                   children: [
-                                    const Icon(Icons.storage_outlined),
+                                    const Icon(FluentIcons.database_24_regular),
                                     const SizedBox(width: 12),
                                     Expanded(
                                       child: Text(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/file_sync/file_sync_bloc.dart';
 import 'package:otzaria/file_sync/file_sync_event.dart';
@@ -70,21 +71,21 @@ class _SyncIconButtonState extends State<SyncIconButton>
           case FileSyncStatus.error:
             _controller.reset();
             iconColor = Colors.red;
-            iconData = Icons.sync_problem;
+            iconData = FluentIcons.arrow_sync_24_regular;
           case FileSyncStatus.completed:
             _controller.reset();
             iconColor = state.hasNewSync
                 ? Colors.green
                 : widget.color ?? Theme.of(context).iconTheme.color!;
-            iconData = Icons.check_circle;
+            iconData = FluentIcons.checkmark_circle_24_regular;
           case FileSyncStatus.syncing:
             _controller.repeat();
             iconColor = widget.color ?? Theme.of(context).iconTheme.color!;
-            iconData = Icons.sync;
+            iconData = FluentIcons.arrow_sync_24_regular;
           case FileSyncStatus.initial:
             _controller.reset();
             iconColor = widget.color ?? Theme.of(context).iconTheme.color!;
-            iconData = Icons.sync;
+            iconData = FluentIcons.arrow_sync_24_regular;
         }
 
         return Tooltip(

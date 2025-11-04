@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kosher_dart/kosher_dart.dart';
 import 'calendar_cubit.dart';
@@ -201,11 +202,11 @@ class CalendarWidget extends StatelessWidget {
               children: [
                 // כפתורים עם סמלים בלבד
                 buildViewButton(
-                    CalendarView.month, Icons.calendar_view_month, 'חודש'),
+                    CalendarView.month, FluentIcons.calendar_month_24_regular, 'חודש'),
                 buildViewButton(
-                    CalendarView.week, Icons.calendar_view_week, 'שבוע'),
+                    CalendarView.week, FluentIcons.calendar_week_numbers_24_regular, 'שבוע'),
                 buildViewButton(
-                    CalendarView.day, Icons.calendar_view_day, 'יום'),
+                    CalendarView.day, FluentIcons.calendar_day_24_regular, 'יום'),
 
                 // קו הפרדה קטן
                 Container(
@@ -218,11 +219,11 @@ class CalendarWidget extends StatelessWidget {
                 // מעבר בין תקופות
                 IconButton(
                   onPressed: () => context.read<CalendarCubit>().previous(),
-                  icon: const Icon(Icons.chevron_left),
+                  icon: const Icon(FluentIcons.chevron_left_24_regular),
                 ),
                 IconButton(
                   onPressed: () => context.read<CalendarCubit>().next(),
-                  icon: const Icon(Icons.chevron_right),
+                  icon: const Icon(FluentIcons.chevron_right_24_regular),
                 ),
               ],
             ),
@@ -772,7 +773,7 @@ class CalendarWidget extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.schedule),
+                const Icon(FluentIcons.calendar_clock_24_regular),
                 const SizedBox(width: 8),
                 const Text(
                   'זמני היום',
@@ -1056,7 +1057,7 @@ class CalendarWidget extends StatelessWidget {
               openDafYomiBook(
                   context, bavliTractate, ' ${_formatDafNumber(bavliDaf)}.');
             },
-            icon: const Icon(Icons.book),
+            icon: const Icon(FluentIcons.book_24_regular),
             label: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1079,7 +1080,7 @@ class CalendarWidget extends StatelessWidget {
         Expanded(
           child: ElevatedButton.icon(
             onPressed: null,
-            icon: const Icon(Icons.menu_book),
+            icon: const Icon(FluentIcons.book_24_regular),
             label: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1759,7 +1760,7 @@ class CalendarWidget extends StatelessWidget {
         children: [
           Text(state.selectedCity),
           const SizedBox(width: 8),
-          const Icon(Icons.arrow_drop_down),
+          const Icon(FluentIcons.chevron_down_24_regular),
         ],
       ),
     );
@@ -1775,7 +1776,7 @@ class CalendarWidget extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.event),
+                const Icon(FluentIcons.calendar_ltr_24_regular),
                 const SizedBox(width: 8),
                 const Text(
                   'אירועים',
@@ -1784,7 +1785,7 @@ class CalendarWidget extends StatelessWidget {
                 const Spacer(),
                 ElevatedButton.icon(
                   onPressed: () => _showCreateEventDialog(context, state),
-                  icon: const Icon(Icons.add, size: 16),
+                  icon: const Icon(FluentIcons.add_24_regular, size: 16),
                   label: const Text('צור אירוע'),
                   style: ElevatedButton.styleFrom(
                     padding:
@@ -1800,13 +1801,13 @@ class CalendarWidget extends StatelessWidget {
                   context.read<CalendarCubit>().setEventSearchQuery(query),
               decoration: InputDecoration(
                 hintText: 'חפש אירועים...',
-                prefixIcon: const Icon(Icons.search),
+                prefixIcon: const Icon(FluentIcons.search_24_regular),
                 suffixIcon: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (state.eventSearchQuery.isNotEmpty)
                       IconButton(
-                        icon: const Icon(Icons.clear),
+                        icon: const Icon(FluentIcons.dismiss_24_regular),
                         tooltip: 'נקה חיפוש',
                         onPressed: () {
                           context.read<CalendarCubit>().setEventSearchQuery('');
@@ -1814,8 +1815,8 @@ class CalendarWidget extends StatelessWidget {
                       ),
                     IconButton(
                       icon: Icon(state.searchInDescriptions
-                          ? Icons.description_outlined
-                          : Icons.title),
+                          ? FluentIcons.document_text_24_regular
+                          : FluentIcons.text_header_1_24_regular),
                       tooltip: state.searchInDescriptions
                           ? 'חפש רק בכותרת'
                           : 'חפש גם בתיאור',
@@ -1911,7 +1912,7 @@ class CalendarWidget extends StatelessWidget {
                       Row(
                         children: [
                           Icon(
-                            Icons.repeat,
+                            FluentIcons.arrow_repeat_all_24_regular,
                             size: 12,
                             color: Theme.of(context).colorScheme.primary,
                           ),
@@ -1936,13 +1937,13 @@ class CalendarWidget extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.edit, size: 20),
+                    icon: const Icon(FluentIcons.edit_24_regular, size: 20),
                     tooltip: 'ערוך אירוע',
                     onPressed: () => _showCreateEventDialog(context, state,
                         existingEvent: event),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.delete, size: 20),
+                    icon: const Icon(FluentIcons.delete_24_regular, size: 20),
                     tooltip: 'מחק אירוע',
                     onPressed: () {
                       showDialog(
@@ -2144,7 +2145,7 @@ class _HoverableDayCellState extends State<_HoverableDayCell> {
                   message: 'צור אירוע',
                   verticalOffset: -40.0,
                   child: IconButton.filled(
-                    icon: const Icon(Icons.add, size: 16),
+                    icon: const Icon(FluentIcons.add_24_regular, size: 16),
                     onPressed: widget.onAdd,
                     style: IconButton.styleFrom(
                       minimumSize: const Size(24, 24),

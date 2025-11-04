@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 class SearchPaneBase extends StatefulWidget {
   const SearchPaneBase({
@@ -84,7 +85,7 @@ class _SearchPaneBaseState extends State<SearchPaneBase> {
                                     widget.focusNode.requestFocus();
                                   }
                                 : null,
-                            icon: const Icon(Icons.clear),
+                            icon: const Icon(FluentIcons.dismiss_24_regular),
                           ),
                         ),
                         textInputAction: TextInputAction.search,

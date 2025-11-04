@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/models/books.dart';
@@ -359,13 +360,13 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
             vertical: 14,
           ),
           prefixIcon: IconButton(
-            icon: const Icon(Icons.search),
+            icon: const Icon(FluentIcons.search_24_regular),
             onPressed: _performSearch,
             color: Theme.of(context).colorScheme.primary,
           ),
           suffixIcon: _searchController.text.isNotEmpty
               ? IconButton(
-                  icon: const Icon(Icons.clear),
+                  icon: const Icon(FluentIcons.dismiss_24_regular),
                   onPressed: () {
                     _searchController.clear();
                     setState(() {
@@ -393,7 +394,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.search_off,
+              FluentIcons.search_24_regular,
               size: 64,
               color: Theme.of(
                 context,
@@ -420,7 +421,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.calculate_outlined,
+              FluentIcons.calculator_24_regular,
               size: 64,
               color: Theme.of(
                 context,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/workspaces/bloc/workspace_state.dart';
@@ -126,7 +127,7 @@ class _WorkspaceIconButtonState extends State<WorkspaceIconButton>
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.add_to_queue),
+                        const Icon(FluentIcons.add_square_24_regular),
                         if (_isHovered && _scaleAnimation.value > 0.3)
                           Expanded(
                             child: Padding(

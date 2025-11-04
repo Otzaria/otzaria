@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/find_ref/find_ref_bloc.dart';
 import 'package:otzaria/find_ref/find_ref_event.dart';
@@ -38,7 +39,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
         ),
         child: Row(
           children: [
-            Icon(Icons.warning_amber, color: Colors.orange[700]),
+            Icon(FluentIcons.warning_24_regular, color: Colors.orange[700]),
             const SizedBox(width: 8),
             const Expanded(
               child: Text(
@@ -49,7 +50,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
             ),
             IconButton(
                 onPressed: () => setState(() => showIndexWarning = false),
-                icon: const Icon(Icons.close))
+                icon: const Icon(FluentIcons.dismiss_24_regular))
           ],
         ),
       );
@@ -80,7 +81,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
                 hintText:
                     'הקלד מקור מדוייק, לדוגמה: בראשית פרק א או שוע אוח יב   ',
                 suffixIcon: IconButton(
-                  icon: const Icon(Icons.clear),
+                  icon: const Icon(FluentIcons.dismiss_24_regular),
                   onPressed: () {
                     focusRepository.findRefSearchController.clear();
                     BlocProvider.of<FindRefBloc>(context)
@@ -120,7 +121,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
                       itemBuilder: (context, index) {
                         return ListTile(
                             leading: state.refs[index].isPdf
-                                ? const Icon(Icons.picture_as_pdf)
+                                ? const Icon(FluentIcons.document_pdf_24_regular)
                                 : null,
                             title: Text(state.refs[index].reference),
                             onTap: () {

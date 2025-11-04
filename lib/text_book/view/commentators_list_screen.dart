@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
@@ -192,7 +193,7 @@ class CommentatorsListViewState extends State<CommentatorsListView> {
                           searchController.clear();
                           _update(context, state);
                         },
-                        icon: const Icon(Icons.close)),
+                        icon: const Icon(FluentIcons.dismiss_24_regular)),
                   ),
                   onChanged: (_) => _update(context, state),
                 ),

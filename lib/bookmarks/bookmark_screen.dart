@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_state.dart';
@@ -51,7 +52,7 @@ class BookmarkView extends StatelessWidget {
           notFoundText: 'לא נמצאו תוצאות',
           clearAllText: 'מחק את כל הסימניות',
           leadingIconBuilder: (item) =>
-              item.book is PdfBook ? const Icon(Icons.picture_as_pdf) : null,
+              item.book is PdfBook ? const Icon(FluentIcons.document_pdf_24_regular) : null,
         );
       },
     );

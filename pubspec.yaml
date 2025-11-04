@@ -10,7 +10,7 @@ msix_config:
   publisher_display_name: sivan22
   identity_name: sivan22.Otzaria
   description: "ספריית ספרים יהודיים עם אפשרויות חיפוש חכם"
-  msix_version: 0.9.66.0
+  msix_version: 0.9.68.0
   logo_path: assets/icon/icon.png
   publisher: CN=sivan22, O=sivan22, C=IL
   certificate_path: sivan22.pfx
@@ -36,7 +36,7 @@ msix_config:
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 0.9.66
+version: 0.9.68
 
 environment:
   sdk: ">=3.2.6 <4.0.0"
@@ -69,7 +69,7 @@ dependencies:
   search_highlight_text: ^1.0.0+2
   fuzzywuzzy: ^1.1.6
   flutter_svg: ^2.0.10+1  
-  font_awesome_flutter: ^10.6.0 
+  fluentui_system_icons: ^1.1.273
   file_picker: ^10.2.1
   flutter_launcher_icons: "^0.13.1"
   provider: ^6.1.5
@@ -165,7 +165,8 @@ flutter:
     - assets/
     - assets/logos/
     - assets/ca/
-    - assets/icons/
+    - assets/icon/logo_nedarim.png
+    - assets/icon/memorial_candle.svg
     - assets/icon/שמור וזכור.png
     - assets/icon/shamor_zachor_with_v.png
     - assets/icon/icon.png

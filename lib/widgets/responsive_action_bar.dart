@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 /// רכיב שמציג כפתורי פעולה עם יכולת הסתרה במסכים צרים
 /// כשחלק מהכפתורים נסתרים, מוצג כפתור "..." שפותח תפריט
@@ -178,7 +179,7 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
       key: ValueKey(uniqueKey),
       builder: (context) {
         return PopupMenuButton<ActionButtonData>(
-          icon: const Icon(Icons.more_horiz),
+          icon: const Icon(FluentIcons.more_horizontal_24_regular),
           tooltip: 'עוד פעולות',
           // הוספת offset כדי למקם את התפריט מתחת לכפתור
           offset: const Offset(0, 40.0),
