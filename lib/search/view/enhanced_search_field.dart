@@ -7,13 +7,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
-import 'package:otzaria/search/bloc/search_state.dart';
 import 'package:otzaria/search/models/search_terms_model.dart';
 import 'package:otzaria/search/view/tantivy_full_text_search.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
+import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/search/utils/regex_patterns.dart';
 import 'package:otzaria/search/view/search_options_dropdown.dart';
 
@@ -487,16 +487,29 @@ class _AlternativeFieldState extends State<_AlternativeField> {
 }
 
 class EnhancedSearchField extends StatefulWidget {
-  final TantivyFullTextSearch widget;
+  final dynamic widget;
 
   const EnhancedSearchField({
     super.key,
     required this.widget,
   });
 
+  SearchingTab get tab {
+    // Support both TantivyFullTextSearch and _SearchDialogWrapper
+    if (widget is TantivyFullTextSearch) {
+      return (widget as TantivyFullTextSearch).tab;
+    } else {
+      // Assume it's _SearchDialogWrapper or similar with a tab property
+      return widget.tab as SearchingTab;
+    }
+  }
+
   @override
   State<EnhancedSearchField> createState() => _EnhancedSearchFieldState();
 }
+
+// GlobalKey לגישה ל-State מבחוץ
+final GlobalKey<_EnhancedSearchFieldState> enhancedSearchFieldKey = GlobalKey<_EnhancedSearchFieldState>();
 
 class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
   SearchQuery _searchQuery = SearchQuery();
@@ -517,8 +530,7 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
   static const double _kSearchFieldMinWidth = 300;
   static const double _kControlHeight = 48;
 
-  static const double _kPlusYOffset = 10;
-  static const double _kPlusRadius = 10;
+  static const double _kPlusYOffset = 10; // משמש לחישוב מיקום מילים
   static const double _kSpacingYOffset = 53;
 
   String _spaceKey(int left, int right) => '$left-$right';
@@ -526,9 +538,9 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
   @override
   void initState() {
     super.initState();
-    widget.widget.tab.queryController.addListener(_onTextChanged);
+    widget.tab.queryController.addListener(_onTextChanged);
     // מאזין לשינויי מיקום הסמן
-    widget.widget.tab.searchFieldFocusNode
+    widget.tab.searchFieldFocusNode
         .addListener(_onCursorPositionChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _calculateWordPositions();
@@ -546,35 +558,35 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
   void dispose() {
     debugPrint('🗑️ EnhancedSearchField disposing');
     _clearAllOverlays();
-    widget.widget.tab.queryController.removeListener(_onTextChanged);
-    widget.widget.tab.searchFieldFocusNode
+    widget.tab.queryController.removeListener(_onTextChanged);
+    widget.tab.searchFieldFocusNode
         .removeListener(_onCursorPositionChanged);
     _disposeControllers(); // במצב dispose אנחנו רוצים למחוק הכל
     // ניקוי אפשרויות החיפוש כשסוגרים את המסך
-    widget.widget.tab.searchOptions.clear();
+    widget.tab.searchOptions.clear();
     super.dispose();
   }
 
   // שמירת נתונים לפני ניקוי
   void _saveDataToTab() {
     // שמירת מילים חילופיות
-    widget.widget.tab.alternativeWords.clear();
+    widget.tab.alternativeWords.clear();
     for (int termIndex in _alternativeControllers.keys) {
       final alternatives = _alternativeControllers[termIndex]!
           .map((controller) => controller.text.trim())
           .where((text) => text.isNotEmpty)
           .toList();
       if (alternatives.isNotEmpty) {
-        widget.widget.tab.alternativeWords[termIndex] = alternatives;
+        widget.tab.alternativeWords[termIndex] = alternatives;
       }
     }
 
     // שמירת מרווחים
-    widget.widget.tab.spacingValues.clear();
+    widget.tab.spacingValues.clear();
     for (String key in _spacingControllers.keys) {
       final spacingText = _spacingControllers[key]!.text.trim();
       if (spacingText.isNotEmpty) {
-        widget.widget.tab.spacingValues[key] = spacingText;
+        widget.tab.spacingValues[key] = spacingText;
       }
     }
   }
@@ -585,13 +597,13 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
     _disposeControllers();
 
     // עדכון ה-searchQuery מהטקסט הנוכחי
-    final text = widget.widget.tab.queryController.text;
+    final text = widget.tab.queryController.text;
     if (text.isNotEmpty) {
       _searchQuery = SearchQuery.fromString(text);
     }
 
     // שחזור מילים חילופיות
-    for (final entry in widget.widget.tab.alternativeWords.entries) {
+    for (final entry in widget.tab.alternativeWords.entries) {
       final termIndex = entry.key;
       final alternatives = entry.value;
 
@@ -603,7 +615,7 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
     }
 
     // שחזור מרווחים
-    for (final entry in widget.widget.tab.spacingValues.entries) {
+    for (final entry in widget.tab.spacingValues.entries) {
       final key = entry.key;
       final value = entry.value;
 
@@ -646,7 +658,7 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
   void _cleanupIrrelevantData(Set<String> newWords) {
     // ניקוי אפשרויות חיפוש למילים שלא קיימות יותר
     final searchOptionsKeysToRemove = <String>[];
-    for (final key in widget.widget.tab.searchOptions.keys) {
+    for (final key in widget.tab.searchOptions.keys) {
       final parts = key.split('_');
       if (parts.isNotEmpty) {
         final word = parts[0];
@@ -657,7 +669,7 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
     }
 
     for (final key in searchOptionsKeysToRemove) {
-      widget.widget.tab.searchOptions.remove(key);
+      widget.tab.searchOptions.remove(key);
     }
   }
 
@@ -665,7 +677,7 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
   void _remapSearchOptions(Map<int, int> wordMapping, List<String> newWords) {
     // ניצור עותק של האפשרויות הישנות ונתייחס אליו כאל Map מהסוג הנכון
     final oldSearchOptions =
-        Map<String, Map<String, bool>>.from(widget.widget.tab.searchOptions);
+        Map<String, Map<String, bool>>.from(widget.tab.searchOptions);
     final newSearchOptions = <String, Map<String, bool>>{};
 
     // נעבור על כל האפשרויות הישנות
@@ -700,8 +712,8 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
     }
 
     // לבסוף, נחליף את מפת האפשרויות הישנה במפה החדשה והמעודכנת שבנינו
-    widget.widget.tab.searchOptions.clear();
-    widget.widget.tab.searchOptions.addAll(newSearchOptions);
+    widget.tab.searchOptions.clear();
+    widget.tab.searchOptions.addAll(newSearchOptions);
   }
 
   void _clearAllOverlays(
@@ -851,15 +863,15 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
     // בודקים אם המגירה הייתה פתוחה לפני השינוי
     final bool drawerWasOpen = _searchOptionsOverlay != null;
 
-    final text = widget.widget.tab.queryController.text;
+    final text = widget.tab.queryController.text;
 
     // אם שדה החיפוש התרוקן, נקה הכל ונסגור את המגירה
     if (text.trim().isEmpty) {
       _clearAllOverlays();
       _disposeControllers();
-      widget.widget.tab.searchOptions.clear();
-      widget.widget.tab.alternativeWords.clear();
-      widget.widget.tab.spacingValues.clear();
+      widget.tab.searchOptions.clear();
+      widget.tab.alternativeWords.clear();
+      widget.tab.spacingValues.clear();
       if (drawerWasOpen) {
         _hideSearchOptionsOverlay();
         _notifyDropdownClosed();
@@ -881,7 +893,7 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
     debugPrint('   Old words: $oldWords');
     debugPrint('   New words: $newWords');
     debugPrint(
-        '   Current search options: ${widget.widget.tab.searchOptions.keys.toList()}');
+        '   Current search options: ${widget.tab.searchOptions.keys.toList()}');
 
     if (isMinorChange) {
       // שינוי קטן - שמור על כל הסימונים והבועות
@@ -955,7 +967,7 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
 
     // שמירת אפשרויות החיפוש הקיימות ומילים ישנות לפני יצירת SearchQuery חדש
     final oldSearchOptions =
-        Map<String, dynamic>.from(widget.widget.tab.searchOptions);
+        Map<String, dynamic>.from(widget.tab.searchOptions);
     final oldWords = _searchQuery.terms.map((t) => t.word).toList();
 
     setState(() {
@@ -967,7 +979,7 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
     _updateSearchOptionsForMinorChange(oldSearchOptions, oldWords, text);
 
     debugPrint(
-        '✅ After minor change - search options: ${widget.widget.tab.searchOptions.keys.toList()}');
+        '✅ After minor change - search options: ${widget.tab.searchOptions.keys.toList()}');
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _calculateWordPositions();
@@ -996,7 +1008,7 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
     // אם מספר המילים זהה, פשוט נעדכן את המפתחות לפי המילים החדשות
     if (newWords.length == oldWords.length) {
       debugPrint('   Same number of words - updating keys');
-      widget.widget.tab.searchOptions.clear();
+      widget.tab.searchOptions.clear();
 
       for (final entry in oldSearchOptions.entries) {
         final key = entry.key;
@@ -1013,7 +1025,7 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
             // עדכון המפתח עם המילה החדשה
             final newWord = newWords[oldWordIndex];
             final newKey = '${newWord}_$option';
-            widget.widget.tab.searchOptions[newKey] = value;
+            widget.tab.searchOptions[newKey] = value;
             debugPrint('🔄 Updated search option: $key -> $newKey');
           }
         }
@@ -1022,7 +1034,7 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
       // אם מספר המילים השתנה, נשמור רק אפשרויות של מילים שעדיין קיימות
       debugPrint(
           '   Different number of words - preserving existing words only');
-      widget.widget.tab.searchOptions.clear();
+      widget.tab.searchOptions.clear();
 
       for (final entry in oldSearchOptions.entries) {
         final key = entry.key;
@@ -1034,7 +1046,7 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
 
           // אם המילה עדיין קיימת ברשימה החדשה, נשמור את האפשרות
           if (newWords.contains(word)) {
-            widget.widget.tab.searchOptions[key] = value;
+            widget.tab.searchOptions[key] = value;
             debugPrint('🔄 Preserved search option: $key');
           } else {
             debugPrint('❌ Removed search option for deleted word: $key');
@@ -1291,7 +1303,7 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
     // עדכון המגירה אם היא פתוחה
     if (_searchOptionsOverlay != null) {
       // שמירת מיקום הסמן לפני העדכון
-      final currentSelection = widget.widget.tab.queryController.selection;
+      final currentSelection = widget.tab.queryController.selection;
 
       _hideSearchOptionsOverlay();
       _showSearchOptionsOverlay();
@@ -1301,7 +1313,7 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
         if (mounted) {
           debugPrint(
               'DEBUG: Restoring cursor position in update: ${currentSelection.baseOffset}');
-          widget.widget.tab.queryController.selection = currentSelection;
+          widget.tab.queryController.selection = currentSelection;
         }
       });
     }
@@ -1332,7 +1344,7 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
     _wordLeftEdges.clear();
     _wordRightEdges.clear();
 
-    final text = widget.widget.tab.queryController.text;
+    final text = widget.tab.queryController.text;
     if (text.isEmpty) {
       setState(() {});
       return;
@@ -1383,6 +1395,11 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
     }
 
     setState(() {});
+  }
+
+  // פונקציה ציבורית להוספת מילה חילופית - נגישה מבחוץ
+  void addAlternativeWord(int termIndex) {
+    _addAlternative(termIndex);
   }
 
   void _addAlternative(int termIndex) {
@@ -1490,18 +1507,7 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
     overlayState.insert(entry);
   }
 
-  Widget _buildPlusButton(int termIndex, Offset position) {
-    final bool isActive =
-        _alternativeControllers[termIndex]?.isNotEmpty ?? false;
-    return Positioned(
-      left: position.dx - _kPlusRadius,
-      top: position.dy - _kPlusRadius,
-      child: _PlusButton(
-        active: isActive,
-        onTap: () => _addAlternative(termIndex),
-      ),
-    );
-  }
+  // _buildPlusButton הוסר - עכשיו משתמשים בכפתור בדיאלוג
 
   void _showSpacingOverlay(int leftIndex, int rightIndex,
       {bool requestFocus = false}) {
@@ -1565,38 +1571,12 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
     }
   }
 
-  List<Widget> _buildSpacingButtons() {
-    if (_wordPositions.length < 2) return [];
-
-    List<Widget> buttons = [];
-    for (int i = 0; i < _wordPositions.length - 1; i++) {
-      final spacingX = (_wordRightEdges[i] + _wordLeftEdges[i + 1]) / 2;
-      final spacingY = _wordPositions[i].dy - _kSpacingYOffset;
-
-      final shouldShow = _hoveredWordIndex == i || _hoveredWordIndex == i + 1;
-      if (shouldShow) {
-        buttons.add(
-          Positioned(
-            left: spacingX - 10,
-            top: spacingY,
-            child: MouseRegion(
-              onEnter: (_) => setState(() => _hoveredWordIndex = i),
-              onExit: (_) => setState(() => _hoveredWordIndex = null),
-              child: _SpacingButton(
-                onTap: () => _showSpacingOverlay(i, i + 1, requestFocus: true),
-              ),
-            ),
-          ),
-        );
-      }
-    }
-    return buttons;
-  }
+  // _buildSpacingButtons הוסר - עכשיו משתמשים בבקר בדיאלוג
 
   void _showSearchOptionsOverlay() {
     if (_searchOptionsOverlay != null) return;
 
-    final currentSelection = widget.widget.tab.queryController.selection;
+    final currentSelection = widget.tab.queryController.selection;
     final overlayState = Overlay.of(context);
     final RenderBox? textFieldBox =
         _textFieldKey.currentContext?.findRenderObject() as RenderBox?;
@@ -1679,7 +1659,7 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
     // החזרת מיקום הסמן אחרי יצירת ה-overlay
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        widget.widget.tab.queryController.selection = currentSelection;
+        widget.tab.queryController.selection = currentSelection;
       }
     });
 
@@ -1691,9 +1671,9 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
 
   // המילה הנוכחית (לפי מיקום הסמן)
   Map<String, dynamic>? _getCurrentWordInfo() {
-    final text = widget.widget.tab.queryController.text;
+    final text = widget.tab.queryController.text;
     final cursorPosition =
-        widget.widget.tab.queryController.selection.baseOffset;
+        widget.tab.queryController.selection.baseOffset;
 
     if (text.isEmpty || cursorPosition < 0) return null;
 
@@ -1743,7 +1723,7 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
       isVisible: true,
       currentWord: wordInfo['word'],
       wordIndex: wordInfo['index'],
-      wordOptions: widget.widget.tab.searchOptions,
+      wordOptions: widget.tab.searchOptions,
       onOptionsChanged: _onSearchOptionsChanged,
       key: ValueKey(
           '${wordInfo['word']}_${wordInfo['index']}'), // מפתח ייחודי לעדכון
@@ -1759,20 +1739,8 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
     // עדכון מצב הכפתור כשהמגירה נסגרת מבחוץ
     setState(() {
       // זה יגרום לעדכון של הכפתור ב-build
-      // המצב יתעדכן דרך _isSearchOptionsVisible
     });
   }
-
-  void _toggleSearchOptions(bool isExpanded) {
-    if (isExpanded) {
-      // פתיחת המגירה תמיד, ללא תלות בטקסט או מיקום הסמן
-      _showSearchOptionsOverlay();
-    } else {
-      _hideSearchOptionsOverlay();
-    }
-  }
-
-  bool get _isSearchOptionsVisible => _searchOptionsOverlay != null;
 
   void _onSearchOptionsChanged() {
     // עדכון התצוגה כשמשתמש משנה אפשרויות
@@ -1781,38 +1749,38 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
     });
 
     // עדכון ה-notifier כדי שהתצוגה של מילות החיפוש תתעדכן
-    widget.widget.tab.searchOptionsChanged.value++;
+    widget.tab.searchOptionsChanged.value++;
   }
 
   void _updateAlternativeWordsInTab() {
     // עדכון המילים החילופיות ב-tab
-    widget.widget.tab.alternativeWords.clear();
+    widget.tab.alternativeWords.clear();
     for (int termIndex in _alternativeControllers.keys) {
       final alternatives = _alternativeControllers[termIndex]!
           .map((controller) => controller.text.trim())
           .where((text) => text.isNotEmpty)
           .toList();
       if (alternatives.isNotEmpty) {
-        widget.widget.tab.alternativeWords[termIndex] = alternatives;
+        widget.tab.alternativeWords[termIndex] = alternatives;
       }
     }
     // עדכון התצוגה
-    widget.widget.tab.alternativeWordsChanged.value++;
-    widget.widget.tab.searchOptionsChanged.value++;
+    widget.tab.alternativeWordsChanged.value++;
+    widget.tab.searchOptionsChanged.value++;
   }
 
   void _updateSpacingInTab() {
     // עדכון המרווחים ב-tab
-    widget.widget.tab.spacingValues.clear();
+    widget.tab.spacingValues.clear();
     for (String key in _spacingControllers.keys) {
       final spacingText = _spacingControllers[key]!.text.trim();
       if (spacingText.isNotEmpty) {
-        widget.widget.tab.spacingValues[key] = spacingText;
+        widget.tab.spacingValues[key] = spacingText;
       }
     }
     // עדכון התצוגה
-    widget.widget.tab.searchOptionsChanged.value++;
-    widget.widget.tab.spacingValuesChanged.value++;
+    widget.tab.searchOptionsChanged.value++;
+    widget.tab.spacingValuesChanged.value++;
   }
 
   @override
@@ -1900,8 +1868,8 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
                   },
                   child: TextField(
                     key: _textFieldKey,
-                    focusNode: widget.widget.tab.searchFieldFocusNode,
-                    controller: widget.widget.tab.queryController,
+                    focusNode: widget.tab.searchFieldFocusNode,
+                    controller: widget.tab.queryController,
                     onTap: () {
                       // עדכון המגירה כשלוחצים בשדה הטקסט
                       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1921,12 +1889,12 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
                     onSubmitted: (e) {
                       context
                           .read<HistoryBloc>()
-                          .add(AddHistory(widget.widget.tab));
+                          .add(AddHistory(widget.tab));
                       context.read<SearchBloc>().add(UpdateSearchQuery(e.trim(),
-                          customSpacing: widget.widget.tab.spacingValues,
-                          alternativeWords: widget.widget.tab.alternativeWords,
-                          searchOptions: widget.widget.tab.searchOptions));
-                      widget.widget.tab.isLeftPaneOpen.value = false;
+                          customSpacing: widget.tab.spacingValues,
+                          alternativeWords: widget.tab.alternativeWords,
+                          searchOptions: widget.tab.searchOptions));
+                      widget.tab.isLeftPaneOpen.value = false;
                     },
                     decoration: InputDecoration(
                       border: const OutlineInputBorder(),
@@ -1936,43 +1904,24 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
                         onPressed: () {
                           context
                               .read<HistoryBloc>()
-                              .add(AddHistory(widget.widget.tab));
+                              .add(AddHistory(widget.tab));
                           context.read<SearchBloc>().add(UpdateSearchQuery(
-                              widget.widget.tab.queryController.text.trim(),
-                              customSpacing: widget.widget.tab.spacingValues,
+                              widget.tab.queryController.text.trim(),
+                              customSpacing: widget.tab.spacingValues,
                               alternativeWords:
-                                  widget.widget.tab.alternativeWords,
-                              searchOptions: widget.widget.tab.searchOptions));
+                                  widget.tab.alternativeWords,
+                              searchOptions: widget.tab.searchOptions));
                         },
                         icon: const Icon(FluentIcons.search_24_regular),
                       ),
-                      suffixIcon: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          BlocBuilder<SearchBloc, SearchState>(
-                            builder: (context, state) {
-                              if (!state.isAdvancedSearchEnabled) {
-                                return const SizedBox.shrink();
-                              }
-                              return IconButton(
-                                onPressed: () => _toggleSearchOptions(
-                                    !_isSearchOptionsVisible),
-                                icon: const Icon(FluentIcons.chevron_down_24_regular),
-                                focusNode: FocusNode(
-                                  canRequestFocus: false,
-                                  skipTraversal: true,
-                                ),
-                              );
-                            },
-                          ),
-                          IconButton(
-                            icon: const Icon(FluentIcons.dismiss_24_regular),
-                            onPressed: () {
+                      suffixIcon: IconButton(
+                        icon: const Icon(FluentIcons.dismiss_24_regular),
+                        onPressed: () {
                               // ניקוי מלא של כל הנתונים
-                              widget.widget.tab.queryController.clear();
-                              widget.widget.tab.searchOptions.clear();
-                              widget.widget.tab.alternativeWords.clear();
-                              widget.widget.tab.spacingValues.clear();
+                              widget.tab.queryController.clear();
+                              widget.tab.searchOptions.clear();
+                              widget.tab.alternativeWords.clear();
+                              widget.tab.spacingValues.clear();
                               _clearAllOverlays();
                               _disposeControllers();
                               setState(() {
@@ -1988,9 +1937,7 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
                               context
                                   .read<SearchBloc>()
                                   .add(UpdateFacetCounts({}));
-                            },
-                          ),
-                        ],
+                        },
                       ),
                     ),
                   ),
@@ -1998,34 +1945,11 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
               ),
             ),
           ),
-          // אזורי ריחוף על המילים - רק בחלק העליון
-          ..._wordPositions.asMap().entries.map((entry) {
-            final wordIndex = entry.key;
-            final position = entry.value;
-            return Positioned(
-              left: position.dx - 30,
-              top: position.dy - 47, // יותר למעלה כדי לא לחסום את שדה החיפוש
-              child: MouseRegion(
-                onEnter: (_) => setState(() => _hoveredWordIndex = wordIndex),
-                onExit: (_) => setState(() => _hoveredWordIndex = null),
-                child: IgnorePointer(
-                  child: Container(
-                    width: 60,
-                    height: 20, // גובה קטן יותר
-                    color: Colors.transparent,
-                  ),
-                ),
-              ),
-            );
-          }),
-          // כפתורי ה+ (רק בחיפוש מתקדם)
-          ..._wordPositions.asMap().entries.map((entry) {
-            return _buildPlusButton(entry.key, entry.value);
-          }),
-          // כפתורי המרווח (רק בחיפוש מתקדם)
-          ..._buildSpacingButtons(),
+          // אזורי ריחוף הוסרו - לא נחוצים יותר
+          // כפתורי ה+ וכפתורי המרווח הוסרו - עכשיו משתמשים בבקרים בדיאלוג
         ],
       ),
     );
   }
 }
+

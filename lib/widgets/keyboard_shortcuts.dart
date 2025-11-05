@@ -11,6 +11,7 @@ import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/find_ref/find_ref_dialog.dart';
+import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:provider/provider.dart';
 
 class KeyboardShortcuts extends StatelessWidget {
@@ -150,10 +151,11 @@ class KeyboardShortcuts extends StatelessWidget {
         },
         shortcuts[Settings.getValue<String>('key-shortcut-open-new-search') ??
             'ctrl+q']!: () {
-          context
-              .read<NavigationBloc>()
-              .add(const NavigateToScreen(Screen.search));
-          context.read<TabsBloc>().add(AddTab(SearchingTab('חיפוש', null)));
+          // פתיחת דיאלוג החיפוש - תמיד עם טאב חדש
+          showDialog(
+            context: context,
+            builder: (context) => const SearchDialog(existingTab: null),
+          );
         },
         shortcuts['ctrl+shift+tab']!: () {
           context.read<TabsBloc>().add(NavigateToPreviousTab());
