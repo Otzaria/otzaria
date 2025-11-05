@@ -291,12 +291,18 @@ jobs:
       - name: Clone repository
         uses: actions/checkout@v4
 
-      - name: Install create-dmg
+      - name: Install create-dmg (optional)
         run: |
-          # Install Node.js first if needed
-          brew install node
-          # Install create-dmg globally
-          npm install -g create-dmg
+          # Try to install create-dmg, but don't fail if it doesn't work
+          echo "Attempting to install create-dmg for better DMG creation..."
+          # Check if npm is available
+          if command -v npm >/dev/null 2>&1; then
+            npm install -g create-dmg || echo "create-dmg installation failed, will use hdiutil as fallback"
+          else
+            # Try installing node first
+            brew install node || echo "Node installation failed"
+            npm install -g create-dmg || echo "create-dmg installation failed, will use hdiutil as fallback"
+          fi
 
       - name: Download and setup Flutter ARM64 SDK
         run: |
@@ -325,27 +331,44 @@ jobs:
       
       - name: Create DMG for ARM64
         run: |
-          # Find the app name
-          APP_NAME=$(find build/macos/Build/Products/Release -name "*.app" -type d -exec basename {} \; | head -n1)
-          APP_PATH="build/macos/Build/Products/Release/$APP_NAME"
+          # Find the app - using more robust method
+          APP_PATH=$(ls -d build/macos/Build/Products/Release/*.app | head -n1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: Could not find .app bundle"
+            exit 1
+          fi
+          APP_NAME=$(basename "$APP_PATH")
+          echo "Found app: $APP_NAME at $APP_PATH"
           
-          # Create DMG using create-dmg
-          create-dmg \
-            --volname "Otzaria ARM64" \
-            --window-pos 200 120 \
-            --window-size 800 400 \
-            --icon-size 100 \
-            --icon "$APP_NAME" 200 190 \
-            --hide-extension "$APP_NAME" \
-            --app-drop-link 600 185 \
-            --no-internet-enable \
-            "otzaria-macos-arm64.dmg" \
-            "$APP_PATH"
+          # Try create-dmg first
+          if command -v create-dmg >/dev/null 2>&1; then
+            echo "Using create-dmg to create DMG..."
+            create-dmg \
+              --volname "Otzaria ARM64" \
+              --window-pos 200 120 \
+              --window-size 800 400 \
+              --icon-size 100 \
+              --icon "$APP_NAME" 200 190 \
+              --hide-extension "$APP_NAME" \
+              --app-drop-link 600 185 \
+              --no-internet-enable \
+              "otzaria-macos-arm64.dmg" \
+              "$APP_PATH" || true
+          fi
           
-          # Fallback to hdiutil if create-dmg fails
+          # Use hdiutil if DMG doesn't exist
           if [ ! -f "otzaria-macos-arm64.dmg" ]; then
-            echo "create-dmg failed, using hdiutil as fallback"
+            echo "Using hdiutil to create DMG..."
             hdiutil create -volname "Otzaria ARM64" -srcfolder "$APP_PATH" -ov -format UDZO "otzaria-macos-arm64.dmg"
+          fi
+          
+          # Verify DMG was created
+          if [ -f "otzaria-macos-arm64.dmg" ]; then
+            echo "Successfully created otzaria-macos-arm64.dmg"
+            ls -lh otzaria-macos-arm64.dmg
+          else
+            echo "Error: Failed to create DMG"
+            exit 1
           fi
       
       - name: Clean build directory for x64 build
@@ -382,27 +405,44 @@ jobs:
       
       - name: Create DMG for x64
         run: |
-          # Find the app name
-          APP_NAME=$(find build/macos/Build/Products/Release -name "*.app" -type d -exec basename {} \; | head -n1)
-          APP_PATH="build/macos/Build/Products/Release/$APP_NAME"
+          # Find the app - using more robust method
+          APP_PATH=$(ls -d build/macos/Build/Products/Release/*.app | head -n1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: Could not find .app bundle"
+            exit 1
+          fi
+          APP_NAME=$(basename "$APP_PATH")
+          echo "Found app: $APP_NAME at $APP_PATH"
           
-          # Create DMG using create-dmg
-          create-dmg \
-            --volname "Otzaria x64" \
-            --window-pos 200 120 \
-            --window-size 800 400 \
-            --icon-size 100 \
-            --icon "$APP_NAME" 200 190 \
-            --hide-extension "$APP_NAME" \
-            --app-drop-link 600 185 \
-            --no-internet-enable \
-            "otzaria-macos-x64.dmg" \
-            "$APP_PATH"
+          # Try create-dmg first
+          if command -v create-dmg >/dev/null 2>&1; then
+            echo "Using create-dmg to create DMG..."
+            create-dmg \
+              --volname "Otzaria x64" \
+              --window-pos 200 120 \
+              --window-size 800 400 \
+              --icon-size 100 \
+              --icon "$APP_NAME" 200 190 \
+              --hide-extension "$APP_NAME" \
+              --app-drop-link 600 185 \
+              --no-internet-enable \
+              "otzaria-macos-x64.dmg" \
+              "$APP_PATH" || true
+          fi
           
-          # Fallback to hdiutil if create-dmg fails
+          # Use hdiutil if DMG doesn't exist
           if [ ! -f "otzaria-macos-x64.dmg" ]; then
-            echo "create-dmg failed, using hdiutil as fallback"
+            echo "Using hdiutil to create DMG..."
             hdiutil create -volname "Otzaria x64" -srcfolder "$APP_PATH" -ov -format UDZO "otzaria-macos-x64.dmg"
+          fi
+          
+          # Verify DMG was created
+          if [ -f "otzaria-macos-x64.dmg" ]; then
+            echo "Successfully created otzaria-macos-x64.dmg"
+            ls -lh otzaria-macos-x64.dmg
+          else
+            echo "Error: Failed to create DMG"
+            exit 1
           fi
      
       - name: Upload macOS ARM64 DMG
