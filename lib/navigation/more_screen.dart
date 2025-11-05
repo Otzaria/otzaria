@@ -111,7 +111,7 @@ class _MoreScreenState extends State<MoreScreen> with TickerProviderStateMixin {
                     label: Text('שמור וזכור'),
                   ),
                   NavigationRailDestination(
-                    icon: Icon(FluentIcons.ruler_24_regular),
+                    icon: Icon(FluentIcons.gauge_24_regular),
                     label: Text('מדות ושיעורים'),
                   ),
                   NavigationRailDestination(
