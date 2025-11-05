@@ -291,21 +291,90 @@ jobs:
       - name: Clone repository
         uses: actions/checkout@v4
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-      
-      - name: Build Flutter macOS app
+      - name: Download and setup Flutter ARM64 SDK
         run: |
-          flutter build macos
+          # Download Flutter ARM64 SDK
+          curl -o flutter-arm64.zip https://storage.googleapis.com/flutter_infra_release/releases/stable/macos/flutter_macos_arm64_3.35.7-stable.zip
+          
+          # Extract to a separate directory
+          unzip -q flutter-arm64.zip -d ~/flutter-arm64
+          
+          # Set Flutter ARM64 path
+          export PATH="$HOME/flutter-arm64/flutter/bin:$PATH"
+          
+          # Verify we're using ARM64 Flutter
+          which flutter
+          flutter --version
+          
+          # Configure Flutter
+          flutter config --enable-macos-desktop
+          flutter pub get
+      
+      - name: Build Flutter macOS app for ARM64
+        run: |
+          # Use the ARM64 Flutter to build
+          export PATH="$HOME/flutter-arm64/flutter/bin:$PATH"
+          flutter build macos --release
+      
+      - name: Package ARM64 build
+        run: |
+          mkdir -p macos-arm64
+          cp -R build/macos/Build/Products/Release/*.app macos-arm64/
+          cd macos-arm64
+          zip -r ../otzaria-macos-arm64.zip *.app
+          cd ..
+      
+      - name: Clean build directory for x64 build
+        run: |
+          # Clean with ARM64 Flutter first
+          export PATH="$HOME/flutter-arm64/flutter/bin:$PATH"
+          flutter clean
+          rm -rf build
+      
+      - name: Download and setup Flutter x64 SDK
+        run: |
+          # Download Flutter x64 SDK
+          curl -o flutter-x64.zip https://storage.googleapis.com/flutter_infra_release/releases/stable/macos/flutter_macos_3.35.7-stable.zip
+          
+          # Extract to a separate directory
+          unzip -q flutter-x64.zip -d ~/flutter-x64
+          
+          # Set Flutter x64 path
+          export PATH="$HOME/flutter-x64/flutter/bin:$PATH"
+          
+          # Verify we're using x64 Flutter
+          which flutter
+          flutter --version
+          
+          # Configure Flutter
+          flutter config --enable-macos-desktop
+          flutter pub get
+      
+      - name: Build Flutter macOS app for x64
+        run: |
+          # Use the x64 Flutter to build
+          export PATH="$HOME/flutter-x64/flutter/bin:$PATH"
+          flutter build macos --release
+      
+      - name: Package x64 build
+        run: |
+          mkdir -p macos-x64
+          cp -R build/macos/Build/Products/Release/*.app macos-x64/
+          cd macos-x64
+          zip -r ../otzaria-macos-x64.zip *.app
+          cd ..
      
-      - name: Upload macos build
+      - name: Upload macOS ARM64 build
         uses: actions/upload-artifact@v4
         with:
-          name: otzaria-macos.app
-          path: build/macos/Build/Products/Release
+          name: otzaria-macos-arm64.app
+          path: otzaria-macos-arm64.zip
+
+      - name: Upload macOS x64 build
+        uses: actions/upload-artifact@v4
+        with:
+          name: otzaria-macos-x64.app
+          path: otzaria-macos-x64.zip
 
   create_release:
     if: github.event_name != 'release'
@@ -393,11 +462,14 @@ jobs:
             cp artifacts/otzaria-android.apk/*.apk release-files/ || true
           fi
           
-          # macOS app 
-          if [ -d "artifacts/otzaria-macos.app" ]; then
-          cd artifacts/otzaria-macos.app
-          zip -r ../../release-files/otzaria-macos.zip *
-          cd ../..
+          # macOS ARM64 app 
+          if [ -d "artifacts/otzaria-macos-arm64.app" ]; then
+            cp artifacts/otzaria-macos-arm64.app/*.zip release-files/otzaria-macos-arm64.zip || true
+          fi
+
+          # macOS x64 app 
+          if [ -d "artifacts/otzaria-macos-x64.app" ]; then
+            cp artifacts/otzaria-macos-x64.app/*.zip release-files/otzaria-macos-x64.zip || true
           fi
           
           # List files for debugging
@@ -425,7 +497,8 @@ jobs:
             - **Linux (Fedora/RHEL)**: Download the `.rpm` package and install with `sudo dnf localinstall <filename>.rpm`
             - **Linux (Generic)**: Download the `.zip` file and extract
             - **Android**: Install the `.apk` file
-            - **macOS**: Download and extract the `.zip` file
+            - **macOS (Apple Silicon M1/M2/M3)**: Download the `arm64.zip` file and extract
+            - **macOS (Intel)**: Download the `x64.zip` file and extract
             
             ${{ github.ref_name == 'dev' && '⚠️ **This is a development build** - Use at your own risk!' || '' }}
         env:
@@ -496,11 +569,14 @@ jobs:
             cp artifacts/otzaria-android.apk/*.apk release-files/ || true
           fi
           
-          # macOS app 
-          if [ -d "artifacts/otzaria-macos.app" ]; then
-          cd artifacts/otzaria-macos.app
-          zip -r ../../release-files/otzaria-macos.zip *
-          cd ../..
+          # macOS ARM64 app 
+          if [ -d "artifacts/otzaria-macos-arm64.app" ]; then
+            cp artifacts/otzaria-macos-arm64.app/*.zip release-files/otzaria-macos-arm64.zip || true
+          fi
+
+          # macOS x64 app 
+          if [ -d "artifacts/otzaria-macos-x64.app" ]; then
+            cp artifacts/otzaria-macos-x64.app/*.zip release-files/otzaria-macos-x64.zip || true
           fi
           
           # List files for debugging
@@ -538,7 +614,8 @@ jobs:
             - **Linux (Fedora/RHEL)**: Download the `.rpm` package and install with `sudo dnf localinstall <filename>.rpm`
             - **Linux (Generic)**: Download the `.zip` file and extract
             - **Android**: Install the `.apk` file
-            - **macOS**: Download and extract the `.zip` file
+            - **macOS (Apple Silicon M1/M2/M3)**: Download the `arm64.zip` file and extract
+            - **macOS (Intel)**: Download the `x64.zip` file and extract
             
             ⚠️ **This is a preview build for testing purposes** - Use at your own risk!
         env:
