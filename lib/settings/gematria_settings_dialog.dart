@@ -1,9 +1,12 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 
 /// פונקציה גלובלית להצגת דיאלוג הגדרות גימטריה
 /// ניתן לקרוא לה מכל מקום באפליקציה
-void showGematriaSettingsDialog(BuildContext context) {
+Future<void> showGematriaSettingsDialog(BuildContext context) async {
+  debugPrint('📋 showGematriaSettingsDialog called');
+  
   int maxResults = Settings.getValue<int>('key-gematria-max-results') ?? 100;
   bool filterDuplicates =
       Settings.getValue<bool>('key-gematria-filter-duplicates') ?? false;
@@ -17,7 +20,7 @@ void showGematriaSettingsDialog(BuildContext context) {
   bool useWithKolel =
       Settings.getValue<bool>('key-gematria-use-with-kolel') ?? false;
 
-  showDialog(
+  await showDialog(
     context: context,
     builder: (context) => StatefulBuilder(
       builder: (context, setDialogState) => AlertDialog(
@@ -151,11 +154,16 @@ void showGematriaSettingsDialog(BuildContext context) {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () {
+              debugPrint('📋 Close button pressed');
+              Navigator.of(context).pop();
+            },
             child: const Text('סגור'),
           ),
         ],
       ),
     ),
   );
+  
+  debugPrint('📋 showGematriaSettingsDialog completed');
 }

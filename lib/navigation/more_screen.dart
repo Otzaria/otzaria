@@ -130,7 +130,7 @@ class _MoreScreenState extends State<MoreScreen> with TickerProviderStateMixin {
                   scrollDirection: orientation == Orientation.landscape
                       ? Axis.vertical
                       : Axis.horizontal,
-                  physics: const AlwaysScrollableScrollPhysics(),
+                  physics: const NeverScrollableScrollPhysics(),
                   controller: _pageController,
                   onPageChanged: (index) {
                     setState(() {
