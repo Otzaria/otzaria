@@ -9,12 +9,11 @@ import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/settings/settings_bloc.dart';
+import 'package:otzaria/settings/settings_state.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
-import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
-import 'package:otzaria/tabs/bloc/tabs_event.dart';
-import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/empty_library/empty_library_screen.dart';
 import 'package:otzaria/find_ref/find_ref_dialog.dart';
+import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/library/view/library_browser.dart';
 import 'package:otzaria/tabs/reading_screen.dart';
 import 'package:otzaria/settings/settings_screen.dart';
@@ -41,6 +40,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
   // rest of the application UI available.
   List<Widget> _pages = [];
 
+  bool _hasCheckedAutoIndex = false;
+
   @override
   void initState() {
     super.initState();
@@ -51,7 +52,14 @@ class MainWindowScreenState extends State<MainWindowScreen>
     pageController = PageController(
       initialPage: initialPage,
     );
-    // Auto start indexing
+  }
+
+  void _checkAndStartIndexing(BuildContext context) {
+    // Only check once, after settings are loaded
+    if (_hasCheckedAutoIndex) return;
+    _hasCheckedAutoIndex = true;
+
+    // Check if auto-update is enabled
     if (context.read<SettingsBloc>().state.autoUpdateIndex) {
       DataRepository.instance.library.then((library) {
         if (!mounted || !context.mounted) return;
@@ -179,10 +187,28 @@ class MainWindowScreenState extends State<MainWindowScreen>
 
   @override
   Widget build(BuildContext context) {
-    return BlocListener<NavigationBloc, NavigationState>(
-      listenWhen: (previous, current) =>
-          previous.currentScreen != current.currentScreen,
-      listener: _handleNavigationChange,
+    return MultiBlocListener(
+      listeners: [
+        BlocListener<NavigationBloc, NavigationState>(
+          listenWhen: (previous, current) =>
+              previous.currentScreen != current.currentScreen,
+          listener: _handleNavigationChange,
+        ),
+        BlocListener<SettingsBloc, SettingsState>(
+          listenWhen: (previous, current) {
+            // Trigger when settings are loaded for the first time (not initial state anymore)
+            // or when autoUpdateIndex changes
+            final isInitialLoad = previous == SettingsState.initial() && 
+                                  current != SettingsState.initial();
+            final hasChanged = previous.autoUpdateIndex != current.autoUpdateIndex;
+            return isInitialLoad || hasChanged;
+          },
+          listener: (context, state) {
+            // When settings are loaded for the first time, check if we should start indexing
+            _checkAndStartIndexing(context);
+          },
+        ),
+      ],
       child: BlocBuilder<NavigationBloc, NavigationState>(
         builder: (context, state) {
           // Build the pages list here so we can inject the EmptyLibraryScreen
@@ -342,21 +368,11 @@ class MainWindowScreenState extends State<MainWindowScreen>
   }
 
   void _handleSearchTabOpen(BuildContext context) {
-    final tabsBloc = context.read<TabsBloc>();
-    final navigationBloc = context.read<NavigationBloc>();
-    if (tabsBloc.state.tabs.every((tab) => tab.runtimeType != SearchingTab) ||
-        (navigationBloc.state.currentScreen == Screen.search &&
-            tabsBloc.state.tabs[tabsBloc.state.currentTabIndex].runtimeType ==
-                SearchingTab)) {
-      tabsBloc.add(AddTab(SearchingTab("חיפוש", "")));
-    }
-    // if sesrch tab exists but not focused, move to it
-    else if (tabsBloc.state.tabs
-        .any((tab) => tab.runtimeType == SearchingTab)) {
-      tabsBloc.add(SetCurrentTab(tabsBloc.state.tabs
-          .indexWhere((tab) => tab.runtimeType == SearchingTab)));
-    }
-    navigationBloc.add(const NavigateToScreen(Screen.search));
+    // פתיחת דיאלוג החיפוש - תמיד עם טאב חדש
+    showDialog(
+      context: context,
+      builder: (context) => const SearchDialog(existingTab: null),
+    );
   }
 
   void _handleFindRefOpen(BuildContext context) {

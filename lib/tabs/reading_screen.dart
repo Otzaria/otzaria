@@ -366,9 +366,7 @@ class _ReadingScreenState extends State<ReadingScreen>
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 10, 20, 15),
               child: Text(
-                tab is SearchingTab
-                    ? '${tab.title}:  ${tab.queryController.text}'
-                    : tab.title,
+                tab.title,
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -391,10 +389,9 @@ class _ReadingScreenState extends State<ReadingScreen>
                     ValueListenableBuilder(
                       valueListenable: tab.queryController,
                       builder: (context, value, child) => Tooltip(
-                        message: '${tab.title}:  ${tab.queryController.text}',
+                        message: tab.title,
                         child: Text(
-                          truncate(
-                              '${tab.title}:  ${tab.queryController.text}', 12),
+                          truncate(tab.title, 12),
                         ),
                       ),
                     )

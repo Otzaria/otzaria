@@ -12,10 +12,7 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 
 // Constants
-const double _kTreePadding = 15.0;
-const double _kTreeLevelIndent = 3.0;
 const double _kMinQueryLength = 2;
-const double _kBackgroundOpacity = 0.1;
 
 /// A reusable divider widget that creates a line with a consistent height,
 /// color, and margin to match other dividers in the UI.
@@ -131,23 +128,55 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
       builder: (context, state) {
         final isSelected = state.currentFacets.contains(facet);
         return InkWell(
+          onTap: () => HardwareKeyboard.instance.isControlPressed
+              ? _handleFacetToggle(context, facet)
+              : _setFacet(context, facet),
           onDoubleTap: () => _handleFacetToggle(context, facet),
-          child: ListTile(
-            contentPadding: EdgeInsets.only(
-              right: (_kTreePadding * 2) + (level * _kTreeLevelIndent),
+          onLongPress: () => _handleFacetToggle(context, facet),
+          child: Container(
+            padding: EdgeInsets.only(
+              right: 16.0 + (level * 24.0) + 32.0, // הזחה נוספת לספרים
+              left: 16.0,
+              top: 10.0,
+              bottom: 10.0,
             ),
-            tileColor: isSelected
-                ? Theme.of(context)
-                    .colorScheme
-                    .surfaceTint
-                    .withValues(alpha: _kBackgroundOpacity)
-                : null,
-            title: Row(
-              mainAxisSize: MainAxisSize.min,
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? Theme.of(context)
+                      .colorScheme
+                      .primaryContainer
+                      .withValues(alpha: 0.3)
+                  : null,
+              border: Border(
+                bottom: BorderSide(
+                  color: Theme.of(context).dividerColor,
+                  width: 0.5,
+                ),
+              ),
+            ),
+            child: Row(
               children: [
+                Icon(
+                  FluentIcons.book_24_regular,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  size: 18,
+                ),
+                const SizedBox(width: 12),
                 Expanded(
-                    child:
-                        Text("${book.title} ${count == -1 ? '' : '($count)'}")),
+                  child: Text(
+                    book.title,
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                ),
+                // מספר התוצאות
+                if (count != -1)
+                  Text(
+                    '($count)',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                 if (count == -1)
                   const SizedBox(
                     width: 12,
@@ -156,10 +185,6 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
                   ),
               ],
             ),
-            onTap: () => HardwareKeyboard.instance.isControlPressed
-                ? _handleFacetToggle(context, facet)
-                : _setFacet(context, facet),
-            onLongPress: () => _handleFacetToggle(context, facet),
           ),
         );
       },
@@ -167,6 +192,16 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
   }
 
   Widget _buildBooksList(List<Book> books) {
+    // אם אין ספרים, הצג הודעה
+    if (books.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Text('לא נמצאו ספרים'),
+        ),
+      );
+    }
+
     return BlocBuilder<SearchBloc, SearchState>(
       builder: (context, state) {
         // יצירת רשימת כל ה-facets בבת אחת
@@ -207,7 +242,6 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
     return BlocBuilder<SearchBloc, SearchState>(
       builder: (context, state) {
         final isSelected = state.currentFacets.contains(category.path);
-        final primaryColor = Theme.of(context).colorScheme.primary;
         final isExpanded = _expansionState[category.path] ?? level == 0;
 
         void toggle() {
@@ -218,87 +252,96 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
 
         return Column(
           children: [
-            // ─────────── שורת-הכותרת ───────────
-            Container(
-              color: isSelected
-                  ? Theme.of(context)
-                      .colorScheme
-                      .surfaceTint
-                      .withValues(alpha: _kBackgroundOpacity)
-                  : null,
-              child: Row(
-                textDirection:
-                    TextDirection.rtl, // RTL: הטקסט מימין, המספר משמאל
-                children: [
-                  // אזור-החץ – רוחב ~1 ס"מ
-                  SizedBox(
-                    width: 40,
-                    height: 48,
-                    child: InkWell(
+            // שורת הקטגוריה - סגנון ספרייה
+            InkWell(
+              onTap: () {
+                // Ctrl+לחיצה = toggle, לחיצה רגילה = set
+                if (HardwareKeyboard.instance.isControlPressed) {
+                  _handleFacetToggle(context, category.path);
+                } else {
+                  _setFacet(context, category.path);
+                }
+              },
+              onLongPress: () => _handleFacetToggle(context, category.path),
+              child: Container(
+                padding: EdgeInsets.only(
+                  right: 16.0 + (level * 24.0),
+                  left: 16.0,
+                  top: 12.0,
+                  bottom: 12.0,
+                ),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? Theme.of(context)
+                          .colorScheme
+                          .primaryContainer
+                          .withValues(alpha: 0.3)
+                      : null,
+                  border: Border(
+                    bottom: BorderSide(
+                      color: Theme.of(context).dividerColor,
+                      width: 0.5,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      isExpanded
+                          ? FluentIcons.folder_open_24_regular
+                          : FluentIcons.folder_24_regular,
+                      color: Theme.of(context).colorScheme.primary,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        category.title,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                    // מספר התוצאות
+                    if (count != -1)
+                      Text(
+                        '($count)',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    if (count == -1)
+                      const SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: CircularProgressIndicator(strokeWidth: 1.5),
+                      ),
+                    const SizedBox(width: 8),
+                    // כפתור החץ - מרחיב/מכווץ בלבד
+                    InkWell(
                       onTap: toggle,
-                      child: Icon(
-                        isExpanded
-                            ? FluentIcons.chevron_down_24_regular // חץ מטה כשהשורה פתוחה
-                            : FluentIcons.chevron_right_24_regular,
-                        color: primaryColor,
-                      ),
-                    ),
-                  ),
-
-                  // פס-הפרדה אפור דק
-                  Container(width: 1, height: 32, color: Colors.grey.shade300),
-
-                  // השורה עצמה
-                  Expanded(
-                    child: InkWell(
-                      onTap: () => HardwareKeyboard.instance.isControlPressed
-                          ? _handleFacetToggle(context, category.path)
-                          : _setFacet(context, category.path),
-                      onDoubleTap: () =>
-                          _handleFacetToggle(context, category.path),
-                      onLongPress: () =>
-                          _handleFacetToggle(context, category.path),
+                      borderRadius: BorderRadius.circular(4),
                       child: Padding(
-                        padding: EdgeInsets.only(
-                          right: _kTreePadding + (level * _kTreeLevelIndent),
-                          top: 8,
-                          bottom: 8,
-                        ),
-                        child: Row(
-                          textDirection: TextDirection.rtl,
-                          children: [
-                            // כותרת הקטגוריה
-                            Expanded(child: Text(category.title)),
-                            // המספר – בקצה השמאלי
-                            Padding(
-                              padding: const EdgeInsets.only(left: 8.0),
-                              child: Text(count == -1 ? '' : '($count)'),
-                            ),
-                            if (count == -1)
-                              const SizedBox(
-                                width: 12,
-                                height: 12,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 1.5),
-                              ),
-                          ],
+                        padding: const EdgeInsets.all(4.0),
+                        child: Icon(
+                          isExpanded
+                              ? FluentIcons.chevron_up_24_regular
+                              : FluentIcons.chevron_down_24_regular,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
 
-            // ─────────── ילדים ───────────
+            // ילדים
             if (isExpanded)
-              Padding(
-                padding: EdgeInsets.only(
-                    right: _kTreePadding +
-                        (level * _kTreeLevelIndent)), // הזחה פנימה
-                child:
-                    Column(children: _buildCategoryChildren(category, level)),
-              ),
+              Column(children: _buildCategoryChildren(category, level)),
           ],
         );
       },
@@ -403,6 +446,20 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
     return children;
   }
 
+  List<Book> _getAllBooksFromLibrary(Category category) {
+    final List<Book> allBooks = [];
+    
+    void collectBooks(Category cat) {
+      allBooks.addAll(cat.books);
+      for (final subCat in cat.subCategories) {
+        collectBooks(subCat);
+      }
+    }
+    
+    collectBooks(category);
+    return allBooks;
+  }
+
   Widget _buildFacetTree() {
     return BlocBuilder<LibraryBloc, LibraryState>(
       builder: (context, libraryState) {
@@ -414,17 +471,27 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
           return Center(child: Text('Error: ${libraryState.error}'));
         }
 
+        // בדיקה אם יש סינון ספרים - מחוץ ל-BlocBuilder
         if (_filterQuery.text.length >= _kMinQueryLength) {
-          return _buildBooksList(
-              context.read<SearchBloc>().state.filteredBooks ?? []);
-        }
-
-        if (libraryState.library == null) {
-          return const Center(child: Text('No library data available'));
+          if (libraryState.library != null) {
+            // סינון ידנית מהספרייה
+            final allBooks = _getAllBooksFromLibrary(libraryState.library!);
+            final filtered = allBooks
+                .where((book) => book.title
+                    .toLowerCase()
+                    .contains(_filterQuery.text.toLowerCase()))
+                .toList();
+            return _buildBooksList(filtered);
+          }
         }
 
         return BlocBuilder<SearchBloc, SearchState>(
           builder: (context, searchState) {
+
+            if (libraryState.library == null) {
+              return const Center(child: Text('No library data available'));
+            }
+
             final rootCategory = libraryState.library!;
             final countFuture =
                 widget.tab.countForFacetCached(rootCategory.path);
