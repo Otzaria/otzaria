@@ -342,13 +342,13 @@ class _MySettingsScreenState extends State<MySettingsScreen>
                             icon: FluentIcons.calendar_24_regular,
                             onTap: () => showCalendarSettingsDialog(context),
                           ),
-                          // הגדרות זכור ושמור - מוסתר כרגע
+                          // הגדרות שמור וזכור - מוסתר כרגע
                           // ignore: dead_code
                           if (false)
                             // ignore: dead_code
                             _buildSettingsCard(
                               context: context,
-                              title: 'הגדרות זכור ושמור',
+                              title: 'הגדרות שמור וזכור',
                               icon: FluentIcons.book_24_regular,
                               onTap: () {
                                 // יוסף בעתיד
@@ -420,7 +420,7 @@ class _MySettingsScreenState extends State<MySettingsScreen>
                           ),
                           SwitchSettingsTile(
                             settingKey: 'key-backup-shamor-zachor',
-                            title: 'זכור ושמור',
+                            title: 'שמור וזכור',
                             subtitle: 'ספרים ומעקב לימוד',
                             leading: const Icon(FluentIcons.book_24_regular),
                             defaultValue: true,

@@ -191,7 +191,7 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         final newTitle = _getTitle(index);
-        final fullTitle = 'זכור ושמור - $newTitle';
+        final fullTitle = 'שמור וזכור - $newTitle';
 
         // Find the ShamorZachorWidget ancestor
         final ancestorWidget =

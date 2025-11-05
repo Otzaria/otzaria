@@ -17,6 +17,7 @@ import 'package:otzaria/file_sync/file_sync_state.dart';
 import 'package:otzaria/daf_yomi/daf_yomi.dart';
 import 'package:otzaria/file_sync/file_sync_widget.dart';
 import 'package:otzaria/widgets/filter_list/src/filter_list_dialog.dart';
+import 'package:otzaria/navigation/main_window_screen.dart';
 import 'package:otzaria/widgets/filter_list/src/theme/filter_list_theme.dart';
 import 'package:otzaria/library/view/grid_items.dart';
 import 'package:otzaria/library/view/otzar_book_dialog.dart';
@@ -126,6 +127,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                           openDafYomiBook(context, tractate, ' $daf.');
                         },
                         onCalendarTap: () {
+                          // Reset to calendar BEFORE navigation using GlobalKey
+                          (moreScreenKey.currentState as dynamic)?.resetToCalendar();
+                          // Then navigate
                           context.read<NavigationBloc>().add(
                                 const NavigateToScreen(Screen.more),
                               );
