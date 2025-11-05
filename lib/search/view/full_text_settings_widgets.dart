@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_spinbox/flutter_spinbox.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
@@ -11,10 +12,7 @@ import 'package:search_engine/search_engine.dart';
 import 'package:toggle_switch/toggle_switch.dart';
 
 class SearchModeToggle extends StatelessWidget {
-  const SearchModeToggle({
-    super.key,
-    required this.tab,
-  });
+  const SearchModeToggle({super.key, required this.tab});
 
   final SearchingTab tab;
 
@@ -62,6 +60,12 @@ class SearchModeToggle extends StatelessWidget {
                   newMode = SearchMode.advanced;
               }
               context.read<SearchBloc>().add(SetSearchMode(newMode));
+              final modeString = newMode == SearchMode.advanced
+                  ? 'advanced'
+                  : newMode == SearchMode.fuzzy
+                  ? 'fuzzy'
+                  : 'exact';
+              Settings.setValue<String>('key-last-search-mode', modeString);
             },
           ),
         );
@@ -71,10 +75,7 @@ class SearchModeToggle extends StatelessWidget {
 }
 
 class FuzzyDistance extends StatefulWidget {
-  const FuzzyDistance({
-    super.key,
-    required this.tab,
-  });
+  const FuzzyDistance({super.key, required this.tab});
 
   final SearchingTab tab;
 
@@ -133,9 +134,9 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
             max: 30,
             value: state.distance.toDouble(),
             onChanged: isEnabled
-                ? (value) => context
-                    .read<SearchBloc>()
-                    .add(UpdateDistance(value.toInt()))
+                ? (value) => context.read<SearchBloc>().add(
+                    UpdateDistance(value.toInt()),
+                  )
                 : null,
           ),
         );
@@ -145,10 +146,7 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
 }
 
 class NumOfResults extends StatelessWidget {
-  const NumOfResults({
-    super.key,
-    required this.tab,
-  });
+  const NumOfResults({super.key, required this.tab});
 
   final SearchingTab tab;
 
@@ -163,15 +161,17 @@ class NumOfResults extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
             child: SpinBox(
               value: state.numResults.toDouble(),
-              onChanged: (value) => context
-                  .read<SearchBloc>()
-                  .add(UpdateNumResults(value.toInt())),
+              onChanged: (value) => context.read<SearchBloc>().add(
+                UpdateNumResults(value.toInt()),
+              ),
               min: 10,
               max: 10000,
               decoration: const InputDecoration(
                 labelText: 'מספר תוצאות',
-                contentPadding:
-                    EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12.0,
+                  vertical: 8.0,
+                ),
               ),
             ),
           ),
@@ -182,10 +182,7 @@ class NumOfResults extends StatelessWidget {
 }
 
 class SearchTermsDisplay extends StatefulWidget {
-  const SearchTermsDisplay({
-    super.key,
-    required this.tab,
-  });
+  const SearchTermsDisplay({super.key, required this.tab});
 
   final SearchingTab tab;
 
@@ -279,10 +276,7 @@ class _SearchTermsDisplayState extends State<SearchTermsDisplay> {
     };
 
     // אפשרויות שמופיעות אחרי המילה (סיומות)
-    const Set<String> suffixOptions = {
-      'סיומות',
-      'סיומות דקדוקיות',
-    };
+    const Set<String> suffixOptions = {'סיומות', 'סיומות דקדוקיות'};
 
     for (int i = 0; i < words.length; i++) {
       final word = words[i];
@@ -290,7 +284,8 @@ class _SearchTermsDisplayState extends State<SearchTermsDisplay> {
 
       // בדיקה אם יש אפשרויות למילה הזו
       final wordOptions = widget.tab.searchOptions[wordKey];
-      final selectedOptions = wordOptions?.entries
+      final selectedOptions =
+          wordOptions?.entries
               .where((entry) => entry.value)
               .map((entry) => entry.key)
               .toList() ??
@@ -442,8 +437,9 @@ class _SearchTermsDisplayState extends State<SearchTermsDisplay> {
     _scrollController.dispose();
     widget.tab.queryController.removeListener(_onTextChanged);
     widget.tab.searchOptionsChanged.removeListener(_onSearchOptionsChanged);
-    widget.tab.alternativeWordsChanged
-        .removeListener(_onAlternativeWordsChanged);
+    widget.tab.alternativeWordsChanged.removeListener(
+      _onAlternativeWordsChanged,
+    );
     super.dispose();
   }
 
@@ -483,8 +479,10 @@ class _SearchTermsDisplayState extends State<SearchTermsDisplay> {
 
         return LayoutBuilder(
           builder: (context, constraints) {
-            final double formattedTextWidth =
-                _calculateFormattedTextWidth(displayText, context);
+            final double formattedTextWidth = _calculateFormattedTextWidth(
+              displayText,
+              context,
+            );
 
             // תצוגה פשוטה ללא מסגרת - ללא width קבוע כדי לאפשר מרכוז
             return formattedTextWidth <= (constraints.maxWidth - 20)
@@ -511,10 +509,7 @@ class _SearchTermsDisplayState extends State<SearchTermsDisplay> {
 }
 
 class OrderOfResults extends StatelessWidget {
-  const OrderOfResults({
-    super.key,
-    required this.widget,
-  });
+  const OrderOfResults({super.key, required this.widget});
 
   final TantivySearchResults widget;
 
@@ -532,8 +527,10 @@ class OrderOfResults extends StatelessWidget {
               decoration: const InputDecoration(
                 labelText: 'מיון',
                 border: OutlineInputBorder(),
-                contentPadding:
-                    EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12.0,
+                  vertical: 8.0,
+                ),
               ),
               items: const [
                 DropdownMenuItem(
