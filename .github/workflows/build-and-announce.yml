@@ -327,7 +327,12 @@ jobs:
         run: |
           # Use the ARM64 Flutter to build
           export PATH="$HOME/flutter-arm64/flutter/bin:$PATH"
-          flutter build macos --release
+          
+          # Set minimum macOS version to 11.0 to match dependencies
+          export MACOSX_DEPLOYMENT_TARGET=11.0
+          
+          # Build with release configuration
+          flutter build macos --release --dart-define=MACOSX_DEPLOYMENT_TARGET=11.0
       
       - name: Create DMG for ARM64
         run: |
@@ -401,7 +406,12 @@ jobs:
         run: |
           # Use the x64 Flutter to build
           export PATH="$HOME/flutter-x64/flutter/bin:$PATH"
-          flutter build macos --release
+          
+          # Set minimum macOS version to 11.0 to match dependencies
+          export MACOSX_DEPLOYMENT_TARGET=11.0
+          
+          # Build with release configuration
+          flutter build macos --release --dart-define=MACOSX_DEPLOYMENT_TARGET=11.0
       
       - name: Create DMG for x64
         run: |
