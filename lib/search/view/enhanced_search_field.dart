@@ -509,6 +509,7 @@ class EnhancedSearchField extends StatefulWidget {
 }
 
 // GlobalKey לגישה ל-State מבחוץ
+// ignore: library_private_types_in_public_api
 final GlobalKey<_EnhancedSearchFieldState> enhancedSearchFieldKey = GlobalKey<_EnhancedSearchFieldState>();
 
 class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
@@ -519,7 +520,6 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
   final Map<int, List<TextEditingController>> _alternativeControllers = {};
   final Map<int, List<OverlayEntry>> _alternativeOverlays = {};
   OverlayEntry? _searchOptionsOverlay;
-  int? _hoveredWordIndex;
 
   final Map<String, OverlayEntry> _spacingOverlays = {};
   final Map<String, TextEditingController> _spacingControllers = {};

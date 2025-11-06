@@ -1,10 +1,10 @@
-/// a widget that contains two tabs: history and bookmarks.
-///  The bookmarks tab is BookmarkView and the history is HistoryView.
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/history/history_screen.dart';
 import 'package:otzaria/bookmarks/bookmark_screen.dart';
 
+/// A widget that contains two tabs: history and bookmarks.
+/// The bookmarks tab is BookmarkView and the history is HistoryView.
 class FavouritesScreen extends StatefulWidget {
   const FavouritesScreen({super.key});
 

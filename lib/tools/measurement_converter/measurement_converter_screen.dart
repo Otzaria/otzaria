@@ -856,7 +856,7 @@ class _MeasurementConverterScreenState
     final isEnabled = _shouldShowOpinionSelector();
 
     return DropdownButtonFormField<String>(
-      value: _selectedOpinion,
+      initialValue: _selectedOpinion,
       decoration: InputDecoration(
         labelText: 'שיטה',
         border: const OutlineInputBorder(),

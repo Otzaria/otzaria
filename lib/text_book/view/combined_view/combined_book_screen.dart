@@ -25,7 +25,7 @@ import 'package:otzaria/utils/html_link_handler.dart';
 import 'package:otzaria/utils/text_with_inline_links.dart';
 
 class CombinedView extends StatefulWidget {
-  CombinedView({
+  const CombinedView({
     super.key,
     required this.data,
     required this.openBookCallback,

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
@@ -64,13 +65,19 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
   }
 
   Future<void> _performSearch() async {
-    debugPrint('🔍 _performSearch called from: ${StackTrace.current.toString().split('\n')[1]}');
+    if (kDebugMode) {
+      debugPrint('🔍 _performSearch called from: ${StackTrace.current.toString().split('\n')[1]}');
+    }
     
     final searchText = _searchController.text.trim();
-    debugPrint('🔍 Search text: "$searchText"');
+    if (kDebugMode) {
+      debugPrint('🔍 Search text: "$searchText"');
+    }
     
     if (searchText.isEmpty) {
-      debugPrint('🔍 Search text is empty, returning');
+      if (kDebugMode) {
+        debugPrint('🔍 Search text is empty, returning');
+      }
       return;
     }
 
@@ -83,8 +90,10 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
     final wholeVerseOnly = Settings.getValue<bool>('key-gematria-whole-verse-only') ?? false;
     final torahOnly = Settings.getValue<bool>('key-gematria-torah-only') ?? false;
 
-    debugPrint('🔍 Settings loaded: maxResults=$maxResults, torahOnly=$torahOnly, wholeVerseOnly=$wholeVerseOnly');
-    debugPrint('🔍 Gematria method: useSmall=$useSmallGematria, useFinal=$useFinalLetters, useKolel=$useWithKolel');
+    if (kDebugMode) {
+      debugPrint('🔍 Settings loaded: maxResults=$maxResults, torahOnly=$torahOnly, wholeVerseOnly=$wholeVerseOnly');
+      debugPrint('🔍 Gematria method: useSmall=$useSmallGematria, useFinal=$useFinalLetters, useKolel=$useWithKolel');
+    }
 
     int? targetGimatria;
 
@@ -282,30 +291,42 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
   }
 
   void showSettingsDialog() {
-    debugPrint('🔧 Opening settings dialog');
+    if (kDebugMode) {
+      debugPrint('🔧 Opening settings dialog');
+    }
     
     // המתנה לסגירת הדיאלוג
     showGematriaSettingsDialog(context).then((_) {
-      debugPrint('🔧 Settings dialog closed - .then() executed!');
-      debugPrint('🔧 Search controller text: "${_searchController.text}"');
-      debugPrint('🔧 Has searched: $_hasSearched');
-      debugPrint('🔧 Mounted: $mounted');
+      if (kDebugMode) {
+        debugPrint('🔧 Settings dialog closed - .then() executed!');
+        debugPrint('🔧 Search controller text: "${_searchController.text}"');
+        debugPrint('🔧 Has searched: $_hasSearched');
+        debugPrint('🔧 Mounted: $mounted');
+      }
       
       // וידוא שה-widget עדיין mounted
       if (!mounted) {
-        debugPrint('🔧 Widget not mounted, skipping search');
+        if (kDebugMode) {
+          debugPrint('🔧 Widget not mounted, skipping search');
+        }
         return;
       }
       
       // תמיד בצע חיפוש מחדש אם יש טקסט חיפוש ובוצע חיפוש לפחות פעם אחת
       if (_searchController.text.trim().isNotEmpty && _hasSearched) {
-        debugPrint('🔧 Performing automatic search after settings change');
+        if (kDebugMode) {
+          debugPrint('🔧 Performing automatic search after settings change');
+        }
         _performSearch();
       } else {
-        debugPrint('🔧 No search performed yet or no text, skipping automatic search');
+        if (kDebugMode) {
+          debugPrint('🔧 No search performed yet or no text, skipping automatic search');
+        }
       }
     }).catchError((error) {
-      debugPrint('🔧 ERROR in showSettingsDialog: $error');
+      if (kDebugMode) {
+        debugPrint('🔧 ERROR in showSettingsDialog: $error');
+      }
     });
   }
 
