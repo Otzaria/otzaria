@@ -153,6 +153,11 @@ class CalendarCubit extends Cubit<CalendarState> {
     _updateTimesForDate(state.selectedGregorianDate, selectedCity);
   }
 
+  // פונקציה לטעינה מחדש של ההגדרות
+  Future<void> reloadSettings() async {
+    await _initializeCalendar();
+  }
+
   void _updateTimesForDate(DateTime date, String city) {
     final newTimes = _calculateDailyTimes(date, city);
     emit(state.copyWith(dailyTimes: newTimes));
@@ -316,9 +321,11 @@ class CalendarCubit extends Cubit<CalendarState> {
   }
 
   void changeCalendarType(CalendarType type) {
+    debugPrint('Changing calendar type to: $type');
     emit(state.copyWith(calendarType: type));
     // שמור את הבחירה בהגדרות
     _settingsRepository.updateCalendarType(_calendarTypeToString(type));
+    debugPrint('Calendar type changed. New state: ${state.calendarType}');
   }
 
   void changeCalendarView(CalendarView view) {
@@ -624,6 +631,7 @@ const Map<String, Map<String, Map<String, double>>> cityCoordinates = {
     'אריאל': {'lat': 32.1069, 'lng': 35.1897, 'elevation': 650.0},
     'אשדוד': {'lat': 31.8044, 'lng': 34.6553, 'elevation': 50.0},
     'אשקלון': {'lat': 31.6688, 'lng': 34.5742, 'elevation': 50.0},
+    'אלעד': {'lat': 32.0519, 'lng': 34.9517, 'elevation': 75.0},
     'באר שבע': {'lat': 31.2518, 'lng': 34.7915, 'elevation': 280.0},
     'ביתר עילית': {'lat': 31.7025, 'lng': 35.1156, 'elevation': 740.0},
     'בית שמש': {'lat': 31.7245, 'lng': 34.9886, 'elevation': 220.0},
