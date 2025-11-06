@@ -291,21 +291,181 @@ jobs:
       - name: Clone repository
         uses: actions/checkout@v4
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-      
-      - name: Build Flutter macOS app
+      - name: Install create-dmg (optional)
         run: |
-          flutter build macos
+          # Try to install create-dmg, but don't fail if it doesn't work
+          echo "Attempting to install create-dmg for better DMG creation..."
+          # Check if npm is available
+          if command -v npm >/dev/null 2>&1; then
+            npm install -g create-dmg || echo "create-dmg installation failed, will use hdiutil as fallback"
+          else
+            # Try installing node first
+            brew install node || echo "Node installation failed"
+            npm install -g create-dmg || echo "create-dmg installation failed, will use hdiutil as fallback"
+          fi
+
+      - name: Download and setup Flutter ARM64 SDK
+        run: |
+          # Download Flutter ARM64 SDK
+          curl -o flutter-arm64.zip https://storage.googleapis.com/flutter_infra_release/releases/stable/macos/flutter_macos_arm64_3.35.7-stable.zip
+          
+          # Extract to a separate directory
+          unzip -q flutter-arm64.zip -d ~/flutter-arm64
+          
+          # Set Flutter ARM64 path
+          export PATH="$HOME/flutter-arm64/flutter/bin:$PATH"
+          
+          # Verify we're using ARM64 Flutter
+          which flutter
+          flutter --version
+          
+          # Configure Flutter
+          flutter config --enable-macos-desktop
+          flutter pub get
+      
+      - name: Build Flutter macOS app for ARM64
+        run: |
+          # Use the ARM64 Flutter to build
+          export PATH="$HOME/flutter-arm64/flutter/bin:$PATH"
+          
+          # Set minimum macOS version to 11.0 to match dependencies
+          export MACOSX_DEPLOYMENT_TARGET=11.0
+          
+          # Build with release configuration
+          flutter build macos --release --dart-define=MACOSX_DEPLOYMENT_TARGET=11.0
+      
+      - name: Create DMG for ARM64
+        run: |
+          # Find the app - using more robust method
+          APP_PATH=$(ls -d build/macos/Build/Products/Release/*.app | head -n1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: Could not find .app bundle"
+            exit 1
+          fi
+          APP_NAME=$(basename "$APP_PATH")
+          echo "Found app: $APP_NAME at $APP_PATH"
+          
+          # Try create-dmg first
+          if command -v create-dmg >/dev/null 2>&1; then
+            echo "Using create-dmg to create DMG..."
+            create-dmg \
+              --volname "Otzaria ARM64" \
+              --window-pos 200 120 \
+              --window-size 800 400 \
+              --icon-size 100 \
+              --icon "$APP_NAME" 200 190 \
+              --hide-extension "$APP_NAME" \
+              --app-drop-link 600 185 \
+              --no-internet-enable \
+              "otzaria-macos-arm64.dmg" \
+              "$APP_PATH" || true
+          fi
+          
+          # Use hdiutil if DMG doesn't exist
+          if [ ! -f "otzaria-macos-arm64.dmg" ]; then
+            echo "Using hdiutil to create DMG..."
+            hdiutil create -volname "Otzaria ARM64" -srcfolder "$APP_PATH" -ov -format UDZO "otzaria-macos-arm64.dmg"
+          fi
+          
+          # Verify DMG was created
+          if [ -f "otzaria-macos-arm64.dmg" ]; then
+            echo "Successfully created otzaria-macos-arm64.dmg"
+            ls -lh otzaria-macos-arm64.dmg
+          else
+            echo "Error: Failed to create DMG"
+            exit 1
+          fi
+      
+      - name: Clean build directory for x64 build
+        run: |
+          # Clean with ARM64 Flutter first
+          export PATH="$HOME/flutter-arm64/flutter/bin:$PATH"
+          flutter clean
+          rm -rf build
+      
+      - name: Download and setup Flutter x64 SDK
+        run: |
+          # Download Flutter x64 SDK
+          curl -o flutter-x64.zip https://storage.googleapis.com/flutter_infra_release/releases/stable/macos/flutter_macos_3.35.7-stable.zip
+          
+          # Extract to a separate directory
+          unzip -q flutter-x64.zip -d ~/flutter-x64
+          
+          # Set Flutter x64 path
+          export PATH="$HOME/flutter-x64/flutter/bin:$PATH"
+          
+          # Verify we're using x64 Flutter
+          which flutter
+          flutter --version
+          
+          # Configure Flutter
+          flutter config --enable-macos-desktop
+          flutter pub get
+      
+      - name: Build Flutter macOS app for x64
+        run: |
+          # Use the x64 Flutter to build
+          export PATH="$HOME/flutter-x64/flutter/bin:$PATH"
+          
+          # Set minimum macOS version to 11.0 to match dependencies
+          export MACOSX_DEPLOYMENT_TARGET=11.0
+          
+          # Build with release configuration
+          flutter build macos --release --dart-define=MACOSX_DEPLOYMENT_TARGET=11.0
+      
+      - name: Create DMG for x64
+        run: |
+          # Find the app - using more robust method
+          APP_PATH=$(ls -d build/macos/Build/Products/Release/*.app | head -n1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: Could not find .app bundle"
+            exit 1
+          fi
+          APP_NAME=$(basename "$APP_PATH")
+          echo "Found app: $APP_NAME at $APP_PATH"
+          
+          # Try create-dmg first
+          if command -v create-dmg >/dev/null 2>&1; then
+            echo "Using create-dmg to create DMG..."
+            create-dmg \
+              --volname "Otzaria x64" \
+              --window-pos 200 120 \
+              --window-size 800 400 \
+              --icon-size 100 \
+              --icon "$APP_NAME" 200 190 \
+              --hide-extension "$APP_NAME" \
+              --app-drop-link 600 185 \
+              --no-internet-enable \
+              "otzaria-macos-x64.dmg" \
+              "$APP_PATH" || true
+          fi
+          
+          # Use hdiutil if DMG doesn't exist
+          if [ ! -f "otzaria-macos-x64.dmg" ]; then
+            echo "Using hdiutil to create DMG..."
+            hdiutil create -volname "Otzaria x64" -srcfolder "$APP_PATH" -ov -format UDZO "otzaria-macos-x64.dmg"
+          fi
+          
+          # Verify DMG was created
+          if [ -f "otzaria-macos-x64.dmg" ]; then
+            echo "Successfully created otzaria-macos-x64.dmg"
+            ls -lh otzaria-macos-x64.dmg
+          else
+            echo "Error: Failed to create DMG"
+            exit 1
+          fi
      
-      - name: Upload macos build
+      - name: Upload macOS ARM64 DMG
         uses: actions/upload-artifact@v4
         with:
-          name: otzaria-macos.app
-          path: build/macos/Build/Products/Release
+          name: otzaria-macos-arm64
+          path: otzaria-macos-arm64.dmg
+
+      - name: Upload macOS x64 DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: otzaria-macos-x64
+          path: otzaria-macos-x64.dmg
 
   create_release:
     if: github.event_name != 'release'
@@ -393,11 +553,14 @@ jobs:
             cp artifacts/otzaria-android.apk/*.apk release-files/ || true
           fi
           
-          # macOS app 
-          if [ -d "artifacts/otzaria-macos.app" ]; then
-          cd artifacts/otzaria-macos.app
-          zip -r ../../release-files/otzaria-macos.zip *
-          cd ../..
+          # macOS ARM64 DMG 
+          if [ -d "artifacts/otzaria-macos-arm64" ]; then
+            cp artifacts/otzaria-macos-arm64/*.dmg release-files/ || true
+          fi
+
+          # macOS x64 DMG 
+          if [ -d "artifacts/otzaria-macos-x64" ]; then
+            cp artifacts/otzaria-macos-x64/*.dmg release-files/ || true
           fi
           
           # List files for debugging
@@ -425,7 +588,8 @@ jobs:
             - **Linux (Fedora/RHEL)**: Download the `.rpm` package and install with `sudo dnf localinstall <filename>.rpm`
             - **Linux (Generic)**: Download the `.zip` file and extract
             - **Android**: Install the `.apk` file
-            - **macOS**: Download and extract the `.zip` file
+            - **macOS (Apple Silicon M1/M2/M3)**: Download the `arm64.dmg` installer
+            - **macOS (Intel)**: Download the `x64.dmg` installer
             
             ${{ github.ref_name == 'dev' && '⚠️ **This is a development build** - Use at your own risk!' || '' }}
         env:
@@ -496,11 +660,14 @@ jobs:
             cp artifacts/otzaria-android.apk/*.apk release-files/ || true
           fi
           
-          # macOS app 
-          if [ -d "artifacts/otzaria-macos.app" ]; then
-          cd artifacts/otzaria-macos.app
-          zip -r ../../release-files/otzaria-macos.zip *
-          cd ../..
+          # macOS ARM64 DMG 
+          if [ -d "artifacts/otzaria-macos-arm64" ]; then
+            cp artifacts/otzaria-macos-arm64/*.dmg release-files/ || true
+          fi
+
+          # macOS x64 DMG 
+          if [ -d "artifacts/otzaria-macos-x64" ]; then
+            cp artifacts/otzaria-macos-x64/*.dmg release-files/ || true
           fi
           
           # List files for debugging
@@ -538,7 +705,8 @@ jobs:
             - **Linux (Fedora/RHEL)**: Download the `.rpm` package and install with `sudo dnf localinstall <filename>.rpm`
             - **Linux (Generic)**: Download the `.zip` file and extract
             - **Android**: Install the `.apk` file
-            - **macOS**: Download and extract the `.zip` file
+            - **macOS (Apple Silicon M1/M2/M3)**: Download the `arm64.dmg` installer
+            - **macOS (Intel)**: Download the `x64.dmg` installer
             
             ⚠️ **This is a preview build for testing purposes** - Use at your own risk!
         env:
