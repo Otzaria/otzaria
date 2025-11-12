@@ -26,14 +26,14 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=admin
 OutputDir=.
 OutputBaseFilename=otzaria-{#MyAppVersion}-windows-full
-SetupIconFile=white_sketch128x128.ico
+SetupIconFile=icon.ico
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 DisableDirPage=auto
 
 [InstallDelete]
-; מחיקת ספרייה ישנה לפני חילוץ הZIP החדש
+; מחיקת ספריות ישנות לפני העתקת הספרים החדשים
 Type: filesandordirs; Name: "{app}\אוצריא"
 Type: filesandordirs; Name: "{app}\links"
 
@@ -78,38 +78,6 @@ begin
   end;
 end;
 
-function ExtractLibrary: Boolean;
-var
-  ResultCode: Integer;
-  ZipPath, ExtractPath: String;
-begin
-  Result := True;
-  ZipPath := ExpandConstant('{tmp}\otzaria_latest.zip');
-  ExtractPath := ExpandConstant('{app}');
-  
-  // חילוץ קובץ ZIP שנמצא במתקין
-  WizardForm.StatusLabel.Caption := 'מחלץ את ספריית האוצריא...';
-  try
-    if not Exec('powershell.exe',
-      '-NoProfile -Command "& {Expand-Archive -Path ''' + ZipPath + ''' -DestinationPath ''' + ExtractPath + ''' -Force}"',
-      '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
-    begin
-      MsgBox('שגיאה בחילוץ הספרייה. קובץ הZIP אולי פגום.', mbError, MB_OK);
-      Result := False;
-    end;
-  except
-    Result := False;
-  end;
-end;
-
-procedure CurStepChanged(CurStep: TSetupStep);
-begin
-  if CurStep = ssPostInstall then
-  begin
-    ExtractLibrary;
-  end;
-end;
-
 [Run]
 Filename: "{tmp}\VisualCppRedist_AIO_x86_x64.exe"; Parameters: "/ai /gm2"; StatusMsg: "מתקין Visual C++ Redistributable..."; Flags: waituntilterminated; Check: VCRedistNeedsInstall
 Filename: "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"; WorkingDir: "{app}"; Parameters: " -sta -WindowStyle Hidden -noprofile -executionpolicy bypass -file uninstall_msix.ps1"; 
@@ -127,8 +95,9 @@ Source: "..\build\windows\x64\runner\Release\*"; \
     Excludes: "*.msix,*.msixbundle,*.appx,*.appxbundle,*.appinstaller"; \
     DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
-; קובץ ZIP של הספרייה - יורד על ידי הworkflow לשורש הפרויקט
-Source: "..\otzaria_latest.zip"; DestDir: "{tmp}"; Flags: deleteafterinstall
+; העתקת ספריית האוצריא ישירות (מחולצת על ידי ה-workflow)
+Source: "..\אוצריא\*"; DestDir: "{app}\אוצריא"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\links\*"; DestDir: "{app}\links"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 Source: "uninstall_msix.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "VisualCppRedist_AIO_x86_x64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall

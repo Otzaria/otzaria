@@ -117,7 +117,7 @@ jobs:
             echo "is_version=false" >> $env:GITHUB_OUTPUT
           }
 
-      - name: Download library ZIP for full installer (version tags only)
+      - name: Download and extract library for full installer (version tags only)
         if: steps.check_version.outputs.is_version == 'true'
         shell: pwsh
         run: |
@@ -132,9 +132,17 @@ jobs:
             
             $fileSize = (Get-Item "otzaria_latest.zip").Length
             Write-Host "Library ZIP downloaded successfully. Size: $([math]::Round($fileSize / 1MB, 2)) MB"
+            
+            Write-Host "Extracting library to project root..."
+            Expand-Archive -Path "otzaria_latest.zip" -DestinationPath "." -Force
+            
+            Write-Host "Removing ZIP file..."
+            Remove-Item "otzaria_latest.zip"
+            
+            Write-Host "Library extracted successfully"
           }
           catch {
-            Write-Host "::error::Failed to download library: $_"
+            Write-Host "::error::Failed to download or extract library: $_"
             exit 1
           }
 
