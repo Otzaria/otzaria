@@ -113,6 +113,7 @@ end;
 [Run]
 Filename: "{tmp}\VisualCppRedist_AIO_x86_x64.exe"; Parameters: "/ai /gm2"; StatusMsg: "מתקין Visual C++ Redistributable..."; Flags: waituntilterminated; Check: VCRedistNeedsInstall
 Filename: "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"; WorkingDir: "{app}"; Parameters: " -sta -WindowStyle Hidden -noprofile -executionpolicy bypass -file uninstall_msix.ps1"; 
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent 
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
