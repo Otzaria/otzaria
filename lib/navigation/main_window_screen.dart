@@ -43,6 +43,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
   late final PageController pageController;
   late final CalendarCubit _calendarCubit;
   Orientation? _previousOrientation;
+  int _currentPageIndex = 0;
 
   // Keep the pages list as templates; the actual first page (library)
   // will be built dynamically in build() to allow showing the
@@ -60,6 +61,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
           context.read<NavigationBloc>().state.currentScreen,
         ) ??
         Screen.library.index;
+    _currentPageIndex = initialPage;
     pageController = PageController(initialPage: initialPage);
   }
 
@@ -88,7 +90,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
     if (_previousOrientation != orientation) {
       _previousOrientation = orientation;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !pageController.hasClients) {
+        if (!mounted) {
           return;
         }
         final currentScreen =
@@ -98,29 +100,30 @@ class MainWindowScreenState extends State<MainWindowScreen>
           return;
         }
 
-        if (pageController.page?.round() != targetPage) {
-          pageController.jumpToPage(targetPage);
+        if (_currentPageIndex != targetPage) {
+          setState(() {
+            _currentPageIndex = targetPage;
+          });
+          if (pageController.hasClients) {
+            pageController.jumpToPage(targetPage);
+          }
         }
       });
     }
   }
 
   /// ודאו שה-PageView מסונכרן למצב הניווט הנוכחי גם אם בחרו שוב באותו יעד.
-  Future<void> _syncPageWithState({bool animate = true}) async {
+  Future<void> _syncPageWithState() async {
     if (!mounted || !pageController.hasClients) return;
     final currentScreen = context.read<NavigationBloc>().state.currentScreen;
     final targetPage = _pageIndexForScreen(currentScreen);
     if (targetPage == null) return;
-    if (pageController.page?.round() == targetPage) return;
-    if (animate) {
-      await pageController.animateToPage(
-        targetPage,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    } else {
-      pageController.jumpToPage(targetPage);
-    }
+    if (_currentPageIndex == targetPage) return;
+
+    setState(() {
+      _currentPageIndex = targetPage;
+    });
+    pageController.jumpToPage(targetPage);
   }
 
   List<NavigationDestination> _buildNavigationDestinations() {
@@ -208,25 +211,25 @@ class MainWindowScreenState extends State<MainWindowScreen>
     BuildContext context,
     NavigationState state,
   ) async {
-    if (!mounted || !context.mounted || !pageController.hasClients) {
+    if (!mounted || !context.mounted) {
       return;
     }
 
-    if (pageController.hasClients) {
-      final targetPage = _pageIndexForScreen(state.currentScreen);
-      if (targetPage != null && pageController.page?.round() != targetPage) {
-        await pageController.animateToPage(
-          targetPage,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
-        if (!mounted || !context.mounted) return;
+    final targetPage = _pageIndexForScreen(state.currentScreen);
+    if (targetPage != null && _currentPageIndex != targetPage) {
+      setState(() {
+        _currentPageIndex = targetPage;
+      });
+      // סנכרון ה-PageController ללא אנימציה
+      if (pageController.hasClients) {
+        pageController.jumpToPage(targetPage);
       }
-      if (state.currentScreen == Screen.library) {
-        context.read<FocusRepository>().requestLibrarySearchFocus(
-              selectAll: true,
-            );
-      }
+    }
+
+    if (state.currentScreen == Screen.library) {
+      context.read<FocusRepository>().requestLibrarySearchFocus(
+            selectAll: true,
+          );
     }
   }
 
@@ -277,138 +280,163 @@ class MainWindowScreenState extends State<MainWindowScreen>
             ];
 
             return SafeArea(
-            child: KeyboardShortcuts(
-              child: MyUpdatWidget(
-                child: Scaffold(
-                  resizeToAvoidBottomInset: false,
-                  body: OrientationBuilder(
-                    builder: (context, orientation) {
-                      _handleOrientationChange(context, orientation);
+              child: KeyboardShortcuts(
+                child: MyUpdatWidget(
+                  child: Scaffold(
+                    resizeToAvoidBottomInset: false,
+                    body: OrientationBuilder(
+                      builder: (context, orientation) {
+                        _handleOrientationChange(context, orientation);
 
-                      final pageView = PageView(
-                        scrollDirection: orientation == Orientation.landscape
-                            ? Axis.vertical
-                            : Axis.horizontal,
-                        physics: const NeverScrollableScrollPhysics(),
-                        controller: pageController,
-                        children: _pages,
-                      );
+                        final pageView = AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 300),
+                          switchInCurve: Curves.easeInOut,
+                          switchOutCurve: Curves.easeInOut,
+                          transitionBuilder: (child, animation) {
+                            final offsetAnimation = Tween<Offset>(
+                              begin: orientation == Orientation.landscape
+                                  ? const Offset(0.0, 0.3)
+                                  : const Offset(0.3, 0.0),
+                              end: Offset.zero,
+                            ).animate(animation);
 
-                      if (orientation == Orientation.landscape) {
-                        return Row(
-                          children: [
-                            SizedBox.fromSize(
-                              size: const Size.fromWidth(80),
-                              child: Material(
-                                color: Theme.of(context).colorScheme.surface,
-                                child: LayoutBuilder(
-                                  builder: (context, constraints) {
-                                    // חישוב גובה משוער לכל הכפתורים
-                                    const buttonHeight = 60.0; // גובה משוער לכפתור + padding
-                                    final totalButtonsHeight = 7 * buttonHeight;
-                                    final minSpacerHeight = 20.0;
-                                    final needsScroll = totalButtonsHeight + minSpacerHeight > constraints.maxHeight;
+                            return SlideTransition(
+                              position: offsetAnimation,
+                              child: FadeTransition(
+                                opacity: animation,
+                                child: child,
+                              ),
+                            );
+                          },
+                          child: KeyedSubtree(
+                            key: ValueKey<int>(_currentPageIndex),
+                            child: _pages[_currentPageIndex],
+                          ),
+                        );
 
-                                    if (needsScroll) {
-                                      // אם אין מספיק מקום, השתמש בגלילה
-                                      return SingleChildScrollView(
-                                        child: Column(
+                        if (orientation == Orientation.landscape) {
+                          return Row(
+                            children: [
+                              SizedBox.fromSize(
+                                size: const Size.fromWidth(80),
+                                child: Material(
+                                  color: Theme.of(context).colorScheme.surface,
+                                  child: LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      // חישוב גובה משוער לכל הכפתורים
+                                      const buttonHeight =
+                                          60.0; // גובה משוער לכפתור + padding
+                                      final totalButtonsHeight =
+                                          7 * buttonHeight;
+                                      final minSpacerHeight = 20.0;
+                                      final needsScroll =
+                                          totalButtonsHeight + minSpacerHeight >
+                                              constraints.maxHeight;
+
+                                      if (needsScroll) {
+                                        // אם אין מספיק מקום, השתמש בגלילה
+                                        return SingleChildScrollView(
+                                          child: Column(
+                                            children: [
+                                              for (int i = 0; i < 7; i++)
+                                                _buildNavButton(
+                                                  context,
+                                                  _buildNavigationDestinations()[
+                                                      i],
+                                                  i,
+                                                  state.currentScreen,
+                                                ),
+                                            ],
+                                          ),
+                                        );
+                                      } else {
+                                        // אם יש מספיק מקום, השתמש ב-Spacer
+                                        return Column(
                                           children: [
-                                            for (int i = 0; i < 7; i++)
+                                            // כפתורים עליונים
+                                            for (int i = 0; i < 5; i++)
                                               _buildNavButton(
                                                 context,
-                                                _buildNavigationDestinations()[i],
+                                                _buildNavigationDestinations()[
+                                                    i],
+                                                i,
+                                                state.currentScreen,
+                                              ),
+                                            // רווח גמיש
+                                            const Spacer(),
+                                            // כפתורים תחתונים
+                                            for (int i = 5; i < 7; i++)
+                                              _buildNavButton(
+                                                context,
+                                                _buildNavigationDestinations()[
+                                                    i],
                                                 i,
                                                 state.currentScreen,
                                               ),
                                           ],
-                                        ),
-                                      );
-                                    } else {
-                                      // אם יש מספיק מקום, השתמש ב-Spacer
-                                      return Column(
-                                        children: [
-                                          // כפתורים עליונים
-                                          for (int i = 0; i < 5; i++)
-                                            _buildNavButton(
-                                              context,
-                                              _buildNavigationDestinations()[i],
-                                              i,
-                                              state.currentScreen,
-                                            ),
-                                          // רווח גמיש
-                                          const Spacer(),
-                                          // כפתורים תחתונים
-                                          for (int i = 5; i < 7; i++)
-                                            _buildNavButton(
-                                              context,
-                                              _buildNavigationDestinations()[i],
-                                              i,
-                                              state.currentScreen,
-                                            ),
-                                        ],
-                                      );
-                                    }
-                                  },
+                                        );
+                                      }
+                                    },
+                                  ),
                                 ),
                               ),
-                            ),
-                            const VerticalDivider(thickness: 1, width: 1),
-                            Expanded(child: pageView),
-                          ],
-                        );
-                      } else {
-                        return Column(
-                          children: [
-                            Expanded(child: pageView),
-                            NavigationBar(
-                              destinations: _buildNavigationDestinations(),
-                              selectedIndex: _getSelectedIndex(
-                                state.currentScreen,
+                              const VerticalDivider(thickness: 1, width: 1),
+                              Expanded(child: pageView),
+                            ],
+                          );
+                        } else {
+                          return Column(
+                            children: [
+                              Expanded(child: pageView),
+                              NavigationBar(
+                                destinations: _buildNavigationDestinations(),
+                                selectedIndex: _getSelectedIndex(
+                                  state.currentScreen,
+                                ),
+                                onDestinationSelected: (index) async {
+                                  // אם בחרו שוב באותו היעד – רק סנכרנו את ה-PageView למסך
+                                  final currentIndex =
+                                      _getSelectedIndex(state.currentScreen);
+                                  if (index == currentIndex) {
+                                    // סנכרון ידני – שימושי כאשר מסיבה כלשהי ה-PageView סטה מהמצב
+                                    await _syncPageWithState();
+                                    return;
+                                  }
+                                  if (index == Screen.search.index) {
+                                    _handleSearchTabOpen(context);
+                                  } else if (index == Screen.find.index) {
+                                    _handleFindRefOpen(context);
+                                  } else if (index == Screen.about.index) {
+                                    showDialog(
+                                      context: context,
+                                      builder: (context) =>
+                                          const AboutDialogWidget(),
+                                    );
+                                  } else {
+                                    context.read<NavigationBloc>().add(
+                                          NavigateToScreen(
+                                              Screen.values[index]),
+                                        );
+                                  }
+                                  if (index == Screen.library.index) {
+                                    context
+                                        .read<FocusRepository>()
+                                        .requestLibrarySearchFocus(
+                                          selectAll: true,
+                                        );
+                                  }
+                                },
                               ),
-                              onDestinationSelected: (index) async {
-                                // אם בחרו שוב באותו היעד – רק סנכרנו את ה-PageView למסך
-                                final currentIndex =
-                                    _getSelectedIndex(state.currentScreen);
-                                if (index == currentIndex) {
-                                  // סנכרון ידני – שימושי כאשר מסיבה כלשהי ה-PageView סטה מהמצב
-                                  await _syncPageWithState();
-                                  return;
-                                }
-                                if (index == Screen.search.index) {
-                                  _handleSearchTabOpen(context);
-                                } else if (index == Screen.find.index) {
-                                  _handleFindRefOpen(context);
-                                } else if (index == Screen.about.index) {
-                                  showDialog(
-                                    context: context,
-                                    builder: (context) =>
-                                        const AboutDialogWidget(),
-                                  );
-                                } else {
-                                  context.read<NavigationBloc>().add(
-                                    NavigateToScreen(Screen.values[index]),
-                                  );
-                                }
-                                if (index == Screen.library.index) {
-                                  context
-                                      .read<FocusRepository>()
-                                      .requestLibrarySearchFocus(
-                                        selectAll: true,
-                                      );
-                                }
-                              },
-                            ),
-                          ],
-                        );
-                      }
-                    },
+                            ],
+                          );
+                        }
+                      },
+                    ),
                   ),
                 ),
               ),
-            ),
-          );
-        },
+            );
+          },
         ),
       ),
     );
@@ -457,8 +485,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
       tabsBloc.add(AddTab(SearchingTab("חיפוש", "")));
     } else {
       final currentScreen = navigationBloc.state.currentScreen;
-      final isAlreadySearchTab =
-          currentScreen == Screen.search &&
+      final isAlreadySearchTab = currentScreen == Screen.search &&
           tabsState.tabs[tabsState.currentTabIndex].runtimeType == SearchingTab;
       if (!isAlreadySearchTab) {
         final searchTabIndex = tabsState.tabs.indexWhere(
@@ -531,13 +558,13 @@ class MainWindowScreenState extends State<MainWindowScreen>
                 );
               } else {
                 context.read<NavigationBloc>().add(
-                  NavigateToScreen(Screen.values[index]),
-                );
+                      NavigateToScreen(Screen.values[index]),
+                    );
               }
               if (index == Screen.library.index) {
                 context.read<FocusRepository>().requestLibrarySearchFocus(
-                  selectAll: true,
-                );
+                      selectAll: true,
+                    );
               }
             },
             icon: IconTheme(

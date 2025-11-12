@@ -20,6 +20,7 @@ class MoreScreen extends StatefulWidget {
 
 class _MoreScreenState extends State<MoreScreen> with TickerProviderStateMixin {
   int _selectedIndex = 0;
+  int _currentPageIndex = 0;
   late final CalendarCubit _calendarCubit;
   late final SettingsRepository _settingsRepository;
   final GlobalKey<GematriaSearchScreenState> _gematriaKey =
@@ -56,8 +57,6 @@ class _MoreScreenState extends State<MoreScreen> with TickerProviderStateMixin {
     }
   }
 
-
-
   @override
   void dispose() {
     _calendarCubit.close();
@@ -89,38 +88,65 @@ class _MoreScreenState extends State<MoreScreen> with TickerProviderStateMixin {
         builder: (context, orientation) {
           if (isSmallScreen) {
             // במסכים קטנים - השתמש ב-BottomNavigationBar
+            final pages = [
+              BlocProvider.value(
+                value: _calendarCubit,
+                child: const CalendarWidget(),
+              ),
+              ShamorZachorWidget(
+                onTitleChanged: _updateShamorZachorTitle,
+              ),
+              const MeasurementConverterScreen(),
+              const PersonalNotesManagerScreen(),
+              GematriaSearchScreen(key: _gematriaKey),
+            ];
+
             return Column(
               children: [
                 Expanded(
-                  child: PageView(
-                    scrollDirection: orientation == Orientation.landscape
-                        ? Axis.vertical
-                        : Axis.horizontal,
-                    physics: const NeverScrollableScrollPhysics(),
-                    controller: _pageController,
-                    onPageChanged: (index) {
-                      setState(() {
-                        _selectedIndex = index;
-                      });
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    switchInCurve: Curves.easeInOut,
+                    switchOutCurve: Curves.easeInOut,
+                    transitionBuilder: (child, animation) {
+                      final offsetAnimation = Tween<Offset>(
+                        begin: orientation == Orientation.landscape
+                            ? const Offset(0.0, 0.3)
+                            : const Offset(0.3, 0.0),
+                        end: Offset.zero,
+                      ).animate(animation);
+
+                      return SlideTransition(
+                        position: offsetAnimation,
+                        child: FadeTransition(
+                          opacity: animation,
+                          child: child,
+                        ),
+                      );
                     },
-                    children: [
-                      BlocProvider.value(
-                        value: _calendarCubit,
-                        child: const CalendarWidget(),
-                      ),
-                      ShamorZachorWidget(
-                        onTitleChanged: _updateShamorZachorTitle,
-                      ),
-                      const MeasurementConverterScreen(),
-                      const PersonalNotesManagerScreen(),
-                      GematriaSearchScreen(key: _gematriaKey),
-                    ],
+                    child: KeyedSubtree(
+                      key: ValueKey<int>(_currentPageIndex),
+                      child: pages[_currentPageIndex],
+                    ),
                   ),
                 ),
               ],
             );
           }
           // במסכים רחבים - השתמש ב-NavigationRail
+          final pages = [
+            BlocProvider.value(
+              value: _calendarCubit,
+              child: const CalendarWidget(),
+            ),
+            ShamorZachorWidget(
+              onTitleChanged: _updateShamorZachorTitle,
+            ),
+            const MeasurementConverterScreen(),
+            const PersonalNotesManagerScreen(),
+            GematriaSearchScreen(key: _gematriaKey),
+          ];
+
           return Row(
             children: [
               NavigationRail(
@@ -128,13 +154,10 @@ class _MoreScreenState extends State<MoreScreen> with TickerProviderStateMixin {
                 onDestinationSelected: (int index) {
                   setState(() {
                     _selectedIndex = index;
+                    _currentPageIndex = index;
                   });
                   if (_pageController.hasClients) {
-                    _pageController.animateToPage(
-                      index,
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeInOut,
-                    );
+                    _pageController.jumpToPage(index);
                   }
                 },
                 labelType: NavigationRailLabelType.all,
@@ -163,29 +186,30 @@ class _MoreScreenState extends State<MoreScreen> with TickerProviderStateMixin {
               ),
               const VerticalDivider(thickness: 1, width: 1),
               Expanded(
-                child: PageView(
-                  scrollDirection: orientation == Orientation.landscape
-                      ? Axis.vertical
-                      : Axis.horizontal,
-                  physics: const NeverScrollableScrollPhysics(),
-                  controller: _pageController,
-                  onPageChanged: (index) {
-                    setState(() {
-                      _selectedIndex = index;
-                    });
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  switchInCurve: Curves.easeInOut,
+                  switchOutCurve: Curves.easeInOut,
+                  transitionBuilder: (child, animation) {
+                    final offsetAnimation = Tween<Offset>(
+                      begin: orientation == Orientation.landscape
+                          ? const Offset(0.0, 0.3)
+                          : const Offset(0.3, 0.0),
+                      end: Offset.zero,
+                    ).animate(animation);
+
+                    return SlideTransition(
+                      position: offsetAnimation,
+                      child: FadeTransition(
+                        opacity: animation,
+                        child: child,
+                      ),
+                    );
                   },
-                  children: [
-                    BlocProvider.value(
-                      value: _calendarCubit,
-                      child: const CalendarWidget(),
-                    ),
-                    ShamorZachorWidget(
-                      onTitleChanged: _updateShamorZachorTitle,
-                    ),
-                    const MeasurementConverterScreen(),
-                    const PersonalNotesManagerScreen(),
-                    GematriaSearchScreen(key: _gematriaKey),
-                  ],
+                  child: KeyedSubtree(
+                    key: ValueKey<int>(_currentPageIndex),
+                    child: pages[_currentPageIndex],
+                  ),
                 ),
               ),
             ],
@@ -198,13 +222,10 @@ class _MoreScreenState extends State<MoreScreen> with TickerProviderStateMixin {
               onTap: (int index) {
                 setState(() {
                   _selectedIndex = index;
+                  _currentPageIndex = index;
                 });
                 if (_pageController.hasClients) {
-                  _pageController.animateToPage(
-                    index,
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOut,
-                  );
+                  _pageController.jumpToPage(index);
                 }
               },
               type: BottomNavigationBarType.fixed,
@@ -216,7 +237,8 @@ class _MoreScreenState extends State<MoreScreen> with TickerProviderStateMixin {
                   label: 'לוח שנה',
                 ),
                 BottomNavigationBarItem(
-                  icon: ImageIcon(AssetImage('assets/icon/זכור ושמור.png'), size: 20),
+                  icon: ImageIcon(AssetImage('assets/icon/זכור ושמור.png'),
+                      size: 20),
                   label: 'זכור ושמור',
                 ),
                 BottomNavigationBarItem(
@@ -288,6 +310,4 @@ class _MoreScreenState extends State<MoreScreen> with TickerProviderStateMixin {
         return null;
     }
   }
-
-
 }
