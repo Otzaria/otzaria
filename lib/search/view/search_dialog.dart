@@ -38,6 +38,8 @@ class _SearchDialogState extends State<SearchDialog> {
   final TextEditingController _alternativeWordController =
       TextEditingController();
   final Map<String, TextEditingController> _spacingControllers = {};
+  final Map<String, FocusNode> _spacingFocusNodes = {};
+  final FocusNode _alternativeWordFocusNode = FocusNode();
   final List<String> _currentAlternatives = [];
 
   @override
@@ -252,12 +254,24 @@ class _SearchDialogState extends State<SearchDialog> {
     return _spacingControllers[key]!;
   }
 
+  FocusNode _getSpacingFocusNode(int leftIndex, int rightIndex) {
+    final key = '$leftIndex-$rightIndex';
+    if (!_spacingFocusNodes.containsKey(key)) {
+      _spacingFocusNodes[key] = FocusNode();
+    }
+    return _spacingFocusNodes[key]!;
+  }
+
   @override
   void dispose() {
     _searchTab.queryController.removeListener(() {});
     _alternativeWordController.dispose();
+    _alternativeWordFocusNode.dispose();
     for (final controller in _spacingControllers.values) {
       controller.dispose();
+    }
+    for (final focusNode in _spacingFocusNodes.values) {
+      focusNode.dispose();
     }
     super.dispose();
   }
@@ -380,11 +394,12 @@ class _SearchDialogState extends State<SearchDialog> {
     String? currentWord,
     int? wordIndex,
   ) {
+    // סדר מחדש: קידומות דקדוקיות, סיומות דקדוקיות, קידומות, סיומות, כתיב מלא/חסר, חלק ממילה
     const List<String> options = [
-      'קידומות',
-      'סיומות',
       'קידומות דקדוקיות',
       'סיומות דקדוקיות',
+      'קידומות',
+      'סיומות',
       'כתיב מלא/חסר',
       'חלק ממילה',
     ];
@@ -574,11 +589,16 @@ class _SearchDialogState extends State<SearchDialog> {
                       child: Column(
                         children: [
                           // תיבת מרווח - מעל (תמיד גלויה)
-                          const SizedBox(height: 16),
                           Opacity(
                             opacity: isEnabled && wordIndex != null ? 1.0 : 0.5,
                             child: TextField(
                               enabled: isEnabled && wordIndex != null,
+                              focusNode: wordIndex != null
+                                  ? _getSpacingFocusNode(
+                                      wordIndex,
+                                      wordIndex + 1,
+                                    )
+                                  : null,
                               decoration: InputDecoration(
                                 labelText: 'מרווח למילה הבאה',
                                 hintText: '0-30',
@@ -632,6 +652,18 @@ class _SearchDialogState extends State<SearchDialog> {
                                   _searchTab.spacingValuesChanged.value++;
                                 }
                               },
+                              onSubmitted: (text) {
+                                if (text.trim().isNotEmpty &&
+                                    wordIndex != null) {
+                                  // יש ערך - שמור אותו
+                                  final key = '$wordIndex-${wordIndex + 1}';
+                                  _searchTab.spacingValues[key] = text.trim();
+                                  _searchTab.spacingValuesChanged.value++;
+                                } else {
+                                  // תיבה ריקה - בצע חיפוש
+                                  _performSearch();
+                                }
+                              },
                             ),
                           ),
 
@@ -640,6 +672,7 @@ class _SearchDialogState extends State<SearchDialog> {
                           // תיבת מילה חילופית - מתחת
                           TextField(
                             controller: _alternativeWordController,
+                            focusNode: _alternativeWordFocusNode,
                             decoration: InputDecoration(
                               labelText: 'מילה חילופית',
                               hintText: 'הקלד מילה...',
@@ -683,27 +716,28 @@ class _SearchDialogState extends State<SearchDialog> {
                             style: const TextStyle(fontSize: 14),
                             textAlign: TextAlign.right,
                             onSubmitted: (text) {
+                              final wordIndex = _getCurrentWordIndex();
                               if (text.trim().isNotEmpty && wordIndex != null) {
                                 setState(() {
-                                  if (!_currentAlternatives.contains(
-                                    text.trim(),
-                                  )) {
+                                  if (!_currentAlternatives
+                                      .contains(text.trim())) {
                                     _currentAlternatives.add(text.trim());
                                   }
                                 });
-                                if (!_searchTab.alternativeWords.containsKey(
-                                  wordIndex,
-                                )) {
+                                if (!_searchTab.alternativeWords
+                                    .containsKey(wordIndex)) {
                                   _searchTab.alternativeWords[wordIndex] = [];
                                 }
                                 if (!_searchTab.alternativeWords[wordIndex]!
                                     .contains(text.trim())) {
-                                  _searchTab.alternativeWords[wordIndex]!.add(
-                                    text.trim(),
-                                  );
+                                  _searchTab.alternativeWords[wordIndex]!
+                                      .add(text.trim());
                                 }
                                 _searchTab.alternativeWordsChanged.value++;
                                 _alternativeWordController.clear();
+                              } else {
+                                // תיבה ריקה - בצע חיפוש
+                                _performSearch();
                               }
                             },
                           ),
@@ -768,7 +802,7 @@ class _SearchDialogState extends State<SearchDialog> {
                     const SizedBox(width: 16),
                   ],
 
-                  // תיבות סימון
+                  // תיבות סימון - בשורות של 2
                   Expanded(
                     flex: 2,
                     child: useSingleColumn
@@ -776,29 +810,34 @@ class _SearchDialogState extends State<SearchDialog> {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: options.map(buildCheckbox).toList(),
                           )
-                        : Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: options
-                                      .take(3)
-                                      .map(buildCheckbox)
-                                      .toList(),
-                                ),
+                              // שורה 1: קידומות דקדוקיות, סיומות דקדוקיות
+                              Row(
+                                children: [
+                                  Expanded(child: buildCheckbox(options[0])),
+                                  const SizedBox(width: 8),
+                                  Expanded(child: buildCheckbox(options[1])),
+                                ],
                               ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: options
-                                      .skip(3)
-                                      .map(buildCheckbox)
-                                      .toList(),
-                                ),
+                              const SizedBox(height: 8),
+                              // שורה 2: קידומות, סיומות
+                              Row(
+                                children: [
+                                  Expanded(child: buildCheckbox(options[2])),
+                                  const SizedBox(width: 8),
+                                  Expanded(child: buildCheckbox(options[3])),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              // שורה 3: כתיב מלא/חסר, חלק ממילה
+                              Row(
+                                children: [
+                                  Expanded(child: buildCheckbox(options[4])),
+                                  const SizedBox(width: 8),
+                                  Expanded(child: buildCheckbox(options[5])),
+                                ],
                               ),
                             ],
                           ),
@@ -874,119 +913,128 @@ class _SearchDialogState extends State<SearchDialog> {
       value: _searchTab.searchBloc,
       child: Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Container(
-          width: dialogWidth,
-          height: dialogHeight,
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // כותרת
-              Row(
-                children: [
-                  const Icon(FluentIcons.search_24_filled, size: 28),
-                  const SizedBox(width: 12),
-                  const Text(
-                    'חיפוש',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(FluentIcons.dismiss_24_regular),
-                    onPressed: () => Navigator.of(context).pop(),
-                    tooltip: 'סגור',
-                  ),
-                ],
-              ),
-              const Divider(height: 24),
-
-              // אזהרת אינדקס
-              _buildIndexWarning(),
-
-              // תוכן הדיאלוג - Row עם ניווט מימין ותוכן משמאל
-              Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+        child: FocusScope(
+          onKeyEvent: (node, event) {
+            // תפיסת Enter ברמת הדיאלוג - FocusScope תופס אירועים מכל הילדים
+            if (event is KeyDownEvent &&
+                event.logicalKey == LogicalKeyboardKey.enter) {
+              // בדיקה אם הפוקוס בתיבת מילה חילופית או מרווח - תן להם לטפל
+              if (_alternativeWordFocusNode.hasFocus) {
+                return KeyEventResult.ignored; // תן ל-onSubmitted לטפל
+              }
+              for (final focusNode in _spacingFocusNodes.values) {
+                if (focusNode.hasFocus) {
+                  return KeyEventResult.ignored; // תן ל-onSubmitted לטפל
+                }
+              }
+              // אחרת, בצע חיפוש
+              _performSearch();
+              return KeyEventResult.handled;
+            }
+            return KeyEventResult.ignored;
+          },
+          child: Container(
+            width: dialogWidth,
+            height: dialogHeight,
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // כותרת
+                Row(
                   children: [
-                    // Navigation Bar אנכי מימין
-                    BlocBuilder<SearchBloc, SearchState>(
-                      builder: (context, state) {
-                        return Container(
-                          width: 80,
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _buildNavButton(
-                                context,
-                                'מדויק',
-                                FluentIcons.text_quote_24_regular,
-                                SearchMode.exact,
-                                state.configuration.searchMode ==
-                                    SearchMode.exact,
-                              ),
-                              const SizedBox(height: 4),
-                              _buildNavButton(
-                                context,
-                                'מתקדם',
-                                FluentIcons.search_info_24_regular,
-                                SearchMode.advanced,
-                                state.configuration.searchMode ==
-                                    SearchMode.advanced,
-                              ),
-                              const SizedBox(height: 4),
-                              _buildNavButton(
-                                context,
-                                'מקורב',
-                                FluentIcons
-                                    .arrow_bidirectional_left_right_24_regular,
-                                SearchMode.fuzzy,
-                                state.configuration.searchMode ==
-                                    SearchMode.fuzzy,
-                              ),
-                            ],
-                          ),
-                        );
-                      },
+                    const Icon(FluentIcons.search_24_filled, size: 28),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'חיפוש',
+                      style:
+                          TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                     ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(FluentIcons.dismiss_24_regular),
+                      onPressed: () => Navigator.of(context).pop(),
+                      tooltip: 'סגור',
+                    ),
+                  ],
+                ),
+                const Divider(height: 24),
 
-                    const SizedBox(width: 16),
+                // אזהרת אינדקס
+                _buildIndexWarning(),
 
-                    // תוכן ראשי
-                    Expanded(
-                      child: SingleChildScrollView(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            // שדה החיפוש + מרווח בין מילים + מגירת היסטוריה
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                // תוכן הדיאלוג - Row עם ניווט מימין ותוכן משמאל
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Navigation Bar אנכי מימין
+                      BlocBuilder<SearchBloc, SearchState>(
+                        builder: (context, state) {
+                          return Container(
+                            width: 80,
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                // שורה עם תיבת החיפוש ומרווח בין מילים - באותו גובה
-                                IntrinsicHeight(
-                                  child: Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      // שדה החיפוש עם כפתור היסטוריה
-                                      Expanded(
-                                        child: Stack(
-                                          children: [
-                                            // תיבת החיפוש
-                                            BlocProvider.value(
-                                              value: _searchTab.searchBloc,
-                                              child: Focus(
-                                                onKeyEvent: (node, event) {
-                                                  if (event is KeyDownEvent &&
-                                                      event.logicalKey ==
-                                                          LogicalKeyboardKey
-                                                              .enter) {
-                                                    _performSearch();
-                                                    return KeyEventResult
-                                                        .handled;
-                                                  }
-                                                  return KeyEventResult.ignored;
-                                                },
+                                _buildNavButton(
+                                  context,
+                                  'מדויק',
+                                  FluentIcons.text_quote_24_regular,
+                                  SearchMode.exact,
+                                  state.configuration.searchMode ==
+                                      SearchMode.exact,
+                                ),
+                                const SizedBox(height: 4),
+                                _buildNavButton(
+                                  context,
+                                  'מתקדם',
+                                  FluentIcons.search_info_24_regular,
+                                  SearchMode.advanced,
+                                  state.configuration.searchMode ==
+                                      SearchMode.advanced,
+                                ),
+                                const SizedBox(height: 4),
+                                _buildNavButton(
+                                  context,
+                                  'מקורב',
+                                  FluentIcons
+                                      .arrow_bidirectional_left_right_24_regular,
+                                  SearchMode.fuzzy,
+                                  state.configuration.searchMode ==
+                                      SearchMode.fuzzy,
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+
+                      const SizedBox(width: 16),
+
+                      // תוכן ראשי
+                      Expanded(
+                        child: SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // שדה החיפוש + מרווח בין מילים + מגירת היסטוריה
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  // שורה עם תיבת החיפוש ומרווח בין מילים - באותו גובה
+                                  IntrinsicHeight(
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        // שדה החיפוש עם כפתור היסטוריה
+                                        Expanded(
+                                          child: Stack(
+                                            children: [
+                                              // תיבת החיפוש
+                                              BlocProvider.value(
+                                                value: _searchTab.searchBloc,
                                                 child: EnhancedSearchField(
                                                   key: enhancedSearchFieldKey,
                                                   widget: _SearchDialogWrapper(
@@ -994,131 +1042,133 @@ class _SearchDialogState extends State<SearchDialog> {
                                                   ),
                                                 ),
                                               ),
-                                            ),
-                                            // כפתור חיפוש - מצד ימין
-                                            Positioned(
-                                              right: 10,
-                                              top: 8,
-                                              bottom: 8,
-                                              child: Center(
-                                                child: IconButton(
-                                                  icon: const Icon(
-                                                    FluentIcons
-                                                        .search_24_filled,
-                                                    size: 20,
-                                                  ),
-                                                  tooltip: 'חפש',
-                                                  onPressed: _performSearch,
-                                                  style: IconButton.styleFrom(
-                                                    backgroundColor:
-                                                        Theme.of(context)
-                                                            .colorScheme
-                                                            .primaryContainer,
-                                                    foregroundColor:
-                                                        Theme.of(context)
-                                                            .colorScheme
-                                                            .primary,
-                                                    padding:
-                                                        const EdgeInsets.all(6),
-                                                    minimumSize:
-                                                        const Size(32, 32),
-                                                    tapTargetSize:
-                                                        MaterialTapTargetSize
-                                                            .shrinkWrap,
+                                              // כפתור חיפוש - מצד ימין
+                                              Positioned(
+                                                right: 10,
+                                                top: 8,
+                                                bottom: 8,
+                                                child: Center(
+                                                  child: IconButton(
+                                                    icon: const Icon(
+                                                      FluentIcons
+                                                          .search_24_filled,
+                                                      size: 20,
+                                                    ),
+                                                    tooltip: 'חפש',
+                                                    onPressed: _performSearch,
+                                                    style: IconButton.styleFrom(
+                                                      backgroundColor:
+                                                          Theme.of(context)
+                                                              .colorScheme
+                                                              .primaryContainer,
+                                                      foregroundColor:
+                                                          Theme.of(context)
+                                                              .colorScheme
+                                                              .primary,
+                                                      padding:
+                                                          const EdgeInsets.all(
+                                                              6),
+                                                      minimumSize:
+                                                          const Size(32, 32),
+                                                      tapTargetSize:
+                                                          MaterialTapTargetSize
+                                                              .shrinkWrap,
+                                                    ),
                                                   ),
                                                 ),
                                               ),
-                                            ),
-                                            // כפתור היסטוריה - ליד כפתור ה-X
-                                            Positioned(
-                                              left: 48,
-                                              top: 0,
-                                              bottom: 0,
-                                              child: Center(
-                                                child: IconButton(
-                                                  icon: Icon(
-                                                    _showHistoryDropdown
-                                                        ? FluentIcons
-                                                            .chevron_up_24_regular
-                                                        : FluentIcons
-                                                            .history_24_regular,
-                                                    size: 24,
+                                              // כפתור היסטוריה - ליד כפתור ה-X
+                                              Positioned(
+                                                left: 48,
+                                                top: 0,
+                                                bottom: 0,
+                                                child: Center(
+                                                  child: IconButton(
+                                                    icon: Icon(
+                                                      _showHistoryDropdown
+                                                          ? FluentIcons
+                                                              .chevron_up_24_regular
+                                                          : FluentIcons
+                                                              .history_24_regular,
+                                                      size: 24,
+                                                    ),
+                                                    tooltip:
+                                                        'היסטוריית חיפושים',
+                                                    padding: EdgeInsets.zero,
+                                                    constraints:
+                                                        const BoxConstraints(),
+                                                    onPressed: () {
+                                                      setState(() {
+                                                        _showHistoryDropdown =
+                                                            !_showHistoryDropdown;
+                                                      });
+                                                    },
                                                   ),
-                                                  tooltip: 'היסטוריית חיפושים',
-                                                  padding: EdgeInsets.zero,
-                                                  constraints:
-                                                      const BoxConstraints(),
-                                                  onPressed: () {
-                                                    setState(() {
-                                                      _showHistoryDropdown =
-                                                          !_showHistoryDropdown;
-                                                    });
-                                                  },
                                                 ),
                                               ),
-                                            ),
-                                          ],
+                                            ],
+                                          ),
                                         ),
-                                      ),
 
-                                      // מרווח בין מילים - באותו גובה
-                                      BlocBuilder<SearchBloc, SearchState>(
-                                        builder: (context, state) {
-                                          if (state.fuzzy) {
-                                            return const SizedBox.shrink();
-                                          }
-                                          return Padding(
-                                            padding: const EdgeInsets.only(
-                                              right: 16.0,
-                                            ),
-                                            child: Center(
-                                              child: FuzzyDistance(
-                                                tab: _searchTab,
+                                        // מרווח בין מילים - באותו גובה
+                                        BlocBuilder<SearchBloc, SearchState>(
+                                          builder: (context, state) {
+                                            if (state.fuzzy) {
+                                              return const SizedBox.shrink();
+                                            }
+                                            return Padding(
+                                              padding: const EdgeInsets.only(
+                                                right: 16.0,
                                               ),
-                                            ),
-                                          );
-                                        },
-                                      ),
-                                    ],
+                                              child: Center(
+                                                child: FuzzyDistance(
+                                                  tab: _searchTab,
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                ),
 
-                                // מגירת היסטוריה - מתחת לשורה
-                                if (_showHistoryDropdown)
-                                  _buildHistoryDropdown(),
-                              ],
-                            ),
+                                  // מגירת היסטוריה - מתחת לשורה
+                                  if (_showHistoryDropdown)
+                                    _buildHistoryDropdown(),
+                                ],
+                              ),
 
-                            const SizedBox(height: 16),
+                              const SizedBox(height: 16),
 
-                            // אפשרויות חיפוש עם הטיפ
-                            BlocBuilder<SearchBloc, SearchState>(
-                              builder: (context, state) {
-                                if (!state.isAdvancedSearchEnabled) {
-                                  return const SizedBox.shrink();
-                                }
+                              // אפשרויות חיפוש עם הטיפ
+                              BlocBuilder<SearchBloc, SearchState>(
+                                builder: (context, state) {
+                                  if (!state.isAdvancedSearchEnabled) {
+                                    return const SizedBox.shrink();
+                                  }
 
-                                final currentWord = _getCurrentWord();
-                                final wordIndex = _getCurrentWordIndex();
-                                final hasWord = currentWord != null &&
-                                    currentWord.isNotEmpty &&
-                                    wordIndex != null;
+                                  final currentWord = _getCurrentWord();
+                                  final wordIndex = _getCurrentWordIndex();
+                                  final hasWord = currentWord != null &&
+                                      currentWord.isNotEmpty &&
+                                      wordIndex != null;
 
-                                return _buildSearchOptionsRow(
-                                  hasWord,
-                                  currentWord,
-                                  wordIndex,
-                                );
-                              },
-                            ),
-                          ],
+                                  return _buildSearchOptionsRow(
+                                    hasWord,
+                                    currentWord,
+                                    wordIndex,
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
