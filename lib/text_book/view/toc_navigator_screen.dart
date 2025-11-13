@@ -228,7 +228,7 @@ class _TocViewerState extends State<TocViewer>
               ((state.selectedIndex != null &&
                       state.selectedIndex == entry.index) ||
                   autoIndex == entry.index);
-          
+
           return InkWell(
             onTap: navigateToEntry,
             child: Container(
@@ -265,7 +265,8 @@ class _TocViewerState extends State<TocViewer>
                       entry.text,
                       style: TextStyle(
                         fontSize: 14,
-                        fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                        fontWeight:
+                            selected ? FontWeight.w600 : FontWeight.normal,
                       ),
                     ),
                   ),
@@ -295,11 +296,7 @@ class _TocViewerState extends State<TocViewer>
                       autoIndex == entry.index);
 
               return InkWell(
-                onTap: () {
-                  setState(() {
-                    _expanded[entry.index] = !isExpanded;
-                  });
-                },
+                onTap: navigateToEntry,
                 child: Container(
                   padding: EdgeInsets.only(
                     right: 16.0 + (entry.level * 24.0),
@@ -324,26 +321,47 @@ class _TocViewerState extends State<TocViewer>
                   child: Row(
                     children: [
                       Icon(
-                        FluentIcons.book_24_regular,
-                        color: Theme.of(context).colorScheme.primary,
-                        size: 20,
+                        entry.level == 1
+                            ? FluentIcons.book_24_regular
+                            : FluentIcons.text_bullet_list_24_regular,
+                        color: entry.level == 1
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).colorScheme.secondary,
+                        size: entry.level == 1 ? 20 : 18,
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
                           showFullText ? entry.fullText : entry.text,
                           style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: Theme.of(context).colorScheme.primary,
+                            fontSize: entry.level == 1 ? 15 : 14,
+                            fontWeight: entry.level == 1
+                                ? FontWeight.w600
+                                : FontWeight.normal,
+                            color: entry.level == 1
+                                ? Theme.of(context).colorScheme.primary
+                                : null,
                           ),
                         ),
                       ),
-                      Icon(
-                        isExpanded
-                            ? FluentIcons.chevron_up_24_regular
-                            : FluentIcons.chevron_down_24_regular,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      const SizedBox(width: 8),
+                      InkWell(
+                        onTap: () {
+                          setState(() {
+                            _expanded[entry.index] = !isExpanded;
+                          });
+                        },
+                        borderRadius: BorderRadius.circular(4),
+                        child: Padding(
+                          padding: const EdgeInsets.all(4.0),
+                          child: Icon(
+                            isExpanded
+                                ? FluentIcons.chevron_up_24_regular
+                                : FluentIcons.chevron_down_24_regular,
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
                       ),
                     ],
                   ),
