@@ -397,7 +397,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                   // אם בחרו שוב באותו היעד – רק סנכרנו את ה-PageView למסך
                                   final currentIndex =
                                       _getSelectedIndex(state.currentScreen);
-                                  if (index == currentIndex) {
+                                  if (index == currentIndex &&
+                                      index != Screen.search.index &&
+                                      index != Screen.find.index) {
                                     // סנכרון ידני – שימושי כאשר מסיבה כלשהי ה-PageView סטה מהמצב
                                     await _syncPageWithState();
                                     return;
@@ -469,7 +471,13 @@ class MainWindowScreenState extends State<MainWindowScreen>
     showDialog(
       context: context,
       builder: (context) => const SearchDialog(existingTab: null),
-    );
+    ).then((_) {
+      // אחרי סגירת הדיאלוג, אם אנחנו במסך reading/search, נוודא שהמצב מסונכרן
+      final currentScreen = context.read<NavigationBloc>().state.currentScreen;
+      if (currentScreen == Screen.reading || currentScreen == Screen.search) {
+        _syncPageWithState();
+      }
+    });
   }
 
   void _openLegacySearchTab(BuildContext context) {
@@ -501,7 +509,16 @@ class MainWindowScreenState extends State<MainWindowScreen>
   }
 
   void _handleFindRefOpen(BuildContext context) {
-    showDialog(context: context, builder: (context) => FindRefDialog());
+    showDialog(
+      context: context,
+      builder: (context) => FindRefDialog(),
+    ).then((_) {
+      // אחרי סגירת הדיאלוג, אם אנחנו במסך reading, נוודא שהמצב מסונכרן
+      final currentScreen = context.read<NavigationBloc>().state.currentScreen;
+      if (currentScreen == Screen.reading || currentScreen == Screen.search) {
+        _syncPageWithState();
+      }
+    });
   }
 
   int _getSelectedIndex(Screen currentScreen) {
@@ -543,7 +560,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
             onPressed: () async {
               // אם בחרו שוב באותו היעד – רק סנכרנו את ה-PageView למסך
               final currentIndex = _getSelectedIndex(currentScreen);
-              if (index == currentIndex) {
+              if (index == currentIndex &&
+                  index != Screen.search.index &&
+                  index != Screen.find.index) {
                 await _syncPageWithState();
                 return;
               }
