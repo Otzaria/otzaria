@@ -10,6 +10,8 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 import 'package:otzaria/text_book/view/tabbed_commentary_panel.dart';
+import 'package:otzaria/settings/settings_bloc.dart';
+import 'package:otzaria/settings/settings_state.dart';
 
 class SplitedViewScreen extends StatefulWidget {
   const SplitedViewScreen({
@@ -151,56 +153,64 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
         if (state is! TextBookLoaded) {
           return const Center(child: CircularProgressIndicator());
         }
-        
+
         // אם החלונית סגורה - מציגים combined view עם כפתור צף
         if (!_paneOpen) {
-          return Stack(
-            children: [
-              CombinedView(
-                data: widget.content,
-                textSize: state.fontSize,
-                openBookCallback: widget.openBookCallback,
-                openLeftPaneTab: widget.openLeftPaneTab,
-                showCommentaryAsExpansionTiles: !widget.showSplitView,
-                tab: widget.tab,
-              ),
-              Positioned(
-                left: 8,
-                top: 8,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .surface
-                        .withValues(alpha: 0.9),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.2),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
+          return BlocBuilder<SettingsBloc, SettingsState>(
+            builder: (context, settingsState) {
+              return Stack(
+                children: [
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                        horizontal: settingsState.paddingSize),
+                    child: CombinedView(
+                      data: widget.content,
+                      textSize: state.fontSize,
+                      openBookCallback: widget.openBookCallback,
+                      openLeftPaneTab: widget.openLeftPaneTab,
+                      showCommentaryAsExpansionTiles: !widget.showSplitView,
+                      tab: widget.tab,
+                    ),
+                  ),
+                  Positioned(
+                    left: 8,
+                    top: 8,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surface
+                            .withValues(alpha: 0.9),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.2),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                  child: IconButton(
-                    iconSize: 18,
-                    padding: const EdgeInsets.all(8),
-                    constraints: const BoxConstraints(
-                      minWidth: 36,
-                      minHeight: 36,
+                      child: IconButton(
+                        iconSize: 18,
+                        padding: const EdgeInsets.all(8),
+                        constraints: const BoxConstraints(
+                          minWidth: 36,
+                          minHeight: 36,
+                        ),
+                        icon: Icon(
+                          FluentIcons.navigation_24_regular,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                        onPressed: _togglePane,
+                      ),
                     ),
-                    icon: Icon(
-                      FluentIcons.navigation_24_regular,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
-                    onPressed: _togglePane,
                   ),
-                ),
-              ),
-            ],
+                ],
+              );
+            },
           );
         }
-        
+
         return MultiSplitView(
           controller: _controller,
           axis: Axis.horizontal,
@@ -234,14 +244,16 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                   onClosePane: _togglePane,
                   initialTabIndex: _currentTabIndex,
                   onTabChanged: (index) {
-                    print('DEBUG: Tab changed to $index, showSplitView: ${widget.showSplitView}');
+                    print(
+                        'DEBUG: Tab changed to $index, showSplitView: ${widget.showSplitView}');
                     setState(() {
                       _currentTabIndex = index;
                     });
                     // שומר את הטאב רק בתצוגה משולבת
                     if (!widget.showSplitView) {
                       print('DEBUG: Saving tab $index to combined settings');
-                      Settings.setValue<int>('key-sidebar-tab-index-combined', index);
+                      Settings.setValue<int>(
+                          'key-sidebar-tab-index-combined', index);
                     } else {
                       print('DEBUG: NOT saving tab (split view mode)');
                     }
@@ -249,13 +261,21 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                 ),
               ),
             ),
-            CombinedView(
-              data: widget.content,
-              textSize: state.fontSize,
-              openBookCallback: widget.openBookCallback,
-              openLeftPaneTab: widget.openLeftPaneTab,
-              showCommentaryAsExpansionTiles: false,
-              tab: widget.tab,
+            BlocBuilder<SettingsBloc, SettingsState>(
+              builder: (context, settingsState) {
+                return Padding(
+                  padding: EdgeInsets.symmetric(
+                      horizontal: settingsState.paddingSize),
+                  child: CombinedView(
+                    data: widget.content,
+                    textSize: state.fontSize,
+                    openBookCallback: widget.openBookCallback,
+                    openLeftPaneTab: widget.openLeftPaneTab,
+                    showCommentaryAsExpansionTiles: false,
+                    tab: widget.tab,
+                  ),
+                );
+              },
             ),
           ],
         );
