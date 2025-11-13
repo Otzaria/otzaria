@@ -37,6 +37,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     on<RefreshShortcuts>(_onRefreshShortcuts);
     on<ResetShortcuts>(_onResetShortcuts);
     on<UpdateShortcut>(_onUpdateShortcut);
+    on<UpdateDefaultSplitView>(_onUpdateDefaultSplitView);
   }
 
   Future<void> _onLoadSettings(
@@ -44,7 +45,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     Emitter<SettingsState> emit,
   ) async {
     final settings = await _repository.loadSettings();
-  emit(SettingsState(
+    emit(SettingsState(
       isDarkMode: settings['isDarkMode'],
       seedColor: settings['seedColor'],
       paddingSize: settings['paddingSize'],
@@ -69,6 +70,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       isFullscreen: settings['isFullscreen'],
       libraryViewMode: settings['libraryViewMode'],
       libraryShowPreview: settings['libraryShowPreview'],
+      defaultSplitView: settings['defaultSplitView'],
       shortcuts: Map<String, String>.unmodifiable(
         Map<String, String>.from(settings['shortcuts'] as Map),
       ),
@@ -303,5 +305,13 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
         shortcuts: Map<String, String>.unmodifiable(shortcuts),
       ),
     );
+  }
+
+  Future<void> _onUpdateDefaultSplitView(
+    UpdateDefaultSplitView event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateDefaultSplitView(event.defaultSplitView);
+    emit(state.copyWith(defaultSplitView: event.defaultSplitView));
   }
 }

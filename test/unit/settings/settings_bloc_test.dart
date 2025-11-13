@@ -50,6 +50,8 @@ void main() {
         'isFullscreen': false,
         'libraryViewMode': 'grid',
         'libraryShowPreview': true,
+        'defaultSplitView': false,
+        'shortcuts': <String, String>{},
       };
 
       blocTest<SettingsBloc, SettingsState>(
@@ -89,6 +91,8 @@ void main() {
             isFullscreen: mockSettings['isFullscreen'] as bool,
             libraryViewMode: mockSettings['libraryViewMode'] as String,
             libraryShowPreview: mockSettings['libraryShowPreview'] as bool,
+            defaultSplitView:
+                mockSettings['defaultSplitView'] as bool? ?? false,
             shortcuts: const {},
           ),
         ],

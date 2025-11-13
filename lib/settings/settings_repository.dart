@@ -32,6 +32,7 @@ class SettingsRepository {
   static const String keyIsFullscreen = 'key-is-fullscreen';
   static const String keyLibraryViewMode = 'key-library-view-mode';
   static const String keyLibraryShowPreview = 'key-library-show-preview';
+  static const String keyDefaultSplitView = 'key-splited-view';
 
   final SettingsWrapper _settings;
 
@@ -137,6 +138,10 @@ class SettingsRepository {
       'libraryShowPreview': _settings.getValue<bool>(
         keyLibraryShowPreview,
         defaultValue: true,
+      ),
+      'defaultSplitView': _settings.getValue<bool>(
+        keyDefaultSplitView,
+        defaultValue: false,
       ),
       'shortcuts': await getShortcuts(),
     };
@@ -248,6 +253,10 @@ class SettingsRepository {
 
   Future<void> updateLibraryShowPreview(bool value) async {
     await _settings.setValue(keyLibraryShowPreview, value);
+  }
+
+  Future<void> updateDefaultSplitView(bool value) async {
+    await _settings.setValue(keyDefaultSplitView, value);
   }
 
   Future<Map<String, String>> getShortcuts() async {

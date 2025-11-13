@@ -139,7 +139,10 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
       },
       listener: (context, state) {
         if (state is TextBookLoaded) {
-          _openPane();
+          // פותח את החלונית רק בתצוגה מפוצלת
+          if (widget.showSplitView) {
+            _openPane();
+          }
         }
       },
       buildWhen: (previous, current) {

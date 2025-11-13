@@ -26,6 +26,7 @@ class SettingsState extends Equatable {
   final bool isFullscreen;
   final String libraryViewMode;
   final bool libraryShowPreview;
+  final bool defaultSplitView;
   final Map<String, String> shortcuts;
 
   const SettingsState({
@@ -53,6 +54,7 @@ class SettingsState extends Equatable {
     required this.isFullscreen,
     required this.libraryViewMode,
     required this.libraryShowPreview,
+    required this.defaultSplitView,
     required this.shortcuts,
   });
 
@@ -82,6 +84,7 @@ class SettingsState extends Equatable {
       isFullscreen: false,
       libraryViewMode: 'grid',
       libraryShowPreview: true,
+      defaultSplitView: false,
       shortcuts: {},
     );
   }
@@ -111,6 +114,7 @@ class SettingsState extends Equatable {
     bool? isFullscreen,
     String? libraryViewMode,
     bool? libraryShowPreview,
+    bool? defaultSplitView,
     Map<String, String>? shortcuts,
   }) {
     return SettingsState(
@@ -119,7 +123,8 @@ class SettingsState extends Equatable {
       paddingSize: paddingSize ?? this.paddingSize,
       fontSize: fontSize ?? this.fontSize,
       fontFamily: fontFamily ?? this.fontFamily,
-      commentatorsFontFamily: commentatorsFontFamily ?? this.commentatorsFontFamily,
+      commentatorsFontFamily:
+          commentatorsFontFamily ?? this.commentatorsFontFamily,
       showOtzarHachochma: showOtzarHachochma ?? this.showOtzarHachochma,
       showHebrewBooks: showHebrewBooks ?? this.showHebrewBooks,
       showExternalBooks: showExternalBooks ?? this.showExternalBooks,
@@ -139,6 +144,7 @@ class SettingsState extends Equatable {
       isFullscreen: isFullscreen ?? this.isFullscreen,
       libraryViewMode: libraryViewMode ?? this.libraryViewMode,
       libraryShowPreview: libraryShowPreview ?? this.libraryShowPreview,
+      defaultSplitView: defaultSplitView ?? this.defaultSplitView,
       shortcuts: shortcuts ?? this.shortcuts,
     );
   }
@@ -169,6 +175,7 @@ class SettingsState extends Equatable {
         isFullscreen,
         libraryViewMode,
         libraryShowPreview,
+        defaultSplitView,
         shortcuts,
       ];
 }

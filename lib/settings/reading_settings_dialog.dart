@@ -201,8 +201,7 @@ void showReadingSettingsDialog(BuildContext context) {
                                 children: [
                                   Row(
                                     children: [
-                                      const Icon(
-                                          FluentIcons.book_24_regular),
+                                      const Icon(FluentIcons.book_24_regular),
                                       const SizedBox(width: 8),
                                       Expanded(
                                         child: Text(
@@ -216,7 +215,8 @@ void showReadingSettingsDialog(BuildContext context) {
                                   ),
                                   const SizedBox(height: 8),
                                   DropdownButtonFormField<String>(
-                                    initialValue: settingsState.commentatorsFontFamily,
+                                    initialValue:
+                                        settingsState.commentatorsFontFamily,
                                     decoration: InputDecoration(
                                       contentPadding:
                                           const EdgeInsets.symmetric(
@@ -266,9 +266,9 @@ void showReadingSettingsDialog(BuildContext context) {
                                     ],
                                     onChanged: (value) {
                                       if (value != null) {
-                                        context
-                                            .read<SettingsBloc>()
-                                            .add(UpdateCommentatorsFontFamily(value));
+                                        context.read<SettingsBloc>().add(
+                                            UpdateCommentatorsFontFamily(
+                                                value));
                                         setState(() {});
                                       }
                                     },
@@ -437,20 +437,18 @@ void showReadingSettingsDialog(BuildContext context) {
                   const Divider(),
 
                   // ברירת מחדל להצגת מפרשים
-                  StatefulBuilder(
-                    builder: (context, setState) {
-                      final splitedView =
-                          Settings.getValue<bool>('key-splited-view') ?? false;
+                  BlocBuilder<SettingsBloc, SettingsState>(
+                    builder: (context, settingsState) {
                       return SwitchListTile(
                         title: const Text('ברירת המחדל להצגת המפרשים'),
-                        subtitle: Text(splitedView
+                        subtitle: Text(settingsState.defaultSplitView
                             ? 'המפרשים יוצגו לצד הטקסט'
                             : 'המפרשים יוצגו מתחת הטקסט'),
-                        value: splitedView,
+                        value: settingsState.defaultSplitView,
                         onChanged: (value) {
-                          setState(() {
-                            Settings.setValue<bool>('key-splited-view', value);
-                          });
+                          context
+                              .read<SettingsBloc>()
+                              .add(UpdateDefaultSplitView(value));
                         },
                       );
                     },

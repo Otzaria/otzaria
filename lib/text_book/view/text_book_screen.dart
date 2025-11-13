@@ -594,8 +594,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
               context.read<TextBookBloc>().add(
                     LoadContent(
                       fontSize: settingsState.fontSize,
-                      showSplitView:
-                          Settings.getValue<bool>('key-splited-view') ?? false,
+                      showSplitView: settingsState.defaultSplitView,
                       removeNikud: settingsState.defaultRemoveNikud,
                     ),
                   );
@@ -1152,7 +1151,9 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             ToggleSplitView(!state.showSplitView),
           ),
       icon: RotatedBox(
-        quarterTurns: state.showSplitView ? 0 : 3,  // מסובב 270 מעלות (90 נגד כיוון השעון) כשמתחת
+        quarterTurns: state.showSplitView
+            ? 0
+            : 3, // מסובב 270 מעלות (90 נגד כיוון השעון) כשמתחת
         child: const Icon(FluentIcons.panel_left_24_regular),
       ),
       tooltip: state.showSplitView
@@ -2200,7 +2201,8 @@ $detailsSection
                               .withValues(alpha: 0.6),
                           indicatorColor: Theme.of(context).colorScheme.primary,
                           dividerColor: Colors.transparent,
-                          overlayColor: WidgetStateProperty.all(Colors.transparent),
+                          overlayColor:
+                              WidgetStateProperty.all(Colors.transparent),
                         ),
                       ),
                       if (MediaQuery.of(context).size.width >= 600)
@@ -2214,7 +2216,8 @@ $detailsSection
                                       ),
                           icon: AnimatedRotation(
                             turns: (state.pinLeftPane ||
-                                    (Settings.getValue<bool>('key-pin-sidebar') ??
+                                    (Settings.getValue<bool>(
+                                            'key-pin-sidebar') ??
                                         false))
                                 ? -0.125
                                 : 0.0,

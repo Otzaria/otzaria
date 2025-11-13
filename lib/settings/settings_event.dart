@@ -244,3 +244,12 @@ class UpdateShortcut extends SettingsEvent {
   @override
   List<Object?> get props => [key, value];
 }
+
+class UpdateDefaultSplitView extends SettingsEvent {
+  final bool defaultSplitView;
+
+  const UpdateDefaultSplitView(this.defaultSplitView);
+
+  @override
+  List<Object?> get props => [defaultSplitView];
+}
