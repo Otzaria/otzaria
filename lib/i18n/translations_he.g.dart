@@ -109,6 +109,8 @@ class TranslationsCommonHe {
 	String get unknown => 'לא ידוע';
 	String get search => 'חיפוש';
 	String get notAvailable => 'לא קיים';
+	String get verse => 'פסוק';
+	String get line => 'שורה';
 }
 
 // Path: search
@@ -173,6 +175,7 @@ class TranslationsSearchHe {
 	String get typeTextAndPressEnter => 'הקלד את הטקסט והקש אנטר או לחץ על סמל החיפוש';
 	String scannedBooksResults({required Object bookIndex, required Object totalBooks, required Object resultCount, required Object seconds}) => 'נסרקו ${bookIndex} מתוך ${totalBooks} ספרים.  נמצאו ${resultCount} תוצאות בתוך ${seconds} שניות';
 	String get noSearchResults => 'אין תוצאות חיפוש';
+	String get invalidInput => 'קלט לא תקין. יש להזין אותיות עבריות או מספרים בלבד.';
 }
 
 // Path: library
@@ -313,6 +316,11 @@ class TranslationsNotesHe {
 	String get noteDeleted => 'ההערה נמחקה בהצלחה';
 	String get repositionNote => 'מקם הערה מחדש';
 	String get newLineNumber => 'מספר שורה חדש';
+	String get loadNotesError => 'אירעה שגיאה בעת טעינת רשימת ההערות:';
+	String get noNotesInLocation => 'אין הערות במיקום זה.';
+	String get noMissingNotes => 'אין הערות חסרות מיקום.';
+	String lineNumber({required Object line}) => 'שורה ${line}';
+	String noteMovedToLine({required Object line}) => 'ההערה הועברה לשורה ${line}';
 }
 
 // Path: more
@@ -376,6 +384,7 @@ class TranslationsSettingsHe {
 	String get backup => 'גיבוי';
 	String get backupWhat => 'מה לגבות:';
 	String get title => 'הגדרות';
+	String get settingsTitle => 'הגדרות';
 	String get backupSettingsSubtitle => 'גבה את הגדרות התוכנה';
 	String get backupBookmarks => 'סימניות';
 	String get backupBookmarksSubtitle => 'גבה את הסימניות';
@@ -509,6 +518,9 @@ class TranslationsCalendarHe {
 	String get timesOfDay => 'זמני היום';
 	String get events => 'אירועים';
 	String get createEvent => 'צור אירוע';
+	String get month => 'חודש';
+	String get week => 'שבוע';
+	String get day => 'יום';
 }
 
 // Path: gematria
@@ -770,6 +782,10 @@ class TranslationsReportHe {
 	String get send => 'שלח';
 	String get reportNotAvailable => 'דיווח לא זמין';
 	String get sendReport => 'שלח דיווח';
+	String get dialogTitle => 'דיווח על טעות בספר';
+	String get tabRegular => 'שליחת דיווח';
+	String get tabPhone => 'דיווח דרך קו אוצריא';
+	String get errorDetailsLabel => 'פירוט הטעות...';
 }
 
 // Path: editor
@@ -821,6 +837,13 @@ class TranslationsEditorHe {
 	String get oldSource => 'מקור ישן';
 	String get myEdit => 'העריכה שלי';
 	String get newSource => 'מקור חדש';
+	String get cannotChangeLineStructure => 'בספר זה אסור לשנות מבנה שורות כדי לשמור על קישורי פרשנות';
+	String get textNotFound => 'הטקסט לא נמצא';
+	String get unsavedChanges => 'שינויים שלא נשמרו';
+	String get editingText => 'עריכת טקסט';
+	String get editing => 'עריכה';
+	String get preview => 'תצוגה מקדימה';
+	String get startTypingHere => 'התחל לכתוב כאן...';
 }
 
 // Path: messages
@@ -1005,6 +1028,8 @@ extension on Translations {
 			case 'common.unknown': return 'לא ידוע';
 			case 'common.search': return 'חיפוש';
 			case 'common.notAvailable': return 'לא קיים';
+			case 'common.verse': return 'פסוק';
+			case 'common.line': return 'שורה';
 			case 'search.placeholder': return 'חפש כאן..';
 			case 'search.clear': return 'נקה';
 			case 'search.tryDifferent': return 'נסה מילות חיפוש אחרות';
@@ -1060,6 +1085,7 @@ extension on Translations {
 			case 'search.typeTextAndPressEnter': return 'הקלד את הטקסט והקש אנטר או לחץ על סמל החיפוש';
 			case 'search.scannedBooksResults': return ({required Object bookIndex, required Object totalBooks, required Object resultCount, required Object seconds}) => 'נסרקו ${bookIndex} מתוך ${totalBooks} ספרים.  נמצאו ${resultCount} תוצאות בתוך ${seconds} שניות';
 			case 'search.noSearchResults': return 'אין תוצאות חיפוש';
+			case 'search.invalidInput': return 'קלט לא תקין. יש להזין אותיות עבריות או מספרים בלבד.';
 			case 'library.noItems': return 'אין פריטים';
 			case 'library.noResultsFor': return 'לא נמצאו תוצאות עבור';
 			case 'library.searchHint': return 'חפש ב';
@@ -1151,6 +1177,11 @@ extension on Translations {
 			case 'notes.noteDeleted': return 'ההערה נמחקה בהצלחה';
 			case 'notes.repositionNote': return 'מקם הערה מחדש';
 			case 'notes.newLineNumber': return 'מספר שורה חדש';
+			case 'notes.loadNotesError': return 'אירעה שגיאה בעת טעינת רשימת ההערות:';
+			case 'notes.noNotesInLocation': return 'אין הערות במיקום זה.';
+			case 'notes.noMissingNotes': return 'אין הערות חסרות מיקום.';
+			case 'notes.lineNumber': return ({required Object line}) => 'שורה ${line}';
+			case 'notes.noteMovedToLine': return ({required Object line}) => 'ההערה הועברה לשורה ${line}';
 			case 'more.personalNotes': return 'הערות אישיות';
 			case 'more.personalNotesShort': return 'הערות';
 			case 'more.calendar': return 'לוח שנה';
@@ -1196,6 +1227,7 @@ extension on Translations {
 			case 'settings.backup': return 'גיבוי';
 			case 'settings.backupWhat': return 'מה לגבות:';
 			case 'settings.title': return 'הגדרות';
+			case 'settings.settingsTitle': return 'הגדרות';
 			case 'settings.backupSettingsSubtitle': return 'גבה את הגדרות התוכנה';
 			case 'settings.backupBookmarks': return 'סימניות';
 			case 'settings.backupBookmarksSubtitle': return 'גבה את הסימניות';
@@ -1320,6 +1352,9 @@ extension on Translations {
 			case 'calendar.timesOfDay': return 'זמני היום';
 			case 'calendar.events': return 'אירועים';
 			case 'calendar.createEvent': return 'צור אירוע';
+			case 'calendar.month': return 'חודש';
+			case 'calendar.week': return 'שבוע';
+			case 'calendar.day': return 'יום';
 			case 'gematria.settingsTitle': return 'הגדרות חיפוש גימטריה';
 			case 'gematria.filterDuplicates': return 'סינון תוצאות כפולות';
 			case 'gematria.wholeVerseOnly': return 'חיפוש פסוק שלם בלבד';
@@ -1473,6 +1508,10 @@ extension on Translations {
 			case 'report.send': return 'שלח';
 			case 'report.reportNotAvailable': return 'דיווח לא זמין';
 			case 'report.sendReport': return 'שלח דיווח';
+			case 'report.dialogTitle': return 'דיווח על טעות בספר';
+			case 'report.tabRegular': return 'שליחת דיווח';
+			case 'report.tabPhone': return 'דיווח דרך קו אוצריא';
+			case 'report.errorDetailsLabel': return 'פירוט הטעות...';
 			case 'editor.title': return 'עריכת טקסט';
 			case 'editor.save': return 'שמור';
 			case 'editor.cancel': return 'ביטול';
@@ -1515,6 +1554,13 @@ extension on Translations {
 			case 'editor.oldSource': return 'מקור ישן';
 			case 'editor.myEdit': return 'העריכה שלי';
 			case 'editor.newSource': return 'מקור חדש';
+			case 'editor.cannotChangeLineStructure': return 'בספר זה אסור לשנות מבנה שורות כדי לשמור על קישורי פרשנות';
+			case 'editor.textNotFound': return 'הטקסט לא נמצא';
+			case 'editor.unsavedChanges': return 'שינויים שלא נשמרו';
+			case 'editor.editingText': return 'עריכת טקסט';
+			case 'editor.editing': return 'עריכה';
+			case 'editor.preview': return 'תצוגה מקדימה';
+			case 'editor.startTypingHere': return 'התחל לכתוב כאן...';
 			case 'messages.editingInProgress': return 'עריכה בתהליך';
 			case 'messages.saveBeforeLeaving': return 'שמור לפני יציאה';
 			case 'messages.checkingConflicts': return 'בודק קונפליקטים...';

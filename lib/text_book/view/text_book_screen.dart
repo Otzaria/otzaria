@@ -2390,7 +2390,7 @@ class _TabbedReportDialogState extends State<_TabbedReportDialog>
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Text(
-                'דיווח על טעות בספר',
+                context.t.report.dialogTitle,
                 style: Theme.of(context).textTheme.headlineSmall,
                 textDirection: TextDirection.rtl,
               ),
@@ -2398,9 +2398,9 @@ class _TabbedReportDialogState extends State<_TabbedReportDialog>
             // Tab bar - תמיד מציג שתי כרטיסיות
             TabBar(
               controller: _tabController,
-              tabs: const [
-                Tab(text: 'שליחת דיווח'),
-                Tab(text: 'דיווח דרך קו אוצריא'),
+              tabs: [
+                Tab(text: context.t.report.tabRegular),
+                Tab(text: context.t.report.tabPhone),
               ],
             ),
             // Tab content
@@ -2741,7 +2741,7 @@ class _RegularReportTabState extends State<_RegularReportTab> {
           Align(
             alignment: Alignment.centerRight,
             child: Text(
-              'פירוט הטעות (חובה לפרט מהי הטעות, בלא פירוט לא נוכל לטפל):',
+              context.t.report.errorDetailsLabel,
               style: Theme.of(context)
                   .textTheme
                   .bodyMedium

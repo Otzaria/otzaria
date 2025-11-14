@@ -117,7 +117,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
       if (!validChars.hasMatch(searchText)) {
         if (mounted) {
           UiSnack.showError(
-            'קלט לא תקין. יש להזין אותיות עבריות או מספרים בלבד.',
+            context.t.search.invalidInput,
           );
         }
         return;
@@ -202,9 +202,9 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
           String displayPath = result.path.isNotEmpty ? result.path : fileName;
 
           if (result.verseNumber.isNotEmpty) {
-            displayPath = '$displayPath, פסוק ${result.verseNumber}';
+            displayPath = '$displayPath, ${context.t.common.verse} ${result.verseNumber}';
           } else if (result.path.isEmpty) {
-            displayPath = '$displayPath, שורה ${result.line}';
+            displayPath = '$displayPath, ${context.t.common.line} ${result.line}';
           }
 
           return GematriaSearchResult(

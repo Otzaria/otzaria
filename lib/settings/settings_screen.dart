@@ -204,7 +204,7 @@ class _MySettingsScreenState extends State<MySettingsScreen>
             ),
             child: Center(
               child: SettingsScreen(
-                title: 'הגדרות',
+                title: context.t.settings.settingsTitle,
                 children: [
                   SettingsGroup(
                     titleAlignment: Alignment.centerRight,

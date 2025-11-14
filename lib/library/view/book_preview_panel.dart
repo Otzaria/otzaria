@@ -413,7 +413,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                 // כפתור פתיחה בעיון
                 IconButton(
                   icon: const Icon(FluentIcons.open_24_regular, size: 20),
-                  tooltip: 'פתח בעיון (או לחץ פעמיים על הספר)',
+                  tooltip: context.t.library.openInReaderDoubleClick,
                   onPressed: () {
                     // שליחת האינדקס הנוכחי של הספר (אם יש)
                     widget.onOpenInReader?.call(_currentTextTab?.index ?? 0);

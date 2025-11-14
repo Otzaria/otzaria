@@ -209,11 +209,11 @@ class CalendarWidget extends StatelessWidget {
               children: [
                 // כפתורים עם סמלים בלבד
                 buildViewButton(CalendarView.month,
-                    FluentIcons.calendar_month_24_regular, 'חודש'),
+                    FluentIcons.calendar_month_24_regular, context.t.calendar.month),
                 buildViewButton(CalendarView.week,
-                    FluentIcons.calendar_week_numbers_24_regular, 'שבוע'),
+                    FluentIcons.calendar_week_numbers_24_regular, context.t.calendar.week),
                 buildViewButton(CalendarView.day,
-                    FluentIcons.calendar_day_24_regular, 'יום'),
+                    FluentIcons.calendar_day_24_regular, context.t.calendar.day),
 
                 // קו הפרדה קטן
                 Container(

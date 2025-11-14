@@ -20,7 +20,9 @@
         "no": "לא",
         "unknown": "לא ידוע",
         "search": "חיפוש",
-        "notAvailable": "לא קיים"
+        "notAvailable": "לא קיים",
+        "verse": "פסוק",
+        "line": "שורה"
     },
     "search": {
         "placeholder": "חפש כאן..",
@@ -77,7 +79,8 @@
         "findBook": "איתור ספר…",
         "typeTextAndPressEnter": "הקלד את הטקסט והקש אנטר או לחץ על סמל החיפוש",
         "scannedBooksResults": "נסרקו $bookIndex מתוך $totalBooks ספרים.  נמצאו $resultCount תוצאות בתוך $seconds שניות",
-        "noSearchResults": "אין תוצאות חיפוש"
+        "noSearchResults": "אין תוצאות חיפוש",
+        "invalidInput": "קלט לא תקין. יש להזין אותיות עבריות או מספרים בלבד."
     },
     "library": {
         "noItems": "אין פריטים",
@@ -184,7 +187,12 @@
         "noteUpdated": "ההערה עודכנה בהצלחה",
         "noteDeleted": "ההערה נמחקה בהצלחה",
         "repositionNote": "מקם הערה מחדש",
-        "newLineNumber": "מספר שורה חדש"
+        "newLineNumber": "מספר שורה חדש",
+        "loadNotesError": "אירעה שגיאה בעת טעינת רשימת ההערות:",
+        "noNotesInLocation": "אין הערות במיקום זה.",
+        "noMissingNotes": "אין הערות חסרות מיקום.",
+        "lineNumber": "שורה $line",
+        "noteMovedToLine": "ההערה הועברה לשורה $line"
     },
     "more": {
         "personalNotes": "הערות אישיות",
@@ -234,6 +242,7 @@
         "backup": "גיבוי",
         "backupWhat": "מה לגבות:",
         "title": "הגדרות",
+        "settingsTitle": "הגדרות",
         "backupSettingsSubtitle": "גבה את הגדרות התוכנה",
         "backupBookmarks": "סימניות",
         "backupBookmarksSubtitle": "גבה את הסימניות",
@@ -359,7 +368,10 @@
         "noEventsToday": "אין אירועים ביום זה",
         "timesOfDay": "זמני היום",
         "events": "אירועים",
-        "createEvent": "צור אירוע"
+        "createEvent": "צור אירוע",
+        "month": "חודש",
+        "week": "שבוע",
+        "day": "יום"
     },
     "gematria": {
         "settingsTitle": "הגדרות חיפוש גימטריה",
@@ -536,7 +548,11 @@
         "canSendToEmail": "כעת תוכל לשלוח את הקובץ למייל: $email",
         "send": "שלח",
         "reportNotAvailable": "דיווח לא זמין",
-        "sendReport": "שלח דיווח"
+        "sendReport": "שלח דיווח",
+        "dialogTitle": "דיווח על טעות בספר",
+        "tabRegular": "שליחת דיווח",
+        "tabPhone": "דיווח דרך קו אוצריא",
+        "errorDetailsLabel": "פירוט הטעות..."
     },
     "editor": {
         "title": "עריכת טקסט",
@@ -580,7 +596,14 @@
         "edited": "נערך",
         "oldSource": "מקור ישן",
         "myEdit": "העריכה שלי",
-        "newSource": "מקור חדש"
+        "newSource": "מקור חדש",
+        "cannotChangeLineStructure": "בספר זה אסור לשנות מבנה שורות כדי לשמור על קישורי פרשנות",
+        "textNotFound": "הטקסט לא נמצא",
+        "unsavedChanges": "שינויים שלא נשמרו",
+        "editingText": "עריכת טקסט",
+        "editing": "עריכה",
+        "preview": "תצוגה מקדימה",
+        "startTypingHere": "התחל לכתוב כאן..."
     },
     "messages": {
         "editingInProgress": "עריכה בתהליך",

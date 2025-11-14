@@ -19,13 +19,24 @@ class _CustomShortcutDialogState extends State<CustomShortcutDialog> {
   final Set<LogicalKeyboardKey> _pressedKeys = {};
   late String _displayText;
   bool _isRecording = false;
+  bool _isInitialized = false;
 
   @override
   void initState() {
     super.initState();
-    _displayText = context.t.shortcuts.pressKeys;
     if (widget.initialShortcut != null) {
       _displayText = _formatShortcutForDisplay(widget.initialShortcut!);
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_isInitialized) {
+      _isInitialized = true;
+      if (widget.initialShortcut == null) {
+        _displayText = context.t.shortcuts.pressKeys;
+      }
     }
   }
 
@@ -146,7 +157,7 @@ class _CustomShortcutDialogState extends State<CustomShortcutDialog> {
   void _updateDisplay() {
     if (_pressedKeys.isEmpty) {
       setState(() {
-        _displayText = 'לחץ על המקשים...';
+        _displayText = context.t.shortcuts.pressKeys;
       });
       return;
     }

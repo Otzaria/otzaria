@@ -260,7 +260,7 @@ class _TextSectionEditorDialogState extends State<TextSectionEditorDialog> {
 
     if (widget.hasLinksFile && text.contains('\n')) {
       // Prevent line breaks in books with links
-      UiSnack.show('בספר זה אסור לשנות מבנה שורות כדי לשמור על קישורי פרשנות');
+      UiSnack.show(context.t.editor.cannotChangeLineStructure);
       return;
     }
 
@@ -333,8 +333,7 @@ class _TextSectionEditorDialogState extends State<TextSectionEditorDialog> {
       } else if (event.logicalKey == LogicalKeyboardKey.enter &&
           widget.hasLinksFile) {
         // Prevent Enter in books with links
-        UiSnack.show(
-            'בספר זה אסור לשנות מבנה שורות כדי לשמור על קישורי פרשנות');
+        UiSnack.show(context.t.editor.cannotChangeLineStructure);
         return true;
       } else if (event.logicalKey == LogicalKeyboardKey.f3) {
         // F3 - Find next
@@ -492,7 +491,7 @@ class _TextSectionEditorDialogState extends State<TextSectionEditorDialog> {
       _editorFocusNode.requestFocus();
     } else {
       // Show not found message
-      UiSnack.show('הטקסט לא נמצא');
+      UiSnack.show(context.t.editor.textNotFound);
     }
   }
 
@@ -506,7 +505,7 @@ class _TextSectionEditorDialogState extends State<TextSectionEditorDialog> {
       child: Scaffold(
         appBar: AppBar(
           title: Text(
-            '${_hasUnsavedChanges ? 'שינויים שלא נשמרו • ' : ''}עריכת טקסט - ${widget.bookId}',
+            '${_hasUnsavedChanges ? '${context.t.editor.unsavedChanges} • ' : ''}${context.t.editor.editingText} - ${widget.bookId}',
             style: const TextStyle(fontSize: 16),
           ),
           leading: IconButton(
@@ -542,9 +541,9 @@ class _TextSectionEditorDialogState extends State<TextSectionEditorDialog> {
                         left: BorderSide(color: theme.dividerColor),
                       ),
                     ),
-                    child: const Text(
-                      'עריכה',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                    child: Text(
+                      context.t.editor.editing,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -558,9 +557,9 @@ class _TextSectionEditorDialogState extends State<TextSectionEditorDialog> {
                         bottom: BorderSide(color: theme.dividerColor),
                       ),
                     ),
-                    child: const Text(
-                      'תצוגה מקדימה',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                    child: Text(
+                      context.t.editor.preview,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -612,9 +611,9 @@ class _TextSectionEditorDialogState extends State<TextSectionEditorDialog> {
                           fontFamily: 'TaameyAshkenaz',
                           height: 1.5,
                         ),
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           border: InputBorder.none,
-                          hintText: 'התחל לכתוב כאן...',
+                          hintText: context.t.editor.startTypingHere,
                           hintTextDirection: TextDirection.rtl,
                         ),
                         onChanged: (text) {
