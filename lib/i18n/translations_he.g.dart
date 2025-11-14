@@ -521,6 +521,17 @@ class TranslationsCalendarHe {
 	String get month => 'חודש';
 	String get week => 'שבוע';
 	String get day => 'יום';
+	String get timesDisclaimer => 'אין לסמוך על הזמנים!';
+	late final TranslationsCalendarPrayerTimeHe prayerTime = TranslationsCalendarPrayerTimeHe._(_root);
+	String get notAvailable => 'לא זמין';
+	late final TranslationsCalendarDialogHe dialog = TranslationsCalendarDialogHe._(_root);
+	late final TranslationsCalendarHolidayHe holiday = TranslationsCalendarHolidayHe._(_root);
+	late final TranslationsCalendarRecurringHe recurring = TranslationsCalendarRecurringHe._(_root);
+	late final TranslationsCalendarDafYomiHe dafYomi = TranslationsCalendarDafYomiHe._(_root);
+	late final TranslationsCalendarGregorianMonthsHe gregorianMonths = TranslationsCalendarGregorianMonthsHe._(_root);
+	late final TranslationsCalendarJewishEventsHe jewishEvents = TranslationsCalendarJewishEventsHe._(_root);
+	late final TranslationsCalendarHebrewMonthsHe hebrewMonths = TranslationsCalendarHebrewMonthsHe._(_root);
+	late final TranslationsCalendarHebrewDaysHe hebrewDays = TranslationsCalendarHebrewDaysHe._(_root);
 }
 
 // Path: gematria
@@ -844,6 +855,7 @@ class TranslationsEditorHe {
 	String get editing => 'עריכה';
 	String get preview => 'תצוגה מקדימה';
 	String get startTypingHere => 'התחל לכתוב כאן...';
+	String get localSaveWarning => 'שים לב: השינויים נשמרים מקומית בלבד, ובמקרה של עדכון הספרייה, השינויים ימחקו!';
 }
 
 // Path: messages
@@ -1002,6 +1014,208 @@ class TranslationsLibraryCategoriesHe {
 	String get rishonim => 'ראשונים';
 	String get acharonim => 'אחרונים';
 	String get modern => 'מודרני';
+}
+
+// Path: calendar.prayerTime
+class TranslationsCalendarPrayerTimeHe {
+	TranslationsCalendarPrayerTimeHe._(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+	String get alos => 'עלות השחר';
+	String get alos16point1Degrees => 'עלוה"ש (72 דק\') במע\'';
+	String get alos19point8Degrees => 'עלוה"ש (90 דק\') במע\'';
+	String get sunrise => 'זריחה';
+	String get sofZmanShmaMGA => 'סוף זמן ק"ש - מג"א';
+	String get sofZmanShmaGRA => 'סוף זמן ק"ש - גר"א';
+	String get sofZmanTfilaMGA => 'סוף זמן תפילה - מג"א';
+	String get sofZmanTfilaGRA => 'סוף זמן תפילה - גר"א';
+	String get chatzos => 'חצות היום';
+	String get chatzosLayla => 'חצות הלילה';
+	String get minchaGedola => 'מנחה גדולה';
+	String get minchaKetana => 'מנחה קטנה';
+	String get plagHamincha => 'פלג המנחה';
+	String get sunset => 'שקיעה';
+	String get tzais => 'צאת הכוכבים';
+	String get sunsetRT => 'צאת הכוכבים ר"ת';
+	String get candleLighting => 'הדלקת נרות';
+	String get shabbosExit1 => 'יציאת שבת';
+	String get shabbosExit2 => 'צאת השבת חזו"א';
+	String holidayExit({required Object holidayName}) => 'יציאת ${holidayName}';
+	String holidayExitChazon({required Object holidayName}) => 'יציאת ${holidayName} חזו"א';
+	String get omerCounting => 'ספירת העומר';
+	String get fastStart => 'תחילת התענית';
+	String get fastEnd => 'סיום התענית';
+	String get kidushLevanaEarliest => 'תחילת זמן קידוש לבנה';
+	String get kidushLevanaLatest => 'סוף זמן קידוש לבנה';
+	String get chanukahCandles => 'הדלקת נרות חנוכה';
+	String get tchilasKidushLevana => 'תחילת זמן קידוש לבנה';
+	String get sofZmanKidushLevana => 'סוף זמן קידוש לבנה';
+	String get sofZmanAchilasChametzMGA => 'סוף זמן אכילת חמץ - מג"א';
+	String get sofZmanAchilasChametzGRA => 'סוף זמן אכילת חמץ - גר"א';
+	String get sofZmanBiurChametzMGA => 'סוף זמן ביעור חמץ - מג"א';
+	String get sofZmanBiurChametzGRA => 'סוף זמן ביעור חמץ - גר"א';
+}
+
+// Path: calendar.dialog
+class TranslationsCalendarDialogHe {
+	TranslationsCalendarDialogHe._(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+	String get jumpToDate => 'קפוץ לתאריך';
+	String get enterDate => 'הזן תאריך';
+	String get dateHint => 'דוגמאות: 15/3/2025, כ״ה אדר תשפ״ה';
+	String get dateHelper => 'ניתן להזין תאריך לועזי (יום/חודש/שנה) או עברי';
+	String get orSelectFromCalendar => 'או בחר בלוח השנה:';
+	String get dateParseError => 'לא הצלחנו לפרש את התאריך.';
+	String get editEvent => 'ערוך אירוע';
+	String get createNewEvent => 'צור אירוע חדש';
+	String get eventTitle => 'כותרת האירוע';
+	String get eventDescription => 'תיאור (אופציונלי)';
+	String get gregorianDate => 'תאריך לועזי:';
+	String get hebrewDate => 'תאריך עברי:';
+	String get repeatBy => 'חזור לפי';
+	String get hebrewCalendar => 'לוח עברי';
+	String get gregorianCalendar => 'לוח לועזי';
+	String get repeatForYears => 'חזור למשך (שנים)';
+	String get yearsHint => 'לדוגמה: 5';
+	String get eventTitleRequired => 'יש למלא כותרת לאירוע.';
+	String get saveChanges => 'שמור שינויים';
+	String get create => 'צור';
+	String get deleteEvent => 'מחק אירוע';
+	String get editEventTooltip => 'ערוך אירוע';
+	String get deleteEventTooltip => 'מחק אירוע';
+	String get deleteEventConfirm => 'אישור מחיקה';
+	String deleteEventContent({required Object eventTitle}) => 'האם אתה בטוח שברצונך למחוק את האירוע "${eventTitle}"?';
+	String get delete => 'מחק';
+	String get createEventTooltip => 'צור אירוע';
+	String get showCurrentDay => 'הצג יום נוכחי';
+	String get showAll => 'הצג הכל';
+	String get searchEvents => 'חפש אירועים...';
+	String get clearSearch => 'נקה חיפוש';
+	String get searchTitleOnly => 'חפש רק בכותרת';
+	String get searchInDescription => 'חפש גם בתיאור';
+}
+
+// Path: calendar.holiday
+class TranslationsCalendarHolidayHe {
+	TranslationsCalendarHolidayHe._(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+	String get roshHashana => 'ראש השנה';
+	String get yomKippur => 'יום כיפור';
+	String get succos => 'חג הסוכות';
+	String get sheminiAtzeres => 'שמיני עצרת';
+	String get simchasTorah => 'שמחת תורה';
+	String get pesach => 'חג הפסח';
+	String get shavuos => 'חג השבועות';
+	String get chanukah => 'חנוכה';
+	String get hoshanaRaba => 'הושענא רבה';
+	String get cholHamoedPesach => 'חול המועד פסח';
+	String get cholHamoedSuccos => 'חול המועד סוכות';
+	String get holiday => 'חג';
+}
+
+// Path: calendar.recurring
+class TranslationsCalendarRecurringHe {
+	TranslationsCalendarRecurringHe._(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+	String get byHebrew => 'חוזר לפי לוח עברי';
+	String get byGregorian => 'חוזר לפי לוח לועזי';
+}
+
+// Path: calendar.dafYomi
+class TranslationsCalendarDafYomiHe {
+	TranslationsCalendarDafYomiHe._(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+	String get bavli => 'דף היומי בבלי';
+	String get yerushalmi => 'דף היומי ירושלמי';
+}
+
+// Path: calendar.gregorianMonths
+class TranslationsCalendarGregorianMonthsHe {
+	TranslationsCalendarGregorianMonthsHe._(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+	String get january => 'ינואר';
+	String get february => 'פברואר';
+	String get march => 'מרץ';
+	String get april => 'אפריל';
+	String get may => 'מאי';
+	String get june => 'יוני';
+	String get july => 'יולי';
+	String get august => 'אוגוסט';
+	String get september => 'ספטמבר';
+	String get october => 'אוקטובר';
+	String get november => 'נובמבר';
+	String get december => 'דצמבר';
+}
+
+// Path: calendar.jewishEvents
+class TranslationsCalendarJewishEventsHe {
+	TranslationsCalendarJewishEventsHe._(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+	String get roshChodesh => 'ר"ח';
+	String cholHamoedDay({required Object day}) => '${day} דחוה"מ';
+	String chanukahCandle({required Object day}) => 'נר ${day} דחנוכה';
+	String get hoshanaRaba => 'ו\' דחוה"מ';
+	String get sheminiAtzeres => 'שמיני עצרת';
+	String get simchasTorah => 'שמחת תורה';
+}
+
+// Path: calendar.hebrewMonths
+class TranslationsCalendarHebrewMonthsHe {
+	TranslationsCalendarHebrewMonthsHe._(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+	String get nissan => 'ניסן';
+	String get iyar => 'אייר';
+	String get sivan => 'סיון';
+	String get tamuz => 'תמוז';
+	String get av => 'אב';
+	String get elul => 'אלול';
+	String get tishrei => 'תשרי';
+	String get cheshvan => 'חשון';
+	String get kislev => 'כסלו';
+	String get tevet => 'טבת';
+	String get shvat => 'שבט';
+	String get adar => 'אדר';
+	String get adar1 => 'אדר א׳';
+	String get adar2 => 'אדר ב׳';
+}
+
+// Path: calendar.hebrewDays
+class TranslationsCalendarHebrewDaysHe {
+	TranslationsCalendarHebrewDaysHe._(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+	String get sunday => 'ראשון';
+	String get monday => 'שני';
+	String get tuesday => 'שלישי';
+	String get wednesday => 'רביעי';
+	String get thursday => 'חמישי';
+	String get friday => 'שישי';
+	String get saturday => 'שבת';
 }
 
 /// Flat map(s) containing all translations.
@@ -1355,6 +1569,129 @@ extension on Translations {
 			case 'calendar.month': return 'חודש';
 			case 'calendar.week': return 'שבוע';
 			case 'calendar.day': return 'יום';
+			case 'calendar.timesDisclaimer': return 'אין לסמוך על הזמנים!';
+			case 'calendar.prayerTime.alos': return 'עלות השחר';
+			case 'calendar.prayerTime.alos16point1Degrees': return 'עלוה"ש (72 דק\') במע\'';
+			case 'calendar.prayerTime.alos19point8Degrees': return 'עלוה"ש (90 דק\') במע\'';
+			case 'calendar.prayerTime.sunrise': return 'זריחה';
+			case 'calendar.prayerTime.sofZmanShmaMGA': return 'סוף זמן ק"ש - מג"א';
+			case 'calendar.prayerTime.sofZmanShmaGRA': return 'סוף זמן ק"ש - גר"א';
+			case 'calendar.prayerTime.sofZmanTfilaMGA': return 'סוף זמן תפילה - מג"א';
+			case 'calendar.prayerTime.sofZmanTfilaGRA': return 'סוף זמן תפילה - גר"א';
+			case 'calendar.prayerTime.chatzos': return 'חצות היום';
+			case 'calendar.prayerTime.chatzosLayla': return 'חצות הלילה';
+			case 'calendar.prayerTime.minchaGedola': return 'מנחה גדולה';
+			case 'calendar.prayerTime.minchaKetana': return 'מנחה קטנה';
+			case 'calendar.prayerTime.plagHamincha': return 'פלג המנחה';
+			case 'calendar.prayerTime.sunset': return 'שקיעה';
+			case 'calendar.prayerTime.tzais': return 'צאת הכוכבים';
+			case 'calendar.prayerTime.sunsetRT': return 'צאת הכוכבים ר"ת';
+			case 'calendar.prayerTime.candleLighting': return 'הדלקת נרות';
+			case 'calendar.prayerTime.shabbosExit1': return 'יציאת שבת';
+			case 'calendar.prayerTime.shabbosExit2': return 'צאת השבת חזו"א';
+			case 'calendar.prayerTime.holidayExit': return ({required Object holidayName}) => 'יציאת ${holidayName}';
+			case 'calendar.prayerTime.holidayExitChazon': return ({required Object holidayName}) => 'יציאת ${holidayName} חזו"א';
+			case 'calendar.prayerTime.omerCounting': return 'ספירת העומר';
+			case 'calendar.prayerTime.fastStart': return 'תחילת התענית';
+			case 'calendar.prayerTime.fastEnd': return 'סיום התענית';
+			case 'calendar.prayerTime.kidushLevanaEarliest': return 'תחילת זמן קידוש לבנה';
+			case 'calendar.prayerTime.kidushLevanaLatest': return 'סוף זמן קידוש לבנה';
+			case 'calendar.prayerTime.chanukahCandles': return 'הדלקת נרות חנוכה';
+			case 'calendar.prayerTime.tchilasKidushLevana': return 'תחילת זמן קידוש לבנה';
+			case 'calendar.prayerTime.sofZmanKidushLevana': return 'סוף זמן קידוש לבנה';
+			case 'calendar.prayerTime.sofZmanAchilasChametzMGA': return 'סוף זמן אכילת חמץ - מג"א';
+			case 'calendar.prayerTime.sofZmanAchilasChametzGRA': return 'סוף זמן אכילת חמץ - גר"א';
+			case 'calendar.prayerTime.sofZmanBiurChametzMGA': return 'סוף זמן ביעור חמץ - מג"א';
+			case 'calendar.prayerTime.sofZmanBiurChametzGRA': return 'סוף זמן ביעור חמץ - גר"א';
+			case 'calendar.notAvailable': return 'לא זמין';
+			case 'calendar.dialog.jumpToDate': return 'קפוץ לתאריך';
+			case 'calendar.dialog.enterDate': return 'הזן תאריך';
+			case 'calendar.dialog.dateHint': return 'דוגמאות: 15/3/2025, כ״ה אדר תשפ״ה';
+			case 'calendar.dialog.dateHelper': return 'ניתן להזין תאריך לועזי (יום/חודש/שנה) או עברי';
+			case 'calendar.dialog.orSelectFromCalendar': return 'או בחר בלוח השנה:';
+			case 'calendar.dialog.dateParseError': return 'לא הצלחנו לפרש את התאריך.';
+			case 'calendar.dialog.editEvent': return 'ערוך אירוע';
+			case 'calendar.dialog.createNewEvent': return 'צור אירוע חדש';
+			case 'calendar.dialog.eventTitle': return 'כותרת האירוע';
+			case 'calendar.dialog.eventDescription': return 'תיאור (אופציונלי)';
+			case 'calendar.dialog.gregorianDate': return 'תאריך לועזי:';
+			case 'calendar.dialog.hebrewDate': return 'תאריך עברי:';
+			case 'calendar.dialog.repeatBy': return 'חזור לפי';
+			case 'calendar.dialog.hebrewCalendar': return 'לוח עברי';
+			case 'calendar.dialog.gregorianCalendar': return 'לוח לועזי';
+			case 'calendar.dialog.repeatForYears': return 'חזור למשך (שנים)';
+			case 'calendar.dialog.yearsHint': return 'לדוגמה: 5';
+			case 'calendar.dialog.eventTitleRequired': return 'יש למלא כותרת לאירוע.';
+			case 'calendar.dialog.saveChanges': return 'שמור שינויים';
+			case 'calendar.dialog.create': return 'צור';
+			case 'calendar.dialog.deleteEvent': return 'מחק אירוע';
+			case 'calendar.dialog.editEventTooltip': return 'ערוך אירוע';
+			case 'calendar.dialog.deleteEventTooltip': return 'מחק אירוע';
+			case 'calendar.dialog.deleteEventConfirm': return 'אישור מחיקה';
+			case 'calendar.dialog.deleteEventContent': return ({required Object eventTitle}) => 'האם אתה בטוח שברצונך למחוק את האירוע "${eventTitle}"?';
+			case 'calendar.dialog.delete': return 'מחק';
+			case 'calendar.dialog.createEventTooltip': return 'צור אירוע';
+			case 'calendar.dialog.showCurrentDay': return 'הצג יום נוכחי';
+			case 'calendar.dialog.showAll': return 'הצג הכל';
+			case 'calendar.dialog.searchEvents': return 'חפש אירועים...';
+			case 'calendar.dialog.clearSearch': return 'נקה חיפוש';
+			case 'calendar.dialog.searchTitleOnly': return 'חפש רק בכותרת';
+			case 'calendar.dialog.searchInDescription': return 'חפש גם בתיאור';
+			case 'calendar.holiday.roshHashana': return 'ראש השנה';
+			case 'calendar.holiday.yomKippur': return 'יום כיפור';
+			case 'calendar.holiday.succos': return 'חג הסוכות';
+			case 'calendar.holiday.sheminiAtzeres': return 'שמיני עצרת';
+			case 'calendar.holiday.simchasTorah': return 'שמחת תורה';
+			case 'calendar.holiday.pesach': return 'חג הפסח';
+			case 'calendar.holiday.shavuos': return 'חג השבועות';
+			case 'calendar.holiday.chanukah': return 'חנוכה';
+			case 'calendar.holiday.hoshanaRaba': return 'הושענא רבה';
+			case 'calendar.holiday.cholHamoedPesach': return 'חול המועד פסח';
+			case 'calendar.holiday.cholHamoedSuccos': return 'חול המועד סוכות';
+			case 'calendar.holiday.holiday': return 'חג';
+			case 'calendar.recurring.byHebrew': return 'חוזר לפי לוח עברי';
+			case 'calendar.recurring.byGregorian': return 'חוזר לפי לוח לועזי';
+			case 'calendar.dafYomi.bavli': return 'דף היומי בבלי';
+			case 'calendar.dafYomi.yerushalmi': return 'דף היומי ירושלמי';
+			case 'calendar.gregorianMonths.january': return 'ינואר';
+			case 'calendar.gregorianMonths.february': return 'פברואר';
+			case 'calendar.gregorianMonths.march': return 'מרץ';
+			case 'calendar.gregorianMonths.april': return 'אפריל';
+			case 'calendar.gregorianMonths.may': return 'מאי';
+			case 'calendar.gregorianMonths.june': return 'יוני';
+			case 'calendar.gregorianMonths.july': return 'יולי';
+			case 'calendar.gregorianMonths.august': return 'אוגוסט';
+			case 'calendar.gregorianMonths.september': return 'ספטמבר';
+			case 'calendar.gregorianMonths.october': return 'אוקטובר';
+			case 'calendar.gregorianMonths.november': return 'נובמבר';
+			case 'calendar.gregorianMonths.december': return 'דצמבר';
+			case 'calendar.jewishEvents.roshChodesh': return 'ר"ח';
+			case 'calendar.jewishEvents.cholHamoedDay': return ({required Object day}) => '${day} דחוה"מ';
+			case 'calendar.jewishEvents.chanukahCandle': return ({required Object day}) => 'נר ${day} דחנוכה';
+			case 'calendar.jewishEvents.hoshanaRaba': return 'ו\' דחוה"מ';
+			case 'calendar.jewishEvents.sheminiAtzeres': return 'שמיני עצרת';
+			case 'calendar.jewishEvents.simchasTorah': return 'שמחת תורה';
+			case 'calendar.hebrewMonths.nissan': return 'ניסן';
+			case 'calendar.hebrewMonths.iyar': return 'אייר';
+			case 'calendar.hebrewMonths.sivan': return 'סיון';
+			case 'calendar.hebrewMonths.tamuz': return 'תמוז';
+			case 'calendar.hebrewMonths.av': return 'אב';
+			case 'calendar.hebrewMonths.elul': return 'אלול';
+			case 'calendar.hebrewMonths.tishrei': return 'תשרי';
+			case 'calendar.hebrewMonths.cheshvan': return 'חשון';
+			case 'calendar.hebrewMonths.kislev': return 'כסלו';
+			case 'calendar.hebrewMonths.tevet': return 'טבת';
+			case 'calendar.hebrewMonths.shvat': return 'שבט';
+			case 'calendar.hebrewMonths.adar': return 'אדר';
+			case 'calendar.hebrewMonths.adar1': return 'אדר א׳';
+			case 'calendar.hebrewMonths.adar2': return 'אדר ב׳';
+			case 'calendar.hebrewDays.sunday': return 'ראשון';
+			case 'calendar.hebrewDays.monday': return 'שני';
+			case 'calendar.hebrewDays.tuesday': return 'שלישי';
+			case 'calendar.hebrewDays.wednesday': return 'רביעי';
+			case 'calendar.hebrewDays.thursday': return 'חמישי';
+			case 'calendar.hebrewDays.friday': return 'שישי';
+			case 'calendar.hebrewDays.saturday': return 'שבת';
 			case 'gematria.settingsTitle': return 'הגדרות חיפוש גימטריה';
 			case 'gematria.filterDuplicates': return 'סינון תוצאות כפולות';
 			case 'gematria.wholeVerseOnly': return 'חיפוש פסוק שלם בלבד';
@@ -1561,6 +1898,7 @@ extension on Translations {
 			case 'editor.editing': return 'עריכה';
 			case 'editor.preview': return 'תצוגה מקדימה';
 			case 'editor.startTypingHere': return 'התחל לכתוב כאן...';
+			case 'editor.localSaveWarning': return 'שים לב: השינויים נשמרים מקומית בלבד, ובמקרה של עדכון הספרייה, השינויים ימחקו!';
 			case 'messages.editingInProgress': return 'עריכה בתהליך';
 			case 'messages.saveBeforeLeaving': return 'שמור לפני יציאה';
 			case 'messages.checkingConflicts': return 'בודק קונפליקטים...';

@@ -197,8 +197,7 @@ class _TextSectionEditorDialogState extends State<TextSectionEditorDialog> {
 
     _hasShownNotification = true;
 
-    UiSnack.showFloating(
-        'שים לב: השינויים נשמרים מקומית בלבד, ובמקרה של עדכון הספרייה, השינויים ימחקו!');
+    UiSnack.showFloating(context.t.editor.localSaveWarning);
   }
 
   void _save() {
