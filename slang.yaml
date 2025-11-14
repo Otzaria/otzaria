@@ -1,4 +1,4 @@
 base_locale: he
-input_directory: i8n
+input_directory: i18n
 output_directory: lib/i18n
 output_file_name: translations.g.dart

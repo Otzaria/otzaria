@@ -35,12 +35,13 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
     super.dispose();
   }
 
-  String _generateUniqueWorkspaceName(List<Workspace> existingWorkspaces) {
+  String _generateUniqueWorkspaceName(
+      List<Workspace> existingWorkspaces, String Function(int) nameGenerator) {
     final existingNames = existingWorkspaces.map((w) => w.name).toSet();
     int counter = existingWorkspaces.length + 1;
 
     while (true) {
-      final candidateName = "שולחן עבודה $counter";
+      final candidateName = nameGenerator(counter);
       if (!existingNames.contains(candidateName)) {
         return candidateName;
       }
@@ -62,9 +63,9 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'שולחנות עבודה',
-                  style: TextStyle(
+                Text(
+                  context.t.workspaces.title,
+                  style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
                   ),
@@ -127,8 +128,9 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
           child: InkWell(
             onTap: () {
               final workspaceBloc = context.read<WorkspaceBloc>();
-              final newWorkspaceName =
-                  _generateUniqueWorkspaceName(workspaceBloc.state.workspaces);
+              final newWorkspaceName = _generateUniqueWorkspaceName(
+                  workspaceBloc.state.workspaces,
+                  (counter) => context.t.workspaces.workspaceName(counter: counter));
               workspaceBloc.add(AddWorkspace(
                   name: newWorkspaceName, tabs: const [], currentTabIndex: 0));
             },
@@ -149,9 +151,9 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'שולחן עבודה חדש',
-                  style: TextStyle(
+                Text(
+                  context.t.workspaces.newWorkspace,
+                  style: const TextStyle(
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -274,12 +276,12 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
               onPressed: () {
                 // Remove the workspace
                 if (isActive) {
-                  UiSnack.showError('לא ניתן למחוק שולחן עבודה פעיל',
+                  UiSnack.showError(context.t.workspaces.cannotDeleteActive,
                       backgroundColor: Theme.of(context).colorScheme.error);
                   return;
                 }
                 context.read<WorkspaceBloc>().add(RemoveWorkspace(workspace));
-                UiSnack.show('שולחן העבודה נמחק');
+                UiSnack.show(context.t.workspaces.workspaceDeleted);
               },
             ),
           ),

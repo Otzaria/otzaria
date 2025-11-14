@@ -55,6 +55,7 @@ class Translations implements BaseTranslations<AppLocale, Translations> {
 	late final TranslationsTooltipsHe tooltips = TranslationsTooltipsHe._(_root);
 	late final TranslationsTextBookHe textBook = TranslationsTextBookHe._(_root);
 	late final TranslationsDialogsHe dialogs = TranslationsDialogsHe._(_root);
+	late final TranslationsDialogHe dialog = TranslationsDialogHe._(_root);
 	late final TranslationsShortcutsHe shortcuts = TranslationsShortcutsHe._(_root);
 	late final TranslationsAboutHe about = TranslationsAboutHe._(_root);
 	late final TranslationsEmptyLibraryHe emptyLibrary = TranslationsEmptyLibraryHe._(_root);
@@ -67,7 +68,9 @@ class Translations implements BaseTranslations<AppLocale, Translations> {
 	late final TranslationsPasswordHe password = TranslationsPasswordHe._(_root);
 	late final TranslationsPdfBookHe pdfBook = TranslationsPdfBookHe._(_root);
 	late final TranslationsLinksHe links = TranslationsLinksHe._(_root);
+	late final TranslationsErrorsHe errors = TranslationsErrorsHe._(_root);
 	late final TranslationsPreviewHe preview = TranslationsPreviewHe._(_root);
+	late final TranslationsWorkspacesHe workspaces = TranslationsWorkspacesHe._(_root);
 }
 
 // Path: app
@@ -103,6 +106,7 @@ class TranslationsCommonHe {
 	String get no => 'לא';
 	String get unknown => 'לא ידוע';
 	String get search => 'חיפוש';
+	String get notAvailable => 'לא קיים';
 }
 
 // Path: search
@@ -142,6 +146,27 @@ class TranslationsSearchHe {
 	String page({required Object page}) => 'עמוד ${page}';
 	String get bookListForSearch => 'רשימת הספרים לחיפוש:';
 	String get noBooksFound => 'לא נמצאו ספרים';
+	String get title => 'חיפוש';
+	String searchWithQuery({required Object query}) => 'חיפוש: ${query}';
+	String get searchButton => 'חפש';
+	String get searchHistory => 'היסטוריית חיפושים';
+	String get exact => 'מדויק';
+	String get advanced => 'מתקדם';
+	String get fuzzy => 'מקורב';
+	String get prefixes => 'קידומות';
+	String get suffixes => 'סיומות';
+	String get grammaticalPrefixes => 'קידומות דקדוקיות';
+	String get grammaticalSuffixes => 'סיומות דקדוקיות';
+	String get fullSpelling => 'כתיב מלא/חסר';
+	String get partialWord => 'חלק ממילה';
+	String get previousWord => 'מילה קודמת';
+	String get selectWord => 'בחר מילה';
+	String get nextWord => 'מילה הבאה';
+	String get spacingToNextWord => 'מרווח למילה הבאה';
+	String get spacingHint => '0-30';
+	String get deleteSpacing => 'מחק מרווח';
+	String get alternativeWord => 'מילה חילופית';
+	String get typeWord => 'הקלד מילה...';
 }
 
 // Path: library
@@ -544,6 +569,20 @@ class TranslationsDialogsHe {
 	String get cannotBeUndone => 'פעולה זו לא ניתנת לביטול';
 }
 
+// Path: dialog
+class TranslationsDialogHe {
+	TranslationsDialogHe._(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+	String get description => 'תיאור';
+	String get author => 'מחבר';
+	String get placeOfPublication => 'מקום הדפסה';
+	String get year => 'שנת הדפסה';
+	String get subjects => 'נושאים';
+}
+
 // Path: shortcuts
 class TranslationsShortcutsHe {
 	TranslationsShortcutsHe._(this._root);
@@ -619,7 +658,11 @@ class TranslationsFindRefHe {
 	final Translations _root; // ignore: unused_field
 
 	// Translations
-	String get title => 'מצא מראה מקום';
+	String get title => 'איתור מקורות';
+	String get warning => 'אינדקס המקורות בתהליך בנייה. תוצאות החיפוש עלולות להיות חלקיות.';
+	String get hint => 'הקלד מקור מדוייק, לדוגמה: בראשית פרק א או שוע אוח יב   ';
+	String get noResults => 'אין תוצאות';
+	String errorMessage({required Object message}) => 'שגיאה: ${message}';
 }
 
 // Path: printing
@@ -811,6 +854,10 @@ class TranslationsLinksHe {
 
 	// Translations
 	String get searchInLinks => 'חפש גם בתוכן הקישורים';
+	String get searchHint => 'חפש בתוך הקישורים המוצגים...';
+	String get noLinksFound => 'לא נמצאו קישורים לקטע הנבחר';
+	String loadError({required Object error}) => 'שגיאה בטעינת התוכן: ${error}';
+	String get noContentAvailable => 'אין תוכן זמין';
 	String opened({required Object ref}) => 'נפתח: ${ref}';
 	String cannotOpenLink({required Object error}) => 'לא ניתן לפתוח את הקישור: ${error}';
 	String linkError({required Object error}) => 'שגיאה בפתיחת הקישור: ${error}';
@@ -818,6 +865,16 @@ class TranslationsLinksHe {
 	String cannotNavigateToHeader({required Object headerName}) => 'לא ניתן לנווט לכותרת: ${headerName}';
 	String openBook({required Object bookTitle, required Object headerName}) => 'פתח ספר: ${bookTitle} - ${headerName}';
 	String cannotOpenBook({required Object bookTitle}) => 'לא ניתן לפתוח את הספר: ${bookTitle}';
+}
+
+// Path: errors
+class TranslationsErrorsHe {
+	TranslationsErrorsHe._(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+	String get cannotOpenLink => 'לא ניתן לפתוח את הקישור בדפדפן';
 }
 
 // Path: preview
@@ -828,6 +885,20 @@ class TranslationsPreviewHe {
 
 	// Translations
 	String get openInReader => 'פתח בעיון';
+}
+
+// Path: workspaces
+class TranslationsWorkspacesHe {
+	TranslationsWorkspacesHe._(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+	String get title => 'שולחנות עבודה';
+	String get newWorkspace => 'שולחן עבודה חדש';
+	String workspaceName({required Object counter}) => 'שולחן עבודה ${counter}';
+	String get cannotDeleteActive => 'לא ניתן למחוק שולחן עבודה פעיל';
+	String get workspaceDeleted => 'שולחן העבודה נמחק';
 }
 
 // Path: library.categories
@@ -877,6 +948,7 @@ extension on Translations {
 			case 'common.no': return 'לא';
 			case 'common.unknown': return 'לא ידוע';
 			case 'common.search': return 'חיפוש';
+			case 'common.notAvailable': return 'לא קיים';
 			case 'search.placeholder': return 'חפש כאן..';
 			case 'search.clear': return 'נקה';
 			case 'search.tryDifferent': return 'נסה מילות חיפוש אחרות';
@@ -907,6 +979,27 @@ extension on Translations {
 			case 'search.page': return ({required Object page}) => 'עמוד ${page}';
 			case 'search.bookListForSearch': return 'רשימת הספרים לחיפוש:';
 			case 'search.noBooksFound': return 'לא נמצאו ספרים';
+			case 'search.title': return 'חיפוש';
+			case 'search.searchWithQuery': return ({required Object query}) => 'חיפוש: ${query}';
+			case 'search.searchButton': return 'חפש';
+			case 'search.searchHistory': return 'היסטוריית חיפושים';
+			case 'search.exact': return 'מדויק';
+			case 'search.advanced': return 'מתקדם';
+			case 'search.fuzzy': return 'מקורב';
+			case 'search.prefixes': return 'קידומות';
+			case 'search.suffixes': return 'סיומות';
+			case 'search.grammaticalPrefixes': return 'קידומות דקדוקיות';
+			case 'search.grammaticalSuffixes': return 'סיומות דקדוקיות';
+			case 'search.fullSpelling': return 'כתיב מלא/חסר';
+			case 'search.partialWord': return 'חלק ממילה';
+			case 'search.previousWord': return 'מילה קודמת';
+			case 'search.selectWord': return 'בחר מילה';
+			case 'search.nextWord': return 'מילה הבאה';
+			case 'search.spacingToNextWord': return 'מרווח למילה הבאה';
+			case 'search.spacingHint': return '0-30';
+			case 'search.deleteSpacing': return 'מחק מרווח';
+			case 'search.alternativeWord': return 'מילה חילופית';
+			case 'search.typeWord': return 'הקלד מילה...';
 			case 'library.noItems': return 'אין פריטים';
 			case 'library.noResultsFor': return 'לא נמצאו תוצאות עבור';
 			case 'library.searchHint': return 'חפש ב';
@@ -1195,6 +1288,11 @@ extension on Translations {
 			case 'dialogs.confirmAction': return 'אישור פעולה';
 			case 'dialogs.areYouSure': return 'האם אתה בטוח?';
 			case 'dialogs.cannotBeUndone': return 'פעולה זו לא ניתנת לביטול';
+			case 'dialog.description': return 'תיאור';
+			case 'dialog.author': return 'מחבר';
+			case 'dialog.placeOfPublication': return 'מקום הדפסה';
+			case 'dialog.year': return 'שנת הדפסה';
+			case 'dialog.subjects': return 'נושאים';
 			case 'shortcuts.customShortcutTitle': return 'הגדרת קיצור מקשים מותאם אישית';
 			case 'shortcuts.pressKeysInstructions': return 'לחץ על "התחל הקלטה" ואז לחץ על צירוף המקשים הרצוי';
 			case 'shortcuts.pressKeys': return 'לחץ על המקשים...';
@@ -1236,7 +1334,11 @@ extension on Translations {
 			case 'emptyLibrary.chooseZip': return 'בחר קובץ ZIP מהמכשיר';
 			case 'emptyLibrary.downloadLibrary': return 'הורד את הספרייה מהאינטרנט (1.2GB)';
 			case 'emptyLibrary.downloadSpeed': return ({required Object speed}) => 'מהירות הורדה: ${speed} MB/s';
-			case 'findRef.title': return 'מצא מראה מקום';
+			case 'findRef.title': return 'איתור מקורות';
+			case 'findRef.warning': return 'אינדקס המקורות בתהליך בנייה. תוצאות החיפוש עלולות להיות חלקיות.';
+			case 'findRef.hint': return 'הקלד מקור מדוייק, לדוגמה: בראשית פרק א או שוע אוח יב   ';
+			case 'findRef.noResults': return 'אין תוצאות';
+			case 'findRef.errorMessage': return ({required Object message}) => 'שגיאה: ${message}';
 			case 'printing.title': return 'הדפסה';
 			case 'printing.printRange': return 'טווח הדפסה';
 			case 'printing.fontSize': return 'גודל גופן';
@@ -1356,6 +1458,10 @@ extension on Translations {
 			case 'pdfBook.go': return 'עבור';
 			case 'pdfBook.noOutline': return 'אין תוכן עניינים';
 			case 'links.searchInLinks': return 'חפש גם בתוכן הקישורים';
+			case 'links.searchHint': return 'חפש בתוך הקישורים המוצגים...';
+			case 'links.noLinksFound': return 'לא נמצאו קישורים לקטע הנבחר';
+			case 'links.loadError': return ({required Object error}) => 'שגיאה בטעינת התוכן: ${error}';
+			case 'links.noContentAvailable': return 'אין תוכן זמין';
 			case 'links.opened': return ({required Object ref}) => 'נפתח: ${ref}';
 			case 'links.cannotOpenLink': return ({required Object error}) => 'לא ניתן לפתוח את הקישור: ${error}';
 			case 'links.linkError': return ({required Object error}) => 'שגיאה בפתיחת הקישור: ${error}';
@@ -1363,7 +1469,13 @@ extension on Translations {
 			case 'links.cannotNavigateToHeader': return ({required Object headerName}) => 'לא ניתן לנווט לכותרת: ${headerName}';
 			case 'links.openBook': return ({required Object bookTitle, required Object headerName}) => 'פתח ספר: ${bookTitle} - ${headerName}';
 			case 'links.cannotOpenBook': return ({required Object bookTitle}) => 'לא ניתן לפתוח את הספר: ${bookTitle}';
+			case 'errors.cannotOpenLink': return 'לא ניתן לפתוח את הקישור בדפדפן';
 			case 'preview.openInReader': return 'פתח בעיון';
+			case 'workspaces.title': return 'שולחנות עבודה';
+			case 'workspaces.newWorkspace': return 'שולחן עבודה חדש';
+			case 'workspaces.workspaceName': return ({required Object counter}) => 'שולחן עבודה ${counter}';
+			case 'workspaces.cannotDeleteActive': return 'לא ניתן למחוק שולחן עבודה פעיל';
+			case 'workspaces.workspaceDeleted': return 'שולחן העבודה נמחק';
 			default: return null;
 		}
 	}

@@ -66,7 +66,7 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
                   TextField(
                     controller: _searchController,
                     decoration: InputDecoration(
-                      hintText: 'חפש בתוך הקישורים המוצגים...',
+                      hintText: context.t.links.searchHint,
                       prefixIcon: const Icon(FluentIcons.search_24_regular),
                       suffixIcon: _searchQuery.isNotEmpty
                           ? IconButton(
@@ -128,11 +128,11 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
         .toList();
 
     if (links.isEmpty) {
-      return const Center(
+      return Center(
         child: Padding(
-          padding: EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(16.0),
           child: Text(
-            'לא נמצאו קישורים לקטע הנבחר',
+            context.t.links.noLinksFound,
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 16,
@@ -312,7 +312,7 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
 
     if (snapshot.hasError) {
       return Text(
-        'שגיאה בטעינת התוכן: ${snapshot.error}',
+        context.t.links.loadError(error: snapshot.error.toString()),
         style: TextStyle(
           color: Theme.of(context).colorScheme.error,
           fontSize: widget.fontSize * 0.9,
@@ -322,7 +322,7 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
 
     if (!snapshot.hasData || snapshot.data!.isEmpty) {
       return Text(
-        'אין תוכן זמין',
+        context.t.links.noContentAvailable,
         style: TextStyle(
           color: Theme.of(context).colorScheme.onSurface.withAlpha(150),
           fontSize: widget.fontSize * 0.9,

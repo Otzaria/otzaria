@@ -58,15 +58,15 @@ class OtzarBookDialog extends StatelessWidget {
                     ),
                     const SizedBox(height: 24),
                     _buildInfoRow(context, FluentIcons.document_text_24_regular,
-                        'תיאור', book.heShortDesc ?? 'לא קיים'),
+                        context.t.dialog.description, book.heShortDesc ?? context.t.common.notAvailable),
                     _buildInfoRow(context, FluentIcons.person_24_regular,
-                        'מחבר', book.author ?? 'לא ידוע'),
+                        context.t.dialog.author, book.author ?? context.t.common.unknown),
                     _buildInfoRow(context, FluentIcons.location_24_regular,
-                        'מקום הדפסה', book.pubPlace ?? 'לא ידוע'),
+                        context.t.dialog.placeOfPublication, book.pubPlace ?? context.t.common.unknown),
                     _buildInfoRow(context, FluentIcons.calendar_24_regular,
-                        'שנת הדפסה', book.pubDate ?? 'לא ידוע'),
+                        context.t.dialog.year, book.pubDate ?? context.t.common.unknown),
                     _buildInfoRow(context, FluentIcons.apps_24_regular,
-                        'נושאים', book.topics),
+                        context.t.dialog.subjects, book.topics),
                     const SizedBox(height: 24),
                     _buildButtons(context, canLaunchLocally, bookExists),
                   ],
@@ -136,7 +136,7 @@ class OtzarBookDialog extends StatelessWidget {
             if (await OtzarUtils.launchOtzarWeb(book.link)) {
               // Success
             } else {
-              UiSnack.showError('לא ניתן לפתוח את הקישור בדפדפן',
+              UiSnack.showError(context.t.errors.cannotOpenLink,
                   backgroundColor: errorColor);
             }
           },

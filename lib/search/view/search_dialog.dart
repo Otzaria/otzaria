@@ -52,7 +52,7 @@ class _SearchDialogState extends State<SearchDialog> {
         Settings.getValue<String>('key-last-search-mode') ?? 'advanced';
 
     // יצירת טאב עם ההקלדה האחרונה
-    _searchTab = SearchingTab("חיפוש", lastTyping);
+    _searchTab = SearchingTab(context.t.search.title, lastTyping);
 
     // הגדרת מצב החיפוש האחרון
     final searchMode = lastMode == 'advanced'
@@ -104,11 +104,11 @@ class _SearchDialogState extends State<SearchDialog> {
         children: [
           Icon(FluentIcons.warning_24_regular, color: Colors.orange[700]),
           const SizedBox(width: 8),
-          const Expanded(
+          Expanded(
             child: Text(
-              'אינדקס החיפוש בתהליך עדכון. יתכן שחלק מהספרים לא יוצגו בתוצאות החיפוש.',
+              context.t.search.indexUpdating,
               textAlign: TextAlign.right,
-              style: TextStyle(color: Colors.black87),
+              style: const TextStyle(color: Colors.black87),
             ),
           ),
           IconButton(
@@ -291,7 +291,7 @@ class _SearchDialogState extends State<SearchDialog> {
 
     // יצירת טאב חדש לגמרי - ללא קשר לטאב קודם
     // שם הלשונית: "חיפוש: [מילות החיפוש]"
-    final newSearchTab = SearchingTab("חיפוש: $query", query);
+    final newSearchTab = SearchingTab(context.t.search.searchWithQuery(query: query), query);
 
     // העתקת כל ההגדרות מהטאב הנוכחי לטאב החדש
     newSearchTab.searchOptions.addAll(_searchTab.searchOptions);
@@ -382,13 +382,13 @@ class _SearchDialogState extends State<SearchDialog> {
     String? currentWord,
     int? wordIndex,
   ) {
-    const List<String> options = [
-      'קידומות',
-      'סיומות',
-      'קידומות דקדוקיות',
-      'סיומות דקדוקיות',
-      'כתיב מלא/חסר',
-      'חלק ממילה',
+    final List<String> options = [
+      context.t.search.prefixes,
+      context.t.search.suffixes,
+      context.t.search.grammaticalPrefixes,
+      context.t.search.grammaticalSuffixes,
+      context.t.search.fullSpelling,
+      context.t.search.partialWord,
     ];
 
     // חישוב מספר המילים
@@ -514,12 +514,12 @@ class _SearchDialogState extends State<SearchDialog> {
                               setState(() {});
                             }
                           : null,
-                      tooltip: 'מילה קודמת',
+                      tooltip: context.t.search.previousWord,
                     ),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 8.0),
                       child: Text(
-                        isEnabled ? currentWord! : 'בחר מילה',
+                        isEnabled ? currentWord! : context.t.search.selectWord,
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 20,
@@ -557,7 +557,7 @@ class _SearchDialogState extends State<SearchDialog> {
                               setState(() {});
                             }
                           : null,
-                      tooltip: 'מילה הבאה',
+                      tooltip: context.t.search.nextWord,
                     ),
                   ],
                 ),
@@ -582,8 +582,8 @@ class _SearchDialogState extends State<SearchDialog> {
                             child: TextField(
                               enabled: isEnabled && wordIndex != null,
                               decoration: InputDecoration(
-                                labelText: 'מרווח למילה הבאה',
-                                hintText: '0-30',
+                                labelText: context.t.search.spacingToNextWord,
+                                hintText: context.t.search.spacingHint,
                                 border: const OutlineInputBorder(),
                                 contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 12,
@@ -607,7 +607,7 @@ class _SearchDialogState extends State<SearchDialog> {
                                           ).clear();
                                         }
                                       : null,
-                                  tooltip: 'מחק מרווח',
+                                  tooltip: context.t.search.deleteSpacing,
                                 ),
                               ),
                               controller: wordIndex != null
@@ -643,8 +643,8 @@ class _SearchDialogState extends State<SearchDialog> {
                           TextField(
                             controller: _alternativeWordController,
                             decoration: InputDecoration(
-                              labelText: 'מילה חילופית',
-                              hintText: 'הקלד מילה...',
+                              labelText: context.t.search.alternativeWord,
+                              hintText: context.t.search.typeWord,
                               border: const OutlineInputBorder(),
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 12,
@@ -888,15 +888,15 @@ class _SearchDialogState extends State<SearchDialog> {
                 children: [
                   const Icon(FluentIcons.search_24_filled, size: 28),
                   const SizedBox(width: 12),
-                  const Text(
-                    'חיפוש',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  Text(
+                    context.t.search.title,
+                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                   ),
                   const Spacer(),
                   IconButton(
                     icon: const Icon(FluentIcons.dismiss_24_regular),
                     onPressed: () => Navigator.of(context).pop(),
-                    tooltip: 'סגור',
+                    tooltip: context.t.common.close,
                   ),
                 ],
               ),
@@ -921,7 +921,7 @@ class _SearchDialogState extends State<SearchDialog> {
                             children: [
                               _buildNavButton(
                                 context,
-                                'מדויק',
+                                context.t.search.exact,
                                 FluentIcons.text_quote_24_regular,
                                 SearchMode.exact,
                                 state.configuration.searchMode ==
@@ -930,7 +930,7 @@ class _SearchDialogState extends State<SearchDialog> {
                               const SizedBox(height: 4),
                               _buildNavButton(
                                 context,
-                                'מתקדם',
+                                context.t.search.advanced,
                                 FluentIcons.search_info_24_regular,
                                 SearchMode.advanced,
                                 state.configuration.searchMode ==
@@ -939,7 +939,7 @@ class _SearchDialogState extends State<SearchDialog> {
                               const SizedBox(height: 4),
                               _buildNavButton(
                                 context,
-                                'מקורב',
+                                context.t.search.fuzzy,
                                 FluentIcons
                                     .arrow_bidirectional_left_right_24_regular,
                                 SearchMode.fuzzy,
@@ -1009,7 +1009,7 @@ class _SearchDialogState extends State<SearchDialog> {
                                                         .search_24_filled,
                                                     size: 20,
                                                   ),
-                                                  tooltip: 'חפש',
+                                                  tooltip: context.t.search.searchButton,
                                                   onPressed: _performSearch,
                                                   style: IconButton.styleFrom(
                                                     backgroundColor:
@@ -1046,7 +1046,7 @@ class _SearchDialogState extends State<SearchDialog> {
                                                             .history_24_regular,
                                                     size: 24,
                                                   ),
-                                                  tooltip: 'היסטוריית חיפושים',
+                                                  tooltip: context.t.search.searchHistory,
                                                   padding: EdgeInsets.zero,
                                                   constraints:
                                                       const BoxConstraints(),

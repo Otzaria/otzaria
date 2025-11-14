@@ -156,7 +156,7 @@ class _ReadingScreenState extends State<ReadingScreen>
                                 ? FluentIcons.full_screen_minimize_24_regular
                                 : FluentIcons.full_screen_maximize_24_regular),
                             tooltip: settingsState.isFullscreen
-                                ? context.t.settings.fullscreen
+                                ? context.t.settings.exitFullscreen
                                 : context.t.settings.fullscreen,
                             onPressed: () async {
                               final newFullscreenState =

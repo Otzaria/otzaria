@@ -19,7 +19,8 @@
         "yes": "כן",
         "no": "לא",
         "unknown": "לא ידוע",
-        "search": "חיפוש"
+        "search": "חיפוש",
+        "notAvailable": "לא קיים"
     },
     "search": {
         "placeholder": "חפש כאן..",
@@ -51,7 +52,28 @@
         "indexUpdating": "אינדקס החיפוש בתהליך עדכון. יתכן שחלק מהספרים לא יוצגו בתוצאות החיפוש.",
         "page": "עמוד $page",
         "bookListForSearch": "רשימת הספרים לחיפוש:",
-        "noBooksFound": "לא נמצאו ספרים"
+        "noBooksFound": "לא נמצאו ספרים",
+        "title": "חיפוש",
+        "searchWithQuery": "חיפוש: $query",
+        "searchButton": "חפש",
+        "searchHistory": "היסטוריית חיפושים",
+        "exact": "מדויק",
+        "advanced": "מתקדם",
+        "fuzzy": "מקורב",
+        "prefixes": "קידומות",
+        "suffixes": "סיומות",
+        "grammaticalPrefixes": "קידומות דקדוקיות",
+        "grammaticalSuffixes": "סיומות דקדוקיות",
+        "fullSpelling": "כתיב מלא/חסר",
+        "partialWord": "חלק ממילה",
+        "previousWord": "מילה קודמת",
+        "selectWord": "בחר מילה",
+        "nextWord": "מילה הבאה",
+        "spacingToNextWord": "מרווח למילה הבאה",
+        "spacingHint": "0-30",
+        "deleteSpacing": "מחק מרווח",
+        "alternativeWord": "מילה חילופית",
+        "typeWord": "הקלד מילה..."
     },
     "library": {
         "noItems": "אין פריטים",
@@ -371,6 +393,13 @@
         "areYouSure": "האם אתה בטוח?",
         "cannotBeUndone": "פעולה זו לא ניתנת לביטול"
     },
+    "dialog": {
+        "description": "תיאור",
+        "author": "מחבר",
+        "placeOfPublication": "מקום הדפסה",
+        "year": "שנת הדפסה",
+        "subjects": "נושאים"
+    },
     "shortcuts": {
         "customShortcutTitle": "הגדרת קיצור מקשים מותאם אישית",
         "pressKeysInstructions": "לחץ על \"התחל הקלטה\" ואז לחץ על צירוף המקשים הרצוי",
@@ -419,7 +448,11 @@
         "downloadSpeed": "מהירות הורדה: $speed MB/s"
     },
     "findRef": {
-        "title": "מצא מראה מקום"
+        "title": "איתור מקורות",
+        "warning": "אינדקס המקורות בתהליך בנייה. תוצאות החיפוש עלולות להיות חלקיות.",
+        "hint": "הקלד מקור מדוייק, לדוגמה: בראשית פרק א או שוע אוח יב   ",
+        "noResults": "אין תוצאות",
+        "errorMessage": "שגיאה: $message"
     },
     "printing": {
         "title": "הדפסה",
@@ -555,6 +588,10 @@
     },
     "links": {
         "searchInLinks": "חפש גם בתוכן הקישורים",
+        "searchHint": "חפש בתוך הקישורים המוצגים...",
+        "noLinksFound": "לא נמצאו קישורים לקטע הנבחר",
+        "loadError": "שגיאה בטעינת התוכן: $error",
+        "noContentAvailable": "אין תוכן זמין",
         "opened": "נפתח: $ref",
         "cannotOpenLink": "לא ניתן לפתוח את הקישור: $error",
         "linkError": "שגיאה בפתיחת הקישור: $error",
@@ -563,7 +600,17 @@
         "openBook": "פתח ספר: $bookTitle - $headerName",
         "cannotOpenBook": "לא ניתן לפתוח את הספר: $bookTitle"
     },
+    "errors": {
+        "cannotOpenLink": "לא ניתן לפתוח את הקישור בדפדפן"
+    },
     "preview": {
         "openInReader": "פתח בעיון"
+    },
+    "workspaces": {
+        "title": "שולחנות עבודה",
+        "newWorkspace": "שולחן עבודה חדש",
+        "workspaceName": "שולחן עבודה $counter",
+        "cannotDeleteActive": "לא ניתן למחוק שולחן עבודה פעיל",
+        "workspaceDeleted": "שולחן העבודה נמחק"
     }
 }
