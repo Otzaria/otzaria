@@ -78,13 +78,13 @@ class _BooksScreenState extends State<BooksScreen>
             'BooksScreen Consumer builder - hasData: ${dataProvider.hasData}, isLoading: ${dataProvider.isLoading}');
 
         if (dataProvider.isLoading) {
-          return const Center(
+          return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('טוען ספרים...'),
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                Text(context.t.shamorZachor.loadingBooks),
               ],
             ),
           );
@@ -102,7 +102,7 @@ class _BooksScreenState extends State<BooksScreen>
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'שגיאה בטעינת ספרים',
+                  context.t.shamorZachor.errorLoadingBooks,
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 const SizedBox(height: 8),
@@ -114,7 +114,7 @@ class _BooksScreenState extends State<BooksScreen>
                 const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: () => dataProvider.retry(),
-                  child: const Text('נסה שוב'),
+                  child: Text(context.t.notes.tryAgain),
                 ),
               ],
             ),
@@ -122,8 +122,8 @@ class _BooksScreenState extends State<BooksScreen>
         }
 
         if (!dataProvider.hasData) {
-          return const Center(
-            child: Text('אין נתונים להצגה'),
+          return Center(
+            child: Text(context.t.shamorZachor.noDataToDisplay),
           );
         }
 
@@ -156,7 +156,7 @@ class _BooksScreenState extends State<BooksScreen>
         // Add "Custom Books" tab if there are any custom books
         if (hasCustomBooks) {
           _logger.info('Adding "ספרים אישיים" tab');
-          categories.add('ספרים אישיים');
+          categories.add(context.t.shamorZachor.personalBooks);
         } else {
           _logger.warning('No custom books found!');
         }
@@ -365,7 +365,7 @@ class _BooksScreenState extends State<BooksScreen>
             ),
             const SizedBox(height: 16),
             Text(
-              'אין ספרים אישיים',
+              context.t.shamorZachor.noPersonalBooks,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: Theme.of(context)
                         .colorScheme
@@ -375,7 +375,7 @@ class _BooksScreenState extends State<BooksScreen>
             ),
             const SizedBox(height: 8),
             Text(
-              'הוסף ספרים מהספרייה לשמור וזכור',
+              context.t.shamorZachor.addBooksFromLibrary,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context)
                         .colorScheme
@@ -395,13 +395,13 @@ class _BooksScreenState extends State<BooksScreen>
   Widget _buildCategoryView(
       ShamorZachorDataProvider dataProvider, String categoryName) {
     // Special handling for "Custom Books" tab
-    if (categoryName == 'ספרים אישיים') {
+    if (categoryName == context.t.shamorZachor.personalBooks) {
       return _buildCustomBooksView(dataProvider);
     }
 
     final category = dataProvider.getCategory(categoryName);
     if (category == null) {
-      return const Center(child: Text('קטגוריה לא נמצאה'));
+      return Center(child: Text(context.t.shamorZachor.categoryNotFound));
     }
 
     final items = <_BookItem>[];
@@ -447,7 +447,7 @@ class _BooksScreenState extends State<BooksScreen>
             ),
             const SizedBox(height: 16),
             Text(
-              'אין ספרים בקטגוריה זו',
+              context.t.shamorZachor.noBooksInCategory,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: Theme.of(context)
                         .colorScheme
@@ -536,18 +536,19 @@ class _BooksScreenState extends State<BooksScreen>
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          title: const Text('הסרת ספר אישי'),
+          title: Text(context.t.shamorZachor.removePersonalBook),
           content: Text(hasProgress
-              ? 'בספר זה קיימים סימוני לימוד. הסרת הספר תמחק גם את כל הסימונים. האם להמשיך?'
-              : 'האם להסיר את הספר "${item.bookName}" מרשימת הספרים האישיים?'),
+              ? context.t.shamorZachor.bookHasProgressRemove
+              : context.t.shamorZachor
+                  .confirmRemoveBook(bookName: item.bookName)),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('ביטול'),
+              child: Text(context.t.common.cancel),
             ),
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('אישור'),
+              child: Text(context.t.common.confirm),
             ),
           ],
         );
@@ -572,11 +573,13 @@ class _BooksScreenState extends State<BooksScreen>
         bookName: item.bookName,
       );
 
-      ShamorZachorMessenger.showSuccess('הספר "${item.bookName}" הוסר מהמעקב');
+      ShamorZachorMessenger.showSuccess(context.t.shamorZachor
+          .bookRemovedFromTracking(bookName: item.bookName));
     } catch (e, stackTrace) {
       _logger.severe(
           'Failed to delete custom book ${item.bookName}', e, stackTrace);
-      ShamorZachorMessenger.showError('שגיאה בהסרת הספר: $e');
+      ShamorZachorMessenger.showError(
+          context.t.shamorZachor.errorRemovingBook(error: e.toString()));
     }
   }
 }

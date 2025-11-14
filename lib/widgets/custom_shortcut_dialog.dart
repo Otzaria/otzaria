@@ -17,12 +17,13 @@ class CustomShortcutDialog extends StatefulWidget {
 
 class _CustomShortcutDialogState extends State<CustomShortcutDialog> {
   final Set<LogicalKeyboardKey> _pressedKeys = {};
-  String _displayText = '';
+  late String _displayText;
   bool _isRecording = false;
 
   @override
   void initState() {
     super.initState();
+    _displayText = context.t.shortcuts.pressKeys;
     if (widget.initialShortcut != null) {
       _displayText = _formatShortcutForDisplay(widget.initialShortcut!);
     }
@@ -142,10 +143,10 @@ class _CustomShortcutDialogState extends State<CustomShortcutDialog> {
     return key.keyLabel.toLowerCase();
   }
 
-  void _updateDisplay(BuildContext context) {
+  void _updateDisplay() {
     if (_pressedKeys.isEmpty) {
       setState(() {
-        _displayText = context.t.shortcuts.pressKeys;
+        _displayText = 'לחץ על המקשים...';
       });
       return;
     }
@@ -158,11 +159,6 @@ class _CustomShortcutDialogState extends State<CustomShortcutDialog> {
 
   @override
   Widget build(BuildContext context) {
-    // Initialize display text if not set
-    if (_displayText.isEmpty && widget.initialShortcut == null) {
-      _displayText = context.t.shortcuts.pressKeys;
-    }
-    
     return KeyboardListener(
       focusNode: FocusNode()..requestFocus(),
       autofocus: true,
@@ -182,7 +178,7 @@ class _CustomShortcutDialogState extends State<CustomShortcutDialog> {
           setState(() {
             _pressedKeys.add(event.logicalKey);
           });
-          _updateDisplay(context);
+          _updateDisplay();
         } else if (event is KeyUpEvent) {
           // כאשר משחררים מקש, לא מסירים אותו מיד
           // נחכה שכל המקשים ישוחררו
@@ -267,7 +263,6 @@ class _CustomShortcutDialogState extends State<CustomShortcutDialog> {
                       _isRecording = true;
                       _displayText = context.t.shortcuts.pressKeys;
                     });
-                    _updateDisplay(context);
                   },
                   icon: const Icon(Icons.fiber_manual_record),
                   label: Text(

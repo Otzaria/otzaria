@@ -71,6 +71,7 @@ class Translations implements BaseTranslations<AppLocale, Translations> {
 	late final TranslationsErrorsHe errors = TranslationsErrorsHe._(_root);
 	late final TranslationsPreviewHe preview = TranslationsPreviewHe._(_root);
 	late final TranslationsWorkspacesHe workspaces = TranslationsWorkspacesHe._(_root);
+	late final TranslationsShamorZachorHe shamorZachor = TranslationsShamorZachorHe._(_root);
 }
 
 // Path: app
@@ -214,9 +215,9 @@ class TranslationsReadingHe {
 	final Translations _root; // ignore: unused_field
 
 	// Translations
-	String get showHistoryTooltip => 'הצג היסטוריה ({shortcut})';
-	String get showBookmarksTooltip => 'הצג סימניות ({shortcut})';
-	String get switchWorkspaceTooltip => 'החלף שולחן עבודה ({shortcut})';
+	String showHistoryTooltip({required Object shortcut}) => 'הצג היסטוריה ${shortcut}';
+	String showBookmarksTooltip({required Object shortcut}) => 'הצג סימניות ${shortcut}';
+	String switchWorkspaceTooltip({required Object shortcut}) => 'החלף שולחן עבודה ${shortcut}';
 }
 
 // Path: tabs
@@ -901,6 +902,28 @@ class TranslationsWorkspacesHe {
 	String get workspaceDeleted => 'שולחן העבודה נמחק';
 }
 
+// Path: shamorZachor
+class TranslationsShamorZachorHe {
+	TranslationsShamorZachorHe._(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+	String get loadingBooks => 'טוען ספרים...';
+	String get errorLoadingBooks => 'שגיאה בטעינת ספרים';
+	String get noDataToDisplay => 'אין נתונים להצגה';
+	String get personalBooks => 'ספרים אישיים';
+	String get noPersonalBooks => 'אין ספרים אישיים';
+	String get addBooksFromLibrary => 'הוסף ספרים מהספרייה לשמור וזכור';
+	String get categoryNotFound => 'קטגוריה לא נמצאה';
+	String get noBooksInCategory => 'אין ספרים בקטגוריה זו';
+	String get removePersonalBook => 'הסרת ספר אישי';
+	String get bookHasProgressRemove => 'בספר זה קיימים סימוני לימוד. הסרת הספר תמחק גם את כל הסימונים. האם להמשיך?';
+	String confirmRemoveBook({required Object bookName}) => 'האם להסיר את הספר "${bookName}" מרשימת הספרים האישיים?';
+	String bookRemovedFromTracking({required Object bookName}) => 'הספר "${bookName}" הוסר מהמעקב';
+	String errorRemovingBook({required Object error}) => 'שגיאה בהסרת הספר: ${error}';
+}
+
 // Path: library.categories
 class TranslationsLibraryCategoriesHe {
 	TranslationsLibraryCategoriesHe._(this._root);
@@ -919,7 +942,7 @@ class TranslationsLibraryCategoriesHe {
 	String get chasidut => 'חסידות';
 	String get kabbalah => 'קבלה';
 	String get musar => 'מוסר';
-	String get shut => 'שו"ת';
+	String get shaalotUTshuva => 'שו"ת';
 	String get rishonim => 'ראשונים';
 	String get acharonim => 'אחרונים';
 	String get modern => 'מודרני';
@@ -1021,7 +1044,7 @@ extension on Translations {
 			case 'library.categories.chasidut': return 'חסידות';
 			case 'library.categories.kabbalah': return 'קבלה';
 			case 'library.categories.musar': return 'מוסר';
-			case 'library.categories.shut': return 'שו"ת';
+			case 'library.categories.shaalotUTshuva': return 'שו"ת';
 			case 'library.categories.rishonim': return 'ראשונים';
 			case 'library.categories.acharonim': return 'אחרונים';
 			case 'library.categories.modern': return 'מודרני';
@@ -1034,9 +1057,9 @@ extension on Translations {
 			case 'navigation.newSearch': return 'חיפוש חדש';
 			case 'navigation.more': return 'עוד';
 			case 'navigation.about': return 'אודות';
-			case 'reading.showHistoryTooltip': return 'הצג היסטוריה ({shortcut})';
-			case 'reading.showBookmarksTooltip': return 'הצג סימניות ({shortcut})';
-			case 'reading.switchWorkspaceTooltip': return 'החלף שולחן עבודה ({shortcut})';
+			case 'reading.showHistoryTooltip': return ({required Object shortcut}) => 'הצג היסטוריה ${shortcut}';
+			case 'reading.showBookmarksTooltip': return ({required Object shortcut}) => 'הצג סימניות ${shortcut}';
+			case 'reading.switchWorkspaceTooltip': return ({required Object shortcut}) => 'החלף שולחן עבודה ${shortcut}';
 			case 'tabs.closeOthers': return 'סגור טאבים אחרים';
 			case 'tabs.clone': return 'שכפל טאב';
 			case 'tabs.tabList': return 'רשימת טאבים';
@@ -1476,6 +1499,19 @@ extension on Translations {
 			case 'workspaces.workspaceName': return ({required Object counter}) => 'שולחן עבודה ${counter}';
 			case 'workspaces.cannotDeleteActive': return 'לא ניתן למחוק שולחן עבודה פעיל';
 			case 'workspaces.workspaceDeleted': return 'שולחן העבודה נמחק';
+			case 'shamorZachor.loadingBooks': return 'טוען ספרים...';
+			case 'shamorZachor.errorLoadingBooks': return 'שגיאה בטעינת ספרים';
+			case 'shamorZachor.noDataToDisplay': return 'אין נתונים להצגה';
+			case 'shamorZachor.personalBooks': return 'ספרים אישיים';
+			case 'shamorZachor.noPersonalBooks': return 'אין ספרים אישיים';
+			case 'shamorZachor.addBooksFromLibrary': return 'הוסף ספרים מהספרייה לשמור וזכור';
+			case 'shamorZachor.categoryNotFound': return 'קטגוריה לא נמצאה';
+			case 'shamorZachor.noBooksInCategory': return 'אין ספרים בקטגוריה זו';
+			case 'shamorZachor.removePersonalBook': return 'הסרת ספר אישי';
+			case 'shamorZachor.bookHasProgressRemove': return 'בספר זה קיימים סימוני לימוד. הסרת הספר תמחק גם את כל הסימונים. האם להמשיך?';
+			case 'shamorZachor.confirmRemoveBook': return ({required Object bookName}) => 'האם להסיר את הספר "${bookName}" מרשימת הספרים האישיים?';
+			case 'shamorZachor.bookRemovedFromTracking': return ({required Object bookName}) => 'הספר "${bookName}" הוסר מהמעקב';
+			case 'shamorZachor.errorRemovingBook': return ({required Object error}) => 'שגיאה בהסרת הספר: ${error}';
 			default: return null;
 		}
 	}

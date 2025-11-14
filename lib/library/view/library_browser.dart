@@ -436,7 +436,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       context.t.library.categories.chasidut,
       context.t.library.categories.kabbalah,
       context.t.library.categories.musar,
-      context.t.library.categories.shut,
+      context.t.library.categories.shaalotUTshuva,
       context.t.library.categories.rishonim,
       context.t.library.categories.acharonim,
       context.t.library.categories.modern,
@@ -1160,11 +1160,11 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       ActionButtonData(
         widget: IconButton(
           icon: const Icon(FluentIcons.history_24_regular),
-          tooltip: context.t.reading.showHistoryTooltip.replaceAll(
-              '{shortcut}',
-              (Settings.getValue<String>('key-shortcut-open-history') ??
-                      'ctrl+h')
-                  .toUpperCase()),
+          tooltip: context.t.reading.showHistoryTooltip(
+              shortcut:
+                  (Settings.getValue<String>('key-shortcut-open-history') ??
+                          'ctrl+h')
+                      .toUpperCase()),
           onPressed: () => _showHistoryDialog(context),
         ),
         icon: FluentIcons.history_24_regular,
@@ -1177,11 +1177,11 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       ActionButtonData(
         widget: IconButton(
           icon: const Icon(FluentIcons.bookmark_24_regular),
-          tooltip: context.t.reading.showBookmarksTooltip.replaceAll(
-              '{shortcut}',
-              (Settings.getValue<String>('key-shortcut-open-bookmarks') ??
-                      'ctrl+shift+b')
-                  .toUpperCase()),
+          tooltip: context.t.reading.showBookmarksTooltip(
+              shortcut:
+                  (Settings.getValue<String>('key-shortcut-open-bookmarks') ??
+                          'ctrl+shift+b')
+                      .toUpperCase()),
           onPressed: () => _showBookmarksDialog(context),
         ),
         icon: FluentIcons.bookmark_24_regular,
@@ -1289,11 +1289,11 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       ActionButtonData(
         widget: IconButton(
           icon: const Icon(FluentIcons.history_24_regular),
-          tooltip: context.t.reading.showHistoryTooltip.replaceAll(
-              '{shortcut}',
-              (Settings.getValue<String>('key-shortcut-open-history') ??
-                      'ctrl+h')
-                  .toUpperCase()),
+          tooltip: context.t.reading.showHistoryTooltip(
+              shortcut:
+                  (Settings.getValue<String>('key-shortcut-open-history') ??
+                          'ctrl+h')
+                      .toUpperCase()),
           onPressed: () => _showHistoryDialog(context),
         ),
         icon: FluentIcons.history_24_regular,
@@ -1305,11 +1305,11 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       ActionButtonData(
         widget: IconButton(
           icon: const Icon(FluentIcons.bookmark_24_regular),
-          tooltip: context.t.reading.showBookmarksTooltip.replaceAll(
-              '{shortcut}',
-              (Settings.getValue<String>('key-shortcut-open-bookmarks') ??
-                      'ctrl+shift+b')
-                  .toUpperCase()),
+          tooltip: context.t.reading.showBookmarksTooltip(
+              shortcut:
+                  (Settings.getValue<String>('key-shortcut-open-bookmarks') ??
+                          'ctrl+shift+b')
+                      .toUpperCase()),
           onPressed: () => _showBookmarksDialog(context),
         ),
         icon: FluentIcons.bookmark_24_regular,

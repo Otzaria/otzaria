@@ -98,7 +98,7 @@
             "chasidut": "חסידות",
             "kabbalah": "קבלה",
             "musar": "מוסר",
-            "shut": "שו\"ת",
+            "shaalotUTshuva": "שו\"ת",
             "rishonim": "ראשונים",
             "acharonim": "אחרונים",
             "modern": "מודרני"
@@ -116,9 +116,9 @@
         "about": "אודות"
     },
     "reading": {
-        "showHistoryTooltip": "הצג היסטוריה ({shortcut})",
-        "showBookmarksTooltip": "הצג סימניות ({shortcut})",
-        "switchWorkspaceTooltip": "החלף שולחן עבודה ({shortcut})"
+        "showHistoryTooltip": "הצג היסטוריה $shortcut",
+        "showBookmarksTooltip": "הצג סימניות $shortcut",
+        "switchWorkspaceTooltip": "החלף שולחן עבודה $shortcut"
     },
     "tabs": {
         "closeOthers": "סגור טאבים אחרים",
@@ -612,5 +612,20 @@
         "workspaceName": "שולחן עבודה $counter",
         "cannotDeleteActive": "לא ניתן למחוק שולחן עבודה פעיל",
         "workspaceDeleted": "שולחן העבודה נמחק"
+    },
+    "shamorZachor": {
+        "loadingBooks": "טוען ספרים...",
+        "errorLoadingBooks": "שגיאה בטעינת ספרים",
+        "noDataToDisplay": "אין נתונים להצגה",
+        "personalBooks": "ספרים אישיים",
+        "noPersonalBooks": "אין ספרים אישיים",
+        "addBooksFromLibrary": "הוסף ספרים מהספרייה לשמור וזכור",
+        "categoryNotFound": "קטגוריה לא נמצאה",
+        "noBooksInCategory": "אין ספרים בקטגוריה זו",
+        "removePersonalBook": "הסרת ספר אישי",
+        "bookHasProgressRemove": "בספר זה קיימים סימוני לימוד. הסרת הספר תמחק גם את כל הסימונים. האם להמשיך?",
+        "confirmRemoveBook": "האם להסיר את הספר \"$bookName\" מרשימת הספרים האישיים?",
+        "bookRemovedFromTracking": "הספר \"$bookName\" הוסר מהמעקב",
+        "errorRemovingBook": "שגיאה בהסרת הספר: $error"
     }
 }
