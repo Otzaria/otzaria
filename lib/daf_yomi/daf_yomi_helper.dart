@@ -67,7 +67,8 @@ void _openDafYomiBookInCategory(BuildContext context, String tractate,
     }
 
     if (book == null) {
-      UiSnack.showError(context.t.dafYomi.categoryNotFound(categoryName: categoryName),
+      UiSnack.showError(
+          context.t.dafYomi.categoryNotFound(categoryName: categoryName),
           backgroundColor: Theme.of(context).colorScheme.error);
       return;
     } else {
@@ -98,7 +99,10 @@ void _openDafYomiBookInCategory(BuildContext context, String tractate,
     final availableBooks =
         allBooksInCategory.map((b) => b.title).take(5).join(', ');
     UiSnack.showError(
-        context.t.dafYomi.bookNotFound(tractate: tractate, categoryName: categoryName, availableBooks: availableBooks),
+        context.t.dafYomi.bookNotFound(
+            tractate: tractate,
+            categoryName: categoryName,
+            availableBooks: availableBooks),
         backgroundColor: Theme.of(context).colorScheme.error);
   }
 }
