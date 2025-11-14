@@ -17,7 +17,7 @@ class CustomShortcutDialog extends StatefulWidget {
 
 class _CustomShortcutDialogState extends State<CustomShortcutDialog> {
   final Set<LogicalKeyboardKey> _pressedKeys = {};
-  late String _displayText;
+  String? _displayText;
   bool _isRecording = false;
   bool _isInitialized = false;
 
@@ -237,7 +237,7 @@ class _CustomShortcutDialogState extends State<CustomShortcutDialog> {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      _displayText,
+                      _displayText ?? context.t.shortcuts.pressKeys,
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 20,
