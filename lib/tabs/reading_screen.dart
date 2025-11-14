@@ -115,16 +115,14 @@ class _ReadingScreenState extends State<ReadingScreen>
                         // קבוצת היסטוריה וסימניות
                         IconButton(
                           icon: const Icon(FluentIcons.history_24_regular),
-                          tooltip: context.t.reading.showHistoryTooltip
-                              .replaceAll(
-                                  '{shortcut}', historyShortcut.toUpperCase()),
+                          tooltip: context.t.reading.showHistoryTooltip(
+                              shortcut: historyShortcut.toUpperCase()),
                           onPressed: () => _showHistoryDialog(context),
                         ),
                         IconButton(
                           icon: const Icon(FluentIcons.bookmark_24_regular),
-                          tooltip: context.t.reading.showBookmarksTooltip
-                              .replaceAll('{shortcut}',
-                                  bookmarksShortcut.toUpperCase()),
+                          tooltip: context.t.reading.showBookmarksTooltip(
+                              shortcut: bookmarksShortcut.toUpperCase()),
                           onPressed: () => _showBookmarksDialog(context),
                         ),
                         // קו מפריד
@@ -137,9 +135,8 @@ class _ReadingScreenState extends State<ReadingScreen>
                         // קבוצת שולחן עבודה
                         IconButton(
                           icon: const Icon(FluentIcons.add_square_24_regular),
-                          tooltip: context.t.reading.switchWorkspaceTooltip
-                              .replaceAll('{shortcut}',
-                                  workspaceShortcut.toUpperCase()),
+                          tooltip: context.t.reading.switchWorkspaceTooltip(
+                              shortcut: workspaceShortcut.toUpperCase()),
                           onPressed: () => _showSaveWorkspaceDialog(context),
                         ),
                       ],
@@ -269,16 +266,14 @@ class _ReadingScreenState extends State<ReadingScreen>
                       // קבוצת היסטוריה וסימניות
                       IconButton(
                         icon: const Icon(FluentIcons.history_24_regular),
-                        tooltip: context.t.reading.showHistoryTooltip
-                            .replaceAll(
-                                '{shortcut}', historyShortcut.toUpperCase()),
+                        tooltip: context.t.reading.showHistoryTooltip(
+                            shortcut: historyShortcut.toUpperCase()),
                         onPressed: () => _showHistoryDialog(context),
                       ),
                       IconButton(
                         icon: const Icon(FluentIcons.bookmark_24_regular),
-                        tooltip: context.t.reading.showBookmarksTooltip
-                            .replaceAll(
-                                '{shortcut}', bookmarksShortcut.toUpperCase()),
+                        tooltip: context.t.reading.showBookmarksTooltip(
+                            shortcut: bookmarksShortcut.toUpperCase()),
                         onPressed: () => _showBookmarksDialog(context),
                       ),
                       // קו מפריד
@@ -291,9 +286,8 @@ class _ReadingScreenState extends State<ReadingScreen>
                       // קבוצת שולחן עבודה עם אנימציה
                       IconButton(
                         icon: const Icon(FluentIcons.add_square_24_regular),
-                        tooltip: context.t.reading.switchWorkspaceTooltip
-                            .replaceAll(
-                                '{shortcut}', workspaceShortcut.toUpperCase()),
+                        tooltip: context.t.reading.switchWorkspaceTooltip(
+                            shortcut: workspaceShortcut.toUpperCase()),
                         onPressed: () => _showSaveWorkspaceDialog(context),
                       ),
                     ],

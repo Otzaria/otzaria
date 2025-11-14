@@ -43,7 +43,7 @@ class _MoreScreenState extends State<MoreScreen> with TickerProviderStateMixin {
     _settingsRepository = SettingsRepository();
     _calendarCubit = CalendarCubit(settingsRepository: _settingsRepository);
     _pageController = PageController(initialPage: 0);
-    _shamorZachorTitle = ''; // Will be set by _updateShamorZachorTitle callback
+    _shamorZachorTitle = context.t.more.shamorZachor;
   }
 
   /// Reset to calendar page - public method for external access
@@ -57,8 +57,6 @@ class _MoreScreenState extends State<MoreScreen> with TickerProviderStateMixin {
       }
     }
   }
-
-
 
   @override
   void dispose() {
@@ -222,7 +220,8 @@ class _MoreScreenState extends State<MoreScreen> with TickerProviderStateMixin {
                   label: context.t.more.calendar,
                 ),
                 BottomNavigationBarItem(
-                  icon: ImageIcon(AssetImage('assets/icon/זכור ושמור.png'), size: 20),
+                  icon: ImageIcon(AssetImage('assets/icon/זכור ושמור.png'),
+                      size: 20),
                   label: context.t.more.shamorZachor,
                 ),
                 BottomNavigationBarItem(
@@ -294,6 +293,4 @@ class _MoreScreenState extends State<MoreScreen> with TickerProviderStateMixin {
         return null;
     }
   }
-
-
 }
