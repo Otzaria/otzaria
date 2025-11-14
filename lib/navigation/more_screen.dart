@@ -28,7 +28,7 @@ class _MoreScreenState extends State<MoreScreen> with TickerProviderStateMixin {
   late final PageController _pageController;
 
   // Title for the ShamorZachor section (dynamic from the package)
-  late String _shamorZachorTitle;
+  String _shamorZachorTitle = "";
 
   /// Update the ShamorZachor title
   void _updateShamorZachorTitle(String title) {
@@ -43,7 +43,7 @@ class _MoreScreenState extends State<MoreScreen> with TickerProviderStateMixin {
     _settingsRepository = SettingsRepository();
     _calendarCubit = CalendarCubit(settingsRepository: _settingsRepository);
     _pageController = PageController(initialPage: 0);
-    _shamorZachorTitle = context.t.more.shamorZachor;
+    _shamorZachorTitle = t.more.shamorZachor;
   }
 
   /// Reset to calendar page - public method for external access
