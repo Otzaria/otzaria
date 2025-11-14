@@ -72,6 +72,7 @@ class Translations implements BaseTranslations<AppLocale, Translations> {
 	late final TranslationsPreviewHe preview = TranslationsPreviewHe._(_root);
 	late final TranslationsWorkspacesHe workspaces = TranslationsWorkspacesHe._(_root);
 	late final TranslationsShamorZachorHe shamorZachor = TranslationsShamorZachorHe._(_root);
+	late final TranslationsDafYomiHe dafYomi = TranslationsDafYomiHe._(_root);
 }
 
 // Path: app
@@ -168,6 +169,10 @@ class TranslationsSearchHe {
 	String get deleteSpacing => 'מחק מרווח';
 	String get alternativeWord => 'מילה חילופית';
 	String get typeWord => 'הקלד מילה...';
+	String get findBook => 'איתור ספר…';
+	String get typeTextAndPressEnter => 'הקלד את הטקסט והקש אנטר או לחץ על סמל החיפוש';
+	String scannedBooksResults({required Object bookIndex, required Object totalBooks, required Object resultCount, required Object seconds}) => 'נסרקו ${bookIndex} מתוך ${totalBooks} ספרים.  נמצאו ${resultCount} תוצאות בתוך ${seconds} שניות';
+	String get noSearchResults => 'אין תוצאות חיפוש';
 }
 
 // Path: library
@@ -187,6 +192,14 @@ class TranslationsLibraryHe {
 	String get openLocally => 'פתח מקומית';
 	String get openInWebsite => 'פתח באתר';
 	String error({required Object message}) => 'שגיאה: ${message}';
+	String get selectBookForPreview => 'בחר ספר לתצוגה מקדימה';
+	String get externalBookDoubleClick => 'ספר חיצוני - לחץ פעמיים לפתיחה';
+	String get zoomIn => 'הגדל';
+	String get zoomOut => 'הקטן';
+	String get openInReaderDoubleClick => 'פתח בעיון (או לחץ פעמיים על הספר)';
+	String get hidePreview => 'הסתר תצוגה מקדימה';
+	String get increaseTextSize => 'הגדל טקסט';
+	String get decreaseTextSize => 'הקטן טקסט';
 	late final TranslationsLibraryCategoriesHe categories = TranslationsLibraryCategoriesHe._(_root);
 }
 
@@ -555,6 +568,7 @@ class TranslationsTextBookHe {
 	String get showAllAcharonim => 'הצג את כל האחרונים';
 	String get showAllModern => 'הצג את כל מחברי זמננו';
 	String get showAllOthers => 'הצג את כל שאר המפרשים';
+	String get searchInCommentators => 'חפש בתוך המפרשים המוצגים...';
 }
 
 // Path: dialogs
@@ -650,6 +664,8 @@ class TranslationsEmptyLibraryHe {
 	String get chooseZip => 'בחר קובץ ZIP מהמכשיר';
 	String get downloadLibrary => 'הורד את הספרייה מהאינטרנט (1.2GB)';
 	String downloadSpeed({required Object speed}) => 'מהירות הורדה: ${speed} MB/s';
+	String get cancelling => 'מבטל...';
+	String get cancel => 'בטל';
 }
 
 // Path: findRef
@@ -802,6 +818,9 @@ class TranslationsEditorHe {
 	String diffTitle({required Object title}) => 'השוואה - ${title}';
 	String get original => 'מקור';
 	String get edited => 'נערך';
+	String get oldSource => 'מקור ישן';
+	String get myEdit => 'העריכה שלי';
+	String get newSource => 'מקור חדש';
 }
 
 // Path: messages
@@ -845,6 +864,8 @@ class TranslationsPdfBookHe {
 	String get cancel => 'ביטול';
 	String get go => 'עבור';
 	String get noOutline => 'אין תוכן עניינים';
+	String get searchBookmark => 'חיפוש סימניה...';
+	String get navigatePrompt => 'האם לעבור לכתובת הבאה';
 }
 
 // Path: links
@@ -866,6 +887,7 @@ class TranslationsLinksHe {
 	String cannotNavigateToHeader({required Object headerName}) => 'לא ניתן לנווט לכותרת: ${headerName}';
 	String openBook({required Object bookTitle, required Object headerName}) => 'פתח ספר: ${bookTitle} - ${headerName}';
 	String cannotOpenBook({required Object bookTitle}) => 'לא ניתן לפתוח את הספר: ${bookTitle}';
+	String headerNotFoundOpenBeginning({required Object headerName, required Object bookTitle}) => 'לא נמצאה הכותרת "${headerName}" בספר ${bookTitle}, פותח את תחילת הספר';
 }
 
 // Path: errors
@@ -922,6 +944,17 @@ class TranslationsShamorZachorHe {
 	String confirmRemoveBook({required Object bookName}) => 'האם להסיר את הספר "${bookName}" מרשימת הספרים האישיים?';
 	String bookRemovedFromTracking({required Object bookName}) => 'הספר "${bookName}" הוסר מהמעקב';
 	String errorRemovingBook({required Object error}) => 'שגיאה בהסרת הספר: ${error}';
+}
+
+// Path: dafYomi
+class TranslationsDafYomiHe {
+	TranslationsDafYomiHe._(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+	String categoryNotFound({required Object categoryName}) => 'לא נמצאה קטגוריה: ${categoryName}';
+	String bookNotFound({required Object tractate, required Object categoryName, required Object availableBooks}) => 'לא נמצא ספר: ${tractate} ב${categoryName}\nספרים זמינים: ${availableBooks}...';
 }
 
 // Path: library.categories
@@ -1023,6 +1056,10 @@ extension on Translations {
 			case 'search.deleteSpacing': return 'מחק מרווח';
 			case 'search.alternativeWord': return 'מילה חילופית';
 			case 'search.typeWord': return 'הקלד מילה...';
+			case 'search.findBook': return 'איתור ספר…';
+			case 'search.typeTextAndPressEnter': return 'הקלד את הטקסט והקש אנטר או לחץ על סמל החיפוש';
+			case 'search.scannedBooksResults': return ({required Object bookIndex, required Object totalBooks, required Object resultCount, required Object seconds}) => 'נסרקו ${bookIndex} מתוך ${totalBooks} ספרים.  נמצאו ${resultCount} תוצאות בתוך ${seconds} שניות';
+			case 'search.noSearchResults': return 'אין תוצאות חיפוש';
 			case 'library.noItems': return 'אין פריטים';
 			case 'library.noResultsFor': return 'לא נמצאו תוצאות עבור';
 			case 'library.searchHint': return 'חפש ב';
@@ -1033,6 +1070,14 @@ extension on Translations {
 			case 'library.openLocally': return 'פתח מקומית';
 			case 'library.openInWebsite': return 'פתח באתר';
 			case 'library.error': return ({required Object message}) => 'שגיאה: ${message}';
+			case 'library.selectBookForPreview': return 'בחר ספר לתצוגה מקדימה';
+			case 'library.externalBookDoubleClick': return 'ספר חיצוני - לחץ פעמיים לפתיחה';
+			case 'library.zoomIn': return 'הגדל';
+			case 'library.zoomOut': return 'הקטן';
+			case 'library.openInReaderDoubleClick': return 'פתח בעיון (או לחץ פעמיים על הספר)';
+			case 'library.hidePreview': return 'הסתר תצוגה מקדימה';
+			case 'library.increaseTextSize': return 'הגדל טקסט';
+			case 'library.decreaseTextSize': return 'הקטן טקסט';
 			case 'library.categories.tanach': return 'תנ"ך';
 			case 'library.categories.midrash': return 'מדרש';
 			case 'library.categories.mishna': return 'משנה';
@@ -1307,6 +1352,7 @@ extension on Translations {
 			case 'textBook.showAllAcharonim': return 'הצג את כל האחרונים';
 			case 'textBook.showAllModern': return 'הצג את כל מחברי זמננו';
 			case 'textBook.showAllOthers': return 'הצג את כל שאר המפרשים';
+			case 'textBook.searchInCommentators': return 'חפש בתוך המפרשים המוצגים...';
 			case 'dialogs.confirm': return 'אישור';
 			case 'dialogs.confirmAction': return 'אישור פעולה';
 			case 'dialogs.areYouSure': return 'האם אתה בטוח?';
@@ -1357,6 +1403,8 @@ extension on Translations {
 			case 'emptyLibrary.chooseZip': return 'בחר קובץ ZIP מהמכשיר';
 			case 'emptyLibrary.downloadLibrary': return 'הורד את הספרייה מהאינטרנט (1.2GB)';
 			case 'emptyLibrary.downloadSpeed': return ({required Object speed}) => 'מהירות הורדה: ${speed} MB/s';
+			case 'emptyLibrary.cancelling': return 'מבטל...';
+			case 'emptyLibrary.cancel': return 'בטל';
 			case 'findRef.title': return 'איתור מקורות';
 			case 'findRef.warning': return 'אינדקס המקורות בתהליך בנייה. תוצאות החיפוש עלולות להיות חלקיות.';
 			case 'findRef.hint': return 'הקלד מקור מדוייק, לדוגמה: בראשית פרק א או שוע אוח יב   ';
@@ -1464,6 +1512,9 @@ extension on Translations {
 			case 'editor.diffTitle': return ({required Object title}) => 'השוואה - ${title}';
 			case 'editor.original': return 'מקור';
 			case 'editor.edited': return 'נערך';
+			case 'editor.oldSource': return 'מקור ישן';
+			case 'editor.myEdit': return 'העריכה שלי';
+			case 'editor.newSource': return 'מקור חדש';
 			case 'messages.editingInProgress': return 'עריכה בתהליך';
 			case 'messages.saveBeforeLeaving': return 'שמור לפני יציאה';
 			case 'messages.checkingConflicts': return 'בודק קונפליקטים...';
@@ -1480,6 +1531,8 @@ extension on Translations {
 			case 'pdfBook.cancel': return 'ביטול';
 			case 'pdfBook.go': return 'עבור';
 			case 'pdfBook.noOutline': return 'אין תוכן עניינים';
+			case 'pdfBook.searchBookmark': return 'חיפוש סימניה...';
+			case 'pdfBook.navigatePrompt': return 'האם לעבור לכתובת הבאה';
 			case 'links.searchInLinks': return 'חפש גם בתוכן הקישורים';
 			case 'links.searchHint': return 'חפש בתוך הקישורים המוצגים...';
 			case 'links.noLinksFound': return 'לא נמצאו קישורים לקטע הנבחר';
@@ -1492,6 +1545,7 @@ extension on Translations {
 			case 'links.cannotNavigateToHeader': return ({required Object headerName}) => 'לא ניתן לנווט לכותרת: ${headerName}';
 			case 'links.openBook': return ({required Object bookTitle, required Object headerName}) => 'פתח ספר: ${bookTitle} - ${headerName}';
 			case 'links.cannotOpenBook': return ({required Object bookTitle}) => 'לא ניתן לפתוח את הספר: ${bookTitle}';
+			case 'links.headerNotFoundOpenBeginning': return ({required Object headerName, required Object bookTitle}) => 'לא נמצאה הכותרת "${headerName}" בספר ${bookTitle}, פותח את תחילת הספר';
 			case 'errors.cannotOpenLink': return 'לא ניתן לפתוח את הקישור בדפדפן';
 			case 'preview.openInReader': return 'פתח בעיון';
 			case 'workspaces.title': return 'שולחנות עבודה';
@@ -1512,6 +1566,8 @@ extension on Translations {
 			case 'shamorZachor.confirmRemoveBook': return ({required Object bookName}) => 'האם להסיר את הספר "${bookName}" מרשימת הספרים האישיים?';
 			case 'shamorZachor.bookRemovedFromTracking': return ({required Object bookName}) => 'הספר "${bookName}" הוסר מהמעקב';
 			case 'shamorZachor.errorRemovingBook': return ({required Object error}) => 'שגיאה בהסרת הספר: ${error}';
+			case 'dafYomi.categoryNotFound': return ({required Object categoryName}) => 'לא נמצאה קטגוריה: ${categoryName}';
+			case 'dafYomi.bookNotFound': return ({required Object tractate, required Object categoryName, required Object availableBooks}) => 'לא נמצא ספר: ${tractate} ב${categoryName}\nספרים זמינים: ${availableBooks}...';
 			default: return null;
 		}
 	}

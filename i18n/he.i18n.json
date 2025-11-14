@@ -73,7 +73,11 @@
         "spacingHint": "0-30",
         "deleteSpacing": "מחק מרווח",
         "alternativeWord": "מילה חילופית",
-        "typeWord": "הקלד מילה..."
+        "typeWord": "הקלד מילה...",
+        "findBook": "איתור ספר…",
+        "typeTextAndPressEnter": "הקלד את הטקסט והקש אנטר או לחץ על סמל החיפוש",
+        "scannedBooksResults": "נסרקו $bookIndex מתוך $totalBooks ספרים.  נמצאו $resultCount תוצאות בתוך $seconds שניות",
+        "noSearchResults": "אין תוצאות חיפוש"
     },
     "library": {
         "noItems": "אין פריטים",
@@ -86,6 +90,14 @@
         "openLocally": "פתח מקומית",
         "openInWebsite": "פתח באתר",
         "error": "שגיאה: $message",
+        "selectBookForPreview": "בחר ספר לתצוגה מקדימה",
+        "externalBookDoubleClick": "ספר חיצוני - לחץ פעמיים לפתיחה",
+        "zoomIn": "הגדל",
+        "zoomOut": "הקטן",
+        "openInReaderDoubleClick": "פתח בעיון (או לחץ פעמיים על הספר)",
+        "hidePreview": "הסתר תצוגה מקדימה",
+        "increaseTextSize": "הגדל טקסט",
+        "decreaseTextSize": "הקטן טקסט",
         "categories": {
             "tanach": "תנ\"ך",
             "midrash": "מדרש",
@@ -385,7 +397,8 @@
         "showAllRishonim": "הצג את כל הראשונים",
         "showAllAcharonim": "הצג את כל האחרונים",
         "showAllModern": "הצג את כל מחברי זמננו",
-        "showAllOthers": "הצג את כל שאר המפרשים"
+        "showAllOthers": "הצג את כל שאר המפרשים",
+        "searchInCommentators": "חפש בתוך המפרשים המוצגים..."
     },
     "dialogs": {
         "confirm": "אישור",
@@ -445,7 +458,9 @@
         "chooseFolder": "בחר תיקייה",
         "chooseZip": "בחר קובץ ZIP מהמכשיר",
         "downloadLibrary": "הורד את הספרייה מהאינטרנט (1.2GB)",
-        "downloadSpeed": "מהירות הורדה: $speed MB/s"
+        "downloadSpeed": "מהירות הורדה: $speed MB/s",
+        "cancelling": "מבטל...",
+        "cancel": "בטל"
     },
     "findRef": {
         "title": "איתור מקורות",
@@ -562,7 +577,10 @@
         "resolveConflict": "פתור קונפליקט",
         "diffTitle": "השוואה - $title",
         "original": "מקור",
-        "edited": "נערך"
+        "edited": "נערך",
+        "oldSource": "מקור ישן",
+        "myEdit": "העריכה שלי",
+        "newSource": "מקור חדש"
     },
     "messages": {
         "editingInProgress": "עריכה בתהליך",
@@ -584,7 +602,9 @@
         "navigateToUrl": "לעבור לURL?",
         "cancel": "ביטול",
         "go": "עבור",
-        "noOutline": "אין תוכן עניינים"
+        "noOutline": "אין תוכן עניינים",
+        "searchBookmark": "חיפוש סימניה...",
+        "navigatePrompt": "האם לעבור לכתובת הבאה"
     },
     "links": {
         "searchInLinks": "חפש גם בתוכן הקישורים",
@@ -598,7 +618,8 @@
         "navigateTo": "נווט ל: $headerName",
         "cannotNavigateToHeader": "לא ניתן לנווט לכותרת: $headerName",
         "openBook": "פתח ספר: $bookTitle - $headerName",
-        "cannotOpenBook": "לא ניתן לפתוח את הספר: $bookTitle"
+        "cannotOpenBook": "לא ניתן לפתוח את הספר: $bookTitle",
+        "headerNotFoundOpenBeginning": "לא נמצאה הכותרת \"$headerName\" בספר $bookTitle, פותח את תחילת הספר"
     },
     "errors": {
         "cannotOpenLink": "לא ניתן לפתוח את הקישור בדפדפן"
@@ -627,5 +648,9 @@
         "confirmRemoveBook": "האם להסיר את הספר \"$bookName\" מרשימת הספרים האישיים?",
         "bookRemovedFromTracking": "הספר \"$bookName\" הוסר מהמעקב",
         "errorRemovingBook": "שגיאה בהסרת הספר: $error"
+    },
+    "dafYomi": {
+        "categoryNotFound": "לא נמצאה קטגוריה: $categoryName",
+        "bookNotFound": "לא נמצא ספר: $tractate ב$categoryName\nספרים זמינים: $availableBooks..."
     }
 }

@@ -96,7 +96,7 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
       child: TextField(
         controller: _filterQuery,
         decoration: InputDecoration(
-          hintText: 'איתור ספר…',
+          hintText: context.t.search.findBook,
           prefixIcon: const Icon(FluentIcons.filter_24_regular),
           suffixIcon: IconButton(
             onPressed: _clearFilter,

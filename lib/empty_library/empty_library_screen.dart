@@ -140,7 +140,7 @@ class _DownloadProgress extends StatelessWidget {
             foregroundColor: Colors.white,
           ),
           icon: const Icon(FluentIcons.stop_24_regular),
-          label: Text(state.isCancelling ? 'מבטל...' : 'בטל'),
+          label: Text(state.isCancelling ? context.t.emptyLibrary.cancelling : context.t.emptyLibrary.cancel),
         ),
       ],
     );

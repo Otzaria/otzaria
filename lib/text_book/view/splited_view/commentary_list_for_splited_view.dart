@@ -123,7 +123,7 @@ class _CommentaryListState extends State<CommentaryList> {
                   child: TextField(
                     controller: _searchController,
                     decoration: InputDecoration(
-                      hintText: 'חפש בתוך המפרשים המוצגים...',
+                      hintText: context.t.textBook.searchInCommentators,
                       prefixIcon: const Icon(FluentIcons.search_24_regular),
                       suffixIcon: _searchQuery.isNotEmpty
                           ? Row(

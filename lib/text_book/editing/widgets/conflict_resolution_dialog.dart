@@ -89,9 +89,9 @@ class _ConflictResolutionDialogState extends State<ConflictResolutionDialog> {
                                 border: Border.all(
                                     color: Colors.grey.withValues(alpha: 0.3)),
                               ),
-                              child: const Text(
-                                'מקור ישן',
-                                style: TextStyle(
+                              child: Text(
+                                context.t.editor.oldSource,
+                                style: const TextStyle(
                                     fontWeight: FontWeight.bold, fontSize: 12),
                                 textAlign: TextAlign.center,
                               ),
@@ -131,9 +131,9 @@ class _ConflictResolutionDialogState extends State<ConflictResolutionDialog> {
                                 border: Border.all(
                                     color: Colors.blue.withValues(alpha: 0.3)),
                               ),
-                              child: const Text(
-                                'העריכה שלי',
-                                style: TextStyle(
+                              child: Text(
+                                context.t.editor.myEdit,
+                                style: const TextStyle(
                                     fontWeight: FontWeight.bold, fontSize: 12),
                                 textAlign: TextAlign.center,
                               ),
@@ -173,9 +173,9 @@ class _ConflictResolutionDialogState extends State<ConflictResolutionDialog> {
                                 border: Border.all(
                                     color: Colors.green.withValues(alpha: 0.3)),
                               ),
-                              child: const Text(
-                                'מקור חדש',
-                                style: TextStyle(
+                              child: Text(
+                                context.t.editor.newSource,
+                                style: const TextStyle(
                                     fontWeight: FontWeight.bold, fontSize: 12),
                                 textAlign: TextAlign.center,
                               ),

@@ -106,7 +106,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
             ),
             const SizedBox(height: 16),
             Text(
-              'בחר ספר לתצוגה מקדימה',
+              context.t.library.selectBookForPreview,
               style: TextStyle(
                 fontSize: 16,
                 color: Theme.of(context)
@@ -145,7 +145,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
             ),
             const SizedBox(height: 8),
             Text(
-              'ספר חיצוני - לחץ פעמיים לפתיחה',
+              context.t.library.externalBookDoubleClick,
               style: TextStyle(
                 fontSize: 14,
                 color: Theme.of(context)
@@ -214,7 +214,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                   // כפתור הגדלה
                   IconButton(
                     icon: const Icon(FluentIcons.zoom_in_24_regular, size: 20),
-                    tooltip: 'הגדל',
+                    tooltip: context.t.library.zoomIn,
                     onPressed: () => _pdfController?.zoomUp(),
                     padding: const EdgeInsets.all(8),
                     constraints: const BoxConstraints(
@@ -226,7 +226,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                   IconButton(
                     icon:
                         const Icon(FluentIcons.zoom_out_24_regular, size: 20),
-                    tooltip: 'הקטן',
+                    tooltip: context.t.library.zoomOut,
                     onPressed: () => _pdfController?.zoomDown(),
                     padding: const EdgeInsets.all(8),
                     constraints: const BoxConstraints(
@@ -243,7 +243,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                   // כפתור פתיחה בעיון
                   IconButton(
                     icon: const Icon(FluentIcons.open_24_regular, size: 20),
-                    tooltip: 'פתח בעיון (או לחץ פעמיים על הספר)',
+                    tooltip: context.t.library.openInReaderDoubleClick,
                     onPressed: () {
                       // שליחת העמוד הנוכחי ב-PDF
                       int currentPage = 1;
@@ -270,7 +270,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                     IconButton(
                       icon:
                           const Icon(FluentIcons.dismiss_24_regular, size: 20),
-                      tooltip: 'הסתר תצוגה מקדימה',
+                      tooltip: context.t.library.hidePreview,
                       onPressed: widget.onClose,
                       padding: const EdgeInsets.all(8),
                       constraints: const BoxConstraints(
@@ -368,7 +368,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                 IconButton(
                   icon:
                       const Icon(FluentIcons.zoom_in_24_regular, size: 20),
-                  tooltip: 'הגדל טקסט',
+                  tooltip: context.t.library.increaseTextSize,
                   onPressed: () {
                     setState(() {
                       _fontSize = (_fontSize + 2).clamp(10.0, 50.0);
@@ -388,7 +388,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                 IconButton(
                   icon: const Icon(FluentIcons.zoom_out_24_regular,
                       size: 20),
-                  tooltip: 'הקטן טקסט',
+                  tooltip: context.t.library.decreaseTextSize,
                   onPressed: () {
                     setState(() {
                       _fontSize = (_fontSize - 2).clamp(10.0, 50.0);
@@ -435,7 +435,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                 if (widget.onClose != null)
                   IconButton(
                     icon: const Icon(FluentIcons.dismiss_24_regular, size: 20),
-                    tooltip: 'הסתר תצוגה מקדימה',
+                    tooltip: context.t.library.hidePreview,
                     onPressed: widget.onClose,
                     padding: const EdgeInsets.all(8),
                     constraints: const BoxConstraints(

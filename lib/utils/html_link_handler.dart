@@ -289,7 +289,7 @@ class HtmlLinkHandler {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                    'לא נמצאה הכותרת "$headerName" בספר $bookTitle, פותח את תחילת הספר'),
+                    context.t.links.headerNotFoundOpenBeginning(headerName: headerName, bookTitle: bookTitle)),
                 duration: const Duration(seconds: 3),
               ),
             );

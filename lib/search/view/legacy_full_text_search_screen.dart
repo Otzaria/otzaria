@@ -84,7 +84,7 @@ class TextFileSearchScreenState extends State<TextFileSearchScreen>
 
   InputDecoration buildSearchDecoration(bool isSearching) {
     return InputDecoration(
-      hintText: "הקלד את הטקסט והקש אנטר או לחץ על סמל החיפוש",
+      hintText: context.t.search.typeTextAndPressEnter,
       suffixIcon: isSearching
           ? Row(
               mainAxisSize: MainAxisSize.min,
@@ -193,7 +193,7 @@ class TextFileSearchScreenState extends State<TextFileSearchScreen>
         ? Padding(
             padding: const EdgeInsets.all(15.0),
             child: Text(
-                'נסרקו ${widget.searcher.bookIndex} מתוך ${widget.searcher.booksToSearch.length} ספרים.  נמצאו ${searchResults.length} תוצאות בתוך ${DateTimeRange(start: widget.searcher.searchStarted!, end: widget.searcher.searchFinished!).duration.inSeconds} שניות'),
+                context.t.search.scannedBooksResults(bookIndex: widget.searcher.bookIndex, totalBooks: widget.searcher.booksToSearch.length, resultCount: searchResults.length, seconds: DateTimeRange(start: widget.searcher.searchStarted!, end: widget.searcher.searchFinished!).duration.inSeconds)),
           )
         : const SizedBox.shrink();
   }
@@ -202,11 +202,11 @@ class TextFileSearchScreenState extends State<TextFileSearchScreen>
     return searchResults.isEmpty &&
             !widget.searcher.isSearching.value &&
             widget.searcher.bookIndex == widget.searcher.booksToSearch.length
-        ? const Expanded(
+        ? Expanded(
             child: Center(
               child: Text(
-                "אין תוצאות חיפוש",
-                style: TextStyle(
+                context.t.search.noSearchResults,
+                style: const TextStyle(
                   fontSize: 20.0,
                 ),
               ),

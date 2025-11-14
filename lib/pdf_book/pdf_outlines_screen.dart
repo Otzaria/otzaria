@@ -224,7 +224,7 @@ class _OutlineViewState extends State<OutlineView>
             widget.focusNode.requestFocus();
           },
           decoration: InputDecoration(
-            hintText: 'חיפוש סימניה...',
+            hintText: context.t.pdfBook.searchBookmark,
             suffixIcon: Row(
               mainAxisSize: MainAxisSize.min,
               children: [

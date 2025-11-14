@@ -628,7 +628,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             child: Text.rich(
               TextSpan(
                 children: [
-                  const TextSpan(text: 'האם לעבור לכתובת הבאה\n'),
+                  TextSpan(text: context.t.pdfBook.navigatePrompt),
+                  const TextSpan(text: '\n'),
                   TextSpan(
                     text: url.toString(),
                     style: const TextStyle(color: Colors.blue),
