@@ -74,8 +74,7 @@ class IndexingRepository {
         await Future.delayed(Duration.zero);
       }
 
-    await Future.delayed(Duration.zero); 
-
+      await Future.delayed(Duration.zero);
     }
 
     // Reset indexing flag after completion
@@ -93,12 +92,22 @@ class IndexingRepository {
     final texts = text.split('\n');
     List<String> reference = [];
 
+    // Index the book title itself as a reference (so it can be found)
+    refIndex.addDocument(
+        id: BigInt.from(DateTime.now().microsecondsSinceEpoch),
+        title: title,
+        reference: title,
+        shortRef: title,
+        segment: BigInt.from(0),
+        isPdf: false,
+        filePath: '');
+
     // Index each line separately
     for (int i = 0; i < texts.length; i++) {
       if (!_tantivyDataProvider.isIndexing.value) {
         return;
       }
-      
+
       // Yield control periodically to prevent blocking
       if (i % 100 == 0) {
         await Future.delayed(Duration.zero);
@@ -170,7 +179,7 @@ class IndexingRepository {
         if (!_tantivyDataProvider.isIndexing.value) {
           return;
         }
-        
+
         // Yield control periodically to prevent blocking
         if (j % 50 == 0) {
           await Future.delayed(Duration.zero);

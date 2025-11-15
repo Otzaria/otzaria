@@ -37,7 +37,6 @@ import 'package:otzaria/tabs/tabs_repository.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/workspaces/bloc/workspace_event.dart';
 import 'package:otzaria/workspaces/workspace_repository.dart';
-import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:otzaria/app_bloc_observer.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
@@ -147,9 +146,8 @@ void main() async {
             )..add(const CheckLibrary()),
           ),
           BlocProvider<FindRefBloc>(
-              create: (context) => FindRefBloc(
-                  findRefRepository: FindRefRepository(
-                      dataRepository: DataRepository.instance))),
+              create: (context) =>
+                  FindRefBloc(findRefRepository: FindRefRepository())),
           BlocProvider<PersonalNotesBloc>(
             create: (context) =>
                 PersonalNotesBloc()..add(const ConvertLegacyNotes()),

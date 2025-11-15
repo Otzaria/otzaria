@@ -41,10 +41,10 @@ class TantivyDataProvider {
   late List<String> booksDone = [];
 
   TantivyDataProvider() {
-    reopenIndex();
+    _initializeEngines();
   }
 
-  void reopenIndex() async {
+  Future<void> _initializeEngines() async {
     String indexPath = await AppPaths.getIndexPath();
     String refIndexPath = await AppPaths.getRefIndexPath();
 
@@ -56,58 +56,44 @@ class TantivyDataProvider {
       if (e.toString() ==
           "PanicException(Failed to create index: SchemaError(\"An index exists but the schema does not match.\"))") {
         resetIndex(indexPath);
-        reopenIndex();
+        await _initializeEngines();
       } else {
         rethrow;
       }
     }
-    //test the engine
-    engine.then((value) {
-      try {
-        // Test the search engine
-        value
-            .search(
-                regexTerms: ['a'],
-                limit: 10,
-                slop: 0,
-                maxExpansions: 10,
-                facets: ["/"],
-                order: ResultsOrder.catalogue)
-            .then((results) {
-          // Engine test successful
-        }).catchError((e) {
-          // Log engine test error
-        });
-      } catch (e) {
-        // Log sync engine test error
-        if (e.toString() ==
-            "PanicException(Failed to create index: SchemaError(\"An index exists but the schema does not match.\"))") {
-          resetIndex(indexPath);
-          reopenIndex();
-        } else {
-          rethrow;
-        }
-      }
-    });
+  }
+
+  Future<void> reopenIndex() async {
+    await _initializeEngines();
+
+    // Initialize booksDone list
     try {
-      booksDone = Hive.box(
+      final indexPath = await AppPaths.getIndexPath();
+      final box = Hive.box(
         name: 'books_indexed',
-        directory: await AppPaths.getIndexPath(),
-      )
-          .get('key-books-done', defaultValue: [])
+        directory: indexPath,
+      );
+      booksDone = (box.get('key-books-done', defaultValue: []) as List)
           .map<String>((e) => e.toString())
-          .toList() as List<String>;
+          .toList();
     } catch (e) {
+      debugPrint('⚠️ Error loading booksDone: $e');
       booksDone = [];
     }
   }
 
   /// Persists the list of indexed books to disk using Hive storage.
   Future<void> saveBooksDoneToDisk() async {
-    Hive.box(
-      name: 'books_indexed',
-      directory: await AppPaths.getIndexPath(),
-    ).put('key-books-done', booksDone);
+    try {
+      final indexPath = await AppPaths.getIndexPath();
+      final box = Hive.box(
+        name: 'books_indexed',
+        directory: indexPath,
+      );
+      box.put('key-books-done', booksDone);
+    } catch (e) {
+      debugPrint('⚠️ Error saving booksDone: $e');
+    }
   }
 
   Future<int> countTexts(String query, List<String> books, List<String> facets,

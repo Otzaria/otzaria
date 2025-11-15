@@ -177,7 +177,30 @@ class _FindRefDialogState extends State<FindRefDialog> {
                   if (state is FindRefLoading) {
                     return const Center(child: CircularProgressIndicator());
                   } else if (state is FindRefError) {
-                    return Text('Error: ${state.message}');
+                    // Check if it's an index not ready error
+                    if (state.message.contains('LateInitializationError') ||
+                        state.message.contains('has not been initialized')) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: Text(
+                            'אינדקס המקורות טרם נבנה.\nאנא בנה את האינדקס דרך הגדרות > אינדוקס.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 16),
+                          ),
+                        ),
+                      );
+                    }
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Text(
+                          'שגיאה: ${state.message}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      ),
+                    );
                   } else if (state is FindRefSuccess && state.refs.isEmpty) {
                     if (focusRepository.findRefSearchController.text.length >=
                         3) {
