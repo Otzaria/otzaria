@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/find_ref/utils/match_logic.dart';
+import 'package:otzaria/find_ref/utils/scored_result.dart';
 import 'package:search_engine/search_engine.dart';
 
 class FindRefRepository {
@@ -53,21 +54,19 @@ class FindRefRepository {
   /// Apply the new search logic to filter and rank results
   List<ReferenceSearchResult> _applyNewLogic(
       String query, List<ReferenceSearchResult> allResults) {
-    debugPrint('\n🔧 APPLYING FILTER LOGIC');
+    debugPrint('\n${'=' * 80}');
+    debugPrint('🔧 APPLYING NEW LOGIC');
     debugPrint('Query: "$query"');
 
-    final results = <ReferenceSearchResult>[];
+    final scoredResults = <ScoredResult>[];
     final bookResults = <ReferenceSearchResult>[];
     final headingResults = <ReferenceSearchResult>[];
 
-    // Separate books from headings and remove duplicates
+    // הפרדת ספרים מכותרות
     final seenBooks = <String>{};
-    int duplicatesRemoved = 0;
-
-    debugPrint('\n--- STEP 1: SEPARATING BOOKS FROM HEADINGS ---');
+    debugPrint('\n--- שלב 0: הפרדת ספרים מכותרות ---');
+    
     for (final result in allResults) {
-      // A result is a "book" if reference equals title (H1 or book name)
-      // We normalize both to handle whitespace differences
       final normalizedRef =
           result.reference.trim().replaceAll(RegExp(r'\s+'), ' ');
       final normalizedTitle =
@@ -75,152 +74,206 @@ class FindRefRepository {
       final isBook = normalizedRef == normalizedTitle;
 
       if (isBook) {
-        // Check if this book matches the query
-        final titleScore = MatchLogic.matchScore(query, result.title);
-        debugPrint('  📚 BOOK: "${result.title}" | score=$titleScore');
-        if (titleScore > 0.0) {
-          // De-duplicate: only add if we haven't seen this book title before
-          if (seenBooks.add(normalizedTitle)) {
-            bookResults.add(result);
-            debugPrint('    ✅ Added to bookResults');
-          } else {
-            duplicatesRemoved++;
-            debugPrint('    ⚠️ Duplicate - skipped');
-          }
-        } else {
-          debugPrint('    ❌ Score 0.0 - skipped');
+        if (seenBooks.add(normalizedTitle)) {
+          bookResults.add(result);
         }
       } else {
-        // This is a heading (reference contains more than just title)
         headingResults.add(result);
       }
     }
 
-    debugPrint(
-        '\n📊 Separation complete: ${bookResults.length} books, ${headingResults.length} headings, $duplicatesRemoved duplicates removed');
+    debugPrint('📊 ${bookResults.length} ספרים, ${headingResults.length} כותרות');
 
-    // Step 1: Find matching books
-    debugPrint('\n--- STEP 2: FINDING MATCHING BOOKS ---');
+    // שלב 1: בדיקה ראשונית - ספרים
+    debugPrint('\n--- שלב 1: בדיקת ספרים ---');
     final matchingBooks = <ReferenceSearchResult>[];
-    bool hasFullBookMatch = false;
-
+    
     for (final book in bookResults) {
-      final score = MatchLogic.matchScore(query, book.title);
-      debugPrint('  📖 "${book.title}" | score=$score');
-      if (score == 2.0) {
-        hasFullBookMatch = true;
+      final matchScore = MatchLogic.matchScore(query, book.title);
+      
+      if (matchScore == 2.0) {
+        // התאמה מלאה
+        final score = 50.0; // ניקוד בסיס גבוה
+        scoredResults.add(ScoredResult(
+          result: book,
+          type: 'ספר',
+          level: 0,
+          score: score,
+        ));
         matchingBooks.add(book);
-        debugPrint('    ✅ Full match - added');
-      } else if (score == 1.0) {
+        debugPrint('  ✅ התאמה מלאה: "${book.title}" | ניקוד=$score');
+      } else if (matchScore == 1.0) {
+        // התאמה חלקית
+        final score = 20.0; // ניקוד בסיס נמוך
+        scoredResults.add(ScoredResult(
+          result: book,
+          type: 'ספר_חלקי',
+          level: 0,
+          score: score,
+        ));
         matchingBooks.add(book);
-        debugPrint('    ✅ Partial match - added');
-      } else {
-        debugPrint('    ❌ No match - skipped');
+        debugPrint('  ✅ התאמה חלקית: "${book.title}" | ניקוד=$score');
       }
     }
 
-    debugPrint(
-        '\n📊 Found ${matchingBooks.length} matching books (hasFullBookMatch=$hasFullBookMatch)');
-
-    // Step 2: Decide what to show
     if (matchingBooks.isEmpty) {
-      debugPrint('⚠️ No matching books found - returning empty results');
+      debugPrint('⚠️ לא נמצאו ספרים מתאימים');
       return [];
     }
 
-    // Check if we should show headings
-    debugPrint('\n--- STEP 3: DECIDING BOOKS vs HEADINGS ---');
-    bool shouldShowHeadings = false;
-    for (final book in matchingBooks) {
-      final hasAdditional = MatchLogic.hasAdditionalWords(query, book.title);
-      final remainingWords = MatchLogic.getRemainingWords(query, book.title);
-      debugPrint(
-          '  📖 "${book.title}" | hasAdditionalWords=$hasAdditional | remaining=$remainingWords');
-      if (MatchLogic.isFullMatch(query, book.title)) {
-        if (MatchLogic.hasAdditionalWords(query, book.title)) {
-          shouldShowHeadings = true;
-          debugPrint('    → Full match with additional words - SHOW HEADINGS');
-          break;
-        }
-      } else if (MatchLogic.hasMatch(query, book.title)) {
-        if (MatchLogic.hasAdditionalWords(query, book.title)) {
-          shouldShowHeadings = true;
-          debugPrint(
-              '    → Partial match with additional words - SHOW HEADINGS');
-          break;
-        }
-      }
+    debugPrint('\n📊 נמצאו ${matchingBooks.length} ספרים מתאימים');
+
+    // בדיקה אם יש יותר ממילה אחת (כלומר חיפוש מעבר לשם הספר)
+    final queryWords = query.trim().split(RegExp(r'\s+'));
+    final hasMultipleWords = queryWords.length > 1;
+
+    if (!hasMultipleWords) {
+      debugPrint('\n🎯 מילה אחת בלבד - מחזיר רק ספרים');
+      return _sortAndReturn(scoredResults);
     }
 
-    debugPrint('\n🎯 Decision: shouldShowHeadings=$shouldShowHeadings');
+    // שלב 2: חיפוש בכותרות רמה 2
+    debugPrint('\n--- שלב 2: חיפוש בכותרות H2 ---');
+    
+    for (final book in matchingBooks) {
+      final remainingWords = MatchLogic.getRemainingWords(query, book.title);
+      
+      if (remainingWords.isEmpty) {
+        debugPrint('  📖 "${book.title}" - אין מילים נוספות');
+        continue;
+      }
 
-    if (shouldShowHeadings) {
-      debugPrint('\n--- STEP 4: SEARCHING IN HEADINGS ---');
-      int headingsAdded = 0;
-      for (final book in matchingBooks) {
-        final remainingWords = MatchLogic.getRemainingWords(query, book.title);
-        if (remainingWords.isEmpty) {
-          debugPrint('  📖 "${book.title}" - no remaining words, skipping');
+      final subQuery = MatchLogic.createSubQuery(remainingWords);
+      final bookWasFull = MatchLogic.isFullMatch(query, book.title);
+      final bookScoreBonus = bookWasFull ? 40.0 : 10.0;
+
+      debugPrint('  📖 "${book.title}" | מילים נוספות: $remainingWords');
+
+      // חיפוש כותרות H2 של הספר
+      final bookHeadings = headingResults.where((h) => h.title == book.title);
+      int h2Count = 0;
+
+      for (final heading in bookHeadings) {
+        // חילוץ טקסט הכותרת
+        final headingText = _extractHeadingText(heading.reference, book.title);
+        final parts = _parseHeadingLevels(headingText);
+        
+        if (parts.isEmpty) continue;
+
+        // שלב 2: בדיקת H2 קודם (חובה!)
+        final h2Text = parts[0];
+        final h2MatchedCount = MatchLogic.countMatchedWords(subQuery, h2Text);
+        
+        if (h2MatchedCount == 0) {
+          // אין התאמה ב-H2 → דלג על הכותרת הזו לגמרי (כולל H3)
           continue;
         }
 
-        final subQuery = MatchLogic.createSubQuery(remainingWords);
-        debugPrint(
-            '  📖 "${book.title}" | subQuery="$subQuery" | searching in ${headingResults.where((h) => h.title == book.title).length} headings');
+        // יש התאמה ב-H2!
+        bool addedH3 = false;
 
-        // Find matching headings for this book
-        int matchedForBook = 0;
-        for (final heading in headingResults) {
-          if (heading.title == book.title) {
-            // Extract heading text (after book title)
-            final headingText = heading.reference
-                .replaceFirst('${book.title}, ', '')
-                .replaceFirst('${book.title},', '')
-                .replaceFirst(book.title, '')
-                .trim();
+        // שלב 3: אם יש H3, בדוק אם יש התאמה גם שם
+        if (parts.length > 1) {
+          final h2MatchedWords = MatchLogic.getMatchedWords(subQuery, h2Text);
+          final remainingAfterH2 = remainingWords
+              .where((w) => !h2MatchedWords.contains(w))
+              .toList();
 
-            if (MatchLogic.hasMatch(subQuery, headingText)) {
-              results.add(heading);
-              matchedForBook++;
-              headingsAdded++;
-              if (matchedForBook <= 3) {
-                debugPrint('    ✅ Match: "$headingText"');
+          if (remainingAfterH2.isNotEmpty) {
+            final h3SubQuery = MatchLogic.createSubQuery(remainingAfterH2);
+            
+            for (int i = 1; i < parts.length; i++) {
+              final h3Text = parts[i];
+              final h3MatchedCount = MatchLogic.countMatchedWords(h3SubQuery, h3Text);
+              
+              if (h3MatchedCount > 0) {
+                // יש התאמה גם ב-H3 → הוסף רק את H3 (הרמה העמוקה)
+                final h3Score = 90.0 + h3MatchedCount;
+                scoredResults.add(ScoredResult(
+                  result: heading,
+                  type: 'כותרת3',
+                  level: 3,
+                  score: h3Score,
+                ));
+                addedH3 = true;
+                h2Count++;
+                
+                if (h2Count <= 3) {
+                  debugPrint('      ✅ H3: "$h3Text" | התאמות=$h3MatchedCount | ניקוד=$h3Score');
+                }
+                break; // נמצאה התאמה ב-H3, לא צריך להוסיף את H2
               }
             }
           }
         }
-        if (matchedForBook > 3) {
-          debugPrint('    ... and ${matchedForBook - 3} more matches');
+
+        // אם לא נמצאה התאמה ב-H3 (או שאין H3), הוסף את H2
+        if (!addedH3) {
+          final score = 80.0 + h2MatchedCount + bookScoreBonus;
+          scoredResults.add(ScoredResult(
+            result: heading,
+            type: 'כותרת2',
+            level: 2,
+            score: score,
+          ));
+          h2Count++;
+          
+          if (h2Count <= 3) {
+            debugPrint('    ✅ H2: "$h2Text" | התאמות=$h2MatchedCount | ניקוד=$score');
+          }
         }
-        debugPrint('    📊 Total matches for this book: $matchedForBook');
       }
-      debugPrint('\n📊 Total headings added: $headingsAdded');
-    } else {
-      debugPrint('\n--- STEP 4: SHOWING BOOKS ONLY ---');
-      // Show only books
-      // If there's a full match, show both full and partial matches
-      if (hasFullBookMatch) {
-        results.addAll(matchingBooks);
-        debugPrint(
-            '  ✅ Added all ${matchingBooks.length} matching books (including partial matches)');
-      } else {
-        // Show only the matching books
-        results.addAll(matchingBooks);
-        debugPrint('  ✅ Added ${matchingBooks.length} matching books');
+
+      if (h2Count > 3) {
+        debugPrint('    ... ועוד ${h2Count - 3} כותרות H2');
       }
     }
 
-    // Sort: books first, then by relevance
-    results.sort((a, b) {
-      final aIsBook = a.reference.trim() == a.title.trim();
-      final bIsBook = b.reference.trim() == b.title.trim();
+    debugPrint('\n📊 סה"כ ${scoredResults.length} תוצאות');
+    return _sortAndReturn(scoredResults);
+  }
 
-      if (aIsBook && !bIsBook) return -1;
-      if (!aIsBook && bIsBook) return 1;
+  /// חילוץ טקסט כותרת (הסרת שם הספר)
+  String _extractHeadingText(String reference, String bookTitle) {
+    return reference
+        .replaceFirst('$bookTitle, ', '')
+        .replaceFirst('$bookTitle,', '')
+        .replaceFirst(bookTitle, '')
+        .trim();
+  }
 
-      return 0;
+  /// פיצול כותרת לרמות (H2, H3, וכו')
+  List<String> _parseHeadingLevels(String headingText) {
+    // הנחה: רמות מופרדות בפסיק
+    return headingText
+        .split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+  }
+
+  /// מיון והחזרת תוצאות
+  List<ReferenceSearchResult> _sortAndReturn(List<ScoredResult> scoredResults) {
+    debugPrint('\n--- שלב 4: מיון תוצאות ---');
+    
+    // מיון לפי:
+    // 1. ניקוד (גבוה קודם)
+    // 2. רמה (עמוקה יותר קודם - 3, 2, 0)
+    scoredResults.sort((a, b) {
+      // ניקוד קודם
+      final scoreCompare = b.score.compareTo(a.score);
+      if (scoreCompare != 0) return scoreCompare;
+      
+      // רמה שנייה (עמוק יותר קודם)
+      return b.level.compareTo(a.level);
     });
 
-    return results;
+    debugPrint('📊 15 תוצאות מובילות:');
+    for (int i = 0; i < scoredResults.length && i < 15; i++) {
+      final s = scoredResults[i];
+      debugPrint('  [$i] ${s.type} | רמה=${s.level} | ניקוד=${s.score} | "${s.result.reference}"');
+    }
+
+    return scoredResults.take(15).map((s) => s.result).toList();
   }
 }

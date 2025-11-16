@@ -84,4 +84,34 @@ class MatchLogic {
   static String createSubQuery(List<String> words) {
     return words.join(' ');
   }
+
+  /// Count how many words from query match target
+  static int countMatchedWords(String query, String target) {
+    final queryWords = TextNormalizer.getWords(TextNormalizer.normalize(query));
+    final targetWords =
+        TextNormalizer.getWords(TextNormalizer.normalize(target));
+
+    int matchedWords = 0;
+    for (final qWord in queryWords) {
+      if (targetWords.contains(qWord)) {
+        matchedWords++;
+      }
+    }
+    return matchedWords;
+  }
+
+  /// Get the words from query that matched target
+  static List<String> getMatchedWords(String query, String target) {
+    final queryWords = TextNormalizer.getWords(TextNormalizer.normalize(query));
+    final targetWords =
+        TextNormalizer.getWords(TextNormalizer.normalize(target));
+
+    final matched = <String>[];
+    for (final qWord in queryWords) {
+      if (targetWords.contains(qWord)) {
+        matched.add(qWord);
+      }
+    }
+    return matched;
+  }
 }
