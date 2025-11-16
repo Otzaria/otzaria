@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/find_ref/find_ref_bloc.dart';
 import 'package:otzaria/find_ref/find_ref_event.dart';
 import 'package:otzaria/find_ref/find_ref_state.dart';
+import 'package:otzaria/find_ref/raw_index_viewer_dialog.dart';
 import 'package:otzaria/focus/focus_repository.dart';
 import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
 import 'package:otzaria/indexing/bloc/indexing_state.dart';
@@ -264,6 +265,23 @@ class _FindRefDialogState extends State<FindRefDialog> {
         ),
       ),
       actions: [
+        TextButton(
+          onPressed: () {
+            final query = focusRepository.findRefSearchController.text;
+            if (query.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('הקלד שאילתה קודם')),
+              );
+              return;
+            }
+
+            showDialog(
+              context: context,
+              builder: (context) => RawIndexViewerDialog(query: query),
+            );
+          },
+          child: const Text('🔍 הצג אינדקס גולמי'),
+        ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('סגור'),
