@@ -4,13 +4,12 @@ import 'package:otzaria/find_ref/utils/text_normalizer.dart';
 class MatchLogic {
   /// Check if query matches target with the following rules:
   /// - Full match: all words from query exist in target (order doesn't matter)
-  /// - Partial match (1 out of 2): if query has 2 words, at least 1 must match
-  /// - Single word query: matches any target containing that word
+  /// - Partial match: at least 1 word must match
   /// - Word must be complete (not partial)
   ///
   /// Returns:
-  /// - 2.0 for full match
-  /// - 1.0 for partial match (1 out of 2) or single word match
+  /// - 2.0 for full match (all words)
+  /// - 1.0 for partial match (at least 1 word)
   /// - 0.0 for no match
   static double matchScore(String query, String target) {
     final queryWords = TextNormalizer.getWords(TextNormalizer.normalize(query));
@@ -34,13 +33,8 @@ class MatchLogic {
       return 2.0;
     }
 
-    // Partial match: for 2-word queries, 1 match is enough
-    if (queryWords.length == 2 && matchedWords >= 1) {
-      return 1.0;
-    }
-
-    // Single word query: any match is good
-    if (queryWords.length == 1 && matchedWords >= 1) {
+    // Partial match: at least 1 word matches
+    if (matchedWords >= 1) {
       return 1.0;
     }
 

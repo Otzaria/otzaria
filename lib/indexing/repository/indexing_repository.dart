@@ -127,13 +127,13 @@ class IndexingRepository {
         reference.add(line);
 
         // Index the header as a reference
-        String refText = stripHtmlIfNeeded(reference.join(" "));
+        String refText = stripHtmlIfNeeded(reference.join(", "));
         final shortref = replaceParaphrases(removeSectionNames(refText));
 
         refIndex.addDocument(
             id: BigInt.from(DateTime.now().microsecondsSinceEpoch),
             title: title,
-            reference: refText,
+            reference: '$title, $refText',  // Add book title to reference
             shortRef: shortref,
             segment: BigInt.from(i),
             isPdf: false,
