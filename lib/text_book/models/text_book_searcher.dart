@@ -65,12 +65,15 @@ class TextBookSearcher {
       int index = section.indexOf(query);
       if (index >= 0) {
         // if there is a match
+        // מסנן את רמה 1 (<h1>) - שם הספר
+        final filteredAddress = address.where((h) => !h.startsWith('<h1')).toList();
+        
         results.add(TextSearchResult(
             snippet: section.substring(max(0, index - 40),
                 min(section.length - 1, index + query.length + 40)),
             index: sectionIndex,
             query: query,
-            address: removeVolwels(stripHtmlIfNeeded(address.join(', ')))));
+            address: removeVolwels(stripHtmlIfNeeded(filteredAddress.join(', ')))));
       }
     }
     return results;

@@ -55,12 +55,24 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   bool _showPreview = true; // האם להציג את התצוגה המקדימה
   ViewMode _viewMode = ViewMode.grid; // מצב תצוגה: רשת או רשימה
   final Set<String> _expandedCategories = {}; // קטגוריות שנפתחו בתצוגת רשימה
+  
+  // FileSyncBloc יווצר פעם אחת בלבד
+  late final FileSyncBloc _fileSyncBloc;
 
   @override
   void initState() {
     super.initState();
     context.read<LibraryBloc>().add(LoadLibrary());
     _loadViewPreferences();
+    
+    // יצירת FileSyncBloc פעם אחת בלבד
+    _fileSyncBloc = FileSyncBloc(
+      repository: FileSyncRepository(
+        githubOwner: "Y-PLONI",
+        repositoryName: "otzaria-library",
+        branch: "main",
+      ),
+    );
   }
 
   void _loadViewPreferences() {
@@ -75,6 +87,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
   @override
   void dispose() {
+    _fileSyncBloc.close();
     super.dispose();
   }
 
@@ -1111,14 +1124,8 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
       // סינכרון
       ActionButtonData(
-        widget: BlocProvider(
-          create: (context) => FileSyncBloc(
-            repository: FileSyncRepository(
-              githubOwner: "Y-PLONI",
-              repositoryName: "otzaria-library",
-              branch: "main",
-            ),
-          ),
+        widget: BlocProvider.value(
+          value: _fileSyncBloc,
           child: BlocListener<FileSyncBloc, FileSyncState>(
             listener: (context, syncState) {
               if ((syncState.status == FileSyncStatus.completed ||
@@ -1318,14 +1325,8 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
       // 4) סינכרון
       ActionButtonData(
-        widget: BlocProvider(
-          create: (context) => FileSyncBloc(
-            repository: FileSyncRepository(
-              githubOwner: "Y-PLONI",
-              repositoryName: "otzaria-library",
-              branch: "main",
-            ),
-          ),
+        widget: BlocProvider.value(
+          value: _fileSyncBloc,
           child: BlocListener<FileSyncBloc, FileSyncState>(
             listener: (context, syncState) {
               if ((syncState.status == FileSyncStatus.completed ||

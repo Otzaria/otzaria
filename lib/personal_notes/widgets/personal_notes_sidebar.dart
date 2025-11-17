@@ -107,7 +107,7 @@ class _PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
 
     if (state.locatedNotes.isEmpty && state.missingNotes.isEmpty) {
       return const Center(
-        child: Text('אין עדיין הערות על הספר הזה.'),
+        child: Text('אין עדיין הערות על ספר זה'),
       );
     }
 

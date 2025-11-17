@@ -50,24 +50,22 @@ class _AboutScreenState extends State<AboutScreen> {
       {
         'name': 'sivan22',
         'url': 'https://github.com/Sivan22',
-        'description': 'יוצר התוכנה'
       },
       {'name': 'Y.PL.', 'url': 'https://github.com/Y-PLONI'},
       {'name': 'YOSEFTT', 'url': 'https://github.com/YOSEFTT'},
       {'name': 'zevisvei', 'url': 'https://github.com/zevisvei'},
       {
-        'name': 'NHLOCAL',
-        'url': 'https://github.com/NHLOCAL/Shamor-Zachor',
-        'description': 'פיתוח "זכור ושמור"'
-      },
-      {
         'name': 'evel-avalim',
         'url': 'https://github.com/evel-avalim',
-        'description': 'פיתוח הגימטריות'
       },
       {
         'name': 'userbot',
         'url': 'https://github.com/userbot000',
+      },
+      {
+        'name': 'NHLOCAL',
+        'url': 'https://github.com/NHLOCAL/Shamor-Zachor',
+        'description': 'פיתוח "זכור ושמור"'
       },
     ];
 
@@ -485,8 +483,7 @@ class _AboutScreenState extends State<AboutScreen> {
       decoration: BoxDecoration(
         color: Colors.grey[600]!.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-            color: Colors.grey[600]!.withValues(alpha: 0.3)),
+        border: Border.all(color: Colors.grey[600]!.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -538,9 +535,11 @@ class _AboutScreenState extends State<AboutScreen> {
                         width: 18,
                         height: 18,
                         errorBuilder: (context, error, stackTrace) =>
-                            const Icon(FluentIcons.payment_24_regular, size: 18),
+                            const Icon(FluentIcons.payment_24_regular,
+                                size: 18),
                       ),
-                      label: const Text('נדרים+', style: TextStyle(fontSize: 12)),
+                      label:
+                          const Text('נדרים+', style: TextStyle(fontSize: 12)),
                     ),
                     const SizedBox(height: 8),
                     ElevatedButton.icon(
@@ -550,7 +549,8 @@ class _AboutScreenState extends State<AboutScreen> {
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
-                      icon: const Icon(FluentIcons.payment_24_regular, size: 18),
+                      icon:
+                          const Icon(FluentIcons.payment_24_regular, size: 18),
                       label: const Text('אחר', style: TextStyle(fontSize: 12)),
                     ),
                   ],
@@ -578,9 +578,11 @@ class _AboutScreenState extends State<AboutScreen> {
                         width: 18,
                         height: 18,
                         errorBuilder: (context, error, stackTrace) =>
-                            const Icon(FluentIcons.payment_24_regular, size: 18),
+                            const Icon(FluentIcons.payment_24_regular,
+                                size: 18),
                       ),
-                      label: const Text('נדרים+', style: TextStyle(fontSize: 12)),
+                      label:
+                          const Text('נדרים+', style: TextStyle(fontSize: 12)),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -592,7 +594,8 @@ class _AboutScreenState extends State<AboutScreen> {
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
-                      icon: const Icon(FluentIcons.payment_24_regular, size: 18),
+                      icon:
+                          const Icon(FluentIcons.payment_24_regular, size: 18),
                       label: const Text('אחר', style: TextStyle(fontSize: 12)),
                     ),
                   ),
@@ -630,97 +633,97 @@ class _AboutScreenState extends State<AboutScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                  // סמל וכותרת משנה
-                  Row(
-                    children: [
-                      Image.asset(
-                        'assets/icon/icon.png',
-                        width: 80,
-                        height: 80,
-                      ),
-                      const SizedBox(width: 16),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'אוצריא',
-                            style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                            ),
+                // סמל וכותרת משנה
+                Row(
+                  children: [
+                    Image.asset(
+                      'assets/icon/icon.png',
+                      width: 80,
+                      height: 80,
+                    ),
+                    const SizedBox(width: 16),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'אוצריא',
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
                           ),
-                          Text(
-                            'מאגר תורני חינמי',
-                            style: TextStyle(
-                              fontSize: 18,
-                              color: Colors.grey[600],
-                            ),
+                        ),
+                        Text(
+                          'מאגר תורני חינמי',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.grey[600],
                           ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-
-                  // תיאור התוכנה
-                  const Text(
-                    'מאגר תורני רחב עם ממשק מודרני ומהיר, לשימוש במחשב אישי או במכשיר הנייד, ללימוד תורה בקלות ובנוחות בכל מקום.',
-                    style: TextStyle(
-                      fontSize: 16,
-                      height: 1.5,
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 32),
+                  ],
+                ),
+                const SizedBox(height: 24),
 
-                  // כארדים תורמים
-                  const Text(
-                    'תורמים',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                // תיאור התוכנה
+                const Text(
+                  'מאגר תורני רחב עם ממשק מודרני ומהיר, לשימוש במחשב אישי או במכשיר הנייד, ללימוד תורה בקלות ובנוחות בכל מקום.',
+                  style: TextStyle(
+                    fontSize: 16,
+                    height: 1.5,
                   ),
-                  const SizedBox(height: 16),
-                  _buildMemorialCardsRow(),
-                  const SizedBox(height: 32),
+                ),
+                const SizedBox(height: 32),
 
-                  // רשימת מפתחים
-                  const Text(
-                    'מפתחים',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                // כארדים תורמים
+                const Text(
+                  'תורמים',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
                   ),
-                  const SizedBox(height: 16),
-                  _buildDevelopersList(),
-                  const SizedBox(height: 32),
+                ),
+                const SizedBox(height: 16),
+                _buildMemorialCardsRow(),
+                const SizedBox(height: 32),
 
-                  // פרטים טכניים
-                  const Text(
-                    'פרטים טכניים',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                // רשימת מפתחים
+                const Text(
+                  'מפתחים',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
                   ),
-                  const SizedBox(height: 16),
-                  _buildTechnicalDetails(),
-                  const SizedBox(height: 16),
+                ),
+                const SizedBox(height: 16),
+                _buildDevelopersList(),
+                const SizedBox(height: 32),
 
-                  // כפתור יומן שינויים
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: ElevatedButton.icon(
-                      onPressed: () => _showChangelogDialog(context),
-                      icon: const Icon(FluentIcons.history_24_regular),
-                      label: const Text('יומן שינויים'),
-                    ),
+                // פרטים טכניים
+                const Text(
+                  'פרטים טכניים',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 16),
+                _buildTechnicalDetails(),
+                const SizedBox(height: 16),
+
+                // כפתור יומן שינויים
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _showChangelogDialog(context),
+                    icon: const Icon(FluentIcons.history_24_regular),
+                    label: const Text('יומן שינויים'),
+                  ),
+                ),
+              ],
             ),
           ),
+        ),
 
         // כארד צדדי - מצד שמאל
         SizedBox(

@@ -22,7 +22,7 @@ class ReportingNumbersWidget extends StatelessWidget {
     this.showPhoneNumber = true,
   });
 
-  static const String _phoneNumber = '077-4636-198';
+  static const String _phoneNumber = '(+972) 077-4636-198';
 
   @override
   Widget build(BuildContext context) {

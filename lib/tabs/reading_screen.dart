@@ -216,10 +216,13 @@ class _ReadingScreenState extends State<ReadingScreen>
                 );
               }
 
+              // וידוא שהאינדקס תקף לפני יצירת ה-TabController
+              final validIndex =
+                  state.currentTabIndex.clamp(0, state.tabs.length - 1);
               final controller = TabController(
                 length: state.tabs.length,
                 vsync: this,
-                initialIndex: state.currentTabIndex,
+                initialIndex: validIndex,
               );
 
               controller.addListener(() {

@@ -204,7 +204,7 @@ class _PersonalNotesManagerScreenState extends State<PersonalNotesManagerScreen>
     if (notes.isEmpty) {
       return Center(
         child: Text(
-          located ? 'אין הערות במיקום זה.' : 'אין הערות חסרות מיקום.',
+          located ? 'אין הערות במיקום זה' : 'אין הערות חסרות מיקום',
         ),
       );
     }

@@ -12,6 +12,7 @@ import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/search/view/full_text_settings_widgets.dart';
 import 'package:otzaria/search/view/tantivy_search_results.dart';
 import 'package:otzaria/search/view/full_text_facet_filtering.dart';
+import 'package:otzaria/search/view/search_edit_panel.dart';
 import 'package:otzaria/widgets/resizable_facet_filtering.dart';
 import 'package:otzaria/settings/settings_bloc.dart';
 
@@ -28,6 +29,7 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
   bool get wantKeepAlive => true;
 
   bool _showIndexWarning = false;
+  bool _showEditPanel = false;
 
   @override
   void initState() {
@@ -98,6 +100,16 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
               // השורה התחתונה - מוצגת תמיד!
               _buildBottomRow(state),
               _buildDivider(),
+              // פאנל עריכה - מופיע מתחת לשורה התחתונה
+              if (_showEditPanel)
+                SearchEditPanel(
+                  tab: widget.tab,
+                  onClose: () {
+                    setState(() {
+                      _showEditPanel = false;
+                    });
+                  },
+                ),
               Expanded(
                 child: Stack(
                   children: [
@@ -230,15 +242,16 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
 
                                 return Row(
                                   children: [
-                                    // הודעת "מוצגות תוצאות של חיפוש" - רק בחיפוש מתקדם
-                                    if (searchState.isAdvancedSearchEnabled)
-                                      Padding(
-                                        padding: const EdgeInsets.only(
-                                          left: 16.0,
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
+                                    // הודעת "מוצגות תוצאות של חיפוש" + כפתור עריכה
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        left: 16.0,
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          // הודעה רק בחיפוש מתקדם
+                                          if (searchState.isAdvancedSearchEnabled) ...[
                                             Text(
                                               'מוצגות תוצאות של חיפוש: ',
                                               style: TextStyle(
@@ -253,9 +266,26 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
                                             SearchTermsDisplay(
                                               tab: widget.tab,
                                             ),
+                                            const SizedBox(width: 8),
                                           ],
-                                        ),
+                                          // כפתור עריכה - תמיד מוצג
+                                          IconButton(
+                                            icon: Icon(
+                                              _showEditPanel
+                                                  ? FluentIcons.chevron_up_24_regular
+                                                  : FluentIcons.edit_24_regular,
+                                              size: 20,
+                                            ),
+                                            tooltip: _showEditPanel ? 'סגור עריכה' : 'ערוך חיפוש',
+                                            onPressed: () {
+                                              setState(() {
+                                                _showEditPanel = !_showEditPanel;
+                                              });
+                                            },
+                                          ),
+                                        ],
                                       ),
+                                    ),
                                     const Spacer(),
                                     Padding(
                                       padding: const EdgeInsets.symmetric(
@@ -287,6 +317,16 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
                       ),
                     ),
                     _buildDivider(),
+                    // פאנל עריכה - מופיע מתחת לשורה העליונה
+                    if (_showEditPanel)
+                      SearchEditPanel(
+                        tab: widget.tab,
+                        onClose: () {
+                          setState(() {
+                            _showEditPanel = false;
+                          });
+                        },
+                      ),
                     Expanded(
                       child: Row(
                         children: [
@@ -394,7 +434,7 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
     );
   }
 
-  // השורה העליונה - רק כפתור תפריט
+  // השורה העליונה - כפתור תפריט + מילות חיפוש + כפתור עריכה
   Widget _buildBottomRow(SearchState state) {
     return Container(
       height: 60, // גובה קבוע
@@ -410,6 +450,54 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
                   !widget.tab.isLeftPaneOpen.value;
             },
           ),
+          // מילות החיפוש + כפתור עריכה (רק אם יש חיפוש)
+          if (state.searchQuery.isNotEmpty) ...[
+            Expanded(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'חיפוש: ',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // הצגת מילות החיפוש רק בחיפוש מתקדם
+                  if (state.isAdvancedSearchEnabled)
+                    Flexible(
+                      child: SearchTermsDisplay(tab: widget.tab),
+                    )
+                  else
+                    Flexible(
+                      child: Text(
+                        state.searchQuery,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  IconButton(
+                    icon: Icon(
+                      _showEditPanel
+                          ? FluentIcons.chevron_up_24_regular
+                          : FluentIcons.edit_24_regular,
+                      size: 20,
+                    ),
+                    tooltip: _showEditPanel ? 'סגור עריכה' : 'ערוך חיפוש',
+                    onPressed: () {
+                      setState(() {
+                        _showEditPanel = !_showEditPanel;
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

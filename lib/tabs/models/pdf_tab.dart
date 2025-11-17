@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/models/pdf_headings.dart';
+import 'package:otzaria/models/links.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/utils/text_manipulation.dart';
 import 'package:pdfrx/pdfrx.dart';
@@ -38,6 +40,18 @@ class PdfBookTab extends OpenedTab {
 
   ///a flag that tells if the left pane should be pinned on scrolling
   final pinLeftPane = ValueNotifier<bool>(false);
+
+  /// PDF headings mapping for commentaries and links
+  PdfHeadings? pdfHeadings;
+
+  /// Links for the current book
+  List<Link> links = [];
+
+  /// Active commentators to show
+  List<String> activeCommentators = [];
+
+  /// Current line number in text (based on PDF heading)
+  int? currentTextLineNumber;
 
   /// Creates a new instance of [PdfBookTab].
   ///

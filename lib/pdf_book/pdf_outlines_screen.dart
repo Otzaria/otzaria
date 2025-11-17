@@ -116,7 +116,14 @@ class _OutlineViewState extends State<OutlineView>
     if (_isManuallyScrolling || !widget.controller.isReady) return;
 
     final currentPage = widget.controller.pageNumber;
-    if (currentPage == _lastScrolledPage) return;
+    
+    // אם הדף זהה, רק נעדכן את ה-UI בלי לגלול
+    if (currentPage == _lastScrolledPage) {
+      if (mounted) {
+        setState(() {});
+      }
+      return;
+    }
 
     PdfOutlineNode? activeNode;
 
@@ -214,28 +221,36 @@ class _OutlineViewState extends State<OutlineView>
 
     return Column(
       children: [
-        TextField(
-          controller: searchController,
-          focusNode: widget.focusNode,
-          autofocus: true,
-          onChanged: (value) => setState(() {}),
-          onSubmitted: (_) {
-            widget.focusNode.requestFocus();
-          },
-          decoration: InputDecoration(
-            hintText: 'חיפוש סימניה...',
-            suffixIcon: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(FluentIcons.dismiss_24_regular),
-                  onPressed: () {
-                    setState(() {
-                      searchController.clear();
-                    });
-                  },
-                ),
-              ],
+        Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: TextField(
+            controller: searchController,
+            focusNode: widget.focusNode,
+            autofocus: true,
+            onChanged: (value) => setState(() {}),
+            onSubmitted: (_) {
+              widget.focusNode.requestFocus();
+            },
+            decoration: InputDecoration(
+              hintText: 'חיפוש סימניה...',
+              prefixIcon: const Icon(FluentIcons.search_24_regular),
+              suffixIcon: searchController.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(FluentIcons.dismiss_24_regular),
+                      onPressed: () {
+                        setState(() {
+                          searchController.clear();
+                        });
+                      },
+                    )
+                  : null,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8.0),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 12.0,
+              ),
             ),
           ),
         ),
@@ -308,92 +323,173 @@ class _OutlineViewState extends State<OutlineView>
   Widget _buildOutlineItem(PdfOutlineNode node, {int level = 0}) {
     final itemKey = _tocItemKeys.putIfAbsent(node, () => GlobalKey());
     void navigateToEntry() {
-      setState(() {
-        _isManuallyScrolling = false;
-        _lastScrolledPage = null;
-      });
+      _isManuallyScrolling = false;
+      _lastScrolledPage = node.dest?.pageNumber;
       if (node.dest != null) {
         widget.controller.goTo(widget.controller
             .calcMatrixFitWidthForPage(pageNumber: node.dest?.pageNumber ?? 1));
       }
     }
 
-    if (node.children.isNotEmpty) {
-      final controller =
-          _controllers.putIfAbsent(node, () => ExpansibleController());
-      final bool isExpanded = _expanded[node] ?? (level == 0);
+    final bool selected = widget.controller.isReady &&
+        node.dest?.pageNumber == widget.controller.pageNumber;
 
-      if (controller.isExpanded != isExpanded) {
-        if (isExpanded) {
-          controller.expand();
-        } else {
-          controller.collapse();
-        }
-      }
-    }
-
-    return Padding(
-      key: itemKey,
-      padding: EdgeInsets.fromLTRB(0, 0, 10 * level.toDouble(), 0),
-      child: Theme(
-        data: Theme.of(context).copyWith(
-          dividerColor: Colors.transparent,
-        ),
-        child: node.children.isEmpty
-            ? Material(
-                color: Colors.transparent,
-                child: ListTile(
-                  title: Text(node.title),
-                  selected: widget.controller.isReady &&
-                      node.dest?.pageNumber == widget.controller.pageNumber,
-                  selectedColor:
-                      Theme.of(context).colorScheme.onSecondaryContainer,
-                  selectedTileColor:
-                      Theme.of(context).colorScheme.secondaryContainer,
-                  onTap: navigateToEntry,
-                  hoverColor: Theme.of(context).hoverColor,
-                  mouseCursor: SystemMouseCursors.click,
-                ),
-              )
-            : Material(
-                color: Colors.transparent,
-                child: ExpansionTile(
-                  key: PageStorageKey(node),
-                  controller: _controllers.putIfAbsent(
-                      node, () => ExpansibleController()),
-                  initiallyExpanded: _expanded[node] ?? (level == 0),
-                  onExpansionChanged: (val) {
-                    setState(() {
-                      _expanded[node] = val;
-                    });
-                  },
-                  // גם לכותרת של הצומת המורחב נוסיף ListTile
-                  title: ListTile(
-                    title: Text(node.title),
-                    selected: widget.controller.isReady &&
-                        node.dest?.pageNumber == widget.controller.pageNumber,
-                    selectedColor: Theme.of(context).colorScheme.onSecondary,
-                    selectedTileColor: Theme.of(context)
-                        .colorScheme
-                        .secondary
-                        .withValues(alpha: 0.2),
-                    onTap: navigateToEntry,
-                    hoverColor: Theme.of(context).hoverColor,
-                    mouseCursor: SystemMouseCursors.click,
-                    contentPadding: EdgeInsets.zero, // שלא יזיז ימינה
+    if (node.children.isEmpty) {
+      return InkWell(
+        key: itemKey,
+        onTap: navigateToEntry,
+        child: Container(
+          padding: EdgeInsets.only(
+            right: 16.0 + (level * 24.0),
+            left: 16.0,
+            top: 10.0,
+            bottom: 10.0,
+          ),
+          decoration: BoxDecoration(
+            color: selected
+                ? Theme.of(context)
+                    .colorScheme
+                    .primaryContainer
+                    .withValues(alpha: 0.3)
+                : null,
+            border: Border(
+              bottom: BorderSide(
+                color: Theme.of(context).dividerColor,
+                width: 0.5,
+              ),
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                // רמה 0 (רמה 1 בספירה רגילה) מקבלת אייקון ספר
+                level == 0
+                    ? FluentIcons.book_24_regular
+                    : FluentIcons.text_bullet_list_24_regular,
+                color: level == 0
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.secondary,
+                size: level == 0 ? 20 : 18,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  node.title,
+                  style: TextStyle(
+                    fontSize: level == 0 ? 15 : 14,
+                    fontWeight: level == 0
+                        ? FontWeight.w600
+                        : (selected ? FontWeight.w600 : FontWeight.normal),
+                    color: level == 0 ? Theme.of(context).colorScheme.primary : null,
                   ),
-                  leading: const Icon(FluentIcons.chevron_right_24_regular),
-                  trailing: const SizedBox.shrink(),
-                  tilePadding: EdgeInsets.zero,
-                  childrenPadding: EdgeInsets.zero,
-                  iconColor: Theme.of(context).colorScheme.primary,
-                  collapsedIconColor: Theme.of(context).colorScheme.primary,
-                  children: node.children
-                      .map((c) => _buildOutlineItem(c, level: level + 1))
-                      .toList(),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 2,
                 ),
               ),
-      ),
-    );
+            ],
+          ),
+        ),
+      );
+    } else {
+      final bool isExpanded = _expanded[node] ?? (level == 0);
+
+      return Column(
+        key: itemKey,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: selected
+                  ? Theme.of(context)
+                      .colorScheme
+                      .primaryContainer
+                      .withValues(alpha: 0.3)
+                  : null,
+              border: Border(
+                bottom: BorderSide(
+                  color: Theme.of(context).dividerColor,
+                  width: 0.5,
+                ),
+              ),
+            ),
+            child: Row(
+              children: [
+                // אזור הטקסט לניווט
+                Expanded(
+                  child: InkWell(
+                    onTap: navigateToEntry,
+                    child: Container(
+                      padding: EdgeInsets.only(
+                        right: 16.0 + (level * 24.0),
+                        left: 8.0,
+                        top: 12.0,
+                        bottom: 12.0,
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            // רמה 0 (רמה 1 בספירה רגילה) מקבלת אייקון ספר
+                            level == 0
+                                ? FluentIcons.book_24_regular
+                                : FluentIcons.text_bullet_list_24_regular,
+                            color: level == 0
+                                ? Theme.of(context).colorScheme.primary
+                                : Theme.of(context).colorScheme.secondary,
+                            size: level == 0 ? 20 : 18,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              node.title,
+                              style: TextStyle(
+                                fontSize: level == 0 ? 15 : 14,
+                                fontWeight: level == 0
+                                    ? FontWeight.w600
+                                    : FontWeight.normal,
+                                color: level == 0
+                                    ? Theme.of(context).colorScheme.primary
+                                    : null,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 2,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                // כפתור החץ לפתיחה/סגירה
+                InkWell(
+                  onTap: () {
+                    setState(() {
+                      _expanded[node] = !isExpanded;
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.only(
+                      left: 16.0,
+                      right: 8.0,
+                      top: 12.0,
+                      bottom: 12.0,
+                    ),
+                    child: Icon(
+                      isExpanded
+                          ? FluentIcons.chevron_up_24_regular
+                          : FluentIcons.chevron_down_24_regular,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (isExpanded)
+            ...node.children
+                .map((c) => _buildOutlineItem(c, level: level + 1))
+                .toList(),
+        ],
+      );
+    }
   }
 }

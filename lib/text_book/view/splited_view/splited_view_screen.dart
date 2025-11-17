@@ -56,21 +56,28 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
     if (oldWidget.showSplitView != widget.showSplitView) {
       setState(() {
         _currentTabIndex = _getInitialTabIndex();
+        // אם עוברים למצב split view, פותחים את הטור השמאלי אוטומטית
+        if (widget.showSplitView && !_paneOpen) {
+          _paneOpen = true;
+          _updateAreas();
+        }
       });
     }
   }
 
   int _getInitialTabIndex() {
     // קביעת הטאב הראשוני
-    // הטאבים בטור השמאלי: 0=קישורים, 1=הערות אישיות
+    // הטאבים בטור השמאלי: 0=מפרשים, 1=קישורים, 2=הערות אישיות
     if (widget.initialTabIndex != null) {
       debugPrint('DEBUG: Using initialTabIndex: ${widget.initialTabIndex}');
-      return widget.initialTabIndex!;
+      // וידוא שהאינדקס תקף (0-2)
+      return widget.initialTabIndex!.clamp(0, 2);
     } else {
-      // ברירת מחדל - קישורים (0)
+      // ברירת מחדל - מפרשים (0)
       final saved = Settings.getValue<int>('key-sidebar-tab-index-combined');
       debugPrint('DEBUG: saved: $saved, returning: ${saved ?? 0}');
-      return saved ?? 0;
+      // וידוא שהערך השמור תקף (0-2)
+      return (saved ?? 0).clamp(0, 2);
     }
   }
 
@@ -101,6 +108,11 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
     }
   }
 
+  // פונקציה ציבורית לפתיחה/סגירה מבחוץ
+  void togglePane() {
+    _togglePane();
+  }
+
   void _openPaneWithSmartTab() {
     final state = context.read<TextBookBloc>().state;
     if (state is! TextBookLoaded) {
@@ -110,19 +122,18 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
 
     int targetTab;
 
-    // הטאבים בטור השמאלי עכשיו הם: 0=קישורים, 1=הערות אישיות
-    // (מפרשים עבר לטור הימני)
+    // הטאבים בטור השמאלי עכשיו הם: 0=מפרשים, 1=קישורים, 2=הערות אישיות
 
     if (state.visibleIndices.isNotEmpty) {
       // בדוק אם יש קישורים בשורה הנוכחית
       final hasLinks = _hasLinksInCurrentLine(state);
       if (hasLinks) {
-        targetTab = 0; // קישורים
+        targetTab = 1; // קישורים
       } else {
-        targetTab = 1; // הערות אישיות
+        targetTab = 2; // הערות אישיות
       }
     } else {
-      targetTab = 0; // ברירת מחדל - קישורים
+      targetTab = 0; // ברירת מחדל - מפרשים
     }
 
     setState(() {
@@ -232,7 +243,7 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                       minHeight: 36,
                     ),
                     icon: Icon(
-                      FluentIcons.navigation_24_regular,
+                      FluentIcons.panel_left_contract_24_regular,
                       color: Theme.of(context).colorScheme.onSurface,
                     ),
                     onPressed: _togglePane,

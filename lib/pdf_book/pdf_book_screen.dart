@@ -8,11 +8,14 @@ import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
 import 'package:otzaria/core/scaffold_messenger.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/models/pdf_headings.dart';
 import 'package:otzaria/pdf_book/pdf_page_number_dispaly.dart';
+import 'package:otzaria/pdf_book/pdf_commentary_panel.dart';
 import 'package:otzaria/settings/settings_bloc.dart';
 import 'package:otzaria/settings/settings_event.dart';
 import 'package:otzaria/settings/settings_state.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
+import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/utils/open_book.dart';
 import 'package:otzaria/utils/ref_helper.dart';
 import 'package:pdfrx/pdfrx.dart';
@@ -52,6 +55,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   final FocusNode _searchFieldFocusNode = FocusNode();
   final FocusNode _navigationFieldFocusNode = FocusNode();
   late final ValueNotifier<double> _sidebarWidth;
+  late final ValueNotifier<double> _rightPaneWidth;
+  late final ValueNotifier<bool> _showRightPane;
   late final StreamSubscription<SettingsState> _settingsSub;
 
   Future<void> _runInitialSearchIfNeeded() async {
@@ -132,6 +137,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
     _sidebarWidth = ValueNotifier<double>(
         Settings.getValue<double>('key-sidebar-width', defaultValue: 300)!);
+    
+    _rightPaneWidth = ValueNotifier<double>(350.0);
+    _showRightPane = ValueNotifier<bool>(false);
 
     _settingsSub = context.read<SettingsBloc>().stream.listen((state) {
       _sidebarWidth.value = state.sidebarWidth;
@@ -145,7 +153,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     }
 
     _leftPaneTabController = TabController(
-      length: 3,
+      length: 3, // חזרה ל-3: ניווט, חיפוש, דפים (ללא מפרשים)
       vsync: this,
       initialIndex: _currentLeftPaneTabIndex,
     );
@@ -175,6 +183,67 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         }
       }
     });
+
+    // טעינת headings וlinks
+    _loadPdfHeadingsAndLinks();
+  }
+
+  Future<void> _loadPdfHeadingsAndLinks() async {
+    try {
+      debugPrint('=== Loading PDF Headings and Links ===');
+      debugPrint('Book title: ${widget.tab.book.title}');
+      debugPrint('Book path: ${widget.tab.book.path}');
+      
+      // טעינת headings
+      final headings = await PdfHeadings.loadFromFile(widget.tab.book.title);
+      if (headings != null) {
+        widget.tab.pdfHeadings = headings;
+        debugPrint('✅ Loaded ${headings.headingsMap.length} headings');
+        debugPrint('Sample headings: ${headings.headingsMap.entries.take(3).map((e) => '${e.key}: ${e.value}').join(', ')}');
+      } else {
+        debugPrint('❌ Failed to load headings file');
+      }
+
+      // טעינת links
+      debugPrint('📚 Starting to load library...');
+      final library = await DataRepository.instance.library;
+      debugPrint('✅ Library loaded successfully');
+      
+      debugPrint('🔍 Searching for TextBook with title: "${widget.tab.book.title}"');
+      final textBook = library.findBookByTitle(widget.tab.book.title, TextBook);
+      debugPrint('TextBook found: ${textBook != null}');
+      
+      if (textBook != null) {
+        debugPrint('📖 TextBook type: ${textBook.runtimeType}');
+        if (textBook is TextBook) {
+          debugPrint('🔗 Loading links from TextBook...');
+          final loadedLinks = await textBook.links;
+          widget.tab.links = loadedLinks;
+          debugPrint('✅ Loaded ${widget.tab.links.length} links');
+          
+          // הצגת דוגמאות של links
+          if (widget.tab.links.isNotEmpty) {
+            debugPrint('Sample links:');
+            for (final link in widget.tab.links.take(3)) {
+              debugPrint('  - Line ${link.index1}: ${link.heRef} (${link.connectionType})');
+            }
+          } else {
+            debugPrint('⚠️ Links list is empty');
+          }
+        } else {
+          debugPrint('❌ Found book but it is not a TextBook');
+        }
+      } else {
+        debugPrint('❌ TextBook not found in library');
+      }
+
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error loading PDF headings and links: $e');
+      debugPrint('Stack trace: $stackTrace');
+    }
   }
 
   int _lastComputedForPage = -1;
@@ -188,6 +257,29 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         newPage, widget.tab.outline.value ?? [], widget.tab.book.title);
     if (token == _lastComputedForPage) {
       widget.tab.currentTitle.value = title;
+      
+      debugPrint('=== Page Changed ===');
+      debugPrint('Page: $newPage, Title: "$title"');
+      
+      // עדכון מספר השורה בטקסט לפי הכותרת
+      if (widget.tab.pdfHeadings != null && title.isNotEmpty) {
+        debugPrint('Headings available: ${widget.tab.pdfHeadings!.headingsMap.length}');
+        final lineNumber = widget.tab.pdfHeadings!.getLineNumberForHeading(title);
+        debugPrint('Line number for "$title": $lineNumber');
+        
+        if (lineNumber != null) {
+          widget.tab.currentTextLineNumber = lineNumber;
+          debugPrint('✅ Updated currentTextLineNumber to: $lineNumber');
+          if (mounted) {
+            setState(() {});
+          }
+        } else {
+          debugPrint('❌ No line number found for heading: "$title"');
+          debugPrint('Available headings: ${widget.tab.pdfHeadings!.headingsMap.keys.take(5).join(", ")}');
+        }
+      } else {
+        debugPrint('❌ pdfHeadings is null or title is empty');
+      }
     }
   }
 
@@ -199,6 +291,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     _searchFieldFocusNode.dispose();
     _navigationFieldFocusNode.dispose();
     _sidebarWidth.dispose();
+    _rightPaneWidth.dispose();
+    _showRightPane.dispose();
     _settingsSub.cancel();
     super.dispose();
   }
@@ -299,18 +393,20 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                       : const SizedBox.shrink(),
                 ),
                 Expanded(
-                  child: NotificationListener<UserScrollNotification>(
-                    onNotification: (notification) {
-                      if (!(widget.tab.pinLeftPane.value ||
-                          (Settings.getValue<bool>('key-pin-sidebar') ??
-                              false))) {
-                        Future.microtask(() {
-                          widget.tab.showLeftPane.value = false;
-                        });
-                      }
-                      return false;
-                    },
-                    child: Listener(
+                  child: Stack(
+                    children: [
+                      NotificationListener<UserScrollNotification>(
+                        onNotification: (notification) {
+                          if (!(widget.tab.pinLeftPane.value ||
+                              (Settings.getValue<bool>('key-pin-sidebar') ??
+                                  false))) {
+                            Future.microtask(() {
+                              widget.tab.showLeftPane.value = false;
+                            });
+                          }
+                          return false;
+                        },
+                        child: Listener(
                       onPointerSignal: (event) {
                         if (event is PointerScrollEvent &&
                             !(widget.tab.pinLeftPane.value ||
@@ -428,11 +524,20 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                                               .pageNumber ??
                                           1)
                                       : 1;
-                              widget.tab.currentTitle.value =
-                                  await refFromPageNumber(
+                              final title = await refFromPageNumber(
                                       currentPage,
                                       widget.tab.outline.value,
                                       widget.tab.book.title);
+                              widget.tab.currentTitle.value = title;
+
+                              // 2.5. עדכון מספר השורה בטקסט לפי הכותרת הראשונית
+                              if (widget.tab.pdfHeadings != null && title.isNotEmpty) {
+                                final lineNumber = widget.tab.pdfHeadings!.getLineNumberForHeading(title);
+                                if (lineNumber != null) {
+                                  widget.tab.currentTextLineNumber = lineNumber;
+                                  debugPrint('✅ Initial currentTextLineNumber set to: $lineNumber for title: "$title"');
+                                }
+                              }
 
                               // 3. הפעלת החיפוש הראשוני (עכשיו עם מנגנון ניסיונות חוזרים)
                               _runInitialSearchIfNeeded();
@@ -449,7 +554,75 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                       ),
                     ),
                   ),
+                      // כפתור צף לפתיחת חלונית המפרשים
+                      ValueListenableBuilder(
+                        valueListenable: _showRightPane,
+                        builder: (context, showRightPane, child) {
+                          // מציג את הכפתור רק כשהחלונית סגורה
+                          if (showRightPane) return const SizedBox.shrink();
+                          
+                          return Positioned(
+                            left: 8,
+                            top: 8,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .surface
+                                    .withValues(alpha: 0.9),
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.2),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: IconButton(
+                                iconSize: 18,
+                                padding: const EdgeInsets.all(8),
+                                constraints: const BoxConstraints(
+                                  minWidth: 36,
+                                  minHeight: 36,
+                                ),
+                                icon: Icon(
+                                  FluentIcons.panel_left_contract_24_regular,
+                                  color: Theme.of(context).colorScheme.onSurface,
+                                ),
+                                tooltip: 'פתח מפרשים וקישורים',
+                                onPressed: () {
+                                  _showRightPane.value = true;
+                                },
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
                 ),
+                // Divider לחלונית ימנית
+                ValueListenableBuilder(
+                  valueListenable: _showRightPane,
+                  builder: (context, show, child) => show
+                      ? MouseRegion(
+                          cursor: SystemMouseCursors.resizeColumn,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.translucent,
+                            onHorizontalDragUpdate: (details) {
+                              final newWidth =
+                                  (_rightPaneWidth.value + details.delta.dx)
+                                      .clamp(250.0, 600.0);
+                              _rightPaneWidth.value = newWidth;
+                            },
+                            child: const VerticalDivider(width: 4),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+                // חלונית ימנית למפרשים
+                _buildRightPane(),
               ],
             ),
           ),
@@ -478,64 +651,79 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             padding: const EdgeInsets.fromLTRB(0, 0, 0, 0),
             child: Column(
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Material(
-                        color: Colors.transparent,
-                        child: ClipRect(
-                          child: Column(
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(child: _buildCustomTab('ניווט', 0)),
-                                  Container(
-                                      height: 24,
-                                      width: 1,
-                                      color: Colors.grey.shade400,
-                                      margin: const EdgeInsets.symmetric(
-                                          horizontal: 2)),
-                                  Expanded(child: _buildCustomTab('חיפוש', 1)),
-                                  Container(
-                                      height: 24,
-                                      width: 1,
-                                      color: Colors.grey.shade400,
-                                      margin: const EdgeInsets.symmetric(
-                                          horizontal: 2)),
-                                  Expanded(child: _buildCustomTab('דפים', 2)),
-                                ],
-                              ),
-                              Container(
-                                height: 1,
-                                color: Theme.of(context).dividerColor,
-                              ),
-                            ],
-                          ),
-                        ),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    border: Border(
+                      bottom: BorderSide(
+                        color: Theme.of(context).dividerColor,
+                        width: 1,
                       ),
                     ),
-                    ValueListenableBuilder(
-                      valueListenable: widget.tab.pinLeftPane,
-                      builder: (context, pinLeftPanel, child) =>
-                          MediaQuery.of(context).size.width < 600
-                              ? const SizedBox.shrink()
-                              : IconButton(
-                                  onPressed: (Settings.getValue<bool>(
-                                              'key-pin-sidebar') ??
-                                          false)
-                                      ? null
-                                      : () {
-                                          widget.tab.pinLeftPane.value =
-                                              !widget.tab.pinLeftPane.value;
-                                        },
-                                  icon: const Icon(FluentIcons.pin_24_regular),
-                                  isSelected: pinLeftPanel ||
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TabBar(
+                          controller: _leftPaneTabController,
+                          tabs: const [
+                            Tab(text: 'ניווט'),
+                            Tab(text: 'חיפוש'),
+                            Tab(text: 'דפים'),
+                          ],
+                          labelColor: Theme.of(context).colorScheme.primary,
+                          unselectedLabelColor: Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withValues(alpha: 0.6),
+                          indicatorColor: Theme.of(context).colorScheme.primary,
+                          dividerColor: Colors.transparent,
+                          overlayColor:
+                              WidgetStateProperty.all(Colors.transparent),
+                        ),
+                      ),
+                      if (MediaQuery.of(context).size.width >= 600)
+                        ValueListenableBuilder(
+                          valueListenable: widget.tab.pinLeftPane,
+                          builder: (context, pinLeftPanel, child) => IconButton(
+                            onPressed: (Settings.getValue<bool>(
+                                        'key-pin-sidebar') ??
+                                    false)
+                                ? null
+                                : () {
+                                    widget.tab.pinLeftPane.value =
+                                        !widget.tab.pinLeftPane.value;
+                                  },
+                            icon: AnimatedRotation(
+                              turns: (pinLeftPanel ||
                                       (Settings.getValue<bool>(
                                               'key-pin-sidebar') ??
-                                          false),
-                                ),
-                    ),
-                  ],
+                                          false))
+                                  ? -0.125
+                                  : 0.0,
+                              duration: const Duration(milliseconds: 200),
+                              child: Icon(
+                                (pinLeftPanel ||
+                                        (Settings.getValue<bool>(
+                                                'key-pin-sidebar') ??
+                                            false))
+                                    ? FluentIcons.pin_24_filled
+                                    : FluentIcons.pin_24_regular,
+                              ),
+                            ),
+                            color: (pinLeftPanel ||
+                                    (Settings.getValue<bool>(
+                                            'key-pin-sidebar') ??
+                                        false))
+                                ? Theme.of(context).colorScheme.primary
+                                : null,
+                            isSelected: pinLeftPanel ||
+                                (Settings.getValue<bool>('key-pin-sidebar') ??
+                                    false),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
                 Expanded(
                   child: TabBarView(
@@ -650,65 +838,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       },
     );
     return result ?? false;
-  }
-
-  Widget _buildCustomTab(String text, int index) {
-    final controller = _leftPaneTabController;
-    if (controller == null) {
-      return Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        child: Text(
-          text,
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 14),
-        ),
-      );
-    }
-
-    return AnimatedBuilder(
-      animation: controller,
-      builder: (context, child) {
-        final isSelected = controller.index == index;
-        return MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: GestureDetector(
-            onTap: () {
-              controller.animateTo(index);
-            },
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () {
-                  controller.animateTo(index);
-                },
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-                  decoration: BoxDecoration(
-                    border: isSelected
-                        ? Border(
-                            bottom: BorderSide(
-                                color: Theme.of(context).primaryColor,
-                                width: 2))
-                        : null,
-                  ),
-                  child: Text(
-                    text,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: isSelected ? Theme.of(context).primaryColor : null,
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.normal,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
   }
 
   /// בניית כפתורי ה-AppBar עבור PDF
@@ -986,6 +1115,41 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                     ignoreHistory: true);
               })
           : const SizedBox.shrink(),
+    );
+  }
+
+  /// בניית חלונית ימנית למפרשים וקישורים
+  Widget _buildRightPane() {
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 300),
+      child: ValueListenableBuilder(
+        valueListenable: _showRightPane,
+        builder: (context, showRightPane, child) =>
+            ValueListenableBuilder<double>(
+          valueListenable: _rightPaneWidth,
+          builder: (context, width, child2) => SizedBox(
+            width: showRightPane ? width : 0,
+            child: child2!,
+          ),
+          child: child,
+        ),
+        child: Container(
+          color: Theme.of(context).colorScheme.surface,
+          child: PdfCommentaryPanel(
+            tab: widget.tab,
+            openBookCallback: (tab) {
+              if (tab is TextBookTab) {
+                openBook(context, tab.book, tab.index, '',
+                    ignoreHistory: false);
+              }
+            },
+            fontSize: 16.0,
+            onClose: () {
+              _showRightPane.value = false;
+            },
+          ),
+        ),
+      ),
     );
   }
 }

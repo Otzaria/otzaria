@@ -19,19 +19,68 @@ class PersonalNoteEditorDialog extends StatefulWidget {
 class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog> {
   int _focusedButtonIndex = 1; // 0 = ביטול, 1 = שמור (ברירת מחדל)
   final FocusNode _textFieldFocusNode = FocusNode();
+  String _initialText = '';
+  bool _hasUnsavedChanges = false;
 
   @override
   void initState() {
     super.initState();
+    _initialText = widget.controller.text;
+    widget.controller.addListener(_checkForChanges);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _textFieldFocusNode.requestFocus();
     });
   }
 
+  void _checkForChanges() {
+    final hasChanges = widget.controller.text.trim() != _initialText.trim() &&
+        widget.controller.text.trim().isNotEmpty;
+    if (hasChanges != _hasUnsavedChanges) {
+      setState(() {
+        _hasUnsavedChanges = hasChanges;
+      });
+    }
+  }
+
   @override
   void dispose() {
+    widget.controller.removeListener(_checkForChanges);
     _textFieldFocusNode.dispose();
     super.dispose();
+  }
+
+  Future<bool> _confirmClose() async {
+    if (!_hasUnsavedChanges) {
+      return true;
+    }
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('אזהרה'),
+        content: const Text('ההערה לא נשמרה, לסגור?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('ביטול'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('סגור'),
+          ),
+        ],
+      ),
+    );
+
+    return result ?? false;
+  }
+
+  Future<void> _handleCancel() async {
+    if (await _confirmClose()) {
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    }
   }
 
   void _submit() {
@@ -75,49 +124,56 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog> {
           if (_focusedButtonIndex == 1) {
             _submit();
           } else {
-            Navigator.of(context).pop();
+            _handleCancel();
           }
           return KeyEventResult.handled;
         }
 
         // Escape - ביטול
         if (event.logicalKey == LogicalKeyboardKey.escape) {
-          Navigator.of(context).pop();
+          _handleCancel();
           return KeyEventResult.handled;
         }
 
         return KeyEventResult.ignored;
       },
-      child: AlertDialog(
-        title: Text(widget.title),
-        content: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 400),
-          child: TextField(
-            controller: widget.controller,
-            focusNode: _textFieldFocusNode,
-            minLines: 5,
-            maxLines: 12,
-            autofocus: true,
-            keyboardType: TextInputType.multiline,
-            decoration: const InputDecoration(
-              hintText: 'כתבו כאן את ההערה האישית\n(Alt+Enter לשמירה)',
-              border: OutlineInputBorder(),
+      child: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) async {
+          if (didPop) return;
+          await _handleCancel();
+        },
+        child: AlertDialog(
+          title: Text(widget.title),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: TextField(
+              controller: widget.controller,
+              focusNode: _textFieldFocusNode,
+              minLines: 5,
+              maxLines: 12,
+              autofocus: true,
+              keyboardType: TextInputType.multiline,
+              decoration: const InputDecoration(
+                hintText: 'כתבו כאן את ההערה האישית\n(Alt+Enter לשמירה)',
+                border: OutlineInputBorder(),
+              ),
             ),
           ),
+          actions: [
+            _buildButton(
+              text: 'ביטול',
+              isFocused: _focusedButtonIndex == 0,
+              onPressed: _handleCancel,
+            ),
+            _buildButton(
+              text: 'שמור',
+              isFocused: _focusedButtonIndex == 1,
+              isConfirm: true,
+              onPressed: _submit,
+            ),
+          ],
         ),
-        actions: [
-          _buildButton(
-            text: 'ביטול',
-            isFocused: _focusedButtonIndex == 0,
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-          _buildButton(
-            text: 'שמור',
-            isFocused: _focusedButtonIndex == 1,
-            isConfirm: true,
-            onPressed: _submit,
-          ),
-        ],
       ),
     );
   }

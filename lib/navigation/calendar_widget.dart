@@ -368,20 +368,43 @@ class CalendarWidget extends StatelessWidget {
     );
     final startingWeekday = firstDayOfMonth.getGregorianCalendar().weekday % 7;
 
-    List<Widget> dayWidgets =
-        List.generate(startingWeekday, (_) => const SizedBox());
+    List<Widget> dayWidgets = [];
 
+    // הוסף תאריכים מהחודש הקודם
+    if (startingWeekday > 0) {
+      final previousMonth = JewishDate();
+      previousMonth.setJewishDate(
+        currentJewishDate.getJewishYear(),
+        currentJewishDate.getJewishMonth(),
+        1,
+      );
+      previousMonth.back();
+      final daysInPreviousMonth = previousMonth.getDaysInJewishMonth();
+
+      for (int i = startingWeekday - 1; i >= 0; i--) {
+        final day = daysInPreviousMonth - i;
+        dayWidgets.add(_buildHebrewDayCell(context, state, day,
+            isFromOtherMonth: true, monthOffset: -1));
+      }
+    }
+
+    // הוסף תאריכים מהחודש הנוכחי
     for (int day = 1; day <= daysInMonth; day++) {
       dayWidgets.add(_buildHebrewDayCell(context, state, day));
+    }
+
+    // הוסף תאריכים מהחודש הבא
+    final totalCells = ((dayWidgets.length / 7).ceil()) * 7;
+    final remainingCells = totalCells - dayWidgets.length;
+    for (int day = 1; day <= remainingCells; day++) {
+      dayWidgets.add(_buildHebrewDayCell(context, state, day,
+          isFromOtherMonth: true, monthOffset: 1));
     }
 
     List<Widget> rows = [];
     for (int i = 0; i < dayWidgets.length; i += 7) {
       final rowWidgets = dayWidgets.sublist(
           i, i + 7 > dayWidgets.length ? dayWidgets.length : i + 7);
-      while (rowWidgets.length < 7) {
-        rowWidgets.add(const SizedBox());
-      }
       rows.add(
           Row(children: rowWidgets.map((w) => Expanded(child: w)).toList()));
     }
@@ -399,20 +422,38 @@ class CalendarWidget extends StatelessWidget {
     final daysInMonth = lastDayOfMonth.day;
     final startingWeekday = firstDayOfMonth.weekday % 7;
 
-    List<Widget> dayWidgets =
-        List.generate(startingWeekday, (_) => const SizedBox());
+    List<Widget> dayWidgets = [];
 
+    // הוסף תאריכים מהחודש הקודם
+    if (startingWeekday > 0) {
+      final previousMonthLastDay =
+          DateTime(currentGregorianDate.year, currentGregorianDate.month, 0);
+      final daysInPreviousMonth = previousMonthLastDay.day;
+
+      for (int i = startingWeekday - 1; i >= 0; i--) {
+        final day = daysInPreviousMonth - i;
+        dayWidgets.add(_buildGregorianDayCell(context, state, day,
+            isFromOtherMonth: true, monthOffset: -1));
+      }
+    }
+
+    // הוסף תאריכים מהחודש הנוכחי
     for (int day = 1; day <= daysInMonth; day++) {
       dayWidgets.add(_buildGregorianDayCell(context, state, day));
+    }
+
+    // הוסף תאריכים מהחודש הבא
+    final totalCells = ((dayWidgets.length / 7).ceil()) * 7;
+    final remainingCells = totalCells - dayWidgets.length;
+    for (int day = 1; day <= remainingCells; day++) {
+      dayWidgets.add(_buildGregorianDayCell(context, state, day,
+          isFromOtherMonth: true, monthOffset: 1));
     }
 
     List<Widget> rows = [];
     for (int i = 0; i < dayWidgets.length; i += 7) {
       final rowWidgets = dayWidgets.sublist(
           i, i + 7 > dayWidgets.length ? dayWidgets.length : i + 7);
-      while (rowWidgets.length < 7) {
-        rowWidgets.add(const SizedBox());
-      }
       rows.add(
           Row(children: rowWidgets.map((w) => Expanded(child: w)).toList()));
     }
@@ -533,14 +574,39 @@ class CalendarWidget extends StatelessWidget {
     return Row(children: weekDays);
   }
 
-  Widget _buildHebrewDayCell(
-      BuildContext context, CalendarState state, int day) {
+  Widget _buildHebrewDayCell(BuildContext context, CalendarState state, int day,
+      {bool isFromOtherMonth = false, int monthOffset = 0}) {
     final jewishDate = JewishDate();
-    jewishDate.setJewishDate(
-      state.currentJewishDate.getJewishYear(),
-      state.currentJewishDate.getJewishMonth(),
-      day,
-    );
+
+    if (isFromOtherMonth) {
+      // חשב את החודש האחר - קודם מצא את החודש הנכון
+      int targetYear = state.currentJewishDate.getJewishYear();
+      int targetMonth = state.currentJewishDate.getJewishMonth() + monthOffset;
+
+      // טיפול במעבר שנה
+      if (targetMonth < 1) {
+        targetYear--;
+        final tempDate = JewishDate();
+        tempDate.setJewishDate(targetYear, 1, 1);
+        targetMonth = tempDate.isJewishLeapYear() ? 13 : 12;
+      } else if (targetMonth > 12) {
+        final tempDate = JewishDate();
+        tempDate.setJewishDate(targetYear, 1, 1);
+        if (!tempDate.isJewishLeapYear() || targetMonth > 13) {
+          targetYear++;
+          targetMonth = 1;
+        }
+      }
+
+      jewishDate.setJewishDate(targetYear, targetMonth, day);
+    } else {
+      jewishDate.setJewishDate(
+        state.currentJewishDate.getJewishYear(),
+        state.currentJewishDate.getJewishMonth(),
+        day,
+      );
+    }
+
     final gregorianDate = jewishDate.getGregorianCalendar();
 
     final isSelected = state.selectedJewishDate.getJewishDayOfMonth() == day &&
@@ -559,100 +625,113 @@ class CalendarWidget extends StatelessWidget {
         specificDate: gregorianDate,
       ),
       child: GestureDetector(
-        onTap: () =>
-            context.read<CalendarCubit>().selectDate(jewishDate, gregorianDate),
-        child: Container(
-          margin: const EdgeInsets.all(2),
-          height: 88,
-          decoration: BoxDecoration(
-            color: _getBackgroundColor(context, gregorianDate, isSelected,
-                    isToday, state.inIsrael) ??
-                (isSelected
-                    ? Theme.of(context).colorScheme.primaryContainer
-                    : isToday
-                        ? Theme.of(context)
-                            .colorScheme
-                            .primary
-                            .withValues(alpha: 0.25)
-                        : Theme.of(context)
-                            .colorScheme
-                            .surfaceContainer
-                            .withValues(alpha: 0.2)),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: isSelected
-                  ? Theme.of(context).colorScheme.primary
-                  : isToday
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.outlineVariant,
-              width: isToday ? 2 : 1,
-            ),
-          ),
-          child: Stack(
-            children: [
-              Positioned(
-                top: 4,
-                right: 4,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      _formatHebrewDay(day),
-                      style: TextStyle(
-                        color: isSelected
-                            ? Theme.of(context).colorScheme.onPrimaryContainer
-                            : Theme.of(context).colorScheme.onSurface,
-                        fontWeight:
-                            isSelected ? FontWeight.bold : FontWeight.normal,
-                        fontSize: state.calendarType == CalendarType.combined
-                            ? 12
-                            : 14,
-                      ),
-                    ),
-                    if (state.calendarType == CalendarType.hebrew &&
-                        (jewishDate.isJewishLeapYear() &&
-                            (jewishDate.getJewishMonth() == 12 ||
-                                jewishDate.getJewishMonth() == 13) &&
-                            day == 1))
-                      Text(
-                        _getHebrewMonthNameFor(jewishDate),
-                        style: TextStyle(
-                          fontSize: 8,
-                          color: isSelected
-                              ? Theme.of(context).colorScheme.onPrimaryContainer
-                              : Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              if (state.calendarType == CalendarType.combined)
-                Positioned(
-                  top: 4,
-                  left: 4,
-                  child: Text(
-                    '${gregorianDate.day}',
-                    style: TextStyle(
-                      color: isSelected
+        onTap: () {
+          // אם זה תאריך מחודש אחר, עבור לחודש הזה
+          if (isFromOtherMonth) {
+            context.read<CalendarCubit>().jumpToDate(gregorianDate);
+          } else {
+            context.read<CalendarCubit>().selectDate(jewishDate, gregorianDate);
+          }
+        },
+        child: Opacity(
+          opacity: isFromOtherMonth ? 0.4 : 1.0,
+          child: Container(
+            margin: const EdgeInsets.all(2),
+            height: 88,
+            decoration: BoxDecoration(
+              color: _getBackgroundColor(context, gregorianDate, isSelected,
+                      isToday, state.inIsrael) ??
+                  (isSelected
+                      ? Theme.of(context).colorScheme.primaryContainer
+                      : isToday
                           ? Theme.of(context)
                               .colorScheme
-                              .onPrimaryContainer
-                              .withValues(alpha: 0.85)
-                          : Theme.of(context).colorScheme.onSurfaceVariant,
-                      fontSize: 10,
-                    ),
+                              .primary
+                              .withValues(alpha: 0.25)
+                          : Theme.of(context)
+                              .colorScheme
+                              .surfaceContainer
+                              .withValues(alpha: 0.2)),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isSelected
+                    ? Theme.of(context).colorScheme.primary
+                    : isToday
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.outlineVariant,
+                width: isToday ? 2 : 1,
+              ),
+            ),
+            child: Stack(
+              children: [
+                Positioned(
+                  top: 4,
+                  right: 4,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        _formatHebrewDay(day),
+                        style: TextStyle(
+                          color: isSelected
+                              ? Theme.of(context).colorScheme.onPrimaryContainer
+                              : Theme.of(context).colorScheme.onSurface,
+                          fontWeight:
+                              isSelected ? FontWeight.bold : FontWeight.normal,
+                          fontSize: state.calendarType == CalendarType.combined
+                              ? 12
+                              : 14,
+                        ),
+                      ),
+                      if (state.calendarType == CalendarType.hebrew &&
+                          (jewishDate.isJewishLeapYear() &&
+                              (jewishDate.getJewishMonth() == 12 ||
+                                  jewishDate.getJewishMonth() == 13) &&
+                              day == 1))
+                        Text(
+                          _getHebrewMonthNameFor(jewishDate),
+                          style: TextStyle(
+                            fontSize: 8,
+                            color: isSelected
+                                ? Theme.of(context)
+                                    .colorScheme
+                                    .onPrimaryContainer
+                                : Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-              Positioned(
-                top: 30,
-                left: 4,
-                right: 4,
-                child: _DayExtras(
-                  date: gregorianDate,
-                  inIsrael: state.inIsrael,
+                if (state.calendarType == CalendarType.combined)
+                  Positioned(
+                    top: 4,
+                    left: 4,
+                    child: Text(
+                      '${gregorianDate.day}',
+                      style: TextStyle(
+                        color: isSelected
+                            ? Theme.of(context)
+                                .colorScheme
+                                .onPrimaryContainer
+                                .withValues(alpha: 0.85)
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ),
+                Positioned(
+                  top: 30,
+                  left: 4,
+                  right: 4,
+                  child: _DayExtras(
+                    date: gregorianDate,
+                    inIsrael: state.inIsrael,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -660,9 +739,10 @@ class CalendarWidget extends StatelessWidget {
   }
 
   Widget _buildGregorianDayCell(
-      BuildContext context, CalendarState state, int day) {
-    final gregorianDate = DateTime(
-        state.currentGregorianDate.year, state.currentGregorianDate.month, day);
+      BuildContext context, CalendarState state, int day,
+      {bool isFromOtherMonth = false, int monthOffset = 0}) {
+    final gregorianDate = DateTime(state.currentGregorianDate.year,
+        state.currentGregorianDate.month + monthOffset, day);
     final jewishDate = JewishDate.fromDateTime(gregorianDate);
 
     final isSelected = state.selectedGregorianDate.day == day &&
@@ -680,80 +760,89 @@ class CalendarWidget extends StatelessWidget {
         specificDate: gregorianDate,
       ),
       child: GestureDetector(
-        onTap: () =>
-            context.read<CalendarCubit>().selectDate(jewishDate, gregorianDate),
-        child: Container(
-          margin: const EdgeInsets.all(2),
-          height: 88,
-          decoration: BoxDecoration(
-            color: _getBackgroundColor(context, gregorianDate, isSelected,
-                    isToday, state.inIsrael) ??
-                (isSelected
-                    ? Theme.of(context).colorScheme.primaryContainer
-                    : isToday
-                        ? Theme.of(context)
-                            .colorScheme
-                            .primary
-                            .withValues(alpha: 0.25)
-                        : Theme.of(context)
-                            .colorScheme
-                            .surfaceContainer
-                            .withValues(alpha: 0.2)),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: isSelected
-                  ? Theme.of(context).colorScheme.primary
-                  : isToday
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.outlineVariant,
-              width: isToday ? 2 : 1,
-            ),
-          ),
-          child: Stack(
-            children: [
-              Positioned(
-                top: 4,
-                right: 4,
-                child: Text(
-                  '$day',
-                  style: TextStyle(
-                    color: isSelected
-                        ? Theme.of(context).colorScheme.onPrimaryContainer
-                        : Theme.of(context).colorScheme.onSurface,
-                    fontWeight:
-                        isSelected ? FontWeight.bold : FontWeight.normal,
-                    fontSize:
-                        state.calendarType == CalendarType.combined ? 12 : 14,
-                  ),
-                ),
-              ),
-              if (state.calendarType == CalendarType.combined)
-                Positioned(
-                  top: 4,
-                  left: 4,
-                  child: Text(
-                    _formatHebrewDay(jewishDate.getJewishDayOfMonth()),
-                    style: TextStyle(
-                      color: isSelected
+        onTap: () {
+          // אם זה תאריך מחודש אחר, עבור לחודש הזה
+          if (isFromOtherMonth) {
+            context.read<CalendarCubit>().jumpToDate(gregorianDate);
+          } else {
+            context.read<CalendarCubit>().selectDate(jewishDate, gregorianDate);
+          }
+        },
+        child: Opacity(
+          opacity: isFromOtherMonth ? 0.4 : 1.0,
+          child: Container(
+            margin: const EdgeInsets.all(2),
+            height: 88,
+            decoration: BoxDecoration(
+              color: _getBackgroundColor(context, gregorianDate, isSelected,
+                      isToday, state.inIsrael) ??
+                  (isSelected
+                      ? Theme.of(context).colorScheme.primaryContainer
+                      : isToday
                           ? Theme.of(context)
                               .colorScheme
-                              .onPrimaryContainer
-                              .withValues(alpha: 0.85)
-                          : Theme.of(context).colorScheme.onSurfaceVariant,
-                      fontSize: 10,
+                              .primary
+                              .withValues(alpha: 0.25)
+                          : Theme.of(context)
+                              .colorScheme
+                              .surfaceContainer
+                              .withValues(alpha: 0.2)),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isSelected
+                    ? Theme.of(context).colorScheme.primary
+                    : isToday
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.outlineVariant,
+                width: isToday ? 2 : 1,
+              ),
+            ),
+            child: Stack(
+              children: [
+                Positioned(
+                  top: 4,
+                  right: 4,
+                  child: Text(
+                    '$day',
+                    style: TextStyle(
+                      color: isSelected
+                          ? Theme.of(context).colorScheme.onPrimaryContainer
+                          : Theme.of(context).colorScheme.onSurface,
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.normal,
+                      fontSize:
+                          state.calendarType == CalendarType.combined ? 12 : 14,
                     ),
                   ),
                 ),
-              Positioned(
-                top: 30,
-                left: 4,
-                right: 4,
-                child: _DayExtras(
-                  date: gregorianDate,
-                  inIsrael: state.inIsrael,
+                if (state.calendarType == CalendarType.combined)
+                  Positioned(
+                    top: 4,
+                    left: 4,
+                    child: Text(
+                      _formatHebrewDay(jewishDate.getJewishDayOfMonth()),
+                      style: TextStyle(
+                        color: isSelected
+                            ? Theme.of(context)
+                                .colorScheme
+                                .onPrimaryContainer
+                                .withValues(alpha: 0.85)
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ),
+                Positioned(
+                  top: 30,
+                  left: 4,
+                  right: 4,
+                  child: _DayExtras(
+                    date: gregorianDate,
+                    inIsrael: state.inIsrael,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
