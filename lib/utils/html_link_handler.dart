@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/utils/text_manipulation.dart' as text_utils;
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
@@ -52,7 +53,7 @@ class HtmlLinkHandler {
       }
 
       // מציאת הספר על פי הנתיב
-      final bookTitle = _getTitleFromPath(path);
+      final bookTitle = text_utils.getTitleFromPath(path);
       final library = await DataRepository.instance.library;
       final foundBook = library.findBookByTitle(bookTitle, TextBook);
 
@@ -95,18 +96,6 @@ class HtmlLinkHandler {
       }
     }
   }
-
-  /// מחלץ שם ספר מנתיב קובץ
-  static String _getTitleFromPath(String path) {
-    // הסרת סיומת קובץ ונתיב
-    String title = path.split('/').last.split('\\').last;
-    if (title.endsWith('.txt')) {
-      title = title.substring(0, title.length - 4);
-    }
-    return title;
-  }
-
-
 
   /// מטפל בלחיצה על קישור HTML
   ///
