@@ -218,43 +218,76 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
     final groupKey = '${targetGroup.bookTitle}_$indexesKey';
 
     final bool isCurrentlyExpanded = _expansionStates[groupKey] ?? _allExpanded;
+    
+    // אם צריך לפתוח, פותח ומחכה לאנימציה
     if (!isCurrentlyExpanded) {
-      // אם הקבוצה סגורה, פותח אותה
       setState(() {
         _expansionStates[groupKey] = true;
         _controllers[groupKey]?.expand();
       });
     }
 
-    // 4. גולל לפריט אחרי שה-frame הנוכחי סיים להיבנות
+    // 4. ביצוע הגלילה בשני שלבים בתוך Callback
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
+      
+      // המתנה לסיום אנימציית הפתיחה אם הייתה
+      if (!isCurrentlyExpanded) {
+        await Future.delayed(const Duration(milliseconds: 200));
+        if (!mounted) return;
+      }
 
-      // נותן ל-ExpansionTile זמן לסיים את האנימציה
-      await Future.delayed(const Duration(milliseconds: 120));
+      // שלב א': גלילה גסה לקבוצה (כותרת הספר) כדי להבטיח שהפריטים ירונדרו
+      if (_itemScrollController.isAttached) {
+        _itemScrollController.scrollTo(
+          index: targetGroupIndex,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+          alignment: 0.05, // מביא את הכותרת לראש העמוד
+        );
+      }
+
+      // המתנה לסיום הגלילה הגסה ורינדור הפריטים
+      await Future.delayed(const Duration(milliseconds: 350));
       if (!mounted) return;
 
+      // שלב ב': גלילה עדינה לפריט הספציפי באמצעות חישוב אופסט ידני
+      // שיטה זו מונעת את השימוש ב-ensureVisible שגורם להחלפת טאבים
       final linkKey = _getLinkKey(targetLink!);
       final itemKey = _itemKeys[linkKey];
       final itemContext = itemKey?.currentContext;
 
-      if (itemContext != null) {
-        if (itemContext.mounted) {
-          Scrollable.ensureVisible(
-            itemContext,
-            duration: const Duration(milliseconds: 400),
-            curve: Curves.easeInOut,
-            alignment: 0.1, // מביא את הפריט לחלק העליון של המסך
-          );
-        }
-      } else {
-        // Fallback: אם לא מוצאים את ההקשר, גולל לקבוצה
-        if (_itemScrollController.isAttached) {
-          _itemScrollController.scrollTo(
-            index: targetGroupIndex,
-            duration: const Duration(milliseconds: 300),
-            alignment: 0.1,
-          );
+      if (itemContext != null && itemContext.mounted) {
+        try {
+          // מציאת ה-RenderObject של הפריט
+          final RenderBox itemBox = itemContext.findRenderObject() as RenderBox;
+          
+          // מציאת ה-Scrollable שעוטף את הרשימה (ורק אותו)
+          final ScrollableState scrollable = Scrollable.of(itemContext);
+          if (!scrollable.context.mounted) return;
+          
+          final RenderBox viewportBox = scrollable.context.findRenderObject() as RenderBox;
+          
+          // חישוב המיקום של הפריט ביחס ל-Viewport של הרשימה
+          final Offset itemOffset = itemBox.localToGlobal(Offset.zero, ancestor: viewportBox);
+          
+          // אנו רוצים שהפריט יהיה בערך ב-10% מהחלק העליון של הרשימה
+          final double targetY = viewportBox.size.height * 0.1; 
+          final double currentY = itemOffset.dy;
+          
+          // חישוב הדלתא לגלילה
+          final double scrollDelta = currentY - targetY;
+
+          // אם הדלתא משמעותית, נבצע גלילה מתקנת
+          if (scrollDelta.abs() > 10) {
+            scrollController.animateScroll(
+                offset: scrollDelta, // גלילה יחסית
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeInOut
+            );
+          }
+        } catch (e) {
+          debugPrint('Error during micro-scrolling: $e');
         }
       }
     });
