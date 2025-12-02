@@ -96,8 +96,7 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
           child: Column(
             children: [
               if (_showIndexWarning) _buildIndexWarning(),
-              Row(children: [_buildMenuButton()]),
-              // השורה התחתונה - מוצגת תמיד!
+              // שורת הכותרת - בצבע הטאב הפעיל
               _buildBottomRow(state),
               _buildDivider(),
               // פאנל עריכה - מופיע מתחת לשורה התחתונה
@@ -187,6 +186,7 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
   }
 
   Widget _buildForWideScreens() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       clipBehavior: Clip.hardEdge,
       decoration: const BoxDecoration(),
@@ -198,12 +198,14 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
               builder: (context, state) {
                 return Column(
                   children: [
-                    // שורה אחת פשוטה
+                    // שורה אחת פשוטה - בצבע הטאב הפעיל
                     Container(
-                      height: 60,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8.0,
-                        vertical: 4.0,
+                      height: 40,
+                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? const Color(0xFF2D2D2D)
+                            : Theme.of(context).colorScheme.primaryContainer,
                       ),
                       child: Row(
                         children: [
@@ -421,24 +423,17 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
     );
   }
 
-  Widget _buildMenuButton() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(0, 0, 8, 0),
-      child: IconButton(
-        tooltip: "הגדרות חיפוש",
-        icon: const Icon(FluentIcons.navigation_24_regular),
-        onPressed: () {
-          widget.tab.isLeftPaneOpen.value = !widget.tab.isLeftPaneOpen.value;
-        },
-      ),
-    );
-  }
-
   // השורה העליונה - כפתור תפריט + מילות חיפוש + כפתור עריכה
   Widget _buildBottomRow(SearchState state) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      height: 60, // גובה קבוע
-      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+      height: 40, // גובה תואם ל-AppBar
+      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+      decoration: BoxDecoration(
+        color: isDark
+            ? const Color(0xFF2D2D2D)
+            : Theme.of(context).colorScheme.primaryContainer,
+      ),
       child: Row(
         children: [
           // כפתור פתיחה/סגירה של עץ הספרים - שלושה פסים

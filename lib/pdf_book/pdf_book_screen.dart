@@ -411,43 +411,60 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           focusNode: FocusNode(),
           autofocus: !Platform.isAndroid,
           child: Scaffold(
-            appBar: AppBar(
-              centerTitle: false,
-              backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
-              shape: Border(
-                bottom: BorderSide(
-                  color: Theme.of(context).colorScheme.outlineVariant,
-                  width: 0.3,
+            appBar: PreferredSize(
+              preferredSize: const Size.fromHeight(40),
+              child: IconButtonTheme(
+                data: IconButtonThemeData(
+                  style: IconButton.styleFrom(
+                    iconSize: 20,
+                    minimumSize: const Size(32, 32),
+                    maximumSize: const Size(32, 32),
+                    padding: EdgeInsets.zero,
+                  ),
+                ),
+                child: AppBar(
+                  centerTitle: false,
+                  // אותו צבע כמו הטאב הפעיל - primaryContainer
+                  backgroundColor: Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFF2D2D2D)
+                      : Theme.of(context).colorScheme.primaryContainer,
+                  toolbarHeight: 40,
+                  shape: Border(
+                    bottom: BorderSide(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                      width: 0.5,
+                    ),
+                  ),
+                  elevation: 0,
+                  scrolledUnderElevation: 0,
+                  title: ValueListenableBuilder(
+                    valueListenable: widget.tab.currentTitle,
+                    builder: (context, value, child) {
+                      String displayTitle = value;
+                      if (value.isNotEmpty &&
+                          !value.contains(widget.tab.book.title)) {
+                        displayTitle = "${widget.tab.book.title}, $value";
+                      }
+                      return SelectionArea(
+                        child: Text(
+                          displayTitle,
+                          style: const TextStyle(fontSize: 17),
+                          textAlign: TextAlign.end,
+                        ),
+                      );
+                    },
+                  ),
+                  leading: IconButton(
+                    icon: const Icon(FluentIcons.navigation_24_regular),
+                    tooltip: 'חיפוש וניווט',
+                    onPressed: () {
+                      widget.tab.showLeftPane.value =
+                          !widget.tab.showLeftPane.value;
+                    },
+                  ),
+                  actions: _buildPdfActions(context, wideScreen),
                 ),
               ),
-              elevation: 0,
-              scrolledUnderElevation: 0,
-              title: ValueListenableBuilder(
-                valueListenable: widget.tab.currentTitle,
-                builder: (context, value, child) {
-                  String displayTitle = value;
-                  if (value.isNotEmpty &&
-                      !value.contains(widget.tab.book.title)) {
-                    displayTitle = "${widget.tab.book.title}, $value";
-                  }
-                  return SelectionArea(
-                    child: Text(
-                      displayTitle,
-                      style: const TextStyle(fontSize: 17),
-                      textAlign: TextAlign.end,
-                    ),
-                  );
-                },
-              ),
-              leading: IconButton(
-                icon: const Icon(FluentIcons.navigation_24_regular),
-                tooltip: 'חיפוש וניווט',
-                onPressed: () {
-                  widget.tab.showLeftPane.value =
-                      !widget.tab.showLeftPane.value;
-                },
-              ),
-              actions: _buildPdfActions(context, wideScreen),
             ),
             body: Row(
               children: [

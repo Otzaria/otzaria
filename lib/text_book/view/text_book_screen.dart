@@ -692,31 +692,45 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
                 if (state is TextBookInitial || state is TextBookLoading) {
                   final screenWidth = MediaQuery.of(context).size.width;
+                  final isDark = Theme.of(context).brightness == Brightness.dark;
                   return Scaffold(
-                    appBar: AppBar(
-                      backgroundColor:
-                          Theme.of(context).colorScheme.surfaceContainer,
-                      shape: Border(
-                        bottom: BorderSide(
-                          color: Theme.of(context).colorScheme.outlineVariant,
-                          width: 0.3,
+                    appBar: PreferredSize(
+                      preferredSize: const Size.fromHeight(40),
+                      child: IconButtonTheme(
+                        data: IconButtonThemeData(
+                          style: IconButton.styleFrom(
+                            iconSize: 20,
+                            minimumSize: const Size(32, 32),
+                            maximumSize: const Size(32, 32),
+                            padding: EdgeInsets.zero,
+                          ),
                         ),
-                      ),
-                      elevation: 0,
-                      scrolledUnderElevation: 0,
-                      centerTitle: false,
-                      title: Text(
-                        widget.tab.book.title,
-                        style: const TextStyle(fontSize: 17),
-                        textAlign: TextAlign.end,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      leading: IconButton(
-                        icon: const Icon(FluentIcons.navigation_24_regular),
-                        tooltip: "ניווט וחיפוש",
-                        onPressed: null,
-                      ),
+                        child: AppBar(
+                          backgroundColor: isDark
+                              ? const Color(0xFF2D2D2D)
+                              : Theme.of(context).colorScheme.primaryContainer,
+                          toolbarHeight: 40,
+                          shape: Border(
+                            bottom: BorderSide(
+                              color: Theme.of(context).colorScheme.outlineVariant,
+                              width: 0.5,
+                            ),
+                          ),
+                          elevation: 0,
+                          scrolledUnderElevation: 0,
+                          centerTitle: false,
+                          title: Text(
+                            widget.tab.book.title,
+                            style: const TextStyle(fontSize: 17),
+                            textAlign: TextAlign.end,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          leading: IconButton(
+                            icon: const Icon(FluentIcons.navigation_24_regular),
+                            tooltip: "ניווט וחיפוש",
+                            onPressed: null,
+                          ),
                       actions: [
                         ResponsiveActionBar(
                           key: ValueKey('loading_actions_$screenWidth'),
@@ -847,8 +861,10 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                                                   : screenWidth < 1100
                                                       ? 14
                                                       : 999,
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                     body: const Center(child: CircularProgressIndicator()),
                   );
@@ -899,20 +915,37 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     TextBookLoaded state,
     bool wideScreen,
   ) {
-    return AppBar(
-      backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
-      shape: Border(
-        bottom: BorderSide(
-          color: Theme.of(context).colorScheme.outlineVariant,
-          width: 0.3,
+    return PreferredSize(
+      preferredSize: const Size.fromHeight(40),
+      child: IconButtonTheme(
+        data: IconButtonThemeData(
+          style: IconButton.styleFrom(
+            iconSize: 20,
+            minimumSize: const Size(32, 32),
+            maximumSize: const Size(32, 32),
+            padding: EdgeInsets.zero,
+          ),
+        ),
+        child: AppBar(
+          // אותו צבע כמו הטאב הפעיל - כדי שיראו מחוברים
+          backgroundColor: Theme.of(context).brightness == Brightness.dark
+              ? const Color(0xFF2D2D2D)
+              : Theme.of(context).colorScheme.primaryContainer,
+          toolbarHeight: 40,
+          shape: Border(
+            bottom: BorderSide(
+              color: Theme.of(context).colorScheme.outlineVariant,
+              width: 0.5,
+            ),
+          ),
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          centerTitle: false,
+          title: _buildTitle(state),
+          leading: _buildMenuButton(context, state),
+          actions: _buildActions(context, state, wideScreen),
         ),
       ),
-      elevation: 0,
-      scrolledUnderElevation: 0,
-      centerTitle: false,
-      title: _buildTitle(state),
-      leading: _buildMenuButton(context, state),
-      actions: _buildActions(context, state, wideScreen),
     );
   }
 
