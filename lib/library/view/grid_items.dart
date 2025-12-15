@@ -6,6 +6,8 @@ import 'package:otzaria/services/sources_books_service.dart';
 import 'package:otzaria/text_book/view/book_source_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:math';
+import 'dart:io';
+import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 
 class HeaderItem extends StatelessWidget {
   final Category category;
@@ -103,12 +105,14 @@ class BookGridItem extends StatelessWidget {
   final bool showTopics;
   final Book book;
   final VoidCallback onBookClickCallback;
+  final VoidCallback? onBookDeleted;
 
   const BookGridItem({
     super.key,
     required this.book,
     required this.onBookClickCallback,
     this.showTopics = false,
+    this.onBookDeleted,
   });
 
   @override
@@ -222,6 +226,38 @@ class BookGridItem extends StatelessWidget {
                               .withValues(alpha: 0.6),
                         ),
                       ),
+                // כפתור תפריט אפשרויות (3 נקודות)
+                book is! ExternalBook
+                    ? PopupMenuButton<String>(
+                        icon: Icon(
+                          FluentIcons.more_vertical_24_regular,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .secondary
+                              .withValues(alpha: 0.6),
+                        ),
+                        tooltip: 'אפשרויות',
+                        onSelected: (value) {
+                          if (value == 'delete') {
+                            _showDeleteBookDialog(context, book, onBookDeleted);
+                          }
+                        },
+                        itemBuilder: (BuildContext context) => [
+                          const PopupMenuItem<String>(
+                            value: 'delete',
+                            child: Row(
+                              children: [
+                                Icon(FluentIcons.delete_24_regular,
+                                    color: Colors.red),
+                                SizedBox(width: 8),
+                                Text('מחק ספר זה',
+                                    style: TextStyle(color: Colors.red)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      )
+                    : const SizedBox.shrink(),
               ],
             ),
           ),
@@ -604,4 +640,184 @@ void _showCategoryInfoDialog(BuildContext context, Category category) {
       );
     },
   );
+}
+
+/// הצגת דיאלוג אישור למחיקת ספר
+void _showDeleteBookDialog(
+    BuildContext context, Book book, VoidCallback? onBookDeleted) {
+  showDialog(
+    context: context,
+    builder: (BuildContext context) {
+      return AlertDialog(
+        title: const Text(
+          'מחיקת ספר',
+          textAlign: TextAlign.right,
+        ),
+        content: Text(
+          'האם אתה בטוח שאתה רוצה למחוק את הספר "${book.title}"?\nלא ניתן לשחזר פעולה זו!',
+          textAlign: TextAlign.right,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('ביטול'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              await _deleteBook(context, book);
+              onBookDeleted?.call();
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red,
+            ),
+            child: const Text('כן, אני רוצה למחוק'),
+          ),
+        ],
+      );
+    },
+  );
+}
+
+/// מחיקת ספר - מ-DB או מהקובץ
+Future<void> _deleteBook(BuildContext context, Book book) async {
+  try {
+    // בדיקה אם הספר נמצא ב-DB
+    final dataSource =
+        await FileSystemData.instance.getBookDataSource(book.title);
+
+    if (dataSource == 'DB') {
+      // מחיקה מ-DB
+      await _deleteBookFromDatabase(book);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('הספר "${book.title}" נמחק בהצלחה ממסד הנתונים'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } else {
+      // מחיקה של קובץ
+      await _deleteBookFile(book);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('הספר "${book.title}" נמחק בהצלחה'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    }
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('שגיאה במחיקת הספר: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+}
+
+/// מחיקת ספר ממסד הנתונים
+Future<void> _deleteBookFromDatabase(Book book) async {
+  final repository = SqliteDataProvider.instance.repository;
+  if (repository == null) {
+    throw Exception('לא ניתן לגשת למסד הנתונים');
+  }
+
+  // חיפוש הספר לפי שם וקטגוריה
+  final dbBook = await _findBookInDatabase(repository, book);
+  if (dbBook == null) {
+    throw Exception('הספר "${book.title}" לא נמצא במסד הנתונים');
+  }
+
+  // מחיקה מלאה של הספר
+  await repository.deleteBookCompletely(dbBook.id);
+}
+
+/// חיפוש ספר במסד הנתונים לפי שם וקטגוריה
+Future<dynamic> _findBookInDatabase(dynamic repository, Book book) async {
+  // אם יש קטגוריה, נחפש לפי קטגוריה
+  if (book.category != null) {
+    // קודם ננסה למצוא את הקטגוריה ב-DB
+    final categories = await repository.getRootCategories();
+    int? categoryId = await _findCategoryIdByPath(
+        repository, categories, book.category!.path);
+
+    if (categoryId != null) {
+      // חיפוש הספר בקטגוריה הספציפית
+      final booksInCategory = await repository.getBooksByCategory(categoryId);
+      for (final dbBook in booksInCategory) {
+        if (dbBook.title == book.title) {
+          return dbBook;
+        }
+      }
+    }
+  }
+
+  // אם לא מצאנו לפי קטגוריה, נחפש לפי שם בלבד
+  return await repository.getBookByTitle(book.title);
+}
+
+/// חיפוש ID של קטגוריה לפי נתיב
+Future<int?> _findCategoryIdByPath(
+    dynamic repository, List<dynamic> categories, String path) async {
+  final pathParts = path.split('/');
+
+  for (final category in categories) {
+    if (category.title == pathParts.first) {
+      if (pathParts.length == 1) {
+        return category.id;
+      }
+      // חיפוש רקורסיבי בתת-קטגוריות
+      final subCategories = await repository.getCategoryChildren(category.id);
+      final remainingPath = pathParts.sublist(1).join('/');
+      return await _findCategoryIdByPath(
+          repository, subCategories, remainingPath);
+    }
+  }
+  return null;
+}
+
+/// מחיקת קובץ ספר
+Future<void> _deleteBookFile(Book book) async {
+  String? filePath;
+
+  if (book is PdfBook) {
+    filePath = book.path;
+  } else if (book is TextBook) {
+    // עבור TextBook, נשתמש ב-titleToPath
+    final titleToPath = await FileSystemData.instance.titleToPath;
+    filePath = titleToPath[book.title];
+  }
+
+  if (filePath == null || filePath.isEmpty) {
+    throw Exception('לא נמצא נתיב לקובץ הספר');
+  }
+
+  // בדיקה שהקובץ נמצא בתיקייה הנכונה (לפי קטגוריה)
+  if (book.category != null) {
+    final expectedPath = _buildExpectedPath(book.category!);
+    if (!filePath.contains(expectedPath)) {
+      throw Exception(
+          'הקובץ "${book.title}" לא נמצא בתיקייה הצפויה: $expectedPath');
+    }
+  }
+
+  final file = File(filePath);
+  if (!await file.exists()) {
+    throw Exception('קובץ הספר לא נמצא');
+  }
+
+  await file.delete();
+}
+
+/// בניית נתיב צפוי לפי קטגוריה
+String _buildExpectedPath(Category category) {
+  // בניית נתיב מהקטגוריה - למשל: "אוצריא/תנך/תורה"
+  final pathParts = category.path.split('/');
+  return pathParts.join(Platform.pathSeparator);
 }
