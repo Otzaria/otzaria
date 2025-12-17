@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/constants/fonts.dart';
 import 'package:otzaria/utils/text_manipulation.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:printing/printing.dart';
@@ -28,7 +29,7 @@ class PrintingScreen extends StatefulWidget {
 
 class _PrintingScreenState extends State<PrintingScreen> {
   double fontSize = 15.0;
-  String fontName = 'NotoSerifHebrew';
+  String fontName = AppFonts.fontPaths.keys.first; // ברירת מחדל - הגופן הראשון ברשימה
   late int startLine;
   late int endLine;
   late Future<Uint8List> pdf;
@@ -569,29 +570,9 @@ class _PrintingScreenState extends State<PrintingScreen> {
     );
   }
 
-  final Map<String, String> fonts = {
-    'Tinos': 'fonts/Tinos-Regular.ttf',
-    'TaameyDavidCLM': 'fonts/TaameyDavidCLM-Medium.ttf',
-    'TaameyAshkenaz': 'fonts/TaameyAshkenaz-Medium.ttf',
-    'NotoSerifHebrew': 'fonts/NotoSerifHebrew-VariableFont_wdth,wght.ttf',
-    'FrankRuehlCLM': 'fonts/FrankRuehlCLM-Medium.ttf',
-    'KeterYG': 'fonts/KeterYG-Medium.ttf',
-    'Shofar': 'fonts/ShofarRegular.ttf',
-    'NotoRashiHebrew': 'fonts/NotoRashiHebrew-VariableFont_wght.ttf',
-    'Rubik': 'fonts/Rubik-VariableFont_wght.ttf',
-  };
-
-  final Map<String, String> fontNames = {
-    'Tinos': 'טינוס',
-    'TaameyDavidCLM': 'טעמי דוד',
-    'TaameyAshkenaz': 'טעמי אשכנז',
-    'NotoSerifHebrew': 'נוטו סריף עברית',
-    'FrankRuehlCLM': 'פרנק רוהל',
-    'KeterYG': 'כתר',
-    'Shofar': 'שופר',
-    'NotoRashiHebrew': 'נוטו רש"י עברית',
-    'Rubik': 'רוביק',
-  };
+  // שימוש בקבועים מ-AppFonts
+  Map<String, String> get fonts => AppFonts.fontPaths;
+  Map<String, String> get fontNames => AppFonts.fontLabels;
 
   final Map<PdfPageFormat, String> formats = {
     PdfPageFormat.a4: 'A4',

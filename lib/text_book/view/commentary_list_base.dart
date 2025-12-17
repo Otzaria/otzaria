@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_context_menu/flutter_context_menu.dart' as ctx;
+import 'package:otzaria/constants/fonts.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -385,7 +386,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
             style: TextStyle(
               fontSize: widget.fontSize * 0.85,
               fontWeight: FontWeight.bold,
-              fontFamily: 'FrankRuhlCLM',
+              fontFamily: AppFonts.defaultFont,
             ),
           );
         },
@@ -419,7 +420,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                   style: TextStyle(
                     fontSize: widget.fontSize * 0.75,
                     fontWeight: FontWeight.normal,
-                    fontFamily: 'FrankRuhlCLM',
+                    fontFamily: AppFonts.defaultFont,
                     color: Theme.of(context)
                         .colorScheme
                         .onSurface

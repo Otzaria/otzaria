@@ -32,6 +32,7 @@ class SettingsState extends Equatable {
   final Map<String, String> shortcuts;
   final bool enablePerBookSettings;
   final bool isOfflineMode;
+  final bool alignTabsToRight;
 
   const SettingsState({
     required this.isDarkMode,
@@ -64,6 +65,7 @@ class SettingsState extends Equatable {
     required this.shortcuts,
     required this.enablePerBookSettings,
     required this.isOfflineMode,
+    required this.alignTabsToRight,
   });
 
   factory SettingsState.initial() {
@@ -99,6 +101,7 @@ class SettingsState extends Equatable {
       shortcuts: {},
       enablePerBookSettings: true,
       isOfflineMode: false,
+      alignTabsToRight: false,
     );
   }
 
@@ -133,6 +136,7 @@ class SettingsState extends Equatable {
     Map<String, String>? shortcuts,
     bool? enablePerBookSettings,
     bool? isOfflineMode,
+    bool? alignTabsToRight,
   }) {
     return SettingsState(
       isDarkMode: isDarkMode ?? this.isDarkMode,
@@ -168,6 +172,7 @@ class SettingsState extends Equatable {
       enablePerBookSettings:
           enablePerBookSettings ?? this.enablePerBookSettings,
       isOfflineMode: isOfflineMode ?? this.isOfflineMode,
+      alignTabsToRight: alignTabsToRight ?? this.alignTabsToRight,
     );
   }
 
@@ -203,5 +208,6 @@ class SettingsState extends Equatable {
         shortcuts,
         enablePerBookSettings,
         isOfflineMode,
+        alignTabsToRight,
       ];
 }

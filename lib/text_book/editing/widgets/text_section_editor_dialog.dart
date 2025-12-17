@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/constants/fonts.dart';
 
 import '../../bloc/text_book_bloc.dart';
 import '../../bloc/text_book_event.dart';
@@ -607,9 +608,9 @@ class _TextSectionEditorDialogState extends State<TextSectionEditorDialog> {
                         textDirection: TextDirection.rtl,
                         textAlign: TextAlign.right,
                         textAlignVertical: TextAlignVertical.top,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
-                          fontFamily: 'TaameyAshkenaz',
+                          fontFamily: AppFonts.editorFont,
                           height: 1.5,
                         ),
                         decoration: const InputDecoration(
@@ -632,11 +633,11 @@ class _TextSectionEditorDialogState extends State<TextSectionEditorDialog> {
                           16), // הוספת padding גם כאן ליישור
                       child: _previewRenderer.renderPreview(
                         markdown: _previewContent,
-                        textStyle: const TextStyle(
+                        textStyle: TextStyle(
                           fontSize: 16,
-                          fontFamily: 'TaameyAshkenaz',
+                          fontFamily: AppFonts.editorFont,
                         ),
-                        fontFamily: 'TaameyAshkenaz',
+                        fontFamily: AppFonts.editorFont,
                       ),
                     ),
                   ),

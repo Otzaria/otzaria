@@ -38,8 +38,18 @@ class ReadingScreen extends StatefulWidget {
 }
 
 const double _kAppBarControlsWidth = 125.0;
+const double _kAppBarControlsWidthRightAligned = 105.0;
 const int _kActionButtonsCount = 2; // fullscreen + settings
 const double _kActionButtonWidth = 56.0;
+
+/// סגנון משותף לכפתורי האייקון בשורת הכותרת
+final ButtonStyle _kIconButtonStyle = IconButton.styleFrom(
+  minimumSize: const Size(32, 32),
+  padding: EdgeInsets.zero,
+  shape: RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(8),
+  ),
+);
 
 class _ReadingScreenState extends State<ReadingScreen>
     with TickerProviderStateMixin, WidgetsBindingObserver {
@@ -129,30 +139,33 @@ class _ReadingScreenState extends State<ReadingScreen>
                       children: [
                         // קבוצת היסטוריה וסימניות
                         IconButton(
-                          icon: const Icon(FluentIcons.history_24_regular),
+                          icon: const Icon(FluentIcons.history_24_regular, size: 18),
                           tooltip:
                               'הצג היסטוריה (${historyShortcut.toUpperCase()})',
                           onPressed: () => _showHistoryDialog(context),
+                          style: _kIconButtonStyle,
                         ),
                         IconButton(
-                          icon: const Icon(FluentIcons.bookmark_24_regular),
+                          icon: const Icon(FluentIcons.bookmark_24_regular, size: 18),
                           tooltip:
                               'הצג סימניות (${bookmarksShortcut.toUpperCase()})',
                           onPressed: () => _showBookmarksDialog(context),
+                          style: _kIconButtonStyle,
                         ),
                         // קו מפריד
                         Container(
-                          height: 24,
+                          height: 20,
                           width: 1,
                           color: Colors.grey.shade400,
                           margin: const EdgeInsets.symmetric(horizontal: 2),
                         ),
                         // קבוצת שולחן עבודה
                         IconButton(
-                          icon: const Icon(FluentIcons.add_square_24_regular),
+                          icon: const Icon(FluentIcons.add_square_24_regular, size: 18),
                           tooltip:
                               'החלף שולחן עבודה (${workspaceShortcut.toUpperCase()})',
                           onPressed: () => _showSaveWorkspaceDialog(context),
+                          style: _kIconButtonStyle,
                         ),
                       ],
                     ),
@@ -164,9 +177,12 @@ class _ReadingScreenState extends State<ReadingScreen>
                       BlocBuilder<SettingsBloc, SettingsState>(
                         builder: (context, settingsState) {
                           return IconButton(
-                            icon: Icon(settingsState.isFullscreen
-                                ? FluentIcons.full_screen_minimize_24_regular
-                                : FluentIcons.full_screen_maximize_24_regular),
+                            icon: Icon(
+                              settingsState.isFullscreen
+                                  ? FluentIcons.full_screen_minimize_24_regular
+                                  : FluentIcons.full_screen_maximize_24_regular,
+                              size: 18,
+                            ),
                             tooltip: settingsState.isFullscreen
                                 ? 'צא ממסך מלא'
                                 : 'מסך מלא',
@@ -176,6 +192,7 @@ class _ReadingScreenState extends State<ReadingScreen>
                               await FullscreenHelper.toggleFullscreen(
                                   context, newFullscreenState);
                             },
+                            style: _kIconButtonStyle,
                           );
                         },
                       ),
@@ -183,18 +200,15 @@ class _ReadingScreenState extends State<ReadingScreen>
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 4.0),
                         child: IconButton(
-                          icon: const Icon(FluentIcons.settings_24_regular),
+                          icon: const Icon(FluentIcons.settings_24_regular, size: 18),
                           tooltip: 'הגדרות תצוגת הספרים',
                           onPressed: () => showReadingSettingsDialog(context),
-                          style: IconButton.styleFrom(
-                            foregroundColor:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                            backgroundColor: Theme.of(context)
+                          style: _kIconButtonStyle.copyWith(
+                            foregroundColor: WidgetStatePropertyAll(
+                                Theme.of(context).colorScheme.onSurfaceVariant),
+                            backgroundColor: WidgetStatePropertyAll(Theme.of(context)
                                 .colorScheme
-                                .surfaceContainerHighest,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
+                                .surfaceContainerHighest),
                           ),
                         ),
                       ),
@@ -280,59 +294,71 @@ class _ReadingScreenState extends State<ReadingScreen>
 
               return Scaffold(
                 appBar: AppBar(
+                  toolbarHeight: 36, // הקטנת גובה ה-AppBar
                   key: ValueKey(
                       'appbar_${historyShortcut}_${bookmarksShortcut}_${workspaceShortcut}_$closeTabShortcut'),
-                  // 1. משתמשים בקבוע שהגדרנו עבור הרוחב
-                  leadingWidth: _kAppBarControlsWidth,
+                  // רוחב מצומצם יותר כשהיישור לימין כדי להצמיד את הטאבים
+                  leadingWidth: settingsState.alignTabsToRight
+                      ? _kAppBarControlsWidthRightAligned
+                      : _kAppBarControlsWidth,
                   leading: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       // קבוצת היסטוריה וסימניות
                       IconButton(
-                        icon: const Icon(FluentIcons.history_24_regular),
+                        icon: const Icon(FluentIcons.history_24_regular, size: 18),
                         tooltip:
                             'הצג היסטוריה (${historyShortcut.toUpperCase()})',
                         onPressed: () => _showHistoryDialog(context),
+                        style: _kIconButtonStyle,
                       ),
                       IconButton(
-                        icon: const Icon(FluentIcons.bookmark_24_regular),
+                        icon: const Icon(FluentIcons.bookmark_24_regular, size: 18),
                         tooltip:
                             'הצג סימניות (${bookmarksShortcut.toUpperCase()})',
                         onPressed: () => _showBookmarksDialog(context),
+                        style: _kIconButtonStyle,
                       ),
                       // קו מפריד
                       Container(
-                        height: 24,
+                        height: 20,
                         width: 1,
                         color: Colors.grey.shade400,
                         margin: const EdgeInsets.symmetric(horizontal: 2),
                       ),
                       // קבוצת שולחן עבודה עם אנימציה
                       IconButton(
-                        icon: const Icon(FluentIcons.add_square_24_regular),
+                        icon: const Icon(FluentIcons.add_square_24_regular, size: 18),
                         tooltip:
                             'החלף שולחן עבודה (${workspaceShortcut.toUpperCase()})',
                         onPressed: () => _showSaveWorkspaceDialog(context),
+                        style: _kIconButtonStyle,
                       ),
                     ],
                   ),
                   titleSpacing: 0,
                   centerTitle: true,
                   title: Container(
-                    // שימוש בכל גובה ה-AppBar כך שלא יהיה רווח למעלה
+                    // גובה מופחת של אזור הטאבים
                     constraints:
-                        const BoxConstraints(maxHeight: kToolbarHeight),
+                        const BoxConstraints(maxHeight: 32),
                     child: ScrollableTabBarWithArrows(
                       controller: controller,
-                      // ממורכז את שורת הטאבים
-                      tabAlignment: TabAlignment.center,
+                      // יישור הטאבים לפי הגדרת המשתמש
+                      tabAlignment: settingsState.alignTabsToRight
+                          ? TabAlignment.start
+                          : TabAlignment.center,
+                      // הסתרת החיצים כשאין גלילה ויישור לימין - למניעת רווחים מיותרים
+                      hideArrowsWhenNotScrollable:
+                          settingsState.alignTabsToRight,
                       onOverflowChanged: (overflow) {
                         if (mounted) {
                           setState(() => _tabsOverflow = overflow);
                         }
                       },
                       tabs: state.tabs
-                          .map((tab) => _buildTab(context, tab, state))
+                          .map((tab) =>
+                              _buildTab(context, tab, state, settingsState))
                           .toList(),
                     ),
                   ),
@@ -348,9 +374,12 @@ class _ReadingScreenState extends State<ReadingScreen>
                     BlocBuilder<SettingsBloc, SettingsState>(
                       builder: (context, settingsState) {
                         return IconButton(
-                          icon: Icon(settingsState.isFullscreen
-                              ? FluentIcons.full_screen_minimize_24_regular
-                              : FluentIcons.full_screen_maximize_24_regular),
+                          icon: Icon(
+                            settingsState.isFullscreen
+                                ? FluentIcons.full_screen_minimize_24_regular
+                                : FluentIcons.full_screen_maximize_24_regular,
+                            size: 18,
+                          ),
                           tooltip: settingsState.isFullscreen
                               ? 'צא ממסך מלא'
                               : 'מסך מלא',
@@ -360,6 +389,7 @@ class _ReadingScreenState extends State<ReadingScreen>
                             await FullscreenHelper.toggleFullscreen(
                                 context, newFullscreenState);
                           },
+                          style: _kIconButtonStyle,
                         );
                       },
                     ),
@@ -367,18 +397,15 @@ class _ReadingScreenState extends State<ReadingScreen>
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4.0),
                       child: IconButton(
-                        icon: const Icon(FluentIcons.settings_24_regular),
+                        icon: const Icon(FluentIcons.settings_24_regular, size: 18),
                         tooltip: 'הגדרות תצוגת הספרים',
                         onPressed: () => showReadingSettingsDialog(context),
-                        style: IconButton.styleFrom(
-                          foregroundColor:
-                              Theme.of(context).colorScheme.onSurfaceVariant,
-                          backgroundColor: Theme.of(context)
+                        style: _kIconButtonStyle.copyWith(
+                          foregroundColor: WidgetStatePropertyAll(
+                              Theme.of(context).colorScheme.onSurfaceVariant),
+                          backgroundColor: WidgetStatePropertyAll(Theme.of(context)
                               .colorScheme
-                              .surfaceContainerHighest,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+                              .surfaceContainerHighest),
                         ),
                       ),
                     ),
@@ -474,7 +501,8 @@ class _ReadingScreenState extends State<ReadingScreen>
     return const SizedBox.shrink();
   }
 
-  Widget _buildTab(BuildContext context, OpenedTab tab, TabsState state) {
+  Widget _buildTab(BuildContext context, OpenedTab tab, TabsState state,
+      SettingsState settingsState) {
     final index = state.tabs.indexOf(tab);
     final isSelected = index == state.currentTabIndex;
     final closeTabShortcut =
@@ -607,102 +635,113 @@ class _ReadingScreenState extends State<ReadingScreen>
                               !isTabActive(index - 1)))
                     Container(
                       width: 1,
-                      height: 32,
-                      margin: const EdgeInsets.only(top: 12, bottom: 8),
+                      height: 24,
+                      margin: const EdgeInsets.only(top: 6, bottom: 6),
                       color: Colors.grey.shade400,
                     ),
 
                   // הווידג'ט המרכזי שמכיל את הטאב עצמו (ללא שינוי).
                   Container(
-                    // ניצול מלא של גובה ה-AppBar, ללא רווח עליון
+                    // גובה מופחת של הטאבים
                     constraints:
-                        const BoxConstraints(maxHeight: kToolbarHeight),
-                    padding: const EdgeInsets.only(
-                        left: 6, right: 6, top: 0, bottom: 0),
+                        const BoxConstraints(maxHeight: 32),
+                    // הסרת padding ימני מהטאב הראשון כשהיישור לימין
+                    padding: EdgeInsets.only(
+                        left: 6,
+                        right: (index == 0 && settingsState.alignTabsToRight)
+                            ? 0
+                            : 6,
+                        top: 0,
+                        bottom: 0),
                     child: CustomPaint(
                       painter: isSelected
                           ? _TabBackgroundPainter(
                               Theme.of(context).colorScheme.surfaceContainer)
                           : null,
-                      foregroundPainter:
-                          isSelected ? _TabBorderPainter() : null,
                       child: Tab(
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // אינדיקטור הצמדה
-                              if (tab.isPinned)
-                                const Padding(
-                                  padding: EdgeInsets.only(left: 4.0),
-                                  child: Icon(
-                                    FluentIcons.pin_24_filled,
-                                    size: 14,
-                                  ),
-                                ),
-                              if (tab is CombinedTab)
-                                Tooltip(
-                                  message: tab.title,
-                                  child: Row(
-                                    children: [
-                                      const Padding(
-                                        padding: EdgeInsets.all(8.0),
-                                        child: Icon(
-                                            FluentIcons
-                                                .panel_left_text_24_regular,
-                                            size: 16),
-                                      ),
-                                      Text(truncate(tab.title, 20)),
-                                    ],
-                                  ),
-                                )
-                              else if (tab is SearchingTab)
-                                ValueListenableBuilder(
-                                  valueListenable: tab.queryController,
-                                  builder: (context, value, child) => Tooltip(
-                                    message: tab.title,
-                                    child: Text(
-                                      truncate(tab.title, 25),
+                          child: DefaultTextStyle(
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurface,
+                              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                              fontSize: 14,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // אינדיקטור הצמדה
+                                if (tab.isPinned)
+                                  const Padding(
+                                    padding: EdgeInsets.only(left: 4.0),
+                                    child: Icon(
+                                      FluentIcons.pin_24_filled,
+                                      size: 14,
                                     ),
                                   ),
-                                )
-                              else if (tab is PdfBookTab)
-                                Tooltip(
-                                  message: tab.title,
-                                  child: Row(
-                                    children: [
-                                      const Padding(
-                                        padding: EdgeInsets.all(8.0),
-                                        child: Icon(
-                                            FluentIcons.document_pdf_24_regular,
-                                            size: 16),
-                                      ),
-                                      Text(truncate(tab.title, 12)),
-                                    ],
-                                  ),
-                                )
-                              else
-                                Tooltip(
+                                if (tab is CombinedTab)
+                                  Tooltip(
                                     message: tab.title,
-                                    child: Text(truncate(tab.title, 12))),
-                              Tooltip(
-                                preferBelow: false,
-                                message: closeTabShortcut.toUpperCase(),
-                                child: IconButton(
-                                  constraints: const BoxConstraints(
-                                    minWidth: 25,
-                                    minHeight: 25,
-                                    maxWidth: 25,
-                                    maxHeight: 25,
+                                    child: Row(
+                                      children: [
+                                        const Padding(
+                                          padding: EdgeInsets.all(8.0),
+                                          child: Icon(
+                                              FluentIcons
+                                                  .panel_left_text_24_regular,
+                                              size: 16),
+                                        ),
+                                        Text(truncate(tab.title, 20)),
+                                      ],
+                                    ),
+                                  )
+                                else if (tab is SearchingTab)
+                                  ValueListenableBuilder(
+                                    valueListenable: tab.queryController,
+                                    builder: (context, value, child) => Tooltip(
+                                      message: tab.title,
+                                      child: Text(
+                                        truncate(tab.title, 25),
+                                      ),
+                                    ),
+                                  )
+                                else if (tab is PdfBookTab)
+                                  Tooltip(
+                                    message: tab.title,
+                                    child: Row(
+                                      children: [
+                                        const Padding(
+                                          padding: EdgeInsets.all(8.0),
+                                          child: Icon(
+                                              FluentIcons.document_pdf_24_regular,
+                                              size: 16),
+                                        ),
+                                        Text(truncate(tab.title, 12)),
+                                      ],
+                                    ),
+                                  )
+                                else
+                                  Tooltip(
+                                      message: tab.title,
+                                      child: Text(truncate(tab.title, 12))),
+                                Tooltip(
+                                  preferBelow: false,
+                                  message: closeTabShortcut.toUpperCase(),
+                                  child: IconButton(
+                                    constraints: const BoxConstraints(
+                                      minWidth: 25,
+                                      minHeight: 25,
+                                      maxWidth: 25,
+                                      maxHeight: 25,
+                                    ),
+                                    onPressed: () => closeTab(tab, context),
+                                    icon: const Icon(
+                                        FluentIcons.dismiss_24_regular,
+                                        size: 10),
                                   ),
-                                  onPressed: () => closeTab(tab, context),
-                                  icon: const Icon(
-                                      FluentIcons.dismiss_24_regular,
-                                      size: 10),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -715,8 +754,8 @@ class _ReadingScreenState extends State<ReadingScreen>
                   if (index == state.tabs.length - 1 && !isTabActive(index))
                     Container(
                       width: 1,
-                      height: 32,
-                      margin: const EdgeInsets.only(top: 12, bottom: 8),
+                      height: 24,
+                      margin: const EdgeInsets.only(top: 6, bottom: 6),
                       color: Colors.grey.shade400,
                     ),
                 ],
@@ -971,123 +1010,53 @@ class _TabBackgroundPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     final path = Path();
-    // radius היה בשימוש בעבר לציור נוסף והוסר
     final topRadius = 8.0;
-    // החזרת קו הבסיס הנמוך כדי להבטיח שהוא נראה משני הצדדים
+    final bottomRadius = 12.0; // רדיוס לעיגול הפוך בפינות התחתונות
     final bottomOffset = 6.0;
 
-    // מתחילים מהפינה השמאלית התחתונה
-    path.moveTo(0, size.height + bottomOffset);
-
-    // קו שמאלי למעלה
-    path.lineTo(0, topRadius);
-
-    // פינה עליונה שמאלית מעוגלת
+    // מתחילים מהפינה השמאלית התחתונה עם עיגול הפוך
+    path.moveTo(-bottomRadius, size.height + bottomOffset);
+    
+    // עיגול הפוך בפינה התחתונה השמאלית
     path.arcToPoint(
-      Offset(topRadius, 0),
-      radius: Radius.circular(topRadius),
-    );
-
-    // קו עליון
-    path.lineTo(size.width - topRadius, 0);
-
-    // פינה עליונה ימנית מעוגלת
-    path.arcToPoint(
-      Offset(size.width, topRadius),
-      radius: Radius.circular(topRadius),
-    );
-
-    // קו ימני למטה
-    path.lineTo(size.width, size.height + bottomOffset);
-
-    // קו תחתון
-    path.lineTo(0, size.height + bottomOffset);
-
-    path.close();
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-// CustomPainter לציור גבול מעוגל לטאב הפעיל
-// עם קווים המשתרעים משני הצדדים עד סוף החלון
-class _TabBorderPainter extends CustomPainter {
-  _TabBorderPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.black38
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-
-    final path = Path();
-    final radius = 8.0;
-    final topRadius = 8.0;
-    final extendLength = 2000.0; // אורך ארוך מספיק להגיע לקצה החלון
-    // שימוש ב-offset נמוך כדי למנוע "בליעה" של הקו התחתון
-    final bottomOffset = 6.0;
-
-    // מתחילים מהפינה השמאלית התחתונה עם עיגול
-    path.moveTo(0, size.height - radius + bottomOffset);
-
-    // קו שמאלי למעלה
-    path.lineTo(0, topRadius);
-
-    // פינה עליונה שמאלית מעוגלת
-    path.arcToPoint(
-      Offset(topRadius, 0),
-      radius: Radius.circular(topRadius),
-    );
-
-    // קו עליון
-    path.lineTo(size.width - topRadius, 0);
-
-    // פינה עליונה ימנית מעוגלת
-    path.arcToPoint(
-      Offset(size.width, topRadius),
-      radius: Radius.circular(topRadius),
-    );
-
-    // קו ימני למטה
-    path.lineTo(size.width, size.height - radius + bottomOffset);
-
-    // פינה תחתונה ימנית מעוגלת - הקפדה שהקו התחתון יישאר רציף
-    path.arcToPoint(
-      Offset(size.width + radius, size.height + bottomOffset),
-      radius: Radius.circular(radius),
+      Offset(0, size.height + bottomOffset - bottomRadius),
+      radius: Radius.circular(bottomRadius),
       clockwise: false,
     );
 
+    // קו שמאלי למעלה
+    path.lineTo(0, topRadius);
+
+    // פינה עליונה שמאלית מעוגלת
+    path.arcToPoint(
+      Offset(topRadius, 0),
+      radius: Radius.circular(topRadius),
+    );
+
+    // קו עליון
+    path.lineTo(size.width - topRadius, 0);
+
+    // פינה עליונה ימנית מעוגלת
+    path.arcToPoint(
+      Offset(size.width, topRadius),
+      radius: Radius.circular(topRadius),
+    );
+
+    // קו ימני למטה
+    path.lineTo(size.width, size.height + bottomOffset - bottomRadius);
+
+    // עיגול הפוך בפינה התחתונה הימנית
+    path.arcToPoint(
+      Offset(size.width + bottomRadius, size.height + bottomOffset),
+      radius: Radius.circular(bottomRadius),
+      clockwise: false,
+    );
+
+    // קו תחתון
+    path.lineTo(-bottomRadius, size.height + bottomOffset);
+
+    path.close();
     canvas.drawPath(path, paint);
-
-    // פינה תחתונה שמאלית מעוגלת - הקפדה שהקו התחתון יישאר רציף
-    final leftBottomPath = Path();
-    leftBottomPath.moveTo(0, size.height - radius + bottomOffset);
-    leftBottomPath.arcToPoint(
-      Offset(-radius, size.height + bottomOffset),
-      radius: Radius.circular(radius),
-      clockwise: true,
-    );
-
-    canvas.drawPath(leftBottomPath, paint);
-
-    // קווים ארוכים נפרדים - משני הצדדים
-    // קו ימני
-    canvas.drawLine(
-      Offset(size.width + radius, size.height + bottomOffset),
-      Offset(size.width + extendLength, size.height + bottomOffset),
-      paint,
-    );
-
-    // קו שמאלי
-    canvas.drawLine(
-      Offset(-radius, size.height + bottomOffset),
-      Offset(-extendLength, size.height + bottomOffset),
-      paint,
-    );
   }
 
   @override

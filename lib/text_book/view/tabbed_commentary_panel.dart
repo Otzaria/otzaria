@@ -97,128 +97,99 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
         return Column(
           children: [
             // שורת הכרטיסיות עם כפתור סגירה
-            Container(
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                border: Border(
-                  bottom: BorderSide(
-                    color: Theme.of(context).dividerColor,
-                    width: 1,
+            SizedBox(
+              height: 48,
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: Theme.of(context).dividerColor,
+                      width: 1,
+                    ),
                   ),
                 ),
-              ),
-              child: Row(
-                children: [
-                  // כפתור סינון מפרשים - בהתחלה
-                  IconButton(
-                    icon: Icon(
-                      FluentIcons.apps_list_24_regular,
-                      color: _showFilterTab
-                          ? Theme.of(context).colorScheme.primary
-                          : Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withValues(alpha: 0.6),
-                    ),
-                    tooltip: 'בחירת מפרשים',
-                    onPressed: () {
-                      setState(() {
-                        _showFilterTab = !_showFilterTab;
-                      });
-                    },
-                  ),
-                  Expanded(
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        // חישוב גודל הטקסט לפי רוחב זמין
-                        final availableWidth = constraints.maxWidth;
-                        final fontSize = availableWidth < 200
-                            ? 11.0
-                            : (availableWidth < 300 ? 13.0 : 14.0);
-
-                        return TabBar(
-                          controller: _tabController,
-                          isScrollable: true,
-                          tabAlignment: TabAlignment.center,
-                          padding: EdgeInsets.zero,
-                          labelPadding: EdgeInsets.symmetric(
-                              horizontal: availableWidth < 250 ? 8 : 16),
-                          indicatorWeight: 1,
-                          dividerHeight: 1,
-                          indicator: UnderlineTabIndicator(
-                            borderSide: BorderSide(
-                              color: Theme.of(context).colorScheme.primary,
-                              width: 1,
-                            ),
-                          ),
-                          tabs: [
-                            Tab(
-                              child: Text(
-                                'מפרשים',
-                                style: TextStyle(fontSize: fontSize),
-                              ),
-                            ),
-                            Tab(
-                              child: Text(
-                                'קישורים',
-                                style: TextStyle(fontSize: fontSize),
-                              ),
-                            ),
-                            Tab(
-                              child: Text(
-                                'הערות אישיות',
-                                style: TextStyle(fontSize: fontSize),
-                              ),
-                            ),
-                          ],
-                          labelColor: Theme.of(context).colorScheme.primary,
-                          unselectedLabelColor: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withValues(alpha: 0.6),
-                          indicatorColor: Theme.of(context).colorScheme.primary,
-                          dividerColor: Colors.transparent,
-                          onTap: (index) {
-                            // אם לוחצים על טאב מפרשים (0) ואנחנו בכפתור סינון, סוגרים אותו
-                            if (index == 0 && _showFilterTab) {
-                              setState(() {
-                                _showFilterTab = false;
-                              });
-                            }
-                          },
-                        );
+                child: Row(
+                  children: [
+                    // כפתור סינון מפרשים - בהתחלה
+                    IconButton(
+                      icon: Icon(
+                        FluentIcons.apps_list_24_regular,
+                        color: _showFilterTab
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context)
+                                .colorScheme
+                                .onSurface
+                                .withValues(alpha: 0.6),
+                        size: 20,
+                      ),
+                      tooltip: 'בחירת מפרשים',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 40,
+                        minHeight: 40,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _showFilterTab = !_showFilterTab;
+                        });
                       },
                     ),
-                  ),
-                  // לחצן סגירה
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .surface
-                          .withValues(alpha: 0.9),
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.2),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
+                    Expanded(
+                      child: TabBar(
+                        controller: _tabController,
+                        tabs: const [
+                          Tab(
+                            icon: Icon(FluentIcons.book_24_regular, size: 18),
+                            iconMargin: EdgeInsets.only(bottom: 2),
+                            height: 48,
+                            child:
+                                Text('מפרשים', style: TextStyle(fontSize: 12)),
+                          ),
+                          Tab(
+                            icon: Icon(FluentIcons.link_24_regular, size: 18),
+                            iconMargin: EdgeInsets.only(bottom: 2),
+                            height: 48,
+                            child:
+                                Text('קישורים', style: TextStyle(fontSize: 12)),
+                          ),
+                          Tab(
+                            icon: Icon(FluentIcons.note_24_regular, size: 18),
+                            iconMargin: EdgeInsets.only(bottom: 2),
+                            height: 48,
+                            child:
+                                Text('הערות', style: TextStyle(fontSize: 12)),
+                          ),
+                        ],
+                        labelColor: Theme.of(context).colorScheme.primary,
+                        unselectedLabelColor: Theme.of(context)
+                            .colorScheme
+                            .onSurface
+                            .withValues(alpha: 0.6),
+                        indicatorColor: Theme.of(context).colorScheme.primary,
+                        dividerColor: Colors.transparent,
+                        onTap: (index) {
+                          // אם לוחצים על טאב מפרשים (0) ואנחנו בכפתור סינון, סוגרים אותו
+                          if (index == 0 && _showFilterTab) {
+                            setState(() {
+                              _showFilterTab = false;
+                            });
+                          }
+                        },
+                      ),
                     ),
-                    margin: const EdgeInsets.all(8.0),
-                    child: IconButton(
+                    // לחצן סגירה
+                    IconButton(
                       iconSize: 18,
-                      padding: const EdgeInsets.all(8),
+                      padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(
-                        minWidth: 36,
-                        minHeight: 36,
+                        minWidth: 40,
+                        minHeight: 40,
                       ),
                       icon: const Icon(FluentIcons.dismiss_24_regular),
                       onPressed: widget.onClosePane,
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
             // תוכן הכרטיסיות

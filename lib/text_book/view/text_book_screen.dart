@@ -47,6 +47,11 @@ import 'package:shamor_zachor/models/book_model.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
 import 'package:otzaria/settings/per_book_settings.dart';
 
+// קבועים למצבי תצוגה (למניעת magic strings)
+const String _viewModeSplit = 'split';
+const String _viewModeBelow = 'below';
+const String _viewModePage = 'page';
+
 class TextBookViewerBloc extends StatefulWidget {
   final void Function(OpenedTab) openBookCallback;
   final TextBookTab tab;
@@ -74,6 +79,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   int? _sidebarTabIndex; // אינדקס הכרטיסייה בסרגל הצדי
   bool _isInitialFocusDone = false;
   FocusRepository? _focusRepository; // שמירת הפניה לשימוש ב-dispose
+  final GlobalKey _viewModeMenuKey = GlobalKey(); // מפתח לתפריט בחירת התצוגה
 
   // משתנים לשמירת נתונים כבדים שנטענים ברקע
   Future<Map<String, dynamic>>? _preloadedHeavyData;
@@ -987,39 +993,16 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         onPressed: () => _handlePdfButtonPress(context, state),
       ),
 
-      // 2) Split View Button
+      // 2) View Mode Dropdown (מאחד את Split View ו-Page Shape View)
       ActionButtonData(
-        widget: _buildSplitViewButton(context, state),
-        icon: FluentIcons.panel_left_24_regular,
-        tooltip: state.showSplitView
-            ? 'הצג מפרשים מתחת הטקסט'
-            : 'הצג מפרשים בצד הטקסט',
-        onPressed: () async {
-          final newValue = !state.showSplitView;
-          context.read<TextBookBloc>().add(ToggleSplitView(newValue));
-          await _savePerBookSettingsDirectly(context, state,
-              showSplitView: newValue);
+        widget: _buildViewModeDropdown(context, state, key: _viewModeMenuKey),
+        icon: _getViewModeIcon(state),
+        tooltip: _getViewModeTooltip(state),
+        onPressed: () {
+          // פתיחת התפריט באופן פרוגרמטי (למקרה שהכפתור עבר לתפריט overflow)
+          final dynamic menuState = _viewModeMenuKey.currentState;
+          menuState?.showButtonMenu();
         },
-      ),
-
-      // Page Shape View Button
-      ActionButtonData(
-        widget: IconButton(
-          icon: Icon(state.showPageShapeView
-              ? FluentIcons.book_open_24_filled
-              : FluentIcons.book_open_24_regular),
-          tooltip: 'צורת הדף',
-          onPressed: () => context.read<TextBookBloc>().add(
-                TogglePageShapeView(!state.showPageShapeView),
-              ),
-        ),
-        icon: state.showPageShapeView
-            ? FluentIcons.book_open_24_filled
-            : FluentIcons.book_open_24_regular,
-        tooltip: 'צורת הדף',
-        onPressed: () => context.read<TextBookBloc>().add(
-              TogglePageShapeView(!state.showPageShapeView),
-            ),
       ),
 
       // 3) Nikud Button
@@ -1393,28 +1376,118 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     );
   }
 
-  Widget _buildSplitViewButton(BuildContext context, TextBookLoaded state) {
-    return IconButton(
-      // בתצוגה משולבת, הכפתור מושבת (מפרשים תמיד מתחת)
-      onPressed: widget.isInCombinedView
-          ? null
-          : () async {
-              final newValue = !state.showSplitView;
-              context.read<TextBookBloc>().add(ToggleSplitView(newValue));
-              await _savePerBookSettingsDirectly(context, state,
-                  showSplitView: newValue);
-            },
-      icon: RotatedBox(
-        quarterTurns: state.showSplitView
-            ? 0
-            : 3, // מסובב 270 מעלות (90 נגד כיוון השעון) כשמתחת
-        child: const Icon(FluentIcons.panel_left_24_regular),
-      ),
-      tooltip: widget.isInCombinedView
-          ? 'בתצוגה משולבת, מפרשים תמיד מתחת הטקסט'
-          : (state.showSplitView
-              ? 'הצג מפרשים מתחת הטקסט'
-              : 'הצג מפרשים בצד הטקסט'),
+  /// קבלת האייקון המתאים למצב התצוגה הנוכחי
+  IconData _getViewModeIcon(TextBookLoaded state) {
+    if (state.showPageShapeView) {
+      return FluentIcons.book_open_24_filled;
+    }
+    // מפרשים בצד/מתחת - אותו אייקון (הסיבוב מתבצע מחוץ לפונקציה)
+    return FluentIcons.panel_left_24_regular;
+  }
+
+  /// קבלת ה-tooltip למצב התצוגה הנוכחי
+  String _getViewModeTooltip(TextBookLoaded state) {
+    if (state.showPageShapeView) {
+      return 'תצוגה: צורת הדף';
+    } else if (state.showSplitView) {
+      return 'תצוגה: מפרשים בצד';
+    } else {
+      return 'תצוגה: מפרשים מתחת';
+    }
+  }
+
+  /// בניית תפריט נפתח לבחירת מצב תצוגה
+  Widget _buildViewModeDropdown(BuildContext context, TextBookLoaded state,
+      {Key? key}) {
+    // אייקון מסובב כשמפרשים מתחת
+    final iconWidget = state.showPageShapeView
+        ? Icon(_getViewModeIcon(state))
+        : RotatedBox(
+            quarterTurns: state.showSplitView ? 0 : 3,
+            child: Icon(_getViewModeIcon(state)),
+          );
+
+    return PopupMenuButton<String>(
+      key: key,
+      tooltip: 'בחירת תצוגה',
+      icon: iconWidget,
+      enabled: !widget.isInCombinedView,
+      onSelected: (value) async {
+        final bloc = context.read<TextBookBloc>();
+
+        // קביעת מצב היעד לפי הבחירה
+        final bool isPage = value == _viewModePage;
+        final bool isSplit = value == _viewModeSplit;
+
+        // עדכון תצוגת צורת הדף במידת הצורך
+        if (isPage != state.showPageShapeView) {
+          bloc.add(TogglePageShapeView(isPage));
+        }
+
+        // עדכון תצוגת המפרשים במידת הצורך (רק במצבים שאינם 'צורת הדף')
+        if (!isPage && isSplit != state.showSplitView) {
+          bloc.add(ToggleSplitView(isSplit));
+          await _savePerBookSettingsDirectly(context, state,
+              showSplitView: isSplit);
+        }
+      },
+      itemBuilder: (context) {
+        final primaryColor = Theme.of(context).colorScheme.primary;
+        final isSplit = !state.showPageShapeView && state.showSplitView;
+        final isBelow = !state.showPageShapeView && !state.showSplitView;
+        final isPage = state.showPageShapeView;
+
+        PopupMenuItem<String> buildItem({
+          required String value,
+          required String text,
+          required Widget icon,
+          required bool isSelected,
+        }) {
+          final style = isSelected ? TextStyle(color: primaryColor) : null;
+          return PopupMenuItem<String>(
+            value: value,
+            child: Row(
+              children: [
+                icon,
+                const SizedBox(width: 12),
+                Text(text, style: style),
+                if (isSelected) ...[
+                  const Spacer(),
+                  Icon(FluentIcons.checkmark_24_regular,
+                      size: 16, color: primaryColor),
+                ],
+              ],
+            ),
+          );
+        }
+
+        return [
+          buildItem(
+            value: _viewModeSplit,
+            text: 'מפרשים בצד',
+            icon: Icon(FluentIcons.panel_left_24_regular,
+                color: isSplit ? primaryColor : null),
+            isSelected: isSplit,
+          ),
+          buildItem(
+            value: _viewModeBelow,
+            text: 'מפרשים מתחת',
+            icon: RotatedBox(
+              quarterTurns: 3,
+              child: Icon(FluentIcons.panel_left_24_regular,
+                  color: isBelow ? primaryColor : null),
+            ),
+            isSelected: isBelow,
+          ),
+          buildItem(
+            value: _viewModePage,
+            text: 'צורת הדף',
+            icon: Icon(FluentIcons.book_open_24_regular,
+                color: isPage ? primaryColor : null),
+            isSelected: isPage,
+          ),
+        ];
+      },
     );
   }
 
@@ -2065,72 +2138,87 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             padding: const EdgeInsets.fromLTRB(1, 0, 4, 0),
             child: Column(
               children: [
-                Container(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surface,
-                    border: Border(
-                      bottom: BorderSide(
-                        color: Theme.of(context).dividerColor,
-                        width: 1,
-                      ),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TabBar(
-                          controller: tabController,
-                          tabs: const [
-                            Tab(text: 'ניווט'),
-                            Tab(text: 'חיפוש'),
-                          ],
-                          labelColor: Theme.of(context).colorScheme.primary,
-                          unselectedLabelColor: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withValues(alpha: 0.6),
-                          indicatorColor: Theme.of(context).colorScheme.primary,
-                          dividerColor: Colors.transparent,
-                          overlayColor:
-                              WidgetStateProperty.all(Colors.transparent),
+                SizedBox(
+                  height: 48,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(
+                          color: Theme.of(context).dividerColor,
+                          width: 1,
                         ),
                       ),
-                      if (MediaQuery.of(context).size.width >= 600)
-                        IconButton(
-                          onPressed:
-                              (Settings.getValue<bool>('key-pin-sidebar') ??
-                                      false)
-                                  ? null
-                                  : () => context.read<TextBookBloc>().add(
-                                        TogglePinLeftPane(!state.pinLeftPane),
-                                      ),
-                          icon: AnimatedRotation(
-                            turns: (state.pinLeftPane ||
-                                    (Settings.getValue<bool>(
-                                            'key-pin-sidebar') ??
-                                        false))
-                                ? -0.125
-                                : 0.0,
-                            duration: const Duration(milliseconds: 200),
-                            child: Icon(
-                              (state.pinLeftPane ||
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TabBar(
+                            controller: tabController,
+                            tabs: const [
+                              Tab(
+                                icon: Icon(
+                                    FluentIcons.navigation_24_regular,
+                                    size: 18),
+                                iconMargin: EdgeInsets.only(bottom: 2),
+                                height: 48,
+                                child:
+                                    Text('ניווט', style: TextStyle(fontSize: 12)),
+                              ),
+                              Tab(
+                                icon:
+                                    Icon(FluentIcons.search_24_regular, size: 18),
+                                iconMargin: EdgeInsets.only(bottom: 2),
+                                height: 48,
+                                child:
+                                    Text('חיפוש', style: TextStyle(fontSize: 12)),
+                              ),
+                            ],
+                            labelColor: Theme.of(context).colorScheme.primary,
+                            unselectedLabelColor: Theme.of(context)
+                                .colorScheme
+                                .onSurface
+                                .withValues(alpha: 0.6),
+                            indicatorColor: Theme.of(context).colorScheme.primary,
+                            dividerColor: Colors.transparent,
+                          ),
+                        ),
+                        if (MediaQuery.of(context).size.width >= 600)
+                          IconButton(
+                            onPressed:
+                                (Settings.getValue<bool>('key-pin-sidebar') ??
+                                        false)
+                                    ? null
+                                    : () => context.read<TextBookBloc>().add(
+                                          TogglePinLeftPane(!state.pinLeftPane),
+                                        ),
+                            icon: AnimatedRotation(
+                              turns: (state.pinLeftPane ||
                                       (Settings.getValue<bool>(
                                               'key-pin-sidebar') ??
                                           false))
-                                  ? FluentIcons.pin_24_filled
-                                  : FluentIcons.pin_24_regular,
+                                  ? -0.125
+                                  : 0.0,
+                              duration: const Duration(milliseconds: 200),
+                              child: Icon(
+                                (state.pinLeftPane ||
+                                        (Settings.getValue<bool>(
+                                                'key-pin-sidebar') ??
+                                            false))
+                                    ? FluentIcons.pin_24_filled
+                                    : FluentIcons.pin_24_regular,
+                              ),
                             ),
+                            color: (state.pinLeftPane ||
+                                    (Settings.getValue<bool>('key-pin-sidebar') ??
+                                        false))
+                                ? Theme.of(context).colorScheme.primary
+                                : null,
+                            isSelected: state.pinLeftPane ||
+                                (Settings.getValue<bool>('key-pin-sidebar') ??
+                                    false),
                           ),
-                          color: (state.pinLeftPane ||
-                                  (Settings.getValue<bool>('key-pin-sidebar') ??
-                                      false))
-                              ? Theme.of(context).colorScheme.primary
-                              : null,
-                          isSelected: state.pinLeftPane ||
-                              (Settings.getValue<bool>('key-pin-sidebar') ??
-                                  false),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
                 Expanded(

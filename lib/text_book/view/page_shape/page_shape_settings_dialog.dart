@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/constants/fonts.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
@@ -34,8 +36,10 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
   String? _rightCommentator;
   String? _bottomCommentator;
   String? _bottomRightCommentator;
+  String _bottomFontFamily = AppFonts.defaultFont; // גופן ברירת מחדל למפרשים תחתונים
   List<CommentatorGroup> _groups = [];
   bool _isLoadingGroups = true;
+  bool _hasChanges = false; // האם היו שינויים שצריך לשמור
 
   @override
   void initState() {
@@ -51,6 +55,7 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
       _rightCommentator = widget.currentRight;
       _bottomCommentator = widget.currentBottom;
       _bottomRightCommentator = widget.currentBottomRight;
+      _bottomFontFamily = Settings.getValue<String>('page_shape_bottom_font') ?? AppFonts.defaultFont;
     });
   }
 
@@ -118,6 +123,25 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
         'bottomRight': _bottomRightCommentator,
       },
     );
+    // שמירת הגופן של המפרשים התחתונים (הגדרה גלובלית)
+    await Settings.setValue<String>('page_shape_bottom_font', _bottomFontFamily);
+    // לא מאפסים את _hasChanges כדי שהאב ידע שהיה שינוי
+  }
+
+  void _onCommentatorChanged(String? value, void Function(String?) setter) {
+    setState(() {
+      setter(value);
+      _hasChanges = true;
+    });
+    _saveSettings();
+  }
+
+  void _onFontChanged(String value) {
+    setState(() {
+      _bottomFontFamily = value;
+      _hasChanges = true;
+    });
+    _saveSettings();
   }
 
   @override
@@ -139,27 +163,65 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
               _buildCommentatorDropdown(
                 label: 'מפרש ימני',
                 value: _leftCommentator,
-                onChanged: (value) => setState(() => _leftCommentator = value),
+                onChanged: (value) => _onCommentatorChanged(value, (v) => setState(() => _leftCommentator = v)),
               ),
               const SizedBox(height: 12),
               _buildCommentatorDropdown(
                 label: 'מפרש שמאלי',
                 value: _rightCommentator,
-                onChanged: (value) => setState(() => _rightCommentator = value),
+                onChanged: (value) => _onCommentatorChanged(value, (v) => setState(() => _rightCommentator = v)),
               ),
               const SizedBox(height: 12),
               _buildCommentatorDropdown(
                 label: 'מפרש תחתון',
                 value: _bottomCommentator,
-                onChanged: (value) =>
-                    setState(() => _bottomCommentator = value),
+                onChanged: (value) => _onCommentatorChanged(value, (v) => setState(() => _bottomCommentator = v)),
               ),
               const SizedBox(height: 12),
               _buildCommentatorDropdown(
                 label: 'מפרש תחתון נוסף',
                 value: _bottomRightCommentator,
-                onChanged: (value) =>
-                    setState(() => _bottomRightCommentator = value),
+                onChanged: (value) => _onCommentatorChanged(value, (v) => setState(() => _bottomRightCommentator = v)),
+              ),
+              const SizedBox(height: 20),
+              const Divider(),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const SizedBox(
+                    width: 140,
+                    child: Text(
+                      'גופן מפרשים תחתונים:',
+                      style: TextStyle(fontSize: 15),
+                    ),
+                  ),
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+value: _bottomFontFamily,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      ),
+                      items: AppFonts.availableFonts.map((font) {
+                        return DropdownMenuItem<String>(
+                          value: font.value,
+                          child: Text(
+                            font.label,
+                            style: TextStyle(
+                              fontFamily: font.value,
+                              fontSize: 13,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          _onFontChanged(value);
+                        }
+                      },
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -167,17 +229,8 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('ביטול'),
-        ),
-        ElevatedButton(
-          onPressed: () async {
-            await _saveSettings();
-            if (context.mounted) {
-              Navigator.of(context).pop(true);
-            }
-          },
-          child: const Text('שמור'),
+          onPressed: () => Navigator.of(context).pop(_hasChanges),
+          child: const Text('סגור'),
         ),
       ],
     );
@@ -188,26 +241,30 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
     required String? value,
     required ValueChanged<String?> onChanged,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
       children: [
-        Text(label, style: const TextStyle(fontSize: 14)),
-        const SizedBox(height: 4),
-        InkWell(
-          onTap: () => _showCommentatorPicker(value, onChanged),
-          child: InputDecorator(
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-              contentPadding:
-                  EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              suffixIcon: Icon(Icons.arrow_drop_down),
-            ),
-            child: Text(
-              value ?? 'ללא מפרש',
-              style: TextStyle(
-                color: value == null
-                    ? Theme.of(context).hintColor
-                    : Theme.of(context).textTheme.bodyLarge?.color,
+        SizedBox(
+          width: 140,
+          child: Text(label, style: const TextStyle(fontSize: 15)),
+        ),
+        Expanded(
+          child: InkWell(
+            onTap: () => _showCommentatorPicker(value, onChanged),
+            child: InputDecorator(
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                suffixIcon: Icon(Icons.arrow_drop_down, size: 20),
+              ),
+              child: Text(
+                value ?? 'ללא מפרש',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: value == null
+                      ? Theme.of(context).hintColor
+                      : Theme.of(context).textTheme.bodyLarge?.color,
+                ),
               ),
             ),
           ),

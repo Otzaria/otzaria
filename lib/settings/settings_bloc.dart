@@ -44,6 +44,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     on<UpdateShortcut>(_onUpdateShortcut);
     on<UpdateEnablePerBookSettings>(_onUpdateEnablePerBookSettings);
     on<UpdateOfflineMode>(_onUpdateOfflineMode);
+    on<UpdateAlignTabsToRight>(_onUpdateAlignTabsToRight);
   }
 
   Future<void> _onLoadSettings(
@@ -84,6 +85,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       ),
       enablePerBookSettings: settings['enablePerBookSettings'],
       isOfflineMode: settings['isOfflineMode'] ?? false,
+      alignTabsToRight: settings['alignTabsToRight'] ?? false,
     ));
   }
 
@@ -101,6 +103,14 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   ) async {
     await _repository.updateOfflineMode(event.isOfflineMode);
     emit(state.copyWith(isOfflineMode: event.isOfflineMode));
+  }
+
+  Future<void> _onUpdateAlignTabsToRight(
+    UpdateAlignTabsToRight event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateAlignTabsToRight(event.alignTabsToRight);
+    emit(state.copyWith(alignTabsToRight: event.alignTabsToRight));
   }
 
   Future<void> _onUpdateDarkMode(

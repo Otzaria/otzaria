@@ -104,6 +104,8 @@ void main() {
             enablePerBookSettings:
                 mockSettings['enablePerBookSettings'] as bool,
             isOfflineMode: mockSettings['isOfflineMode'] as bool? ?? false,
+            alignTabsToRight:
+                mockSettings['alignTabsToRight'] as bool? ?? false,
           ),
         ],
         verify: (_) {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/constants/fonts.dart';
 
 /// Widget for displaying side-by-side diff of original vs edited content
 class DiffViewer extends StatelessWidget {
@@ -53,9 +54,9 @@ class DiffViewer extends StatelessWidget {
                     padding: const EdgeInsets.all(16),
                     child: SelectableText(
                       originalContent,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
-                        fontFamily: 'TaameyAshkenaz',
+                        fontFamily: AppFonts.editorFont,
                         height: 1.5,
                       ),
                       textDirection: TextDirection.rtl,
@@ -97,9 +98,9 @@ class DiffViewer extends StatelessWidget {
                     padding: const EdgeInsets.all(16),
                     child: SelectableText(
                       editedContent,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
-                        fontFamily: 'TaameyAshkenaz',
+                        fontFamily: AppFonts.editorFont,
                         height: 1.5,
                       ),
                       textDirection: TextDirection.rtl,

@@ -346,7 +346,7 @@ $textWithBreaks
                   itemScrollController: _scrollController,
                   itemPositionsListener: _positionsListener,
                   itemCount: widget.content.length,
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(4),
                   itemBuilder: (context, index) =>
                       _buildLine(index, state, context),
                 ),
@@ -419,7 +419,7 @@ $textWithBreaks
           decoration: backgroundColor != null
               ? BoxDecoration(color: backgroundColor)
               : null,
-          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
+          padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
           child: BlocBuilder<SettingsBloc, SettingsState>(
             builder: (context, settingsState) {
               String data = widget.content[index];

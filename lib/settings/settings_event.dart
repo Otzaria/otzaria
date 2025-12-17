@@ -289,3 +289,12 @@ class UpdateOfflineMode extends SettingsEvent {
   @override
   List<Object?> get props => [isOfflineMode];
 }
+
+class UpdateAlignTabsToRight extends SettingsEvent {
+  final bool alignTabsToRight;
+
+  const UpdateAlignTabsToRight(this.alignTabsToRight);
+
+  @override
+  List<Object?> get props => [alignTabsToRight];
+}

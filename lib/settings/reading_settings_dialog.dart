@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/constants/fonts.dart';
 import 'package:otzaria/settings/settings_bloc.dart';
 import 'package:otzaria/settings/settings_event.dart';
 import 'package:otzaria/settings/settings_state.dart';
@@ -143,72 +144,7 @@ void showReadingSettingsDialog(BuildContext context) {
                                     dropdownColor:
                                         Theme.of(context).colorScheme.surface,
                                     isExpanded: true,
-                                    items: const [
-                                      DropdownMenuItem(
-                                          value: 'TaameyDavidCLM',
-                                          child: Text('דוד',
-                                              style: TextStyle(
-                                                  fontFamily:
-                                                      'TaameyDavidCLM'))),
-                                      DropdownMenuItem(
-                                          value: 'FrankRuhlCLM',
-                                          child: Text('פרנק-רוהל',
-                                              style: TextStyle(
-                                                  fontFamily: 'FrankRuhlCLM'))),
-                                      DropdownMenuItem(
-                                          value: 'TaameyAshkenaz',
-                                          child: Text('טעמי אשכנז',
-                                              style: TextStyle(
-                                                  fontFamily:
-                                                      'TaameyAshkenaz'))),
-                                      DropdownMenuItem(
-                                          value: 'KeterYG',
-                                          child: Text('כתר',
-                                              style: TextStyle(
-                                                  fontFamily: 'KeterYG'))),
-                                      DropdownMenuItem(
-                                          value: 'Shofar',
-                                          child: Text('שופר',
-                                              style: TextStyle(
-                                                  fontFamily: 'Shofar'))),
-                                      DropdownMenuItem(
-                                          value: 'NotoSerifHebrew',
-                                          child: Text('נוטו',
-                                              style: TextStyle(
-                                                  fontFamily:
-                                                      'NotoSerifHebrew'))),
-                                      DropdownMenuItem(
-                                          value: 'Tinos',
-                                          child: Text('טינוס',
-                                              style: TextStyle(
-                                                  fontFamily: 'Tinos'))),
-                                      DropdownMenuItem(
-                                          value: 'NotoRashiHebrew',
-                                          child: Text('רש"י',
-                                              style: TextStyle(
-                                                  fontFamily:
-                                                      'NotoRashiHebrew'))),
-                                      DropdownMenuItem(
-                                          value: 'Candara',
-                                          child: Text('קנדרה',
-                                              style: TextStyle(
-                                                  fontFamily: 'Candara'))),
-                                      DropdownMenuItem(
-                                          value: 'roboto',
-                                          child: Text('רובוטו',
-                                              style: TextStyle(
-                                                  fontFamily: 'roboto'))),
-                                      DropdownMenuItem(
-                                          value: 'Calibri',
-                                          child: Text('קליברי',
-                                              style: TextStyle(
-                                                  fontFamily: 'Calibri'))),
-                                      DropdownMenuItem(
-                                          value: 'Arial',
-                                          child: Text('אריאל',
-                                              style: TextStyle(
-                                                  fontFamily: 'Arial'))),
-                                    ],
+                                    items: AppFonts.buildDropdownItems(),
                                     onChanged: (value) {
                                       if (value != null) {
                                         context
@@ -328,72 +264,7 @@ void showReadingSettingsDialog(BuildContext context) {
                                     dropdownColor:
                                         Theme.of(context).colorScheme.surface,
                                     isExpanded: true,
-                                    items: const [
-                                      DropdownMenuItem(
-                                          value: 'TaameyDavidCLM',
-                                          child: Text('דוד',
-                                              style: TextStyle(
-                                                  fontFamily:
-                                                      'TaameyDavidCLM'))),
-                                      DropdownMenuItem(
-                                          value: 'FrankRuhlCLM',
-                                          child: Text('פרנק-רוהל',
-                                              style: TextStyle(
-                                                  fontFamily: 'FrankRuhlCLM'))),
-                                      DropdownMenuItem(
-                                          value: 'TaameyAshkenaz',
-                                          child: Text('טעמי אשכנז',
-                                              style: TextStyle(
-                                                  fontFamily:
-                                                      'TaameyAshkenaz'))),
-                                      DropdownMenuItem(
-                                          value: 'KeterYG',
-                                          child: Text('כתר',
-                                              style: TextStyle(
-                                                  fontFamily: 'KeterYG'))),
-                                      DropdownMenuItem(
-                                          value: 'Shofar',
-                                          child: Text('שופר',
-                                              style: TextStyle(
-                                                  fontFamily: 'Shofar'))),
-                                      DropdownMenuItem(
-                                          value: 'NotoSerifHebrew',
-                                          child: Text('נוטו',
-                                              style: TextStyle(
-                                                  fontFamily:
-                                                      'NotoSerifHebrew'))),
-                                      DropdownMenuItem(
-                                          value: 'Tinos',
-                                          child: Text('טינוס',
-                                              style: TextStyle(
-                                                  fontFamily: 'Tinos'))),
-                                      DropdownMenuItem(
-                                          value: 'NotoRashiHebrew',
-                                          child: Text('רש"י',
-                                              style: TextStyle(
-                                                  fontFamily:
-                                                      'NotoRashiHebrew'))),
-                                      DropdownMenuItem(
-                                          value: 'Candara',
-                                          child: Text('קנדרה',
-                                              style: TextStyle(
-                                                  fontFamily: 'Candara'))),
-                                      DropdownMenuItem(
-                                          value: 'roboto',
-                                          child: Text('רובוטו',
-                                              style: TextStyle(
-                                                  fontFamily: 'roboto'))),
-                                      DropdownMenuItem(
-                                          value: 'Calibri',
-                                          child: Text('קליברי',
-                                              style: TextStyle(
-                                                  fontFamily: 'Calibri'))),
-                                      DropdownMenuItem(
-                                          value: 'Arial',
-                                          child: Text('אריאל',
-                                              style: TextStyle(
-                                                  fontFamily: 'Arial'))),
-                                    ],
+                                    items: AppFonts.buildDropdownItems(),
                                     onChanged: (value) {
                                       if (value != null) {
                                         context.read<SettingsBloc>().add(
@@ -556,6 +427,37 @@ void showReadingSettingsDialog(BuildContext context) {
                         },
                       ),
                     ),
+
+                  // כותרת: הגדרות טאבים
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 10.0, horizontal: 16.0),
+                    decoration: BoxDecoration(
+                      color:
+                          Theme.of(context).colorScheme.surfaceContainerHighest,
+                    ),
+                    child: const Text(
+                      'הגדרות טאבים',
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      textAlign: TextAlign.start,
+                    ),
+                  ),
+
+                  // יישור טאבים לימין
+                  SwitchListTile(
+                    title: const Text('יישור טאבים לימין'),
+                    subtitle: Text(settingsState.alignTabsToRight
+                        ? 'הטאבים יוצגו בצד ימין'
+                        : 'הטאבים יוצגו במרכז'),
+                    value: settingsState.alignTabsToRight,
+                    onChanged: (value) {
+                      context
+                          .read<SettingsBloc>()
+                          .add(UpdateAlignTabsToRight(value));
+                    },
+                  ),
 
                   // כותרת: התנהגות סרגל צד
                   Container(

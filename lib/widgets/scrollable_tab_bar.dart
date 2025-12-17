@@ -8,6 +8,8 @@ class ScrollableTabBarWithArrows extends StatefulWidget {
   final TabAlignment? tabAlignment;
   // מאפשר לדעת אם יש גלילה אופקית (יש Overflow)
   final ValueChanged<bool>? onOverflowChanged;
+  // האם להסתיר את החיצים כשאין גלילה (לצמצום רווחים)
+  final bool hideArrowsWhenNotScrollable;
 
   const ScrollableTabBarWithArrows({
     super.key,
@@ -15,6 +17,7 @@ class ScrollableTabBarWithArrows extends StatefulWidget {
     required this.tabs,
     this.tabAlignment,
     this.onOverflowChanged,
+    this.hideArrowsWhenNotScrollable = false,
   });
 
   @override
@@ -111,33 +114,55 @@ class _ScrollableTabBarWithArrowsState
   void _scrollLeft() => _scrollBy(-150);
   void _scrollRight() => _scrollBy(150);
 
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        // חץ שמאלי – משמרים מקום קבוע כדי למנוע קפיצות ברוחב
-        SizedBox(
-          width: 36,
-          height: 32,
-          child: AnimatedOpacity(
-            duration: const Duration(milliseconds: 200),
-            opacity: _canScrollLeft ? 1.0 : 0.0,
-            child: IgnorePointer(
-              ignoring: !_canScrollLeft,
-              child: IconButton(
-                key: const ValueKey('left-arrow'),
-                onPressed: _scrollLeft,
-                icon: const Icon(FluentIcons.chevron_left_24_regular),
-                iconSize: 20,
-                constraints: const BoxConstraints(
-                  minWidth: 32,
-                  minHeight: 32,
-                ),
-                tooltip: 'גלול שמאלה',
-              ),
+  /// בונה כפתור חץ לגלילה
+  Widget _buildArrowButton({
+    required String keyValue,
+    required bool canScroll,
+    required VoidCallback onPressed,
+    required IconData icon,
+    required String tooltip,
+  }) {
+    return SizedBox(
+      width: 36,
+      height: 32,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 200),
+        opacity: canScroll ? 1.0 : 0.0,
+        child: IgnorePointer(
+          ignoring: !canScroll,
+          child: IconButton(
+            key: ValueKey(keyValue),
+            onPressed: onPressed,
+            icon: Icon(icon),
+            iconSize: 20,
+            constraints: const BoxConstraints(
+              minWidth: 32,
+              minHeight: 32,
             ),
+            tooltip: tooltip,
           ),
         ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool hasOverflow = _canScrollLeft || _canScrollRight;
+    final bool showArrows =
+        !widget.hideArrowsWhenNotScrollable || hasOverflow;
+
+    return Row(
+      children: [
+        // חץ שמאלי – מוסתר לגמרי אם אין גלילה והאפשרות מופעלת
+        if (showArrows)
+          _buildArrowButton(
+            keyValue: 'left-arrow',
+            canScroll: _canScrollLeft,
+            onPressed: _scrollLeft,
+            icon: FluentIcons.chevron_left_24_regular,
+            tooltip: 'גלול שמאלה',
+          ),
         // TabBar משופר עם עיצוב יפה יותר
         Expanded(
           child: NotificationListener<ScrollMetricsNotification>(
@@ -189,29 +214,15 @@ class _ScrollableTabBarWithArrowsState
             ),
           ),
         ),
-        // חץ ימני – משמרים מקום קבוע כדי למנוע קפיצות ברוחב
-        SizedBox(
-          width: 36,
-          height: 32,
-          child: AnimatedOpacity(
-            duration: const Duration(milliseconds: 200),
-            opacity: _canScrollRight ? 1.0 : 0.0,
-            child: IgnorePointer(
-              ignoring: !_canScrollRight,
-              child: IconButton(
-                key: const ValueKey('right-arrow'),
-                onPressed: _scrollRight,
-                icon: const Icon(FluentIcons.chevron_right_24_regular),
-                iconSize: 20,
-                constraints: const BoxConstraints(
-                  minWidth: 32,
-                  minHeight: 32,
-                ),
-                tooltip: 'גלול ימינה',
-              ),
-            ),
+        // חץ ימני – מוסתר לגמרי אם אין גלילה והאפשרות מופעלת
+        if (showArrows)
+          _buildArrowButton(
+            keyValue: 'right-arrow',
+            canScroll: _canScrollRight,
+            onPressed: _scrollRight,
+            icon: FluentIcons.chevron_right_24_regular,
+            tooltip: 'גלול ימינה',
           ),
-        ),
       ],
     );
   }
