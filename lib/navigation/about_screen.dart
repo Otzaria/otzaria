@@ -161,7 +161,7 @@ class _AboutScreenState extends State<AboutScreen> {
         'url': 'https://mitmachim.top/user/%D7%93%D7%95%D7%A8%D7%A9-%D7%98%D7%95%D7%91',
       },
       // {
-      //   'name': 'מרדכי פינק', כרגע לא רוצה
+      //   'name': 'מרדכי פינק', // כרגע לא רוצה
       // },
       // {
       //   'name': 'זקצ',
@@ -175,7 +175,7 @@ class _AboutScreenState extends State<AboutScreen> {
         'url': 'https://mitmachim.top/user/%D7%93%D7%90%D7%A0%D7%A6%D7%99%D7%92',
       },
       // {
-      //   'name': 'ישי אשכנזי', כרגע לא רוצה
+      //   'name': 'ישי אשכנזי', // כרגע לא רוצה
       // },
       {
         'name': '333',
