@@ -611,15 +611,22 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                                       await document.loadOutline();
 
                                   // 1.5. שחזור מצב הזום אם נשמר קודם
-                                  if (widget.tab.savedZoom != null && widget.tab.savedZoom != 1.0) {
-                                    // המתנה קצרה לוודא שה-viewer מוכן לחלוטין
-                                    await Future.delayed(const Duration(milliseconds: 100));
-                                    if (mounted && widget.tab.pdfViewerController.isReady) {
-                                      widget.tab.pdfViewerController.setZoom(
-                                        widget.tab.pdfViewerController.centerPosition,
-                                        widget.tab.savedZoom!,
-                                      );
-                                    }
+                                  if (widget.tab.savedZoom != null &&
+                                      widget.tab.savedZoom != 1.0) {
+                                    // שימוש ב-addPostFrameCallback במקום Future.delayed
+                                    // זה מבטיח שה-frame הנוכחי הושלם וה-viewer מוכן לחלוטין
+                                    WidgetsBinding.instance
+                                        .addPostFrameCallback((_) {
+                                      if (mounted &&
+                                          widget.tab.pdfViewerController
+                                              .isReady) {
+                                        widget.tab.pdfViewerController.setZoom(
+                                          widget.tab.pdfViewerController
+                                              .centerPosition,
+                                          widget.tab.savedZoom!,
+                                        );
+                                      }
+                                    });
                                   }
 
                                   // 2. עדכון הכותרת הנוכחית
