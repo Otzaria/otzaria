@@ -612,7 +612,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
                                   // 1.5. שחזור מצב הזום אם נשמר קודם
                                   if (widget.tab.savedZoom != null &&
-                                      widget.tab.savedZoom != 1.0) {
+                                      (widget.tab.savedZoom! - 1.0).abs() >
+                                          0.001) {
                                     // שימוש ב-addPostFrameCallback במקום Future.delayed
                                     // זה מבטיח שה-frame הנוכחי הושלם וה-viewer מוכן לחלוטין
                                     WidgetsBinding.instance
