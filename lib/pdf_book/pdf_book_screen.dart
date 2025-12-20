@@ -324,6 +324,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   int _lastComputedForPage = -1;
   void _onPdfViewerControllerUpdate() async {
     if (!widget.tab.pdfViewerController.isReady) return;
+    
+    // שמירת מצב הזום לשחזור אחרי rebuild
+    widget.tab.savedZoom = widget.tab.pdfViewerController.value.zoom;
+    
     final newPage = widget.tab.pdfViewerController.pageNumber ?? 1;
     if (newPage == widget.tab.pageNumber) return;
     widget.tab.pageNumber = newPage;
@@ -605,6 +609,18 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                                       controller.documentRef;
                                   widget.tab.outline.value =
                                       await document.loadOutline();
+
+                                  // 1.5. שחזור מצב הזום אם נשמר קודם
+                                  if (widget.tab.savedZoom != null && widget.tab.savedZoom != 1.0) {
+                                    // המתנה קצרה לוודא שה-viewer מוכן לחלוטין
+                                    await Future.delayed(const Duration(milliseconds: 100));
+                                    if (mounted && widget.tab.pdfViewerController.isReady) {
+                                      widget.tab.pdfViewerController.setZoom(
+                                        widget.tab.pdfViewerController.centerPosition,
+                                        widget.tab.savedZoom!,
+                                      );
+                                    }
+                                  }
 
                                   // 2. עדכון הכותרת הנוכחית
                                   final currentPage =
