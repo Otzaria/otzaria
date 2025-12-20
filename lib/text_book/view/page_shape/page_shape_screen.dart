@@ -3,7 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/constants/fonts.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
-import 'package:otzaria/text_book/view/page_shape/page_shape_settings_dialog.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dart';
 import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
@@ -120,16 +119,14 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
         }
 
         return Scaffold(
-          body: Stack(
+          body: Column(
             children: [
-              Column(
-                children: [
-                  // Main Content Row - מתרחב לפי השטח הפנוי
-                  Expanded(
-                    child: Row(
-                      children: [
-                        // Left Commentary with label (label on outer edge - first in RTL)
-                        if (_leftCommentator != null) ...[
+              // Main Content Row - מתרחב לפי השטח הפנוי
+              Expanded(
+                child: Row(
+                  children: [
+                    // Left Commentary with label (label on outer edge - first in RTL)
+                    if (_leftCommentator != null) ...[
                           SizedBox(
                             width: 20,
                             child: Center(
@@ -366,48 +363,6 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                     ),
                   ],
                 ],
-              ),
-              // Settings button - בפינה הימנית העליונה של כל המסך
-              Positioned(
-                top: 8,
-                right: 8,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withAlpha(230),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withAlpha(25),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.settings, size: 18),
-                    padding: const EdgeInsets.all(6),
-                    constraints: const BoxConstraints(),
-                    onPressed: () async {
-                      final hadChanges = await showDialog<bool>(
-                        context: context,
-                        builder: (dialogContext) => PageShapeSettingsDialog(
-                          availableCommentators: state.availableCommentators,
-                          bookTitle: state.book.title,
-                          currentLeft: _leftCommentator,
-                          currentRight: _rightCommentator,
-                          currentBottom: _bottomCommentator,
-                          currentBottomRight: _bottomRightCommentator,
-                        ),
-                      );
-                      // טעינה מחדש אם היו שינויים
-                      if (hadChanges == true && mounted) {
-                        _loadConfiguration();
-                      }
-                    },
-                  ),
-                ),
-              ),
-            ],
           ),
         );
       },

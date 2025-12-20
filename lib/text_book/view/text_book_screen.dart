@@ -46,6 +46,7 @@ import 'package:shamor_zachor/providers/shamor_zachor_progress_provider.dart';
 import 'package:shamor_zachor/models/book_model.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
 import 'package:otzaria/settings/per_book_settings.dart';
+import 'package:otzaria/text_book/view/page_shape/page_shape_settings_dialog.dart';
 
 // קבועים למצבי תצוגה (למניעת magic strings)
 const String _viewModeSplit = 'split';
@@ -886,8 +887,43 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       scrolledUnderElevation: 0,
       centerTitle: false,
       title: _buildTitle(state),
-      leading: _buildMenuButton(context, state),
+      leadingWidth: state.showPageShapeView ? 96 : null, // רוחב מורחב לשני כפתורים
+      leading: state.showPageShapeView
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildMenuButton(context, state),
+                _buildPageShapeSettingsButton(context, state),
+              ],
+            )
+          : _buildMenuButton(context, state),
       actions: _buildActions(context, state, wideScreen),
+    );
+  }
+
+  /// כפתור הגדרות צורת הדף
+  Widget _buildPageShapeSettingsButton(BuildContext context, TextBookLoaded state) {
+    return IconButton(
+      icon: const Icon(Icons.settings, size: 20),
+      tooltip: 'הגדרות צורת הדף',
+      onPressed: () async {
+        final hadChanges = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => PageShapeSettingsDialog(
+            availableCommentators: state.availableCommentators,
+            bookTitle: state.book.title,
+            currentLeft: null, // יטען מההגדרות
+            currentRight: null,
+            currentBottom: null,
+            currentBottomRight: null,
+          ),
+        );
+        // אם היו שינויים, נטען מחדש את ההגדרות
+        if (hadChanges == true && mounted) {
+          // ה-PageShapeScreen יטען מחדש את ההגדרות אוטומטית
+          setState(() {});
+        }
+      },
     );
   }
 
