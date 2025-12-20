@@ -46,6 +46,7 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
   late double _leftPaneWidth;
   bool _isResizing = false;
   bool _isHovering = false; // מצב ריחוף על הטאב
+  String? _selectedText; // טקסט נבחר מ-SelectionArea
 
   @override
   void initState() {
@@ -275,12 +276,26 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                       contextMenu: _buildContextMenu(state),
                       child: SelectionArea(
                         key: _selectionKey,
+                        // ביטול תפריט ברירת המחדל של SelectionArea - משתמשים בתפריט שלנו
+                        contextMenuBuilder: (context, selectableRegionState) {
+                          return const SizedBox.shrink();
+                        },
+                        onSelectionChanged: (selection) {
+                          // עדכון הטקסט הנבחר לשימוש בתפריט ההקשר
+                          if (selection != null &&
+                              selection.plainText.isNotEmpty) {
+                            setState(() {
+                              _selectedText = selection.plainText;
+                            });
+                          }
+                        },
                         child: TabbedCommentaryPanel(
                           fontSize: state.fontSize,
                           openBookCallback: widget.openBookCallback,
                           showSearch: true,
                           onClosePane: _togglePane,
                           initialTabIndex: _currentTabIndex,
+                          selectedText: _selectedText,
                           onTabChanged: (index) {
                             debugPrint(
                                 'DEBUG: Tab changed to $index, showSplitView: ${widget.showSplitView}');

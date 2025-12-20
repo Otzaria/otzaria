@@ -71,6 +71,7 @@ class CommentaryListBase extends StatefulWidget {
   final bool shrinkWrap;
   final ItemPositionsListener? itemPositionsListener;
   final VoidCallback? onOpenCommentatorsFilter;
+  final String? selectedText; // טקסט נבחר מ-SelectionArea
 
   const CommentaryListBase({
     super.key,
@@ -82,6 +83,7 @@ class CommentaryListBase extends StatefulWidget {
     this.shrinkWrap = true,
     this.itemPositionsListener,
     this.onOpenCommentatorsFilter,
+    this.selectedText,
   });
 
   @override
@@ -105,7 +107,9 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
       {}; // מעקב אחרי מצב כל ExpansionTile
   final Map<String, ExpansibleController> _controllers =
       {}; // controllers לכל ExpansionTile
-  String? _savedSelectedText; // טקסט נבחר לתפריט הקשר
+
+  // טקסט נבחר לתפריט הקשר - משתמש ב-prop מבחוץ אם קיים
+  String? get _savedSelectedText => widget.selectedText;
 
   String _getLinkKey(Link link) => '${link.path2}_${link.index2}';
 

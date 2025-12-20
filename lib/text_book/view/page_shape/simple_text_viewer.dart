@@ -357,6 +357,10 @@ $textWithBreaks
               }
 
               return SelectionArea(
+                // ביטול תפריט ברירת המחדל של SelectionArea - משתמשים בתפריט שלנו
+                contextMenuBuilder: (context, selectableRegionState) {
+                  return const SizedBox.shrink();
+                },
                 onSelectionChanged: (selection) {
                   // שמירת הטקסט הנבחר
                   if (selection != null) {
@@ -406,7 +410,7 @@ $textWithBreaks
       behavior: HitTestBehavior.translucent,
       onTap: widget.isMainText
           ? () {
-              // איפוס הטקסט השמור
+              // איפוס הטקסט השמור רק בלחיצה רגילה (לא ימנית)
               setState(() {
                 _savedSelectedText = null;
                 _savedSelectedIndex = null;
@@ -435,10 +439,8 @@ $textWithBreaks
             }
           : null,
       onSecondaryTapDown: (details) {
-        // שמירת האינדקס לשימוש בתפריט ההקשר
-        setState(() {
-          _savedSelectedIndex = index;
-        });
+        // שמירת האינדקס לשימוש בתפריט ההקשר - בלי לאפס את הטקסט הנבחר
+        _savedSelectedIndex = index;
       },
       child: ctx.ContextMenuRegion(
         contextMenu: _buildContextMenu(state, index, context),

@@ -18,6 +18,7 @@ class TabbedCommentaryPanel extends StatefulWidget {
   final VoidCallback? onClosePane;
   final int? initialTabIndex; // אינדקס הכרטיסייה הראשונית
   final Function(int)? onTabChanged; // callback כשהטאב משתנה
+  final String? selectedText; // טקסט נבחר מ-SelectionArea
 
   const TabbedCommentaryPanel({
     super.key,
@@ -27,6 +28,7 @@ class TabbedCommentaryPanel extends StatefulWidget {
     this.onClosePane,
     this.initialTabIndex,
     this.onTabChanged,
+    this.selectedText,
   });
 
   @override
@@ -211,6 +213,7 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
                           openBookCallback: widget.openBookCallback,
                           fontSize: widget.fontSize,
                           showSearch: widget.showSearch,
+                          selectedText: widget.selectedText,
                           onOpenCommentatorsFilter: () {
                             setState(() {
                               _showFilterTab = true;

@@ -308,6 +308,10 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
             contextMenu: _buildContextMenu(),
             child: SelectionArea(
               key: _selectionKey,
+              // ביטול תפריט ברירת המחדל של SelectionArea - משתמשים בתפריט שלנו
+              contextMenuBuilder: (context, selectableRegionState) {
+                return const SizedBox.shrink();
+              },
               onSelectionChanged: (selection) {
                 if (selection != null && selection.plainText.isNotEmpty) {
                   setState(() {
