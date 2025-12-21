@@ -158,7 +158,7 @@ $textWithBreaks
         item.add(Formats.htmlText(htmlText));
 
         await clipboard.write([item]);
-        UiSnack.show('הטקסט הועתק בהצלחה');
+        UiSnack.showSuccess('הטקסט הועתק בהצלחה');
       }
     } catch (e) {
       debugPrint('Error copying text: $e');
