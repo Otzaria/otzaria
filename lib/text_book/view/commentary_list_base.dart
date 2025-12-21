@@ -478,40 +478,31 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                 state.activeCommentators
                     .contains(utils.getTitleFromPath(link.path2)));
 
-            // אם אין קישורים רלוונטיים, לא מציג כלום
+            // אם אין קישורים רלוונטיים
             if (!hasRelevantLinks) {
+              // אם יש מפרשים זמינים אבל לא נבחרו בכלל - פתח אוטומטית את מסך הבחירה
+              if (hasAnyCommentaryLinks &&
+                  state.activeCommentators.isEmpty &&
+                  widget.onOpenCommentatorsFilter != null) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  widget.onOpenCommentatorsFilter!();
+                });
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              // אין מפרשים בכלל לקטע הזה, או שיש מפרשים נבחרים אבל הם לא רלוונטיים
               return Center(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        hasAnyCommentaryLinks
-                            ? 'לא נבחרו מפרשים להצגה'
-                            : 'לא נמצאו מפרשים לקטע הנבחר',
-                        style: TextStyle(
-                          fontSize: widget.fontSize * 0.7,
-                          color: Colors.grey,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      if (hasAnyCommentaryLinks &&
-                          widget.onOpenCommentatorsFilter != null) ...[
-                        const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          onPressed: widget.onOpenCommentatorsFilter,
-                          icon: const Icon(FluentIcons.apps_list_24_regular),
-                          label: const Text('בחר מפרשים'),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 12,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
+                  child: Text(
+                    hasAnyCommentaryLinks
+                        ? 'לא נמצאו מפרשים מהנבחרים לקטע זה'
+                        : 'לא נמצאו מפרשים לקטע הנבחר',
+                    style: TextStyle(
+                      fontSize: widget.fontSize * 0.7,
+                      color: Colors.grey,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
                 ),
               );

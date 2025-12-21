@@ -446,6 +446,19 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
           link.connectionType == "commentary" ||
           link.connectionType == "targum");
 
+      // אם יש מפרשים זמינים אבל לא נבחרו בכלל - פתח אוטומטית את מסך הבחירה
+      if (hasCommentaryLinks && widget.tab.activeCommentators.isEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && !_showFilterTab) {
+            setState(() {
+              _showFilterTab = true;
+            });
+          }
+        });
+        return const Center(child: CircularProgressIndicator());
+      }
+
+      // אין מפרשים בכלל לקטע הזה, או שיש מפרשים נבחרים אבל הם לא רלוונטיים לדף
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
@@ -454,7 +467,7 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
             children: [
               Text(
                 hasCommentaryLinks
-                    ? 'לא נבחרו מפרשים להצגה'
+                    ? 'לא נמצאו מפרשים מהנבחרים לדף זה'
                     : 'לא נמצאו מפרשים לקטע הנבחר',
                 style: TextStyle(
                   fontSize: widget.fontSize * 0.9,

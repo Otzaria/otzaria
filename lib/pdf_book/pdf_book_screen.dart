@@ -1654,9 +1654,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         builder: (context, showRightPane, child) =>
             ValueListenableBuilder<double>(
           valueListenable: _rightPaneWidth,
-          builder: (context, width, child2) => SizedBox(
-            width: showRightPane ? width : 0,
-            child: child2!,
+          builder: (context, width, child2) => ClipRect(
+            child: SizedBox(
+              width: showRightPane ? width : 0,
+              child: showRightPane ? child2 : null,
+            ),
           ),
           child: child,
         ),
