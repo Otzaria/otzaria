@@ -59,6 +59,33 @@ class _PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
 
   @override
   Widget build(BuildContext context) {
+    // בדיקה אם יש TextBookBloc בהקשר (לא קיים ב-PDF)
+    final textBookBloc = context.read<TextBookBloc?>();
+    
+    if (textBookBloc == null) {
+      // מצב PDF - אין TextBookBloc
+      return BlocBuilder<PersonalNotesBloc, PersonalNotesState>(
+        buildWhen: (previous, current) => current.bookId == widget.bookId,
+        builder: (context, state) {
+          if (state.isLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildHeader(context, state, const []),
+              const Divider(height: 1),
+              Expanded(
+                child: _buildContent(context, state, const []),
+              ),
+            ],
+          );
+        },
+      );
+    }
+
+    // מצב טקסט רגיל - יש TextBookBloc
     return BlocBuilder<TextBookBloc, TextBookState>(
       buildWhen: (previous, current) {
         if (previous is TextBookLoaded && current is TextBookLoaded) {

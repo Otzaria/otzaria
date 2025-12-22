@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
@@ -74,12 +73,17 @@ class _PdfCommentaryContentState extends State<PdfCommentaryContent> {
                   displayText = utils.replaceHolyNames(displayText);
                 }
 
-                return HtmlWidget(
-                  '<div style="text-align: justify; direction: rtl;">$displayText</div>',
-                  textStyle: TextStyle(
+                // שימוש ב-SelectableText.rich כדי לאפשר בחירת טקסט
+                // מסירים תגי HTML ומציגים טקסט פשוט
+                final plainText = utils.stripHtmlIfNeeded(displayText);
+                return Text(
+                  plainText,
+                  style: TextStyle(
                     fontSize: settingsState.commentatorsFontSize,
                     fontFamily: settingsState.commentatorsFontFamily,
                   ),
+                  textAlign: TextAlign.justify,
+                  textDirection: TextDirection.rtl,
                 );
               },
             );
