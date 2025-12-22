@@ -310,14 +310,95 @@ class FileSystemData {
   /// Retrieves all links associated with a specific book.
   ///
   /// Links are stored in JSON files named '[book_title]_links.json' in the links directory.
+  ///
+  /// For commentary books whose title starts with "הערות על", this function will also
+  /// retrieve reverse links from the source book, creating bidirectional navigation.
   Future<List<Link>> getAllLinksForBook(String title) async {
     try {
+      // First, try to load direct links for this book
       File file = File(_getLinksPath(title));
-      final jsonString = await file.readAsString();
+      List<Link> directLinks = [];
+
+      if (await file.exists()) {
+        final jsonString = await file.readAsString();
+        final jsonList =
+            await Isolate.run(() async => jsonDecode(jsonString) as List);
+        directLinks = jsonList.map((json) => Link.fromJson(json)).toList();
+      }
+
+      // Check if this is a commentary book (starts with "הערות על")
+      final sourceBookTitle = _getSourceBookFromCommentary(title);
+      if (sourceBookTitle != null) {
+        // Load the source book's links and create reverse links
+        final reverseLinks = await _getReverseLinksFromSourceBook(
+          title,
+          sourceBookTitle,
+        );
+        directLinks.addAll(reverseLinks);
+      }
+
+      return directLinks;
+    } on Exception {
+      return [];
+    }
+  }
+
+  /// Checks if a book title starts with "הערות על" and extracts the source book name.
+  ///
+  /// For example, "הערות על סוכה" returns "סוכה".
+  /// Returns null if the title doesn't start with "הערות על".
+  String? _getSourceBookFromCommentary(String title) {
+    const commentaryPrefix = 'הערות על ';
+    if (title.startsWith(commentaryPrefix)) {
+      return title.substring(commentaryPrefix.length);
+    }
+    return null;
+  }
+
+  /// Creates reverse links from a source book to its commentary.
+  ///
+  /// When the source book has links pointing to the commentary, this function
+  /// creates the opposite links so readers of the commentary can navigate back
+  /// to the source text.
+  Future<List<Link>> _getReverseLinksFromSourceBook(
+    String commentaryTitle,
+    String sourceBookTitle,
+  ) async {
+    try {
+      // Load links from the source book
+      File sourceLinksFile = File(_getLinksPath(sourceBookTitle));
+      if (!await sourceLinksFile.exists()) {
+        return [];
+      }
+
+      final jsonString = await sourceLinksFile.readAsString();
       final jsonList =
           await Isolate.run(() async => jsonDecode(jsonString) as List);
-      return jsonList.map((json) => Link.fromJson(json)).toList();
-    } on Exception {
+      final sourceLinks = jsonList.map((json) => Link.fromJson(json)).toList();
+
+      // Filter links that point to the commentary and create reverse links
+      final reverseLinks = <Link>[];
+      for (final link in sourceLinks) {
+        final linkTargetTitle = getTitleFromPath(link.path2);
+
+        // Check if this link points to the commentary book
+        if (linkTargetTitle == commentaryTitle) {
+          // Create a reverse link: from commentary back to source
+          reverseLinks.add(Link(
+            heRef: sourceBookTitle, // Reference to the source book
+            index1: link.index2, // The commentary line that's being referenced
+            path2: sourceBookTitle, // Path to the source book
+            index2: link.index1, // The source book line that references it
+            connectionType: link.connectionType,
+            start: link.start,
+            end: link.end,
+          ));
+        }
+      }
+
+      return reverseLinks;
+    } on Exception catch (e) {
+      debugPrint('Error creating reverse links for $commentaryTitle: $e');
       return [];
     }
   }
