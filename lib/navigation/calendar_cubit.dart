@@ -530,6 +530,22 @@ class CalendarCubit extends Cubit<CalendarState> {
 
   // --- Notification Settings ---
   Future<void> changeCalendarNotificationsEnabled(bool enabled) async {
+    if (enabled) {
+      // בקש הרשאות לפני הפעלת התראות
+      final notificationService = NotificationService();
+      if (!notificationService.isInitialized) {
+        await notificationService.init();
+      }
+      final hasPermission = await notificationService.requestPermissions();
+
+      // אם אין הרשאה, אל תפעיל את ההתראות
+      if (!hasPermission) {
+        emit(state.copyWith(calendarNotificationsEnabled: false));
+        await _settingsRepository.updateCalendarNotificationsEnabled(false);
+        return;
+      }
+    }
+
     emit(state.copyWith(calendarNotificationsEnabled: enabled));
     await _settingsRepository.updateCalendarNotificationsEnabled(enabled);
     // Reschedule only if enabling/disabling notifications
@@ -1106,6 +1122,12 @@ const Map<String, Map<String, Map<String, dynamic>>> cityCoordinates = {
       'lng': -115.1398,
       'elevation': 610.0,
       'timezone': 'America/Los_Angeles'
+    },
+    'ליקווד': {
+      'lat': 40.0878,
+      'lng': -74.2098,
+      'elevation': 20.0,
+      'timezone': 'America/New_York'
     },
     'לוס אנג\'לס': {
       'lat': 34.0522,

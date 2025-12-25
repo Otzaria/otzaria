@@ -53,6 +53,9 @@ class PdfBookTab extends OpenedTab {
   /// Current line number in text (based on PDF heading)
   int? currentTextLineNumber;
 
+  /// Saved zoom level for restoration after rebuild
+  double? savedZoom;
+
   /// Creates a new instance of [PdfBookTab].
   ///
   /// The [book] parameter represents the PDF book, and the [pageNumber]

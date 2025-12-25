@@ -8,6 +8,7 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/combined_view/commentary_content.dart';
+import 'package:otzaria/text_book/view/commentators_list_screen.dart';
 import 'package:otzaria/widgets/progressive_scrolling.dart';
 import 'package:otzaria/settings/settings_bloc.dart';
 import 'package:otzaria/settings/settings_state.dart';
@@ -70,7 +71,6 @@ class CommentaryListBase extends StatefulWidget {
   final VoidCallback? onClosePane;
   final bool shrinkWrap;
   final ItemPositionsListener? itemPositionsListener;
-  final VoidCallback? onOpenCommentatorsFilter;
 
   const CommentaryListBase({
     super.key,
@@ -81,7 +81,6 @@ class CommentaryListBase extends StatefulWidget {
     this.onClosePane,
     this.shrinkWrap = true,
     this.itemPositionsListener,
-    this.onOpenCommentatorsFilter,
   });
 
   @override
@@ -106,6 +105,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
   final Map<String, ExpansibleController> _controllers =
       {}; // controllers לכל ExpansionTile
   String? _savedSelectedText; // טקסט נבחר לתפריט הקשר
+  bool _showCommentatorsFilter = false; // האם להציג את מסך בחירת המפרשים
 
   String _getLinkKey(Link link) => '${link.path2}_${link.index2}';
 
@@ -159,6 +159,18 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
       // שומר את האינדקס של הפריט הראשון הנראה
       _lastScrollIndex = positions.first.index;
     }
+  }
+
+  void _openCommentatorsFilter() {
+    setState(() {
+      _showCommentatorsFilter = true;
+    });
+  }
+
+  void _closeCommentatorsFilter() {
+    setState(() {
+      _showCommentatorsFilter = false;
+    });
   }
 
   @override
@@ -350,20 +362,25 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
       _expansionStates[groupKey] = _allExpanded;
     }
 
-    // יוצר controller אם לא קיים
-    if (!_controllers.containsKey(groupKey)) {
-      _controllers[groupKey] = ExpansibleController();
-    }
-
     final isExpanded = _expansionStates[groupKey] ?? _allExpanded;
 
-    return ExpansionTile(
+    return _CollapsibleCommentaryGroup(
       key: PageStorageKey(groupKey),
-      controller: _controllers[groupKey],
-      maintainState: true,
-      initiallyExpanded: isExpanded,
-      onExpansionChanged: (isExpanded) {
-        _expansionStates[groupKey] = isExpanded;
+      group: group,
+      isExpanded: isExpanded,
+      fontSize: widget.fontSize,
+      openBookCallback: widget.openBookCallback,
+      removeNikud: state.removeNikud,
+      showSearch: widget.showSearch,
+      searchQuery: _searchQuery,
+      getItemSearchIndex: _getItemSearchIndex,
+      updateSearchResultsCount: _updateSearchResultsCount,
+      itemKeys: _itemKeys,
+      getLinkKey: _getLinkKey,
+      indexesKey: indexesKey,
+      savedSelectedText: _savedSelectedText,
+      onExpansionChanged: (expanded) {
+        _expansionStates[groupKey] = expanded;
         // בודק אם כל המפרשים פתוחים או סגורים ומעדכן את המצב הגלובלי
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
@@ -373,78 +390,6 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
           }
         });
       },
-      backgroundColor: Colors.transparent,
-      collapsedBackgroundColor: Colors.transparent,
-      title: BlocBuilder<SettingsBloc, SettingsState>(
-        builder: (context, settingsState) {
-          String displayTitle = group.bookTitle;
-          if (settingsState.replaceHolyNames) {
-            displayTitle = utils.replaceHolyNames(displayTitle);
-          }
-          return Text(
-            displayTitle,
-            style: TextStyle(
-              fontSize: widget.fontSize * 0.85,
-              fontWeight: FontWeight.bold,
-              fontFamily: AppFonts.defaultFont,
-            ),
-          );
-        },
-      ),
-      children: group.links.map((link) {
-        return ctx.ContextMenuRegion(
-          contextMenu: ContextMenuUtils.buildCommentaryContextMenu(
-            context: context,
-            link: link,
-            openBookCallback: widget.openBookCallback,
-            fontSize: widget.fontSize,
-            savedSelectedText: _savedSelectedText,
-            onCopySelected: () => ContextMenuUtils.copyFormattedText(
-              context: context,
-              savedSelectedText: _savedSelectedText,
-              fontSize: widget.fontSize,
-            ),
-          ),
-          child: ListTile(
-            key: _itemKeys[_getLinkKey(link)],
-            contentPadding: const EdgeInsets.only(right: 32.0, left: 16.0),
-            title: BlocBuilder<SettingsBloc, SettingsState>(
-              builder: (context, settingsState) {
-                String displayTitle = link.heRef;
-                if (settingsState.replaceHolyNames) {
-                  displayTitle = utils.replaceHolyNames(displayTitle);
-                }
-
-                return Text(
-                  displayTitle,
-                  style: TextStyle(
-                    fontSize: widget.fontSize * 0.75,
-                    fontWeight: FontWeight.normal,
-                    fontFamily: AppFonts.defaultFont,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withValues(alpha: 0.5),
-                  ),
-                );
-              },
-            ),
-            subtitle: CommentaryContent(
-              key: ValueKey('${link.path2}_${link.index2}_$indexesKey'),
-              link: link,
-              fontSize: widget.fontSize,
-              openBookCallback: widget.openBookCallback,
-              removeNikud: state.removeNikud,
-              searchQuery: widget.showSearch ? _searchQuery : '',
-              currentSearchIndex:
-                  widget.showSearch ? _getItemSearchIndex(link) : 0,
-              onSearchResultsCountChanged: widget.showSearch
-                  ? (count) => _updateSearchResultsCount(link, count)
-                  : null,
-            ),
-          ),
-        );
-      }).toList(),
     );
   }
 
@@ -474,40 +419,35 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                 state.activeCommentators
                     .contains(utils.getTitleFromPath(link.path2)));
 
-            // אם אין קישורים רלוונטיים, לא מציג כלום
+            // אם אין קישורים רלוונטיים
             if (!hasRelevantLinks) {
+              // אם יש מפרשים זמינים אבל לא נבחרו בכלל - פתח אוטומטית את מסך הבחירה
+              if (hasAnyCommentaryLinks &&
+                  state.activeCommentators.isEmpty &&
+                  !_showCommentatorsFilter) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) {
+                    setState(() {
+                      _showCommentatorsFilter = true;
+                    });
+                  }
+                });
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              // אין מפרשים בכלל לקטע הזה, או שיש מפרשים נבחרים אבל הם לא רלוונטיים
               return Center(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        hasAnyCommentaryLinks
-                            ? 'לא נבחרו מפרשים להצגה'
-                            : 'לא נמצאו מפרשים לקטע הנבחר',
-                        style: TextStyle(
-                          fontSize: widget.fontSize * 0.7,
-                          color: Colors.grey,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      if (hasAnyCommentaryLinks &&
-                          widget.onOpenCommentatorsFilter != null) ...[
-                        const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          onPressed: widget.onOpenCommentatorsFilter,
-                          icon: const Icon(FluentIcons.apps_list_24_regular),
-                          label: const Text('בחר מפרשים'),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 12,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
+                  child: Text(
+                    hasAnyCommentaryLinks
+                        ? 'לא נמצאו מפרשים מהנבחרים לקטע זה'
+                        : 'לא נמצאו מפרשים לקטע הנבחר',
+                    style: TextStyle(
+                      fontSize: widget.fontSize * 0.7,
+                      color: Colors.grey,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
                 ),
               );
@@ -546,30 +486,45 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                 // יצירת מפתח ייחודי לאינדקסים הנוכחיים
                 final indexesKey = currentIndexes.join(',');
 
-                return ProgressiveScroll(
-                  scrollController: scrollController,
-                  maxSpeed: 10000.0,
-                  curve: 10.0,
-                  accelerationFactor: 5,
-                  child: ScrollablePositionedList.builder(
-                    itemScrollController: _itemScrollController,
-                    itemPositionsListener: _itemPositionsListener,
-                    initialScrollIndex:
-                        _lastScrollIndex.clamp(0, groups.length - 1),
-                    key: PageStorageKey(
-                        'commentary_${indexesKey}_${state.activeCommentators.hashCode}'),
-                    physics: const ClampingScrollPhysics(),
-                    scrollOffsetController: scrollController,
-                    shrinkWrap: widget.shrinkWrap,
-                    itemCount: groups.length,
-                    itemBuilder: (context, groupIndex) {
-                      final group = groups[groupIndex];
-                      return _buildCommentaryGroupTile(
-                        group: group,
-                        state: state,
-                        indexesKey: indexesKey,
-                      );
-                    },
+                return SelectionArea(
+                  onSelectionChanged: (selection) {
+                    if (selection != null && selection.plainText.isNotEmpty) {
+                      setState(() {
+                        _savedSelectedText = selection.plainText;
+                      });
+                    }
+                  },
+                  child: ProgressiveScroll(
+                    scrollController: scrollController,
+                    maxSpeed: 10000.0,
+                    curve: 10.0,
+                    accelerationFactor: 5,
+                    child: ScrollConfiguration(
+                      // מונע בעיות של Scrollbar עם ScrollController לא מחובר
+                      behavior: ScrollConfiguration.of(context).copyWith(
+                        scrollbars: false,
+                      ),
+                      child: ScrollablePositionedList.builder(
+                        itemScrollController: _itemScrollController,
+                        itemPositionsListener: _itemPositionsListener,
+                        initialScrollIndex:
+                            _lastScrollIndex.clamp(0, groups.length - 1),
+                        key: PageStorageKey(
+                            'commentary_${indexesKey}_${state.activeCommentators.hashCode}'),
+                        physics: const ClampingScrollPhysics(),
+                        scrollOffsetController: scrollController,
+                        shrinkWrap: widget.shrinkWrap,
+                        itemCount: groups.length,
+                        itemBuilder: (context, groupIndex) {
+                          final group = groups[groupIndex];
+                          return _buildCommentaryGroupTile(
+                            group: group,
+                            state: state,
+                            indexesKey: indexesKey,
+                          );
+                        },
+                      ),
+                    ),
                   ),
                 );
               },
@@ -579,6 +534,41 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
       }
 
       if (widget.showSearch) {
+        // אם מסך בחירת המפרשים פתוח, מציג אותו במקום הרשימה
+        if (_showCommentatorsFilter) {
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // שורת כותרת עם כפתור חזרה
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(FluentIcons.arrow_right_24_regular),
+                      tooltip: 'חזרה למפרשים',
+                      onPressed: _closeCommentatorsFilter,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'בחירת מפרשים',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: CommentatorsListView(
+                  onCommentatorSelected: _closeCommentatorsFilter,
+                ),
+              ),
+            ],
+          );
+        }
+
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -586,6 +576,25 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
               padding: const EdgeInsets.all(8.0),
               child: Row(
                 children: [
+                  // כפתור בחירת מפרשים - בצד ימין
+                  IconButton(
+                    icon: Icon(
+                      FluentIcons.apps_list_24_regular,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.6),
+                      size: 20,
+                    ),
+                    tooltip: 'בחירת מפרשים',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 40,
+                      minHeight: 40,
+                    ),
+                    onPressed: _openCommentatorsFilter,
+                  ),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: RtlTextField(
                       controller: _searchController,
@@ -870,6 +879,187 @@ class _SkeletonLine extends StatelessWidget {
         color: color,
         borderRadius: BorderRadius.circular(4),
       ),
+    );
+  }
+}
+
+/// Widget מותאם אישית להצגת קבוצת מפרשים עם אפשרות כיווץ/הרחבה
+/// שלא מפריע לבחירת טקסט והעתקה (במקום ExpansionTile)
+class _CollapsibleCommentaryGroup extends StatefulWidget {
+  final CommentaryGroup group;
+  final bool isExpanded;
+  final double fontSize;
+  final Function(TextBookTab) openBookCallback;
+  final bool removeNikud;
+  final bool showSearch;
+  final String searchQuery;
+  final int Function(Link) getItemSearchIndex;
+  final void Function(Link, int) updateSearchResultsCount;
+  final Map<String, GlobalKey> itemKeys;
+  final String Function(Link) getLinkKey;
+  final String indexesKey;
+  final String? savedSelectedText;
+  final void Function(bool) onExpansionChanged;
+
+  const _CollapsibleCommentaryGroup({
+    super.key,
+    required this.group,
+    required this.isExpanded,
+    required this.fontSize,
+    required this.openBookCallback,
+    required this.removeNikud,
+    required this.showSearch,
+    required this.searchQuery,
+    required this.getItemSearchIndex,
+    required this.updateSearchResultsCount,
+    required this.itemKeys,
+    required this.getLinkKey,
+    required this.indexesKey,
+    required this.savedSelectedText,
+    required this.onExpansionChanged,
+  });
+
+  @override
+  State<_CollapsibleCommentaryGroup> createState() =>
+      _CollapsibleCommentaryGroupState();
+}
+
+class _CollapsibleCommentaryGroupState
+    extends State<_CollapsibleCommentaryGroup> {
+  late bool _isExpanded;
+
+  @override
+  void initState() {
+    super.initState();
+    _isExpanded = widget.isExpanded;
+  }
+
+  @override
+  void didUpdateWidget(_CollapsibleCommentaryGroup oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isExpanded != widget.isExpanded) {
+      _isExpanded = widget.isExpanded;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // כותרת הקבוצה - ניתנת ללחיצה להרחבה/כיווץ
+        InkWell(
+          onTap: () {
+            setState(() {
+              _isExpanded = !_isExpanded;
+            });
+            widget.onExpansionChanged(_isExpanded);
+          },
+          child: Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+            child: Row(
+              children: [
+                Icon(
+                  _isExpanded
+                      ? Icons.keyboard_arrow_down
+                      : Icons.keyboard_arrow_left,
+                  size: 20,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurface
+                      .withValues(alpha: 0.6),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: BlocBuilder<SettingsBloc, SettingsState>(
+                    builder: (context, settingsState) {
+                      String displayTitle = widget.group.bookTitle;
+                      if (settingsState.replaceHolyNames) {
+                        displayTitle = utils.replaceHolyNames(displayTitle);
+                      }
+                      return Text(
+                        displayTitle,
+                        style: TextStyle(
+                          fontSize: widget.fontSize * 0.85,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: AppFonts.defaultFont,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        // תוכן המפרשים - מוצג רק כשמורחב
+        if (_isExpanded)
+          ...widget.group.links.map((link) {
+            return ctx.ContextMenuRegion(
+              contextMenu: ContextMenuUtils.buildCommentaryContextMenu(
+                context: context,
+                link: link,
+                openBookCallback: widget.openBookCallback,
+                fontSize: widget.fontSize,
+                savedSelectedText: widget.savedSelectedText,
+                onCopySelected: () => ContextMenuUtils.copyFormattedText(
+                  context: context,
+                  savedSelectedText: widget.savedSelectedText,
+                  fontSize: widget.fontSize,
+                ),
+              ),
+              child: Padding(
+                key: widget.itemKeys[widget.getLinkKey(link)],
+                padding: const EdgeInsets.only(
+                    right: 32.0, left: 16.0, top: 8.0, bottom: 8.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    BlocBuilder<SettingsBloc, SettingsState>(
+                      builder: (context, settingsState) {
+                        String displayTitle = link.heRef;
+                        if (settingsState.replaceHolyNames) {
+                          displayTitle = utils.replaceHolyNames(displayTitle);
+                        }
+                        return Text(
+                          displayTitle,
+                          style: TextStyle(
+                            fontSize: widget.fontSize * 0.75,
+                            fontWeight: FontWeight.normal,
+                            fontFamily: AppFonts.defaultFont,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurface
+                                .withValues(alpha: 0.5),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 4),
+                    CommentaryContent(
+                      key: ValueKey(
+                          '${link.path2}_${link.index2}_${widget.indexesKey}'),
+                      link: link,
+                      fontSize: widget.fontSize,
+                      openBookCallback: widget.openBookCallback,
+                      removeNikud: widget.removeNikud,
+                      searchQuery: widget.showSearch ? widget.searchQuery : '',
+                      currentSearchIndex: widget.showSearch
+                          ? widget.getItemSearchIndex(link)
+                          : 0,
+                      onSearchResultsCountChanged: widget.showSearch
+                          ? (count) =>
+                              widget.updateSearchResultsCount(link, count)
+                          : null,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+        const Divider(height: 1),
+      ],
     );
   }
 }

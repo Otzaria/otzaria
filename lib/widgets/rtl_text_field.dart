@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -7,7 +8,8 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 /// מתקן שתי בעיות ידועות ב-Flutter Desktop עם RTL:
 /// 1. מקשי החיצים פועלים הפוך
 /// 2. תפריט ההקשר המובנה לא מתאים
-class RtlTextField extends StatelessWidget {
+/// 3. בעיית autofocus באנדרואיד (המקלדת קופצת ונעלמת)
+class RtlTextField extends StatefulWidget {
   final TextEditingController? controller;
   final FocusNode? focusNode;
   final InputDecoration? decoration;
@@ -42,25 +44,48 @@ class RtlTextField extends StatelessWidget {
   });
 
   @override
+  State<RtlTextField> createState() => _RtlTextFieldState();
+}
+
+class _RtlTextFieldState extends State<RtlTextField> {
+  @override
+  void initState() {
+    super.initState();
+    // תיקון לבעיית autofocus באנדרואיד
+    // במקום להשתמש ב-autofocus: true ישירות, נבקש פוקוס אחרי שהמסך נבנה
+    if (widget.autofocus && widget.focusNode != null && Platform.isAndroid) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && widget.focusNode != null) {
+          widget.focusNode!.requestFocus();
+        }
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final effectiveController = controller ?? TextEditingController();
+    final effectiveController = widget.controller ?? TextEditingController();
     final bool isRtl = Directionality.of(context) == TextDirection.rtl;
+
+    // באנדרואיד, לא משתמשים ב-autofocus ישירות אלא דרך requestFocus ב-initState
+    final shouldUseAutofocus =
+        widget.autofocus && (widget.focusNode == null || !Platform.isAndroid);
 
     Widget textField = TextField(
       controller: effectiveController,
-      focusNode: focusNode,
-      decoration: decoration,
-      onChanged: onChanged,
-      onSubmitted: onSubmitted,
-      autofocus: autofocus,
-      keyboardType: keyboardType,
-      textInputAction: textInputAction,
-      maxLines: maxLines,
-      minLines: minLines,
-      enabled: enabled,
-      style: style,
-      textAlign: textAlign,
-      inputFormatters: inputFormatters,
+      focusNode: widget.focusNode,
+      decoration: widget.decoration,
+      onChanged: widget.onChanged,
+      onSubmitted: widget.onSubmitted,
+      autofocus: shouldUseAutofocus,
+      keyboardType: widget.keyboardType,
+      textInputAction: widget.textInputAction,
+      maxLines: widget.maxLines,
+      minLines: widget.minLines,
+      enabled: widget.enabled,
+      style: widget.style,
+      textAlign: widget.textAlign,
+      inputFormatters: widget.inputFormatters,
       contextMenuBuilder: (context, editableTextState) {
         // השבתת תפריט ההקשר המובנה
         return const SizedBox.shrink();

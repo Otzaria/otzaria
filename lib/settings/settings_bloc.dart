@@ -45,6 +45,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     on<UpdateEnablePerBookSettings>(_onUpdateEnablePerBookSettings);
     on<UpdateOfflineMode>(_onUpdateOfflineMode);
     on<UpdateAlignTabsToRight>(_onUpdateAlignTabsToRight);
+    on<UpdateEnableHtmlLinks>(_onUpdateEnableHtmlLinks);
   }
 
   Future<void> _onLoadSettings(
@@ -86,6 +87,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       enablePerBookSettings: settings['enablePerBookSettings'],
       isOfflineMode: settings['isOfflineMode'] ?? false,
       alignTabsToRight: settings['alignTabsToRight'] ?? false,
+      enableHtmlLinks: settings['enableHtmlLinks'] ?? true,
     ));
   }
 
@@ -111,6 +113,14 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   ) async {
     await _repository.updateAlignTabsToRight(event.alignTabsToRight);
     emit(state.copyWith(alignTabsToRight: event.alignTabsToRight));
+  }
+
+  Future<void> _onUpdateEnableHtmlLinks(
+    UpdateEnableHtmlLinks event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateEnableHtmlLinks(event.enableHtmlLinks);
+    emit(state.copyWith(enableHtmlLinks: event.enableHtmlLinks));
   }
 
   Future<void> _onUpdateDarkMode(

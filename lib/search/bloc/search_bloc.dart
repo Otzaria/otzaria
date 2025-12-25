@@ -32,6 +32,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     on<ToggleDotAll>(_onToggleDotAll);
     on<ToggleUnicode>(_onToggleUnicode);
     on<UpdateFacetCounts>(_onUpdateFacetCounts);
+    on<LoadMoreResults>(_onLoadMoreResults);
   }
   Future<void> _onUpdateSearchQuery(
     UpdateSearchQuery event,
@@ -228,7 +229,12 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     final newConfig =
         state.configuration.copyWith(currentFacets: [event.facet]);
     emit(state.copyWith(configuration: newConfig));
-    add(UpdateSearchQuery(state.searchQuery));
+    add(UpdateSearchQuery(
+      state.searchQuery,
+      customSpacing: event.customSpacing,
+      alternativeWords: event.alternativeWords,
+      searchOptions: event.searchOptions,
+    ));
   }
 
   void _onUpdateSortOrder(
@@ -407,6 +413,45 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
           '📋 All cached facets: ${newFacetCounts.keys.take(10).join(', ')}...');
     } else {
       debugPrint('🧹 Facet counts cleared');
+    }
+  }
+
+  Future<void> _onLoadMoreResults(
+    LoadMoreResults event,
+    Emitter<SearchState> emit,
+  ) async {
+    if (state.searchQuery.isEmpty || state.isLoading) {
+      return;
+    }
+
+    // אם כבר הצגנו את כל התוצאות, אין מה לטעון
+    if (state.results.length >= state.totalResults) {
+      return;
+    }
+
+    emit(state.copyWith(isLoading: true));
+
+    try {
+      // מבקשים את כל התוצאות עד עכשיו + עוד numResults תוצאות
+      final newLimit = state.results.length + state.numResults;
+      final allResults = await _repository.searchTexts(
+        state.searchQuery.replaceAll('"', '\\"'),
+        state.currentFacets,
+        newLimit,
+        fuzzy: state.fuzzy,
+        distance: state.distance,
+        order: state.sortBy,
+        customSpacing: event.customSpacing,
+        alternativeWords: event.alternativeWords,
+        searchOptions: event.searchOptions,
+      );
+
+      emit(state.copyWith(
+        results: allResults,
+        isLoading: false,
+      ));
+    } catch (e) {
+      emit(state.copyWith(isLoading: false));
     }
   }
 }

@@ -1,64 +1,98 @@
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:otzaria/models/books.dart';
 
 /// מחלקה לניהול ברירות מחדל של מפרשים לפי סוג הספר
+/// ההגדרות נטענות מקובץ JSON חיצוני
 class DefaultCommentators {
   /// מחזיר מפרשי ברירת מחדל לפי קטגוריית הספר
-  ///
-  /// המפתחות:
-  /// - 'right': מפרש שיוצג בצד שמאל (בגלל RTL)
-  /// - 'left': מפרש שיוצג בצד ימין (בגלל RTL)
-  /// - 'bottom': מפרש תחתון
-  /// - 'bottomRight': מפרש תחתון נוסף
-  static Map<String, String?> getDefaults(TextBook book) {
-    final categoryPath = book.category?.path ?? '';
-    final bookTitle = book.title;
+  static Future<Map<String, String?>> getDefaults(TextBook book) async {
+    final config = await _loadConfig();
+    
+    // קבלת נתיב הספר
+    final titleToPath = await book.data.titleToPath;
+    final bookPath = titleToPath[book.title] ?? '';
+    
+    return _getDefaultsFromConfig(config, book.title, bookPath);
+  }
 
-    // תנ"ך - תורה
-    if (categoryPath.contains('תנך') && categoryPath.contains('תורה')) {
+  static Future<Map<String, dynamic>> _loadConfig() async {
+    try {
+      final jsonString =
+          await rootBundle.loadString('assets/default_commentators.json');
+      return json.decode(jsonString) as Map<String, dynamic>;
+    } catch (e, s) {
+      debugPrint('Failed to load default commentators config: $e\n$s');
       return {
-        'right': 'רמבן על $bookTitle', // יוצג בשמאל
-        'left': 'רשי על $bookTitle', // יוצג בימין
-        'bottom': 'אור החיים על $bookTitle',
-        'bottomRight': null,
+        'categories': [],
+        'default': {
+          'right': null,
+          'left': null,
+          'bottom': null,
+          'bottomRight': null,
+        }
       };
     }
+  }
 
-    // משנה
-    if (categoryPath.contains('משנה')) {
-      return {
-        'right': 'תוספות יום טוב על $bookTitle', // יוצג בשמאל
-        'left': 'ברטנורא על $bookTitle', // יוצג בימין
-        'bottom': 'עיקר תוספות יום טוב על $bookTitle',
-        'bottomRight': null,
-      };
+  static Map<String, String?> _getDefaultsFromConfig(
+      Map<String, dynamic> config, String bookTitle, String bookPath) {
+    final categories = config['categories'] as List<dynamic>;
+
+    for (final category in categories) {
+      if (_matchesCategory(bookPath, category as Map<String, dynamic>)) {
+        return _parseCommentators(
+            category['commentators'] as Map<String, dynamic>, bookTitle);
+      }
     }
 
-    // תלמוד בבלי
-    if (categoryPath.contains('תלמוד בבלי')) {
-      return {
-        'right': 'תוספות על $bookTitle', // יוצג בשמאל
-        'left': 'רשי על $bookTitle', // יוצג בימין
-        'bottom': null,
-        'bottomRight': null,
-      };
+    final defaultConfig = config['default'] as Map<String, dynamic>;
+    return _parseCommentators(defaultConfig, bookTitle);
+  }
+
+  static bool _matchesCategory(
+      String bookPath, Map<String, dynamic> category) {
+    // pathContains - כל המחרוזות חייבות להיות בנתיב (AND)
+    if (category.containsKey('pathContains')) {
+      final pathContains = category['pathContains'] as List<dynamic>;
+      if (!pathContains.every((p) => bookPath.contains(p as String))) {
+        return false;
+      }
     }
 
-    // תלמוד ירושלמי
-    if (categoryPath.contains('תלמוד ירושלמי')) {
-      return {
-        'right': 'נועם ירושלמי על $bookTitle', // יוצג בשמאל
-        'left': 'פני משה על תלמוד ירושלמי $bookTitle', // יוצג בימין
-        'bottom': null,
-        'bottomRight': null,
-      };
+    // pathContainsAny - לפחות מחרוזת אחת חייבת להיות בנתיב (OR)
+    if (category.containsKey('pathContainsAny')) {
+      final pathContainsAny = category['pathContainsAny'] as List<dynamic>;
+      if (!pathContainsAny.any((p) => bookPath.contains(p as String))) {
+        return false;
+      }
     }
 
-    // אם אין ברירת מחדל, החזר ערכים ריקים
+    // pathNotContains - אף מחרוזת לא יכולה להיות בנתיב
+    if (category.containsKey('pathNotContains')) {
+      final pathNotContains = category['pathNotContains'] as List<dynamic>;
+      if (pathNotContains.any((p) => bookPath.contains(p as String))) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  static Map<String, String?> _parseCommentators(
+      Map<String, dynamic> commentators, String bookTitle) {
     return {
-      'right': null,
-      'left': null,
-      'bottom': null,
-      'bottomRight': null,
+      'right': _replaceBookTitle(commentators['right'] as String?, bookTitle),
+      'left': _replaceBookTitle(commentators['left'] as String?, bookTitle),
+      'bottom': _replaceBookTitle(commentators['bottom'] as String?, bookTitle),
+      'bottomRight':
+          _replaceBookTitle(commentators['bottomRight'] as String?, bookTitle),
     };
+  }
+
+  static String? _replaceBookTitle(String? template, String bookTitle) {
+    if (template == null) return null;
+    return template.replaceAll('{bookTitle}', bookTitle);
   }
 }

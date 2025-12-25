@@ -131,77 +131,118 @@ class FileSyncRepository {
     }
   }
 
+  /// Downloads a file using streaming for large files to prevent memory issues
+  /// and timeouts on slow networks.
   Future<void> downloadFile(String filePath) async {
     final url =
         'https://raw.githubusercontent.com/$githubOwner/$repositoryName/$branch/$filePath';
-    try {
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {
-          'Accept-Charset': 'utf-8',
-        },
-      ).timeout(
-        const Duration(seconds: 30),
-        onTimeout: () {
-          throw Exception('Download timeout for $filePath');
-        },
-      );
 
-      if (response.statusCode == 200) {
-        // Verify we got actual content
-        if (response.bodyBytes.isEmpty) {
-          throw Exception('Downloaded file is empty: $filePath');
+    final directory = await _localDirectory;
+    final localFilePath = _normalizeFilePath(filePath);
+    final file = File('$directory/$localFilePath');
+    final tempFile = File('$directory/$localFilePath.tmp');
+
+    try {
+      // Create directories if they don't exist
+      await tempFile.parent.create(recursive: true);
+
+      // Use streaming download for better handling of large files
+      final client = http.Client();
+      try {
+        final request = http.Request('GET', Uri.parse(url));
+        request.headers['Accept-Charset'] = 'utf-8';
+
+        final streamedResponse = await client.send(request).timeout(
+          const Duration(seconds: 90),
+          onTimeout: () {
+            throw Exception('Connection timeout for $filePath');
+          },
+        );
+
+        if (streamedResponse.statusCode != 200) {
+          throw Exception('HTTP ${streamedResponse.statusCode} for $filePath');
         }
 
-        final directory = await _localDirectory;
-        // Normalize the file path to get the local path
-        final localFilePath = _normalizeFilePath(filePath);
-        final file = File('$directory/$localFilePath');
-        final tempFile = File('$directory/$localFilePath.tmp');
+        // Get content length for progress tracking (may be null)
+        final contentLength = streamedResponse.contentLength;
 
-        // Create directories if they don't exist
-        await tempFile.parent.create(recursive: true);
+        // Stream directly to file - handles large files without memory issues
+        final sink = tempFile.openWrite();
+        int downloadedBytes = 0;
 
-        // Write to temporary file first
-        if (filePath.endsWith('.txt') ||
-            filePath.endsWith('.json') ||
-            filePath.endsWith('.csv')) {
-          await tempFile.writeAsString(utf8.decode(response.bodyBytes),
-              encoding: utf8);
-        } else {
-          // For binary files, write bytes directly
-          await tempFile.writeAsBytes(response.bodyBytes);
+        try {
+          await for (final chunk in streamedResponse.stream) {
+            // Check if sync was cancelled
+            if (!isSyncing) {
+              await sink.close();
+              if (await tempFile.exists()) {
+                await tempFile.delete();
+              }
+              throw Exception('Download cancelled for $filePath');
+            }
+
+            sink.add(chunk);
+            downloadedBytes += chunk.length;
+
+            // Log progress for large files (every 5MB)
+            if (contentLength != null &&
+                contentLength > 10 * 1024 * 1024 &&
+                downloadedBytes % (5 * 1024 * 1024) < chunk.length) {
+              final percent =
+                  (downloadedBytes / contentLength * 100).toStringAsFixed(1);
+              developer.log(
+                'Downloading $filePath: $percent% (${(downloadedBytes / 1024 / 1024).toStringAsFixed(1)}MB)',
+                name: 'FileSyncRepository',
+              );
+            }
+          }
+          await sink.flush();
+        } finally {
+          await sink.close();
         }
 
         // Verify the temp file was written successfully
-        if (await tempFile.exists() && await tempFile.length() > 0) {
-          // Only now replace the original file (if exists)
-          if (await file.exists()) {
-            await file.delete();
-          }
-          await tempFile.rename(file.path);
-          developer.log(
-              'Successfully downloaded: $filePath (${response.bodyBytes.length} bytes)',
-              name: 'FileSyncRepository');
-        } else {
+        if (!await tempFile.exists()) {
           throw Exception('Failed to write temporary file: $filePath');
         }
-      } else {
-        throw Exception('HTTP ${response.statusCode} for $filePath');
+
+        final tempFileSize = await tempFile.length();
+        if (tempFileSize == 0) {
+          throw Exception('Downloaded file is empty: $filePath');
+        }
+
+        // For text files, convert encoding if needed
+        if (filePath.endsWith('.txt') ||
+            filePath.endsWith('.json') ||
+            filePath.endsWith('.csv')) {
+          // Read and re-write with proper UTF-8 encoding
+          final bytes = await tempFile.readAsBytes();
+          await tempFile.writeAsString(utf8.decode(bytes), encoding: utf8);
+        }
+
+        // Only now replace the original file (if exists)
+        if (await file.exists()) {
+          await file.delete();
+        }
+        await tempFile.rename(file.path);
+
+        developer.log(
+          'Successfully downloaded: $filePath ($downloadedBytes bytes)',
+          name: 'FileSyncRepository',
+        );
+      } finally {
+        client.close();
       }
     } catch (e) {
       developer.log('Error downloading file $filePath',
           name: 'FileSyncRepository', error: e);
       // Clean up temp file if it exists
       try {
-        final directory = await _localDirectory;
-        final localFilePath = _normalizeFilePath(filePath);
-        final tempFile = File('$directory/$localFilePath.tmp');
         if (await tempFile.exists()) {
           await tempFile.delete();
         }
       } catch (_) {}
-      rethrow; // Re-throw so caller knows download failed
+      rethrow;
     }
   }
 

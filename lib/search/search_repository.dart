@@ -44,7 +44,8 @@ class SearchRepository {
     // בדיקת createSpellingWithPrefixPattern
     final finalPattern =
         SearchRegexPatterns.createSpellingWithPrefixPattern('ראשית');
-    debugPrint('🔍 Final createSpellingWithPrefixPattern result: $finalPattern');
+    debugPrint(
+        '🔍 Final createSpellingWithPrefixPattern result: $finalPattern');
     final index = await TantivyDataProvider.instance.engine;
 
     // בדיקה אם יש מרווחים מותאמים אישית, מילים חילופיות או אפשרויות חיפוש

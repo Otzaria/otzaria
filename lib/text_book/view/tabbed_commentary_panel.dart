@@ -8,7 +8,6 @@ import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/view/selected_line_links_view.dart';
 import 'package:otzaria/personal_notes/widgets/personal_notes_sidebar.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
-import 'package:otzaria/text_book/view/commentators_list_screen.dart';
 
 /// Widget שמציג כרטיסיות עם מפרשים וקישורים בחלונית הצד
 class TabbedCommentaryPanel extends StatefulWidget {
@@ -36,7 +35,6 @@ class TabbedCommentaryPanel extends StatefulWidget {
 class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  bool _showFilterTab = false; // האם להציג את טאב הסינון
 
   // פונקציה ציבורית לעבור לכרטיסיית הקישורים
   void switchToLinksTab() {
@@ -110,30 +108,6 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
                 ),
                 child: Row(
                   children: [
-                    // כפתור סינון מפרשים - בהתחלה
-                    IconButton(
-                      icon: Icon(
-                        FluentIcons.apps_list_24_regular,
-                        color: _showFilterTab
-                            ? Theme.of(context).colorScheme.primary
-                            : Theme.of(context)
-                                .colorScheme
-                                .onSurface
-                                .withValues(alpha: 0.6),
-                        size: 20,
-                      ),
-                      tooltip: 'בחירת מפרשים',
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(
-                        minWidth: 40,
-                        minHeight: 40,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _showFilterTab = !_showFilterTab;
-                        });
-                      },
-                    ),
                     Expanded(
                       child: TabBar(
                         controller: _tabController,
@@ -167,14 +141,6 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
                             .withValues(alpha: 0.6),
                         indicatorColor: Theme.of(context).colorScheme.primary,
                         dividerColor: Colors.transparent,
-                        onTap: (index) {
-                          // אם לוחצים על טאב מפרשים (0) ואנחנו בכפתור סינון, סוגרים אותו
-                          if (index == 0 && _showFilterTab) {
-                            setState(() {
-                              _showFilterTab = false;
-                            });
-                          }
-                        },
                       ),
                     ),
                     // לחצן סגירה
@@ -194,45 +160,32 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
             ),
             // תוכן הכרטיסיות
             Expanded(
-              child: _showFilterTab
-                  ? CommentatorsListView(
-                      onCommentatorSelected: () {
-                        // סגירת מסך בחירת המפרשים וחזרה לטאב המפרשים
-                        setState(() {
-                          _showFilterTab = false;
-                        });
-                      },
-                    )
-                  : TabBarView(
-                      controller: _tabController,
-                      children: [
-                        // כרטיסיית המפרשים - מציגה את תוכן המפרשים הפעילים
-                        CommentaryListBase(
-                          openBookCallback: widget.openBookCallback,
-                          fontSize: widget.fontSize,
-                          showSearch: widget.showSearch,
-                          onOpenCommentatorsFilter: () {
-                            setState(() {
-                              _showFilterTab = true;
-                            });
-                          },
-                        ),
-                        // כרטיסיית הקישורים
-                        SelectedLineLinksView(
-                          openBookCallback: widget.openBookCallback,
-                          fontSize: widget.fontSize,
-                          showVisibleLinksIfNoSelection:
-                              widget.initialTabIndex ==
-                                  1, // אם נפתח ישירות לקישורים
-                        ),
-                        // כרטיסיית ההערות האישיות
-                        PersonalNotesSidebar(
-                          bookId: state.book.title,
-                          onNavigateToLine: (line) =>
-                              _handleNoteNavigation(context, state, line),
-                        ),
-                      ],
-                    ),
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  // כרטיסיית המפרשים - מציגה את תוכן המפרשים הפעילים
+                  CommentaryListBase(
+                    key: const ValueKey('commentary_list_tabbed'),
+                    openBookCallback: widget.openBookCallback,
+                    fontSize: widget.fontSize,
+                    showSearch: widget.showSearch,
+                  ),
+                  // כרטיסיית הקישורים
+                  SelectedLineLinksView(
+                    openBookCallback: widget.openBookCallback,
+                    fontSize: widget.fontSize,
+                    showVisibleLinksIfNoSelection:
+                        widget.initialTabIndex ==
+                            1, // אם נפתח ישירות לקישורים
+                  ),
+                  // כרטיסיית ההערות האישיות
+                  PersonalNotesSidebar(
+                    bookId: state.book.title,
+                    onNavigateToLine: (line) =>
+                        _handleNoteNavigation(context, state, line),
+                  ),
+                ],
+              ),
             ),
           ],
         );

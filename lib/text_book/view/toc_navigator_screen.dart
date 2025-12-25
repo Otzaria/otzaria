@@ -130,7 +130,9 @@ class _TocViewerState extends State<TocViewer>
 
     void findMatchingEntries(List<TocEntry> entries) {
       for (final TocEntry entry in entries) {
-        if (entry.text.contains(searchController.text)) {
+        // דילוג על רמה 1 (כותרת ראשית של הספר) כדי למנוע התאמות שגויות
+        // לאותיות שמופיעות בשם הספר
+        if (entry.level > 1 && entry.text.contains(searchController.text)) {
           matchingEntries.add(entry);
         }
         findMatchingEntries(entry.children);

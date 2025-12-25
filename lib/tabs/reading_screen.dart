@@ -139,14 +139,16 @@ class _ReadingScreenState extends State<ReadingScreen>
                       children: [
                         // קבוצת היסטוריה וסימניות
                         IconButton(
-                          icon: const Icon(FluentIcons.history_24_regular, size: 18),
+                          icon: const Icon(FluentIcons.history_24_regular,
+                              size: 18),
                           tooltip:
                               'הצג היסטוריה (${historyShortcut.toUpperCase()})',
                           onPressed: () => _showHistoryDialog(context),
                           style: _kIconButtonStyle,
                         ),
                         IconButton(
-                          icon: const Icon(FluentIcons.bookmark_24_regular, size: 18),
+                          icon: const Icon(FluentIcons.bookmark_24_regular,
+                              size: 18),
                           tooltip:
                               'הצג סימניות (${bookmarksShortcut.toUpperCase()})',
                           onPressed: () => _showBookmarksDialog(context),
@@ -161,7 +163,8 @@ class _ReadingScreenState extends State<ReadingScreen>
                         ),
                         // קבוצת שולחן עבודה
                         IconButton(
-                          icon: const Icon(FluentIcons.add_square_24_regular, size: 18),
+                          icon: const Icon(FluentIcons.add_square_24_regular,
+                              size: 18),
                           tooltip:
                               'החלף שולחן עבודה (${workspaceShortcut.toUpperCase()})',
                           onPressed: () => _showSaveWorkspaceDialog(context),
@@ -200,15 +203,17 @@ class _ReadingScreenState extends State<ReadingScreen>
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 4.0),
                         child: IconButton(
-                          icon: const Icon(FluentIcons.settings_24_regular, size: 18),
+                          icon: const Icon(FluentIcons.settings_24_regular,
+                              size: 18),
                           tooltip: 'הגדרות תצוגת הספרים',
                           onPressed: () => showReadingSettingsDialog(context),
                           style: _kIconButtonStyle.copyWith(
                             foregroundColor: WidgetStatePropertyAll(
                                 Theme.of(context).colorScheme.onSurfaceVariant),
-                            backgroundColor: WidgetStatePropertyAll(Theme.of(context)
-                                .colorScheme
-                                .surfaceContainerHighest),
+                            backgroundColor: WidgetStatePropertyAll(
+                                Theme.of(context)
+                                    .colorScheme
+                                    .surfaceContainerHighest),
                           ),
                         ),
                       ),
@@ -306,14 +311,16 @@ class _ReadingScreenState extends State<ReadingScreen>
                     children: [
                       // קבוצת היסטוריה וסימניות
                       IconButton(
-                        icon: const Icon(FluentIcons.history_24_regular, size: 18),
+                        icon: const Icon(FluentIcons.history_24_regular,
+                            size: 18),
                         tooltip:
                             'הצג היסטוריה (${historyShortcut.toUpperCase()})',
                         onPressed: () => _showHistoryDialog(context),
                         style: _kIconButtonStyle,
                       ),
                       IconButton(
-                        icon: const Icon(FluentIcons.bookmark_24_regular, size: 18),
+                        icon: const Icon(FluentIcons.bookmark_24_regular,
+                            size: 18),
                         tooltip:
                             'הצג סימניות (${bookmarksShortcut.toUpperCase()})',
                         onPressed: () => _showBookmarksDialog(context),
@@ -328,7 +335,8 @@ class _ReadingScreenState extends State<ReadingScreen>
                       ),
                       // קבוצת שולחן עבודה עם אנימציה
                       IconButton(
-                        icon: const Icon(FluentIcons.add_square_24_regular, size: 18),
+                        icon: const Icon(FluentIcons.add_square_24_regular,
+                            size: 18),
                         tooltip:
                             'החלף שולחן עבודה (${workspaceShortcut.toUpperCase()})',
                         onPressed: () => _showSaveWorkspaceDialog(context),
@@ -340,8 +348,7 @@ class _ReadingScreenState extends State<ReadingScreen>
                   centerTitle: true,
                   title: Container(
                     // גובה מופחת של אזור הטאבים
-                    constraints:
-                        const BoxConstraints(maxHeight: 32),
+                    constraints: const BoxConstraints(maxHeight: 32),
                     child: ScrollableTabBarWithArrows(
                       controller: controller,
                       // יישור הטאבים לפי הגדרת המשתמש
@@ -397,15 +404,17 @@ class _ReadingScreenState extends State<ReadingScreen>
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4.0),
                       child: IconButton(
-                        icon: const Icon(FluentIcons.settings_24_regular, size: 18),
+                        icon: const Icon(FluentIcons.settings_24_regular,
+                            size: 18),
                         tooltip: 'הגדרות תצוגת הספרים',
                         onPressed: () => showReadingSettingsDialog(context),
                         style: _kIconButtonStyle.copyWith(
                           foregroundColor: WidgetStatePropertyAll(
                               Theme.of(context).colorScheme.onSurfaceVariant),
-                          backgroundColor: WidgetStatePropertyAll(Theme.of(context)
-                              .colorScheme
-                              .surfaceContainerHighest),
+                          backgroundColor: WidgetStatePropertyAll(
+                              Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainerHighest),
                         ),
                       ),
                     ),
@@ -519,32 +528,35 @@ class _ReadingScreenState extends State<ReadingScreen>
           maxHeight: 400,
           entries: <ContextMenuEntry>[
             MenuItem(
-              label: tab.isPinned ? 'בטל הצמדת כרטיסיה' : 'הצמד כרטיסיה',
-              onSelected: () => context.read<TabsBloc>().add(TogglePinTab(tab)),
-            ),
-            MenuItem(label: 'סגור', onSelected: () => closeTab(tab, context)),
-            MenuItem(
-                label: 'סגור הכל',
-                onSelected: () => closeAllTabs(state, context)),
-            MenuItem(
-              label: 'סגור את האחרים',
-              onSelected: () => closeAllTabsButCurrent(state, context),
+              label: Text(tab.isPinned ? 'בטל הצמדת כרטיסיה' : 'הצמד כרטיסיה'),
+              onSelected: (_) =>
+                  context.read<TabsBloc>().add(TogglePinTab(tab)),
             ),
             MenuItem(
-              label: 'שיכפול',
-              onSelected: () => context.read<TabsBloc>().add(CloneTab(tab)),
+                label: const Text('סגור'),
+                onSelected: (_) => closeTab(tab, context)),
+            MenuItem(
+                label: const Text('סגור הכל'),
+                onSelected: (_) => closeAllTabs(state, context)),
+            MenuItem(
+              label: const Text('סגור את האחרים'),
+              onSelected: (_) => closeAllTabsButCurrent(state, context),
+            ),
+            MenuItem(
+              label: const Text('שיכפול'),
+              onSelected: (_) => context.read<TabsBloc>().add(CloneTab(tab)),
             ),
             const MenuDivider(),
             // אפשרות "הצג לצד" - תמיד מוצגת, אבל מושבתת אם אין מספיק טאבים
             if (tab is! CombinedTab)
               if (state.tabs.length > 1)
                 MenuItem.submenu(
-                  label: 'הצג לצד',
+                  label: const Text('הצג לצד'),
                   items: state.tabs
                       .where((t) => t != tab && t is! CombinedTab)
                       .map((otherTab) => MenuItem(
-                            label: otherTab.title,
-                            onSelected: () {
+                            label: Text(otherTab.title),
+                            onSelected: (_) {
                               context.read<TabsBloc>().add(
                                     EnableSideBySideMode(
                                       rightTab: tab, // הטאב הנוכחי ימני
@@ -557,27 +569,27 @@ class _ReadingScreenState extends State<ReadingScreen>
                 )
               else
                 MenuItem(
-                  label: 'הצג לצד',
+                  label: const Text('הצג לצד'),
                   enabled: false,
-                  onSelected: () {},
+                  onSelected: (_) {},
                 ),
             // אפשרויות לטאב משולב
             if (tab is CombinedTab) ...[
               MenuItem(
-                label: 'החלף צדדים',
-                onSelected: () =>
+                label: const Text('החלף צדדים'),
+                onSelected: (_) =>
                     context.read<TabsBloc>().add(const SwapSideBySideTabs()),
               ),
               MenuItem(
-                label: 'חזרה לתצוגה רגילה',
-                onSelected: () =>
+                label: const Text('חזרה לתצוגה רגילה'),
+                onSelected: (_) =>
                     context.read<TabsBloc>().add(const DisableSideBySideMode()),
               ),
             ],
             const MenuDivider(),
             // הוסרת אפשרות הצמדה לדף הבית לאחר הסרת דף הבית
             MenuItem.submenu(
-              label: 'רשימת הכרטיסיות ',
+              label: const Text('רשימת הכרטיסיות '),
               items: _getMenuItems(state.tabs, context),
             )
           ],
@@ -643,8 +655,7 @@ class _ReadingScreenState extends State<ReadingScreen>
                   // הווידג'ט המרכזי שמכיל את הטאב עצמו (ללא שינוי).
                   Container(
                     // גובה מופחת של הטאבים
-                    constraints:
-                        const BoxConstraints(maxHeight: 32),
+                    constraints: const BoxConstraints(maxHeight: 32),
                     // הסרת padding ימני מהטאב הראשון כשהיישור לימין
                     padding: EdgeInsets.only(
                         left: 6,
@@ -664,7 +675,9 @@ class _ReadingScreenState extends State<ReadingScreen>
                           child: DefaultTextStyle(
                             style: TextStyle(
                               color: Theme.of(context).colorScheme.onSurface,
-                              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                              fontWeight: isSelected
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
                               fontSize: 14,
                             ),
                             child: Row(
@@ -713,7 +726,8 @@ class _ReadingScreenState extends State<ReadingScreen>
                                         const Padding(
                                           padding: EdgeInsets.all(8.0),
                                           child: Icon(
-                                              FluentIcons.document_pdf_24_regular,
+                                              FluentIcons
+                                                  .document_pdf_24_regular,
                                               size: 16),
                                         ),
                                         Text(truncate(tab.title, 12)),
@@ -771,15 +785,19 @@ class _ReadingScreenState extends State<ReadingScreen>
       List<OpenedTab> tabs, BuildContext context) {
     List<MenuItem> items = tabs
         .map((tab) => MenuItem(
-              label: tab.title,
-              onSelected: () {
+              label: Text(tab.title),
+              onSelected: (_) {
                 final index = tabs.indexOf(tab);
                 context.read<TabsBloc>().add(SetCurrentTab(index));
               },
             ))
         .toList();
 
-    items.sort((a, b) => a.label.compareTo(b.label));
+    items.sort((a, b) {
+      final aText = (a.label as Text).data ?? '';
+      final bText = (b.label as Text).data ?? '';
+      return aText.compareTo(bText);
+    });
     return items;
   }
 
@@ -1016,7 +1034,7 @@ class _TabBackgroundPainter extends CustomPainter {
 
     // מתחילים מהפינה השמאלית התחתונה עם עיגול הפוך
     path.moveTo(-bottomRadius, size.height + bottomOffset);
-    
+
     // עיגול הפוך בפינה התחתונה השמאלית
     path.arcToPoint(
       Offset(0, size.height + bottomOffset - bottomRadius),

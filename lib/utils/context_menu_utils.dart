@@ -26,16 +26,16 @@ class ContextMenuUtils {
     return ctx.ContextMenu(
       entries: [
         ctx.MenuItem(
-          label: 'העתק',
-          icon: FluentIcons.copy_24_regular,
+          label: const Text('העתק'),
+          icon: const Icon(FluentIcons.copy_24_regular),
           enabled:
               savedSelectedText != null && savedSelectedText.trim().isNotEmpty,
-          onSelected: onCopySelected,
+          onSelected: (_) => onCopySelected(),
         ),
         ctx.MenuItem(
-          label: 'העתק את כל הפסקה',
-          icon: FluentIcons.document_copy_24_regular,
-          onSelected: () => copyCommentaryParagraph(
+          label: const Text('העתק את כל הפסקה'),
+          icon: const Icon(FluentIcons.document_copy_24_regular),
+          onSelected: (_) => copyCommentaryParagraph(
             context: context,
             link: link,
             fontSize: fontSize,
@@ -43,9 +43,9 @@ class ContextMenuUtils {
         ),
         const ctx.MenuDivider(),
         ctx.MenuItem(
-          label: 'פתח ספר זה בחלון נפרד',
-          icon: FluentIcons.open_24_regular,
-          onSelected: () {
+          label: const Text('פתח ספר זה בחלון נפרד'),
+          icon: const Icon(FluentIcons.open_24_regular),
+          onSelected: (_) {
             openBookCallback(TextBookTab(
               book: TextBook(title: utils.getTitleFromPath(link.path2)),
               index: link.index2 - 1,
@@ -158,6 +158,7 @@ $textWithBreaks
         item.add(Formats.htmlText(htmlText));
 
         await clipboard.write([item]);
+        UiSnack.show('הטקסט הועתק');
       }
     } catch (e) {
       debugPrint('Error copying text: $e');

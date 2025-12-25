@@ -297,8 +297,11 @@ class _OutlineViewState extends State<OutlineView>
 
     getAllNodes(widget.outline, 0);
 
+    // דילוג על רמה 0 (כותרת ראשית של הספר) כדי למנוע התאמות שגויות
+    // לאותיות שמופיעות בשם הספר
     final filteredNodes = allNodes
-        .where((item) => item.node.title.contains(searchController.text))
+        .where((item) =>
+            item.level > 0 && item.node.title.contains(searchController.text))
         .toList();
 
     return SingleChildScrollView(

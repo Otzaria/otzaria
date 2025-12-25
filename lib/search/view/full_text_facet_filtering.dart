@@ -85,7 +85,12 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
   }
 
   void _setFacet(BuildContext context, String facet) {
-    context.read<SearchBloc>().add(SetFacet(facet));
+    context.read<SearchBloc>().add(SetFacet(
+          facet,
+          customSpacing: widget.tab.spacingValues,
+          alternativeWords: widget.tab.alternativeWords,
+          searchOptions: widget.tab.searchOptions,
+        ));
   }
 
   Widget _buildSearchField() {

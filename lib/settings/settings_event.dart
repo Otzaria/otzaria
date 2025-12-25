@@ -298,3 +298,12 @@ class UpdateAlignTabsToRight extends SettingsEvent {
   @override
   List<Object?> get props => [alignTabsToRight];
 }
+
+class UpdateEnableHtmlLinks extends SettingsEvent {
+  final bool enableHtmlLinks;
+
+  const UpdateEnableHtmlLinks(this.enableHtmlLinks);
+
+  @override
+  List<Object?> get props => [enableHtmlLinks];
+}

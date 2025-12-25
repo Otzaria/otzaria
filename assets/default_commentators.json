@@ -1,0 +1,111 @@
+{
+  "categories": [
+    {
+      "id": "torah",
+      "name": "תנ\"ך - תורה",
+      "pathContains": ["תנך", "תורה"],
+      "commentators": {
+        "right": "רמבן על {bookTitle}",
+        "left": "רשי על {bookTitle}",
+        "bottom": "תרגום אונקלוס על {bookTitle}",
+        "bottomRight": null
+      }
+    },
+    {
+      "id": "neviim_ketuvim",
+      "name": "תנ\"ך - נביאים וכתובים",
+      "pathContains": ["תנך"],
+      "pathContainsAny": ["נביאים", "כתובים"],
+      "commentators": {
+        "right": "רדק על {bookTitle}",
+        "left": "רשי על {bookTitle}",
+        "bottom": "מצודת דוד על {bookTitle}",
+        "bottomRight": "מלבים על {bookTitle}"
+      }
+    },
+    {
+      "id": "mishna",
+      "name": "משנה",
+      "pathContains": ["משנה"],
+      "pathNotContains": ["משנה תורה"],
+      "commentators": {
+        "right": "תוספות יום טוב על {bookTitle}",
+        "left": "ברטנורא על {bookTitle}",
+        "bottom": "תפארת ישראל על {bookTitle}",
+        "bottomRight": null
+      }
+    },
+    {
+      "id": "talmud_bavli",
+      "name": "תלמוד בבלי",
+      "pathContains": ["תלמוד בבלי"],
+      "commentators": {
+        "right": "תוספות על {bookTitle}",
+        "left": "רשי על {bookTitle}",
+        "bottom": null,
+        "bottomRight": null
+      }
+    },
+    {
+      "id": "talmud_yerushalmi",
+      "name": "תלמוד ירושלמי",
+      "pathContains": ["תלמוד ירושלמי"],
+      "commentators": {
+        "right": "פירוש הגרא על תלמוד ירושלמי {bookTitle}",
+        "left": "פני משה על תלמוד ירושלמי {bookTitle}",
+        "bottom": null,
+        "bottomRight": null
+      }
+    },
+    {
+      "id": "shulchan_aruch_oc",
+      "name": "שולחן ערוך - אורח חיים",
+      "pathContains": ["שולחן ערוך, אורח חיים"],
+      "commentators": {
+        "right": "טורי זהב על שולחן ערוך אורח חיים",
+        "left": "מגן אברהם",
+        "bottom": "ביאור הגרא על שולחן ערוך אורח חיים",
+        "bottomRight": "הגהות רבי עקיבא איגר על שלחן ערוך אורח חיים"
+      }
+    },
+    {
+      "id": "shulchan_aruch_yd",
+      "name": "שולחן ערוך - יורה דעה",
+      "pathContains": ["שולחן ערוך, יורה דעה"],
+      "commentators": {
+        "right": "טורי זהב על שולחן ערוך יורה דעה",
+        "left": "שפתי כהן על שולחן ערוך יורה דעה",
+        "bottom": "ביאור הגרא על שולחן ערוך יורה דעה",
+        "bottomRight": "הגהות רבי עקיבא איגר על שלחן ערוך יורה דעה"
+      }
+    },
+    {
+      "id": "shulchan_aruch_cm",
+      "name": "שולחן ערוך - חושן משפט",
+      "pathContains": ["שולחן ערוך, חושן משפט"],
+      "commentators": {
+        "right": "מאירת עיניים על שולחן ערוך חושן משפט",
+        "left": "שפתי כהן על שולחן ערוך חושן משפט",
+        "bottom": "ביאור הגרא על שולחן ערוך חושן משפט",
+        "bottomRight": "הגהות רבי עקיבא איגר על שלחן ערוך חושן משפט"
+      }
+    },
+    {
+      "id": "shulchan_aruch_eh",
+      "name": "שולחן ערוך - אבן העזר",
+      "pathContains": ["שולחן ערוך, אבן העזר"],
+      "commentators": {
+        "right": "בית שמואל",
+        "left": "חלקת מחוקק",
+        "bottom": "ביאור הגרא על שולחן ערוך אבן העזר",
+        "bottomRight": "הגהות רבי עקיבא איגר על שלחן ערוך אבן העזר"
+      }
+    }
+  ],
+  "default": {
+    "right": null,
+    "left": null,
+    "bottom": null,
+    "bottomRight": null
+  }
+}

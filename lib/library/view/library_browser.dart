@@ -333,7 +333,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                       borderRadius: BorderRadius.all(Radius.circular(8.0)),
                     ),
                     hintText:
-                        'איתור ספר ב${state.currentCategory?.title ?? ""}',
+                        'איתור ספר או מחבר ב${state.currentCategory?.title ?? ""}',
                   ),
                   onChanged: (value) {
                     context.read<LibraryBloc>().add(UpdateSearchQuery(value));
@@ -1074,49 +1074,58 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     LibraryState state,
     SettingsState settingsState,
   ) {
+    // בדיקה אם נמצאים בתיקיה הראשית
+    final isAtRoot = _depth == 0;
+
     return [
       // חזור לתיקיה קודמת (ראשון במסך הרחב)
       ActionButtonData(
         widget: IconButton(
           icon: const Icon(FluentIcons.arrow_up_24_regular),
           tooltip: 'חזרה לתיקיה הקודמת',
-          onPressed: () {
-            // בתצוגת רשימה - סגור את הקטגוריה האחרונה שנפתחה
-            if (_viewMode == ViewMode.list && _expandedCategories.isNotEmpty) {
-              setState(() {
-                _expandedCategories.remove(_expandedCategories.last);
-              });
-            }
-            // בתצוגת רשת - חזור לקטגוריה הקודמת
-            else if (state.currentCategory?.parent != null) {
-              setState(() {
-                _depth = _depth > 0 ? _depth - 1 : 0;
-              });
-              context.read<LibraryBloc>().add(NavigateUp());
-              context.read<LibraryBloc>().add(const SearchBooks());
-              _refocusSearchBar(selectAll: true);
-            }
-          },
+          onPressed: isAtRoot
+              ? null
+              : () {
+                  // בתצוגת רשימה - סגור את הקטגוריה האחרונה שנפתחה
+                  if (_viewMode == ViewMode.list &&
+                      _expandedCategories.isNotEmpty) {
+                    setState(() {
+                      _expandedCategories.remove(_expandedCategories.last);
+                    });
+                  }
+                  // בתצוגת רשת - חזור לקטגוריה הקודמת
+                  else if (state.currentCategory?.parent != null) {
+                    setState(() {
+                      _depth = _depth > 0 ? _depth - 1 : 0;
+                    });
+                    context.read<LibraryBloc>().add(NavigateUp());
+                    context.read<LibraryBloc>().add(const SearchBooks());
+                    _refocusSearchBar(selectAll: true);
+                  }
+                },
         ),
         icon: FluentIcons.arrow_up_24_regular,
         tooltip: 'חזרה לתיקיה הקודמת',
-        onPressed: () {
-          // בתצוגת רשימה - סגור את הקטגוריה האחרונה שנפתחה
-          if (_viewMode == ViewMode.list && _expandedCategories.isNotEmpty) {
-            setState(() {
-              _expandedCategories.remove(_expandedCategories.last);
-            });
-          }
-          // בתצוגת רשת - חזור לקטגוריה הקודמת
-          else if (state.currentCategory?.parent != null) {
-            setState(() {
-              _depth = _depth > 0 ? _depth - 1 : 0;
-            });
-            context.read<LibraryBloc>().add(NavigateUp());
-            context.read<LibraryBloc>().add(const SearchBooks());
-            _refocusSearchBar(selectAll: true);
-          }
-        },
+        onPressed: isAtRoot
+            ? null
+            : () {
+                // בתצוגת רשימה - סגור את הקטגוריה האחרונה שנפתחה
+                if (_viewMode == ViewMode.list &&
+                    _expandedCategories.isNotEmpty) {
+                  setState(() {
+                    _expandedCategories.remove(_expandedCategories.last);
+                  });
+                }
+                // בתצוגת רשת - חזור לקטגוריה הקודמת
+                else if (state.currentCategory?.parent != null) {
+                  setState(() {
+                    _depth = _depth > 0 ? _depth - 1 : 0;
+                  });
+                  context.read<LibraryBloc>().add(NavigateUp());
+                  context.read<LibraryBloc>().add(const SearchBooks());
+                  _refocusSearchBar(selectAll: true);
+                }
+              },
       ),
 
       // חזרה לתיקיה ראשית
@@ -1124,29 +1133,36 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         widget: IconButton(
           icon: const Icon(FluentIcons.home_24_regular),
           tooltip: 'חזרה לתיקיה הראשית',
-          onPressed: () {
-            setState(() {
-              _depth = 0;
-              _expandedCategories.clear(); // נקה את העץ הפתוח
-            });
-            context.read<LibraryBloc>().add(LoadLibrary());
-            context.read<FocusRepository>().librarySearchController.clear();
-            _update(context, state, settingsState);
-            _refocusSearchBar(selectAll: true);
-          },
+          onPressed: isAtRoot
+              ? null
+              : () {
+                  setState(() {
+                    _depth = 0;
+                    _expandedCategories.clear(); // נקה את העץ הפתוח
+                  });
+                  context.read<LibraryBloc>().add(LoadLibrary());
+                  context
+                      .read<FocusRepository>()
+                      .librarySearchController
+                      .clear();
+                  _update(context, state, settingsState);
+                  _refocusSearchBar(selectAll: true);
+                },
         ),
         icon: FluentIcons.home_24_regular,
         tooltip: 'חזרה לתיקיה הראשית',
-        onPressed: () {
-          setState(() {
-            _depth = 0;
-            _expandedCategories.clear(); // נקה את העץ הפתוח
-          });
-          context.read<LibraryBloc>().add(LoadLibrary());
-          context.read<FocusRepository>().librarySearchController.clear();
-          _update(context, state, settingsState);
-          _refocusSearchBar(selectAll: true);
-        },
+        onPressed: isAtRoot
+            ? null
+            : () {
+                setState(() {
+                  _depth = 0;
+                  _expandedCategories.clear(); // נקה את העץ הפתוח
+                });
+                context.read<LibraryBloc>().add(LoadLibrary());
+                context.read<FocusRepository>().librarySearchController.clear();
+                _update(context, state, settingsState);
+                _refocusSearchBar(selectAll: true);
+              },
       ),
 
       // סינכרון - מוצג רק אם מצב אופליין לא מופעל
@@ -1217,78 +1233,94 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     LibraryState state,
     SettingsState settingsState,
   ) {
+    // בדיקה אם נמצאים בתיקיה הראשית
+    final isAtRoot = _depth == 0;
+
     return [
       // 1) חזור לתיקיה קודמת, חזרה לתיקיה ראשית (החשובים ביותר)
       ActionButtonData(
         widget: IconButton(
           icon: const Icon(FluentIcons.arrow_up_24_regular),
           tooltip: 'חזרה לתיקיה הקודמת',
-          onPressed: () {
-            // בתצוגת רשימה - סגור את הקטגוריה האחרונה שנפתחה
-            if (_viewMode == ViewMode.list && _expandedCategories.isNotEmpty) {
-              setState(() {
-                _expandedCategories.remove(_expandedCategories.last);
-              });
-            }
-            // בתצוגת רשת - חזור לקטגוריה הקודמת
-            else if (state.currentCategory?.parent != null) {
-              setState(() {
-                _depth = _depth > 0 ? _depth - 1 : 0;
-              });
-              context.read<LibraryBloc>().add(NavigateUp());
-              context.read<LibraryBloc>().add(const SearchBooks());
-              _refocusSearchBar(selectAll: true);
-            }
-          },
+          onPressed: isAtRoot
+              ? null
+              : () {
+                  // בתצוגת רשימה - סגור את הקטגוריה האחרונה שנפתחה
+                  if (_viewMode == ViewMode.list &&
+                      _expandedCategories.isNotEmpty) {
+                    setState(() {
+                      _expandedCategories.remove(_expandedCategories.last);
+                    });
+                  }
+                  // בתצוגת רשת - חזור לקטגוריה הקודמת
+                  else if (state.currentCategory?.parent != null) {
+                    setState(() {
+                      _depth = _depth > 0 ? _depth - 1 : 0;
+                    });
+                    context.read<LibraryBloc>().add(NavigateUp());
+                    context.read<LibraryBloc>().add(const SearchBooks());
+                    _refocusSearchBar(selectAll: true);
+                  }
+                },
         ),
         icon: FluentIcons.arrow_up_24_regular,
         tooltip: 'חזרה לתיקיה הקודמת',
-        onPressed: () {
-          // בתצוגת רשימה - סגור את הקטגוריה האחרונה שנפתחה
-          if (_viewMode == ViewMode.list && _expandedCategories.isNotEmpty) {
-            setState(() {
-              _expandedCategories.remove(_expandedCategories.last);
-            });
-          }
-          // בתצוגת רשת - חזור לקטגוריה הקודמת
-          else if (state.currentCategory?.parent != null) {
-            setState(() {
-              _depth = _depth > 0 ? _depth - 1 : 0;
-            });
-            context.read<LibraryBloc>().add(NavigateUp());
-            context.read<LibraryBloc>().add(const SearchBooks());
-            _refocusSearchBar(selectAll: true);
-          }
-        },
+        onPressed: isAtRoot
+            ? null
+            : () {
+                // בתצוגת רשימה - סגור את הקטגוריה האחרונה שנפתחה
+                if (_viewMode == ViewMode.list &&
+                    _expandedCategories.isNotEmpty) {
+                  setState(() {
+                    _expandedCategories.remove(_expandedCategories.last);
+                  });
+                }
+                // בתצוגת רשת - חזור לקטגוריה הקודמת
+                else if (state.currentCategory?.parent != null) {
+                  setState(() {
+                    _depth = _depth > 0 ? _depth - 1 : 0;
+                  });
+                  context.read<LibraryBloc>().add(NavigateUp());
+                  context.read<LibraryBloc>().add(const SearchBooks());
+                  _refocusSearchBar(selectAll: true);
+                }
+              },
       ),
 
       ActionButtonData(
         widget: IconButton(
           icon: const Icon(FluentIcons.home_24_regular),
           tooltip: 'חזרה לתיקיה הראשית',
-          onPressed: () {
-            setState(() {
-              _depth = 0;
-              _expandedCategories.clear(); // נקה את העץ הפתוח
-            });
-            context.read<LibraryBloc>().add(LoadLibrary());
-            context.read<FocusRepository>().librarySearchController.clear();
-            _update(context, state, settingsState);
-            _refocusSearchBar(selectAll: true);
-          },
+          onPressed: isAtRoot
+              ? null
+              : () {
+                  setState(() {
+                    _depth = 0;
+                    _expandedCategories.clear(); // נקה את העץ הפתוח
+                  });
+                  context.read<LibraryBloc>().add(LoadLibrary());
+                  context
+                      .read<FocusRepository>()
+                      .librarySearchController
+                      .clear();
+                  _update(context, state, settingsState);
+                  _refocusSearchBar(selectAll: true);
+                },
         ),
         icon: FluentIcons.home_24_regular,
         tooltip: 'חזרה לתיקיה הראשית',
-        onPressed: () {
-          setState(() {
-            _depth = 0;
-            _expandedCategories.clear(); // נקה את העץ הפתוח
-          });
-          context.read<LibraryBloc>().add(LoadLibrary());
-          context.read<FocusRepository>().librarySearchController.clear();
-          _update(context, state, settingsState);
-          _refocusSearchBar(selectAll: true);
-        },
+        onPressed: isAtRoot
+            ? null
+            : () {
+                setState(() {
+                  _depth = 0;
+                  _expandedCategories.clear(); // נקה את העץ הפתוח
+                });
+                context.read<LibraryBloc>().add(LoadLibrary());
+                context.read<FocusRepository>().librarySearchController.clear();
+                _update(context, state, settingsState);
+                _refocusSearchBar(selectAll: true);
+              },
       ),
 
       // 2) הצג היסטוריה, הצג סימניות

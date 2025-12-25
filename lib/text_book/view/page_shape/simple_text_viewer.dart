@@ -31,6 +31,7 @@ class SimpleTextViewer extends StatefulWidget {
   final bool isMainText; // האם זה הטקסט המרכזי או מפרש
   final String? title; // כותרת (לכותרת עליונה)
   final String? bookTitle; // שם הספר (למפרשים - לפתיחה בטאב נפרד)
+  final Set<int>? highlightedIndices; // אינדקסים להדגשה (למפרשים)
 
   const SimpleTextViewer({
     super.key,
@@ -43,6 +44,7 @@ class SimpleTextViewer extends StatefulWidget {
     this.isMainText = false,
     this.title,
     this.bookTitle,
+    this.highlightedIndices,
   });
 
   @override
@@ -61,6 +63,27 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     _scrollController = widget.scrollController ?? ItemScrollController();
     _positionsListener =
         widget.positionsListener ?? ItemPositionsListener.create();
+
+    // גלילה למיקום הנוכחי אחרי בניית הווידג'ט (רק לטקסט המרכזי)
+    if (widget.isMainText) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToCurrentPosition();
+      });
+    }
+  }
+
+  /// גלילה למיקום הנוכחי (selectedIndex או visibleIndices)
+  void _scrollToCurrentPosition() {
+    final bloc = context.read<TextBookBloc>();
+    final state = bloc.state;
+    if (state is TextBookLoaded && _scrollController.isAttached) {
+      final targetIndex = state.selectedIndex ??
+          (state.visibleIndices.isNotEmpty ? state.visibleIndices.first : null);
+
+      if (targetIndex != null && targetIndex < widget.content.length) {
+        _scrollController.jumpTo(index: targetIndex);
+      }
+    }
   }
 
   /// תפריט הקשר - מעתיק מהתצוגה הרגילה
@@ -69,9 +92,9 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     return ctx.ContextMenu(
       entries: [
         ctx.MenuItem(
-          label: 'חיפוש',
-          icon: FluentIcons.search_24_regular,
-          onSelected: () {
+          label: const Text('חיפוש'),
+          icon: const Icon(FluentIcons.search_24_regular),
+          onSelected: (_) {
             // בצורת הדף אין חיפוש - אפשר להוסיף בעתיד
             UiSnack.show('חיפוש לא זמין בתצוגה זו');
           },
@@ -79,31 +102,31 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         const ctx.MenuDivider(),
         // הערות אישיות
         ctx.MenuItem(
-          label: 'הוסף הערה אישית לשורה זו',
-          icon: FluentIcons.note_add_24_regular,
-          onSelected: () => _createNoteForCurrentLine(index),
+          label: const Text('הוסף הערה אישית '),
+          icon: const Icon(FluentIcons.note_add_24_regular),
+          onSelected: (_) => _createNoteForCurrentLine(index),
         ),
         const ctx.MenuDivider(),
         // העתקה
         ctx.MenuItem(
-          label: 'העתק',
-          icon: FluentIcons.copy_24_regular,
+          label: const Text('העתק'),
+          icon: const Icon(FluentIcons.copy_24_regular),
           enabled: _savedSelectedText != null &&
               _savedSelectedText!.trim().isNotEmpty,
-          onSelected: _copyFormattedText,
+          onSelected: (_) => _copyFormattedText(),
         ),
         ctx.MenuItem(
-          label: 'העתק את כל הפסקה',
-          icon: FluentIcons.document_copy_24_regular,
+          label: const Text('העתק את כל הפסקה'),
+          icon: const Icon(FluentIcons.document_copy_24_regular),
           enabled: index >= 0 && index < widget.content.length,
-          onSelected: () => _copyParagraphByIndex(index),
+          onSelected: (_) => _copyParagraphByIndex(index),
         ),
         const ctx.MenuDivider(),
         // עריכת פסקה
         ctx.MenuItem(
-          label: 'ערוך פסקה זו',
-          icon: FluentIcons.edit_24_regular,
-          onSelected: () => _editParagraph(index),
+          label: const Text('ערוך פסקה זו'),
+          icon: const Icon(FluentIcons.edit_24_regular),
+          onSelected: (_) => _editParagraph(index),
         ),
       ],
     );
@@ -362,13 +385,19 @@ $textWithBreaks
     final isSelected = widget.isMainText && state.selectedIndex == index;
     final isHighlighted = widget.isMainText && state.highlightedLine == index;
 
+    // בדיקה חדשה - האם השורה מודגשת כפרשן קשור (מקומי)
+    final isCommentaryHighlighted = !widget.isMainText &&
+        (widget.highlightedIndices?.contains(index) ?? false);
+
     final theme = Theme.of(context);
     final backgroundColor = () {
       if (isHighlighted) {
-        return theme.colorScheme.secondaryContainer.withValues(alpha: 0.4);
+        return theme.colorScheme.secondaryContainer
+            .withAlpha((0.4 * 255).round());
       }
-      if (isSelected) {
-        return theme.colorScheme.primary.withValues(alpha: 0.08);
+      if (isCommentaryHighlighted || isSelected) {
+        // צבע הדגשה למפרש קשור - כמו השורה הנבחרת
+        return theme.colorScheme.primary.withAlpha((0.08 * 255).round());
       }
       return null;
     }();

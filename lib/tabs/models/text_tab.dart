@@ -54,22 +54,30 @@ class TextBookTab extends OpenedTab {
     this.searchText = '',
     this.commentators,
     bool openLeftPane = false,
-    bool splitedView = true,
+    bool? splitedView,
+    bool showPageShapeView = false,
     bool isPinned = false,
   }) : super(book.title, isPinned: isPinned) {
     debugPrint('DEBUG: TextBookTab נוצר עם אינדקס: $index לספר: ${book.title}');
+
+    // קביעת ברירת המחדל של splitedView מההגדרות אם לא סופק
+    final bool effectiveSplitedView =
+        splitedView ?? (Settings.getValue<bool>('key-splited-view') ?? false);
+
     // Initialize the bloc with initial state
     bloc = TextBookBloc(
       repository: TextBookRepository(
         fileSystem: FileSystemData.instance,
       ),
       overridesRepository: LocalOverridesRepository(),
-      initialState: TextBookInitial(
+      initialState: TextBookInitial.named(
         book,
         index,
         openLeftPane,
         commentators ?? [],
-        searchText,
+        searchText: searchText,
+        splitedView: effectiveSplitedView,
+        showPageShapeView: showPageShapeView,
       ),
       scrollController: scrollController,
       positionsListener: positionsListener,
@@ -103,13 +111,21 @@ class TextBookTab extends OpenedTab {
         (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
             (Settings.getValue<bool>('key-default-sidebar-open') ?? false);
 
+    // שחזור מצב התצוגה המפוצלת מה-JSON
+    final bool splitedView = json['splitedView'] ??
+        (Settings.getValue<bool>('key-splited-view') ?? false);
+
+    debugPrint(
+        'DEBUG: טעינת טאב ${json['title']} עם splitedView: $splitedView (מ-JSON: ${json['splitedView']})');
+
     return TextBookTab(
       index: json['initalIndex'],
       book: TextBook(
         title: json['title'],
       ),
       commentators: List<String>.from(json['commentators']),
-      splitedView: json['splitedView'],
+      splitedView: splitedView,
+      showPageShapeView: json['showPageShapeView'] ?? false,
       openLeftPane: shouldOpenLeftPane,
       isPinned: json['isPinned'] ?? false,
     );
@@ -123,26 +139,28 @@ class TextBookTab extends OpenedTab {
   Map<String, dynamic> toJson() {
     List<String> commentators = [];
     bool splitedView = false;
+    bool showPageShapeView = false;
     int currentIndex = index; // שמירת האינדקס הנוכחי כברירת מחדל
 
     if (bloc.state is TextBookLoaded) {
       final loadedState = bloc.state as TextBookLoaded;
       commentators = loadedState.activeCommentators;
       splitedView = loadedState.showSplitView;
+      showPageShapeView = loadedState.showPageShapeView;
       // עדכון האינדקס מה-state הנטען - תמיד לוקחים את האינדקס האחרון שנראה
       if (loadedState.visibleIndices.isNotEmpty) {
         currentIndex = loadedState.visibleIndices.first;
         // עדכון גם את ה-index של הטאב עצמו כדי שישמר
         index = currentIndex;
         debugPrint(
-            'DEBUG: שמירת טאב ${book.title} עם אינדקס: $currentIndex (מתוך visibleIndices)');
+            'DEBUG: שמירת טאב ${book.title} עם אינדקס: $currentIndex, splitedView: $splitedView (מתוך visibleIndices)');
       } else {
         debugPrint(
-            'DEBUG: שמירת טאב ${book.title} עם אינדקס: $currentIndex (ברירת מחדל)');
+            'DEBUG: שמירת טאב ${book.title} עם אינדקס: $currentIndex, splitedView: $splitedView (ברירת מחדל)');
       }
     } else {
       debugPrint(
-          'DEBUG: שמירת טאב ${book.title} עם אינדקס: $currentIndex (state לא loaded)');
+          'DEBUG: שמירת טאב ${book.title} עם אינדקס: $currentIndex, splitedView: $splitedView (state לא loaded)');
     }
 
     return {
@@ -150,6 +168,7 @@ class TextBookTab extends OpenedTab {
       'initalIndex': currentIndex,
       'commentators': commentators,
       'splitedView': splitedView,
+      'showPageShapeView': showPageShapeView,
       'isPinned': isPinned,
       'type': 'TextBookTab'
     };

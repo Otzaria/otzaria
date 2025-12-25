@@ -14,6 +14,7 @@ class TextBookScaffold extends StatelessWidget {
   final TextEditingValue searchTextController;
   final TextBookTab tab;
   final int? initialSidebarTabIndex;
+  final Key? pageShapeKey; // מפתח עבור PageShapeScreen
 
   const TextBookScaffold({
     super.key,
@@ -23,6 +24,7 @@ class TextBookScaffold extends StatelessWidget {
     required this.searchTextController,
     required this.tab,
     this.initialSidebarTabIndex,
+    this.pageShapeKey,
   });
 
   @override
@@ -34,7 +36,10 @@ class TextBookScaffold extends StatelessWidget {
         }
 
         if (state.showPageShapeView) {
-          return PageShapeScreen(openBookCallback: openBookCallback);
+          return PageShapeScreen(
+            key: pageShapeKey,
+            openBookCallback: openBookCallback,
+          );
         }
 
         // תמיד משתמשים ב-SplitedViewScreen, הוא יחליט אם להציג split או לא

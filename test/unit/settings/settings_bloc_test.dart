@@ -106,6 +106,7 @@ void main() {
             isOfflineMode: mockSettings['isOfflineMode'] as bool? ?? false,
             alignTabsToRight:
                 mockSettings['alignTabsToRight'] as bool? ?? false,
+            enableHtmlLinks: mockSettings['enableHtmlLinks'] as bool? ?? true,
           ),
         ],
         verify: (_) {

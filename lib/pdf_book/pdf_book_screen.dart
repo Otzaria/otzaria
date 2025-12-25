@@ -324,6 +324,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   int _lastComputedForPage = -1;
   void _onPdfViewerControllerUpdate() async {
     if (!widget.tab.pdfViewerController.isReady) return;
+
+    // שמירת מצב הזום לשחזור אחרי rebuild
+    widget.tab.savedZoom = widget.tab.pdfViewerController.value.zoom;
+
     final newPage = widget.tab.pdfViewerController.pageNumber ?? 1;
     if (newPage == widget.tab.pageNumber) return;
     widget.tab.pageNumber = newPage;
@@ -605,6 +609,27 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                                       controller.documentRef;
                                   widget.tab.outline.value =
                                       await document.loadOutline();
+
+                                  // 1.5. שחזור מצב הזום אם נשמר קודם
+                                  if (widget.tab.savedZoom != null &&
+                                      widget.tab.savedZoom != 1.0) {
+                                    // המתנה קצרה לוודא שה-viewer מוכן לחלוטין
+                                    // הערה: ספריית pdfrx לא מספקת callback או stream שמציין שה-viewer
+                                    // סיים את כל תהליכי האתחול והרינדור הראשוני. לכן משתמשים ב-delay
+                                    // קצר בשילוב עם בדיקת isReady. זהו פתרון סביר עד שהספרייה תספק
+                                    // דרך דטרמיניסטית יותר לדעת מתי בטוח לקרוא ל-setZoom.
+                                    await Future.delayed(
+                                        const Duration(milliseconds: 100));
+                                    if (mounted &&
+                                        widget
+                                            .tab.pdfViewerController.isReady) {
+                                      widget.tab.pdfViewerController.setZoom(
+                                        widget.tab.pdfViewerController
+                                            .centerPosition,
+                                        widget.tab.savedZoom!,
+                                      );
+                                    }
+                                  }
 
                                   // 2. עדכון הכותרת הנוכחית
                                   final currentPage =
@@ -1630,9 +1655,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         builder: (context, showRightPane, child) =>
             ValueListenableBuilder<double>(
           valueListenable: _rightPaneWidth,
-          builder: (context, width, child2) => SizedBox(
-            width: showRightPane ? width : 0,
-            child: child2!,
+          builder: (context, width, child2) => ClipRect(
+            child: SizedBox(
+              width: showRightPane ? width : 0,
+              child: showRightPane ? child2 : null,
+            ),
           ),
           child: child,
         ),

@@ -8,6 +8,7 @@ import 'package:html/parser.dart' as html_parser;
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
+import 'package:otzaria/search/bloc/search_event.dart';
 
 import 'package:otzaria/settings/settings_bloc.dart';
 import 'package:otzaria/settings/settings_state.dart';
@@ -361,10 +362,51 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
     }
 
     // תמיד נשתמש ב-ListView גם לתוצאה אחת - כך היא תופיע למעלה
+    // +1 לכפתור "טען תוצאות נוספות" אם יש עוד תוצאות
+    final hasMoreResults = state.results.length < state.totalResults;
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: state.results.length,
+      itemCount: state.results.length + (hasMoreResults ? 1 : 0),
       itemBuilder: (context, index) {
+        // אם זה האיטם האחרון והוא כפתור "טען עוד"
+        if (index == state.results.length) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16.0),
+            child: Center(
+              child: ElevatedButton.icon(
+                onPressed: state.isLoading
+                    ? null
+                    : () {
+                        context.read<SearchBloc>().add(
+                              LoadMoreResults(
+                                customSpacing: widget.tab.spacingValues,
+                                alternativeWords: widget.tab.alternativeWords,
+                                searchOptions: widget.tab.searchOptions,
+                              ),
+                            );
+                      },
+                icon: state.isLoading
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(FluentIcons.arrow_download_24_regular),
+                label: Text(
+                  state.isLoading
+                      ? 'טוען...'
+                      : 'טען תוצאות נוספות (${state.totalResults - state.results.length} נותרו)',
+                ),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                ),
+              ),
+            ),
+          );
+        }
         final result = state.results[index];
         return BlocBuilder<SettingsBloc, SettingsState>(
           builder: (context, settingsState) {
@@ -403,7 +445,10 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
               margin: const EdgeInsets.only(bottom: 12),
               decoration: BoxDecoration(
                 border: Border.all(
-                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .outline
+                      .withValues(alpha: 0.3),
                   width: 1,
                 ),
                 borderRadius: BorderRadius.circular(12),
@@ -433,12 +478,12 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                               ),
                               index: result.segment.toInt(),
                               searchText: widget.tab.queryController.text,
-                              openLeftPane: (Settings.getValue<bool>(
-                                          'key-pin-sidebar') ??
-                                      false) ||
-                                  (Settings.getValue<bool>(
-                                          'key-default-sidebar-open') ??
-                                      false)),
+                              openLeftPane:
+                                  (Settings.getValue<bool>('key-pin-sidebar') ??
+                                          false) ||
+                                      (Settings.getValue<bool>(
+                                              'key-default-sidebar-open') ??
+                                          false)),
                         ));
                   }
                 },

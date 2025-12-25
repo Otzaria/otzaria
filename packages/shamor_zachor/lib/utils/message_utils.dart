@@ -15,6 +15,7 @@ class UiSnack {
     scaffoldMessengerKey.currentState?.showSnackBar(
       SnackBar(
         content: Text(message, textDirection: TextDirection.rtl),
+        duration: const Duration(milliseconds: 1500),
       ),
     );
   }
@@ -25,6 +26,7 @@ class UiSnack {
       SnackBar(
         content: Text(message, textDirection: TextDirection.rtl),
         backgroundColor: backgroundColor ?? Colors.red,
+        duration: const Duration(seconds: 2),
       ),
     );
   }

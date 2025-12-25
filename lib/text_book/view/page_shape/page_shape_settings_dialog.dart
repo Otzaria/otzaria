@@ -36,10 +36,17 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
   String? _rightCommentator;
   String? _bottomCommentator;
   String? _bottomRightCommentator;
-  String _bottomFontFamily = AppFonts.defaultFont; // גופן ברירת מחדל למפרשים תחתונים
+  String _bottomFontFamily =
+      AppFonts.defaultFont; // גופן ברירת מחדל למפרשים תחתונים
   List<CommentatorGroup> _groups = [];
   bool _isLoadingGroups = true;
   bool _hasChanges = false; // האם היו שינויים שצריך לשמור
+  bool _highlightRelatedCommentators = false;
+  Map<String, bool> _columnVisibility = {
+    'left': true,
+    'right': true,
+    'bottom': true,
+  };
 
   @override
   void initState() {
@@ -55,7 +62,12 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
       _rightCommentator = widget.currentRight;
       _bottomCommentator = widget.currentBottom;
       _bottomRightCommentator = widget.currentBottomRight;
-      _bottomFontFamily = Settings.getValue<String>('page_shape_bottom_font') ?? AppFonts.defaultFont;
+      _bottomFontFamily = Settings.getValue<String>('page_shape_bottom_font') ??
+          AppFonts.defaultFont;
+      _highlightRelatedCommentators =
+          PageShapeSettingsManager.getHighlightSetting(widget.bookTitle);
+      _columnVisibility =
+          PageShapeSettingsManager.getColumnVisibility(widget.bookTitle);
     });
   }
 
@@ -124,8 +136,12 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
       },
     );
     // שמירת הגופן של המפרשים התחתונים (הגדרה גלובלית)
-    await Settings.setValue<String>('page_shape_bottom_font', _bottomFontFamily);
-    // לא מאפסים את _hasChanges כדי שהאב ידע שהיה שינוי
+    await Settings.setValue<String>(
+        'page_shape_bottom_font', _bottomFontFamily);
+    await PageShapeSettingsManager.saveHighlightSetting(
+      widget.bookTitle,
+      _highlightRelatedCommentators,
+    );
   }
 
   void _onCommentatorChanged(String? value, void Function(String?) setter) {
@@ -144,6 +160,15 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
     _saveSettings();
   }
 
+  void _toggleColumnVisibility(String column, bool visible) {
+    setState(() {
+      _columnVisibility[column] = visible;
+      _hasChanges = true;
+    });
+    PageShapeSettingsManager.saveColumnVisibility(
+        widget.bookTitle, _columnVisibility);
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -160,28 +185,49 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
+              SwitchListTile(
+                title: const Text('הדגש פרשנים קשורים'),
+                subtitle:
+                    const Text('הדגשת קטעים בפרשנים הקשורים לשורה שנבחרה'),
+                value: _highlightRelatedCommentators,
+                onChanged: (value) {
+                  setState(() {
+                    _highlightRelatedCommentators = value;
+                    _hasChanges = true;
+                  });
+                  _saveSettings();
+                },
+              ),
+              const Divider(),
+              const SizedBox(height: 8),
               _buildCommentatorDropdown(
                 label: 'מפרש ימני',
                 value: _leftCommentator,
-                onChanged: (value) => _onCommentatorChanged(value, (v) => setState(() => _leftCommentator = v)),
+                onChanged: (value) =>
+                    _onCommentatorChanged(value, (v) => _leftCommentator = v),
+                visibilityKey: 'left',
               ),
               const SizedBox(height: 12),
               _buildCommentatorDropdown(
                 label: 'מפרש שמאלי',
                 value: _rightCommentator,
-                onChanged: (value) => _onCommentatorChanged(value, (v) => setState(() => _rightCommentator = v)),
+                onChanged: (value) =>
+                    _onCommentatorChanged(value, (v) => _rightCommentator = v),
+                visibilityKey: 'right',
               ),
               const SizedBox(height: 12),
               _buildCommentatorDropdown(
                 label: 'מפרש תחתון',
                 value: _bottomCommentator,
-                onChanged: (value) => _onCommentatorChanged(value, (v) => setState(() => _bottomCommentator = v)),
+                onChanged: (value) =>
+                    _onCommentatorChanged(value, (v) => _bottomCommentator = v),
               ),
               const SizedBox(height: 12),
               _buildCommentatorDropdown(
                 label: 'מפרש תחתון נוסף',
                 value: _bottomRightCommentator,
-                onChanged: (value) => _onCommentatorChanged(value, (v) => setState(() => _bottomRightCommentator = v)),
+                onChanged: (value) => _onCommentatorChanged(
+                    value, (v) => _bottomRightCommentator = v),
               ),
               const SizedBox(height: 20),
               const Divider(),
@@ -197,10 +243,11 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
                   ),
                   Expanded(
                     child: DropdownButtonFormField<String>(
-value: _bottomFontFamily,
+                      initialValue: _bottomFontFamily,
                       decoration: const InputDecoration(
                         border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                       ),
                       items: AppFonts.availableFonts.map((font) {
                         return DropdownMenuItem<String>(
@@ -240,30 +287,61 @@ value: _bottomFontFamily,
     required String label,
     required String? value,
     required ValueChanged<String?> onChanged,
+    String? visibilityKey,
   }) {
+    final isVisible = visibilityKey != null
+        ? (_columnVisibility[visibilityKey] ?? true)
+        : true;
+
     return Row(
       children: [
+        // כפתור הצגה/הסתרה
+        if (visibilityKey != null)
+          IconButton(
+            icon: Icon(
+              isVisible ? Icons.visibility : Icons.visibility_off,
+              size: 20,
+              color: isVisible
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
+            ),
+            tooltip: isVisible ? 'הסתר טור' : 'הצג טור',
+            onPressed: () => _toggleColumnVisibility(visibilityKey, !isVisible),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          ),
         SizedBox(
-          width: 140,
-          child: Text(label, style: const TextStyle(fontSize: 15)),
+          width: visibilityKey != null ? 108 : 140,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 15,
+              color: isVisible
+                  ? null
+                  : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
+            ),
+          ),
         ),
         Expanded(
-          child: InkWell(
-            onTap: () => _showCommentatorPicker(value, onChanged),
-            child: InputDecorator(
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                contentPadding:
-                    EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                suffixIcon: Icon(Icons.arrow_drop_down, size: 20),
-              ),
-              child: Text(
-                value ?? 'ללא מפרש',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: value == null
-                      ? Theme.of(context).hintColor
-                      : Theme.of(context).textTheme.bodyLarge?.color,
+          child: Opacity(
+            opacity: isVisible ? 1.0 : 0.5,
+            child: InkWell(
+              onTap: isVisible ? () => _showCommentatorPicker(value, onChanged) : null,
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  suffixIcon: Icon(Icons.arrow_drop_down, size: 20),
+                ),
+                child: Text(
+                  value ?? 'ללא מפרש',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: value == null
+                        ? Theme.of(context).hintColor
+                        : Theme.of(context).textTheme.bodyLarge?.color,
+                  ),
                 ),
               ),
             ),

@@ -19,13 +19,29 @@ abstract class TextBookState extends Equatable {
 
 class TextBookInitial extends TextBookState {
   final String searchText;
+  final bool splitedView;
+  final bool showPageShapeView;
 
   const TextBookInitial(
       super.book, super.index, super.showLeftPane, super.commentators,
-      [this.searchText = '']);
+      [this.searchText = '',
+      this.splitedView = true,
+      this.showPageShapeView = false]);
+
+  // קונסטרקטור עם פרמטרים בשם
+  const TextBookInitial.named(
+    super.book,
+    super.index,
+    super.showLeftPane,
+    super.commentators, {
+    this.searchText = '',
+    bool? splitedView,
+    this.showPageShapeView = false,
+  }) : splitedView = splitedView ?? false; // ברירת מחדל: מפרשים מתחת
 
   @override
-  List<Object?> get props => [book.title, searchText];
+  List<Object?> get props =>
+      [book.title, searchText, splitedView, showPageShapeView];
 }
 
 class TextBookLoading extends TextBookState {

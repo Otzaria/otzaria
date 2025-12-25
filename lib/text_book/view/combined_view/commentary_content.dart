@@ -109,6 +109,7 @@ class _CommentaryContentState extends State<CommentaryContent> {
 
                   return HtmlWidget(
                     '<div style="text-align: justify; direction: rtl;">$displayText</div>',
+                    renderMode: RenderMode.column,
                     textStyle: TextStyle(
                       fontSize: settingsState.commentatorsFontSize,
                       fontFamily: settingsState.commentatorsFontFamily,

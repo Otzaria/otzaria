@@ -43,6 +43,7 @@ class SettingsRepository {
   static const String keyHebrewBooksPath = 'key-hebrew-books-path';
   static const String keyDevChannel = 'key-dev-channel';
   static const String keyAlignTabsToRight = 'key-align-tabs-to-right';
+  static const String keyEnableHtmlLinks = 'key-enable-html-links';
 
   // Calendar Notification Settings
   static const String keyCalendarNotificationsEnabled =
@@ -179,6 +180,10 @@ class SettingsRepository {
       'alignTabsToRight': _settings.getValue<bool>(
         keyAlignTabsToRight,
         defaultValue: false,
+      ),
+      'enableHtmlLinks': _settings.getValue<bool>(
+        keyEnableHtmlLinks,
+        defaultValue: true,
       ),
 
       // Calendar Notification Settings
@@ -330,6 +335,10 @@ class SettingsRepository {
     await _settings.setValue(keyAlignTabsToRight, value);
   }
 
+  Future<void> updateEnableHtmlLinks(bool value) async {
+    await _settings.setValue(keyEnableHtmlLinks, value);
+  }
+
   // Calendar Notification Settings
   Future<void> updateCalendarNotificationsEnabled(bool value) async {
     await _settings.setValue(keyCalendarNotificationsEnabled, value);
@@ -409,7 +418,8 @@ class SettingsRepository {
     await _settings.setValue(keyTextMaxWidth, -1.0);
     await _settings.setValue(keyFontSize, 25.0);
     await _settings.setValue(keyFontFamily, AppFonts.defaultFont);
-    await _settings.setValue(keyCommentatorsFontFamily, AppFonts.defaultCommentatorsFont);
+    await _settings.setValue(
+        keyCommentatorsFontFamily, AppFonts.defaultCommentatorsFont);
     await _settings.setValue(keyCommentatorsFontSize, 22.0);
     await _settings.setValue(keyShowOtzarHachochma, false);
     await _settings.setValue(keyShowHebrewBooks, false);

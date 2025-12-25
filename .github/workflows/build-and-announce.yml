@@ -126,7 +126,8 @@ jobs:
           $ErrorActionPreference = "Stop"
           
           try {
-            $latestRelease = Invoke-RestMethod -Uri "https://github.com/Y-PLONI/otzaria-library/releases/latest/download/otzaria_latest.zip"
+            # קבלת מידע על ה-release האחרון דרך GitHub API
+            $latestRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/Y-PLONI/otzaria-library/releases/latest"
             $zipAsset = $latestRelease.assets | Where-Object { $_.name -eq "otzaria_latest.zip" }
             
             if (-not $zipAsset) {
@@ -138,6 +139,8 @@ jobs:
             Write-Host "Downloading from: $($zipAsset.browser_download_url)"
             Write-Host "Size: $([math]::Round($zipAsset.size / 1MB, 2)) MB"
             
+            # הורדת הקובץ עם תמיכה בקבצים גדולים
+            $ProgressPreference = 'SilentlyContinue'  # מאיץ את ההורדה
             Invoke-WebRequest -Uri $zipAsset.browser_download_url -OutFile "otzaria_latest.zip" -UseBasicParsing
             Write-Host "Library ZIP downloaded successfully"
           }
@@ -405,16 +408,10 @@ jobs:
         run: |
           flutter pub get
           flutter build apk
-      
-      - name: Clean build artifacts
-        if: always()
-        run: |
-          # ניקוי קבצי build מיותרים אחרי הבנייה
-          flutter clean || true
+          # ניקוי מיידי של קבצים מיותרים מהבנייה (לא ה-APK הסופי)
           rm -rf build/app/intermediates || true
           rm -rf build/app/.transforms || true
-          rm -rf ~/.gradle/caches || true
-          echo "Disk space after build cleanup:"
+          echo "Disk space after intermediate cleanup:"
           df -h
       
       - name: Upload apk
@@ -422,6 +419,15 @@ jobs:
         with:
           name: otzaria-android.apk
           path: build/app/outputs/flutter-apk/app-release.apk
+      
+      - name: Final cleanup
+        if: always()
+        run: |
+          # ניקוי סופי של כל קבצי build וcache
+          rm -rf build || true
+          rm -rf ~/.gradle/caches || true
+          echo "Disk space after final cleanup:"
+          df -h
 
   build_macos:
     if: github.event_name != 'release'

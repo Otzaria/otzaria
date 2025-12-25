@@ -115,7 +115,7 @@ class _PersonalNotesManagerScreenState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('לא נמצאו הערות אישיות.'),
+            const Text('לא נמצאו הערות אישיות'),
             const SizedBox(height: 12),
             FilledButton(
               onPressed: _loadBooks,

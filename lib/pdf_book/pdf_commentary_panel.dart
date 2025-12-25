@@ -148,21 +148,21 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     return ctx.ContextMenu(
       entries: [
         ctx.MenuItem(
-          label: 'העתק',
-          icon: FluentIcons.copy_24_regular,
+          label: const Text('העתק'),
+          icon: const Icon(FluentIcons.copy_24_regular),
           enabled: _savedSelectedText != null &&
               _savedSelectedText!.trim().isNotEmpty,
-          onSelected: _copyFormattedText,
+          onSelected: (_) => _copyFormattedText(),
         ),
         ctx.MenuItem(
-          label: 'העתק את כל הטקסט',
-          icon: FluentIcons.document_copy_24_regular,
-          onSelected: _copyAllVisibleText,
+          label: const Text('העתק את כל הטקסט'),
+          icon: const Icon(FluentIcons.document_copy_24_regular),
+          onSelected: (_) => _copyAllVisibleText(),
         ),
         ctx.MenuItem(
-          label: 'בחר את כל הטקסט',
-          icon: FluentIcons.select_all_on_24_regular,
-          onSelected: () =>
+          label: const Text('בחר את כל הטקסט'),
+          icon: const Icon(FluentIcons.select_all_on_24_regular),
+          onSelected: (_) =>
               _selectionKey.currentState?.selectableRegion.selectAll(),
         ),
       ],
@@ -308,6 +308,10 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
             contextMenu: _buildContextMenu(),
             child: SelectionArea(
               key: _selectionKey,
+              contextMenuBuilder: (context, selectableRegionState) {
+                // מבטל את התפריט הרגיל של Flutter כי יש ContextMenuRegion
+                return const SizedBox.shrink();
+              },
               onSelectionChanged: (selection) {
                 if (selection != null && selection.plainText.isNotEmpty) {
                   setState(() {
@@ -442,6 +446,19 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
           link.connectionType == "commentary" ||
           link.connectionType == "targum");
 
+      // אם יש מפרשים זמינים אבל לא נבחרו בכלל - פתח אוטומטית את מסך הבחירה
+      if (hasCommentaryLinks && widget.tab.activeCommentators.isEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && !_showFilterTab) {
+            setState(() {
+              _showFilterTab = true;
+            });
+          }
+        });
+        return const Center(child: CircularProgressIndicator());
+      }
+
+      // אין מפרשים בכלל לקטע הזה, או שיש מפרשים נבחרים אבל הם לא רלוונטיים לדף
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
@@ -450,7 +467,7 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
             children: [
               Text(
                 hasCommentaryLinks
-                    ? 'לא נבחרו מפרשים להצגה'
+                    ? 'לא נמצאו מפרשים מהנבחרים לדף זה'
                     : 'לא נמצאו מפרשים לקטע הנבחר',
                 style: TextStyle(
                   fontSize: widget.fontSize * 0.9,
@@ -551,48 +568,15 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
   Widget _buildCommentaryGroupTile(CommentaryGroup group) {
     return BlocBuilder<SettingsBloc, SettingsState>(
       builder: (context, settingsState) {
-        return ExpansionTile(
+        return _CollapsibleCommentaryGroup(
           key: PageStorageKey(
               '${group.bookTitle}_${widget.tab.currentTextLineNumber}'),
-          maintainState: true,
-          initiallyExpanded: false,
-          backgroundColor: Theme.of(context).colorScheme.surface,
-          collapsedBackgroundColor: Theme.of(context).colorScheme.surface,
-          title: Text(
-            group.bookTitle,
-            style: TextStyle(
-              fontSize: settingsState.commentatorsFontSize - 2,
-              fontWeight: FontWeight.bold,
-              fontFamily: settingsState.commentatorsFontFamily,
-            ),
-          ),
-          children: group.links.map((link) {
-            return ctx.ContextMenuRegion(
-              contextMenu: _buildCommentaryContextMenu(link),
-              child: ListTile(
-                contentPadding: const EdgeInsets.only(right: 32.0, left: 16.0),
-                title: Text(
-                  link.heRef,
-                  style: TextStyle(
-                    fontSize: settingsState.commentatorsFontSize - 4,
-                    fontWeight: FontWeight.normal,
-                    fontFamily: settingsState.commentatorsFontFamily,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withValues(alpha: 0.5),
-                  ),
-                ),
-                subtitle: PdfCommentaryContent(
-                  key: ValueKey(
-                      '${link.path2}_${link.index2}_${widget.tab.currentTextLineNumber}'),
-                  link: link,
-                  fontSize: widget.fontSize,
-                  openBookCallback: widget.openBookCallback,
-                ),
-              ),
-            );
-          }).toList(),
+          group: group,
+          settingsState: settingsState,
+          tab: widget.tab,
+          fontSize: widget.fontSize,
+          openBookCallback: widget.openBookCallback,
+          buildContextMenu: _buildCommentaryContextMenu,
         );
       },
     );
@@ -827,5 +811,126 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     }
 
     return findInNodes(outline);
+  }
+}
+
+/// Widget מותאם אישית להצגת קבוצת מפרשים עם אפשרות כיווץ/הרחבה
+/// שלא מפריע לבחירת טקסט והעתקה (במקום ExpansionTile)
+class _CollapsibleCommentaryGroup extends StatefulWidget {
+  final CommentaryGroup group;
+  final SettingsState settingsState;
+  final PdfBookTab tab;
+  final double fontSize;
+  final Function(OpenedTab) openBookCallback;
+  final ctx.ContextMenu Function(Link) buildContextMenu;
+
+  const _CollapsibleCommentaryGroup({
+    super.key,
+    required this.group,
+    required this.settingsState,
+    required this.tab,
+    required this.fontSize,
+    required this.openBookCallback,
+    required this.buildContextMenu,
+  });
+
+  @override
+  State<_CollapsibleCommentaryGroup> createState() =>
+      _CollapsibleCommentaryGroupState();
+}
+
+class _CollapsibleCommentaryGroupState
+    extends State<_CollapsibleCommentaryGroup> {
+  late bool _isExpanded;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // שמירת מצב ההרחבה ב-PageStorage כדי לשמור אותו בגלילה
+    _isExpanded = PageStorage.of(context).readState(context) as bool? ?? true;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // כותרת הקבוצה - ניתנת ללחיצה להרחבה/כיווץ
+        InkWell(
+          onTap: () {
+            setState(() {
+              _isExpanded = !_isExpanded;
+              PageStorage.of(context).writeState(context, _isExpanded);
+            });
+          },
+          child: Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+            child: Row(
+              children: [
+                Icon(
+                  _isExpanded
+                      ? Icons.keyboard_arrow_down
+                      : Icons.keyboard_arrow_left,
+                  size: 20,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurface
+                      .withValues(alpha: 0.6),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    widget.group.bookTitle,
+                    style: TextStyle(
+                      fontSize: widget.settingsState.commentatorsFontSize - 2,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: widget.settingsState.commentatorsFontFamily,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        // תוכן המפרשים - מוצג רק כשמורחב
+        if (_isExpanded)
+          ...widget.group.links.map((link) {
+            return ctx.ContextMenuRegion(
+              contextMenu: widget.buildContextMenu(link),
+              child: Padding(
+                padding: const EdgeInsets.only(
+                    right: 32.0, left: 16.0, top: 8.0, bottom: 8.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      link.heRef,
+                      style: TextStyle(
+                        fontSize: widget.settingsState.commentatorsFontSize - 4,
+                        fontWeight: FontWeight.normal,
+                        fontFamily: widget.settingsState.commentatorsFontFamily,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onSurface
+                            .withValues(alpha: 0.5),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    PdfCommentaryContent(
+                      key: ValueKey(
+                          '${link.path2}_${link.index2}_${widget.tab.currentTextLineNumber}'),
+                      link: link,
+                      fontSize: widget.fontSize,
+                      openBookCallback: widget.openBookCallback,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+        const Divider(height: 1),
+      ],
+    );
   }
 }
