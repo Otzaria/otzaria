@@ -64,8 +64,16 @@ class _AboutScreenState extends State<AboutScreen> {
       {'name': 'zevisvei', 'url': 'https://github.com/zevisvei'},
       {'name': 'evel-avalim', 'url': 'https://github.com/evel-avalim'},
       {'name': 'userbot', 'url': 'https://github.com/userbot000'},
-      {'name': 'mosh-dvd', 'url': 'https://github.com/mosh-dvd', 'description': 'ממפתחי ממשק צורת הדף'},
-      {'name': 'NHLOCAL', 'url': 'https://github.com/NHLOCAL/Shamor-Zachor', 'description': "מפתח 'זכור ושמור'"},
+      {
+        'name': 'mosh-dvd',
+        'url': 'https://github.com/mosh-dvd',
+        'description': 'ממפתחי ממשק צורת הדף'
+      },
+      {
+        'name': 'NHLOCAL',
+        'url': 'https://github.com/NHLOCAL/Shamor-Zachor',
+        'description': "מפתח 'זכור ושמור'"
+      },
     ];
 
     return LayoutBuilder(
@@ -154,14 +162,16 @@ class _AboutScreenState extends State<AboutScreen> {
       },
       {
         'name': 'יהודי צעיר',
-        'url': 'https://mitmachim.top/user/%D7%99%D7%94%D7%95%D7%93%D7%99-%D7%A6%D7%A2%D7%99%D7%A8',
+        'url':
+            'https://mitmachim.top/user/%D7%99%D7%94%D7%95%D7%93%D7%99-%D7%A6%D7%A2%D7%99%D7%A8',
       },
       // {
-      //   'name': 'דורש טוב',  // כרגע לא רוצה
-      //   'url': 'https://mitmachim.top/user/%D7%93%D7%95%D7%A8%D7%A9-%D7%98%D7%95%D7%91',
+      //   'name': 'דורש טוב',
+      //   'url':
+      //       'https://mitmachim.top/user/%D7%93%D7%95%D7%A8%D7%A9-%D7%98%D7%95%D7%91',
       // },
       // {
-      //   'name': 'מ. פינק', // כרגע לא רוצה
+      //   'name': 'מ. פינק', כרגע לא רוצה
       // },
       // {
       //   'name': 'זקצ',
@@ -172,10 +182,11 @@ class _AboutScreenState extends State<AboutScreen> {
       },
       {
         'name': 'דאנציג',
-        'url': 'https://mitmachim.top/user/%D7%93%D7%90%D7%A0%D7%A6%D7%99%D7%92',
+        'url':
+            'https://mitmachim.top/user/%D7%93%D7%90%D7%A0%D7%A6%D7%99%D7%92',
       },
       // {
-      //   'name': 'י. אשכנזי', // כרגע לא רוצה
+      //   'name': 'י. אשכנזי', כרגע לא רוצה
       // },
       {
         'name': '333',
@@ -183,11 +194,13 @@ class _AboutScreenState extends State<AboutScreen> {
       },
       {
         'name': "טכנולוגי גו'ניור", // י. אייזנשטיין
-        'url': 'https://mitmachim.top/user/%D7%98%D7%9B%D7%A0%D7%95%D7%9C%D7%95%D7%92%D7%99-%D7%92%D7%95-%D7%A0%D7%99%D7%95%D7%A8',
+        'url':
+            'https://mitmachim.top/user/%D7%98%D7%9B%D7%A0%D7%95%D7%9C%D7%95%D7%92%D7%99-%D7%92%D7%95-%D7%A0%D7%99%D7%95%D7%A8',
       },
       {
         'name': 'הבל הבלים', // גאון גדול
-        'url': 'https://mitmachim.top/user/%D7%94%D7%91%D7%9C-%D7%94%D7%91%D7%9C%D7%99%D7%9D',
+        'url':
+            'https://mitmachim.top/user/%D7%94%D7%91%D7%9C-%D7%94%D7%91%D7%9C%D7%99%D7%9D',
       },
     ];
 
@@ -198,19 +211,23 @@ class _AboutScreenState extends State<AboutScreen> {
       },
       {
         'name': 'דוד משה 1',
-        'url': 'https://mitmachim.top/user/%D7%93%D7%95%D7%93-%D7%9E%D7%A9%D7%94-1',
+        'url':
+            'https://mitmachim.top/user/%D7%93%D7%95%D7%93-%D7%9E%D7%A9%D7%94-1',
       },
       {
         'name': 'איש צדיק מידי',
-        'url': 'https://mitmachim.top/user/%D7%90%D7%99%D7%A9-%D7%A6%D7%93%D7%99%D7%A7-%D7%9E%D7%99%D7%93%D7%99',
+        'url':
+            'https://mitmachim.top/user/%D7%90%D7%99%D7%A9-%D7%A6%D7%93%D7%99%D7%A7-%D7%9E%D7%99%D7%93%D7%99',
       },
       {
         'name': 'שני אנשים',
-        'url': 'https://mitmachim.top/user/%D7%A9%D7%A0%D7%99-%D7%90%D7%A0%D7%A9%D7%99%D7%9D',
-      },      
+        'url':
+            'https://mitmachim.top/user/%D7%A9%D7%A0%D7%99-%D7%90%D7%A0%D7%A9%D7%99%D7%9D',
+      },
       {
         'name': 'יאיר דניאל',
-        'url': 'https://mitmachim.top/user/%D7%99%D7%90%D7%99%D7%A8-%D7%93%D7%A0%D7%99%D7%90%D7%9C',
+        'url':
+            'https://mitmachim.top/user/%D7%99%D7%90%D7%99%D7%A8-%D7%93%D7%A0%D7%99%D7%90%D7%9C',
       },
     ];
 
