@@ -156,18 +156,18 @@ class _AboutScreenState extends State<AboutScreen> {
         'name': 'יהודי צעיר',
         'url': 'https://mitmachim.top/user/%D7%99%D7%94%D7%95%D7%93%D7%99-%D7%A6%D7%A2%D7%99%D7%A8',
       },
-      {
-        'name': 'דורש טוב',
-        'url': 'https://mitmachim.top/user/%D7%93%D7%95%D7%A8%D7%A9-%D7%98%D7%95%D7%91',
-      },
       // {
-      //   'name': 'מרדכי פינק', כרגע לא רוצה
+      //   'name': 'דורש טוב',  // כרגע לא רוצה
+      //   'url': 'https://mitmachim.top/user/%D7%93%D7%95%D7%A8%D7%A9-%D7%98%D7%95%D7%91',
+      // },
+      // {
+      //   'name': 'מ. פינק', // כרגע לא רוצה
       // },
       // {
       //   'name': 'זקצ',
       // },
       {
-        'name': 'קטנטן', // דוד בנדל
+        'name': 'קטנטן', // ד. בנדל
         'url': 'https://mitmachim.top/user/%D7%A7%D7%98%D7%A0%D7%98%D7%9F',
       },
       {
@@ -175,14 +175,14 @@ class _AboutScreenState extends State<AboutScreen> {
         'url': 'https://mitmachim.top/user/%D7%93%D7%90%D7%A0%D7%A6%D7%99%D7%92',
       },
       // {
-      //   'name': 'ישי אשכנזי', כרגע לא רוצה
+      //   'name': 'י. אשכנזי', // כרגע לא רוצה
       // },
       {
         'name': '333',
         'url': 'https://mitmachim.top/user/333',
       },
       {
-        'name': "טכנולוגי גו'ניור", // יעקב אייזנשטיין
+        'name': "טכנולוגי גו'ניור", // י. אייזנשטיין
         'url': 'https://mitmachim.top/user/%D7%98%D7%9B%D7%A0%D7%95%D7%9C%D7%95%D7%92%D7%99-%D7%92%D7%95-%D7%A0%D7%99%D7%95%D7%A8',
       },
       {
