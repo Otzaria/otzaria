@@ -143,6 +143,19 @@ jobs:
             $ProgressPreference = 'SilentlyContinue'  # מאיץ את ההורדה
             Invoke-WebRequest -Uri $zipAsset.browser_download_url -OutFile "otzaria_latest.zip" -UseBasicParsing
             Write-Host "Library ZIP downloaded successfully"
+            
+            # חילוץ הקבצים לתיקיית installer\library_files
+            Write-Host "Extracting library files to installer\library_files..."
+            if (Test-Path "installer\library_files") {
+              Remove-Item -Path "installer\library_files" -Recurse -Force
+            }
+            New-Item -ItemType Directory -Path "installer\library_files" -Force | Out-Null
+            Expand-Archive -Path "otzaria_latest.zip" -DestinationPath "installer\library_files" -Force
+            Write-Host "Library files extracted successfully"
+            
+            # מחיקת קובץ ה-ZIP לפינוי מקום
+            Remove-Item -Path "otzaria_latest.zip" -Force
+            Write-Host "Cleaned up ZIP file"
           }
           catch {
             Write-Host "::error::Failed to download library: $_"
@@ -171,6 +184,14 @@ jobs:
           if ("${{ steps.check_version.outputs.is_version }}" -eq "true") {
             Write-Host "Building FULL installer with library and VC++ Redistributable (version tag detected)..."
             & "$env:ISCC" installer\otzaria_full.iss
+            
+            # ניקוי קבצי הספרייה המחולצים לאחר בניית ה-FULL installer
+            Write-Host "Cleaning up extracted library files to free disk space..."
+            if (Test-Path "installer\library_files") {
+              Remove-Item -Path "installer\library_files" -Recurse -Force
+              Write-Host "Library files cleaned up successfully"
+            }
+            
             Write-Host "Building REGULAR installer (without VC++ Redistributable)..."
             & "$env:ISCC" installer\otzaria.iss
           } else {

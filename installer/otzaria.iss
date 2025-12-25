@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "אוצריא"
-#define MyAppVersion "0.9.73"
+#define MyAppVersion "0.9.74"
 #define MyAppPublisher "sivan22"
 #define MyAppURL "https://github.com/Y-PLONI/otzaria"
 #define MyAppExeName "otzaria.exe"
