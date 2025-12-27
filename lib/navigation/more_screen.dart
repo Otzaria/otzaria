@@ -3,6 +3,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/tools/measurement_converter/measurement_converter_screen.dart';
 import 'package:otzaria/tools/gematria/gematria_search_screen.dart';
+import 'package:otzaria/tools/aramaic_dictionary/aramaic_dictionary_screen.dart';
 import 'package:otzaria/settings/calendar_settings_dialog.dart';
 import 'package:otzaria/settings/gematria_settings_dialog.dart';
 import 'package:shamor_zachor/shamor_zachor.dart';
@@ -54,6 +55,7 @@ class _MoreScreenState extends State<MoreScreen> with TickerProviderStateMixin {
       const MeasurementConverterScreen(),
       const PersonalNotesManagerScreen(),
       GematriaSearchScreen(key: _gematriaKey),
+      const AramaicDictionaryScreen(),
     ];
   }
 
@@ -143,6 +145,10 @@ class _MoreScreenState extends State<MoreScreen> with TickerProviderStateMixin {
                         icon: const Icon(FluentIcons.calculator_24_regular),
                         label: _buildCenteredLabel('גימטריות'),
                       ),
+                      NavigationRailDestination(
+                        icon: const Icon(FluentIcons.book_24_regular),
+                        label: _buildCenteredLabel('מילון ארמי'),
+                      ),
                     ],
                   ),
                 ),
@@ -188,6 +194,10 @@ class _MoreScreenState extends State<MoreScreen> with TickerProviderStateMixin {
                   icon: Icon(FluentIcons.calculator_24_regular, size: 20),
                   label: 'גימטריה',
                 ),
+                BottomNavigationBarItem(
+                  icon: Icon(FluentIcons.book_24_regular, size: 20),
+                  label: 'מילון',
+                ),
               ],
             )
           : null,
@@ -206,6 +216,8 @@ class _MoreScreenState extends State<MoreScreen> with TickerProviderStateMixin {
         return 'הערות אישיות';
       case 4:
         return 'גימטריה';
+      case 5:
+        return 'מילון ארמי-עברי';
       default:
         return 'כלים';
     }

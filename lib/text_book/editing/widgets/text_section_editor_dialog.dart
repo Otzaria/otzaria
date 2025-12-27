@@ -327,6 +327,14 @@ class _TextSectionEditorDialogState extends State<TextSectionEditorDialog> {
             // Open search dialog
             _showSearchDialog();
             return true;
+          case LogicalKeyboardKey.keyZ:
+            // Undo
+            _undo();
+            return true;
+          case LogicalKeyboardKey.keyY:
+            // Redo
+            _redo();
+            return true;
         }
       } else if (event.logicalKey == LogicalKeyboardKey.escape) {
         _discardChanges();
@@ -375,6 +383,17 @@ class _TextSectionEditorDialogState extends State<TextSectionEditorDialog> {
   void _undo() {
     if (_undoIndex > 0) {
       _undoIndex--;
+      _isUndoRedoOperation = true;
+      _textController.text = _undoStack[_undoIndex];
+      _textController.selection = _undoSelectionStack[_undoIndex];
+      _previewContent = _undoStack[_undoIndex];
+      _isUndoRedoOperation = false;
+    }
+  }
+
+  void _redo() {
+    if (_undoIndex < _undoStack.length - 1) {
+      _undoIndex++;
       _isUndoRedoOperation = true;
       _textController.text = _undoStack[_undoIndex];
       _textController.selection = _undoSelectionStack[_undoIndex];
@@ -582,7 +601,8 @@ class _TextSectionEditorDialogState extends State<TextSectionEditorDialog> {
               onCode: () => _wrapSelection('<code>', '</code>'),
               onQuote: () => _wrapSelection('<blockquote>', '</blockquote>'),
               onUndo: _undo,
-              onRedo: () {/* TODO: Implement redo */},
+              onRedo: _redo,
+              /* TODO: Implement more */
               onSearch: _showSearchDialog,
               hasLinksFile: widget.hasLinksFile,
             ),

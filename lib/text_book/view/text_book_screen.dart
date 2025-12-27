@@ -964,13 +964,15 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         final currentSettings =
             config ?? await DefaultCommentators.getDefaults(state.book);
 
-        if (!mounted) return;
+        if (!context.mounted) return;
 
+        final availableCommentators = state.availableCommentators;
+        final bookTitle = state.book.title;
         final hadChanges = await showDialog<bool>(
           context: context,
-          builder: (dialogContext) => PageShapeSettingsDialog(
-            availableCommentators: state.availableCommentators,
-            bookTitle: state.book.title,
+          builder: (builderContext) => PageShapeSettingsDialog(
+            availableCommentators: availableCommentators,
+            bookTitle: bookTitle,
             currentLeft: currentSettings['left'],
             currentRight: currentSettings['right'],
             currentBottom: currentSettings['bottom'],
@@ -978,7 +980,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           ),
         );
         // אם היו שינויים, נשנה את המפתח כדי לגרום ל-PageShapeScreen להיבנות מחדש
-        if (hadChanges == true && mounted) {
+        if (hadChanges == true && context.mounted) {
           setState(() {
             _pageShapeKey = UniqueKey();
           });
