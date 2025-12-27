@@ -5,9 +5,9 @@
       "name": "תנ\"ך - תורה",
       "pathContains": ["תנך", "תורה"],
       "commentators": {
-        "right": "רמבן על {bookTitle}",
-        "left": "רשי על {bookTitle}",
-        "bottom": "תרגום אונקלוס על {bookTitle}",
+        "right": "רשי על {bookTitle}",
+        "left": "תרגום אונקלוס על {bookTitle}",
+        "bottom": "רמבן על {bookTitle}",
         "bottomRight": null
       }
     },
@@ -17,22 +17,44 @@
       "pathContains": ["תנך"],
       "pathContainsAny": ["נביאים", "כתובים"],
       "commentators": {
-        "right": "רדק על {bookTitle}",
-        "left": "רשי על {bookTitle}",
+        "right": "רשי על {bookTitle}",
+        "left": "רדק על {bookTitle}",
         "bottom": "מצודת דוד על {bookTitle}",
         "bottomRight": "מלבים על {bookTitle}"
+      }
+    },
+    {
+      "id": "mishna_berura",
+      "name": "משנה ברורה",
+      "pathContains": ["משנה ברורה"],
+      "commentators": {
+        "right": "ביאור הלכה",
+        "left": "שער הציון",
+        "bottom": null,
+        "bottomRight": null
       }
     },
     {
       "id": "mishna",
       "name": "משנה",
       "pathContains": ["משנה"],
-      "pathNotContains": ["משנה תורה"],
+      "pathNotContains": ["משנה תורה", "משנה ברורה"],
       "commentators": {
-        "right": "תוספות יום טוב על {bookTitle}",
-        "left": "ברטנורא על {bookTitle}",
-        "bottom": "תפארת ישראל על {bookTitle}",
+        "right": "ברטנורא על {bookTitle}",
+        "left": "תוספות יום טוב על {bookTitle}",
+        "bottom": "יכין על {bookTitle}",
         "bottomRight": null
+      }
+    },
+    {
+      "id": "rambam",
+      "name": "רמב\"ם - משנה תורה",
+      "pathContains": ["משנה תורה"],
+      "commentators": {
+        "right": "מגיד משנה",
+        "left": "כסף משנה",
+        "bottom": "השגות הראבד",
+        "bottomRight": "הגהות מיימוניות"
       }
     },
     {
@@ -40,8 +62,8 @@
       "name": "תלמוד בבלי",
       "pathContains": ["תלמוד בבלי"],
       "commentators": {
-        "right": "תוספות על {bookTitle}",
-        "left": "רשי על {bookTitle}",
+        "right": "רשי על {bookTitle}",
+        "left": "תוספות על {bookTitle}",
         "bottom": null,
         "bottomRight": null
       }
@@ -51,30 +73,78 @@
       "name": "תלמוד ירושלמי",
       "pathContains": ["תלמוד ירושלמי"],
       "commentators": {
-        "right": "פירוש הגרא על תלמוד ירושלמי {bookTitle}",
+        "right": "קרבן העדה על תלמוד ירושלמי {bookTitle}",
         "left": "פני משה על תלמוד ירושלמי {bookTitle}",
-        "bottom": null,
+        "bottom": "ביאור הגרא על תלמוד ירושלמי {bookTitle}",
+        "bottomRight": null
+      }
+    },
+    {
+      "id": "tur_oc",
+      "name": "טור - אורח חיים",
+      "pathContains": ["טור", "אורח חיים"],
+      "pathNotContains": ["שולחן ערוך"],
+      "commentators": {
+        "right": "בית יוסף על טור אורח חיים",
+        "left": "בית חדש על טור אורח חיים",
+        "bottom": "דרכי משה על טור אורח חיים",
+        "bottomRight": null
+      }
+    },
+    {
+      "id": "tur_yd",
+      "name": "טור - יורה דעה",
+      "pathContains": ["טור", "יורה דעה"],
+      "pathNotContains": ["שולחן ערוך"],
+      "commentators": {
+        "right": "בית יוסף על טור יורה דעה",
+        "left": "בית חדש על טור יורה דעה",
+        "bottom": "דרכי משה על טור יורה דעה",
+        "bottomRight": null
+      }
+    },
+    {
+      "id": "tur_cm",
+      "name": "טור - חושן משפט",
+      "pathContains": ["טור", "חושן משפט"],
+      "pathNotContains": ["שולחן ערוך"],
+      "commentators": {
+        "right": "בית יוסף על טור חושן משפט",
+        "left": "בית חדש על טור חושן משפט",
+        "bottom": "דרכי משה על טור חושן משפט",
+        "bottomRight": null
+      }
+    },
+    {
+      "id": "tur_eh",
+      "name": "טור - אבן העזר",
+      "pathContains": ["טור", "אבן העזר"],
+      "pathNotContains": ["שולחן ערוך"],
+      "commentators": {
+        "right": "בית יוסף על טור אבן העזר",
+        "left": "בית חדש על טור אבן העזר",
+        "bottom": "דרכי משה על טור אבן העזר",
         "bottomRight": null
       }
     },
     {
       "id": "shulchan_aruch_oc",
       "name": "שולחן ערוך - אורח חיים",
-      "pathContains": ["שולחן ערוך, אורח חיים"],
+      "pathContains": ["שולחן ערוך", "אורח חיים"],
       "commentators": {
-        "right": "טורי זהב על שולחן ערוך אורח חיים",
-        "left": "מגן אברהם",
-        "bottom": "ביאור הגרא על שולחן ערוך אורח חיים",
-        "bottomRight": "הגהות רבי עקיבא איגר על שלחן ערוך אורח חיים"
+        "right": "מגן אברהם",
+        "left": "טורי זהב על שולחן ערוך אורח חיים",
+        "bottom": "משנה ברורה",
+        "bottomRight": "ביאור הגרא על שולחן ערוך אורח חיים"
       }
     },
     {
       "id": "shulchan_aruch_yd",
       "name": "שולחן ערוך - יורה דעה",
-      "pathContains": ["שולחן ערוך, יורה דעה"],
+      "pathContains": ["שולחן ערוך", "יורה דעה"],
       "commentators": {
-        "right": "טורי זהב על שולחן ערוך יורה דעה",
-        "left": "שפתי כהן על שולחן ערוך יורה דעה",
+        "right": "שפתי כהן על שולחן ערוך יורה דעה",
+        "left": "טורי זהב על שולחן ערוך יורה דעה",
         "bottom": "ביאור הגרא על שולחן ערוך יורה דעה",
         "bottomRight": "הגהות רבי עקיבא איגר על שלחן ערוך יורה דעה"
       }
@@ -82,10 +152,10 @@
     {
       "id": "shulchan_aruch_cm",
       "name": "שולחן ערוך - חושן משפט",
-      "pathContains": ["שולחן ערוך, חושן משפט"],
+      "pathContains": ["שולחן ערוך", "חושן משפט"],
       "commentators": {
-        "right": "מאירת עיניים על שולחן ערוך חושן משפט",
-        "left": "שפתי כהן על שולחן ערוך חושן משפט",
+        "right": "שפתי כהן על שולחן ערוך חושן משפט",
+        "left": "מאירת עיניים על שולחן ערוך חושן משפט",
         "bottom": "ביאור הגרא על שולחן ערוך חושן משפט",
         "bottomRight": "הגהות רבי עקיבא איגר על שלחן ערוך חושן משפט"
       }
@@ -93,10 +163,10 @@
     {
       "id": "shulchan_aruch_eh",
       "name": "שולחן ערוך - אבן העזר",
-      "pathContains": ["שולחן ערוך, אבן העזר"],
+      "pathContains": ["שולחן ערוך", "אבן העזר"],
       "commentators": {
-        "right": "בית שמואל",
-        "left": "חלקת מחוקק",
+        "right": "חלקת מחוקק",
+        "left": "בית שמואל",
         "bottom": "ביאור הגרא על שולחן ערוך אבן העזר",
         "bottomRight": "הגהות רבי עקיבא איגר על שלחן ערוך אבן העזר"
       }
