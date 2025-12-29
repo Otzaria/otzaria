@@ -1399,16 +1399,16 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           },
         ),
 
-      // 8) מקור הספר וזכויות יוצרים - לא בתצוגה משולבת
+      // 8) אודות הספר - לא בתצוגה משולבת
       if (!widget.isInCombinedView)
         ActionButtonData(
           widget: IconButton(
             icon: const Icon(FluentIcons.info_24_regular),
-            tooltip: 'מקור הספר וזכויות יוצרים',
+            tooltip: 'אודות הספר',
             onPressed: () => showBookSourceDialog(context, state),
           ),
           icon: FluentIcons.info_24_regular,
-          tooltip: 'מקור הספר וזכויות יוצרים',
+          tooltip: 'אודות הספר',
           onPressed: () => showBookSourceDialog(context, state),
         ),
 
@@ -1462,7 +1462,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             ActionButtonData(
               widget: const SizedBox.shrink(),
               icon: FluentIcons.info_24_regular,
-              tooltip: 'מקור הספר וזכויות יוצרים',
+              tooltip: 'אודות הספר',
               onPressed: () => showBookSourceDialog(context, state),
             ),
           ],
