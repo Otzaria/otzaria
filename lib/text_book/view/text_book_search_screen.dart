@@ -105,6 +105,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
   }
 
   Future<void> _initializeBookPath() async {
+    if (!mounted) return;
     final state = context.read<TextBookBloc>().state;
     if (state is TextBookLoaded) {
       final bookTitle = state.book.title;
