@@ -25,8 +25,17 @@ import 'package:otzaria/widgets/rtl_text_field.dart';
 /// כשמבצעים חיפוש, הדיאלוג נסגר ונפתחת לשונית תוצאות
 class SearchDialog extends StatefulWidget {
   final SearchingTab? existingTab;
+  final Function(
+    String query,
+    Map<String, Map<String, bool>> searchOptions,
+    Map<int, List<String>> alternativeWords,
+    Map<String, String> spacingValues,
+    SearchMode searchMode,
+  )? onSearch;
+  final String? bookTitle;
 
-  const SearchDialog({super.key, this.existingTab});
+  const SearchDialog(
+      {super.key, this.existingTab, this.onSearch, this.bookTitle});
 
   @override
   State<SearchDialog> createState() => _SearchDialogState();
@@ -54,7 +63,11 @@ class _SearchDialogState extends State<SearchDialog> {
         Settings.getValue<String>('key-last-search-mode') ?? 'advanced';
 
     // יצירת טאב עם ההקלדה האחרונה
-    _searchTab = SearchingTab("חיפוש", lastTyping);
+    if (widget.existingTab != null) {
+      _searchTab = widget.existingTab!;
+    } else {
+      _searchTab = SearchingTab("חיפוש", lastTyping);
+    }
 
     // הגדרת מצב החיפוש האחרון
     final searchMode = lastMode == 'advanced'
@@ -301,6 +314,18 @@ class _SearchDialogState extends State<SearchDialog> {
             ? 'fuzzy'
             : 'exact';
     Settings.setValue<String>('key-last-search-mode', modeString);
+
+    if (widget.onSearch != null) {
+      widget.onSearch!(
+        query,
+        _searchTab.searchOptions,
+        _searchTab.alternativeWords,
+        _searchTab.spacingValues,
+        currentMode,
+      );
+      Navigator.of(context).pop();
+      return;
+    }
 
     // יצירת טאב חדש לגמרי - ללא קשר לטאב קודם
     // שם הלשונית: "חיפוש: [מילות החיפוש]"
@@ -946,10 +971,12 @@ class _SearchDialogState extends State<SearchDialog> {
                   children: [
                     const Icon(FluentIcons.search_24_filled, size: 28),
                     const SizedBox(width: 12),
-                    const Text(
-                      'חיפוש',
-                      style:
-                          TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                    Text(
+                      widget.bookTitle != null
+                          ? 'חיפוש ב${widget.bookTitle}'
+                          : 'חיפוש',
+                      style: const TextStyle(
+                          fontSize: 24, fontWeight: FontWeight.bold),
                     ),
                     const Spacer(),
                     IconButton(

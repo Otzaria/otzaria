@@ -9,9 +9,16 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/models/search_results.dart';
-import 'package:otzaria/text_book/models/text_book_searcher.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/search_pane_base.dart';
+import 'package:otzaria/search/search_repository.dart';
+import 'package:otzaria/search/book_facet.dart';
+import 'package:search_engine/search_engine.dart';
+import 'package:otzaria/search/view/search_dialog.dart';
+import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria/search/bloc/search_event.dart';
+import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/models/books.dart';
 
 class _GroupedResultItem {
   final String? header;
@@ -26,14 +33,24 @@ class TextBookSearchView extends StatefulWidget {
   final ItemScrollController scrollControler;
   final FocusNode focusNode;
   final void Function() closeLeftPaneCallback;
+  final String initialQuery;
+  final Map<String, Map<String, bool>> initialSearchOptions;
+  final Map<int, List<String>> initialAlternativeWords;
+  final Map<String, String> initialSpacingValues;
+  final SearchMode initialSearchMode;
 
-  const TextBookSearchView(
-      {super.key,
-      required this.data,
-      required this.scrollControler,
-      required this.focusNode,
-      required this.closeLeftPaneCallback,
-      required String initialQuery});
+  const TextBookSearchView({
+    super.key,
+    required this.data,
+    required this.scrollControler,
+    required this.focusNode,
+    required this.closeLeftPaneCallback,
+    required this.initialQuery,
+    this.initialSearchOptions = const {},
+    this.initialAlternativeWords = const {},
+    this.initialSpacingValues = const {},
+    this.initialSearchMode = SearchMode.exact,
+  });
 
   @override
   TextBookSearchViewState createState() => TextBookSearchViewState();
@@ -42,41 +59,123 @@ class TextBookSearchView extends StatefulWidget {
 class TextBookSearchViewState extends State<TextBookSearchView>
     with AutomaticKeepAliveClientMixin<TextBookSearchView> {
   TextEditingController searchTextController = TextEditingController();
-  late final TextBookSearcher markdownTextSearcher;
+  final SearchRepository _searchRepository = SearchRepository();
   List<TextSearchResult> searchResults = [];
   late ItemScrollController scrollControler;
+  bool _isSearching = false;
+  List<String> _content = [];
+  String? _bookPath;
+  Map<String, Map<String, bool>> _searchOptions = {};
+  Map<int, List<String>> _alternativeWords = {};
+  Map<String, String> _spacingValues = {};
+  SearchMode _searchMode = SearchMode.exact;
 
   @override
   void initState() {
     super.initState();
-    markdownTextSearcher = TextBookSearcher(widget.data);
-    markdownTextSearcher.addListener(_searchResultUpdated);
+    _content = widget.data.split('\n');
 
-    searchTextController.text =
-        (context.read<TextBookBloc>().state as TextBookLoaded).searchText;
+    searchTextController.text = widget.initialQuery;
+    _searchOptions = widget.initialSearchOptions;
+    _alternativeWords = widget.initialAlternativeWords;
+    _spacingValues = widget.initialSpacingValues;
+    _searchMode = widget.initialSearchMode;
 
     scrollControler = widget.scrollControler;
     widget.focusNode.requestFocus();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _runInitialSearch();
+      _initializeBookPath();
     });
+  }
+
+  Future<void> _initializeBookPath() async {
+    final state = context.read<TextBookBloc>().state;
+    if (state is TextBookLoaded) {
+      final bookTitle = state.book.title;
+      debugPrint('📚 TextBookSearch: book.title = $bookTitle');
+
+      final topics = await BookFacet.resolveTopics(
+        title: bookTitle,
+        initialTopics: state.book.topics,
+        type: TextBook,
+      );
+
+      if (!mounted) return;
+
+      debugPrint('📚 TextBookSearch: final topics = "$topics"');
+      _bookPath = BookFacet.buildFacetPath(title: bookTitle, topics: topics);
+      debugPrint('📚 TextBookSearch: _bookPath = $_bookPath');
+      if (searchTextController.text.isNotEmpty) {
+        _runInitialSearch();
+      }
+    }
   }
 
   void _runInitialSearch() {
     _searchTextUpdated();
   }
 
-  void _searchTextUpdated() {
-    markdownTextSearcher.startTextSearch(searchTextController.text);
+  Future<void> _searchTextUpdated() async {
+    final query = searchTextController.text.trim();
+    if (query.isEmpty || _bookPath == null) {
+      setState(() {
+        searchResults = [];
+        _isSearching = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isSearching = true;
+    });
+
+    try {
+      final results = await _searchRepository.searchTexts(
+        query,
+        [_bookPath!],
+        1000,
+        searchOptions: _searchOptions,
+        alternativeWords: _alternativeWords,
+        customSpacing: _spacingValues,
+        fuzzy: _searchMode == SearchMode.fuzzy,
+      );
+
+      if (mounted) {
+        setState(() {
+          searchResults = _convertSearchResults(results);
+          _isSearching = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Search error: $e');
+      if (mounted) {
+        setState(() {
+          searchResults = [];
+          _isSearching = false;
+        });
+      }
+    }
   }
 
-  void _searchResultUpdated() {
-    if (mounted) {
-      setState(() {
-        searchResults = markdownTextSearcher.searchResults;
-      });
+  List<TextSearchResult> _convertSearchResults(List<SearchResult> results) {
+    final List<TextSearchResult> converted = [];
+    for (final result in results) {
+      try {
+        final lineNumber = result.segment.toInt();
+        if (lineNumber >= 0 && lineNumber < _content.length) {
+          converted.add(TextSearchResult(
+            index: lineNumber,
+            snippet: result.text,
+            address: result.reference,
+            query: searchTextController.text,
+          ));
+        }
+      } catch (e) {
+        debugPrint('Error converting result: $e');
+      }
     }
+    return converted;
   }
 
   @override
@@ -97,7 +196,8 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     return SearchPaneBase(
       searchController: searchTextController,
       focusNode: widget.focusNode,
-      progressWidget: null,
+      progressWidget:
+          _isSearching ? const LinearProgressIndicator(minHeight: 4) : null,
       resultCountString: searchResults.isNotEmpty
           ? 'נמצאו ${searchResults.length} תוצאות'
           : null,
@@ -222,13 +322,54 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         },
       ),
       isNoResults:
-          searchResults.isEmpty && searchTextController.text.isNotEmpty,
+          searchResults.isEmpty &&
+          searchTextController.text.isNotEmpty &&
+          !_isSearching,
       onSearchTextChanged: (value) {
         context.read<TextBookBloc>().add(UpdateSearchText(value));
         _searchTextUpdated();
       },
-      resetSearchCallback: () {},
+      resetSearchCallback: () {
+        setState(() {
+          searchResults = [];
+          _searchOptions = {};
+          _alternativeWords = {};
+          _spacingValues = {};
+          _searchMode = SearchMode.exact;
+        });
+      },
       hintText: 'חפש כאן...',
+      onAdvancedSearch: () {
+        // Create a temporary SearchingTab to hold the state
+        final tempTab = SearchingTab("חיפוש", searchTextController.text);
+        tempTab.searchOptions.addAll(_searchOptions);
+        tempTab.alternativeWords.addAll(_alternativeWords);
+        tempTab.spacingValues.addAll(_spacingValues);
+        tempTab.searchBloc.add(SetSearchMode(_searchMode));
+
+        final bookTitle = (context.read<TextBookBloc>().state as TextBookLoaded)
+            .book
+            .title;
+
+        showDialog(
+          context: context,
+          builder: (context) => SearchDialog(
+            existingTab: tempTab,
+            bookTitle: bookTitle,
+            onSearch: (query, searchOptions, alternativeWords, spacingValues,
+                searchMode) {
+              searchTextController.text = query;
+              setState(() {
+                _searchOptions = searchOptions;
+                _alternativeWords = alternativeWords;
+                _spacingValues = spacingValues;
+                _searchMode = searchMode;
+              });
+              _searchTextUpdated();
+            },
+          ),
+        );
+      },
     );
   }
 

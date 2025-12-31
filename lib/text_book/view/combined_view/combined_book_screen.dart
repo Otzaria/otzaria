@@ -23,6 +23,7 @@ import 'package:otzaria/core/scaffold_messenger.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 import 'package:otzaria/utils/html_link_handler.dart';
 import 'package:otzaria/utils/text_with_inline_links.dart';
+import 'package:otzaria/search/models/search_configuration.dart';
 
 class CombinedView extends StatefulWidget {
   const CombinedView({
@@ -884,9 +885,20 @@ $textWithBreaks
                         String processedData = state.removeNikud
                             ? utils.highLight(
                                 utils.removeVolwels('$dataWithLinks\n'),
-                                state.searchText)
+                                state.searchText,
+                                searchOptions: state.searchOptions,
+                                alternativeWords: state.alternativeWords,
+                                spacingValues: state.spacingValues,
+                                isFuzzy: state.searchMode == SearchMode.fuzzy,
+                              )
                             : utils.highLight(
-                                '$dataWithLinks\n', state.searchText);
+                                '$dataWithLinks\n',
+                                state.searchText,
+                                searchOptions: state.searchOptions,
+                                alternativeWords: state.alternativeWords,
+                                spacingValues: state.spacingValues,
+                                isFuzzy: state.searchMode == SearchMode.fuzzy,
+                              );
 
                         processedData =
                             utils.formatTextWithParentheses(processedData);

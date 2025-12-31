@@ -2375,6 +2375,10 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       scrollControler: state.scrollController,
       // הוא מעביר את טקסט החיפוש מה-state הנוכחי אל תוך רכיב החיפוש
       initialQuery: state.searchText,
+      initialSearchOptions: widget.tab.searchOptions,
+      initialAlternativeWords: widget.tab.alternativeWords,
+      initialSpacingValues: widget.tab.spacingValues,
+      initialSearchMode: widget.tab.searchMode,
       closeLeftPaneCallback: () =>
           context.read<TextBookBloc>().add(const ToggleLeftPane(false)),
     );

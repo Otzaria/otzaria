@@ -15,6 +15,8 @@ import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/text_book/editing/repository/overrides_repository.dart';
 import 'package:otzaria/text_book/editing/models/section_identifier.dart';
 
+import 'package:otzaria/search/models/search_configuration.dart';
+
 class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   final TextBookRepository repository;
   final OverridesRepository _overridesRepository;
@@ -64,6 +66,10 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   ) async {
     TextBook book;
     String searchText;
+    Map<String, Map<String, bool>> searchOptions = {};
+    Map<int, List<String>> alternativeWords = {};
+    Map<String, String> spacingValues = {};
+    SearchMode searchMode = SearchMode.exact;
     bool showLeftPane;
     List<String> commentators;
     late final List<int> visibleIndices;
@@ -75,6 +81,10 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       final currentState = state as TextBookLoaded;
       book = currentState.book;
       searchText = currentState.searchText;
+      searchOptions = currentState.searchOptions;
+      alternativeWords = currentState.alternativeWords;
+      spacingValues = currentState.spacingValues;
+      searchMode = currentState.searchMode;
       showLeftPane = currentState.showLeftPane;
       commentators = currentState.activeCommentators;
       visibleIndices = currentState.visibleIndices;
@@ -84,6 +94,10 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       final initial = state as TextBookInitial;
       book = initial.book;
       searchText = initial.searchText;
+      searchOptions = initial.searchOptions;
+      alternativeWords = initial.alternativeWords;
+      spacingValues = initial.spacingValues;
+      searchMode = initial.searchMode;
       showLeftPane = initial.showLeftPane;
       commentators = initial.commentators;
       visibleIndices = [initial.index];
@@ -181,6 +195,10 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         visibleIndices: visibleIndices,
         pinLeftPane: Settings.getValue<bool>('key-pin-sidebar') ?? false,
         searchText: searchText,
+        searchOptions: searchOptions,
+        alternativeWords: alternativeWords,
+        spacingValues: spacingValues,
+        searchMode: searchMode,
         scrollController: scrollController,
         positionsListener: positionsListener,
         currentTitle: currentTitle,

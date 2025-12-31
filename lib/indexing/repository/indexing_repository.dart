@@ -130,6 +130,20 @@ class IndexingRepository {
             segment: BigInt.from(i),
             isPdf: false,
             filePath: '');
+
+        // Index the header also into the main search index so in-book search
+        // can find headings that are displayed and highlighted.
+        var headerLine = stripHtmlIfNeeded(line);
+        headerLine = removeVolwels(headerLine);
+        index.addDocument(
+          id: BigInt.from(DateTime.now().microsecondsSinceEpoch),
+          title: title,
+          reference: stripHtmlIfNeeded(reference.join(', ')),
+          topics: '$topics/$title',
+          text: headerLine,
+          segment: BigInt.from(i),
+          isPdf: false,
+          filePath: '');
       } else {
         line = stripHtmlIfNeeded(line);
         line = removeVolwels(line);

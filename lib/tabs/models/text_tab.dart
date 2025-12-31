@@ -9,6 +9,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/search/models/search_configuration.dart';
 
 /// Represents a tab that contains a text book.
 ///
@@ -23,6 +24,10 @@ class TextBookTab extends OpenedTab {
 
   /// The initial search text for this tab.
   final String searchText;
+  final Map<String, Map<String, bool>> searchOptions;
+  final Map<int, List<String>> alternativeWords;
+  final Map<String, String> spacingValues;
+  final SearchMode searchMode;
 
   /// The bloc that manages the text book state and logic.
   late final TextBookBloc bloc;
@@ -52,6 +57,10 @@ class TextBookTab extends OpenedTab {
     required this.book,
     required this.index,
     this.searchText = '',
+    this.searchOptions = const {},
+    this.alternativeWords = const {},
+    this.spacingValues = const {},
+    this.searchMode = SearchMode.exact,
     this.commentators,
     bool openLeftPane = false,
     bool? splitedView,
@@ -76,6 +85,10 @@ class TextBookTab extends OpenedTab {
         openLeftPane,
         commentators ?? [],
         searchText: searchText,
+        searchOptions: searchOptions,
+        alternativeWords: alternativeWords,
+        spacingValues: spacingValues,
+        searchMode: searchMode,
         splitedView: effectiveSplitedView,
         showPageShapeView: showPageShapeView,
       ),

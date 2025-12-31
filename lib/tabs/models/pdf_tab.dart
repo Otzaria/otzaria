@@ -6,6 +6,7 @@ import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/utils/text_manipulation.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/search/models/search_configuration.dart';
 
 /// Represents a tab with a PDF book.
 ///
@@ -29,6 +30,10 @@ class PdfBookTab extends OpenedTab {
   final TextEditingController searchController = TextEditingController();
 
   String searchText;
+  Map<String, Map<String, bool>> searchOptions;
+  Map<int, List<String>> alternativeWords;
+  Map<String, String> spacingValues;
+  SearchMode searchMode;
 
   List<PdfPageTextRange>? pdfSearchMatches;
   int? pdfSearchCurrentMatchIndex;
@@ -65,6 +70,10 @@ class PdfBookTab extends OpenedTab {
     required this.pageNumber,
     bool openLeftPane = false,
     this.searchText = '',
+    this.searchOptions = const {},
+    this.alternativeWords = const {},
+    this.spacingValues = const {},
+    this.searchMode = SearchMode.exact,
     this.pdfSearchMatches,
     this.pdfSearchCurrentMatchIndex,
     bool isPinned = false,

@@ -17,23 +17,115 @@ String removeVolwels(String s) {
   return s.replaceAll(SearchRegexPatterns.vowelsAndCantillation, '');
 }
 
-String highLight(String data, String searchQuery, {int currentIndex = -1}) {
+List<String> generateFullPartialSpellingVariations(String word) {
+  if (word.isEmpty) return [word];
+
+  final variations = <String>{word}; // המילה המקורית
+
+  // מוצא את כל המיקומים של י, ו, וגרשיים
+  final chars = word.split('');
+  final optionalIndices = <int>[];
+
+  // מוצא אינדקסים של תווים שיכולים להיות אופציונליים
+  for (int i = 0; i < chars.length; i++) {
+    if (chars[i] == 'י' ||
+        chars[i] == 'ו' ||
+        chars[i] == "'" ||
+        chars[i] == '"') {
+      optionalIndices.add(i);
+    }
+  }
+
+  // יוצר את כל הצירופים האפשריים (2^n אפשרויות)
+  final numCombinations = 1 << optionalIndices.length; // 2^n
+
+  for (int combination = 0; combination < numCombinations; combination++) {
+    final variant = <String>[];
+
+    for (int i = 0; i < chars.length; i++) {
+      // אם התו הוא לא אופציונלי, תמיד מוסיפים אותו
+      if (!optionalIndices.contains(i)) {
+        variant.add(chars[i]);
+      } else {
+        // אם התו אופציונלי, בודקים אם הביט המתאים דולק
+        final optionalIndex = optionalIndices.indexOf(i);
+        if ((combination >> optionalIndex) & 1 == 1) {
+          variant.add(chars[i]);
+        }
+      }
+    }
+    variations.add(variant.join());
+  }
+
+  return variations.toList();
+}
+
+String highLight(
+  String data,
+  String searchQuery, {
+  int currentIndex = -1,
+  Map<String, Map<String, bool>> searchOptions = const {},
+  Map<int, List<String>> alternativeWords = const {},
+  Map<String, String> spacingValues = const {},
+  bool isFuzzy = false,
+}) {
   if (searchQuery.isEmpty) return data;
 
-  // הסרת ניקוד ממחרוזת החיפוש לצורך השוואה
-  final cleanSearchQuery = removeVolwels(searchQuery);
+  // Debug print
+  // debugPrint('highLight: query="$searchQuery", options=$searchOptions');
 
-  // יצירת regex שמתעלם מניקוד - מוסיף תווי ניקוד אופציונליים בין כל תו
-  // תווי ניקוד וטעמים בעברית: U+0591 עד U+05C7
-  final pattern = cleanSearchQuery.split('').map((char) {
-    // אם זה תו עברי, נוסיף אחריו אפשרות לניקוד
-    if (RegExp(r'[א-ת]').hasMatch(char)) {
-      return '${RegExp.escape(char)}[\u0591-\u05C7]*';
+  // 1. חילוץ מילות החיפוש כולל מילים חילופיות
+  final originalWords = searchQuery
+      .trim()
+      .replaceAll(RegExp(r'[~"*\(\)]'), ' ')
+      .split(RegExp(r'\s+'))
+      .where((s) => s.isNotEmpty)
+      .toList();
+
+  final searchTerms = <String>[];
+  for (int i = 0; i < originalWords.length; i++) {
+    final word = originalWords[i];
+    final wordKey = '${word}_$i';
+
+    // בדיקת אפשרויות החיפוש למילה הזו
+    final wordOptions = searchOptions[wordKey] ?? {};
+    final hasFullPartialSpelling = wordOptions['כתיב מלא/חסר'] == true;
+
+    if (hasFullPartialSpelling) {
+      searchTerms.addAll(generateFullPartialSpellingVariations(word));
+    } else {
+      searchTerms.add(word);
     }
-    return RegExp.escape(char);
-  }).join();
 
-  final regex = RegExp(pattern, caseSensitive: false);
+    // הוספת מילים חילופיות אם יש
+    final alternatives = alternativeWords[i];
+    if (alternatives != null && alternatives.isNotEmpty) {
+      if (hasFullPartialSpelling) {
+        for (final alt in alternatives) {
+          searchTerms.addAll(generateFullPartialSpellingVariations(alt));
+        }
+      } else {
+        searchTerms.addAll(alternatives);
+      }
+    }
+  }
+
+  if (searchTerms.isEmpty) return data;
+
+  // יצירת regex שמתעלם מניקוד עבור כל מונח חיפוש
+  final patterns = searchTerms.map((term) {
+    final cleanTerm = removeVolwels(term);
+    return cleanTerm.split('').map((char) {
+      if (RegExp(r'[א-ת]').hasMatch(char)) {
+        return '${RegExp.escape(char)}[\u0591-\u05C7]*';
+      }
+      return RegExp.escape(char);
+    }).join();
+  }).toList();
+
+  // איחוד כל התבניות ל-regex אחד גדול
+  final combinedPattern = patterns.join('|');
+  final regex = RegExp(combinedPattern, caseSensitive: false);
   final matches = regex.allMatches(data).toList();
 
   if (matches.isEmpty) return data;
@@ -45,7 +137,7 @@ String highLight(String data, String searchQuery, {int currentIndex = -1}) {
 
     for (final match in matches) {
       final matchedText = match.group(0)!;
-      final replacement = '<font color=red>$matchedText</font>';
+      final replacement = '<span style="color: red">$matchedText</span>';
 
       final start = match.start + offset;
       final end = match.end + offset;
@@ -66,9 +158,9 @@ String highLight(String data, String searchQuery, {int currentIndex = -1}) {
     final matchedText = match.group(0)!;
     final color = i == currentIndex ? 'blue' : 'red';
     final backgroundColor =
-        i == currentIndex ? ' style="background-color: yellow;"' : '';
+        i == currentIndex ? 'background-color: yellow;' : '';
     final replacement =
-        '<font color=$color$backgroundColor>$matchedText</font>';
+        '<span style="color: $color; $backgroundColor">$matchedText</span>';
 
     final start = match.start + offset;
     final end = match.end + offset;

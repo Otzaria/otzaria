@@ -7,6 +7,7 @@ import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
+import 'package:otzaria/search/book_facet.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
@@ -127,9 +128,10 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
       return const SizedBox.shrink();
     }
 
-    // בניית facet נכון על בסיס נתיב הקטגוריה
-    final facet =
-        categoryPath != null ? "$categoryPath/${book.title}" : "/${book.title}";
+    // בניית facet בהתאם לפורמט האינדקס: /<topics>/<title>
+    final fallbackFacet =
+      BookFacet.buildFacetPath(title: book.title, topics: book.topics);
+    final facet = categoryPath != null ? "$categoryPath/${book.title}" : fallbackFacet;
     return BlocBuilder<SearchBloc, SearchState>(
       builder: (context, state) {
         final isSelected = state.currentFacets.contains(facet);
@@ -210,9 +212,11 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
 
     return BlocBuilder<SearchBloc, SearchState>(
       builder: (context, state) {
-        // יצירת רשימת כל ה-facets בבת אחת
-        // עבור רשימת ספרים מסוננת, נשתמש בשם הספר בלבד
-        final facets = books.map((book) => "/${book.title}").toList();
+        // יצירת רשימת כל ה-facets בבת אחת (כמו באינדקס)
+        final facets = books
+            .map((book) =>
+                BookFacet.buildFacetPath(title: book.title, topics: book.topics))
+            .toList();
 
         // ספירה מקבצת של כל ה-facets
         final countsFuture = widget.tab.countForMultipleFacets(facets);
@@ -229,7 +233,8 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
                 itemCount: books.length,
                 itemBuilder: (context, index) {
                   final book = books[index];
-                  final facet = "/${book.title}";
+                  final facet = BookFacet.buildFacetPath(
+                    title: book.title, topics: book.topics);
                   final count = counts[facet] ?? 0;
                   return _buildBookTile(book, count, 0);
                 },
