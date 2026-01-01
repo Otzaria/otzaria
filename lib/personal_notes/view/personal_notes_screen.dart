@@ -48,10 +48,13 @@ class _PersonalNotesManagerScreenState
   }
 
   Future<void> _loadBooks() async {
-    setState(() {
-      _isLoadingBooks = true;
-      _booksError = null;
-    });
+    // איפוס שגיאות אם היו, אך ללא כניסה למצב טעינה מלא (ספינר)
+    // כדי לשמור על הממשק קיים גם בזמן ריענון
+    if (_booksError != null) {
+      setState(() {
+        _booksError = null;
+      });
+    }
 
     try {
       final books = await _repository.listBooksWithNotes();
@@ -59,6 +62,7 @@ class _PersonalNotesManagerScreenState
       setState(() {
         _books = books;
         _isLoadingBooks = false;
+        _booksError = null;
       });
       // Load all books
       for (final book in books) {
@@ -66,10 +70,16 @@ class _PersonalNotesManagerScreenState
       }
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _booksError = e.toString();
-        _isLoadingBooks = false;
-      });
+      if (_books.isEmpty) {
+        setState(() {
+          _booksError = e.toString();
+          _isLoadingBooks = false;
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('שגיאה בטעינת רשימת ההערות: $e')),
+        );
+      }
     }
   }
 
@@ -91,7 +101,7 @@ class _PersonalNotesManagerScreenState
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (_booksError != null) {
+    if (_booksError != null && _books.isEmpty) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -104,22 +114,6 @@ class _PersonalNotesManagerScreenState
             FilledButton(
               onPressed: _loadBooks,
               child: const Text('נסה שוב'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (_books.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('לא נמצאו הערות אישיות'),
-            const SizedBox(height: 12),
-            FilledButton(
-              onPressed: _loadBooks,
-              child: const Text('רענון'),
             ),
           ],
         ),
