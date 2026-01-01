@@ -10,9 +10,11 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 import 'package:otzaria/text_book/view/tabbed_commentary_panel.dart';
+import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
 import 'package:otzaria/settings/settings_bloc.dart';
 import 'package:otzaria/settings/settings_event.dart';
 import 'package:otzaria/widgets/commentary_pane_tooltip.dart';
+import 'package:otzaria/widgets/resizable_drag_handle.dart';
 import 'package:otzaria/utils/context_menu_utils.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 
@@ -51,7 +53,6 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
   bool _paneOpen = false;
   int? _currentTabIndex;
   late double _leftPaneWidth;
-  bool _isResizing = false;
   bool _isHovering = false; // מצב ריחוף על הטאב
   String? _savedSelectedText; // טקסט נבחר לתפריט הקשר
 
@@ -212,7 +213,7 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<TextBookBloc, TextBookState>(
+    return BlocListener<TextBookBloc, TextBookState>(
       listenWhen: (previous, current) {
         // האזן רק אם הוספנו מפרשים (לא אם הסרנו)
         if (previous is TextBookLoaded && current is TextBookLoaded) {
@@ -225,174 +226,153 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
         // מפרשים עברו לטור הימני, אז לא צריך לפתוח את הטור השמאלי
         // כשמוסיפים מפרשים
       },
-      buildWhen: (previous, current) {
-        if (previous is TextBookLoaded && current is TextBookLoaded) {
-          return previous.fontSize != current.fontSize ||
-              previous.showSplitView != current.showSplitView;
-        }
-        return true;
-      },
-      builder: (context, state) {
-        if (state is! TextBookLoaded) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        return Stack(
-          children: [
-            Row(
-              children: [
-                // תוכן הספר
-                Expanded(
-                  child: CombinedView(
-                    data: widget.content,
-                    textSize: state.fontSize,
-                    openBookCallback: widget.openBookCallback,
-                    openLeftPaneTab: widget.openLeftPaneTab,
-                    showCommentaryAsExpansionTiles: !widget.showSplitView,
-                    tab: widget.tab,
-                    onOpenPersonalNotes: () {
-                      // פתיחת הפאנל הימני עם טאב ההערות האישיות
-                      setState(() {
-                        _paneOpen = true;
-                        _currentTabIndex = 2; // אינדקס של הערות אישיות
-                      });
-                    },
-                    onOpenCommentatorsPane: () {
-                      // פתיחת הפאנל הימני עם טאב המפרשים
-                      setState(() {
-                        _paneOpen = true;
-                        _currentTabIndex = 0; // אינדקס של מפרשים
-                      });
-                    },
-                  ),
-                ),
-                // מפריד ניתן לגרירה
-                if (_paneOpen)
-                  MouseRegion(
-                    cursor: SystemMouseCursors.resizeColumn,
-                    child: GestureDetector(
-                      onHorizontalDragStart: (_) {
-                        setState(() => _isResizing = true);
-                      },
-                      onHorizontalDragUpdate: (details) {
+      child: TextBookStateBuilder(
+        buildWhen: (previous, current) {
+          if (previous is TextBookLoaded && current is TextBookLoaded) {
+            return previous.fontSize != current.fontSize ||
+                previous.showSplitView != current.showSplitView;
+          }
+          return true;
+        },
+        builder: (context, state) {
+          return Stack(
+            children: [
+              Row(
+                children: [
+                  // תוכן הספר
+                  Expanded(
+                    child: CombinedView(
+                      data: widget.content,
+                      textSize: state.fontSize,
+                      openBookCallback: widget.openBookCallback,
+                      openLeftPaneTab: widget.openLeftPaneTab,
+                      showCommentaryAsExpansionTiles: !widget.showSplitView,
+                      tab: widget.tab,
+                      onOpenPersonalNotes: () {
+                        // פתיחת הפאנל הימני עם טאב ההערות האישיות
                         setState(() {
-                          // גרירה שמאלה מקטינה, ימינה מגדילה
-                          _leftPaneWidth = (_leftPaneWidth + details.delta.dx)
-                              .clamp(200.0, 800.0);
+                          _paneOpen = true;
+                          _currentTabIndex = 2; // אינדקס של הערות אישיות
                         });
                       },
-                      onHorizontalDragEnd: (_) {
-                        setState(() => _isResizing = false);
-                        // שמור את הרוחב ב-SettingsBloc
+                      onOpenCommentatorsPane: () {
+                        // פתיחת הפאנל הימני עם טאב המפרשים
+                        setState(() {
+                          _paneOpen = true;
+                          _currentTabIndex = 0; // אינדקס של מפרשים
+                        });
+                      },
+                    ),
+                  ),
+                  // מפריד ניתן לגרירה
+                  if (_paneOpen)
+                    ResizableDragHandle(
+                      isVertical: true,
+                      onDragStart: null,
+                      onDragDelta: (delta) {
+                        setState(() {
+                          // גרירה שמאלה מקטינה, ימינה מגדילה
+                          _leftPaneWidth =
+                              (_leftPaneWidth + delta).clamp(200.0, 800.0);
+                        });
+                      },
+                      onDragEnd: () {
                         context
                             .read<SettingsBloc>()
                             .add(UpdateCommentaryPaneWidth(_leftPaneWidth));
                       },
-                      child: Container(
-                        width: _isResizing ? 4 : 8,
-                        color: _isResizing
-                            ? Theme.of(context).colorScheme.primary
-                            : Colors.transparent,
-                        alignment: Alignment.center,
-                        child: _isResizing
-                            ? null
-                            : Container(
-                                width: 1.5,
-                                color: Theme.of(context).dividerColor,
-                              ),
-                      ),
                     ),
-                  ),
-                // פאנל שמאלי (בצד ימין של המסך)
-                if (_paneOpen)
-                  SizedBox(
-                    width: _leftPaneWidth,
-                    child: ContextMenuRegion(
-                      contextMenu: _buildContextMenu(state),
-                      child: SelectionArea(
-                        key: _selectionKey,
-                        contextMenuBuilder: (context, selectableRegionState) {
-                          // מבטל את התפריט הרגיל של Flutter כי יש ContextMenuRegion
-                          return const SizedBox.shrink();
-                        },
-                        onSelectionChanged: (selection) {
-                          if (selection != null &&
-                              selection.plainText.isNotEmpty) {
-                            setState(() {
-                              _savedSelectedText = selection.plainText;
-                            });
-                          }
-                        },
-                        child: TabbedCommentaryPanel(
-                          fontSize: state.fontSize,
-                          openBookCallback: widget.openBookCallback,
-                          showSearch: true,
-                          onClosePane: _togglePane,
-                          initialTabIndex: _currentTabIndex,
-                          onTabChanged: (index) {
-                            debugPrint(
-                                'DEBUG: Tab changed to $index, showSplitView: ${widget.showSplitView}');
-                            setState(() {
-                              _currentTabIndex = index;
-                            });
-                            if (!widget.showSplitView) {
-                              debugPrint(
-                                  'DEBUG: Saving tab $index to combined settings');
-                              Settings.setValue<int>(
-                                  'key-sidebar-tab-index-combined', index);
-                            } else {
-                              debugPrint(
-                                  'DEBUG: NOT saving tab (split view mode)');
+                  // פאנל שמאלי (בצד ימין של המסך)
+                  if (_paneOpen)
+                    SizedBox(
+                      width: _leftPaneWidth,
+                      child: ContextMenuRegion(
+                        contextMenu: _buildContextMenu(state),
+                        child: SelectionArea(
+                          key: _selectionKey,
+                          contextMenuBuilder: (context, selectableRegionState) {
+                            // מבטל את התפריט הרגיל של Flutter כי יש ContextMenuRegion
+                            return const SizedBox.shrink();
+                          },
+                          onSelectionChanged: (selection) {
+                            if (selection != null &&
+                                selection.plainText.isNotEmpty) {
+                              setState(() {
+                                _savedSelectedText = selection.plainText;
+                              });
                             }
                           },
+                          child: TabbedCommentaryPanel(
+                            fontSize: state.fontSize,
+                            openBookCallback: widget.openBookCallback,
+                            showSearch: true,
+                            onClosePane: _togglePane,
+                            initialTabIndex: _currentTabIndex,
+                            onTabChanged: (index) {
+                              debugPrint(
+                                  'DEBUG: Tab changed to $index, showSplitView: ${widget.showSplitView}');
+                              setState(() {
+                                _currentTabIndex = index;
+                              });
+                              if (!widget.showSplitView) {
+                                debugPrint(
+                                    'DEBUG: Saving tab $index to combined settings');
+                                Settings.setValue<int>(
+                                    'key-sidebar-tab-index-combined', index);
+                              } else {
+                                debugPrint(
+                                    'DEBUG: NOT saving tab (split view mode)');
+                              }
+                            },
+                          ),
                         ),
                       ),
                     ),
-                  ),
-              ],
-            ),
-            // טאב צף להצגה כאשר הפאנל סגור - עם 3 מצבים והדרכה
-            if (!_paneOpen)
-              Positioned(
-                left: 0, // צמוד לקצה
-                top: MediaQuery.of(context).size.height * 0.10, // למעלה במסך
-                child: CommentaryPaneTooltip(
-                  child: MouseRegion(
-                    onEnter: (_) => setState(() => _isHovering = true),
-                    onExit: (_) => setState(() => _isHovering = false),
-                    child: GestureDetector(
-                      onTap: _togglePane,
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        curve: Curves.easeOut,
-                        // מצב 1: סגור - בליטה קטנה, מצב 2: ריחוף - נשלף יותר
-                        width: _isHovering ? 48 : 20,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .surfaceContainerHighest
-                              .withValues(alpha: _isHovering ? 0.95 : 0.8),
-                          borderRadius: const BorderRadius.only(
-                            topRight: Radius.circular(40),
-                            bottomRight: Radius.circular(40),
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.15),
-                              blurRadius: _isHovering ? 8 : 4,
-                              offset: const Offset(2, 0),
+                ],
+              ),
+              // טאב צף להצגה כאשר הפאנל סגור - עם 3 מצבים והדרכה
+              if (!_paneOpen)
+                Positioned(
+                  left: 0, // צמוד לקצה
+                  top: MediaQuery.of(context).size.height * 0.10, // למעלה במסך
+                  child: CommentaryPaneTooltip(
+                    child: MouseRegion(
+                      onEnter: (_) => setState(() => _isHovering = true),
+                      onExit: (_) => setState(() => _isHovering = false),
+                      child: GestureDetector(
+                        onTap: _togglePane,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          curve: Curves.easeOut,
+                          // מצב 1: סגור - בליטה קטנה, מצב 2: ריחוף - נשלף יותר
+                          width: _isHovering ? 48 : 20,
+                          height: 80,
+                          decoration: BoxDecoration(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerHighest
+                                .withValues(alpha: _isHovering ? 0.95 : 0.8),
+                            borderRadius: const BorderRadius.only(
+                              topRight: Radius.circular(40),
+                              bottomRight: Radius.circular(40),
                             ),
-                          ],
-                        ),
-                        child: Center(
-                          child: AnimatedOpacity(
-                            duration: const Duration(milliseconds: 150),
-                            opacity: _isHovering ? 1.0 : 0.6,
-                            child: Icon(
-                              FluentIcons.chevron_right_24_regular,
-                              size: _isHovering ? 24 : 18,
-                              color: Theme.of(context).colorScheme.onSurface,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.15),
+                                blurRadius: _isHovering ? 8 : 4,
+                                offset: const Offset(2, 0),
+                              ),
+                            ],
+                          ),
+                          child: Center(
+                            child: AnimatedOpacity(
+                              duration: const Duration(milliseconds: 150),
+                              opacity: _isHovering ? 1.0 : 0.6,
+                              child: Icon(
+                                FluentIcons.chevron_right_24_regular,
+                                size: _isHovering ? 24 : 18,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
                             ),
                           ),
                         ),
@@ -400,10 +380,10 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                     ),
                   ),
                 ),
-              ),
-          ],
-        );
-      },
+            ],
+          );
+        },
+      ),
     );
   }
 }

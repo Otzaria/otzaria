@@ -8,6 +8,7 @@ import 'package:otzaria/settings/settings_bloc.dart';
 import 'package:otzaria/settings/settings_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
+import 'package:otzaria/widgets/app_future_builder.dart';
 
 class CommentaryContent extends StatefulWidget {
   const CommentaryContent({
@@ -75,55 +76,50 @@ class _CommentaryContentState extends State<CommentaryContent> {
               (Settings.getValue<bool>('key-default-sidebar-open') ?? false),
         ));
       },
-      child: FutureBuilder(
+      child: AppFutureBuilder<String>(
           future: content,
-          builder: (context, snapshot) {
-            if (snapshot.hasData) {
-              String text = snapshot.data!;
-              if (widget.removeNikud) {
-                text = utils.removeVolwels(text);
-              }
-
-              // ספירת תוצאות החיפוש ועדכון הרכיב האב
-              if (widget.searchQuery.isNotEmpty) {
-                final searchCount =
-                    _countSearchMatches(text, widget.searchQuery);
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  widget.onSearchResultsCountChanged?.call(searchCount);
-                });
-              }
-
-              text = utils.highLight(text, widget.searchQuery,
-                  currentIndex: widget.currentSearchIndex);
-
-              // החלת עיצוב הסוגריים העגולים
-              text = utils.formatTextWithParentheses(text);
-
-              return BlocBuilder<SettingsBloc, SettingsState>(
-                builder: (context, settingsState) {
-                  // החלפת שמות קדושים אם נדרש
-                  String displayText = text;
-                  if (settingsState.replaceHolyNames) {
-                    displayText = utils.replaceHolyNames(displayText);
-                  }
-
-                  return HtmlWidget(
-                    '<div style="text-align: justify; direction: rtl;">$displayText</div>',
-                    renderMode: RenderMode.column,
-                    textStyle: TextStyle(
-                      fontSize: settingsState.commentatorsFontSize,
-                      fontFamily: settingsState.commentatorsFontFamily,
-                    ),
-                  );
-                },
-              );
+          loadingWidget: _buildSkeletonLoading(context),
+          errorBuilder: (context, error) => Center(
+                child: Text('שגיאה בטעינת הפרשן: $error'),
+              ),
+          builder: (context, data) {
+            String text = data;
+            if (widget.removeNikud) {
+              text = utils.removeVolwels(text);
             }
-            if (snapshot.hasError) {
-              return Center(
-                child: Text('שגיאה בטעינת הפרשן: ${snapshot.error}'),
-              );
+
+            // ספירת תוצאות החיפוש ועדכון הרכיב האב
+            if (widget.searchQuery.isNotEmpty) {
+              final searchCount = _countSearchMatches(text, widget.searchQuery);
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                widget.onSearchResultsCountChanged?.call(searchCount);
+              });
             }
-            return _buildSkeletonLoading(context);
+
+            text = utils.highLight(text, widget.searchQuery,
+                currentIndex: widget.currentSearchIndex);
+
+            // החלת עיצוב הסוגריים העגולים
+            text = utils.formatTextWithParentheses(text);
+
+            return BlocBuilder<SettingsBloc, SettingsState>(
+              builder: (context, settingsState) {
+                // החלפת שמות קדושים אם נדרש
+                String displayText = text;
+                if (settingsState.replaceHolyNames) {
+                  displayText = utils.replaceHolyNames(displayText);
+                }
+
+                return HtmlWidget(
+                  '<div style="text-align: justify; direction: rtl;">$displayText</div>',
+                  renderMode: RenderMode.column,
+                  textStyle: TextStyle(
+                    fontSize: settingsState.commentatorsFontSize,
+                    fontFamily: settingsState.commentatorsFontFamily,
+                  ),
+                );
+              },
+            );
           }),
     );
   }

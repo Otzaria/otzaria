@@ -8,9 +8,10 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
-import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
 import 'package:otzaria/settings/settings_bloc.dart';
+import 'package:otzaria/widgets/app_future_builder.dart';
 import 'package:otzaria/settings/settings_state.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:otzaria/utils/context_menu_utils.dart';
@@ -53,12 +54,8 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<TextBookBloc, TextBookState>(
+    return TextBookStateBuilder(
       builder: (context, state) {
-        if (state is! TextBookLoaded) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
         return Column(
           children: [
             // שדה חיפוש
@@ -156,19 +153,10 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
 
     return Container(
       color: Theme.of(context).colorScheme.surface,
-      child: FutureBuilder<List<Link>>(
+      child: AppFutureBuilder<List<Link>>(
         future: _filteredLinksFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(16.0),
-                child: CircularProgressIndicator(),
-              ),
-            );
-          }
-
-          final filteredLinks = snapshot.data ?? links;
+        builder: (context, data) {
+          final filteredLinks = data;
 
           return ListView.builder(
             itemCount: filteredLinks.length,
@@ -310,10 +298,21 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
             Padding(
               padding:
                   const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              child: FutureBuilder<String>(
+              child: AppFutureBuilder<String>(
                 future: _contentCache[keyStr],
-                builder: (context, snapshot) =>
-                    _buildLinkContentWidget(link, snapshot),
+                builder: (context, content) => _buildLinkContent(content, link),
+                errorBuilder: (context, error) =>
+                    BlocBuilder<SettingsBloc, SettingsState>(
+                  builder: (context, settingsState) {
+                    return Text(
+                      'שגיאה בטעינת התוכן: $error',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                        fontSize: settingsState.commentatorsFontSize,
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
         ],
@@ -321,31 +320,8 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
     );
   }
 
-  Widget _buildLinkContentWidget(Link link, AsyncSnapshot<String> snapshot) {
-    if (snapshot.connectionState == ConnectionState.waiting) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(16.0),
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-
-    if (snapshot.hasError) {
-      return BlocBuilder<SettingsBloc, SettingsState>(
-        builder: (context, settingsState) {
-          return Text(
-            'שגיאה בטעינת התוכן: ${snapshot.error}',
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.error,
-              fontSize: settingsState.commentatorsFontSize,
-            ),
-          );
-        },
-      );
-    }
-
-    if (!snapshot.hasData || snapshot.data!.isEmpty) {
+  Widget _buildLinkContent(String content, Link link) {
+    if (content.isEmpty) {
       return BlocBuilder<SettingsBloc, SettingsState>(
         builder: (context, settingsState) {
           return Text(
@@ -376,7 +352,7 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(12.0),
-        child: _buildHighlightedText(snapshot.data!, link),
+        child: _buildHighlightedText(content, link),
       ),
     );
   }

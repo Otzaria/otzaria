@@ -17,6 +17,7 @@ import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
+import 'package:otzaria/widgets/resizable_drag_handle.dart';
 
 class PersonalNotesManagerScreen extends StatefulWidget {
   const PersonalNotesManagerScreen({super.key});
@@ -159,28 +160,14 @@ class _PersonalNotesManagerScreenState
                     child: _buildNotesTree(),
                   ),
                   // Resizable divider
-                  MouseRegion(
-                    cursor: SystemMouseCursors.resizeColumn,
-                    child: GestureDetector(
-                      onHorizontalDragUpdate: (details) {
-                        setState(() {
-                          _navigationWidth =
-                              (_navigationWidth - details.delta.dx)
-                                  .clamp(150.0, 500.0);
-                        });
-                      },
-                      child: Container(
-                        width: 8,
-                        color: Colors.transparent,
-                        child: Center(
-                          child: VerticalDivider(
-                            width: 1,
-                            thickness: 1,
-                            color: Theme.of(context).dividerColor,
-                          ),
-                        ),
-                      ),
-                    ),
+                  ResizableDragHandle(
+                    isVertical: true,
+                    onDragDelta: (delta) {
+                      setState(() {
+                        _navigationWidth =
+                            (_navigationWidth - delta).clamp(150.0, 500.0);
+                      });
+                    },
                   ),
                 ],
                 // Main content area

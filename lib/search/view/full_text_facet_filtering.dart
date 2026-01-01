@@ -12,24 +12,11 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
+import 'package:otzaria/widgets/count_future_builder.dart';
+import 'package:otzaria/widgets/thin_divider.dart';
 
 // Constants
 const double _kMinQueryLength = 2;
-
-/// A reusable divider widget that creates a line with a consistent height,
-/// color, and margin to match other dividers in the UI.
-class ThinDivider extends StatelessWidget {
-  const ThinDivider({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 1, // 1 logical pixel is sufficient here
-      color: Colors.grey.shade300,
-      margin: const EdgeInsets.symmetric(horizontal: 8.0),
-    );
-  }
-}
 
 class SearchFacetFiltering extends StatefulWidget {
   final SearchingTab tab;
@@ -367,20 +354,11 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
       children.add(BlocBuilder<SearchBloc, SearchState>(
         builder: (context, state) {
           final countFuture = widget.tab.countForFacetCached(subCategory.path);
-          return FutureBuilder<int>(
+          return CountFutureBuilder(
             key: ValueKey('${state.searchQuery}_${subCategory.path}'),
             future: countFuture,
-            builder: (context, snapshot) {
-              if (snapshot.hasData) {
-                final count = snapshot.data!;
-                // מציגים את הקטגוריה רק אם יש בה תוצאות או אם אנחנו בטעינה
-                if (count > 0 || count == -1) {
-                  return _buildCategoryTile(subCategory, count, level + 1);
-                }
-                return const SizedBox.shrink();
-              }
-              return _buildCategoryTile(subCategory, -1, level + 1);
-            },
+            builder: (context, count) =>
+                _buildCategoryTile(subCategory, count, level + 1),
           );
         },
       ));
@@ -398,57 +376,44 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
 
           // ננסה קודם עם ה-facet המלא
           final countFuture = widget.tab.countForFacetCached(fullFacet);
-          return FutureBuilder<int>(
+          return CountFutureBuilder(
             key: ValueKey('${state.searchQuery}_$fullFacet'),
             future: countFuture,
-            builder: (context, snapshot) {
-              if (snapshot.hasData) {
-                final count = snapshot.data!;
+            builder: (context, count) => _buildBookTile(book, count, level + 1,
+                categoryPath: category.path),
+            emptyBuilder: FutureBuilder<int>(
+              key: ValueKey('${state.searchQuery}_$topicsOnlyFacet'),
+              future: widget.tab.countForFacetCached(topicsOnlyFacet),
+              builder: (context, topicsSnapshot) {
+                if (topicsSnapshot.hasData) {
+                  final topicsCount = topicsSnapshot.data!;
 
-                // אם יש תוצאות, נציג את הספר
-                if (count > 0 || count == -1) {
-                  return _buildBookTile(book, count, level + 1,
-                      categoryPath: category.path);
-                }
+                  if (topicsCount > 0 || topicsCount == -1) {
+                    // יש תוצאות בקטגוריה, אבל לא בספר הספציפי
+                    // לא נציג את הספר כי זה יגרום להצגת ספרים ללא תוצאות
+                    return const SizedBox.shrink();
+                  }
 
-                // אם אין תוצאות עם ה-facet המלא, ננסה עם topics בלבד
-                return FutureBuilder<int>(
-                  key: ValueKey('${state.searchQuery}_$topicsOnlyFacet'),
-                  future: widget.tab.countForFacetCached(topicsOnlyFacet),
-                  builder: (context, topicsSnapshot) {
-                    if (topicsSnapshot.hasData) {
-                      final topicsCount = topicsSnapshot.data!;
+                  // ננסה עם שם הספר בלבד
+                  return FutureBuilder<int>(
+                    key: ValueKey('${state.searchQuery}_$titleOnlyFacet'),
+                    future: widget.tab.countForFacetCached(titleOnlyFacet),
+                    builder: (context, titleSnapshot) {
+                      if (titleSnapshot.hasData) {
+                        final titleCount = titleSnapshot.data!;
 
-                      if (topicsCount > 0 || topicsCount == -1) {
-                        // יש תוצאות בקטגוריה, אבל לא בספר הספציפי
-                        // לא נציג את הספר כי זה יגרום להצגת ספרים ללא תוצאות
-                        return const SizedBox.shrink();
+                        if (titleCount > 0 || titleCount == -1) {
+                          return _buildBookTile(book, titleCount, level + 1,
+                              categoryPath: category.path);
+                        }
                       }
-
-                      // ננסה עם שם הספר בלבד
-                      return FutureBuilder<int>(
-                        key: ValueKey('${state.searchQuery}_$titleOnlyFacet'),
-                        future: widget.tab.countForFacetCached(titleOnlyFacet),
-                        builder: (context, titleSnapshot) {
-                          if (titleSnapshot.hasData) {
-                            final titleCount = titleSnapshot.data!;
-
-                            if (titleCount > 0 || titleCount == -1) {
-                              return _buildBookTile(book, titleCount, level + 1,
-                                  categoryPath: category.path);
-                            }
-                          }
-                          return const SizedBox.shrink();
-                        },
-                      );
-                    }
-                    return _buildBookTile(book, -1, level + 1);
-                  },
-                );
-              }
-              return _buildBookTile(book, -1, level + 1,
-                  categoryPath: category.path);
-            },
+                      return const SizedBox.shrink();
+                    },
+                  );
+                }
+                return _buildBookTile(book, -1, level + 1);
+              },
+            ),
           );
         },
       ));

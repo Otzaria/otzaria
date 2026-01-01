@@ -36,17 +36,20 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
   String? _rightCommentator;
   String? _bottomCommentator;
   String? _bottomRightCommentator;
-  String _bottomFontFamily =
-      AppFonts.defaultFont; // גופן ברירת מחדל למפרשים תחתונים
+  String _bottomFontFamily = AppFonts.defaultFont;
+  double _commentaryFontSize = PageShapeSettingsManager.defaultCommentaryFontSize;
   List<CommentatorGroup> _groups = [];
   bool _isLoadingGroups = true;
-  bool _hasChanges = false; // האם היו שינויים שצריך לשמור
+  bool _hasChanges = false;
   bool _highlightRelatedCommentators = false;
   Map<String, bool> _columnVisibility = {
     'left': true,
     'right': true,
     'bottom': true,
   };
+  
+  // הגדרה חדשה: האם לשמור לספר הנוכחי בלבד
+  bool _saveForCurrentBookOnly = false;
 
   @override
   void initState() {
@@ -56,7 +59,9 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
   }
 
   void _loadCurrentSettings() {
-    // טעינת הערכים הנוכחיים שהועברו מהמסך
+    // בדיקה אם יש הגדרות פר-ספר
+    _saveForCurrentBookOnly = PageShapeSettingsManager.hasBookSpecificSettings(widget.bookTitle);
+    
     setState(() {
       _leftCommentator = widget.currentLeft;
       _rightCommentator = widget.currentRight;
@@ -64,6 +69,7 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
       _bottomRightCommentator = widget.currentBottomRight;
       _bottomFontFamily = Settings.getValue<String>('page_shape_bottom_font') ??
           AppFonts.defaultFont;
+      _commentaryFontSize = PageShapeSettingsManager.getCommentaryFontSize();
       _highlightRelatedCommentators =
           PageShapeSettingsManager.getHighlightSetting(widget.bookTitle);
       _columnVisibility =
@@ -72,10 +78,8 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
   }
 
   Future<void> _loadCommentatorGroups() async {
-    // חלוקת המפרשים לפי דורות
     final eras = await utils.splitByEra(widget.availableCommentators);
 
-    // יצירת קבוצות מפרשים לפי דורות
     final known = <String>{
       ...?eras['תורה שבכתב'],
       ...?eras['חז"ל'],
@@ -126,6 +130,7 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
   }
 
   Future<void> _saveSettings() async {
+    // שמירת הגדרות מפרשים
     await PageShapeSettingsManager.saveConfiguration(
       widget.bookTitle,
       {
@@ -134,13 +139,24 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
         'bottom': _bottomCommentator,
         'bottomRight': _bottomRightCommentator,
       },
+      saveAsGlobal: !_saveForCurrentBookOnly,
     );
-    // שמירת הגופן של המפרשים התחתונים (הגדרה גלובלית)
-    await Settings.setValue<String>(
-        'page_shape_bottom_font', _bottomFontFamily);
+    
+    // שמירת הגופן של המפרשים התחתונים (תמיד גלובלי)
+    await Settings.setValue<String>('page_shape_bottom_font', _bottomFontFamily);
+    
+    // שמירת הגדרת הדגשה
     await PageShapeSettingsManager.saveHighlightSetting(
       widget.bookTitle,
       _highlightRelatedCommentators,
+      saveAsGlobal: !_saveForCurrentBookOnly,
+    );
+    
+    // שמירת הגדרות visibility
+    await PageShapeSettingsManager.saveColumnVisibility(
+      widget.bookTitle,
+      _columnVisibility,
+      saveAsGlobal: !_saveForCurrentBookOnly,
     );
   }
 
@@ -160,13 +176,41 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
     _saveSettings();
   }
 
+  void _onFontSizeChanged(double value) {
+    setState(() {
+      _commentaryFontSize = value;
+      _hasChanges = true;
+    });
+    PageShapeSettingsManager.saveCommentaryFontSize(value);
+  }
+
   void _toggleColumnVisibility(String column, bool visible) {
     setState(() {
       _columnVisibility[column] = visible;
       _hasChanges = true;
     });
-    PageShapeSettingsManager.saveColumnVisibility(
-        widget.bookTitle, _columnVisibility);
+    _saveSettings();
+  }
+  
+  /// איפוס הגדרות פר-ספר וחזרה לגלובלי
+  Future<void> _resetToGlobalSettings() async {
+    await PageShapeSettingsManager.resetBookSettings(widget.bookTitle);
+    setState(() {
+      _saveForCurrentBookOnly = false;
+      _hasChanges = true;
+    });
+    // טעינה מחדש של ההגדרות הגלובליות
+    final globalConfig = PageShapeSettingsManager.loadConfiguration(widget.bookTitle);
+    if (globalConfig != null) {
+      setState(() {
+        _leftCommentator = globalConfig['left'];
+        _rightCommentator = globalConfig['right'];
+        _bottomCommentator = globalConfig['bottom'];
+        _bottomRightCommentator = globalConfig['bottomRight'];
+      });
+    }
+    _highlightRelatedCommentators = PageShapeSettingsManager.getHighlightSetting(widget.bookTitle);
+    _columnVisibility = PageShapeSettingsManager.getColumnVisibility(widget.bookTitle);
   }
 
   @override
@@ -174,12 +218,95 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
     return AlertDialog(
       title: const Text('הגדרות צורת הדף'),
       content: SizedBox(
-        width: 400,
+        width: 450,
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // בחירה בין גלובלי לפר-ספר
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          _saveForCurrentBookOnly 
+                              ? FluentIcons.book_24_regular 
+                              : FluentIcons.globe_24_regular,
+                          size: 20,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _saveForCurrentBookOnly 
+                              ? 'הגדרות לספר הנוכחי בלבד' 
+                              : 'הגדרות גלובליות (לכל הספרים)',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    SwitchListTile(
+                      title: const Text('שמור לספר הנוכחי בלבד'),
+                      subtitle: Text(
+                        _saveForCurrentBookOnly
+                            ? 'השינויים יחולו רק על "${widget.bookTitle}"'
+                            : 'השינויים יחולו על כל הספרים בצורת הדף',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      value: _saveForCurrentBookOnly,
+                      onChanged: (value) async {
+                        if (!value && _saveForCurrentBookOnly) {
+                          // מעבר מפר-ספר לגלובלי - שאל אם לאפס
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('חזרה להגדרות גלובליות'),
+                              content: const Text(
+                                'האם לאפס את ההגדרות הספציפיות לספר זה ולחזור להגדרות הגלובליות?',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context, false),
+                                  child: const Text('ביטול'),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context, true),
+                                  child: const Text('אפס'),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (confirm == true) {
+                            await _resetToGlobalSettings();
+                          }
+                        } else {
+                          setState(() {
+                            _saveForCurrentBookOnly = value;
+                            _hasChanges = true;
+                          });
+                          // שמירה מחדש עם ההגדרה החדשה
+                          await _saveSettings();
+                        }
+                      },
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                    ),
+                  ],
+                ),
+              ),
+              
+              const SizedBox(height: 16),
               const Text(
                 'בחר מפרשים להצגה:',
                 style: TextStyle(fontWeight: FontWeight.bold),
@@ -232,6 +359,54 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
               const SizedBox(height: 20),
               const Divider(),
               const SizedBox(height: 12),
+              // גודל גופן המפרשים
+              Row(
+                children: [
+                  const SizedBox(
+                    width: 140,
+                    child: Text(
+                      'גודל גופן מפרשים:',
+                      style: TextStyle(fontSize: 15),
+                    ),
+                  ),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.remove),
+                          onPressed: _commentaryFontSize > 10
+                              ? () => _onFontSizeChanged(_commentaryFontSize - 1)
+                              : null,
+                        ),
+                        SizedBox(
+                          width: 50,
+                          child: Text(
+                            '${_commentaryFontSize.round()}',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.add),
+                          onPressed: _commentaryFontSize < 30
+                              ? () => _onFontSizeChanged(_commentaryFontSize + 1)
+                              : null,
+                        ),
+                        Expanded(
+                          child: Slider(
+                            value: _commentaryFontSize,
+                            min: 10,
+                            max: 30,
+                            divisions: 20,
+                            onChanged: _onFontSizeChanged,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
               Row(
                 children: [
                   const SizedBox(
@@ -255,7 +430,9 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
                           child: Text(
                             font.label,
                             style: TextStyle(
-                              fontFamily: font.value,
+                              fontFamily: AppFonts.fontPaths.containsKey(font.value)
+                                  ? font.value
+                                  : null,
                               fontSize: 13,
                             ),
                           ),
@@ -412,7 +589,6 @@ class _CommentatorPickerDialogState extends State<_CommentatorPickerDialog> {
     final query = _searchController.text.trim();
 
     if (query.isEmpty) {
-      // אין חיפוש - מציג את כל הקבוצות
       setState(() {
         _filteredGroups = widget.groups
             .where((group) => group.commentators.isNotEmpty)
@@ -420,7 +596,6 @@ class _CommentatorPickerDialogState extends State<_CommentatorPickerDialog> {
         _filteredCommentators = [];
       });
     } else {
-      // יש חיפוש - מסנן את המפרשים
       final filtered =
           widget.availableCommentators.where((c) => c.contains(query)).toList();
       setState(() {
@@ -438,7 +613,6 @@ class _CommentatorPickerDialogState extends State<_CommentatorPickerDialog> {
         height: 600,
         child: Column(
           children: [
-            // כותרת
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Text(
@@ -447,8 +621,6 @@ class _CommentatorPickerDialogState extends State<_CommentatorPickerDialog> {
               ),
             ),
             const Divider(height: 1),
-
-            // שדה חיפוש
             Padding(
               padding: const EdgeInsets.all(12.0),
               child: RtlTextField(
@@ -473,15 +645,11 @@ class _CommentatorPickerDialogState extends State<_CommentatorPickerDialog> {
                 onChanged: (_) => _updateFilteredList(),
               ),
             ),
-
-            // רשימת המפרשים
             Expanded(
               child: _searchController.text.isEmpty
                   ? _buildGroupedList()
                   : _buildFilteredList(),
             ),
-
-            // כפתורים
             const Divider(height: 1),
             Padding(
               padding: const EdgeInsets.all(12.0),
@@ -514,7 +682,6 @@ class _CommentatorPickerDialogState extends State<_CommentatorPickerDialog> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // כותרת קבוצה
             Padding(
               padding:
                   const EdgeInsets.symmetric(vertical: 10.0, horizontal: 16.0),
@@ -539,7 +706,6 @@ class _CommentatorPickerDialogState extends State<_CommentatorPickerDialog> {
                 ],
               ),
             ),
-            // מפרשי הקבוצה
             ...group.commentators
                 .map((commentator) => _buildCommentatorTile(commentator)),
           ],

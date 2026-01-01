@@ -33,6 +33,7 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/utils/page_converter.dart';
 import 'package:flutter/gestures.dart';
 import 'package:otzaria/widgets/responsive_action_bar.dart';
+import 'package:otzaria/widgets/resizable_drag_handle.dart';
 import 'pdf_zoom_bar.dart';
 import 'package:otzaria/settings/per_book_settings.dart';
 import 'package:otzaria/widgets/commentary_pane_tooltip.dart';
@@ -252,11 +253,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     }
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('ההגדרות הפר-ספריות אופסו בהצלחה'),
-        ),
-      );
+      UiSnack.show('ההגדרות הפר-ספריות אופסו בהצלחה');
     }
   }
 
@@ -459,23 +456,19 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                 ValueListenableBuilder(
                   valueListenable: widget.tab.showLeftPane,
                   builder: (context, show, child) => show
-                      ? MouseRegion(
-                          cursor: SystemMouseCursors.resizeColumn,
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.translucent,
-                            onHorizontalDragUpdate: (details) {
-                              final newWidth =
-                                  (_sidebarWidth.value - details.delta.dx)
-                                      .clamp(200.0, 600.0);
-                              _sidebarWidth.value = newWidth;
-                            },
-                            onHorizontalDragEnd: (_) {
-                              context
-                                  .read<SettingsBloc>()
-                                  .add(UpdateSidebarWidth(_sidebarWidth.value));
-                            },
-                            child: const VerticalDivider(width: 4),
-                          ),
+                      ? ResizableDragHandle(
+                          isVertical: true,
+                          hitSize: 4,
+                          onDragDelta: (delta) {
+                            final newWidth = (_sidebarWidth.value - delta)
+                                .clamp(200.0, 600.0);
+                            _sidebarWidth.value = newWidth;
+                          },
+                          onDragEnd: () {
+                            context
+                                .read<SettingsBloc>()
+                                .add(UpdateSidebarWidth(_sidebarWidth.value));
+                          },
                         )
                       : const SizedBox.shrink(),
                 ),
@@ -767,24 +760,19 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                 ValueListenableBuilder(
                   valueListenable: _showRightPane,
                   builder: (context, show, child) => show
-                      ? MouseRegion(
-                          cursor: SystemMouseCursors.resizeColumn,
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.translucent,
-                            onHorizontalDragUpdate: (details) {
-                              final newWidth =
-                                  (_rightPaneWidth.value + details.delta.dx)
-                                      .clamp(250.0, 600.0);
-                              _rightPaneWidth.value = newWidth;
-                            },
-                            onHorizontalDragEnd: (_) {
-                              // שמור את הרוחב ב-SettingsBloc
-                              context.read<SettingsBloc>().add(
-                                  UpdateCommentaryPaneWidth(
-                                      _rightPaneWidth.value));
-                            },
-                            child: const VerticalDivider(width: 4),
-                          ),
+                      ? ResizableDragHandle(
+                          isVertical: true,
+                          hitSize: 4,
+                          onDragDelta: (delta) {
+                            final newWidth = (_rightPaneWidth.value + delta)
+                                .clamp(250.0, 600.0);
+                            _rightPaneWidth.value = newWidth;
+                          },
+                          onDragEnd: () {
+                            context.read<SettingsBloc>().add(
+                                UpdateCommentaryPaneWidth(
+                                    _rightPaneWidth.value));
+                          },
                         )
                       : const SizedBox.shrink(),
                 ),
@@ -919,7 +907,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                                 focusNode: _searchFieldFocusNode,
                                 outline: widget.tab.outline.value,
                                 bookTitle: widget.tab.book.title,
-                              bookTopics: widget.tab.book.topics,
+                                bookTopics: widget.tab.book.topics,
                                 initialSearchText: widget.tab.searchText,
                                 initialSearchOptions: widget.tab.searchOptions,
                                 initialAlternativeWords:

@@ -8,10 +8,13 @@ import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dar
 import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/commentary_sync_helper.dart';
 import 'package:otzaria/text_book/view/page_shape/page_shape_settings_dialog.dart';
+import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
+import 'package:otzaria/widgets/loading_indicator.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
+import 'package:otzaria/widgets/resizable_drag_handle.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:otzaria/settings/settings_bloc.dart';
 import 'package:otzaria/settings/settings_state.dart';
@@ -22,8 +25,7 @@ import 'dart:async';
 /// קבועים לחישוב רוחב חלוניות המפרשים
 const double _kCommentaryPaneWidthFactor = 0.17;
 
-/// רוחב הכותרת האנכית + רווחים (20 לכותרת + 4 לרווח + 6 למפריד)
-const double _kCommentaryLabelAndSpacingWidth = 30.0;
+
 
 /// מסך תצוגת צורת הדף - מציג את הטקסט המרכזי עם מפרשים מסביב
 class PageShapeScreen extends StatefulWidget {
@@ -209,18 +211,15 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
   Widget build(BuildContext context) {
     if (_isLoadingConfig) {
       return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+        body: LoadingIndicator(),
       );
     }
 
-    return BlocBuilder<TextBookBloc, TextBookState>(
+    return TextBookStateBuilder(
+      loadingWidget: const Scaffold(
+        body: LoadingIndicator(),
+      ),
       builder: (context, state) {
-        if (state is! TextBookLoaded) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-
         return Scaffold(
           body: Column(
             children: [
@@ -269,9 +268,9 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                           ),
                         ),
                       ],
-                      _ResizableDivider(
+                      ResizableDragHandle(
                         isVertical: true,
-                        onDrag: (delta) {
+                        onDragDelta: (delta) {
                           setState(() {
                             _leftWidth = ((_leftWidth ?? 0) - delta).clamp(
                                 80.0, MediaQuery.of(context).size.width * 0.4);
@@ -293,9 +292,9 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                     ),
                     // Right Commentary with label (label on outer edge - last in RTL)
                     if (_columnVisibility['right'] == true) ...[
-                      _ResizableDivider(
+                      ResizableDragHandle(
                         isVertical: true,
-                        onDrag: (delta) {
+                        onDragDelta: (delta) {
                           setState(() {
                             _rightWidth = ((_rightWidth ?? 0) + delta).clamp(
                                 80.0, MediaQuery.of(context).size.width * 0.4);
@@ -350,74 +349,18 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
               // Bottom Commentary
               if (_bottomCommentator != null ||
                   _bottomRightCommentator != null) ...[
-                // מפריד אופקי לגרירה עם קווים באמצע
-                SizedBox(
-                  height: 16,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      // קווים מתחת למפרשים העליונים - באמצע הרווח
-                      Row(
-                        children: [
-                          // קו מתחת למפרש השמאלי
-                          if (_leftCommentator != null)
-                            SizedBox(
-                              width: (_leftWidth ??
-                                      MediaQuery.of(context).size.width *
-                                          _kCommentaryPaneWidthFactor) +
-                                  _kCommentaryLabelAndSpacingWidth,
-                              child: Center(
-                                child: FractionallySizedBox(
-                                  widthFactor: 0.5,
-                                  child: Container(
-                                    height: 1,
-                                    color: Theme.of(context).dividerColor,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          const Spacer(),
-                          // קו מתחת למפרש הימני
-                          if (_rightCommentator != null)
-                            SizedBox(
-                              width: (_rightWidth ??
-                                      MediaQuery.of(context).size.width *
-                                          _kCommentaryPaneWidthFactor) +
-                                  _kCommentaryLabelAndSpacingWidth,
-                              child: Center(
-                                child: FractionallySizedBox(
-                                  widthFactor: 0.5,
-                                  child: Container(
-                                    height: 1,
-                                    color: Theme.of(context).dividerColor,
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                      // אזור גרירה שקוף על כל הרוחב
-                      Positioned.fill(
-                        child: MouseRegion(
-                          cursor: SystemMouseCursors.resizeRow,
-                          child: GestureDetector(
-                            onPanUpdate: (details) {
-                              setState(() {
-                                _bottomHeight =
-                                    ((_bottomHeight ?? 0) - details.delta.dy)
-                                        .clamp(
-                                            80.0,
-                                            MediaQuery.of(context).size.height *
-                                                0.5);
-                              });
-                            },
-                            onPanEnd: (_) => _saveSizes(),
-                            child: Container(color: Colors.transparent),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                // מפריד אופקי לגרירה
+                ResizableDragHandle(
+                  isVertical: false,
+                  hitSize: 16,
+                  cursor: SystemMouseCursors.resizeRow,
+                  onDragDelta: (delta) {
+                    setState(() {
+                      _bottomHeight = ((_bottomHeight ?? 0) - delta).clamp(
+                          80.0, MediaQuery.of(context).size.height * 0.5);
+                    });
+                  },
+                  onDragEnd: _saveSizes,
                 ),
                 SizedBox(
                   height: _bottomHeight ??
@@ -452,9 +395,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                         isBottom: true,
                                       ),
                                     ),
-                                    const _ResizableDivider(
-                                      isVertical: true,
-                                    ),
+                                    const SizedBox(width: 8),
                                   ],
                                   Expanded(
                                     child: _CommentaryPane(
@@ -756,12 +697,9 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
       );
     }
 
-    return BlocBuilder<TextBookBloc, TextBookState>(
+    return TextBookStateBuilder(
+      loadingWidget: const SizedBox(),
       builder: (context, state) {
-        if (state is! TextBookLoaded) {
-          return const SizedBox();
-        }
-
         return BlocBuilder<SettingsBloc, SettingsState>(
           builder: (context, settingsState) {
             // מפרשים תחתונים משתמשים בגופן מההגדרות, עליונים בגופן הרגיל
@@ -771,9 +709,10 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
             final fontFamily = widget.isBottom
                 ? bottomFont
                 : settingsState.commentatorsFontFamily;
+            final commentaryFontSize = PageShapeSettingsManager.getCommentaryFontSize();
             return SimpleTextViewer(
               content: _content!,
-              fontSize: 16, // גופן קבוע למפרשים בצורת הדף
+              fontSize: commentaryFontSize,
               fontFamily: fontFamily,
               openBookCallback: widget.openBookCallback,
               scrollController: _scrollController,
@@ -789,65 +728,4 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
   }
 }
 
-class _ResizableDivider extends StatefulWidget {
-  final bool isVertical;
-  final Function(double)? onDrag;
-  final VoidCallback? onDragEnd;
 
-  const _ResizableDivider({
-    required this.isVertical,
-    this.onDrag,
-    this.onDragEnd,
-  });
-
-  @override
-  State<_ResizableDivider> createState() => _ResizableDividerState();
-}
-
-class _ResizableDividerState extends State<_ResizableDivider> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    // אם אין onDrag, מציגים מפריד פשוט ללא אינטראקציה
-    if (widget.onDrag == null) {
-      return Container(
-        width: widget.isVertical ? 8 : null,
-        height: widget.isVertical ? null : 8,
-        color: Colors.transparent,
-      );
-    }
-
-    return MouseRegion(
-      cursor: widget.isVertical
-          ? SystemMouseCursors.resizeColumn
-          : SystemMouseCursors.resizeRow,
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
-        onPanUpdate: (details) {
-          widget.onDrag!(
-            widget.isVertical ? details.delta.dx : details.delta.dy,
-          );
-        },
-        onPanEnd: (_) => widget.onDragEnd?.call(),
-        child: Container(
-          width: widget.isVertical ? 8 : null,
-          height: widget.isVertical ? null : 8,
-          color: _isHovered
-              ? Colors.grey.withValues(alpha: 0.3)
-              : Colors.transparent,
-          child: _isHovered
-              ? Center(
-                  child: Container(
-                    width: widget.isVertical ? 2 : null,
-                    height: widget.isVertical ? null : 2,
-                    color: Colors.grey,
-                  ),
-                )
-              : null,
-        ),
-      ),
-    );
-  }
-}

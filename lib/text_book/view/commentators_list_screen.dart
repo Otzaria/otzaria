@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/utils/text_manipulation.dart';
 import 'package:otzaria/widgets/filter_list/src/filter_list_dialog.dart';
@@ -136,8 +137,9 @@ class CommentatorsListViewState extends State<CommentatorsListView> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<TextBookBloc, TextBookState>(builder: (context, state) {
-      if (state is! TextBookLoaded) return const Center();
+    return TextBookStateBuilder(
+      loadingWidget: const Center(),
+      builder: (context, state) {
       if (state.availableCommentators.isEmpty) {
         return const Center(
           child: Text("אין מפרשים"),

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:otzaria/core/window_persistence.dart';
 
 /// Callback type for fullscreen state changes
 typedef FullscreenCallback = void Function(bool isFullscreen);
@@ -39,6 +40,7 @@ class AppWindowListener extends WindowListener {
           (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
         // Use Future.microtask to avoid blocking the current execution
         Future.microtask(() async {
+          await WindowPersistence.saveNow();
           await windowManager.destroy();
         });
       }
@@ -84,6 +86,8 @@ class AppWindowListener extends WindowListener {
     if (kDebugMode) {
       print('Window resized');
     }
+
+    WindowPersistence.scheduleSave();
   }
 
   @override
@@ -91,6 +95,24 @@ class AppWindowListener extends WindowListener {
     if (kDebugMode) {
       print('Window moved');
     }
+
+    WindowPersistence.scheduleSave();
+  }
+
+  @override
+  void onWindowMaximize() {
+    if (kDebugMode) {
+      print('Window maximized');
+    }
+    WindowPersistence.scheduleSave();
+  }
+
+  @override
+  void onWindowUnmaximize() {
+    if (kDebugMode) {
+      print('Window unmaximized');
+    }
+    WindowPersistence.scheduleSave();
   }
 
   /// Clean up the listener when disposing
@@ -103,3 +125,4 @@ class AppWindowListener extends WindowListener {
     }
   }
 }
+

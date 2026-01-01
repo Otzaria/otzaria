@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
+import 'package:otzaria/widgets/mixins/dialog_navigation_mixin.dart';
 
 /// דיאלוג הזנת טקסט עם תמיכה באנטר וחיצים
 class InputDialog extends StatefulWidget {
@@ -13,6 +13,7 @@ class InputDialog extends StatefulWidget {
   final String cancelText;
   final String confirmText;
   final Color? confirmColor;
+  final bool obscureText;
 
   const InputDialog({
     super.key,
@@ -25,15 +26,15 @@ class InputDialog extends StatefulWidget {
     this.cancelText = 'ביטול',
     this.confirmText = 'שמור',
     this.confirmColor,
+    this.obscureText = false,
   });
 
   @override
   State<InputDialog> createState() => _InputDialogState();
 }
 
-class _InputDialogState extends State<InputDialog> {
+class _InputDialogState extends State<InputDialog> with DialogNavigationMixin {
   late final TextEditingController _controller;
-  int _focusedButtonIndex = 1; // 0 = ביטול, 1 = אישור (ברירת מחדל)
   final FocusNode _textFieldFocusNode = FocusNode();
 
   @override
@@ -59,47 +60,10 @@ class _InputDialogState extends State<InputDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Focus(
-      onKeyEvent: (node, event) {
-        if (event is! KeyDownEvent) {
-          return KeyEventResult.ignored;
-        }
-
-        // אם הפוקוס בשדה הטקסט, אנטר שולח את הטופס
-        if (_textFieldFocusNode.hasFocus) {
-          if (event.logicalKey == LogicalKeyboardKey.enter) {
-            _submit();
-            return KeyEventResult.handled;
-          }
-          return KeyEventResult.ignored;
-        }
-
-        // אם הפוקוס בכפתורים - חיצים ואנטר
-        if (event.logicalKey == LogicalKeyboardKey.arrowLeft ||
-            event.logicalKey == LogicalKeyboardKey.arrowRight) {
-          setState(() {
-            _focusedButtonIndex = _focusedButtonIndex == 0 ? 1 : 0;
-          });
-          return KeyEventResult.handled;
-        }
-
-        if (event.logicalKey == LogicalKeyboardKey.enter) {
-          if (_focusedButtonIndex == 1) {
-            _submit();
-          } else {
-            Navigator.of(context).pop();
-          }
-          return KeyEventResult.handled;
-        }
-
-        // Escape - ביטול
-        if (event.logicalKey == LogicalKeyboardKey.escape) {
-          Navigator.of(context).pop();
-          return KeyEventResult.handled;
-        }
-
-        return KeyEventResult.ignored;
-      },
+    return buildKeyboardNavigator(
+      onConfirm: _submit,
+      onCancel: () => Navigator.of(context).pop(),
+      textFieldFocusNode: _textFieldFocusNode,
       child: AlertDialog(
         title: Text(widget.title),
         content: Column(
@@ -118,6 +82,7 @@ class _InputDialogState extends State<InputDialog> {
               controller: _controller,
               focusNode: _textFieldFocusNode,
               keyboardType: widget.keyboardType,
+              obscureText: widget.obscureText,
               decoration: InputDecoration(
                 labelText: widget.labelText,
                 hintText: widget.hintText,
@@ -129,12 +94,12 @@ class _InputDialogState extends State<InputDialog> {
         actions: [
           _buildButton(
             text: widget.cancelText,
-            isFocused: _focusedButtonIndex == 0,
+            isFocused: focusedButtonIndex == 0,
             onPressed: () => Navigator.of(context).pop(),
           ),
           _buildButton(
             text: widget.confirmText,
-            isFocused: _focusedButtonIndex == 1,
+            isFocused: focusedButtonIndex == 1,
             isConfirm: true,
             onPressed: _submit,
           ),

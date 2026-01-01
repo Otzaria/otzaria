@@ -1,12 +1,18 @@
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:math';
+import 'dart:ui' as ui;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/constants/fonts.dart';
+import 'package:otzaria/models/links.dart';
+import 'package:otzaria/personal_notes/models/personal_note.dart';
+import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
+import 'package:otzaria/pdf_book/pdf_page_number_dispaly.dart';
+import 'package:otzaria/pdf_book/pdf_thumbnails_screen.dart';
 import 'package:otzaria/utils/text_manipulation.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:printing/printing.dart';
@@ -16,6 +22,10 @@ import 'package:otzaria/models/books.dart';
 
 class PrintingScreen extends StatefulWidget {
   final Future<String> data;
+  final Future<Uint8List> Function(PdfPageFormat format)? createPdfOverride;
+  final String bookId;
+  final List<Link> links;
+  final List<String> activeCommentators;
   final bool removeNikud;
   final bool removeTaamim;
   final int startLine;
@@ -23,6 +33,10 @@ class PrintingScreen extends StatefulWidget {
   const PrintingScreen({
     super.key,
     required this.data,
+    this.createPdfOverride,
+    required this.bookId,
+    this.links = const [],
+    this.activeCommentators = const [],
     this.startLine = 0,
     this.removeNikud = false,
     this.removeTaamim = false,
@@ -43,6 +57,20 @@ class _PrintingScreenState extends State<PrintingScreen> {
   PdfPageFormat format = PdfPageFormat.a4;
   double pageMargin = 20.0;
 
+  final PdfViewerController _pdfViewerController = PdfViewerController();
+  final ValueNotifier<PdfDocumentRef?> _documentRef =
+      ValueNotifier<PdfDocumentRef?>(null);
+
+  bool _showThumbnails = false;
+  int _pagesPerSheet = 1;
+
+  bool _includeCommentaries = false;
+  bool _includePersonalNotes = false;
+
+  final Map<String, String> _commentaryContentCache = {};
+  List<PersonalNote>? _personalNotesCache;
+  bool _isLoadingNotes = false;
+
   // מצב בחירה: שורות או כותרות
   bool _isHeaderMode = true; // ברירת מחדל: כותרות
   int? _startHeaderIndex;
@@ -59,9 +87,22 @@ class _PrintingScreenState extends State<PrintingScreen> {
     startLine = widget.startLine;
     endLine = startLine;
 
+    // במצב "צורת הדף" (PDF חיצוני), ברירת המחדל היא לרוחב
+    if (widget.createPdfOverride != null) {
+      orientation = pw.PageOrientation.landscape;
+    }
+
     // אתחול הגדרות ניקוד וטעמים לפי תצוגת הספר
     _removeNikud = widget.removeNikud;
     _removeTaamim = widget.removeTaamim;
+
+    // במצב PDF חיצוני (כמו "צורת הדף") אין טווח שורות/כותרות.
+    if (widget.createPdfOverride != null) {
+      _isHeaderMode = false;
+      _flatHeaders = const [];
+      pdf = _createOutputPdf(format);
+      return;
+    }
 
     // יצירת רשימה שטוחה של כל הכותרות
     _flatHeaders = _flattenHeaders(widget.tableOfContents);
@@ -80,7 +121,13 @@ class _PrintingScreenState extends State<PrintingScreen> {
       }();
     }
 
-    pdf = createPdf(format);
+    pdf = _createOutputPdf(format);
+  }
+
+  @override
+  void dispose() {
+    _documentRef.dispose();
+    super.dispose();
   }
 
   // פונקציה ליצירת רשימה שטוחה של כל הכותרות
@@ -121,7 +168,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
 
   @override
   void setState(VoidCallback fn) {
-    pdf = createPdf(format);
+    pdf = _createOutputPdf(format);
     if (mounted) {
       super.setState(fn);
     }
@@ -129,6 +176,108 @@ class _PrintingScreenState extends State<PrintingScreen> {
 
   void printPdf() {
     Printing.layoutPdf(onLayout: createPdf);
+  }
+
+  Future<Uint8List> _createOutputPdf(PdfPageFormat format) async {
+    final base = await _createBasePdf(format);
+    if (_pagesPerSheet <= 1) return base;
+
+    try {
+      return await _createNUpPdfFromRaster(
+        base,
+        sheetFormat: format,
+        pagesPerSheet: _pagesPerSheet,
+      );
+    } catch (_) {
+      // fallback: always return original PDF if raster/imposition fails
+      return base;
+    }
+  }
+
+  Future<Uint8List> _createBasePdf(PdfPageFormat format) async {
+    final override = widget.createPdfOverride;
+    if (override != null) {
+      final effectiveFormat =
+          orientation == pw.PageOrientation.landscape ? format.landscape : format;
+      return override(effectiveFormat);
+    }
+    return createPdf(format);
+  }
+
+  Future<Uint8List> _createNUpPdfFromRaster(
+    Uint8List sourcePdf, {
+    required PdfPageFormat sheetFormat,
+    required int pagesPerSheet,
+  }) async {
+    final (rows, cols) = switch (pagesPerSheet) {
+      2 => (1, 2),
+      4 => (2, 2),
+      _ => (1, 1),
+    };
+    if (rows == 1 && cols == 1) return sourcePdf;
+
+    const dpi = 120.0;
+    final rasterPages = <Uint8List>[];
+
+    await for (final raster in Printing.raster(sourcePdf, dpi: dpi)) {
+      final image = await raster.toImage();
+      final data = await image.toByteData(format: ui.ImageByteFormat.png);
+      image.dispose();
+      if (data == null) continue;
+      rasterPages.add(data.buffer.asUint8List());
+    }
+
+    if (rasterPages.isEmpty) return sourcePdf;
+
+    final output = pw.Document(compress: false);
+    final cells = rows * cols;
+    final cellHeight = sheetFormat.height / rows;
+
+    for (var i = 0; i < rasterPages.length; i += cells) {
+      final chunk = rasterPages.sublist(
+        i,
+        min(i + cells, rasterPages.length),
+      );
+
+      output.addPage(
+        pw.Page(
+          pageFormat: sheetFormat,
+          margin: pw.EdgeInsets.zero,
+          build: (context) {
+            return pw.Directionality(
+              textDirection: pw.TextDirection.rtl,
+              child: pw.Column(
+                children: List.generate(rows, (row) {
+                  return pw.SizedBox(
+                    height: cellHeight,
+                    child: pw.Row(
+                      children: List.generate(cols, (col) {
+                        final indexInChunk = row * cols + col;
+                        if (indexInChunk >= chunk.length) {
+                          return pw.Expanded(child: pw.SizedBox());
+                        }
+                        final image = pw.MemoryImage(chunk[indexInChunk]);
+                        return pw.Expanded(
+                          child: pw.Align(
+                            alignment: pw.Alignment.centerRight,
+                            child: pw.Image(
+                              image,
+                              fit: pw.BoxFit.contain,
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  );
+                }),
+              ),
+            );
+          },
+        ),
+      );
+    }
+
+    return output.save();
   }
 
   Future<Uint8List> createPdf(PdfPageFormat format) async {
@@ -173,7 +322,21 @@ class _PrintingScreenState extends State<PrintingScreen> {
     if (shouldReplaceHolyNames) {
       bookName = replaceHolyNames(bookName);
     }
-    data = data.getRange(startLine, endLine).toList();
+    final allLines = data;
+    final selectedStart = startLine.clamp(0, allLines.length);
+    final selectedEnd = endLine.clamp(selectedStart, allLines.length);
+
+    final personalNotes = _includePersonalNotes
+        ? await _getPersonalNotesForBook(widget.bookId)
+        : const <PersonalNote>[];
+
+    final blocks = await _buildPrintBlocks(
+      allLines: allLines,
+      selectedStart: selectedStart,
+      selectedEnd: selectedEnd,
+      shouldReplaceHolyNames: shouldReplaceHolyNames,
+      personalNotes: personalNotes,
+    );
 
     final result = await Isolate.run(() async {
       final pdfData =
@@ -205,17 +368,102 @@ class _PrintingScreenState extends State<PrintingScreen> {
                         .defaultTextStyle
                         .copyWith(color: PdfColors.grey)));
           },
-          build: (pw.Context context) => data
-              .map(
-                (i) => pw.Padding(
-                  padding: const pw.EdgeInsets.all(8.0),
-                  child: pw.Paragraph(
-                      text: i.replaceAll('\n', ''),
+          build: (pw.Context context) {
+            return blocks
+                .map((b) {
+                  final kind = b['kind'];
+                  final title = b['title'];
+                  final text = (b['text'] ?? '').replaceAll('\n', '');
+
+                  if (kind == 'commentaryTitle') {
+                    return pw.Padding(
+                      padding: const pw.EdgeInsets.only(
+                        top: 6,
+                        right: 8,
+                        left: 8,
+                      ),
+                      child: pw.Text(
+                        title ?? 'מפרשים',
+                        style: pw.TextStyle(
+                          fontSize: max(10.0, fontSize * 0.9),
+                          fontWeight: pw.FontWeight.bold,
+                          color: PdfColors.grey800,
+                        ),
+                      ),
+                    );
+                  }
+
+                  if (kind == 'commentaryGroupTitle') {
+                    return pw.Padding(
+                      padding: const pw.EdgeInsets.only(
+                        top: 4,
+                        right: 12,
+                        left: 8,
+                      ),
+                      child: pw.Text(
+                        title ?? '',
+                        style: pw.TextStyle(
+                          fontSize: max(10.0, fontSize * 0.9),
+                          fontWeight: pw.FontWeight.bold,
+                          color: PdfColors.grey900,
+                        ),
+                      ),
+                    );
+                  }
+
+                  if (kind == 'noteTitle') {
+                    return pw.Padding(
+                      padding: const pw.EdgeInsets.only(
+                        top: 6,
+                        right: 8,
+                        left: 8,
+                      ),
+                      child: pw.Text(
+                        title ?? 'הערות אישיות',
+                        style: pw.TextStyle(
+                          fontSize: max(10.0, fontSize * 0.9),
+                          fontWeight: pw.FontWeight.bold,
+                          color: PdfColors.grey800,
+                        ),
+                      ),
+                    );
+                  }
+
+                  final effectiveFontSize = switch (kind) {
+                    'commentary' || 'note' => max(10.0, fontSize * 0.9),
+                    _ => fontSize,
+                  };
+
+                  final padding = switch (kind) {
+                    'commentary' || 'note' => const pw.EdgeInsets.only(
+                        top: 2,
+                        bottom: 2,
+                        right: 18,
+                        left: 8,
+                      ),
+                    'commentaryGroupTitle' => const pw.EdgeInsets.only(
+                        top: 4,
+                        bottom: 2,
+                        right: 12,
+                        left: 8,
+                      ),
+                    _ => const pw.EdgeInsets.all(8.0),
+                  };
+
+                  return pw.Padding(
+                    padding: padding,
+                    child: pw.Paragraph(
+                      text: text,
                       textAlign: pw.TextAlign.justify,
-                      style: pw.TextStyle(fontSize: fontSize, font: font)),
-                ),
-              )
-              .toList()));
+                      style: pw.TextStyle(
+                        fontSize: effectiveFontSize,
+                        font: font,
+                      ),
+                    ),
+                  );
+                })
+                .toList();
+          }));
 
       return await pdfData.save();
     });
@@ -223,9 +471,140 @@ class _PrintingScreenState extends State<PrintingScreen> {
     return result;
   }
 
+  Future<List<Map<String, String>>> _buildPrintBlocks({
+    required List<String> allLines,
+    required int selectedStart,
+    required int selectedEnd,
+    required bool shouldReplaceHolyNames,
+    required List<PersonalNote> personalNotes,
+  }) async {
+    final blocks = <Map<String, String>>[];
+
+    Map<int, List<PersonalNote>> notesByLine = const {};
+    if (_includePersonalNotes && personalNotes.isNotEmpty) {
+      final map = <int, List<PersonalNote>>{};
+      for (final note in personalNotes) {
+        final ln = note.lineNumber;
+        if (ln == null) continue;
+        (map[ln] ??= []).add(note);
+      }
+      notesByLine = map;
+    }
+
+    for (var i = selectedStart; i < selectedEnd; i++) {
+      var lineText = allLines[i];
+      if (shouldReplaceHolyNames) {
+        lineText = replaceHolyNames(lineText);
+      }
+      blocks.add({'kind': 'text', 'text': lineText});
+
+      final lineNumber1Based = i + 1;
+
+      if (_includeCommentaries) {
+        final linksForLine = await getLinksforIndexs(
+          indexes: [i],
+          links: widget.links,
+          commentatorsToShow: widget.activeCommentators,
+        );
+
+        if (linksForLine.isNotEmpty) {
+          blocks.add({'kind': 'commentaryTitle', 'title': 'מפרשים'});
+
+          // קיבוץ לפי מפרש (כמו בתצוגת PDF): כותרת לכל מפרש, ומתחתיה כל הקטעים שלו
+          String? currentGroupTitle;
+          for (final link in linksForLine) {
+            final commentatorTitle = getTitleFromPath(link.path2);
+            if (currentGroupTitle != commentatorTitle) {
+              currentGroupTitle = commentatorTitle;
+              blocks.add({
+                'kind': 'commentaryGroupTitle',
+                'title': commentatorTitle,
+              });
+            }
+
+            final content = await _getCommentaryContent(
+              link,
+              shouldReplaceHolyNames: shouldReplaceHolyNames,
+            );
+            if (content.trim().isEmpty) continue;
+            blocks.add({
+              'kind': 'commentary',
+              'text': content,
+            });
+          }
+        }
+      }
+
+      if (_includePersonalNotes) {
+        final notes = notesByLine[lineNumber1Based] ?? const <PersonalNote>[];
+        if (notes.isNotEmpty) {
+          blocks.add({'kind': 'noteTitle', 'title': 'הערות אישיות'});
+          for (final note in notes) {
+            var noteText = note.content;
+            if (shouldReplaceHolyNames) {
+              noteText = replaceHolyNames(noteText);
+            }
+            blocks.add({'kind': 'note', 'text': noteText});
+          }
+        }
+      }
+    }
+
+    return blocks;
+  }
+
+  Future<String> _getCommentaryContent(
+    Link link, {
+    required bool shouldReplaceHolyNames,
+  }) async {
+    final key = '${link.path2}::${link.index2}::${link.heRef}';
+    final cached = _commentaryContentCache[key];
+    if (cached != null) return cached;
+
+    var text = await link.content;
+    text = stripHtmlIfNeeded(text);
+    if (_removeNikud && _removeTaamim) {
+      text = removeVolwels(text);
+    } else if (_removeNikud && !_removeTaamim) {
+      text = text
+          .replaceAll('־', ' ')
+          .replaceAll('׀', ' ')
+          .replaceAll('|', ' ')
+          .replaceAll(RegExp(r'[\u05B0-\u05C7]'), '');
+    } else if (!_removeNikud && _removeTaamim) {
+      text = removeTeamim(text);
+    }
+    if (shouldReplaceHolyNames) {
+      text = replaceHolyNames(text);
+    }
+
+    _commentaryContentCache[key] = text;
+    return text;
+  }
+
+  Future<List<PersonalNote>> _getPersonalNotesForBook(String bookId) async {
+    if (_personalNotesCache != null) return _personalNotesCache!;
+    if (_isLoadingNotes) return const <PersonalNote>[];
+    _isLoadingNotes = true;
+
+    try {
+      final repo = PersonalNotesRepository();
+      final all = await repo.loadNotes(bookId);
+      final located = all.where((n) => n.hasLocation).toList();
+      _personalNotesCache = located;
+      return located;
+    } catch (_) {
+      _personalNotesCache = const <PersonalNote>[];
+      return const <PersonalNote>[];
+    } finally {
+      _isLoadingNotes = false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isCustomPdfMode = widget.createPdfOverride != null;
 
     return Scaffold(
       appBar: AppBar(
@@ -262,6 +641,251 @@ class _PrintingScreenState extends State<PrintingScreen> {
       body: FutureBuilder(
         future: widget.data,
         builder: (context, snapshot) {
+          if (isCustomPdfMode) {
+            return Row(
+              children: [
+                // פאנל הגדרות בצד
+                Container(
+                  width: 320,
+                  decoration: BoxDecoration(
+                    color: colorScheme.surface,
+                    border: Border(
+                      left: BorderSide(
+                        color: colorScheme.outlineVariant,
+                        width: 1,
+                      ),
+                    ),
+                  ),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildSectionCard(
+                          context: context,
+                          title: 'תצוגה מקדימה',
+                          icon: FluentIcons.eye_24_regular,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildDropdownRow(
+                                context: context,
+                                label: 'מעבר לדף',
+                                child: SizedBox(
+                                  height: 40,
+                                  child: PageNumberDisplay(
+                                      controller: _pdfViewerController),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              SwitchListTile(
+                                title: const Text('תצוגה מוקטנת של כל הדפים'),
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                                value: _showThumbnails,
+                                onChanged: (value) {
+                                  setState(() {
+                                    _showThumbnails = value;
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        _buildSectionCard(
+                          context: context,
+                          title: 'הגדרות דף',
+                          icon: FluentIcons.options_24_regular,
+                          child: Column(
+                            children: [
+                              _buildDropdownRow(
+                                context: context,
+                                label: 'גודל דף',
+                                child: DropdownButton<PdfPageFormat>(
+                                  value: format,
+                                  isExpanded: true,
+                                  underline: const SizedBox(),
+                                  borderRadius: BorderRadius.circular(8),
+                                  onChanged: (PdfPageFormat? value) {
+                                    if (value == null) return;
+                                    setState(() {
+                                      format = value;
+                                    });
+                                  },
+                                  items: const {
+                                    'A4': PdfPageFormat.a4,
+                                    'Letter': PdfPageFormat.letter,
+                                  }.entries.map((entry) {
+                                    return DropdownMenuItem(
+                                      value: entry.value,
+                                      child: Text(entry.key),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              _buildDropdownRow(
+                                context: context,
+                                label: 'כיוון',
+                                child: DropdownButton<pw.PageOrientation>(
+                                  value: orientation,
+                                  isExpanded: true,
+                                  underline: const SizedBox(),
+                                  borderRadius: BorderRadius.circular(8),
+                                  onChanged: (pw.PageOrientation? value) {
+                                    if (value == null) return;
+                                    orientation = value;
+                                    setState(() {});
+                                  },
+                                  items: const [
+                                    DropdownMenuItem(
+                                      value: pw.PageOrientation.portrait,
+                                      child: Text('לאורך'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: pw.PageOrientation.landscape,
+                                      child: Text('לרוחב'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              _buildDropdownRow(
+                                context: context,
+                                label: 'עמודים בגליון',
+                                child: DropdownButton<int>(
+                                  value: _pagesPerSheet,
+                                  isExpanded: true,
+                                  underline: const SizedBox(),
+                                  borderRadius: BorderRadius.circular(8),
+                                  onChanged: (int? value) {
+                                    if (value == null) return;
+                                    setState(() {
+                                      _pagesPerSheet = value;
+                                    });
+                                  },
+                                  items: const [
+                                    DropdownMenuItem(
+                                      value: 1,
+                                      child: Text('1 (רגיל)'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 2,
+                                      child: Text('2 (יישור לימין)'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 4,
+                                      child: Text('4 (יישור לימין)'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // תצוגה מקדימה של ה-PDF
+                Expanded(
+                  child: Container(
+                    color: colorScheme.surfaceContainerLow,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: FutureBuilder(
+                            future: pdf,
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState ==
+                                      ConnectionState.done &&
+                                  snapshot.hasData) {
+                                return PdfViewer.data(
+                                  snapshot.data!,
+                                  sourceName: 'printing',
+                                  controller: _pdfViewerController,
+                                  params: PdfViewerParams(
+                                    viewerOverlayBuilder:
+                                        (context, size, handleLinkTap) => [
+                                      PdfViewerScrollThumb(
+                                        controller: _pdfViewerController,
+                                        orientation:
+                                            ScrollbarOrientation.right,
+                                        thumbSize: const Size(40, 25),
+                                        thumbBuilder: (context, thumbSize,
+                                                pageNumber, controller) =>
+                                            Container(
+                                          color: Colors.black,
+                                          child: Center(
+                                            child: Text(
+                                              pageNumber.toString(),
+                                              style: const TextStyle(
+                                                  color: Colors.white),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                    onDocumentChanged: (document) {
+                                      if (document == null) {
+                                        _documentRef.value = null;
+                                      }
+                                    },
+                                    onViewerReady: (document, controller) {
+                                      _documentRef.value =
+                                          controller.documentRef;
+                                    },
+                                  ),
+                                );
+                              }
+                              return Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    CircularProgressIndicator(
+                                      color: colorScheme.primary,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'מכין תצוגה מקדימה...',
+                                      style: TextStyle(
+                                        color: colorScheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        if (_showThumbnails) ...[
+                          VerticalDivider(
+                            width: 1,
+                            color: colorScheme.outlineVariant,
+                          ),
+                          SizedBox(
+                            width: 260,
+                            child: ValueListenableBuilder<PdfDocumentRef?>(
+                              valueListenable: _documentRef,
+                              builder: (context, documentRef, _) {
+                                return ThumbnailsView(
+                                  documentRef: documentRef,
+                                  controller: _pdfViewerController,
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }
+
           if (snapshot.connectionState == ConnectionState.done) {
             final totalLines = snapshot.data!.split('\n').length;
             return Row(
@@ -283,6 +907,68 @@ class _PrintingScreenState extends State<PrintingScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        // ניווט ותצוגה מקדימה
+                        _buildSectionCard(
+                          context: context,
+                          title: 'תצוגה מקדימה',
+                          icon: FluentIcons.eye_24_regular,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildDropdownRow(
+                                context: context,
+                                label: 'מעבר לדף',
+                                child: SizedBox(
+                                  height: 40,
+                                  child: PageNumberDisplay(
+                                      controller: _pdfViewerController),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              SwitchListTile(
+                                title: const Text('תצוגה מוקטנת של כל הדפים'),
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                                value: _showThumbnails,
+                                onChanged: (value) {
+                                  setState(() {
+                                    _showThumbnails = value;
+                                  });
+                                },
+                              ),
+                              const SizedBox(height: 8),
+                              if (!isCustomPdfMode) ...[
+                                SwitchListTile(
+                                  title: const Text('כלול מפרשים'),
+                                  dense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                  value: _includeCommentaries,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _includeCommentaries = value;
+                                    });
+                                  },
+                                ),
+                                SwitchListTile(
+                                  title: const Text('כלול הערות אישיות'),
+                                  dense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                  value: _includePersonalNotes,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _includePersonalNotes = value;
+                                      if (!value) {
+                                        _personalNotesCache = null;
+                                      }
+                                    });
+                                  },
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
                         // כותרת טווח הדפסה
                         _buildSectionCard(
                           context: context,
@@ -614,6 +1300,37 @@ class _PrintingScreenState extends State<PrintingScreen> {
                                   ],
                                 ),
                               ),
+                              const SizedBox(height: 12),
+                              _buildDropdownRow(
+                                context: context,
+                                label: 'עמודים בגליון',
+                                child: DropdownButton<int>(
+                                  value: _pagesPerSheet,
+                                  isExpanded: true,
+                                  underline: const SizedBox(),
+                                  borderRadius: BorderRadius.circular(8),
+                                  onChanged: (int? value) {
+                                    if (value == null) return;
+                                    setState(() {
+                                      _pagesPerSheet = value;
+                                    });
+                                  },
+                                  items: const [
+                                    DropdownMenuItem(
+                                      value: 1,
+                                      child: Text('1 (רגיל)'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 2,
+                                      child: Text('2 (יישור לימין)'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 4,
+                                      child: Text('4 (יישור לימין)'),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -626,34 +1343,91 @@ class _PrintingScreenState extends State<PrintingScreen> {
                 Expanded(
                   child: Container(
                     color: colorScheme.surfaceContainerLow,
-                    child: FutureBuilder(
-                      future: pdf,
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.done &&
-                            snapshot.hasData) {
-                          return PdfViewer.data(
-                            snapshot.data!,
-                            sourceName: 'printing',
-                          );
-                        }
-                        return Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              CircularProgressIndicator(
-                                color: colorScheme.primary,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'מכין תצוגה מקדימה...',
-                                style: TextStyle(
-                                  color: colorScheme.onSurfaceVariant,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: FutureBuilder(
+                            future: pdf,
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState ==
+                                      ConnectionState.done &&
+                                  snapshot.hasData) {
+                                return PdfViewer.data(
+                                  snapshot.data!,
+                                  sourceName: 'printing',
+                                  controller: _pdfViewerController,
+                                  params: PdfViewerParams(
+                                    viewerOverlayBuilder:
+                                        (context, size, handleLinkTap) => [
+                                      PdfViewerScrollThumb(
+                                        controller: _pdfViewerController,
+                                        orientation:
+                                            ScrollbarOrientation.right,
+                                        thumbSize: const Size(40, 25),
+                                        thumbBuilder: (context, thumbSize,
+                                                pageNumber, controller) =>
+                                            Container(
+                                          color: Colors.black,
+                                          child: Center(
+                                            child: Text(
+                                              pageNumber.toString(),
+                                              style: const TextStyle(
+                                                  color: Colors.white),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                    onDocumentChanged: (document) {
+                                      if (document == null) {
+                                        _documentRef.value = null;
+                                      }
+                                    },
+                                    onViewerReady: (document, controller) {
+                                      _documentRef.value = controller.documentRef;
+                                    },
+                                  ),
+                                );
+                              }
+                              return Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    CircularProgressIndicator(
+                                      color: colorScheme.primary,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'מכין תצוגה מקדימה...',
+                                      style: TextStyle(
+                                        color: colorScheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                            ],
+                              );
+                            },
                           ),
-                        );
-                      },
+                        ),
+                        if (_showThumbnails) ...[
+                          VerticalDivider(
+                            width: 1,
+                            color: colorScheme.outlineVariant,
+                          ),
+                          SizedBox(
+                            width: 260,
+                            child: ValueListenableBuilder<PdfDocumentRef?>(
+                              valueListenable: _documentRef,
+                              builder: (context, documentRef, _) {
+                                return ThumbnailsView(
+                                  documentRef: documentRef,
+                                  controller: _pdfViewerController,
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 ),

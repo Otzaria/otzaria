@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/core/scaffold_messenger.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -75,23 +76,13 @@ class HtmlLinkHandler {
       openBookCallback(tab);
 
       if (context.mounted && ref.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('נפתח: $ref'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        UiSnack.show('נפתח: $ref');
       }
     } catch (e) {
       debugPrint('שגיאה בטיפול בקישור מבוסס תווים: $e');
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('לא ניתן לפתוח את הקישור: $e'),
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        UiSnack.show('לא ניתן לפתוח את הקישור: $e');
       }
     }
   }
@@ -178,12 +169,7 @@ class HtmlLinkHandler {
 
       // הצגת הודעת שגיאה למשתמש
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('שגיאה בפתיחת הקישור: $e'),
-            duration: const Duration(seconds: 5),
-          ),
-        );
+        UiSnack.show('שגיאה בפתיחת הקישור: $e');
       }
 
       return false;
@@ -214,12 +200,7 @@ class HtmlLinkHandler {
         );
 
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('נווט ל: $headerName'),
-              duration: const Duration(seconds: 2),
-            ),
-          );
+          UiSnack.show('נווט ל: $headerName');
         }
       } else {
         throw Exception('לא נמצאה הכותרת: $headerName');
@@ -228,12 +209,7 @@ class HtmlLinkHandler {
       debugPrint('שגיאה בניווט לכותרת: $e');
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('לא ניתן לנווט לכותרת: $headerName'),
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        UiSnack.show('לא ניתן לנווט לכותרת: $headerName');
       }
     }
   }
@@ -285,13 +261,8 @@ class HtmlLinkHandler {
         } else {
           // אם לא נמצאה הכותרת, נציג אזהרה אבל עדיין נפתח את הספר
           if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                    'לא נמצאה הכותרת "$headerName" בספר $bookTitle, פותח את תחילת הספר'),
-                duration: const Duration(seconds: 3),
-              ),
-            );
+            UiSnack.show(
+                'לא נמצאה הכותרת "$headerName" בספר $bookTitle, פותח את תחילת הספר');
           }
         }
       }
@@ -307,23 +278,13 @@ class HtmlLinkHandler {
       openBookCallback(tab);
 
       if (context.mounted && headerName != null && headerName.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('פתח ספר: $bookTitle - $headerName'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        UiSnack.show('פתח ספר: $bookTitle - $headerName');
       }
     } catch (e) {
       debugPrint('שגיאה בפתיחת ספר: $e');
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('לא ניתן לפתוח את הספר: $bookTitle'),
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        UiSnack.show('לא ניתן לפתוח את הספר: $bookTitle');
       }
     }
   }

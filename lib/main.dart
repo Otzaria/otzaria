@@ -48,6 +48,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:search_engine/search_engine.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/window_listener.dart';
+import 'package:otzaria/core/window_persistence.dart';
 import 'package:shamor_zachor/providers/shamor_zachor_data_provider.dart';
 import 'package:shamor_zachor/providers/shamor_zachor_progress_provider.dart';
 import 'package:shamor_zachor/services/shamor_zachor_service_factory.dart';
@@ -98,6 +99,10 @@ void main() async {
   };
 
   WidgetsFlutterBinding.ensureInitialized();
+
+  // pdfrx warning suppression: this only hides the debug-time warning message.
+  // It does not change the actual asset bundling (see pdfrx remove_wasm_modules).
+  pdfrxFlutterInitialize(dismissPdfiumWasmWarnings: true);
 
   // Check for single instance - skip on Apple platforms (macOS/iOS) due to sandbox restrictions
   if (!Platform.isMacOS && !Platform.isIOS) {
@@ -217,6 +222,7 @@ Future<void> initialize() async {
     windowManager.addListener(_appWindowListener!);
 
     windowManager.waitUntilReadyToShow(windowOptions, () async {
+      await WindowPersistence.restoreIfAny();
       await windowManager.show();
       await windowManager.focus();
     });

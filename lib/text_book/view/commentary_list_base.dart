@@ -7,6 +7,7 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
 import 'package:otzaria/text_book/view/combined_view/commentary_content.dart';
 import 'package:otzaria/text_book/view/commentators_list_screen.dart';
 import 'package:otzaria/widgets/progressive_scrolling.dart';
@@ -395,9 +396,9 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<TextBookBloc, TextBookState>(builder: (context, state) {
-      if (state is! TextBookLoaded) return const Center();
-
+    return TextBookStateBuilder(
+      loadingWidget: const Center(),
+      builder: (context, state) {
       Widget buildList() {
         return Builder(
           builder: (context) {

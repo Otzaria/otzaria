@@ -1,8 +1,10 @@
 import 'dart:io';
 import 'dart:math';
 import 'dart:async';
+import 'dart:ui' as ui;
 import 'package:otzaria/core/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -41,6 +43,7 @@ import 'package:otzaria/utils/shortcut_helper.dart';
 import 'package:otzaria/utils/fullscreen_helper.dart';
 
 import 'package:otzaria/widgets/responsive_action_bar.dart';
+import 'package:otzaria/widgets/resizable_drag_handle.dart';
 import 'package:shamor_zachor/providers/shamor_zachor_data_provider.dart';
 import 'package:shamor_zachor/providers/shamor_zachor_progress_provider.dart';
 import 'package:shamor_zachor/models/book_model.dart';
@@ -49,6 +52,8 @@ import 'package:otzaria/settings/per_book_settings.dart';
 import 'package:otzaria/text_book/view/page_shape/page_shape_settings_dialog.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 
 // קבועים למצבי תצוגה (למניעת magic strings)
 const String _viewModeSplit = 'split';
@@ -87,9 +92,17 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   // Key עבור PageShapeScreen - שינוי המפתח יגרום לבנייה מחדש
   Key _pageShapeKey = UniqueKey();
 
+  // RepaintBoundary key עבור הדפסה של "צורת הדף" כפי שמוצג
+  final GlobalKey _pageShapePrintBoundaryKey = GlobalKey();
+
   // משתנים לשמירת נתונים כבדים שנטענים ברקע
   Future<Map<String, dynamic>>? _preloadedHeavyData;
   bool _isLoadingHeavyData = false;
+
+  // Cache לרשימת אינדקסי TOC ממוינת - למניעת חישוב מחדש בכל לחיצה
+  List<int>? _cachedTocIndices;
+  String? _cachedTocBookTitle;
+  List<TocEntry>? _cachedToc;
 
   /// Check if book is already being tracked in Shamor Zachor
   bool _isBookTrackedInShamorZachor(String bookTitle) {
@@ -452,6 +465,85 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     }
   }
 
+  Future<Uint8List?> _capturePageShapeViewPng() async {
+    final boundaryContext = _pageShapePrintBoundaryKey.currentContext;
+    if (boundaryContext == null) return null;
+
+    final renderObject = boundaryContext.findRenderObject();
+    if (renderObject is! RenderRepaintBoundary) return null;
+
+    final pixelRatio = View.of(boundaryContext).devicePixelRatio;
+
+    // ודא שהמסך צויר לפני צילום
+    await WidgetsBinding.instance.endOfFrame;
+
+    if (!mounted) return null;
+
+    final image = await renderObject.toImage(pixelRatio: pixelRatio);
+    final data = await image.toByteData(format: ui.ImageByteFormat.png);
+    image.dispose();
+    return data?.buffer.asUint8List();
+  }
+
+  Future<void> _handlePrintPress(TextBookLoaded state) async {
+    if (state.showPageShapeView) {
+      final png = await _capturePageShapeViewPng();
+      if (!mounted) return;
+
+      final settingsState = context.read<SettingsBloc>().state;
+
+      if (png == null || png.isEmpty) {
+        UiSnack.showError('לא ניתן לצלם את תצוגת "צורת הדף" לצורך הדפסה');
+        return;
+      }
+
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => PrintingScreen(
+            // במצב זה ה-PDF נוצר מצילום המסך, ולכן אין צורך בנתוני הטקסט
+            data: Future.value(''),
+            bookId: state.book.title,
+            removeNikud: state.removeNikud,
+            removeTaamim: !settingsState.showTeamim,
+            createPdfOverride: (PdfPageFormat format) async {
+              final doc = pw.Document(compress: false);
+              final img = pw.MemoryImage(png);
+              doc.addPage(
+                pw.Page(
+                  pageFormat: format,
+                  margin: pw.EdgeInsets.zero,
+                  build: (context) => pw.Center(
+                    child: pw.Image(
+                      img,
+                      fit: pw.BoxFit.contain,
+                    ),
+                  ),
+                ),
+              );
+              return doc.save();
+            },
+          ),
+        ),
+      );
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => PrintingScreen(
+          data: Future.value(state.content.join('\n')),
+          bookId: state.book.title,
+          links: state.links,
+          activeCommentators: state.activeCommentators,
+          startLine: state.visibleIndices.first,
+          removeNikud: state.removeNikud,
+          removeTaamim: !context.read<SettingsBloc>().state.showTeamim,
+          tableOfContents: state.tableOfContents,
+        ),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -592,11 +684,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     ));
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('ההגדרות הפר-ספריות אופסו בהצלחה'),
-        ),
-      );
+      UiSnack.show('ההגדרות הפר-ספריות אופסו בהצלחה');
     }
   }
 
@@ -1158,15 +1246,10 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       // 7) Navigation Buttons - רק אם לא בתצוגה משולבת
       if (!widget.isInCombinedView) ...[
         ActionButtonData(
-          widget: _buildFirstPageButton(state),
+          widget: _buildPreviousTocButton(state),
           icon: FluentIcons.arrow_previous_24_filled,
-          tooltip: 'תחילת הספר',
-          onPressed: () {
-            state.scrollController.scrollTo(
-              index: 0,
-              duration: const Duration(milliseconds: 300),
-            );
-          },
+          tooltip: 'הדף/פרק הקודם',
+          onPressed: () => _navigateToPreviousToc(state),
         ),
         ActionButtonData(
           widget: _buildPreviousPageButton(state),
@@ -1197,15 +1280,10 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           },
         ),
         ActionButtonData(
-          widget: _buildLastPageButton(state),
+          widget: _buildNextTocButton(state),
           icon: FluentIcons.arrow_next_24_filled,
-          tooltip: 'סוף הספר',
-          onPressed: () {
-            state.scrollController.scrollTo(
-              index: state.content.length,
-              duration: const Duration(milliseconds: 300),
-            );
-          },
+          tooltip: 'הדף/פרק הבא',
+          onPressed: () => _navigateToNextToc(state),
         ),
       ],
     ];
@@ -1220,15 +1298,10 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       // כפתורי ניווט - רק בתצוגה משולבת
       if (widget.isInCombinedView) ...[
         ActionButtonData(
-          widget: _buildFirstPageButton(state),
+          widget: _buildPreviousTocButton(state),
           icon: FluentIcons.arrow_previous_24_filled,
-          tooltip: 'תחילת הספר',
-          onPressed: () {
-            state.scrollController.scrollTo(
-              index: 0,
-              duration: const Duration(milliseconds: 300),
-            );
-          },
+          tooltip: 'הדף/פרק הקודם',
+          onPressed: () => _navigateToPreviousToc(state),
         ),
         ActionButtonData(
           widget: _buildPreviousPageButton(state),
@@ -1259,15 +1332,10 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           },
         ),
         ActionButtonData(
-          widget: _buildLastPageButton(state),
+          widget: _buildNextTocButton(state),
           icon: FluentIcons.arrow_next_24_filled,
-          tooltip: 'סוף הספר',
-          onPressed: () {
-            state.scrollController.scrollTo(
-              index: state.content.length,
-              duration: const Duration(milliseconds: 300),
-            );
-          },
+          tooltip: 'הדף/פרק הבא',
+          onPressed: () => _navigateToNextToc(state),
         ),
       ],
 
@@ -1359,32 +1427,19 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           widget: _buildPrintButton(context, state),
           icon: FluentIcons.print_24_regular,
           tooltip: 'הדפסה',
-          onPressed: () {
-            final settingsState = context.read<SettingsBloc>().state;
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (context) => PrintingScreen(
-                  data: Future.value(state.content.join('\n')),
-                  startLine: state.visibleIndices.first,
-                  removeNikud: state.removeNikud,
-                  removeTaamim: !settingsState.showTeamim,
-                  tableOfContents: state.tableOfContents,
-                ),
-              ),
-            );
-          },
+          onPressed: () => _handlePrintPress(state),
         ),
 
-      // 8) מקור הספר וזכויות יוצרים - לא בתצוגה משולבת
+      // 8) אודות הספר - לא בתצוגה משולבת
       if (!widget.isInCombinedView)
         ActionButtonData(
           widget: IconButton(
             icon: const Icon(FluentIcons.info_24_regular),
-            tooltip: 'מקור הספר וזכויות יוצרים',
+            tooltip: 'אודות הספר',
             onPressed: () => showBookSourceDialog(context, state),
           ),
           icon: FluentIcons.info_24_regular,
-          tooltip: 'מקור הספר וזכויות יוצרים',
+          tooltip: 'אודות הספר',
           onPressed: () => showBookSourceDialog(context, state),
         ),
 
@@ -1420,25 +1475,12 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
               widget: const SizedBox.shrink(),
               icon: FluentIcons.print_24_regular,
               tooltip: 'הדפסה',
-              onPressed: () {
-                final settingsState = context.read<SettingsBloc>().state;
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => PrintingScreen(
-                      data: Future.value(state.content.join('\n')),
-                      startLine: state.visibleIndices.first,
-                      removeNikud: state.removeNikud,
-                      removeTaamim: !settingsState.showTeamim,
-                      tableOfContents: state.tableOfContents,
-                    ),
-                  ),
-                );
-              },
+              onPressed: () => _handlePrintPress(state),
             ),
             ActionButtonData(
               widget: const SizedBox.shrink(),
               icon: FluentIcons.info_24_regular,
-              tooltip: 'מקור הספר וזכויות יוצרים',
+              tooltip: 'אודות הספר',
               onPressed: () => showBookSourceDialog(context, state),
             ),
           ],
@@ -1678,19 +1720,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     );
   }
 
-  Widget _buildFirstPageButton(TextBookLoaded state) {
-    return IconButton(
-      icon: const Icon(FluentIcons.arrow_previous_24_filled),
-      tooltip: 'תחילת הספר (CTRL + HOME)',
-      onPressed: () {
-        state.scrollController.scrollTo(
-          index: 0,
-          duration: const Duration(milliseconds: 300),
-        );
-      },
-    );
-  }
-
   Widget _buildPreviousPageButton(TextBookLoaded state) {
     return IconButton(
       icon: const Icon(FluentIcons.chevron_left_24_regular),
@@ -1723,16 +1752,125 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     );
   }
 
-  Widget _buildLastPageButton(TextBookLoaded state) {
+  /// מחזיר רשימה ממוינת של כל אינדקסי ה-TOC (עם cache)
+  List<int> _getSortedTocIndices(List<TocEntry> entries, String bookTitle) {
+    // אם יש cache תקף, נשתמש בו (בודקים גם את זהות רשימת ה-TOC)
+    if (_cachedTocIndices != null &&
+        _cachedTocBookTitle == bookTitle &&
+        identical(_cachedToc, entries)) {
+      return _cachedTocIndices!;
+    }
+
+    // יוצרים רשימה שטוחה של כל האינדקסים
+    final allIndices = <int>[];
+
+    void collectIndices(List<TocEntry> toc) {
+      for (final entry in toc) {
+        allIndices.add(entry.index);
+        collectIndices(entry.children);
+      }
+    }
+
+    collectIndices(entries);
+    allIndices.sort();
+
+    // שומרים ב-cache
+    _cachedTocIndices = allIndices;
+    _cachedTocBookTitle = bookTitle;
+    _cachedToc = entries;
+
+    return allIndices;
+  }
+
+  /// מוצא את הכותרת הבאה (דף/פרק) מתוך תוכן העניינים
+  /// מחזיר את האינדקס של הכותרת הבאה, או null אם אין
+  int? _findNextTocIndex(
+      List<TocEntry> entries, int currentIndex, String bookTitle) {
+    final allIndices = _getSortedTocIndices(entries, bookTitle);
+
+    // חיפוש בינארי יעיל יותר
+    int low = 0;
+    int high = allIndices.length - 1;
+
+    while (low <= high) {
+      final mid = (low + high) ~/ 2;
+      if (allIndices[mid] <= currentIndex) {
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+
+    return low < allIndices.length ? allIndices[low] : null;
+  }
+
+  /// מוצא את הכותרת הקודמת (דף/פרק) מתוך תוכן העניינים
+  /// מחזיר את האינדקס של הכותרת הקודמת, או null אם אין
+  int? _findPreviousTocIndex(
+      List<TocEntry> entries, int currentIndex, String bookTitle) {
+    final allIndices = _getSortedTocIndices(entries, bookTitle);
+
+    // חיפוש בינארי יעיל יותר
+    int low = 0;
+    int high = allIndices.length - 1;
+
+    while (low <= high) {
+      final mid = (low + high) ~/ 2;
+      if (allIndices[mid] < currentIndex) {
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+
+    return high >= 0 ? allIndices[high] : null;
+  }
+
+  /// ניווט לכותרת הקודמת ב-TOC
+  void _navigateToPreviousToc(TextBookLoaded state) {
+    final currentIndex =
+        state.positionsListener.itemPositions.value.isNotEmpty
+            ? state.positionsListener.itemPositions.value.first.index
+            : 0;
+    final prevIndex = _findPreviousTocIndex(
+        state.tableOfContents, currentIndex, state.book.title);
+    if (prevIndex != null) {
+      state.scrollController.scrollTo(
+        index: prevIndex,
+        duration: const Duration(milliseconds: 300),
+      );
+    }
+  }
+
+  /// ניווט לכותרת הבאה ב-TOC
+  void _navigateToNextToc(TextBookLoaded state) {
+    final currentIndex =
+        state.positionsListener.itemPositions.value.isNotEmpty
+            ? state.positionsListener.itemPositions.value.first.index
+            : 0;
+    final nextIndex = _findNextTocIndex(
+        state.tableOfContents, currentIndex, state.book.title);
+    if (nextIndex != null) {
+      state.scrollController.scrollTo(
+        index: nextIndex,
+        duration: const Duration(milliseconds: 300),
+      );
+    }
+  }
+
+  Widget _buildPreviousTocButton(TextBookLoaded state) {
+    return IconButton(
+      icon: const Icon(FluentIcons.arrow_previous_24_filled),
+      tooltip: 'הדף/פרק הקודם',
+      onPressed: () => _navigateToPreviousToc(state),
+    );
+  }
+
+  Widget _buildNextTocButton(TextBookLoaded state) {
     return IconButton(
       icon: const Icon(FluentIcons.arrow_next_24_filled),
-      tooltip: 'סוף הספר (CTRL + END)',
-      onPressed: () {
-        state.scrollController.scrollTo(
-          index: state.content.length,
-          duration: const Duration(milliseconds: 300),
-        );
-      },
+      tooltip: 'הדף/פרק הבא',
+      onPressed: () => _navigateToNextToc(state),
     );
   }
 
@@ -1748,6 +1886,9 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           MaterialPageRoute(
             builder: (context) => PrintingScreen(
               data: Future.value(state.content.join('\n')),
+              bookId: state.book.title,
+              links: state.links,
+              activeCommentators: state.activeCommentators,
               startLine: state.visibleIndices.first,
               removeNikud: state.removeNikud,
               removeTaamim: !settingsState.showTeamim,
@@ -2153,23 +2294,19 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
               children: [
                 _buildTabBar(state),
                 if (state.showLeftPane)
-                  MouseRegion(
-                    cursor: SystemMouseCursors.resizeColumn,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onHorizontalDragUpdate: (details) {
-                        final newWidth =
-                            (_sidebarWidth.value - details.delta.dx)
-                                .clamp(200.0, 600.0);
-                        _sidebarWidth.value = newWidth;
-                      },
-                      onHorizontalDragEnd: (_) {
-                        context
-                            .read<SettingsBloc>()
-                            .add(UpdateSidebarWidth(_sidebarWidth.value));
-                      },
-                      child: const VerticalDivider(width: 4),
-                    ),
+                  ResizableDragHandle(
+                    isVertical: true,
+                    hitSize: 4,
+                    onDragDelta: (delta) {
+                      final newWidth =
+                          (_sidebarWidth.value - delta).clamp(200.0, 600.0);
+                      _sidebarWidth.value = newWidth;
+                    },
+                    onDragEnd: () {
+                      context
+                          .read<SettingsBloc>()
+                          .add(UpdateSidebarWidth(_sidebarWidth.value));
+                    },
                   ),
                 Expanded(child: _buildHTMLViewer(state)),
               ],
@@ -2225,6 +2362,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
               tab: widget.tab,
               initialSidebarTabIndex: _sidebarTabIndex,
               pageShapeKey: _pageShapeKey,
+              pageShapePrintBoundaryKey: _pageShapePrintBoundaryKey,
             ),
           ),
         ),
@@ -2463,6 +2601,9 @@ bool _handleGlobalKeyEvent(
       MaterialPageRoute(
         builder: (context) => PrintingScreen(
           data: Future.value(state.content.join('\n')),
+          bookId: state.book.title,
+          links: state.links,
+          activeCommentators: state.activeCommentators,
           startLine: state.visibleIndices.first,
           removeNikud: state.removeNikud,
           removeTaamim: !settingsState.showTeamim,

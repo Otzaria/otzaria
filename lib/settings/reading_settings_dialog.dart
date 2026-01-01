@@ -7,6 +7,7 @@ import 'package:otzaria/settings/settings_bloc.dart';
 import 'package:otzaria/settings/settings_event.dart';
 import 'package:otzaria/settings/settings_state.dart';
 import 'package:otzaria/settings/per_book_settings.dart';
+import 'package:otzaria/core/scaffold_messenger.dart';
 
 /// פונקציה גלובלית להצגת דיאלוג הגדרות תצוגת הספרים
 /// ניתן לקרוא לה מכל מקום באפליקציה
@@ -763,12 +764,8 @@ void showReadingSettingsDialog(BuildContext context) {
                           if (confirm == true && context.mounted) {
                             await PerBookSettings.deleteAllSettings();
                             if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                      'כל ההגדרות הפר-ספריות נמחקו בהצלחה'),
-                                ),
-                              );
+                              UiSnack.show(
+                                  'כל ההגדרות הפר-ספריות נמחקו בהצלחה');
                             }
                           }
                         },

@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/constants/fonts.dart';
 import 'package:otzaria/settings/settings_event.dart';
 import 'package:otzaria/settings/settings_repository.dart';
 import 'package:otzaria/settings/settings_state.dart';
@@ -53,6 +54,11 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     Emitter<SettingsState> emit,
   ) async {
     final settings = await _repository.loadSettings();
+
+    // בדסקטופ: אם המשתמש בחר גופן מערכת בעבר, נטען אותו כדי שיהיה זמין ב-TextStyle.
+    await AppFonts.ensureFontLoaded(settings['fontFamily'] as String);
+    await AppFonts.ensureFontLoaded(settings['commentatorsFontFamily'] as String);
+
     emit(SettingsState(
       isDarkMode: settings['isDarkMode'],
       seedColor: settings['seedColor'],
@@ -170,6 +176,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     UpdateFontFamily event,
     Emitter<SettingsState> emit,
   ) async {
+    await AppFonts.ensureFontLoaded(event.fontFamily);
     await _repository.updateFontFamily(event.fontFamily);
     emit(state.copyWith(fontFamily: event.fontFamily));
   }
@@ -178,6 +185,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     UpdateCommentatorsFontFamily event,
     Emitter<SettingsState> emit,
   ) async {
+    await AppFonts.ensureFontLoaded(event.commentatorsFontFamily);
     await _repository
         .updateCommentatorsFontFamily(event.commentatorsFontFamily);
     emit(state.copyWith(commentatorsFontFamily: event.commentatorsFontFamily));

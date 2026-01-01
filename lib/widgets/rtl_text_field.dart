@@ -24,6 +24,7 @@ class RtlTextField extends StatefulWidget {
   final TextStyle? style;
   final TextAlign textAlign;
   final List<TextInputFormatter>? inputFormatters;
+  final bool obscureText;
 
   const RtlTextField({
     super.key,
@@ -41,6 +42,7 @@ class RtlTextField extends StatefulWidget {
     this.style,
     this.textAlign = TextAlign.start,
     this.inputFormatters,
+    this.obscureText = false,
   });
 
   @override
@@ -86,6 +88,7 @@ class _RtlTextFieldState extends State<RtlTextField> {
       style: widget.style,
       textAlign: widget.textAlign,
       inputFormatters: widget.inputFormatters,
+      obscureText: widget.obscureText,
       contextMenuBuilder: (context, editableTextState) {
         // השבתת תפריט ההקשר המובנה
         return const SizedBox.shrink();

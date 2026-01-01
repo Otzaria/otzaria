@@ -61,7 +61,7 @@ class _EmptyLibraryView extends StatelessWidget {
           style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           textAlign: TextAlign.center,
         ),
-        if (!Platform.isAndroid && !Platform.isIOS) const SizedBox(height: 32),
+        const SizedBox(height: 32),
         if (state.selectedPath != null)
           Padding(
             padding: const EdgeInsets.only(bottom: 16),
@@ -72,15 +72,14 @@ class _EmptyLibraryView extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
           ),
-        if (!Platform.isAndroid && !Platform.isIOS)
-          ElevatedButton.icon(
-            onPressed: state.isDownloading
-                ? null
-                : () => BlocProvider.of<EmptyLibraryBloc>(context)
-                    .add(PickDirectoryRequested()),
-            icon: const Icon(FluentIcons.folder_open_24_regular),
-            label: const Text('בחר תיקייה'),
-          ),
+        ElevatedButton.icon(
+          onPressed: state.isDownloading
+              ? null
+              : () => BlocProvider.of<EmptyLibraryBloc>(context)
+                  .add(PickDirectoryRequested()),
+          icon: const Icon(FluentIcons.folder_open_24_regular),
+          label: const Text('בחר תיקייה'),
+        ),
         const SizedBox(height: 32),
         if (Platform.isAndroid)
           ElevatedButton.icon(

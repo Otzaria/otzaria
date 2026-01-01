@@ -5,6 +5,7 @@ import 'package:otzaria/settings/settings_event.dart';
 import 'package:otzaria/settings/settings_state.dart';
 import 'package:otzaria/search/view/full_text_facet_filtering.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria/widgets/resizable_drag_handle.dart';
 
 /// Widget שמאפשר שינוי גודל של אזור סינון התוצאות
 /// ושומר את הגודל בהגדרות המשתמש
@@ -27,7 +28,6 @@ class ResizableFacetFiltering extends StatefulWidget {
 
 class _ResizableFacetFilteringState extends State<ResizableFacetFiltering> {
   late double _currentWidth;
-  bool _isResizing = false;
 
   @override
   void initState() {
@@ -35,29 +35,6 @@ class _ResizableFacetFilteringState extends State<ResizableFacetFiltering> {
     // טעינת הרוחב מההגדרות
     final settingsState = context.read<SettingsBloc>().state;
     _currentWidth = settingsState.facetFilteringWidth;
-  }
-
-  void _onPanUpdate(DragUpdateDetails details) {
-    setState(() {
-      // עדכון הרוחב בהתאם לתנועת העכבר
-      // details.delta.dx הוא השינוי ב-x (חיובי = ימינה, שלילי = שמאלה)
-      _currentWidth = (_currentWidth - details.delta.dx)
-          .clamp(widget.minWidth, widget.maxWidth);
-    });
-  }
-
-  void _onPanStart(DragStartDetails details) {
-    setState(() {
-      _isResizing = true;
-    });
-  }
-
-  void _onPanEnd(DragEndDetails details) {
-    setState(() {
-      _isResizing = false;
-    });
-    // שמירת הרוחב החדש בהגדרות
-    context.read<SettingsBloc>().add(UpdateFacetFilteringWidth(_currentWidth));
   }
 
   @override
@@ -80,28 +57,23 @@ class _ResizableFacetFilteringState extends State<ResizableFacetFiltering> {
             child: SearchFacetFiltering(tab: widget.tab),
           ),
           // הידית לשינוי גודל
-          GestureDetector(
-            onPanStart: _onPanStart,
-            onPanUpdate: _onPanUpdate,
-            onPanEnd: _onPanEnd,
-            child: MouseRegion(
-              cursor: SystemMouseCursors.resizeLeftRight,
-              child: Container(
-                width: 8,
-                color: _isResizing
-                    ? Theme.of(context)
-                        .colorScheme
-                        .primary
-                        .withValues(alpha: 0.3)
-                    : Colors.transparent,
-                child: Center(
-                  child: Container(
-                    width: 1,
-                    color: Colors.grey.shade300,
-                  ),
-                ),
-              ),
-            ),
+          ResizableDragHandle(
+            isVertical: true,
+            cursor: SystemMouseCursors.resizeLeftRight,
+            onDragStart: null,
+            onDragDelta: (delta) {
+              setState(() {
+                // עדכון הרוחב בהתאם לתנועת העכבר
+                // delta חיובי = ימינה, שלילי = שמאלה
+                _currentWidth = (_currentWidth - delta)
+                    .clamp(widget.minWidth, widget.maxWidth);
+              });
+            },
+            onDragEnd: () {
+              context
+                  .read<SettingsBloc>()
+                  .add(UpdateFacetFilteringWidth(_currentWidth));
+            },
           ),
         ],
       ),

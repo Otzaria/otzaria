@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:otzaria/utils/shortcut_helper.dart';
 
 /// דיאלוג לקליטת קיצור מקשים מותאם אישית
 class CustomShortcutDialog extends StatefulWidget {
@@ -23,122 +24,8 @@ class _CustomShortcutDialogState extends State<CustomShortcutDialog> {
   void initState() {
     super.initState();
     if (widget.initialShortcut != null) {
-      _displayText = _formatShortcutForDisplay(widget.initialShortcut!);
+      _displayText = ShortcutHelper.formatShortcutForDisplay(widget.initialShortcut!);
     }
-  }
-
-  String _formatShortcutForDisplay(String shortcut) {
-    return shortcut
-        .replaceAll('ctrl+', 'CTRL + ')
-        .replaceAll('shift+', 'SHIFT + ')
-        .replaceAll('alt+', 'ALT + ')
-        .replaceAll('meta+', 'WIN + ')
-        .toUpperCase();
-  }
-
-  String _formatKeysToShortcut(Set<LogicalKeyboardKey> keys) {
-    if (keys.isEmpty) return '';
-
-    final List<String> parts = [];
-    bool hasCtrl = false;
-    bool hasShift = false;
-    bool hasAlt = false;
-    bool hasMeta = false;
-    String? mainKey;
-
-    for (final key in keys) {
-      if (key == LogicalKeyboardKey.control ||
-          key == LogicalKeyboardKey.controlLeft ||
-          key == LogicalKeyboardKey.controlRight) {
-        hasCtrl = true;
-      } else if (key == LogicalKeyboardKey.shift ||
-          key == LogicalKeyboardKey.shiftLeft ||
-          key == LogicalKeyboardKey.shiftRight) {
-        hasShift = true;
-      } else if (key == LogicalKeyboardKey.alt ||
-          key == LogicalKeyboardKey.altLeft ||
-          key == LogicalKeyboardKey.altRight) {
-        hasAlt = true;
-      } else if (key == LogicalKeyboardKey.meta ||
-          key == LogicalKeyboardKey.metaLeft ||
-          key == LogicalKeyboardKey.metaRight) {
-        hasMeta = true;
-      } else {
-        // מקש ראשי
-        mainKey = _getKeyLabel(key);
-      }
-    }
-
-    // בניית המחרוזת לפי סדר: ctrl, shift, alt, meta, mainKey
-    if (hasCtrl) parts.add('ctrl');
-    if (hasShift) parts.add('shift');
-    if (hasAlt) parts.add('alt');
-    if (hasMeta) parts.add('meta');
-    if (mainKey != null) parts.add(mainKey);
-
-    return parts.join('+');
-  }
-
-  String _getKeyLabel(LogicalKeyboardKey key) {
-    // אותיות
-    if (key.keyLabel.length == 1 &&
-        key.keyLabel.toLowerCase() != key.keyLabel.toUpperCase()) {
-      return key.keyLabel.toLowerCase();
-    }
-
-    // מספרים
-    if (key == LogicalKeyboardKey.digit0) return '0';
-    if (key == LogicalKeyboardKey.digit1) return '1';
-    if (key == LogicalKeyboardKey.digit2) return '2';
-    if (key == LogicalKeyboardKey.digit3) return '3';
-    if (key == LogicalKeyboardKey.digit4) return '4';
-    if (key == LogicalKeyboardKey.digit5) return '5';
-    if (key == LogicalKeyboardKey.digit6) return '6';
-    if (key == LogicalKeyboardKey.digit7) return '7';
-    if (key == LogicalKeyboardKey.digit8) return '8';
-    if (key == LogicalKeyboardKey.digit9) return '9';
-
-    // מקשים מיוחדים
-    if (key == LogicalKeyboardKey.comma) return 'comma';
-    if (key == LogicalKeyboardKey.period) return 'period';
-    if (key == LogicalKeyboardKey.slash) return 'slash';
-    if (key == LogicalKeyboardKey.backslash) return 'backslash';
-    if (key == LogicalKeyboardKey.semicolon) return 'semicolon';
-    if (key == LogicalKeyboardKey.quote) return 'quote';
-    if (key == LogicalKeyboardKey.bracketLeft) return 'bracketleft';
-    if (key == LogicalKeyboardKey.bracketRight) return 'bracketright';
-    if (key == LogicalKeyboardKey.minus) return 'minus';
-    if (key == LogicalKeyboardKey.equal) return 'equal';
-    if (key == LogicalKeyboardKey.space) return 'space';
-    if (key == LogicalKeyboardKey.tab) return 'tab';
-    if (key == LogicalKeyboardKey.enter) return 'enter';
-    if (key == LogicalKeyboardKey.backspace) return 'backspace';
-    if (key == LogicalKeyboardKey.delete) return 'delete';
-    if (key == LogicalKeyboardKey.escape) return 'escape';
-    if (key == LogicalKeyboardKey.arrowUp) return 'arrowup';
-    if (key == LogicalKeyboardKey.arrowDown) return 'arrowdown';
-    if (key == LogicalKeyboardKey.arrowLeft) return 'arrowleft';
-    if (key == LogicalKeyboardKey.arrowRight) return 'arrowright';
-    if (key == LogicalKeyboardKey.home) return 'home';
-    if (key == LogicalKeyboardKey.end) return 'end';
-    if (key == LogicalKeyboardKey.pageUp) return 'pageup';
-    if (key == LogicalKeyboardKey.pageDown) return 'pagedown';
-
-    // F keys
-    if (key == LogicalKeyboardKey.f1) return 'f1';
-    if (key == LogicalKeyboardKey.f2) return 'f2';
-    if (key == LogicalKeyboardKey.f3) return 'f3';
-    if (key == LogicalKeyboardKey.f4) return 'f4';
-    if (key == LogicalKeyboardKey.f5) return 'f5';
-    if (key == LogicalKeyboardKey.f6) return 'f6';
-    if (key == LogicalKeyboardKey.f7) return 'f7';
-    if (key == LogicalKeyboardKey.f8) return 'f8';
-    if (key == LogicalKeyboardKey.f9) return 'f9';
-    if (key == LogicalKeyboardKey.f10) return 'f10';
-    if (key == LogicalKeyboardKey.f11) return 'f11';
-    if (key == LogicalKeyboardKey.f12) return 'f12';
-
-    return key.keyLabel.toLowerCase();
   }
 
   void _updateDisplay() {
@@ -149,11 +36,12 @@ class _CustomShortcutDialogState extends State<CustomShortcutDialog> {
       return;
     }
 
-    final shortcut = _formatKeysToShortcut(_pressedKeys);
+    final shortcut = ShortcutHelper.formatKeysToShortcut(_pressedKeys);
     setState(() {
-      _displayText = _formatShortcutForDisplay(shortcut);
+      _displayText = ShortcutHelper.formatShortcutForDisplay(shortcut);
     });
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -166,7 +54,7 @@ class _CustomShortcutDialogState extends State<CustomShortcutDialog> {
           if (event is KeyDownEvent &&
               event.logicalKey == LogicalKeyboardKey.enter &&
               _pressedKeys.isNotEmpty) {
-            final shortcut = _formatKeysToShortcut(_pressedKeys);
+            final shortcut = ShortcutHelper.formatKeysToShortcut(_pressedKeys);
             Navigator.pop(context, shortcut);
           }
           return;
@@ -274,7 +162,7 @@ class _CustomShortcutDialogState extends State<CustomShortcutDialog> {
             onPressed: _pressedKeys.isEmpty
                 ? null
                 : () {
-                    final shortcut = _formatKeysToShortcut(_pressedKeys);
+                    final shortcut = ShortcutHelper.formatKeysToShortcut(_pressedKeys);
                     Navigator.pop(context, shortcut);
                   },
             child: const Text('אישור'),

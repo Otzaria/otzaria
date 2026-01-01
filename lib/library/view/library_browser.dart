@@ -166,10 +166,14 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                   body: LayoutBuilder(
                     builder: (context, constraints) {
                       final screenWidth = constraints.maxWidth;
+                      const minPreviewWidth = 8.0;
                       // ברירת מחדל: שליש ברשת, שני שליש ברשימה
                       final previewWidth = _viewMode == ViewMode.list
                           ? (screenWidth * 2 / 3)
                           : (screenWidth / 3);
+
+                      final maxPreviewWidth =
+                          (screenWidth - 350).clamp(minPreviewWidth, screenWidth);
 
                       return Row(
                         children: [
@@ -200,9 +204,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                                 key: ValueKey(
                                     screenWidth), // מפתח שמשתנה עם רוחב המסך
                                 initialWidth: previewWidth,
-                                minWidth: 300,
-                                maxWidth: screenWidth -
-                                    350, // השאר לפחות 350px לרשימה
+                                minWidth: minPreviewWidth,
+                                maxWidth:
+                                    maxPreviewWidth, // השאר לפחות 350px לרשימה (ככל שניתן)
                                 child: Container(
                                   decoration: BoxDecoration(
                                     color:
