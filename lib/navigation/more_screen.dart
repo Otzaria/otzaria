@@ -17,7 +17,7 @@ class MoreScreen extends StatefulWidget {
   State<MoreScreen> createState() => _MoreScreenState();
 }
 
-class _MoreScreenState extends State<MoreScreen> with TickerProviderStateMixin {
+class _MoreScreenState extends State<MoreScreen> with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   late final TabController _tabController;
   late final CalendarCubit _calendarCubit;
   late final SettingsRepository _settingsRepository;
@@ -97,7 +97,11 @@ class _MoreScreenState extends State<MoreScreen> with TickerProviderStateMixin {
   }
 
   @override
+  bool get wantKeepAlive => true;
+
+  @override
   Widget build(BuildContext context) {
+    super.build(context);
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: 72,
