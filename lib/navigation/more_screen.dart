@@ -4,8 +4,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/tools/measurement_converter/measurement_converter_screen.dart';
 import 'package:otzaria/tools/gematria/gematria_search_screen.dart';
 import 'package:otzaria/tools/aramaic_dictionary/aramaic_dictionary_screen.dart';
-import 'package:otzaria/settings/calendar_settings_dialog.dart';
-import 'package:otzaria/settings/gematria_settings_dialog.dart';
 import 'package:shamor_zachor/shamor_zachor.dart';
 import 'calendar_widget.dart';
 import 'calendar_cubit.dart';
@@ -20,28 +18,53 @@ class MoreScreen extends StatefulWidget {
 }
 
 class _MoreScreenState extends State<MoreScreen> with TickerProviderStateMixin {
-  int _selectedIndex = 0;
+  late final TabController _tabController;
   late final CalendarCubit _calendarCubit;
   late final SettingsRepository _settingsRepository;
   final GlobalKey<GematriaSearchScreenState> _gematriaKey =
       GlobalKey<GematriaSearchScreenState>();
   late final List<Widget> _pages;
 
-  // Title for the ShamorZachor section (dynamic from the package)
-  String _shamorZachorTitle = 'זכור ושמור';
-
-  /// Update the ShamorZachor title
-  void _updateShamorZachorTitle(String title) {
-    setState(() {
-      _shamorZachorTitle = title;
-    });
-  }
+  final List<_TabInfo> _tabs = [
+    const _TabInfo(
+      label: 'לוח שנה',
+      icon: Icons.calendar_month_outlined,
+    ),
+    const _TabInfo(
+      label: 'זכור ושמור',
+      icon: null,
+      imageIcon: 'assets/icon/זכור ושמור.png',
+    ),
+    const _TabInfo(
+      label: 'מדות ושיעורים',
+      icon: Icons.straighten,
+    ),
+    const _TabInfo(
+      label: 'הערות אישיות',
+      icon: FluentIcons.note_24_regular,
+    ),
+    const _TabInfo(
+      label: 'גימטריה',
+      icon: FluentIcons.calculator_24_regular,
+    ),
+    const _TabInfo(
+      label: 'מילון ארמי',
+      icon: FluentIcons.book_24_regular,
+    ),
+  ];
 
   @override
   void initState() {
     super.initState();
     _settingsRepository = SettingsRepository();
     _calendarCubit = CalendarCubit(settingsRepository: _settingsRepository);
+    
+    _tabController = TabController(length: _tabs.length, vsync: this);
+    _tabController.addListener(() {
+      if (!_tabController.indexIsChanging) {
+         setState(() {});
+      }
+    });
 
     // יצירת הדפים פעם אחת ב-initState
     _pages = [
@@ -50,7 +73,7 @@ class _MoreScreenState extends State<MoreScreen> with TickerProviderStateMixin {
         child: const CalendarWidget(),
       ),
       ShamorZachorWidget(
-        onTitleChanged: _updateShamorZachorTitle,
+        onTitleChanged: (_) {},
       ),
       const MeasurementConverterScreen(),
       const PersonalNotesManagerScreen(),
@@ -61,200 +84,70 @@ class _MoreScreenState extends State<MoreScreen> with TickerProviderStateMixin {
 
   /// Reset to calendar page - public method for external access
   void resetToCalendar() {
-    if (_selectedIndex != 0) {
-      setState(() {
-        _selectedIndex = 0;
-      });
+    if (_tabController.index != 0) {
+      _tabController.animateTo(0);
     }
-  }
-
-  Widget _buildCenteredLabel(String text) {
-    return SizedBox(
-      width: 74,
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        style: const TextStyle(fontSize: 11),
-      ),
-    );
   }
 
   @override
   void dispose() {
     _calendarCubit.close();
+    _tabController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isSmallScreen = screenWidth < 700;
-
     return Scaffold(
       appBar: AppBar(
-        backgroundColor:
-            Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
-        title: Text(
-          _getTitle(_selectedIndex),
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onPrimaryContainer,
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
+        toolbarHeight: 72,
+        title: TabBar(
+          controller: _tabController,
+          isScrollable: true,
+          tabAlignment: TabAlignment.center,
+          tabs: _tabs.map((tab) {
+             if (tab.imageIcon != null) {
+               return SizedBox(
+                 width: 100,
+                 child: Tab(
+                   text: tab.label,
+                   icon: ImageIcon(AssetImage(tab.imageIcon!), size: 20),
+                 ),
+               );
+             }
+             return SizedBox(
+               width: 100,
+               child: Tab(
+                 text: tab.label,
+                 icon: Icon(tab.icon, size: 20),
+               ),
+             );
+          }).toList(),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1.0),
+          child: Container(
+            color: Theme.of(context).dividerColor,
+            height: 1.0,
           ),
         ),
-        centerTitle: true,
-        actions: _getActions(context, _selectedIndex),
       ),
-      body: isSmallScreen
-          ? IndexedStack(
-              index: _selectedIndex,
-              children: _pages,
-            )
-          : Row(
-              children: [
-                SizedBox(
-                  width: 74,
-                  child: NavigationRail(
-                    selectedIndex: _selectedIndex,
-                    onDestinationSelected: (int index) {
-                      setState(() {
-                        _selectedIndex = index;
-                      });
-                    },
-                    labelType: NavigationRailLabelType.all,
-                    minWidth: 74,
-                    destinations: [
-                      NavigationRailDestination(
-                        icon: const Icon(Icons.calendar_month_outlined),
-                        label: _buildCenteredLabel('לוח שנה'),
-                      ),
-                      NavigationRailDestination(
-                        icon: const ImageIcon(
-                            AssetImage('assets/icon/זכור ושמור.png')),
-                        label: _buildCenteredLabel('זכור ושמור'),
-                      ),
-                      NavigationRailDestination(
-                        icon: const Icon(Icons.straighten),
-                        label: _buildCenteredLabel('מדות ושיעורים'),
-                      ),
-                      NavigationRailDestination(
-                        icon: const Icon(FluentIcons.note_24_regular),
-                        label: _buildCenteredLabel('הערות אישיות'),
-                      ),
-                      NavigationRailDestination(
-                        icon: const Icon(FluentIcons.calculator_24_regular),
-                        label: _buildCenteredLabel('גימטריות'),
-                      ),
-                      NavigationRailDestination(
-                        icon: const Icon(FluentIcons.book_24_regular),
-                        label: _buildCenteredLabel('מילון ארמי'),
-                      ),
-                    ],
-                  ),
-                ),
-                const VerticalDivider(thickness: 1, width: 1),
-                Expanded(
-                  child: IndexedStack(
-                    index: _selectedIndex,
-                    children: _pages,
-                  ),
-                ),
-              ],
-            ),
-      bottomNavigationBar: isSmallScreen
-          ? BottomNavigationBar(
-              currentIndex: _selectedIndex,
-              onTap: (int index) {
-                setState(() {
-                  _selectedIndex = index;
-                });
-              },
-              type: BottomNavigationBarType.fixed,
-              selectedFontSize: 11,
-              unselectedFontSize: 10,
-              items: const [
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.calendar_month_outlined, size: 20),
-                  label: 'לוח שנה',
-                ),
-                BottomNavigationBarItem(
-                  icon: ImageIcon(AssetImage('assets/icon/זכור ושמור.png'),
-                      size: 20),
-                  label: 'זכור ושמור',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.straighten, size: 20),
-                  label: 'מדות',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(FluentIcons.note_24_regular, size: 20),
-                  label: 'הערות',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(FluentIcons.calculator_24_regular, size: 20),
-                  label: 'גימטריה',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(FluentIcons.book_24_regular, size: 20),
-                  label: 'מילון',
-                ),
-              ],
-            )
-          : null,
+      body: TabBarView(
+        controller: _tabController,
+        children: _pages,
+      ),
     );
   }
+}
 
-  String _getTitle(int index) {
-    switch (index) {
-      case 0:
-        return 'לוח שנה';
-      case 1:
-        return _shamorZachorTitle;
-      case 2:
-        return 'מדות ושיעורים';
-      case 3:
-        return 'הערות אישיות';
-      case 4:
-        return 'גימטריה';
-      case 5:
-        return 'מילון ארמי-עברי';
-      default:
-        return 'כלים';
-    }
-  }
+class _TabInfo {
+  final String label;
+  final IconData? icon;
+  final String? imageIcon;
 
-  List<Widget>? _getActions(BuildContext context, int index) {
-    Widget buildSettingsButton(VoidCallback onPressed) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8.0),
-        child: IconButton(
-          icon: const Icon(FluentIcons.settings_24_regular),
-          tooltip: 'הגדרות',
-          onPressed: onPressed,
-          style: IconButton.styleFrom(
-            foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
-            backgroundColor:
-                Theme.of(context).colorScheme.surfaceContainerHighest,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        ),
-      );
-    }
-
-    switch (index) {
-      case 0:
-        return [
-          buildSettingsButton(() => showCalendarSettingsDialog(
-                context,
-                calendarCubit: context.read<CalendarCubit>(),
-              ))
-        ];
-      case 4:
-        return [buildSettingsButton(() => showGematriaSettingsDialog(context))];
-      default:
-        return null;
-    }
-  }
+  const _TabInfo({
+    required this.label,
+    this.icon,
+    this.imageIcon,
+  });
 }

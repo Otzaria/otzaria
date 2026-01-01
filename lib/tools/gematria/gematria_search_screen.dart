@@ -336,6 +336,12 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
               textInputAction: TextInputAction.search,
             ),
           ),
+          const SizedBox(width: 8),
+          IconButton(
+            icon: const Icon(FluentIcons.settings_24_regular),
+            tooltip: 'הגדרות',
+            onPressed: showSettingsDialog,
+          ),
         ],
       ),
     );

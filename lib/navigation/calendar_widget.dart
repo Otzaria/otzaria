@@ -793,19 +793,36 @@ class CalendarWidget extends StatelessWidget {
         color: Theme.of(context).primaryColor.withAlpha(25),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      child: Stack(
+        alignment: Alignment.center,
         children: [
-          Text(
-            '$dayOfWeek $jewishDateStr',
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                '$dayOfWeek $jewishDateStr',
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                gregorianDateStr,
+                style: TextStyle(
+                    fontSize: 16,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant),
+              ),
+            ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            gregorianDateStr,
-            style: TextStyle(
-                fontSize: 16,
-                color: Theme.of(context).colorScheme.onSurfaceVariant),
+          Positioned(
+            left: 0,
+            top: 0,
+            child: IconButton(
+              icon: const Icon(FluentIcons.settings_24_regular),
+              tooltip: 'הגדרות',
+              onPressed: () => showCalendarSettingsDialog(
+                context,
+                calendarCubit: context.read<CalendarCubit>(),
+              ),
+            ),
           ),
         ],
       ),
