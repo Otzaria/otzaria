@@ -214,7 +214,7 @@ Future<void> initialize() async {
     // Configure window manager for proper close handling
     WindowOptions windowOptions = const WindowOptions(
       skipTaskbar: false,
-      titleBarStyle: TitleBarStyle.normal,
+      titleBarStyle: TitleBarStyle.hidden,
     );
 
     // Add window listener for proper close handling

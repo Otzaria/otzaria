@@ -24,7 +24,8 @@ class FullscreenHelper {
       await windowManager.setFullScreen(true);
     } else {
       await windowManager.setFullScreen(false);
-      await windowManager.setTitleBarStyle(TitleBarStyle.normal);
+      // אנחנו משתמשים ב-CustomTitleBar ולכן תמיד רוצים להסתיר את הכותרת המקורית
+      await windowManager.setTitleBarStyle(TitleBarStyle.hidden);
     }
   }
 }

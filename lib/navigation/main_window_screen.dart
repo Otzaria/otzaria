@@ -32,6 +32,7 @@ import 'package:otzaria/navigation/calendar_cubit.dart';
 import 'package:otzaria/widgets/ad_popup_dialog.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:otzaria/main.dart' show appWindowListener;
+import 'package:otzaria/navigation/custom_title_bar.dart';
 
 class MainWindowScreen extends StatefulWidget {
   const MainWindowScreen({super.key});
@@ -369,8 +370,12 @@ class MainWindowScreenState extends State<MainWindowScreen>
                 child: MyUpdatWidget(
                   child: Scaffold(
                     resizeToAvoidBottomInset: false,
-                    body: OrientationBuilder(
-                      builder: (context, orientation) {
+                    body: Column(
+                      children: [
+                        const CustomTitleBar(),
+                        Expanded(
+                          child: OrientationBuilder(
+                            builder: (context, orientation) {
                         _handleOrientationChange(context, orientation);
 
                         final pageView = PageView(
@@ -502,6 +507,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
                         }
                       },
                     ),
+                          ),
+                        ],
+                      ),
                   ),
                 ),
               ),
