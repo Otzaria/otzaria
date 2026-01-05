@@ -25,7 +25,8 @@ import 'dart:async';
 /// קבועים לחישוב רוחב חלוניות המפרשים
 const double _kCommentaryPaneWidthFactor = 0.17;
 
-
+/// רוחב הכותרת האנכית + רווחים (20 לכותרת + 4 לרווח + 6 למפריד)
+const double _kCommentaryLabelAndSpacingWidth = 30.0;
 
 /// מסך תצוגת צורת הדף - מציג את הטקסט המרכזי עם מפרשים מסביב
 class PageShapeScreen extends StatefulWidget {
@@ -277,6 +278,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                       ],
                       ResizableDragHandle(
                         isVertical: true,
+                        showDivider: false,
                         onDragDelta: (delta) {
                           setState(() {
                             _leftWidth = ((_leftWidth ?? 0) - delta).clamp(
@@ -301,6 +303,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                     if (_columnVisibility['right'] == true) ...[
                       ResizableDragHandle(
                         isVertical: true,
+                        showDivider: false,
                         onDragDelta: (delta) {
                           setState(() {
                             _rightWidth = ((_rightWidth ?? 0) + delta).clamp(
@@ -356,18 +359,74 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
               // Bottom Commentary
               if (_bottomCommentator != null ||
                   _bottomRightCommentator != null) ...[
-                // מפריד אופקי לגרירה
-                ResizableDragHandle(
-                  isVertical: false,
-                  hitSize: 16,
-                  cursor: SystemMouseCursors.resizeRow,
-                  onDragDelta: (delta) {
-                    setState(() {
-                      _bottomHeight = ((_bottomHeight ?? 0) - delta).clamp(
-                          80.0, MediaQuery.of(context).size.height * 0.5);
-                    });
-                  },
-                  onDragEnd: _saveSizes,
+                // מפריד אופקי לגרירה עם קווים באמצע
+                SizedBox(
+                  height: 16,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // קווים מתחת למפרשים העליונים - באמצע הרווח
+                      Row(
+                        children: [
+                          // קו מתחת למפרש השמאלי
+                          if (_leftCommentator != null)
+                            SizedBox(
+                              width: (_leftWidth ??
+                                      MediaQuery.of(context).size.width *
+                                          _kCommentaryPaneWidthFactor) +
+                                  _kCommentaryLabelAndSpacingWidth,
+                              child: Center(
+                                child: FractionallySizedBox(
+                                  widthFactor: 0.5,
+                                  child: Container(
+                                    height: 1,
+                                    color: Theme.of(context).dividerColor,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          const Spacer(),
+                          // קו מתחת למפרש הימני
+                          if (_rightCommentator != null)
+                            SizedBox(
+                              width: (_rightWidth ??
+                                      MediaQuery.of(context).size.width *
+                                          _kCommentaryPaneWidthFactor) +
+                                  _kCommentaryLabelAndSpacingWidth,
+                              child: Center(
+                                child: FractionallySizedBox(
+                                  widthFactor: 0.5,
+                                  child: Container(
+                                    height: 1,
+                                    color: Theme.of(context).dividerColor,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      // אזור גרירה שקוף על כל הרוחב
+                      Positioned.fill(
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.resizeRow,
+                          child: GestureDetector(
+                            onPanUpdate: (details) {
+                              setState(() {
+                                _bottomHeight =
+                                    ((_bottomHeight ?? 0) - details.delta.dy)
+                                        .clamp(
+                                            80.0,
+                                            MediaQuery.of(context).size.height *
+                                                0.5);
+                              });
+                            },
+                            onPanEnd: (_) => _saveSizes(),
+                            child: Container(color: Colors.transparent),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 SizedBox(
                   height: _bottomHeight ??
