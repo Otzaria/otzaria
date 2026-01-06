@@ -25,8 +25,8 @@ import 'dart:async';
 /// קבועים לחישוב רוחב חלוניות המפרשים
 const double _kCommentaryPaneWidthFactor = 0.17;
 
-/// רוחב הכותרת האנכית + רווחים (20 לכותרת + 4 לרווח + 6 למפריד)
-const double _kCommentaryLabelAndSpacingWidth = 30.0;
+/// רוחב הכותרת האנכית + רווחים + מפריד (20 לכותרת + 4 לרווח + 8 למפריד)
+const double _kCommentaryLabelAndSpacingWidth = 32.0;
 
 /// מסך תצוגת צורת הדף - מציג את הטקסט המרכזי עם מפרשים מסביב
 class PageShapeScreen extends StatefulWidget {
@@ -762,6 +762,24 @@ class _HorizontalDragHandle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    Widget buildDividerLine(double? width) {
+      return SizedBox(
+        width: (width ??
+                MediaQuery.of(context).size.width *
+                    _kCommentaryPaneWidthFactor) +
+            _kCommentaryLabelAndSpacingWidth,
+        child: Center(
+          child: FractionallySizedBox(
+            widthFactor: 0.5,
+            child: Container(
+              height: 1,
+              color: Theme.of(context).dividerColor,
+            ),
+          ),
+        ),
+      );
+    }
+
     return SizedBox(
       height: 16,
       child: Stack(
@@ -770,41 +788,9 @@ class _HorizontalDragHandle extends StatelessWidget {
           // קווים מתחת למפרשים העליונים - באמצע הרווח
           Row(
             children: [
-              // קו מתחת למפרש השמאלי
-              if (leftCommentator != null)
-                SizedBox(
-                  width: (leftWidth ??
-                          MediaQuery.of(context).size.width *
-                              _kCommentaryPaneWidthFactor) +
-                      _kCommentaryLabelAndSpacingWidth,
-                  child: Center(
-                    child: FractionallySizedBox(
-                      widthFactor: 0.5,
-                      child: Container(
-                        height: 1,
-                        color: Theme.of(context).dividerColor,
-                      ),
-                    ),
-                  ),
-                ),
+              if (leftCommentator != null) buildDividerLine(leftWidth),
               const Spacer(),
-              // קו מתחת למפרש הימני
-              if (rightCommentator != null)
-                SizedBox(
-                  width: (rightWidth ??
-                          MediaQuery.of(context).size.width *
-                              _kCommentaryPaneWidthFactor) +
-                      _kCommentaryLabelAndSpacingWidth,
-                  child: Center(
-                    child: FractionallySizedBox(
-                      widthFactor: 0.5,
-                      child: Container(
-                        height: 1,
-                        color: Theme.of(context).dividerColor,
-                      ),
-                    ),
-                  ),
-                ),
+              if (rightCommentator != null) buildDividerLine(rightWidth),
             ],
           ),
           // אזור גרירה שקוף על כל הרוחב
