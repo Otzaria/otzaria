@@ -360,73 +360,19 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
               if (_bottomCommentator != null ||
                   _bottomRightCommentator != null) ...[
                 // מפריד אופקי לגרירה עם קווים באמצע
-                SizedBox(
-                  height: 16,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      // קווים מתחת למפרשים העליונים - באמצע הרווח
-                      Row(
-                        children: [
-                          // קו מתחת למפרש השמאלי
-                          if (_leftCommentator != null)
-                            SizedBox(
-                              width: (_leftWidth ??
-                                      MediaQuery.of(context).size.width *
-                                          _kCommentaryPaneWidthFactor) +
-                                  _kCommentaryLabelAndSpacingWidth,
-                              child: Center(
-                                child: FractionallySizedBox(
-                                  widthFactor: 0.5,
-                                  child: Container(
-                                    height: 1,
-                                    color: Theme.of(context).dividerColor,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          const Spacer(),
-                          // קו מתחת למפרש הימני
-                          if (_rightCommentator != null)
-                            SizedBox(
-                              width: (_rightWidth ??
-                                      MediaQuery.of(context).size.width *
-                                          _kCommentaryPaneWidthFactor) +
-                                  _kCommentaryLabelAndSpacingWidth,
-                              child: Center(
-                                child: FractionallySizedBox(
-                                  widthFactor: 0.5,
-                                  child: Container(
-                                    height: 1,
-                                    color: Theme.of(context).dividerColor,
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                      // אזור גרירה שקוף על כל הרוחב
-                      Positioned.fill(
-                        child: MouseRegion(
-                          cursor: SystemMouseCursors.resizeRow,
-                          child: GestureDetector(
-                            onPanUpdate: (details) {
-                              setState(() {
-                                _bottomHeight =
-                                    ((_bottomHeight ?? 0) - details.delta.dy)
-                                        .clamp(
-                                            80.0,
-                                            MediaQuery.of(context).size.height *
-                                                0.5);
-                              });
-                            },
-                            onPanEnd: (_) => _saveSizes(),
-                            child: Container(color: Colors.transparent),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                _HorizontalDragHandle(
+                  leftWidth: _leftWidth,
+                  rightWidth: _rightWidth,
+                  leftCommentator: _leftCommentator,
+                  rightCommentator: _rightCommentator,
+                  onPanUpdate: (details) {
+                    setState(() {
+                      _bottomHeight =
+                          ((_bottomHeight ?? 0) - details.delta.dy)
+                              .clamp(80.0, MediaQuery.of(context).size.height * 0.5);
+                    });
+                  },
+                  onPanEnd: _saveSizes,
                 ),
                 SizedBox(
                   height: _bottomHeight ??
@@ -795,3 +741,85 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
 }
 
 
+
+/// ידית גרירה אופקית מותאמת אישית עם קווים מתחת למפרשים העליונים
+class _HorizontalDragHandle extends StatelessWidget {
+  final double? leftWidth;
+  final double? rightWidth;
+  final String? leftCommentator;
+  final String? rightCommentator;
+  final ValueChanged<DragUpdateDetails> onPanUpdate;
+  final VoidCallback onPanEnd;
+
+  const _HorizontalDragHandle({
+    this.leftWidth,
+    this.rightWidth,
+    this.leftCommentator,
+    this.rightCommentator,
+    required this.onPanUpdate,
+    required this.onPanEnd,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 16,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // קווים מתחת למפרשים העליונים - באמצע הרווח
+          Row(
+            children: [
+              // קו מתחת למפרש השמאלי
+              if (leftCommentator != null)
+                SizedBox(
+                  width: (leftWidth ??
+                          MediaQuery.of(context).size.width *
+                              _kCommentaryPaneWidthFactor) +
+                      _kCommentaryLabelAndSpacingWidth,
+                  child: Center(
+                    child: FractionallySizedBox(
+                      widthFactor: 0.5,
+                      child: Container(
+                        height: 1,
+                        color: Theme.of(context).dividerColor,
+                      ),
+                    ),
+                  ),
+                ),
+              const Spacer(),
+              // קו מתחת למפרש הימני
+              if (rightCommentator != null)
+                SizedBox(
+                  width: (rightWidth ??
+                          MediaQuery.of(context).size.width *
+                              _kCommentaryPaneWidthFactor) +
+                      _kCommentaryLabelAndSpacingWidth,
+                  child: Center(
+                    child: FractionallySizedBox(
+                      widthFactor: 0.5,
+                      child: Container(
+                        height: 1,
+                        color: Theme.of(context).dividerColor,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          // אזור גרירה שקוף על כל הרוחב
+          Positioned.fill(
+            child: MouseRegion(
+              cursor: SystemMouseCursors.resizeRow,
+              child: GestureDetector(
+                onPanUpdate: onPanUpdate,
+                onPanEnd: (_) => onPanEnd(),
+                child: Container(color: Colors.transparent),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

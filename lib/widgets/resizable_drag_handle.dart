@@ -115,25 +115,15 @@ class _ResizableDragHandleState extends State<ResizableDragHandle> {
             return DecoratedBox(
               decoration: BoxDecoration(color: background),
               child: widget.isVertical
-                  ? SizedBox(
+                  ? VerticalDivider(
                       width: widget.hitSize,
-                      child: showLine
-                          ? VerticalDivider(
-                              width: widget.hitSize,
-                              thickness: thickness,
-                              color: lineColor,
-                            )
-                          : null,
+                      thickness: thickness,
+                      color: lineColor,
                     )
-                  : SizedBox(
+                  : Divider(
                       height: widget.hitSize,
-                      child: showLine
-                          ? Divider(
-                              height: widget.hitSize,
-                              thickness: thickness,
-                              color: lineColor,
-                            )
-                          : null,
+                      thickness: thickness,
+                      color: lineColor,
                     ),
             );
           },
