@@ -714,13 +714,14 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
       builder: (context, state) {
         return BlocBuilder<SettingsBloc, SettingsState>(
           builder: (context, settingsState) {
-            // מפרשים תחתונים משתמשים בגופן מההגדרות, עליונים בגופן הרגיל
+            // מפרשים תחתונים ועליונים משתמשים בגופנים מההגדרות
             final bottomFont =
                 Settings.getValue<String>('page_shape_bottom_font') ??
                     AppFonts.defaultFont;
-            final fontFamily = widget.isBottom
-                ? bottomFont
-                : settingsState.commentatorsFontFamily;
+            final sideFont =
+                Settings.getValue<String>('page_shape_side_font') ??
+                    AppFonts.defaultFont;
+            final fontFamily = widget.isBottom ? bottomFont : sideFont;
             final commentaryFontSize = PageShapeSettingsManager.getCommentaryFontSize();
             return SimpleTextViewer(
               content: _content!,

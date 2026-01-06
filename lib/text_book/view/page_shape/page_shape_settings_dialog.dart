@@ -45,6 +45,7 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
   String? _bottomCommentator;
   String? _bottomRightCommentator;
   String _bottomFontFamily = AppFonts.defaultFont;
+  String _sideFontFamily = AppFonts.defaultFont;
   double _commentaryFontSize =
       PageShapeSettingsManager.defaultCommentaryFontSize;
   List<CommentatorGroup> _groups = [];
@@ -100,6 +101,8 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
       _bottomCommentator = widget.currentBottom;
       _bottomRightCommentator = widget.currentBottomRight;
       _bottomFontFamily = Settings.getValue<String>('page_shape_bottom_font') ??
+          AppFonts.defaultFont;
+      _sideFontFamily = Settings.getValue<String>('page_shape_side_font') ??
           AppFonts.defaultFont;
       _commentaryFontSize = PageShapeSettingsManager.getCommentaryFontSize();
       _highlightRelatedCommentators =
@@ -193,6 +196,9 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
     await Settings.setValue<String>(
         'page_shape_bottom_font', _bottomFontFamily);
 
+    // שמירת הגופן של המפרשים העליונים (תמיד גלובלי)
+    await Settings.setValue<String>('page_shape_side_font', _sideFontFamily);
+
     // שמירת הגדרת הדגשה - גלובלי או פר-ספר לפי הבחירה
     await PageShapeSettingsManager.saveHighlightSetting(
       widget.bookTitle,
@@ -223,9 +229,17 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
     _saveSettings();
   }
 
-  void _onFontChanged(String value) {
+  void _onBottomFontChanged(String value) {
     setState(() {
       _bottomFontFamily = value;
+      _hasChanges = true;
+    });
+    _saveSettings();
+  }
+
+  void _onSideFontChanged(String value) {
+    setState(() {
+      _sideFontFamily = value;
       _hasChanges = true;
     });
     _saveSettings();
@@ -667,6 +681,48 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
                   const SizedBox(
                     width: 140,
                     child: Text(
+                      'גופן מפרשים עליונים:',
+                      style: TextStyle(fontSize: 15),
+                    ),
+                  ),
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      initialValue: _sideFontFamily,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      ),
+                      items: AppFonts.availableFonts.map((font) {
+                        return DropdownMenuItem<String>(
+                          value: font.value,
+                          child: Text(
+                            font.label,
+                            style: TextStyle(
+                              fontFamily:
+                                  AppFonts.fontPaths.containsKey(font.value)
+                                      ? font.value
+                                      : null,
+                              fontSize: 13,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          _onSideFontChanged(value);
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const SizedBox(
+                    width: 140,
+                    child: Text(
                       'גופן מפרשים תחתונים:',
                       style: TextStyle(fontSize: 15),
                     ),
@@ -696,7 +752,7 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
                       }).toList(),
                       onChanged: (value) {
                         if (value != null) {
-                          _onFontChanged(value);
+                          _onBottomFontChanged(value);
                         }
                       },
                     ),
