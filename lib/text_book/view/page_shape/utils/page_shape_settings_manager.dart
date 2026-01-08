@@ -58,6 +58,22 @@ class PageShapeSettingsManager {
     }
     return null;
   }
+  
+  /// חילוץ שם בסיסי של מפרש (בלי "על X")
+  /// למשל: "רמב"ן על ברכות" → "רמב"ן"
+  /// למשל: "השגות הראב"ד על משנה תורה, הלכות דעות" → "השגות הראב"ד"
+  static String? extractBaseCommentatorName(String? fullName) {
+    if (fullName == null) return null;
+    
+    // מחפשים "על " ולוקחים את מה שלפניו
+    final onIndex = fullName.indexOf(' על ');
+    if (onIndex > 0) {
+      return fullName.substring(0, onIndex).trim();
+    }
+    
+    // אם אין "על", מחזירים את השם כמו שהוא
+    return fullName;
+  }
 
   // ==================== גודל גופן (גלובלי בלבד) ====================
   
@@ -177,13 +193,17 @@ class PageShapeSettingsManager {
     Map<String, String?> config, {
     String? saveToCategory, // אם מוגדר - שומר לקטגוריה במקום לספר
   }) async {
-    final configString = _serializeConfiguration(config);
-    
     if (saveToCategory != null) {
-      // שמירה לקטגוריה
+      // שמירה לקטגוריה - שומרים רק את השמות הבסיסיים של המפרשים
+      final baseConfig = <String, String?>{};
+      config.forEach((key, value) {
+        baseConfig[key] = extractBaseCommentatorName(value);
+      });
+      final configString = _serializeConfiguration(baseConfig);
       await Settings.setValue<String>('$_categoryConfigPrefix$saveToCategory', configString);
     } else {
-      // שמירה לספר ספציפי
+      // שמירה לספר ספציפי - שומרים את השמות המלאים
+      final configString = _serializeConfiguration(config);
       await Settings.setValue<String>('$_bookConfigPrefix$bookTitle', configString);
     }
   }

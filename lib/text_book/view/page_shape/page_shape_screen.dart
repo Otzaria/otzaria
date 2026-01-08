@@ -105,8 +105,9 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
 
     final Map<String, String?> commentators;
     if (config != null) {
-      // יש הגדרה שמורה - להשתמש בה (גם אם ריקה)
-      commentators = config;
+      // יש הגדרה שמורה - צריך להתאים שמות בסיסיים לשמות מלאים
+      // (כי הגדרות קטגוריה שומרות רק שמות בסיסיים כמו "רמב"ן")
+      commentators = _resolveCommentatorNames(config, state.links);
     } else {
       // אין הגדרה שמורה בכלל - השתמש בברירות מחדל
       commentators = await DefaultCommentators.getDefaults(state.book, links: state.links);
@@ -121,6 +122,43 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
         _isLoadingConfig = false;
       });
     }
+  }
+
+  /// התאמת שמות מפרשים בסיסיים לשמות מלאים מתוך הקישורים הזמינים
+  /// למשל: "רמב"ן" → "רמב"ן על בבא מציעא"
+  Map<String, String?> _resolveCommentatorNames(
+      Map<String, String?> config, List<Link> links) {
+    // קבלת רשימת שמות המפרשים הזמינים
+    final availableCommentators = links
+        .where((link) =>
+            link.connectionType == 'commentary' ||
+            link.connectionType == 'targum')
+        .map((link) => utils.getTitleFromPath(link.path2))
+        .toSet()
+        .toList();
+
+    return {
+      'left': _findMatchingCommentator(config['left'], availableCommentators),
+      'right': _findMatchingCommentator(config['right'], availableCommentators),
+      'bottom': _findMatchingCommentator(config['bottom'], availableCommentators),
+      'bottomRight': _findMatchingCommentator(config['bottomRight'], availableCommentators),
+    };
+  }
+
+  /// מחפש מפרש שמתאים לשם הנתון (בסיסי או מלא)
+  String? _findMatchingCommentator(String? shortName, List<String> available) {
+    if (shortName == null) return null;
+
+    // 1. התאמה מדויקת (אם השם כבר מלא)
+    String? match = available.firstWhereOrNull((name) => name == shortName);
+    if (match != null) return match;
+
+    // 2. התאמה של התחלה (שם בסיסי → שם מלא)
+    match = available.firstWhereOrNull((name) => name.startsWith(shortName));
+    if (match != null) return match;
+
+    // 3. התאמה של הכלה
+    return available.firstWhereOrNull((name) => name.contains(shortName));
   }
 
   /// הסתרת טור
