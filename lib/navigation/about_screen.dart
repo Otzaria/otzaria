@@ -181,16 +181,21 @@ class _AboutScreenState extends State<AboutScreen> {
         'url': 'https://forum.otzaria.org/user/%D7%99.-%D7%A4%D7%9C.',
       },
       {
-        'name': 'האדם החושב',
+        'name': 'האדם החושב', // האדם החושב
         'url':
             'https://forum.otzaria.org/user/%D7%94%D7%90%D7%93%D7%9D-%D7%94%D7%97%D7%95%D7%A9%D7%91',
       },
       {
-        'name': 'sivan22',
+        'name': 'י. ח. מ.', // יום חדש מתחיל
+        'url':
+            'https://forum.otzaria.org/user/%D7%99%D7%95%D7%9D-%D7%97%D%93%D7%A9-%D7%9E%D7%AA%D7%97%D7%99%D7%9C',
+      },
+      {
+        'name': 'ס. כב.', // sivan22
         'url': 'https://mitmachim.top/user/sivan22',
       },
       {
-        'name': 'יהודי צעיר',
+        'name': 'יהודי צעיר', // יהודי צעיר
         'url':
             'https://forum.otzaria.org/user/%D7%99%D7%94%D7%95%D7%93%D7%99-%D7%A6%D7%A2%D7%99%D7%A8',
       },
@@ -210,7 +215,7 @@ class _AboutScreenState extends State<AboutScreen> {
         'url': 'https://forum.otzaria.org/user/%D7%A7%D7%98%D7%A0%D7%98%D7%9F',
       },
       {
-        'name': 'דאנציג',
+        'name': 'ד.', // דאנציג
         'url':
             'https://forum.otzaria.org/user/%D7%93%D7%90%D7%A0%D7%A6%D7%99%D7%92',
       },
@@ -222,12 +227,12 @@ class _AboutScreenState extends State<AboutScreen> {
         'url': 'https://forum.otzaria.org/user/333',
       },
       {
-        'name': "טכנולוגי גו'ניור", // י. אייזנשטיין
+        'name': "ט. ג.", // "טכנולוגי גו'ניור", // י. אייזנשטיין
         'url':
             'https://forum.otzaria.org/user/%D7%98%D7%9B%D7%A0%D7%95%D7%9C%D7%95%D7%92%D7%99-%D7%92%D7%95-%D7%A0%D7%99%D7%95%D7%A8',
       },
       {
-        'name': 'הבל הבלים', // גאון גדול
+        'name': 'ה. ה.', // גאון גדול - הבל הבלים
         'url':
             'https://forum.otzaria.org/user/%D7%94%D7%91%D7%9C-%D7%94%D7%91%D7%9C%D7%99%D7%9D',
       },
@@ -240,12 +245,12 @@ class _AboutScreenState extends State<AboutScreen> {
         'url': 'https://mitmachim.top/user/%D7%9E%D7%95%D7%99%D7%98%D7%99%D7%95',
       },
       {
-        'name': 'דוד משה 1',
+        'name': 'ד. מ. א.', // דוד משה 1
         'url':
             'https://forum.otzaria.org/user/%D7%93%D7%95%D7%93-%D7%9E%D7%A9%D7%94-1',
       },
       {
-        'name': 'איש צדיק מידי',
+        'name': 'איש צדיק מידי', // איש צדיק מידי
         'url':
             'https://forum.otzaria.org/user/%D7%90%D7%99%D7%A9-%D7%A6%D7%93%D7%99%D7%A7-%D7%9E%D7%99%D7%93%D7%99',
       },
@@ -255,7 +260,7 @@ class _AboutScreenState extends State<AboutScreen> {
             'https://forum.otzaria.org/user/%D7%A9%D7%A0%D7%99-%D7%90%D7%A0%D7%A9%D7%99%D7%9D',
       },
       {
-        'name': 'יאיר דניאל',
+        'name': 'י. ד.', // יאיר דניאל
         'url':
             'https://forum.otzaria.org/user/%D7%99%D7%90%D7%99%D7%A8-%D7%93%D7%A0%D7%99%D7%90%D7%9C',
       },

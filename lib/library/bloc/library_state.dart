@@ -139,14 +139,6 @@ class LibraryState extends Equatable {
           books: [],
           parent: null),
       Category(
-          title: 'הערות',
-          description: '',
-          shortDescription: '',
-          order: 15,
-          subCategories: [],
-          books: [],
-          parent: null),
-      Category(
           title: 'לימוד יומי',
           description: '',
           shortDescription: '',
