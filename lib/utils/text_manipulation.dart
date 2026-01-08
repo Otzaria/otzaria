@@ -694,6 +694,14 @@ String replaceParaphrases(String s) {
 Future<Map<String, List<String>>> splitByEra(
   List<String> titles,
 ) async {
+  // טעינת ה-cache פעם אחת בהתחלה (אם עדיין לא נטען)
+  if (_csvCache == null) {
+    await _loadCsvCache();
+  }
+  
+  // טעינת titleToPath פעם אחת (לא בכל איטרציה)
+  final titleToPath = await FileSystemData.instance.titleToPath;
+  
   // יוצרים מבנה נתונים ריק לכל הקטגוריות החדשות
   final Map<String, List<String>> byEra = {
     'תורה שבכתב': [],
@@ -704,24 +712,33 @@ Future<Map<String, List<String>>> splitByEra(
     'מפרשים נוספים': [],
   };
 
-  // ממיינים כל פרשן לקטגוריה הראשונה שמתאימה לו
+  // ממיינים כל פרשן לקטגוריה הראשונה שמתאימה לו (סינכרוני!)
   for (final t in titles) {
-    if (await hasTopic(t, 'תורה שבכתב')) {
-      byEra['תורה שבכתב']!.add(t);
-    } else if (await hasTopic(t, 'חז"ל')) {
-      byEra['חז"ל']!.add(t);
-    } else if (await hasTopic(t, 'ראשונים')) {
-      byEra['ראשונים']!.add(t);
-    } else if (await hasTopic(t, 'אחרונים')) {
-      byEra['אחרונים']!.add(t);
-    } else if (await hasTopic(t, 'מחברי זמננו')) {
-      byEra['מחברי זמננו']!.add(t);
-    } else {
-      // כל ספר שלא נמצא בקטגוריות הקודמות יוכנס ל"מפרשים נוספים"
-      byEra['מפרשים נוספים']!.add(t);
-    }
+    final category = _getTopicSync(t, titleToPath);
+    byEra[category]!.add(t);
   }
 
   // מחזירים את כל הקטגוריות, גם אם הן ריקות
   return byEra;
+}
+
+/// גרסה סינכרונית של hasTopic - משתמשת ב-cache שכבר נטען
+String _getTopicSync(String title, Map<String, String> titleToPath) {
+  // בדיקה ב-CSV cache
+  if (_csvCache != null && _csvCache!.containsKey(title)) {
+    final generation = _csvCache![title]!;
+    return _mapGenerationToCategory(generation);
+  }
+
+  // Fallback לפי נתיב
+  final path = titleToPath[title];
+  if (path != null) {
+    if (path.contains('תורה שבכתב')) return 'תורה שבכתב';
+    if (path.contains('חז"ל')) return 'חז"ל';
+    if (path.contains('ראשונים')) return 'ראשונים';
+    if (path.contains('אחרונים')) return 'אחרונים';
+    if (path.contains('מחברי זמננו')) return 'מחברי זמננו';
+  }
+
+  return 'מפרשים נוספים';
 }

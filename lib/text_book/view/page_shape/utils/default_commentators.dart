@@ -9,6 +9,9 @@ import 'package:otzaria/utils/text_manipulation.dart' as utils;
 /// מחלקה לניהול ברירות מחדל של מפרשים לפי סוג הספר
 /// ההגדרות נטענות מקובץ JSON חיצוני
 class DefaultCommentators {
+  // Cache לקובץ ה-JSON
+  static Map<String, dynamic>? _configCache;
+  
   /// מחזיר מפרשי ברירת מחדל לפי קטגוריית הספר
   /// מקבל גם את רשימת הקישורים כדי למצוא את השמות המלאים של המפרשים
   static Future<Map<String, String?>> getDefaults(TextBook book, {List<Link>? links}) async {
@@ -67,10 +70,16 @@ class DefaultCommentators {
   }
 
   static Future<Map<String, dynamic>> _loadConfig() async {
+    // שימוש ב-cache אם כבר נטען
+    if (_configCache != null) {
+      return _configCache!;
+    }
+    
     try {
       final jsonString =
           await rootBundle.loadString('assets/default_commentators.json');
-      return json.decode(jsonString) as Map<String, dynamic>;
+      _configCache = json.decode(jsonString) as Map<String, dynamic>;
+      return _configCache!;
     } catch (e, s) {
       debugPrint('Failed to load default commentators config: $e\n$s');
       return {
