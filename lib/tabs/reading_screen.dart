@@ -489,32 +489,37 @@ class _ReadingScreenState extends State<ReadingScreen>
           maxHeight: 400,
           entries: <ContextMenuEntry>[
             MenuItem(
-              label: tab.isPinned ? 'בטל הצמדת כרטיסיה' : 'הצמד כרטיסיה',
-              onSelected: () => context.read<TabsBloc>().add(TogglePinTab(tab)),
-            ),
-            MenuItem(label: 'סגור', onSelected: () => closeTab(tab, context)),
-            MenuItem(
-                label: 'סגור הכל',
-                onSelected: () => closeAllTabs(state, context)),
-            MenuItem(
-              label: 'סגור את האחרים',
-              onSelected: () => closeAllTabsButCurrent(state, context),
+              label: Text(tab.isPinned ? 'בטל הצמדת כרטיסיה' : 'הצמד כרטיסיה'),
+              onSelected: (_) =>
+                  context.read<TabsBloc>().add(TogglePinTab(tab)),
             ),
             MenuItem(
-              label: 'שיכפול',
-              onSelected: () => context.read<TabsBloc>().add(CloneTab(tab)),
+              label: const Text('סגור'),
+              onSelected: (_) => closeTab(tab, context),
+            ),
+            MenuItem(
+              label: const Text('סגור הכל'),
+              onSelected: (_) => closeAllTabs(state, context),
+            ),
+            MenuItem(
+              label: const Text('סגור את האחרים'),
+              onSelected: (_) => closeAllTabsButCurrent(state, context),
+            ),
+            MenuItem(
+              label: const Text('שיכפול'),
+              onSelected: (_) => context.read<TabsBloc>().add(CloneTab(tab)),
             ),
             const MenuDivider(),
             // אפשרות "הצג לצד" - תמיד מוצגת, אבל מושבתת אם אין מספיק טאבים
             if (tab is! CombinedTab)
               if (state.tabs.length > 1)
                 MenuItem.submenu(
-                  label: 'הצג לצד',
+                  label: const Text('הצג לצד'),
                   items: state.tabs
                       .where((t) => t != tab && t is! CombinedTab)
                       .map((otherTab) => MenuItem(
-                            label: otherTab.title,
-                            onSelected: () {
+                            label: Text(otherTab.title),
+                            onSelected: (_) {
                               context.read<TabsBloc>().add(
                                     EnableSideBySideMode(
                                       rightTab: tab, // הטאב הנוכחי ימני
@@ -527,27 +532,27 @@ class _ReadingScreenState extends State<ReadingScreen>
                 )
               else
                 MenuItem(
-                  label: 'הצג לצד',
+                  label: const Text('הצג לצד'),
                   enabled: false,
-                  onSelected: () {},
+                  onSelected: (_) {},
                 ),
             // אפשרויות לטאב משולב
             if (tab is CombinedTab) ...[
               MenuItem(
-                label: 'החלף צדדים',
-                onSelected: () =>
+                label: const Text('החלף צדדים'),
+                onSelected: (_) =>
                     context.read<TabsBloc>().add(const SwapSideBySideTabs()),
               ),
               MenuItem(
-                label: 'חזרה לתצוגה רגילה',
-                onSelected: () =>
+                label: const Text('חזרה לתצוגה רגילה'),
+                onSelected: (_) =>
                     context.read<TabsBloc>().add(const DisableSideBySideMode()),
               ),
             ],
             const MenuDivider(),
             // הוסרת אפשרות הצמדה לדף הבית לאחר הסרת דף הבית
             MenuItem.submenu(
-              label: 'רשימת הכרטיסיות ',
+              label: const Text('רשימת הכרטיסיות '),
               items: _getMenuItems(state.tabs, context),
             )
           ],
@@ -728,18 +733,20 @@ class _ReadingScreenState extends State<ReadingScreen>
 
   List<ContextMenuEntry> _getMenuItems(
       List<OpenedTab> tabs, BuildContext context) {
-    List<MenuItem> items = tabs
-        .map((tab) => MenuItem(
-              label: tab.title,
-              onSelected: () {
-                final index = tabs.indexOf(tab);
-                context.read<TabsBloc>().add(SetCurrentTab(index));
-              },
-            ))
-        .toList();
+    final sortedTabs = List<OpenedTab>.from(tabs)
+      ..sort((a, b) => a.title.compareTo(b.title));
 
-    items.sort((a, b) => a.label.compareTo(b.label));
-    return items;
+    return sortedTabs
+        .map(
+          (tab) => MenuItem(
+            label: Text(tab.title),
+            onSelected: (_) {
+              final index = tabs.indexOf(tab);
+              context.read<TabsBloc>().add(SetCurrentTab(index));
+            },
+          ),
+        )
+        .toList();
   }
 
   void _showSaveWorkspaceDialog(BuildContext context) {

@@ -159,11 +159,14 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
   ContextMenu _buildContextMenu(TextBookLoaded state) {
     return ContextMenu(
       entries: [
-        MenuItem(label: 'חיפוש', onSelected: () => widget.openLeftPaneTab(1)),
+        MenuItem(
+          label: const Text('חיפוש'),
+          onSelected: (_) => widget.openLeftPaneTab(1),
+        ),
         const MenuDivider(),
         MenuItem(
-          label: 'בחר את כל הטקסט',
-          onSelected: () =>
+          label: const Text('בחר את כל הטקסט'),
+          onSelected: (_) =>
               _selectionKey.currentState?.selectableRegion.selectAll(),
         ),
       ],
