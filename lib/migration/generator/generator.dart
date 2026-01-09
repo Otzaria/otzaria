@@ -232,13 +232,6 @@ class DatabaseGenerator {
           continue;
         }
 
-        // Skip companion notes files named 'הערות על <title>.txt'
-        final filename = path.basename(entity.path);
-        final titleNoExt = path.basenameWithoutExtension(filename);
-        if (titleNoExt.startsWith('הערות על ')) {
-          continue;
-        }
-
         if (parentCategoryId == null) {
           continue;
         }
@@ -935,11 +928,7 @@ WHERE book.id = bc.book_id;
         if (entity is File &&
             ['.txt', '.pdf', '.docx']
                 .contains(path.extension(entity.path).toLowerCase())) {
-          final filename = path.basename(entity.path);
-          final titleNoExt = path.basenameWithoutExtension(filename);
-          if (!titleNoExt.startsWith('הערות על ')) {
             count++;
-          }
         }
       }
       return count;
@@ -953,19 +942,9 @@ WHERE book.id = bc.book_id;
     if (_bookContentCache.isNotEmpty) return;
 
     final files = <String>[];
-    final notesFiles = <String>[];
     final dir = Directory(libraryPath);
     await for (final entity in dir.list(recursive: true)) {
       if (entity is File && path.extension(entity.path) == '.txt') {
-        final filename = path.basename(entity.path);
-        final titleNoExt = path.basenameWithoutExtension(filename);
-
-        // Separate notes files from regular books
-        if (titleNoExt.startsWith('הערות על ')) {
-          notesFiles.add(entity.path);
-          continue;
-        }
-
         final rel = _toLibraryRelativeKey(entity.path);
         final src = _manifestSourcesByRel[rel] ?? 'Unknown';
         if (_sourceBlacklist.contains(src)) {
@@ -983,17 +962,6 @@ WHERE book.id = bc.book_id;
         _bookContentCache[key] = content.split('\n');
       } catch (e) {
         _log.warning('Failed to preload $filePath', e);
-      }
-    }
-
-    // Preload notes files (for faster notesContent loading)
-    for (final filePath in notesFiles) {
-      try {
-        final key = _toLibraryRelativeKey(filePath);
-        final content = await File(filePath).readAsString();
-        _bookContentCache[key] = content.split('\n');
-      } catch (e) {
-        _log.warning('Failed to preload notes file $filePath', e);
       }
     }
   }
@@ -1014,11 +982,6 @@ WHERE book.id = bc.book_id;
       final categories =
           parts.length > 1 ? parts.sublist(0, parts.length - 1) : <String>[];
       final bookFileName = parts.last;
-
-      // Skip notes-only entries
-      if (path.basenameWithoutExtension(bookFileName).startsWith('הערות על ')) {
-        continue;
-      }
 
       // Build filesystem path
       var currentPath = _libraryRoot;
