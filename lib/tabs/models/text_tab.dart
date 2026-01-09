@@ -136,9 +136,11 @@ class TextBookTab extends OpenedTab {
 
     return TextBookTab(
       index: json['initalIndex'],
-      book: TextBook(
-        title: json['title'],
-      ),
+      book: json['book'] != null
+          ? Book.fromJson(json['book']) as TextBook
+          : TextBook(
+              title: json['title'],
+            ),
       commentators: List<String>.from(json['commentators']),
       splitedView: splitedView,
       showPageShapeView: json['showPageShapeView'] ?? false,
@@ -181,6 +183,7 @@ class TextBookTab extends OpenedTab {
 
     return {
       'title': title,
+      'book': book.toJson(),
       'initalIndex': currentIndex,
       'commentators': commentators,
       'splitedView': splitedView,
