@@ -71,6 +71,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   bool _showZoomBar = false;
   bool _isRightPaneHovering = false; // מצב ריחוף על הטאב של חלונית המפרשים
   Timer? _zoomBarTimer;
+  bool _isLoading = true;
+  bool _succeeded = true;
 
   Future<void> _runInitialSearchIfNeeded() async {
     final controller = widget.tab.searchController;
@@ -505,162 +507,201 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                                   ? BlendMode.difference
                                   : BlendMode.dst,
                             ),
-                            child: PdfViewer.file(
-                              widget.tab.book.path,
-                              initialPageNumber: widget.tab.pageNumber,
-                              passwordProvider: () => passwordDialog(context),
-                              controller: widget.tab.pdfViewerController,
-                              params: PdfViewerParams(
-                                backgroundColor: Colors
-                                    .white, // תמיד לבן - ה-ColorFilter יהפוך לשחור במצב כהה
-                                maxScale: 10,
-                                horizontalCacheExtent: 1,
-                                verticalCacheExtent: 1,
-                                onInteractionStart: (_) {
-                                  if (!(widget.tab.pinLeftPane.value ||
-                                      (Settings.getValue<bool>(
-                                              'key-pin-sidebar') ??
-                                          false))) {
-                                    widget.tab.showLeftPane.value = false;
-                                  }
-                                },
-                                viewerOverlayBuilder:
-                                    (context, size, handleLinkTap) => [
-                                  PdfViewerScrollThumb(
-                                    controller: widget.tab.pdfViewerController,
-                                    orientation: ScrollbarOrientation.right,
-                                    thumbSize: const Size(40, 25),
-                                    thumbBuilder: (context, thumbSize,
-                                            pageNumber, controller) =>
-                                        Container(
-                                      color: Colors.black,
-                                      child: Center(
-                                        child: Text(
-                                          pageNumber.toString(),
-                                          style: const TextStyle(
-                                              color: Colors.white),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  PdfViewerScrollThumb(
-                                    controller: widget.tab.pdfViewerController,
-                                    orientation: ScrollbarOrientation.bottom,
-                                    thumbSize: const Size(80, 5),
-                                    thumbBuilder: (context, thumbSize,
-                                            pageNumber, controller) =>
-                                        Container(
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey[300],
-                                        borderRadius: BorderRadius.circular(3),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                                loadingBannerBuilder:
-                                    (context, bytesDownloaded, totalBytes) =>
-                                        Center(
-                                  child: CircularProgressIndicator(
-                                    value: totalBytes != null
-                                        ? bytesDownloaded / totalBytes
-                                        : null,
-                                    backgroundColor: Colors.grey,
-                                  ),
-                                ),
-                                linkWidgetBuilder: (context, link, size) =>
-                                    Material(
-                                  color: Colors.transparent,
-                                  child: InkWell(
-                                    onTap: () async {
-                                      if (link.url != null) {
-                                        navigateToUrl(link.url!);
-                                      } else if (link.dest != null) {
-                                        widget.tab.pdfViewerController
-                                            .goToDest(link.dest);
+                            child: Stack(
+                              children: [
+                                PdfViewer.file(
+                                  widget.tab.book.path,
+                                  initialPageNumber: widget.tab.pageNumber,
+                                  passwordProvider: () =>
+                                      passwordDialog(context),
+                                  controller: widget.tab.pdfViewerController,
+                                  useProgressiveLoading: false,
+                                  params: PdfViewerParams(
+                                    onDocumentLoadFinished:
+                                        (documentRef, succeeded) {
+                                      if (!mounted) return;
+                                      setState(() {
+                                        _isLoading = false;
+                                        _succeeded = succeeded;
+                                      });
+                                    },
+                                    backgroundColor: Colors
+                                        .white, // תמיד לבן - ה-ColorFilter יהפוך לשחור במצב כהה
+                                    maxScale: 10,
+                                    horizontalCacheExtent: 1,
+                                    verticalCacheExtent: 1,
+                                    onInteractionStart: (_) {
+                                      if (!(widget.tab.pinLeftPane.value ||
+                                          (Settings.getValue<bool>(
+                                                  'key-pin-sidebar') ??
+                                              false))) {
+                                        widget.tab.showLeftPane.value = false;
                                       }
                                     },
-                                    hoverColor:
-                                        Colors.blue.withValues(alpha: 0.2),
+                                    viewerOverlayBuilder:
+                                        (context, size, handleLinkTap) => [
+                                      PdfViewerScrollThumb(
+                                        controller:
+                                            widget.tab.pdfViewerController,
+                                        orientation: ScrollbarOrientation.right,
+                                        thumbSize: const Size(40, 25),
+                                        thumbBuilder: (context, thumbSize,
+                                                pageNumber, controller) =>
+                                            Container(
+                                          color: Colors.black,
+                                          child: Center(
+                                            child: Text(
+                                              pageNumber.toString(),
+                                              style: const TextStyle(
+                                                  color: Colors.white),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      PdfViewerScrollThumb(
+                                        controller:
+                                            widget.tab.pdfViewerController,
+                                        orientation:
+                                            ScrollbarOrientation.bottom,
+                                        thumbSize: const Size(80, 5),
+                                        thumbBuilder: (context, thumbSize,
+                                                pageNumber, controller) =>
+                                            Container(
+                                          decoration: BoxDecoration(
+                                            color: Colors.grey[300],
+                                            borderRadius:
+                                                BorderRadius.circular(3),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                    loadingBannerBuilder: (context,
+                                            bytesDownloaded, totalBytes) =>
+                                        Center(
+                                      child: CircularProgressIndicator(
+                                        value: totalBytes != null
+                                            ? bytesDownloaded / totalBytes
+                                            : null,
+                                        backgroundColor: Colors.grey,
+                                      ),
+                                    ),
+                                    linkWidgetBuilder: (context, link, size) =>
+                                        Material(
+                                      color: Colors.transparent,
+                                      child: InkWell(
+                                        onTap: () async {
+                                          if (link.url != null) {
+                                            navigateToUrl(link.url!);
+                                          } else if (link.dest != null) {
+                                            widget.tab.pdfViewerController
+                                                .goToDest(link.dest);
+                                          }
+                                        },
+                                        hoverColor:
+                                            Colors.blue.withValues(alpha: 0.2),
+                                      ),
+                                    ),
+                                    pagePaintCallbacks: textSearcher != null
+                                        ? [
+                                            textSearcher!
+                                                .pageTextMatchPaintCallback
+                                          ]
+                                        : null,
+                                    onDocumentChanged: (document) async {
+                                      if (document == null) {
+                                        widget.tab.documentRef.value = null;
+                                        widget.tab.outline.value = null;
+                                      }
+                                    },
+                                    onViewerReady:
+                                        (document, controller) async {
+                                      // 0. יצירת textSearcher רק אחרי שה-controller מוכן
+                                      if (!mounted) return;
+                                      textSearcher = PdfTextSearcher(
+                                          pdfController)
+                                        ..addListener(_onTextSearcherUpdated);
+                                      // 1. הגדרת המידע הראשוני מהמסמך
+                                      widget.tab.documentRef.value =
+                                          controller.documentRef;
+                                      widget.tab.outline.value =
+                                          await document.loadOutline();
+
+                                      // 1.5. שחזור מצב הזום אם נשמר קודם
+                                      if (widget.tab.savedZoom != null &&
+                                          widget.tab.savedZoom != 1.0) {
+                                        // המתנה קצרה לוודא שה-viewer מוכן לחלוטין
+                                        // הערה: ספריית pdfrx לא מספקת callback או stream שמציין שה-viewer
+                                        // סיים את כל תהליכי האתחול והרינדור הראשוני. לכן משתמשים ב-delay
+                                        // קצר בשילוב עם בדיקת isReady. זהו פתרון סביר עד שהספרייה תספק
+                                        // דרך דטרמיניסטית יותר לדעת מתי בטוח לקרוא ל-setZoom.
+                                        await Future.delayed(
+                                            const Duration(milliseconds: 100));
+                                        if (mounted &&
+                                            widget.tab.pdfViewerController
+                                                .isReady) {
+                                          widget.tab.pdfViewerController
+                                              .setZoom(
+                                            widget.tab.pdfViewerController
+                                                .centerPosition,
+                                            widget.tab.savedZoom!,
+                                          );
+                                        }
+                                      }
+
+                                      // 2. עדכון הכותרת הנוכחית
+                                      final currentPage =
+                                          widget.tab.pdfViewerController.isReady
+                                              ? (widget.tab.pdfViewerController
+                                                      .pageNumber ??
+                                                  1)
+                                              : 1;
+                                      final title = await refFromPageNumber(
+                                          currentPage,
+                                          widget.tab.outline.value,
+                                          widget.tab.book.title);
+                                      widget.tab.currentTitle.value = title;
+
+                                      // 2.5. עדכון מספר השורה בטקסט לפי הכותרת הראשונית
+                                      if (widget.tab.pdfHeadings != null &&
+                                          title.isNotEmpty) {
+                                        final lineNumber = widget
+                                            .tab.pdfHeadings!
+                                            .getLineNumberForHeading(title);
+                                        if (lineNumber != null) {
+                                          widget.tab.currentTextLineNumber =
+                                              lineNumber;
+                                          debugPrint(
+                                              '✅ Initial currentTextLineNumber set to: $lineNumber for title: "$title"');
+                                        }
+                                      }
+
+                                      // 3. הפעלת החיפוש הראשוני (עכשיו עם מנגנון ניסיונות חוזרים)
+                                      _runInitialSearchIfNeeded();
+
+                                      // 4. הצגת חלונית הצד אם צריך
+                                      if (mounted &&
+                                          (widget.tab.showLeftPane.value ||
+                                              widget
+                                                  .tab.searchText.isNotEmpty)) {
+                                        widget.tab.showLeftPane.value = true;
+                                      }
+                                    },
                                   ),
                                 ),
-                                pagePaintCallbacks: textSearcher != null
-                                    ? [textSearcher!.pageTextMatchPaintCallback]
-                                    : null,
-                                onDocumentChanged: (document) async {
-                                  if (document == null) {
-                                    widget.tab.documentRef.value = null;
-                                    widget.tab.outline.value = null;
-                                  }
-                                },
-                                onViewerReady: (document, controller) async {
-                                  // 0. יצירת textSearcher רק אחרי שה-controller מוכן
-                                  if (!mounted) return;
-                                  textSearcher = PdfTextSearcher(pdfController)
-                                    ..addListener(_onTextSearcherUpdated);
-                                  // 1. הגדרת המידע הראשוני מהמסמך
-                                  widget.tab.documentRef.value =
-                                      controller.documentRef;
-                                  widget.tab.outline.value =
-                                      await document.loadOutline();
-
-                                  // 1.5. שחזור מצב הזום אם נשמר קודם
-                                  if (widget.tab.savedZoom != null &&
-                                      widget.tab.savedZoom != 1.0) {
-                                    // המתנה קצרה לוודא שה-viewer מוכן לחלוטין
-                                    // הערה: ספריית pdfrx לא מספקת callback או stream שמציין שה-viewer
-                                    // סיים את כל תהליכי האתחול והרינדור הראשוני. לכן משתמשים ב-delay
-                                    // קצר בשילוב עם בדיקת isReady. זהו פתרון סביר עד שהספרייה תספק
-                                    // דרך דטרמיניסטית יותר לדעת מתי בטוח לקרוא ל-setZoom.
-                                    await Future.delayed(
-                                        const Duration(milliseconds: 100));
-                                    if (mounted &&
-                                        widget
-                                            .tab.pdfViewerController.isReady) {
-                                      widget.tab.pdfViewerController.setZoom(
-                                        widget.tab.pdfViewerController
-                                            .centerPosition,
-                                        widget.tab.savedZoom!,
-                                      );
-                                    }
-                                  }
-
-                                  // 2. עדכון הכותרת הנוכחית
-                                  final currentPage =
-                                      widget.tab.pdfViewerController.isReady
-                                          ? (widget.tab.pdfViewerController
-                                                  .pageNumber ??
-                                              1)
-                                          : 1;
-                                  final title = await refFromPageNumber(
-                                      currentPage,
-                                      widget.tab.outline.value,
-                                      widget.tab.book.title);
-                                  widget.tab.currentTitle.value = title;
-
-                                  // 2.5. עדכון מספר השורה בטקסט לפי הכותרת הראשונית
-                                  if (widget.tab.pdfHeadings != null &&
-                                      title.isNotEmpty) {
-                                    final lineNumber = widget.tab.pdfHeadings!
-                                        .getLineNumberForHeading(title);
-                                    if (lineNumber != null) {
-                                      widget.tab.currentTextLineNumber =
-                                          lineNumber;
-                                      debugPrint(
-                                          '✅ Initial currentTextLineNumber set to: $lineNumber for title: "$title"');
-                                    }
-                                  }
-
-                                  // 3. הפעלת החיפוש הראשוני (עכשיו עם מנגנון ניסיונות חוזרים)
-                                  _runInitialSearchIfNeeded();
-
-                                  // 4. הצגת חלונית הצד אם צריך
-                                  if (mounted &&
-                                      (widget.tab.showLeftPane.value ||
-                                          widget.tab.searchText.isNotEmpty)) {
-                                    widget.tab.showLeftPane.value = true;
-                                  }
-                                },
-                              ),
+                                if (_isLoading)
+                                  const Positioned.fill(
+                                    child: ColoredBox(
+                                      color: Color(0xFFFFFFFF),
+                                      child: Center(
+                                          child: CircularProgressIndicator()),
+                                    ),
+                                  ),
+                                if (!_isLoading && !_succeeded)
+                                  const Positioned.fill(
+                                    child: Center(
+                                        child: Text('Failed to load PDF')),
+                                  ),
+                              ],
                             ),
                           ),
                         ),
