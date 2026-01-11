@@ -7,6 +7,7 @@ import 'package:logging/logging.dart';
 import 'package:path/path.dart' as path;
 
 import '../core/models/book.dart';
+import '../core/models/book_metadata.dart';
 import '../core/models/category.dart';
 import '../dao/repository/seforim_repository.dart';
 import '../../settings/custom_folders/custom_folder.dart';
@@ -45,17 +46,6 @@ class FileSyncResult {
   }
 }
 
-/// Source for file import
-class ImportSource {
-  final String path;
-  final List<String> categoryPrefix;
-
-  const ImportSource({
-    required this.path,
-    this.categoryPrefix = const [],
-  });
-}
-
 /// Service for syncing files from אוצריא and links folders to the database.
 ///
 /// This service scans for new TXT files in the library path and adds them
@@ -77,11 +67,6 @@ class FileSyncService {
   int _nextCategoryId = 0;
 
   FileSyncService._(this._repository);
-
-  /// Create a new instance (not singleton) for specific tasks like DB generation
-  static FileSyncService create(SeforimRepository repository) {
-    return FileSyncService._(repository);
-  }
 
   /// Get singleton instance
   static Future<FileSyncService?> getInstance(
@@ -354,102 +339,13 @@ class FileSyncService {
     _log.info('Folder deleted from DB');
   }
 
-  /// Unified method to scan directories and import content to the database.
-  ///
-  /// [sources] - List of sources to scan.
-  /// [deleteOriginals] - Whether to delete the original files after successful import.
-  /// [onProgress] - Callback for progress updates.
-  Future<FileSyncResult> scanAndImportSources({
-    required List<ImportSource> sources,
-    required bool deleteOriginals,
-    void Function(double progress, String message)? onProgress,
-  }) async {
-    if (_isSyncing) {
-      _log.warning('Sync already in progress, skipping');
-      return const FileSyncResult(errors: ['Sync already in progress']);
-    }
-
-    _isSyncing = true;
-    this.onProgress = onProgress;
-    final stopwatch = Stopwatch()..start();
-
-    int addedBooks = 0;
-    int updatedBooks = 0;
-    int addedCategories = 0;
-    int deletedFiles = 0;
-    int skippedFiles = 0;
-    final errors = <String>[];
-
-    try {
-      // Initialize ID counters from database
-      await _initializeIdCounters();
-
-      int processedSources = 0;
-      for (final source in sources) {
-        final sourceDir = Directory(source.path);
-        if (!await sourceDir.exists()) {
-          _log.warning('Source directory does not exist: ${source.path}');
-          errors.add('Directory not found: ${source.path}');
-          continue;
-        }
-
-        _log.info('Scanning source: ${source.path}');
-        _reportProgress(
-          0.1 + (0.8 * processedSources / sources.length),
-          'סורק: ${path.basename(source.path)}...',
-        );
-
-        final result = await _scanAndImportPath(
-          rootPath: source.path,
-          categoryPrefix: source.categoryPrefix,
-          deleteOriginals: deleteOriginals,
-        );
-
-        addedBooks += result.addedBooks;
-        updatedBooks += result.updatedBooks;
-        addedCategories += result.addedCategories;
-        deletedFiles += result.deletedFiles;
-        skippedFiles += result.skippedFiles;
-        errors.addAll(result.errors);
-
-        processedSources++;
-      }
-
-      // Rebuild category closure if categories were added
-      if (addedCategories > 0) {
-        _reportProgress(0.95, 'מעדכן היררכיית קטגוריות...');
-        await _repository.rebuildCategoryClosure();
-      }
-
-      _reportProgress(1.0, 'הסנכרון הושלם');
-    } catch (e, stackTrace) {
-      _log.severe('Error during sync', e, stackTrace);
-      errors.add('Sync error: $e');
-    } finally {
-      _isSyncing = false;
-      stopwatch.stop();
-    }
-
-    final result = FileSyncResult(
-      addedBooks: addedBooks,
-      updatedBooks: updatedBooks,
-      addedCategories: addedCategories,
-      addedLinks: 0, // Links are handled separately
-      deletedFiles: deletedFiles,
-      skippedFiles: skippedFiles,
-      errors: errors,
-      duration: stopwatch.elapsed,
-    );
-
-    _log.info('Import completed: $result');
-    return result;
-  }
-
   /// Internal method to scan a single path and import files
   Future<FileSyncResult> _scanAndImportPath({
     required String rootPath,
     required List<String> categoryPrefix,
     required bool deleteOriginals,
+    required DatabaseGenerator generator,
+    Map<String, BookMetadata> metadata = const {},
   }) async {
     int addedBooks = 0;
     int updatedBooks = 0;
@@ -469,11 +365,15 @@ class FileSyncService {
     _log.info('Found ${newFiles.length} files to process in $rootPath');
 
     for (final filePath in newFiles) {
+      if (!_isSyncing) break;
+
       try {
         final result = await _processFileWithPrefix(
           filePath: filePath,
           basePath: rootPath,
           categoryPrefix: categoryPrefix,
+          generator: generator,
+          metadata: metadata,
         );
 
         if (result.wasAdded) {
@@ -529,6 +429,8 @@ class FileSyncService {
     required String filePath,
     required String basePath,
     required List<String> categoryPrefix,
+    required DatabaseGenerator generator,
+    required Map<String, BookMetadata> metadata,
   }) async {
     final title = path.basenameWithoutExtension(filePath);
     final extension = path.extension(filePath).toLowerCase();
@@ -551,34 +453,42 @@ class FileSyncService {
     final fileType = extension.replaceFirst('.', '').toLowerCase();
 
     // Check if book already exists in this category with the same file type
+    // We do this check here to know if we are updating or adding for stats
     final existingBook = await _repository
         .checkBookExistsInCategoryWithFileType(title, categoryId, fileType);
 
-    if (existingBook != null) {
-      // Update existing book
-      if (extension == '.txt') {
-        await _updateBookContent(existingBook.id, filePath);
-      } else {
-        await _updateExternalBook(existingBook.id, filePath);
-      }
+    bool wasAdded = false;
+    bool wasUpdated = false;
 
-      return _FileProcessResult(
-        wasAdded: false,
-        wasUpdated: true,
-        categoriesCreated: categoriesCreated,
+    if (existingBook != null) {
+      wasUpdated = true;
+      await generator.createAndProcessBook(
+        filePath,
+        categoryId,
+        metadata,
+        updateExisting: true,
+        insertContent: true,
+      );
+    } else {
+      wasAdded = true;
+      await generator.createAndProcessBook(
+        filePath,
+        categoryId,
+        metadata,
+        updateExisting: false,
+        insertContent: true,
       );
     }
 
-    // Add new book
-    if (extension == '.txt') {
-      await _addNewBook(filePath, categoryId, title, fileType);
-    } else {
-      await _addExternalBook(filePath, categoryId, title, fileType);
-    }
+    // Update local ID counters from generator
+    final ids = generator.getIds();
+    _nextBookId = ids.bookId;
+    _nextLineId = ids.lineId;
+    _nextTocEntryId = ids.tocId;
 
     return _FileProcessResult(
-      wasAdded: true,
-      wasUpdated: false,
+      wasAdded: wasAdded,
+      wasUpdated: wasUpdated,
       categoriesCreated: categoriesCreated,
     );
   }
@@ -614,6 +524,18 @@ class FileSyncService {
       // Initialize ID counters from database
       await _initializeIdCounters();
 
+      // Setup Generator
+      final generator = DatabaseGenerator(libraryPath, _repository, onProgress: onProgress);
+      generator.setIds(_nextBookId, _nextLineId, _nextTocEntryId);
+      generator.initializeForSync(libraryRoot: path.join(libraryPath, 'אוצריא'));
+      // Load metadata
+      Map<String, BookMetadata> metadata = {};
+      try {
+         metadata = await generator.loadMetadata();
+      } catch (e) {
+          _log.warning('Failed to load metadata', e);
+      }
+
       // Scan אוצריא folder for TXT files only
       final otzariaPath = path.join(libraryPath, 'אוצריא');
       final otzariaDir = Directory(otzariaPath);
@@ -627,6 +549,8 @@ class FileSyncService {
           rootPath: otzariaPath,
           categoryPrefix: [],
           deleteOriginals: true, // Keep existing behavior
+          generator: generator,
+          metadata: metadata,
         );
 
         addedBooks += otzariaResult.addedBooks;
@@ -666,6 +590,8 @@ class FileSyncService {
             rootPath: folder.path,
             categoryPrefix: ['ספרים אישיים', folder.name],
             deleteOriginals: true, // Keep existing behavior
+            generator: generator,
+            metadata: metadata,
           );
 
           addedBooks += result.addedBooks;
@@ -916,134 +842,7 @@ class FileSyncService {
     return null;
   }
 
-  /// Update content of an existing book
-  Future<void> _updateBookContent(int bookId, String filePath) async {
-    _log.info('Updating book content for ID: $bookId');
 
-    // Clear existing book content using repository extension method
-    // This preserves the book metadata but replaces content
-    await _repository.clearBookContent(bookId);
-
-    // Read and process new content
-    final file = File(filePath);
-    final content = await file.readAsString(encoding: utf8);
-    final lines = content.split('\n');
-
-    // Process lines and TOC entries
-    await _processBookLines(bookId, lines);
-
-    // Update total lines using repository method
-    await _repository.updateBookTotalLines(bookId, lines.length);
-
-    _log.info('Updated book $bookId with ${lines.length} lines');
-  }
-
-  /// Add a new book to the database
-  Future<void> _addNewBook(
-      String filePath, int categoryId, String title, String fileType) async {
-    _log.info('Adding new book: $title to category $categoryId');
-
-    // Read file content
-    final file = File(filePath);
-    final content = await file.readAsString(encoding: utf8);
-    final lines = content.split('\n');
-
-    // Get or create default source using repository method
-    final sourceId = await _getOrCreateDefaultSource();
-
-    // Create book using repository method
-    final bookId = _nextBookId++;
-    final book = Book(
-        id: bookId,
-        categoryId: categoryId,
-        sourceId: sourceId,
-        title: title,
-        order: 999.0,
-        totalLines: lines.length,
-        isBaseBook: false,
-        fileType: fileType);
-
-    // Repository's insertBook handles the insertion
-    await _repository.insertBook(book);
-
-    // Process lines and TOC entries
-    await _processBookLines(bookId, lines);
-
-    // Update total lines using repository method
-    await _repository.updateBookTotalLines(bookId, lines.length);
-
-    _log.info(
-        'Added new book: $title (id: $bookId) with ${lines.length} lines');
-  }
-
-  /// Process book lines and create TOC entries
-  Future<void> _processBookLines(int bookId, List<String> lines) async {
-    // Use DatabaseGenerator to process lines
-    // We pass a dummy source directory as it's not used by processLinesWithTocEntries
-    final generator = DatabaseGenerator('', _repository);
-
-    // Sync IDs
-    generator.setIds(_nextBookId, _nextLineId, _nextTocEntryId);
-
-    await generator.processLinesWithTocEntries(bookId, lines);
-
-    // Sync IDs back
-    final ids = generator.getIds();
-    _nextBookId = ids.bookId;
-    _nextLineId = ids.lineId;
-    _nextTocEntryId = ids.tocId;
-  }
-
-  /// Add a new external book (PDF, DOCX) to the database
-  Future<void> _addExternalBook(
-    String filePath,
-    int categoryId,
-    String title,
-    String fileType,
-  ) async {
-    _log.info(
-        'Adding new external book: $title ($fileType) to category $categoryId');
-
-    final file = File(filePath);
-    final stat = await file.stat();
-    final fileSize = stat.size;
-    final lastModified = stat.modified.millisecondsSinceEpoch;
-
-    await _repository.insertExternalBook(
-      categoryId: categoryId,
-      title: title,
-      filePath: filePath,
-      fileType: fileType,
-      fileSize: fileSize,
-      lastModified: lastModified,
-    );
-
-    _log.info('Added new external book: $title');
-  }
-
-  /// Update metadata for an external book
-  Future<void> _updateExternalBook(int bookId, String filePath) async {
-    _log.info('Updating external book metadata for ID: $bookId');
-
-    final file = File(filePath);
-    final stat = await file.stat();
-    final fileSize = stat.size;
-    final lastModified = stat.modified.millisecondsSinceEpoch;
-
-    await _repository.updateExternalBookMetadata(
-        bookId, fileSize, lastModified);
-
-    _log.info('Updated external book metadata for ID: $bookId');
-  }
-
-  /// Get or create a default source for user-added books
-  Future<int> _getOrCreateDefaultSource() async {
-    const sourceName = 'user_added';
-    // Use repository method to insert source (handles existing check internally)
-    return await _repository.insertSource(sourceName);
-  }
-
-  /// Process book lines and create TOC entries
   Future<void> _removeEmptyDirectories(String basePath) async {
     final dir = Directory(basePath);
     final entities = await dir.list(recursive: true).toList();
@@ -1135,7 +934,7 @@ class FileSyncService {
             ? <String>[]
             : termsRaw
                 .split(',')
-                .map((t) => _sanitizeAcronymTerm(t))
+                .map((t) => DatabaseGenerator.sanitizeAcronymTerm(t))
                 .where((t) => t.isNotEmpty)
                 .toList();
 
@@ -1181,26 +980,7 @@ class FileSyncService {
     }
   }
 
-  /// Sanitizes an acronym term by removing diacritics, maqaf, gershayim and geresh
-  String _sanitizeAcronymTerm(String raw) {
-    var s = raw.trim();
-    if (s.isEmpty) return '';
 
-    // Remove Hebrew diacritics (nikud) - Unicode range 0x0591-0x05C7
-    s = s.replaceAll(RegExp(r'[\u0591-\u05C7]'), '');
-
-    // Replace maqaf (Hebrew hyphen) with space
-    s = s.replaceAll('\u05BE', ' ');
-
-    // Remove Hebrew gershayim (״) and geresh (׳)
-    s = s.replaceAll('\u05F4', ''); // gershayim
-    s = s.replaceAll('\u05F3', ''); // geresh
-
-    // Clean up multiple spaces
-    s = s.replaceAll(RegExp(r'\s+'), ' ').trim();
-
-    return s;
-  }
 }
 
 /// Result of processing a single file

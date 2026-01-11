@@ -23,7 +23,7 @@ class BackgroundSyncInitializer {
   /// [delaySeconds] - How long to wait after app startup before syncing.
   ///                  Default is 3 seconds to ensure UI is responsive.
   static Future<void> initializeAfterDelay({
-    int delaySeconds = 3,
+    int delaySeconds = 5,
     void Function(double progress, String message)? onProgress,
     void Function(FileSyncResult result)? onComplete,
   }) async {

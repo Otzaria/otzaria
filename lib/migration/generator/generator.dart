@@ -88,6 +88,17 @@ class DatabaseGenerator {
     _nextTocEntryId = nextTocEntryId;
   }
 
+  /// Sets the total books to process for progress reporting.
+  void setTotalBooksToProcess(int total) {
+    _totalBooksToProcess = total;
+  }
+
+  /// Initializes the generator for sync operations where generate() is not called.
+  /// [libraryRoot] Optional root path for library-relative calculations.
+  void initializeForSync({String? libraryRoot}) {
+    _libraryRoot = libraryRoot ?? sourceDirectory;
+  }
+
   /// Gets the current ID counters.
   ({int bookId, int lineId, int tocId}) getIds() {
     return (bookId: _nextBookId, lineId: _nextLineId, tocId: _nextTocEntryId);
@@ -277,6 +288,8 @@ class DatabaseGenerator {
     int categoryId,
     Map<String, BookMetadata> metadata, {
     bool isBaseBook = false,
+    bool insertContent = true,
+    bool updateExisting = false,
   }) async {
     final filename = path.basename(bookPath);
     final title = path.basenameWithoutExtension(filename);
@@ -302,6 +315,51 @@ class DatabaseGenerator {
     final existingBook = await repository.checkBookExistsInCategoryWithFileType(
         title, categoryId, fileType);
     if (existingBook != null) {
+      if (updateExisting) {
+        if (fileType == 'txt' && insertContent) {
+          await repository.clearBookContent(existingBook.id);
+          await processBookContent(bookPath, existingBook.id);
+        } else {
+          try {
+            final file = File(bookPath);
+            final stat = await file.stat();
+            await repository.updateExternalBookMetadata(
+                existingBook.id, stat.size, stat.modified.millisecondsSinceEpoch);
+          } catch (e) {
+            _log.warning('Failed to update stats for external file: $bookPath', e);
+          }
+        }
+        
+        _processedBooksCount++;
+        final pct = _totalBooksToProcess > 0
+            ? (_processedBooksCount * 100 ~/ _totalBooksToProcess)
+            : 0;
+        onProgress?.call(
+            _processedBooksCount /
+                (_totalBooksToProcess > 0 ? _totalBooksToProcess : 1),
+            'עודכן ספר: $title ($pct%)');
+
+         // Delete source files if it's a txt file
+        if (fileType == 'txt') {
+          try {
+            final file = File(bookPath);
+            if (await file.exists()) {
+              await file.delete();
+            }
+            // Also delete companion notes file if it exists
+            final dir = Directory(path.dirname(bookPath));
+            final notesTitle = 'הערות על $title';
+            final notesPath = path.join(dir.path, '$notesTitle.txt');
+            final notesFile = File(notesPath);
+            if (await notesFile.exists()) {
+              await notesFile.delete();
+            }
+          } catch (e) {
+            _log.warning('Failed to delete source file(s) for $title', e);
+          }
+        }
+        return;
+      }
 
       // Call the callback if provided
       if (onDuplicateBook != null) {
@@ -362,6 +420,20 @@ class DatabaseGenerator {
       // Ignore errors reading notes
     }
 
+    // For non-txt files (external), get file stats
+    int? fileSize;
+    int? lastModified;
+    if (fileType != 'txt' || !insertContent) {
+      try {
+        final file = File(bookPath);
+        final stat = await file.stat();
+        fileSize = stat.size;
+        lastModified = stat.modified.millisecondsSinceEpoch;
+      } catch (e) {
+        _log.warning('Failed to get stats for external file: $bookPath', e);
+      }
+    }
+
     final sourceId = await _resolveSourceIdFor(bookPath);
     final book = Book(
       id: currentBookId,
@@ -376,8 +448,10 @@ class DatabaseGenerator {
       order: meta?.order ?? 999.0,
       topics: extractTopics(bookPath),
       isBaseBook: isBaseBook,
-      filePath: fileType != "txt" ? bookPath : null,
+      filePath: (fileType != "txt" || !insertContent) ? bookPath : null,
       fileType: fileType,
+      fileSize: fileSize,
+      lastModified: lastModified,
     );
 
     final insertedBookId = await repository.insertBook(book);
@@ -399,7 +473,11 @@ class DatabaseGenerator {
     }
 
     // Process content of the book
-    await processBookContent(bookPath, insertedBookId);
+    if (insertContent) {
+      await processBookContent(bookPath, insertedBookId);
+    } else {
+      await repository.updateBookTotalLines(insertedBookId, 0);
+    }
 
     // Book-level progress
     _processedBooksCount++;
@@ -412,7 +490,7 @@ class DatabaseGenerator {
         'מעבד ספר: $title ($pct%)');
 
     // Delete source files if it's a txt file
-    if (fileType == 'txt') {
+    if (fileType == 'txt' && insertContent) {
       try {
         final file = File(bookPath);
         if (await file.exists()) {
@@ -445,7 +523,7 @@ class DatabaseGenerator {
 
     // Prefer preloaded content from RAM if available
     final key = _toLibraryRelativeKey(bookPath);
-    final lines = _bookContentCache[key] ?? await _readBookLines(bookPath);
+    final lines = _bookContentCache[key] ?? await readBookLines(bookPath);
 
     // Process each line one by one, handling TOC entries as we go
     await processLinesWithTocEntries(bookId, lines);
@@ -455,7 +533,7 @@ class DatabaseGenerator {
   }
 
   /// Reads book lines from file
-  Future<List<String>> _readBookLines(String bookPath) async {
+  static Future<List<String>> readBookLines(String bookPath) async {
     final file = File(bookPath);
     final content = await file.readAsString(encoding: utf8);
     return content.split('\n');
@@ -1100,7 +1178,7 @@ WHERE book.id = bc.book_id;
   ///
   /// [raw] The raw acronym term to sanitize.
   /// Returns the sanitized term.
-  String sanitizeAcronymTerm(String raw) {
+  static String sanitizeAcronymTerm(String raw) {
     var s = raw.trim();
     if (s.isEmpty) return '';
 
