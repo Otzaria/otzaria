@@ -30,9 +30,9 @@ class FindRefRepository {
     return results.map((row) {
       final fileType = row['fileType'] as String? ?? 'txt';
       return DbReferenceResult(
-        title: row['title'] as String,
-        reference: row['reference'] as String,
-        segment: row['segment'] as int,
+        title: row['title'] as String? ?? '',
+        reference: row['reference'] as String? ?? '',
+        segment: row['segment'] as int? ?? 0,
         isPdf: fileType == 'pdf',
         filePath: row['filePath'] as String? ?? '',
       );

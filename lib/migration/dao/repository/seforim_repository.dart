@@ -2505,18 +2505,19 @@ extension BookAcronymRepository on SeforimRepository {
           if (token.length <= 2 &&
               RegExp(r'^[\u05D0-\u05EA]+$').hasMatch(token)) {
             // Check common patterns: פרק א, סימן א, הלכה א, משנה א, דף א, etc.
-            final patterns = [
-              'פרק $token',
-              'סימן $token',
-              'הלכה $token',
-              'משנה $token',
-              'דף $token',
-              'סעיף $token',
-              'אות $token',
-              'ענף $token',
-              'כלל $token'
+            const hebrewNumberPrefixes = [
+              'פרק',
+              'סימן',
+              'הלכה',
+              'משנה',
+              'דף',
+              'סעיף',
+              'אות',
+              'ענף',
+              'כלל'
             ];
-            return patterns.any((p) => textLower.contains(p.toLowerCase()));
+            return hebrewNumberPrefixes
+                .any((prefix) => textLower.contains('$prefix $token'));
           }
           return false;
         });
