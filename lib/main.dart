@@ -77,6 +77,7 @@ DynamicDataLoaderService? _shamorZachorDataLoader;
 /// 2. Calls [initialize] to set up required services and configurations
 /// 3. Launches the main application widget
 void main() async {
+  hierarchicalLoggingEnabled = true;
   // write errors to file
   FlutterError.onError = (FlutterErrorDetails details) {
     if (kDebugMode) {
@@ -118,6 +119,8 @@ void main() async {
   // Configure logging level for debug mode
   if (kDebugMode) {
     Logger.root.level = Level.ALL;
+    // Silence verbose logs from flutter_widget_from_html
+    Logger('fwfh').level = Level.INFO;
     Logger.root.onRecord.listen((record) {
       debugPrint('${record.level.name}: ${record.loggerName}: ${record.message}');
     });
