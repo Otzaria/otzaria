@@ -90,6 +90,9 @@ class LinkProcessor {
 
     final books = await _repository.getAllBooks();
     for (final book in books) {
+      if(book.fileType != 'txt') {
+        continue;
+      }
       _bookTitleToId[book.title] = book.id;
     }
   }
