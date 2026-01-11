@@ -69,6 +69,8 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
   String? _bookPath;
   final Map<int, String> _pageTitles = <int, String>{};
 
+  bool _forceSearchEngine = false;
+
   Map<String, Map<String, bool>> _searchOptions = {};
   Map<int, List<String>> _alternativeWords = {};
   Map<String, String> _spacingValues = {};
@@ -76,6 +78,13 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
 
   Timer? _pdfHighlightDebounce;
   String _lastPdfHighlightQuery = '';
+
+  bool get _isSimpleSearch =>
+      !_forceSearchEngine &&
+      _searchOptions.isEmpty &&
+      _alternativeWords.isEmpty &&
+      _spacingValues.isEmpty &&
+      _searchMode == SearchMode.exact;
 
   int _getPdfPageNumber(SearchResult result) => result.segment.toInt() + 1;
 
@@ -100,6 +109,11 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
     _alternativeWords = widget.initialAlternativeWords;
     _spacingValues = widget.initialSpacingValues;
     _searchMode = widget.initialSearchMode;
+    _forceSearchEngine = _searchMode != SearchMode.exact ||
+        _searchOptions.isNotEmpty ||
+        _alternativeWords.isNotEmpty ||
+        _spacingValues.isNotEmpty;
+    widget.textSearcher.addListener(_onTextSearcherMatchesChanged);
     widget.searchController.addListener(_searchTextUpdated);
     _initializeBookPath();
   }
@@ -123,9 +137,34 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
     }
   }
 
+  void _onTextSearcherMatchesChanged() {
+    if (_isSimpleSearch) {
+      if (mounted) {
+        setState(() {
+          final query = widget.searchController.text;
+          _searchResults = widget.textSearcher.matches
+              .map((m) => SearchResult(
+                    id: BigInt.zero,
+                    title: widget.bookTitle ?? '',
+                    reference: '', // Populated by _pageTitles in build
+                    // Use query as text so it appears in the list and is highlighted.
+                    // Ideally we would fetch the surrounding text but that requires async page loading.
+                    text: query,
+                    segment: BigInt.from(m.pageNumber - 1),
+                    isPdf: true,
+                    filePath: widget.pdfFilePath ?? '',
+                  ))
+              .toList();
+          _isSearching = widget.textSearcher.isSearching;
+        });
+      }
+    }
+  }
+
   @override
   void dispose() {
     scrollController.dispose();
+    widget.textSearcher.removeListener(_onTextSearcherMatchesChanged);
     widget.searchController.removeListener(_searchTextUpdated);
     _pdfHighlightDebounce?.cancel();
     super.dispose();
@@ -134,14 +173,24 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
   Future<void> _searchTextUpdated() async {
     final query = widget.searchController.text.trim();
 
-    if (query.isEmpty || _bookPath == null) {
+    if (query.isEmpty || (!_isSimpleSearch && _bookPath == null)) {
       if (mounted) {
         setState(() {
           _searchResults = [];
           _isSearching = false;
         });
       }
-      _schedulePdfHighlight('');
+      if (_isSimpleSearch) {
+        widget.textSearcher.startTextSearch('', goToFirstMatch: false);
+      } else {
+        _schedulePdfHighlight('');
+      }
+      return;
+    }
+
+    if (_isSimpleSearch) {
+      _pdfHighlightDebounce?.cancel();
+      widget.textSearcher.startTextSearch(query, goToFirstMatch: false);
       return;
     }
 
@@ -169,7 +218,13 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
         if (!r.isPdf) return false;
         if (pdfPath == null || pdfPath.isEmpty) return true;
         return r.filePath == pdfPath;
-      }).toList(growable: false);
+      }).toList(growable: true)
+        ..sort((a, b) {
+          final sa = a.segment.toInt();
+          final sb = b.segment.toInt();
+          if (sa != sb) return sa.compareTo(sb);
+          return a.reference.compareTo(b.reference);
+        });
 
       if (!mounted) return;
       setState(() {
@@ -299,6 +354,7 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
       resetSearchCallback: () {
         setState(() {
           _searchResults = [];
+          _forceSearchEngine = false;
           _searchOptions = {};
           _alternativeWords = {};
           _spacingValues = {};
@@ -323,6 +379,7 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
                 searchMode) {
               widget.searchController.text = query;
               setState(() {
+                _forceSearchEngine = true;
                 _searchOptions = searchOptions;
                 _alternativeWords = alternativeWords;
                 _spacingValues = spacingValues;

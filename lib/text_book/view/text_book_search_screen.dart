@@ -65,10 +65,19 @@ class TextBookSearchViewState extends State<TextBookSearchView>
   bool _isSearching = false;
   List<String> _content = [];
   String? _bookPath;
+  String? _bookTitle;
+  bool _forceSearchEngine = false;
   Map<String, Map<String, bool>> _searchOptions = {};
   Map<int, List<String>> _alternativeWords = {};
   Map<String, String> _spacingValues = {};
   SearchMode _searchMode = SearchMode.exact;
+
+  bool get _isSimpleSearch =>
+      !_forceSearchEngine &&
+      _searchOptions.isEmpty &&
+      _alternativeWords.isEmpty &&
+      _spacingValues.isEmpty &&
+      _searchMode == SearchMode.exact;
 
   static const int _maxResultSnippetChars = 220;
 
@@ -82,6 +91,10 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     _alternativeWords = widget.initialAlternativeWords;
     _spacingValues = widget.initialSpacingValues;
     _searchMode = widget.initialSearchMode;
+    _forceSearchEngine = _searchMode != SearchMode.exact ||
+      _searchOptions.isNotEmpty ||
+      _alternativeWords.isNotEmpty ||
+      _spacingValues.isNotEmpty;
 
     scrollControler = widget.scrollControler;
     widget.focusNode.requestFocus();
@@ -96,6 +109,8 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     if (state is TextBookLoaded) {
       final bookTitle = state.book.title;
       debugPrint('📚 TextBookSearch: book.title = $bookTitle');
+
+      _bookTitle = bookTitle;
 
       final topics = await BookFacet.resolveTopics(
         title: bookTitle,
@@ -120,7 +135,8 @@ class TextBookSearchViewState extends State<TextBookSearchView>
 
   Future<void> _searchTextUpdated() async {
     final query = searchTextController.text.trim();
-    if (query.isEmpty || _bookPath == null) {
+    if (query.isEmpty ||
+        (!_isSimpleSearch && (_bookPath == null || _bookTitle == null))) {
       setState(() {
         searchResults = [];
         _isSearching = false;
@@ -132,15 +148,107 @@ class TextBookSearchViewState extends State<TextBookSearchView>
       _isSearching = true;
     });
 
+    if (_isSimpleSearch) {
+      // Simple search implementation
+      final results = await Future(() {
+        final List<SearchResult> matches = [];
+        final List<String> address = [];
+        
+        for (int i = 0; i < _content.length; i++) {
+          final line = _content[i];
+          
+          // Update address based on headers
+          if (line.startsWith('<h')) {
+             if (address.isNotEmpty &&
+                address.any((element) =>
+                    element.substring(0, 4) == line.substring(0, 4))) {
+              address.removeRange(
+                  address.indexWhere((element) =>
+                      element.substring(0, 4) == line.substring(0, 4)),
+                  address.length);
+            }
+            address.add(line);
+          }
+
+          // Clean text for search
+          final cleanLine = utils.removeVolwels(utils.stripHtmlIfNeeded(line));
+          if (cleanLine.contains(query)) {
+            // Build reference string from address (excluding h1 which is usually book title)
+            final filteredAddress = address.where((h) => !h.startsWith('<h1')).toList();
+            final reference = utils.removeVolwels(
+                utils.stripHtmlIfNeeded(filteredAddress.join(', ')));
+
+            matches.add(SearchResult(
+              id: BigInt.zero,
+              title: _bookTitle ?? '',
+              reference: reference,
+              text: cleanLine, // Use cleaned text for snippet generation
+              segment: BigInt.from(i),
+              isPdf: false,
+              filePath: '',
+            ));
+            if (matches.length >= 1000) break;
+          }
+        }
+        return matches;
+      });
+
+      if (mounted) {
+        setState(() {
+          searchResults = _convertSearchResults(results);
+          _isSearching = false;
+        });
+      }
+      return;
+    }
+
     try {
-      final results = await _searchRepository.searchTexts(
+      // The facet filter is a prefix filter in the underlying engine, so when a
+      // book is a parent facet (e.g. /.../ספר הזהר) it may also match child
+      // facets like commentaries. We therefore post-filter by exact title.
+      //
+      // Use a higher raw limit to avoid losing relevant results that would have
+      // been returned after filtering.
+      const rawLimit = 5000;
+      const displayLimit = 1000;
+
+      final rawResults = await _searchRepository.searchTexts(
         query,
         [_bookPath!],
-        1000,
+        rawLimit,
         searchOptions: _searchOptions,
         alternativeWords: _alternativeWords,
         customSpacing: _spacingValues,
         fuzzy: _searchMode == SearchMode.fuzzy,
+      );
+
+      final expectedTitle = _bookTitle!.trim();
+
+      final filtered = rawResults
+          .where((r) => !r.isPdf && r.title.trim() == expectedTitle)
+          .toList(growable: false);
+
+      // In-book search should be presented in reading order (by segment/line),
+      // not by relevance.
+      final sorted = filtered.toList(growable: true)
+        ..sort((a, b) {
+          final sa = a.segment.toInt();
+          final sb = b.segment.toInt();
+          if (sa != sb) return sa.compareTo(sb);
+
+          final ra = a.reference;
+          final rb = b.reference;
+          final rc = ra.compareTo(rb);
+          if (rc != 0) return rc;
+
+          return a.text.compareTo(b.text);
+        });
+
+      final results = sorted.take(displayLimit).toList(growable: false);
+
+      debugPrint(
+        '📚 TextBookSearch: rawResults=${rawResults.length}, '
+        'filteredResults=${results.length}, title="$expectedTitle"',
       );
 
       if (mounted) {
@@ -341,6 +449,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
       resetSearchCallback: () {
         setState(() {
           searchResults = [];
+          _forceSearchEngine = false;
           _searchOptions = {};
           _alternativeWords = {};
           _spacingValues = {};
@@ -368,6 +477,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
                 searchMode) {
               searchTextController.text = query;
               setState(() {
+                _forceSearchEngine = true;
                 _searchOptions = searchOptions;
                 _alternativeWords = alternativeWords;
                 _spacingValues = spacingValues;

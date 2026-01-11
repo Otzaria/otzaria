@@ -62,7 +62,7 @@ dependencies:
   msix: ^3.16.12
   path_provider: ^2.1.5
   html: ^0.15.1
-  pdfrx: ^2.2.18
+  pdfrx: ^2.2.20
   url_launcher: ^6.3.1
   flutter_widget_from_html: ^0.17.0
   scrollable_positioned_list: ^0.3.8

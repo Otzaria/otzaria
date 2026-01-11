@@ -9,6 +9,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
+import 'package:otzaria/search/models/search_configuration.dart';
 
 import 'package:otzaria/settings/settings_bloc.dart';
 import 'package:otzaria/settings/settings_state.dart';
@@ -424,6 +425,28 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
               ),
               child: InkWell(
                 onTap: () {
+                  final rawQuery = widget.tab.queryController.text;
+                  final hasEnabledOptions = widget.tab.searchOptions.values
+                    .any((m) => m.values.any((v) => v == true));
+                  final hasAlternativeWords = widget.tab.alternativeWords.values
+                    .any((alts) => alts.any((w) => w.trim().isNotEmpty));
+                  final hasSpacingValues = widget.tab.spacingValues.values
+                    .any((v) => v.trim().isNotEmpty);
+                  final looksLikeRegex = RegExp(r'[\\.\*\+\?\|\(\)\[\]\{\}\^\$]')
+                    .hasMatch(rawQuery);
+                  final currentMode =
+                    widget.tab.searchBloc.state.configuration.searchMode;
+
+                  final shouldUseLegacyInBook =
+                    !hasEnabledOptions &&
+                    !hasAlternativeWords &&
+                    !hasSpacingValues &&
+                    !looksLikeRegex &&
+                    currentMode != SearchMode.fuzzy;
+
+                  final inBookMode =
+                    shouldUseLegacyInBook ? SearchMode.exact : currentMode;
+
                   if (result.isPdf) {
                     final pageNumber = result.segment.toInt() + 1;
                     context.read<TabsBloc>().add(AddTab(
@@ -431,11 +454,11 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                             book: PdfBook(
                                 title: result.title, path: result.filePath),
                             pageNumber: pageNumber,
-                            searchText: widget.tab.queryController.text,
+                      searchText: rawQuery,
                             searchOptions: widget.tab.searchOptions,
                             alternativeWords: widget.tab.alternativeWords,
                             spacingValues: widget.tab.spacingValues,
-                            searchMode: widget.tab.searchBloc.state.configuration.searchMode,
+                      searchMode: inBookMode,
                             openLeftPane:
                                 (Settings.getValue<bool>('key-pin-sidebar') ??
                                         false) ||
@@ -451,11 +474,11 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                                 title: result.title,
                               ),
                               index: result.segment.toInt(),
-                              searchText: widget.tab.queryController.text,
+                        searchText: rawQuery,
                               searchOptions: widget.tab.searchOptions,
                               alternativeWords: widget.tab.alternativeWords,
                               spacingValues: widget.tab.spacingValues,
-                              searchMode: widget.tab.searchBloc.state.configuration.searchMode,
+                        searchMode: inBookMode,
                               openLeftPane:
                                   (Settings.getValue<bool>('key-pin-sidebar') ??
                                           false) ||
