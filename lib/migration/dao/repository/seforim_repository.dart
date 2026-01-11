@@ -2456,10 +2456,12 @@ extension BookAcronymRepository on SeforimRepository {
 
     // Get all TOC entries for the book
     final tocEntries = await db.rawQuery('''
-        SELECT t.id, t.text, t.level, t.lineIndex, t.parentId
-        FROM toc_entry t
+        SELECT t.id, tt.text, t.level, l.lineIndex, t.parentId
+        FROM tocEntry t
+        JOIN tocText tt ON t.textId = tt.id
+        LEFT JOIN line l ON t.lineId = l.id
         WHERE t.bookId = ?
-        ORDER BY t.lineIndex, t.level
+        ORDER BY l.lineIndex, t.level
       ''', [bookId]);
 
     if (tocEntries.isEmpty) {
