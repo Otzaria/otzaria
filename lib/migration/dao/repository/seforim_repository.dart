@@ -2460,7 +2460,7 @@ extension BookAcronymRepository on SeforimRepository {
 
     // Get all TOC entries for the book
     final tocEntries = await db.rawQuery('''
-        SELECT t.id, tt.text, t.level, l.lineIndex, t.parentId
+        SELECT t.id, tt.text, t.level, l.lineIndex
         FROM tocEntry t
         JOIN tocText tt ON t.textId = tt.id
         LEFT JOIN line l ON t.lineId = l.id
@@ -2481,33 +2481,45 @@ extension BookAcronymRepository on SeforimRepository {
 
     final results = <Map<String, dynamic>>[];
 
-    // Build a map of parent IDs to their text for building full paths
-    final parentTexts = <int, String>{};
-    for (final entry in tocEntries) {
-      parentTexts[entry['id'] as int] = entry['text'] as String;
-    }
-
     for (final entry in tocEntries) {
       final text = entry['text'] as String;
       final level = entry['level'] as int;
       final lineIndex = entry['lineIndex'] as int? ?? 0;
-      final parentId = entry['parentId'] as int?;
 
-      // Build full reference path
-      String fullRef = bookTitle;
-      if (text.isNotEmpty) {
-        // Add parent path if exists
-        if (parentId != null && parentTexts.containsKey(parentId)) {
-          fullRef = '$bookTitle ${parentTexts[parentId]} $text';
-        } else {
-          fullRef = '$bookTitle $text';
-        }
+      // Build reference: just book title + TOC text (avoid duplication)
+      String fullRef;
+      if (text.isEmpty || text == bookTitle) {
+        fullRef = bookTitle;
+      } else {
+        fullRef = '$bookTitle $text';
       }
 
       // Filter by query tokens if provided
       if (queryTokens != null && queryTokens.isNotEmpty) {
-        final refLower = fullRef.toLowerCase();
-        final matches = queryTokens.every((token) => refLower.contains(token));
+        final textLower = text.toLowerCase();
+        final matches = queryTokens.every((token) {
+          // Check if token matches directly
+          if (textLower.contains(token)) return true;
+          // Check if token is a Hebrew letter that might be a number (א-ת)
+          // and the text contains "פרק X" or "סימן X" etc.
+          if (token.length <= 2 &&
+              RegExp(r'^[\u05D0-\u05EA]+$').hasMatch(token)) {
+            // Check common patterns: פרק א, סימן א, הלכה א, משנה א, דף א, etc.
+            final patterns = [
+              'פרק $token',
+              'סימן $token',
+              'הלכה $token',
+              'משנה $token',
+              'דף $token',
+              'סעיף $token',
+              'אות $token',
+              'ענף $token',
+              'כלל $token'
+            ];
+            return patterns.any((p) => textLower.contains(p.toLowerCase()));
+          }
+          return false;
+        });
         if (!matches) continue;
       }
 
@@ -2519,5 +2531,78 @@ extension BookAcronymRepository on SeforimRepository {
     }
 
     return results;
+  }
+
+  /// Searches for references directly in TOC using a single query.
+  /// Combines book title (from level 1 TOC) with section text.
+  ///
+  /// [query] - The search query (e.g., "בראשית פרק א")
+  /// [limit] - Maximum number of results to return
+  Future<List<Map<String, dynamic>>> searchReferences(String query,
+      {int limit = 20}) async {
+    if (query.trim().isEmpty) return [];
+
+    final db = await _database.database;
+    final queryPattern = '%$query%';
+
+    // Search by combining parent (level 1 = book title) with child TOC text
+    final results = await db.rawQuery('''
+      SELECT 
+        CASE 
+          WHEN parent_tt.text = tt.text OR tt.text = '' THEN parent_tt.text
+          ELSE parent_tt.text || ' ' || tt.text 
+        END as reference,
+        parent_tt.text as title,
+        COALESCE(l.lineIndex, 0) as segment,
+        b.filePath,
+        b.fileType
+      FROM tocEntry te
+      JOIN tocText tt ON te.textId = tt.id
+      JOIN tocEntry parent_te ON te.parentId = parent_te.id AND parent_te.level = 1
+      JOIN tocText parent_tt ON parent_te.textId = parent_tt.id
+      JOIN book b ON te.bookId = b.id
+      LEFT JOIN line l ON te.lineId = l.id
+      WHERE (parent_tt.text || ' ' || tt.text) LIKE ?
+      ORDER BY 
+        CASE WHEN (parent_tt.text || ' ' || tt.text) = ? THEN 0
+             WHEN parent_tt.text LIKE ? THEN 1
+             ELSE 2 END,
+        length(parent_tt.text || ' ' || tt.text)
+      LIMIT ?
+    ''', [queryPattern, query, '$query%', limit]);
+
+    // Also search for exact book title matches (level 1 entries)
+    final bookResults = await db.rawQuery('''
+      SELECT 
+        tt.text as reference,
+        tt.text as title,
+        COALESCE(l.lineIndex, 0) as segment,
+        b.filePath,
+        b.fileType
+      FROM tocEntry te
+      JOIN tocText tt ON te.textId = tt.id
+      JOIN book b ON te.bookId = b.id
+      LEFT JOIN line l ON te.lineId = l.id
+      WHERE te.level = 1 AND tt.text LIKE ?
+      ORDER BY 
+        CASE WHEN tt.text = ? THEN 0
+             WHEN tt.text LIKE ? THEN 1
+             ELSE 2 END,
+        length(tt.text)
+      LIMIT ?
+    ''', [queryPattern, query, '$query%', limit]);
+
+    // Combine and deduplicate results
+    final seen = <String>{};
+    final combined = <Map<String, dynamic>>[];
+
+    for (final row in [...bookResults, ...results]) {
+      final key = '${row['reference']}|${row['segment']}';
+      if (seen.add(key)) {
+        combined.add(row);
+      }
+    }
+
+    return combined.take(limit).toList();
   }
 }

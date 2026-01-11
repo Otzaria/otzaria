@@ -12,160 +12,32 @@ class FindRefRepository {
 
   Future<List<DbReferenceResult>> findRefs(String ref) async {
     final cleanedQuery = _normalizeForMatch(ref);
-    if (cleanedQuery.isEmpty) {
+    if (cleanedQuery.length < 2) {
       return const [];
     }
 
-    final queryTokens = _tokenize(cleanedQuery);
-    if (queryTokens.isEmpty) {
-      return const [];
-    }
-
-    // Get repository from SqliteDataProvider
     final repository = SqliteDataProvider.instance.repository;
     if (repository == null) {
       debugPrint('[FindRef] Database not initialized');
       return const [];
     }
 
-    // Search for books by title or acronym
-    final bookResults = await repository.searchBooksForReference(
-      cleanedQuery,
-      limit: 50,
-    );
+    // Single query search in TOC
+    final results = await repository.searchReferences(cleanedQuery, limit: 20);
 
-    debugPrint('[FindRef] Found ${bookResults.length} books matching query');
+    debugPrint('[FindRef] Found ${results.length} results');
 
-    final results = <DbReferenceResult>[];
-
-    for (final bookData in bookResults) {
-      final bookId = bookData['bookId'] as int;
-      final title = bookData['title'] as String;
-      final filePath = bookData['filePath'] as String? ?? '';
-      final fileType = bookData['fileType'] as String? ?? 'txt';
-      final isPdf = fileType == 'pdf';
-
-      // Get remaining tokens after matching book title
-      final titleTokens = _tokenize(_normalizeForMatch(title));
-      final remainingTokens = _getRemainingTokens(queryTokens, titleTokens);
-
-      if (remainingTokens.isEmpty) {
-        // Query is just the book name - return book root and top-level TOC entries
-        final tocEntries = await repository.getTocEntriesForReference(
-          bookId,
-          title,
-        );
-
-        // Add book root
-        results.add(DbReferenceResult(
-          title: title,
-          reference: title,
-          segment: 0,
-          isPdf: isPdf,
-          filePath: filePath,
-        ));
-
-        // Add top-level TOC entries (level 1 and 2)
-        for (final entry in tocEntries) {
-          final level = entry['level'] as int;
-          if (level <= 2 && entry['reference'] != title) {
-            results.add(DbReferenceResult(
-              title: title,
-              reference: entry['reference'] as String,
-              segment: entry['segment'] as int,
-              isPdf: isPdf,
-              filePath: filePath,
-            ));
-          }
-        }
-      } else {
-        // Query has additional tokens - search in TOC
-        final tocEntries = await repository.getTocEntriesForReference(
-          bookId,
-          title,
-          queryTokens: remainingTokens,
-        );
-
-        for (final entry in tocEntries) {
-          results.add(DbReferenceResult(
-            title: title,
-            reference: entry['reference'] as String,
-            segment: entry['segment'] as int,
-            isPdf: isPdf,
-            filePath: filePath,
-          ));
-        }
-      }
-    }
-
-    // Deduplicate and rank results
-    final unique = _dedupeRefs(results);
-    final ranked = _rankResults(unique, queryTokens);
-
-    debugPrint('[FindRef] Final results: ${ranked.length}');
-
-    return ranked.length > 15 ? ranked.take(15).toList() : ranked;
+    return results.map((row) {
+      final fileType = row['fileType'] as String? ?? 'txt';
+      return DbReferenceResult(
+        title: row['title'] as String,
+        reference: row['reference'] as String,
+        segment: row['segment'] as int,
+        isPdf: fileType == 'pdf',
+        filePath: row['filePath'] as String? ?? '',
+      );
+    }).toList();
   }
-
-  /// Gets tokens that remain after matching book title tokens
-  List<String> _getRemainingTokens(
-      List<String> queryTokens, List<String> titleTokens) {
-    final remaining = List<String>.from(queryTokens);
-
-    for (final token in titleTokens) {
-      final idx = remaining.indexOf(token);
-      if (idx != -1) {
-        remaining.removeAt(idx);
-      }
-    }
-
-    return remaining;
-  }
-
-  /// Deduplicates results based on reference text
-  List<DbReferenceResult> _dedupeRefs(List<DbReferenceResult> results) {
-    final seen = <String>{};
-    final out = <DbReferenceResult>[];
-
-    for (final r in results) {
-      final key = '${_normalize(r.reference)}|${r.title}|${r.segment}';
-      if (seen.add(key)) {
-        out.add(r);
-      }
-    }
-
-    return out;
-  }
-
-  /// Ranks results by relevance
-  List<DbReferenceResult> _rankResults(
-      List<DbReferenceResult> results, List<String> queryTokens) {
-    // Sort by:
-    // 1. Exact title match first
-    // 2. Title starts with query
-    // 3. Reference length (shorter = more specific)
-    results.sort((a, b) {
-      final aTitle = _normalize(a.title);
-      final bTitle = _normalize(b.title);
-      final query = queryTokens.join(' ');
-
-      // Exact title match
-      if (aTitle == query && bTitle != query) return -1;
-      if (bTitle == query && aTitle != query) return 1;
-
-      // Title starts with query
-      if (aTitle.startsWith(query) && !bTitle.startsWith(query)) return -1;
-      if (bTitle.startsWith(query) && !aTitle.startsWith(query)) return 1;
-
-      // Shorter reference = more specific
-      return a.reference.length.compareTo(b.reference.length);
-    });
-
-    return results;
-  }
-
-  String _normalize(String? s) =>
-      (s ?? '').trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
 
   String _normalizeForMatch(String input) {
     var cleaned = removeTeamim(removeVolwels(input));
@@ -173,9 +45,4 @@ class FindRefRepository {
     cleaned = cleaned.toLowerCase();
     return cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
-
-  List<String> _tokenize(String text) => text
-      .split(' ')
-      .where((token) => token.isNotEmpty)
-      .toList(growable: false);
 }
