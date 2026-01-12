@@ -521,31 +521,25 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                         maxSpeed: 10000.0,
                         curve: 10.0,
                         accelerationFactor: 5,
-                        child: ScrollConfiguration(
-                          // מונע בעיות של Scrollbar עם ScrollController לא מחובר
-                          behavior: ScrollConfiguration.of(context).copyWith(
-                            scrollbars: false,
-                          ),
-                          child: ScrollablePositionedList.builder(
-                            itemScrollController: _itemScrollController,
-                            itemPositionsListener: _itemPositionsListener,
-                            initialScrollIndex:
-                                _lastScrollIndex.clamp(0, groups.length - 1),
-                            key: PageStorageKey(
-                                'commentary_${indexesKey}_${state.activeCommentators.hashCode}_$_allExpanded'),
-                            physics: const ClampingScrollPhysics(),
-                            scrollOffsetController: scrollController,
-                            shrinkWrap: widget.shrinkWrap,
-                            itemCount: groups.length,
-                            itemBuilder: (context, groupIndex) {
-                              final group = groups[groupIndex];
-                              return _buildCommentaryGroupTile(
-                                group: group,
-                                state: state,
-                                indexesKey: indexesKey,
-                              );
-                            },
-                          ),
+                        child: ScrollablePositionedList.builder(
+                          itemScrollController: _itemScrollController,
+                          itemPositionsListener: _itemPositionsListener,
+                          initialScrollIndex:
+                              _lastScrollIndex.clamp(0, groups.length - 1),
+                          key: PageStorageKey(
+                              'commentary_${indexesKey}_${state.activeCommentators.hashCode}_$_allExpanded'),
+                          physics: const ClampingScrollPhysics(),
+                          scrollOffsetController: scrollController,
+                          shrinkWrap: widget.shrinkWrap,
+                          itemCount: groups.length,
+                          itemBuilder: (context, groupIndex) {
+                            final group = groups[groupIndex];
+                            return _buildCommentaryGroupTile(
+                              group: group,
+                              state: state,
+                              indexesKey: indexesKey,
+                            );
+                          },
                         ),
                       ),
                     );

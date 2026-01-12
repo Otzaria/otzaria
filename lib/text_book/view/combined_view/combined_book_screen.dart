@@ -690,8 +690,9 @@ $textWithBreaks
 
                 if (state is TextBookLoaded) {
                   // מקבל את השורה הראשונה הנראית
-                  final baseIndex =
-                      state.visibleIndices.isNotEmpty ? state.visibleIndices.first : 0;
+                  final baseIndex = state.visibleIndices.isNotEmpty
+                      ? state.visibleIndices.first
+                      : 0;
 
                   // בונה את הטקסט הנראה
                   final visibleText = state.visibleIndices
@@ -723,11 +724,10 @@ $textWithBreaks
                 textDirection: widget.isPreviewMode
                     ? TextDirection.ltr
                     : TextDirection.rtl,
-                child: ScrollConfiguration(
-                  // מונע בעיות של Scrollbar עם ScrollController לא מחובר
-                  behavior: ScrollConfiguration.of(context).copyWith(
-                    scrollbars: false,
-                  ),
+                child: Scrollbar(
+                  thumbVisibility: widget.isPreviewMode,
+                  thickness: 8.0,
+                  radius: const Radius.circular(4.0),
                   child: Shortcuts(
                     shortcuts: <ShortcutActivator, Intent>{
                       // Windows/Linux
@@ -748,7 +748,8 @@ $textWithBreaks
                     },
                     child: Actions(
                       actions: <Type, Action<Intent>>{
-                        _CopySelectedTextIntent: CallbackAction<_CopySelectedTextIntent>(
+                        _CopySelectedTextIntent:
+                            CallbackAction<_CopySelectedTextIntent>(
                           onInvoke: (_) {
                             _copyFormattedText();
                             return null;
