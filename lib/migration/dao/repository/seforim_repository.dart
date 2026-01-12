@@ -2546,64 +2546,56 @@ extension BookAcronymRepository on SeforimRepository {
     final db = await _database.database;
     final queryPattern = '%$query%';
 
-    // Search by combining parent (level 1 = book title) with child TOC text
+    // Single query using UNION ALL to search both book titles and sections
     final results = await db.rawQuery('''
-      SELECT 
-        CASE 
-          WHEN parent_tt.text = tt.text OR tt.text = '' THEN parent_tt.text
-          ELSE parent_tt.text || ' ' || tt.text 
-        END as reference,
-        parent_tt.text as title,
+      WITH combined_refs AS (
+        -- Book titles (level 1)
+        SELECT 
+          tt.text as reference,
+          tt.text as title,
+          te.bookId,
+          te.lineId,
+          1 as source_priority
+        FROM tocEntry te
+        JOIN tocText tt ON te.textId = tt.id
+        WHERE te.level = 1 AND tt.text LIKE ?
+        
+        UNION ALL
+        
+        -- Sections (level 2+) with parent book title
+        SELECT 
+          CASE 
+            WHEN parent_tt.text = tt.text OR tt.text = '' THEN parent_tt.text
+            ELSE parent_tt.text || ' ' || tt.text 
+          END as reference,
+          parent_tt.text as title,
+          te.bookId,
+          te.lineId,
+          2 as source_priority
+        FROM tocEntry te
+        JOIN tocText tt ON te.textId = tt.id
+        JOIN tocEntry parent_te ON te.parentId = parent_te.id AND parent_te.level = 1
+        JOIN tocText parent_tt ON parent_te.textId = parent_tt.id
+        WHERE (parent_tt.text || ' ' || tt.text) LIKE ?
+      )
+      SELECT DISTINCT
+        cr.reference,
+        cr.title,
         COALESCE(l.lineIndex, 0) as segment,
         b.filePath,
         b.fileType
-      FROM tocEntry te
-      JOIN tocText tt ON te.textId = tt.id
-      JOIN tocEntry parent_te ON te.parentId = parent_te.id AND parent_te.level = 1
-      JOIN tocText parent_tt ON parent_te.textId = parent_tt.id
-      JOIN book b ON te.bookId = b.id
-      LEFT JOIN line l ON te.lineId = l.id
-      WHERE (parent_tt.text || ' ' || tt.text) LIKE ?
+      FROM combined_refs cr
+      JOIN book b ON cr.bookId = b.id
+      LEFT JOIN line l ON cr.lineId = l.id
       ORDER BY 
-        CASE WHEN (parent_tt.text || ' ' || tt.text) = ? THEN 0
-             WHEN parent_tt.text LIKE ? THEN 1
+        cr.source_priority,
+        CASE WHEN cr.reference = ? THEN 0
+             WHEN cr.title LIKE ? THEN 1
              ELSE 2 END,
-        length(parent_tt.text || ' ' || tt.text)
+        length(cr.reference)
       LIMIT ?
-    ''', [queryPattern, query, '$query%', limit]);
+    ''', [queryPattern, queryPattern, query, '$query%', limit]);
 
-    // Also search for exact book title matches (level 1 entries)
-    final bookResults = await db.rawQuery('''
-      SELECT 
-        tt.text as reference,
-        tt.text as title,
-        COALESCE(l.lineIndex, 0) as segment,
-        b.filePath,
-        b.fileType
-      FROM tocEntry te
-      JOIN tocText tt ON te.textId = tt.id
-      JOIN book b ON te.bookId = b.id
-      LEFT JOIN line l ON te.lineId = l.id
-      WHERE te.level = 1 AND tt.text LIKE ?
-      ORDER BY 
-        CASE WHEN tt.text = ? THEN 0
-             WHEN tt.text LIKE ? THEN 1
-             ELSE 2 END,
-        length(tt.text)
-      LIMIT ?
-    ''', [queryPattern, query, '$query%', limit]);
-
-    // Combine and deduplicate results
-    final seen = <String>{};
-    final combined = <Map<String, dynamic>>[];
-
-    for (final row in [...bookResults, ...results]) {
-      final key = '${row['reference']}|${row['segment']}';
-      if (seen.add(key)) {
-        combined.add(row);
-      }
-    }
-
-    return combined.take(limit).toList();
+    return results;
   }
 }

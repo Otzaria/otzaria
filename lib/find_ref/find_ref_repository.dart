@@ -28,15 +28,20 @@ class FindRefRepository {
     debugPrint('[FindRef] Found ${results.length} results');
 
     return results.map((row) {
-      final fileType = row['fileType'] as String? ?? 'txt';
+      final fileType = _safeGet<String>(row, 'fileType', 'txt');
       return DbReferenceResult(
-        title: row['title'] as String? ?? '',
-        reference: row['reference'] as String? ?? '',
-        segment: row['segment'] as int? ?? 0,
+        title: _safeGet<String>(row, 'title', ''),
+        reference: _safeGet<String>(row, 'reference', ''),
+        segment: _safeGet<int>(row, 'segment', 0),
         isPdf: fileType == 'pdf',
-        filePath: row['filePath'] as String? ?? '',
+        filePath: _safeGet<String>(row, 'filePath', ''),
       );
     }).toList();
+  }
+
+  T _safeGet<T>(Map<String, dynamic> map, String key, T defaultValue) {
+    final value = map[key];
+    return value is T ? value : defaultValue;
   }
 
   String _normalizeForMatch(String input) {
