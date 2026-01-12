@@ -200,32 +200,45 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
                     bool isEditing = false; // Flag to track editing
                     late TextEditingController editController;
                     return StatefulBuilder(builder: (context, setState) {
+                      void commitRenameAndClose() {
+                        final newName = editController.text.trim();
+                        if (newName.isNotEmpty && newName != workspace.name) {
+                          context.read<WorkspaceBloc>().add(
+                                RenameWorkspace(
+                                  workspace,
+                                  newName,
+                                ),
+                              );
+                        }
+                        setState(() {
+                          isEditing = false;
+                        });
+                        FocusManager.instance.primaryFocus?.unfocus();
+                      }
+
                       return isEditing
-                          ? TextField(
-                              controller: editController,
-                              autofocus: true,
-                              decoration: const InputDecoration(
-                                border: OutlineInputBorder(),
-                                isDense: true,
-                              ),
-                              onSubmitted: (newName) {
-                                if (newName.trim().isNotEmpty) {
-                                  context.read<WorkspaceBloc>().add(
-                                        RenameWorkspace(
-                                          workspace,
-                                          newName.trim(),
-                                        ),
-                                      );
-                                }
-                                setState(() {
-                                  isEditing = false;
-                                });
-                              },
-                              onTapOutside: (event) {
-                                setState(() {
-                                  isEditing = false;
-                                });
-                              },
+                          ? Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: editController,
+                                    autofocus: true,
+                                    decoration: const InputDecoration(
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                    onSubmitted: (_) => commitRenameAndClose(),
+                                    onTapOutside: (_) => commitRenameAndClose(),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                IconButton(
+                                  tooltip: 'שמור',
+                                  icon: const Icon(
+                                      FluentIcons.checkmark_24_regular),
+                                  onPressed: commitRenameAndClose,
+                                ),
+                              ],
                             )
                           : Row(
                               children: [
