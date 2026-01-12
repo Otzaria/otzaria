@@ -18,7 +18,10 @@ import 'package:otzaria/settings/settings_bloc.dart';
 import 'package:otzaria/settings/settings_state.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:otzaria/utils/context_menu_utils.dart';
+import 'package:otzaria/widgets/rtl_text_field.dart';
 import 'package:pdfrx/pdfrx.dart';
+import 'dart:async'; // Added for Timer
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 /// מייצג קבוצת קטעי פירוש רצופים מאותו ספר
 class CommentaryGroup {
@@ -93,6 +96,57 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
   bool _showFilterTab = false;
   String? _savedSelectedText;
   late final GlobalKey<SelectionAreaState> _selectionKey;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  int _currentSearchIndex = 0;
+  int _totalSearchResults = 0;
+  bool _allExpanded = true;
+  final Map<String, bool> _expansionStates = {};
+
+  // Anti-jitter search stats
+  final Map<String, int> _searchResultsPerLink = {};
+  Timer? _searchUpdateDebounce;
+  final Map<String, int> _pendingCounts = {};
+
+  // Scroll support
+  final ItemScrollController _itemScrollController = ItemScrollController();
+  final ItemPositionsListener _itemPositionsListener =
+      ItemPositionsListener.create();
+  final ScrollOffsetController _scrollOffsetController =
+      ScrollOffsetController();
+  final Map<String, GlobalKey> _itemKeys = {};
+  List<Link> _orderedLinks = [];
+  List<CommentaryGroup> _orderedGroups = [];
+
+  String _getLinkKey(Link link) => '${link.path2}_${link.index2}';
+
+  // Helper to determine relative index for highlighting
+  int _getItemSearchIndex(Link link) {
+    if (_searchResultsPerLink.isEmpty) return -1;
+
+    int cumulativeIndex = 0;
+    final linkKey = _getLinkKey(link);
+
+    for (final orderedLink in _orderedLinks) {
+      final currentKey = _getLinkKey(orderedLink);
+
+      // Found the link
+      if (currentKey == linkKey) {
+        final itemResults = _searchResultsPerLink[linkKey] ?? 0;
+        if (itemResults == 0) return -1;
+
+        final relativeIndex = _currentSearchIndex - cumulativeIndex;
+        // Check if the current global index falls within this item's range
+        return (relativeIndex >= 0 && relativeIndex < itemResults)
+            ? relativeIndex
+            : -1;
+      }
+
+      cumulativeIndex += _searchResultsPerLink[currentKey] ?? 0;
+    }
+
+    return -1;
+  }
 
   @override
   void initState() {
@@ -117,8 +171,34 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
 
   @override
   void dispose() {
+    _searchUpdateDebounce?.cancel();
     _tabController.dispose();
     super.dispose();
+  }
+
+  void _updateSearchResultsCount(Link link, int count) {
+    if (!mounted) return;
+
+    final key = '${link.path2}_${link.index2}';
+    _pendingCounts[key] = count;
+
+    if (_searchUpdateDebounce?.isActive ?? false) return;
+
+    _searchUpdateDebounce = Timer(const Duration(milliseconds: 150), () {
+      if (!mounted) return;
+      setState(() {
+        _searchResultsPerLink.addAll(_pendingCounts);
+        _pendingCounts.clear();
+        _totalSearchResults =
+            _searchResultsPerLink.values.fold(0, (sum, count) => sum + count);
+
+        // Reset current index if out of bounds
+        if (_currentSearchIndex >= _totalSearchResults &&
+            _totalSearchResults > 0) {
+          _currentSearchIndex = 0;
+        }
+      });
+    });
   }
 
   /// העתקת טקסט מעוצב (HTML) ללוח
@@ -189,6 +269,7 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       children: [
         // שורת הכרטיסיות
         Container(
+          height: 48,
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
             border: Border(
@@ -200,97 +281,56 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
           ),
           child: Row(
             children: [
-              // כפתור סינון מפרשים
-              CommentatorsFilterButton(
-                isActive: _showFilterTab,
-                onPressed: () {
-                  setState(() {
-                    _showFilterTab = !_showFilterTab;
-                  });
-                },
-              ),
               Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    // חישוב גודל הטקסט לפי רוחב זמין
-                    final availableWidth = constraints.maxWidth;
-                    final fontSize = availableWidth < 200
-                        ? 11.0
-                        : (availableWidth < 300 ? 13.0 : 14.0);
-
-                    return TabBar(
-                      controller: _tabController,
-                      isScrollable: true,
-                      tabAlignment: TabAlignment.center,
-                      padding: EdgeInsets.zero,
-                      labelPadding: EdgeInsets.symmetric(
-                          horizontal: availableWidth < 250 ? 8 : 16),
-                      tabs: [
-                        Tab(
-                          child: Text(
-                            'מפרשים',
-                            style: TextStyle(fontSize: fontSize),
-                          ),
-                        ),
-                        Tab(
-                          child: Text(
-                            'קישורים',
-                            style: TextStyle(fontSize: fontSize),
-                          ),
-                        ),
-                        Tab(
-                          child: Text(
-                            'הערות אישיות',
-                            style: TextStyle(fontSize: fontSize),
-                          ),
-                        ),
-                      ],
-                      labelColor: Theme.of(context).colorScheme.primary,
-                      unselectedLabelColor: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(alpha: 0.6),
-                      indicatorColor: Theme.of(context).colorScheme.primary,
-                      dividerColor: Colors.transparent,
-                      onTap: (index) {
-                        // אם לוחצים על טאב מפרשים (0) ואנחנו בכפתור סינון, סוגרים אותו
-                        if (index == 0 && _showFilterTab) {
-                          setState(() {
-                            _showFilterTab = false;
-                          });
-                        }
-                      },
-                    );
+                child: TabBar(
+                  controller: _tabController,
+                  tabs: const [
+                    Tab(
+                      icon: Icon(FluentIcons.book_24_regular, size: 18),
+                      iconMargin: EdgeInsets.only(bottom: 2),
+                      height: 48,
+                      child: Text('מפרשים', style: TextStyle(fontSize: 12)),
+                    ),
+                    Tab(
+                      icon: Icon(FluentIcons.link_24_regular, size: 18),
+                      iconMargin: EdgeInsets.only(bottom: 2),
+                      height: 48,
+                      child: Text('קישורים', style: TextStyle(fontSize: 12)),
+                    ),
+                    Tab(
+                      icon: Icon(FluentIcons.note_24_regular, size: 18),
+                      iconMargin: EdgeInsets.only(bottom: 2),
+                      height: 48,
+                      child: Text('הערות', style: TextStyle(fontSize: 12)),
+                    ),
+                  ],
+                  labelColor: Theme.of(context).colorScheme.primary,
+                  unselectedLabelColor: Theme.of(context)
+                      .colorScheme
+                      .onSurface
+                      .withValues(alpha: 0.6),
+                  indicatorColor: Theme.of(context).colorScheme.primary,
+                  dividerColor: Colors.transparent,
+                  onTap: (index) {
+                    // אם לוחצים על טאב מפרשים (0) ואנחנו בכפתור סינון, סוגרים אותו
+                    if (index == 0 && _showFilterTab) {
+                      setState(() {
+                        _showFilterTab = false;
+                      });
+                    }
                   },
                 ),
               ),
               // לחצן סגירה
-              Container(
-                decoration: BoxDecoration(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .surface
-                      .withValues(alpha: 0.9),
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.2),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+              IconButton(
+                iconSize: 18,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(
+                  minWidth: 40,
+                  minHeight: 40,
                 ),
-                margin: const EdgeInsets.all(8.0),
-                child: IconButton(
-                  iconSize: 18,
-                  padding: const EdgeInsets.all(8),
-                  constraints: const BoxConstraints(
-                    minWidth: 36,
-                    minHeight: 36,
-                  ),
-                  icon: const Icon(FluentIcons.dismiss_24_regular),
-                  onPressed: widget.onClose ?? () {},
-                ),
+                icon: const Icon(FluentIcons.dismiss_24_regular),
+                onPressed: widget.onClose ?? () {},
               ),
             ],
           ),
@@ -312,16 +352,14 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
                   });
                 }
               },
-              child: _showFilterTab
-                  ? _buildCommentatorsFilter()
-                  : TabBarView(
-                      controller: _tabController,
-                      children: [
-                        _buildCommentariesView(),
-                        _buildLinksView(),
-                        _buildNotesView(),
-                      ],
-                    ),
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildCommentariesView(),
+                  _buildLinksView(),
+                  _buildNotesView(),
+                ],
+              ),
             ),
           ),
         ),
@@ -347,7 +385,145 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     );
   }
 
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Row(
+        children: [
+          CommentatorsFilterButton(
+            isActive: false,
+            onPressed: () {
+              setState(() {
+                _showFilterTab = true;
+              });
+            },
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(
+              minWidth: 40,
+              minHeight: 40,
+            ),
+            iconSize: 20,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: RtlTextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'חפש בתוך המפרשים המוצגים...',
+                prefixIcon: const Icon(FluentIcons.search_24_regular),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_totalSearchResults > 0) ...[
+                            Text(
+                              '${_currentSearchIndex + 1}/$_totalSearchResults',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            const SizedBox(width: 4),
+                            IconButton(
+                              icon:
+                                  const Icon(FluentIcons.chevron_up_24_regular),
+                              iconSize: 20,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(
+                                  minWidth: 24, minHeight: 24),
+                              onPressed: _currentSearchIndex > 0
+                                  ? () {
+                                      setState(() {
+                                        _currentSearchIndex--;
+                                      });
+                                      _scrollToSearchResult();
+                                    }
+                                  : null,
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                  FluentIcons.chevron_down_24_regular),
+                              iconSize: 20,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(
+                                  minWidth: 24, minHeight: 24),
+                              onPressed:
+                                  _currentSearchIndex < _totalSearchResults - 1
+                                      ? () {
+                                          setState(() {
+                                            _currentSearchIndex++;
+                                          });
+                                          _scrollToSearchResult();
+                                        }
+                                      : null,
+                            ),
+                          ],
+                          IconButton(
+                            icon: const Icon(FluentIcons.dismiss_24_regular),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() {
+                                _searchQuery = '';
+                                _currentSearchIndex = 0;
+                                _totalSearchResults = 0;
+                                _searchResultsPerLink.clear();
+                              });
+                            },
+                          ),
+                        ],
+                      )
+                    : null,
+                isDense: true,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8.0),
+                ),
+              ),
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value;
+                  _currentSearchIndex = 0;
+                  if (value.isEmpty) {
+                    _searchResultsPerLink.clear();
+                    _totalSearchResults = 0;
+                  }
+                });
+              },
+            ),
+          ),
+          const SizedBox(width: 8),
+          if (widget.tab.activeCommentators.isNotEmpty)
+            IconButton(
+              icon: Icon(
+                _allExpanded
+                    ? FluentIcons.arrow_collapse_all_24_regular
+                    : FluentIcons.arrow_expand_all_24_regular,
+              ),
+              tooltip:
+                  _allExpanded ? 'סגור את כל המפרשים' : 'פתח את כל המפרשים',
+              onPressed: () {
+                setState(() {
+                  _allExpanded = !_allExpanded;
+                });
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildCommentariesView() {
+    if (_showFilterTab) {
+      return _buildCommentatorsFilter();
+    }
+
+    return Column(
+      children: [
+        _buildSearchBar(),
+        Expanded(
+          child: _buildCommentariesListContent(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCommentariesListContent() {
     debugPrint('=== PDF Commentary Debug ===');
     debugPrint('currentTextLineNumber: ${widget.tab.currentTextLineNumber}');
     debugPrint('total links: ${widget.tab.links.length}');
@@ -508,16 +684,175 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
         }
 
         final sortedGroups = snapshot.data!;
+        _orderedGroups = sortedGroups;
 
-        return ListView.builder(
-          itemCount: sortedGroups.length,
-          itemBuilder: (context, index) {
-            final group = sortedGroups[index];
-            return _buildCommentaryGroupTile(group);
-          },
-        );
+        // Rebuild _orderedLinks based on groups
+        _orderedLinks = [];
+        for (final group in sortedGroups) {
+          // We need to verify link order inside group.
+          // In _buildCommentariesView, relevantLinks are sorted by title then index.
+          // _groupConsecutiveLinks groups them.
+          // So the links inside group.links should already be in order.
+          _orderedLinks.addAll(group.links);
+        }
+
+        // Initialize keys
+        final currentLinkKeys =
+            _orderedLinks.map((l) => _getLinkKey(l)).toSet();
+        _itemKeys.removeWhere((key, value) => !currentLinkKeys.contains(key));
+        for (final key in currentLinkKeys) {
+          if (!_itemKeys.containsKey(key)) {
+            _itemKeys[key] = GlobalKey();
+          }
+        }
+
+        return ScrollConfiguration(
+            behavior:
+                ScrollConfiguration.of(context).copyWith(scrollbars: false),
+            child: ScrollablePositionedList.builder(
+              key: PageStorageKey(
+                  'commentary_${widget.tab.currentTextLineNumber}_${widget.tab.activeCommentators.hashCode}_$_allExpanded'),
+              itemCount: sortedGroups.length,
+              itemScrollController: _itemScrollController,
+              itemPositionsListener: _itemPositionsListener,
+              scrollOffsetController: _scrollOffsetController,
+              itemBuilder: (context, index) {
+                final group = sortedGroups[index];
+                return _buildCommentaryGroupTile(group);
+              },
+            ));
       },
     );
+  }
+
+  void _scrollToSearchResult() {
+    if (_totalSearchResults == 0 ||
+        _orderedLinks.isEmpty ||
+        !_itemScrollController.isAttached) {
+      return;
+    }
+
+    int cumulativeIndex = 0;
+    Link? targetLink;
+
+    // 1. מוצא את ה-link שמכיל את תוצאת החיפוש הנוכחית
+    for (final link in _orderedLinks) {
+      final linkKey = _getLinkKey(link);
+      final itemResults = _searchResultsPerLink[linkKey] ?? 0;
+      if (_currentSearchIndex < cumulativeIndex + itemResults) {
+        targetLink = link;
+        break;
+      }
+      cumulativeIndex += itemResults;
+    }
+
+    if (targetLink == null) return;
+
+    // 2. מוצא את ה-group שמכיל את ה-link
+    // Since we have _orderedGroups
+    int targetGroupIndex = -1;
+    CommentaryGroup? targetGroup;
+
+    for (int i = 0; i < _orderedGroups.length; i++) {
+      final group = _orderedGroups[i];
+      // Check if link is in group. Note: link instances might differ if rebuilt, so compare by key
+      final targetLinkKey = _getLinkKey(targetLink);
+      if (group.links.any((l) => _getLinkKey(l) == targetLinkKey)) {
+        targetGroupIndex = i;
+        targetGroup = group;
+        break;
+      }
+    }
+
+    if (targetGroupIndex == -1 || targetGroup == null) return;
+
+    // 3. מבטיח שה-ExpansionTile של הקבוצה פתוח
+    final groupKey = targetGroup.bookTitle;
+    final bool isCurrentlyExpanded = _expansionStates[groupKey] ?? _allExpanded;
+
+    if (!isCurrentlyExpanded) {
+      setState(() {
+        _expansionStates[groupKey] = true;
+      });
+    }
+
+    // 4. ביצוע הגלילה
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+
+      if (!isCurrentlyExpanded) {
+        await Future.delayed(const Duration(milliseconds: 200));
+        if (!mounted) return;
+      }
+
+      // Check if group is already visible
+      bool groupVisible = false;
+      if (_itemPositionsListener.itemPositions.value.isNotEmpty) {
+        final positions = _itemPositionsListener.itemPositions.value;
+        if (positions.any((p) => p.index == targetGroupIndex)) {
+          groupVisible = true;
+        }
+      }
+
+      if (_itemScrollController.isAttached && !groupVisible) {
+        _itemScrollController.scrollTo(
+          index: targetGroupIndex,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+          alignment: 0.05,
+        );
+        // Wait for group scroll
+        await Future.delayed(const Duration(milliseconds: 350));
+        if (!mounted) return;
+      }
+
+      // Micro-scrolling to specific link
+      final linkKey = _getLinkKey(targetLink!);
+      final itemKey = _itemKeys[linkKey];
+      final BuildContext? itemContext = itemKey?.currentContext;
+
+      if (itemContext != null && itemContext.mounted) {
+        try {
+          final scrollable = Scrollable.of(itemContext);
+          scrollable.position.ensureVisible(
+            itemContext.findRenderObject()!,
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeInOut,
+            alignment: 0.1,
+          );
+        } catch (e) {
+          debugPrint('Error scrolling to item: $e');
+        }
+      } else if (groupVisible) {
+        // Group is visible but item context is not found (perhaps off screen in the large column?)
+        // In this case, maybe we SHOULD scroll the group to top to be safe, or just scroll to group?
+        // If we are here, it means we thought group is visible so we didn't scroll the group.
+        // But we can't find the item context.
+        // Let's force scroll the group if item context is missing even if group is technically visible.
+        if (_itemScrollController.isAttached) {
+          _itemScrollController.scrollTo(
+            index: targetGroupIndex,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+            alignment: 0.05,
+          );
+          await Future.delayed(const Duration(milliseconds: 350));
+          if (!mounted) return;
+
+          // Retry finding context
+          final retryContext = itemKey?.currentContext;
+          if (retryContext != null && retryContext.mounted) {
+            final scrollable = Scrollable.of(retryContext);
+            scrollable.position.ensureVisible(
+              retryContext.findRenderObject()!,
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeInOut,
+              alignment: 0.1,
+            );
+          }
+        }
+      }
+    });
   }
 
   /// ממיין קבוצות מפרשים לפי סדר הדורות
@@ -563,6 +898,12 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
   }
 
   Widget _buildCommentaryGroupTile(CommentaryGroup group) {
+    final groupKey = group.bookTitle;
+    if (!_expansionStates.containsKey(groupKey)) {
+      _expansionStates[groupKey] = _allExpanded;
+    }
+    final isExpanded = _expansionStates[groupKey] ?? _allExpanded;
+
     return BlocBuilder<SettingsBloc, SettingsState>(
       builder: (context, settingsState) {
         return _CollapsibleCommentaryGroup(
@@ -574,9 +915,24 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
           fontSize: widget.fontSize,
           openBookCallback: widget.openBookCallback,
           buildContextMenu: _buildCommentaryContextMenu,
+          isExpanded: isExpanded,
+          onExpansionChanged: (expanded) {
+            setState(() {
+              _expansionStates[groupKey] = expanded;
+            });
+          },
+          searchQuery: _searchQuery,
+          onSearchResultsCountUpdate: _updateSearchResultsCount,
+          getKeyForLink: _getLinkKeyObject,
+          getItemSearchIndex: _getItemSearchIndex, // Pass the function
         );
       },
     );
+  }
+
+  // Helper method used in _scrollToSearchResult to inject keys
+  Key? _getLinkKeyObject(Link link) {
+    return _itemKeys[_getLinkKey(link)];
   }
 
   Widget _buildLinksView() {
@@ -820,6 +1176,12 @@ class _CollapsibleCommentaryGroup extends StatefulWidget {
   final double fontSize;
   final Function(OpenedTab) openBookCallback;
   final ctx.ContextMenu Function(Link) buildContextMenu;
+  final bool isExpanded;
+  final Function(bool) onExpansionChanged;
+  final String searchQuery;
+  final Function(Link, int)? onSearchResultsCountUpdate;
+  final Key? Function(Link)? getKeyForLink; // Support linking keys
+  final int Function(Link)? getItemSearchIndex; // Support highlighting
 
   const _CollapsibleCommentaryGroup({
     super.key,
@@ -829,6 +1191,12 @@ class _CollapsibleCommentaryGroup extends StatefulWidget {
     required this.fontSize,
     required this.openBookCallback,
     required this.buildContextMenu,
+    required this.isExpanded,
+    required this.onExpansionChanged,
+    required this.searchQuery,
+    this.onSearchResultsCountUpdate,
+    this.getKeyForLink,
+    this.getItemSearchIndex,
   });
 
   @override
@@ -838,15 +1206,6 @@ class _CollapsibleCommentaryGroup extends StatefulWidget {
 
 class _CollapsibleCommentaryGroupState
     extends State<_CollapsibleCommentaryGroup> {
-  late bool _isExpanded;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // שמירת מצב ההרחבה ב-PageStorage כדי לשמור אותו בגלילה
-    _isExpanded = PageStorage.of(context).readState(context) as bool? ?? true;
-  }
-
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -855,10 +1214,7 @@ class _CollapsibleCommentaryGroupState
         // כותרת הקבוצה - ניתנת ללחיצה להרחבה/כיווץ
         InkWell(
           onTap: () {
-            setState(() {
-              _isExpanded = !_isExpanded;
-              PageStorage.of(context).writeState(context, _isExpanded);
-            });
+            widget.onExpansionChanged(!widget.isExpanded);
           },
           child: Padding(
             padding:
@@ -866,7 +1222,7 @@ class _CollapsibleCommentaryGroupState
             child: Row(
               children: [
                 Icon(
-                  _isExpanded
+                  widget.isExpanded
                       ? Icons.keyboard_arrow_down
                       : Icons.keyboard_arrow_left,
                   size: 20,
@@ -891,9 +1247,11 @@ class _CollapsibleCommentaryGroupState
           ),
         ),
         // תוכן המפרשים - מוצג רק כשמורחב
-        if (_isExpanded)
+        if (widget.isExpanded)
           ...widget.group.links.map((link) {
             return ctx.ContextMenuRegion(
+              key: widget.getKeyForLink
+                  ?.call(link), // Attach the key here for scrolling
               contextMenu: widget.buildContextMenu(link),
               child: Padding(
                 padding: const EdgeInsets.only(
@@ -920,6 +1278,12 @@ class _CollapsibleCommentaryGroupState
                       link: link,
                       fontSize: widget.fontSize,
                       openBookCallback: widget.openBookCallback,
+                      searchQuery: widget.searchQuery,
+                      onSearchResultsCountChanged: (count) {
+                        widget.onSearchResultsCountUpdate?.call(link, count);
+                      },
+                      currentSearchIndex:
+                          widget.getItemSearchIndex?.call(link) ?? -1,
                     ),
                   ],
                 ),

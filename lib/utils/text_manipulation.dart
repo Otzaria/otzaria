@@ -192,6 +192,16 @@ String getTitleFromPath(String path) {
 // Cache for the CSV data to avoid reading the file multiple times
 Map<String, String>? _csvCache;
 
+int countMatches(String text, String searchQuery) {
+  if (searchQuery.isEmpty) return 0;
+  // אותו רג'קס כמו ב-highLight
+  final RegExp regex = RegExp(
+    RegExp.escape(searchQuery),
+    caseSensitive: false,
+  );
+  return regex.allMatches(text).length;
+}
+
 Future<bool> hasTopic(String title, String topic) async {
   // Load CSV data once and cache it
   if (_csvCache == null) {

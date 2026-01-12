@@ -16,11 +16,17 @@ class PdfCommentaryContent extends StatefulWidget {
     required this.link,
     required this.fontSize,
     required this.openBookCallback,
+    this.searchQuery = '',
+    this.onSearchResultsCountChanged,
+    this.currentSearchIndex = -1,
   });
 
   final Link link;
   final double fontSize;
   final Function(TextBookTab) openBookCallback;
+  final String searchQuery;
+  final Function(int)? onSearchResultsCountChanged;
+  final int currentSearchIndex;
 
   @override
   State<PdfCommentaryContent> createState() => _PdfCommentaryContentState();
@@ -62,6 +68,24 @@ class _PdfCommentaryContentState extends State<PdfCommentaryContent> {
         builder: (context, snapshot) {
           if (snapshot.hasData) {
             String text = snapshot.data!;
+
+            // החלת חיפוש
+            if (widget.searchQuery.isNotEmpty) {
+              final searchCount = utils.countMatches(text, widget.searchQuery);
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) {
+                  widget.onSearchResultsCountChanged?.call(searchCount);
+                }
+              });
+              text = utils.highLight(text, widget.searchQuery,
+                  currentIndex: widget.currentSearchIndex);
+            } else {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) {
+                  widget.onSearchResultsCountChanged?.call(0);
+                }
+              });
+            }
 
             // החלת עיצוב הסוגריים העגולים
             text = utils.formatTextWithParentheses(text);
