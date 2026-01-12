@@ -942,7 +942,7 @@ class _AboutScreenState extends State<AboutScreen> {
                 Row(
                   children: [
                     Image.asset(
-                      'assets/icon/icon.png',
+                      'assets/icon/iconnew.png',
                       width: 80,
                       height: 80,
                     ),
@@ -1230,7 +1230,7 @@ class _AboutScreenState extends State<AboutScreen> {
         return Row(
           children: [
             Image.asset(
-              'assets/icon/icon.png',
+              'assets/icon/iconnew.png',
               width: isVerySmall ? 50 : 60,
               height: isVerySmall ? 50 : 60,
             ),

@@ -190,7 +190,7 @@ class _AdPopupDialogState extends State<AdPopupDialog>
       child: Padding(
         padding: const EdgeInsets.all(40),
         child: Image.asset(
-          'assets/icon/icon.png',
+          'assets/icon/iconnew.png',
           width: 120,
           height: 120,
         ),
@@ -209,7 +209,7 @@ class _AdPopupDialogState extends State<AdPopupDialog>
           children: [
             // לוגו
             Image.asset(
-              'assets/icon/icon.png',
+              'assets/icon/iconnew.png',
               width: 100,
               height: 100,
             ),
@@ -271,7 +271,7 @@ class _AdPopupDialogState extends State<AdPopupDialog>
                 children: [
                   // לוגו מתכווץ
                   Image.asset(
-                    'assets/icon/icon.png',
+                    'assets/icon/iconnew.png',
                     width: logoSize,
                     height: logoSize,
                   ),

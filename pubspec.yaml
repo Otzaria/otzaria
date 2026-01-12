@@ -11,7 +11,7 @@ msix_config:
   identity_name: sivan22.Otzaria
   description: "ספריית ספרים יהודיים עם אפשרויות חיפוש חכם"
   msix_version: 0.9.74.0
-  logo_path: assets/icon/icon.png
+  logo_path: assets/icon/iconnew.png
   publisher: CN=sivan22, O=sivan22, C=IL
   certificate_path: sivan22.pfx
   certificate_password: sivan22
@@ -130,12 +130,17 @@ dependency_overrides:
 flutter_launcher_icons:
   android: true
   ios: true
+  web:
+    generate: true
+    image_path: "assets/icon/iconnew.png"
+    background_color: "#0175C2"
+    theme_color: "#0175C2"
   remove_alpha_ios: true
-  image_path: "assets/icon/icon.png"
+  image_path: "assets/icon/iconnew.png"
   min_sdk_android: 21 # android min sdk min:16, default 21
   windows:
     generate: true
-    image_path: "assets/icon/icon.png"
+    image_path: "assets/icon/iconnew.png"
     icon_size: 256 # min:48, max:256, default: 48
 
 dev_dependencies:
@@ -173,7 +178,7 @@ flutter:
     - assets/icon/שמור וזכור.png
     - assets/icon/זכור ושמור.png
     - assets/icon/shamor_zachor_with_v.png
-    - assets/icon/icon.png
+    - assets/icon/iconnew.png
     - assets/dictionary.json
 
   # An image asset can refer to one or more resolution-specific "variants", see
