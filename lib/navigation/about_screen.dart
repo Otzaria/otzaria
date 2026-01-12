@@ -67,7 +67,8 @@ class _AboutScreenState extends State<AboutScreen> {
   }
 
   /// חישוב רוחב פריט לפי השם הכי ארוך ברשימה
-  double _calculateItemWidth(List<Map<String, String?>> items, {double extraPadding = 24}) {
+  double _calculateItemWidth(List<Map<String, String?>> items,
+      {double extraPadding = 24}) {
     if (items.isEmpty) return 0;
 
     final longestName = items
@@ -94,11 +95,24 @@ class _AboutScreenState extends State<AboutScreen> {
       {'name': 'zevisvei', 'url': 'https://github.com/zevisvei'},
       {'name': 'evel-avalim', 'url': 'https://github.com/evel-avalim'},
       {'name': 'userbot', 'url': 'https://github.com/userbot000'},
-      {'name': 'mosh-dvd', 'url': 'https://github.com/mosh-dvd', 'description': 'ממפתחי ממשק צורת הדף'},
-      {'name': 'NHLOCAL', 'url': 'https://github.com/NHLOCAL/Shamor-Zachor', 'description': "מפתח 'זכור ושמור'"},
+      {
+        'name': 'mosh-dvd',
+        'url': 'https://github.com/mosh-dvd',
+        'description': 'ממפתחי ממשק צורת הדף'
+      },
+      {
+        'name': 'NHLOCAL',
+        'url': 'https://github.com/NHLOCAL/Shamor-Zachor',
+        'description': "מפתח 'זכור ושמור'"
+      },
     ];
 
-    final itemWidth = _calculateItemWidth(developers);
+    return _buildContributorsList(developers, FluentIcons.person_24_regular);
+  }
+
+  Widget _buildContributorsList(
+      List<Map<String, String?>> contributors, IconData icon) {
+    final itemWidth = _calculateItemWidth(contributors);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -106,22 +120,22 @@ class _AboutScreenState extends State<AboutScreen> {
         if (constraints.maxWidth < 500) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: developers
-                .map((dev) => Padding(
+            children: contributors
+                .map((contributor) => Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: Row(
                         children: [
-                          Icon(FluentIcons.person_24_regular,
-                              size: _kIconSize, color: Colors.grey),
-                          SizedBox(width: _kIconTextSpacing),
+                          Icon(icon, size: _kIconSize, color: Colors.grey),
+                          const SizedBox(width: _kIconTextSpacing),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                _buildContributor(dev['name']!, dev['url']!),
-                                if (dev['description'] != null)
+                                _buildContributor(contributor['name']!,
+                                    contributor['url'] ?? ''),
+                                if (contributor['description'] != null)
                                   Text(
-                                    '(${dev['description']})',
+                                    '(${contributor['description']})',
                                     style: TextStyle(
                                       fontSize: 12,
                                       color: Colors.grey[600],
@@ -140,22 +154,22 @@ class _AboutScreenState extends State<AboutScreen> {
         return Wrap(
           spacing: 16,
           runSpacing: 12,
-          children: developers
-              .map((dev) => SizedBox(
+          children: contributors
+              .map((contributor) => SizedBox(
                     width: itemWidth,
                     child: Row(
                       children: [
-                        Icon(FluentIcons.person_24_regular,
-                            size: _kIconSize, color: Colors.grey),
-                        SizedBox(width: _kIconTextSpacing),
+                        Icon(icon, size: _kIconSize, color: Colors.grey),
+                        const SizedBox(width: _kIconTextSpacing),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _buildContributor(dev['name']!, dev['url']!),
-                              if (dev['description'] != null)
+                              _buildContributor(contributor['name']!,
+                                  contributor['url'] ?? ''),
+                              if (contributor['description'] != null)
                                 Text(
-                                  '(${dev['description']})',
+                                  '(${contributor['description']})',
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: Colors.grey[600],
@@ -242,7 +256,8 @@ class _AboutScreenState extends State<AboutScreen> {
     final regularEditors = [
       {
         'name': 'מויטיו',
-        'url': 'https://mitmachim.top/user/%D7%9E%D7%95%D7%99%D7%98%D7%99%D7%95',
+        'url':
+            'https://mitmachim.top/user/%D7%9E%D7%95%D7%99%D7%98%D7%99%D7%95',
       },
       {
         'name': 'ד. מ. א.', // דוד משה 1
@@ -266,60 +281,6 @@ class _AboutScreenState extends State<AboutScreen> {
       },
     ];
 
-    // חישוב רוחב לפי השם הכי ארוך מכל המהדירים
-    final allEditors = [...topEditors, ...regularEditors];
-    final itemWidth = _calculateItemWidth(allEditors, extraPadding: 32);
-
-    Widget buildEditorsList(List<Map<String, String>> editors) {
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          // במסכים קטנים, הצג בעמודה
-          if (constraints.maxWidth < 500) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: editors
-                  .map((editor) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Row(
-                          children: [
-                            const Icon(FluentIcons.book_24_regular,
-                                size: _kIconSize, color: Colors.grey),
-                            const SizedBox(width: _kIconTextSpacing),
-                            Expanded(
-                              child: _buildContributor(
-                                  editor['name']!, editor['url'] ?? ''),
-                            ),
-                          ],
-                        ),
-                      ))
-                  .toList(),
-            );
-          }
-          // במסכים רחבים, השתמש ב-Wrap
-          return Wrap(
-            spacing: 16,
-            runSpacing: 12,
-            children: editors
-                .map((editor) => SizedBox(
-                      width: itemWidth,
-                      child: Row(
-                        children: [
-                          const Icon(FluentIcons.book_24_regular,
-                              size: _kIconSize, color: Colors.grey),
-                          const SizedBox(width: _kIconTextSpacing),
-                          Expanded(
-                            child: _buildContributor(
-                                editor['name']!, editor['url'] ?? ''),
-                          ),
-                        ],
-                      ),
-                    ))
-                .toList(),
-          );
-        },
-      );
-    }
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -333,7 +294,7 @@ class _AboutScreenState extends State<AboutScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        buildEditorsList(topEditors),
+        _buildContributorsList(topEditors, FluentIcons.book_24_regular),
         const SizedBox(height: 24),
 
         // קטגוריה שנייה: 5-10 ספרים
@@ -346,7 +307,7 @@ class _AboutScreenState extends State<AboutScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        buildEditorsList(regularEditors),
+        _buildContributorsList(regularEditors, FluentIcons.book_24_regular),
         const SizedBox(height: 16),
 
         // הודעה בסוף הרשימה
@@ -518,109 +479,111 @@ class _AboutScreenState extends State<AboutScreen> {
   }
 
   Widget _buildMemorialCard(String name, String description) {
-    return SizedBox(
-      height: 140, // גודל קבוע לכל הכארדים
-      child: Card(
-        elevation: 2,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SvgPicture.asset(
-                    'assets/icon/memorial_candle.svg',
-                    width: 20,
-                    height: 20,
-                    colorFilter: ColorFilter.mode(
-                      Colors.orange[700]!,
-                      BlendMode.srcIn,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      name,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                description,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey[600],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    return _buildGenericMemorialCard(name, description);
   }
 
   Widget _buildDonationMemorialCard(String name) {
+    return _buildGenericMemorialCard(name, 'לחץ כאן',
+        onTap: () => _openLocalHtmlFile('donate.html'));
+  }
+
+  Widget _buildGenericMemorialCard(String name, String description,
+      {VoidCallback? onTap}) {
     return SizedBox(
       height: 140, // גודל קבוע לכל הכארדים
       child: Card(
         elevation: 2,
-        child: InkWell(
-          onTap: () => _openLocalHtmlFile('donate.html'),
-          borderRadius: BorderRadius.circular(8),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    SvgPicture.asset(
-                      'assets/icon/memorial_candle.svg',
-                      width: 20,
-                      height: 20,
-                      colorFilter: ColorFilter.mode(
-                        Colors.orange[700]!,
-                        BlendMode.srcIn,
+        child: onTap != null
+            ? InkWell(
+                onTap: onTap,
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SvgPicture.asset(
+                            'assets/icon/memorial_candle.svg',
+                            width: 20,
+                            height: 20,
+                            colorFilter: ColorFilter.mode(
+                              Colors.orange[700]!,
+                              BlendMode.srcIn,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              name,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        name,
+                      const SizedBox(height: 12),
+                      Text(
+                        description,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey[600],
                         ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            : Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SvgPicture.asset(
+                          'assets/icon/memorial_candle.svg',
+                          width: 20,
+                          height: 20,
+                          colorFilter: ColorFilter.mode(
+                            Colors.orange[700]!,
+                            BlendMode.srcIn,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            name,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      description,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[600],
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  'לחץ כאן',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+              ),
       ),
     );
   }
@@ -714,7 +677,8 @@ class _AboutScreenState extends State<AboutScreen> {
   }
 
   Future<void> _showLibraryChangelogDialog(BuildContext context) async {
-    final libraryPath = Settings.getValue<String>(SettingsRepository.keyLibraryPath) ?? '';
+    final libraryPath =
+        Settings.getValue<String>(SettingsRepository.keyLibraryPath) ?? '';
     if (libraryPath.isEmpty) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -723,7 +687,8 @@ class _AboutScreenState extends State<AboutScreen> {
       return;
     }
 
-    final changelogPath = p.join(libraryPath, 'אוצריא', 'אודות התוכנה', 'עדכוני ספריה.md');
+    final changelogPath =
+        p.join(libraryPath, 'אוצריא', 'אודות התוכנה', 'עדכוני ספריה.md');
     final file = File(changelogPath);
 
     String changelog;
