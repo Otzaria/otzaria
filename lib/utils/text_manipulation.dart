@@ -400,18 +400,8 @@ String removeSectionNames(String s) {
       .replaceAll('עב', ' : ');
 
   // Handle common section names
-  s = s
-      .replaceAll('פרק', ' ')
-      .replaceAll('פסוק', ' ')
-      .replaceAll('פסקה', ' ')
-      .replaceAll('סעיף', ' ')
-      .replaceAll('סימן', ' ')
-      .replaceAll('הלכה', ' ')
-      .replaceAll('מאמר', ' ')
-      .replaceAll('קטן', ' ')
-      .replaceAll('משנה', ' ')
-      .replaceAll('דף', ' ')
-      .replaceAll('עמוד', ' ');
+  s = s.replaceAll(
+      RegExp(r'פרק|פסוק|פסקה|סעיף|סימן|הלכה|מאמר|קטן|משנה|דף|עמוד'), ' ');
 
   // Standard cleanup
   s = s.replaceAll('"', '').replaceAll("'", '').replaceAll(',', '');
@@ -435,6 +425,8 @@ String normalizeReference(String s) {
   return s.trim().replaceAll(RegExp(r'\s+'), ' ');
 }
 
+@Deprecated(
+    'Use normalizeReference directly. This function is kept for backward compatibility.')
 String replaceParaphrases(String s) {
   return normalizeReference(s);
 }

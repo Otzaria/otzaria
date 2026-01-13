@@ -2571,9 +2571,11 @@ extension BookAcronymRepository on SeforimRepository {
     cleaned = cleaned.replaceAll('.', ' . ').replaceAll(':', ' : ');
     // Remove nikud and teamim
     cleaned = removeTeamim(removeVolwels(cleaned));
+    cleaned = cleaned.replaceAll('\u05F4', '').replaceAll('\u05F3', '');
     // Keep only letters, numbers, spaces, and . :
-    cleaned = cleaned.replaceAll(RegExp(r'[^a-zA-Z0-9\u0590-\u05FF\s.:]'), ' ');
-    cleaned = cleaned.toLowerCase();
+    cleaned = cleaned
+        .replaceAll(RegExp(r'[^a-zA-Z0-9\u0590-\u05FF\s.:]'), ' ')
+        .toLowerCase();
     return cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 }
