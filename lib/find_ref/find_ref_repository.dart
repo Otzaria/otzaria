@@ -247,18 +247,7 @@ class FindRefRepository {
   String _normalize(String? s) =>
       (s ?? '').trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
 
-  String _normalizeForMatch(String input) {
-    var cleaned = removeSectionNames(input);
-    cleaned = cleaned.replaceAll('.', ' . ').replaceAll(':', ' : ');
-    cleaned = removeTeamim(removeVolwels(cleaned));
-
-    cleaned = cleaned.replaceAll('"', '').replaceAll("'", '');
-    cleaned = cleaned.replaceAll('\u05F4', '').replaceAll('\u05F3', '');
-
-    cleaned = cleaned.replaceAll(RegExp(r'[^a-zA-Z0-9\u0590-\u05FF\s.:]'), ' ');
-    cleaned = cleaned.toLowerCase();
-    return cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
-  }
+  String _normalizeForMatch(String input) => normalizeReference(input);
 
   List<String> _tokenize(String text) => text
       .split(' ')

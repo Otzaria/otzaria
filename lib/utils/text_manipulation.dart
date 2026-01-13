@@ -421,8 +421,12 @@ String normalizeReference(String s) {
       .replaceAll(' עמ ', ' עמוד ');
 
   s = removeSectionNames(s);
+  s = s.replaceAll('.', ' . ').replaceAll(':', ' : ');
+  s = removeTeamim(removeVolwels(s));
+  s = s.replaceAll('\u05F4', '').replaceAll('\u05F3', '');
+  s = s.replaceAll(RegExp(r'[^a-zA-Z0-9\u0590-\u05FF\s.:]'), ' ');
 
-  return s.trim().replaceAll(RegExp(r'\s+'), ' ');
+  return s.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
 }
 
 @Deprecated(
