@@ -248,12 +248,14 @@ class FindRefRepository {
       (s ?? '').trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
 
   String _normalizeForMatch(String input) {
-    var cleaned = removeTeamim(removeVolwels(input));
+    var cleaned = removeSectionNames(input);
+    cleaned = cleaned.replaceAll('.', ' . ').replaceAll(':', ' : ');
+    cleaned = removeTeamim(removeVolwels(cleaned));
 
     cleaned = cleaned.replaceAll('"', '').replaceAll("'", '');
     cleaned = cleaned.replaceAll('\u05F4', '').replaceAll('\u05F3', '');
 
-    cleaned = cleaned.replaceAll(RegExp(r'[^a-zA-Z0-9\u0590-\u05FF\s]'), ' ');
+    cleaned = cleaned.replaceAll(RegExp(r'[^a-zA-Z0-9\u0590-\u05FF\s.:]'), ' ');
     cleaned = cleaned.toLowerCase();
     return cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
   }

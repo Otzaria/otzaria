@@ -13,6 +13,7 @@ import '../../core/models/source.dart';
 import '../../core/models/toc_entry.dart';
 import '../../core/models/toc_text.dart';
 import '../../core/models/topic.dart';
+import '../../../utils/text_manipulation.dart';
 import '../daos/connection_type_dao.dart';
 import '../daos/database.dart';
 
@@ -2555,12 +2556,12 @@ extension BookAcronymRepository on SeforimRepository {
 
   /// Normalizes text for TOC matching (same as FindRef normalization)
   String _normalizeForTocMatch(String input) {
+    var cleaned = removeSectionNames(input);
+    cleaned = cleaned.replaceAll('.', ' . ').replaceAll(':', ' : ');
     // Remove nikud and teamim
-    var cleaned = input;
-    // Remove common Hebrew diacritics
-    cleaned = cleaned.replaceAll(RegExp(r'[\u0591-\u05C7]'), '');
-    // Keep only letters, numbers, and spaces
-    cleaned = cleaned.replaceAll(RegExp(r'[^a-zA-Z0-9\u0590-\u05FF\s]'), ' ');
+    cleaned = removeTeamim(removeVolwels(cleaned));
+    // Keep only letters, numbers, spaces, and . :
+    cleaned = cleaned.replaceAll(RegExp(r'[^a-zA-Z0-9\u0590-\u05FF\s.:]'), ' ');
     cleaned = cleaned.toLowerCase();
     return cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
