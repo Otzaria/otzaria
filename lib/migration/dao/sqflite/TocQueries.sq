@@ -1,35 +1,37 @@
 -- TocQueries.sq
+-- Note: COALESCE(l.lineIndex, t.lineId) is used to support external books
+-- where lineId stores the line index directly (no entry in line table)
 
 selectByBookId:
-SELECT t.*, tt.text, l.lineIndex
+SELECT t.*, tt.text, COALESCE(l.lineIndex, t.lineId) as lineIndex
 FROM tocEntry t
 JOIN tocText tt ON t.textId = tt.id
 LEFT JOIN line l ON t.lineId = l.id
 WHERE t.bookId = ?;
 
 selectTocById:
-SELECT t.*, tt.text, l.lineIndex
+SELECT t.*, tt.text, COALESCE(l.lineIndex, t.lineId) as lineIndex
 FROM tocEntry t
 JOIN tocText tt ON t.textId = tt.id
 LEFT JOIN line l ON t.lineId = l.id
 WHERE t.id = ?;
 
 selectRootByBookId:
-SELECT t.*, tt.text, l.lineIndex
+SELECT t.*, tt.text, COALESCE(l.lineIndex, t.lineId) as lineIndex
 FROM tocEntry t
 JOIN tocText tt ON t.textId = tt.id
 LEFT JOIN line l ON t.lineId = l.id
 WHERE t.bookId = ? AND t.parentId IS NULL;
 
 selectChildren:
-SELECT t.*, tt.text, l.lineIndex
+SELECT t.*, tt.text, COALESCE(l.lineIndex, t.lineId) as lineIndex
 FROM tocEntry t
 JOIN tocText tt ON t.textId = tt.id
 LEFT JOIN line l ON t.lineId = l.id
 WHERE t.parentId = ?;
 
 selectByLineId:
-SELECT t.*, tt.text, l.lineIndex
+SELECT t.*, tt.text, COALESCE(l.lineIndex, t.lineId) as lineIndex
 FROM tocEntry t
 JOIN tocText tt ON t.textId = tt.id
 LEFT JOIN line l ON t.lineId = l.id

@@ -78,7 +78,7 @@ class FileSystemLibraryProvider implements LibraryProvider {
 
     // We can populate the key map here as well to ensure it's accurate
     final map = await _keyToPath;
-    
+
     await _loadBooksRecursively(otzariaDir, metadata, booksByCategory, [], map);
 
     // Load books from custom folders (those NOT marked for DB sync)
@@ -154,8 +154,8 @@ class FileSystemLibraryProvider implements LibraryProvider {
             booksByCategory[categoryName]!.add(book);
 
             // Add to key map
-            final key =
-                _generateKey(book.title, book.categoryPath ?? '', book.fileType ?? '');
+            final key = _generateKey(
+                book.title, book.categoryPath ?? '', book.fileType ?? '');
             keyToPath[key] = entity.path;
           }
         }
@@ -230,6 +230,11 @@ class FileSystemLibraryProvider implements LibraryProvider {
     final file = File(path);
     if (!await file.exists()) return null;
 
+    // PDF content isn't plain text; callers should use the PDF flow.
+    if (fileType.toLowerCase() == 'pdf' || path.toLowerCase().endsWith('.pdf')) {
+      return null;
+    }
+
     if (path.endsWith('.docx')) {
       final bytes = await file.readAsBytes();
       return Isolate.run(() => docxToText(bytes, title));
@@ -240,6 +245,7 @@ class FileSystemLibraryProvider implements LibraryProvider {
 
   @override
   Future<List<TocEntry>?> getBookToc(String title, String category, String fileType) async {
+    if (fileType.toLowerCase() == 'pdf') return null;
     final text = await getBookText(title, category, fileType);
     if (text == null) return null;
     return Isolate.run(() => TocParser.parseEntriesFromContent(text));
@@ -263,9 +269,8 @@ class FileSystemLibraryProvider implements LibraryProvider {
 
     // Helper to add path
     void addPath(String path, String rootPath, [List<String> prefix = const []]) {
-      if (path.toLowerCase().endsWith('.pdf')) return;
       final title = getTitleFromPath(path);
-      final fileType = path.split('.').last;
+      final fileType = path.split('.').last.toLowerCase();
 
       // Extract category
       String relative = path;
@@ -317,12 +322,18 @@ class FileSystemLibraryProvider implements LibraryProvider {
 
   static Future<List<String>> _getAllBookPaths(String path) async {
     return Isolate.run(() async {
-      List<String> paths = [];
-      final files = await Directory(path).list(recursive: true).toList();
-      for (var file in files) {
-        paths.add(file.path);
+      final results = <String>[];
+      final entities = await Directory(path).list(recursive: true).toList();
+      for (final entity in entities) {
+        if (entity is! File) continue;
+        final lower = entity.path.toLowerCase();
+        if (lower.endsWith('.txt') ||
+            lower.endsWith('.docx') ||
+            lower.endsWith('.pdf')) {
+          results.add(entity.path);
+        }
       }
-      return paths;
+      return results;
     });
   }
 
@@ -685,14 +696,14 @@ class FileSystemLibraryProvider implements LibraryProvider {
       }
 
       final title = getTitleFromPath(link.path2);
-      
+
       // Find path for title (fuzzy match since we don't have category/fileType)
       final map = await _keyToPath;
       String? path;
       for (final key in map.keys) {
         if (key.startsWith('$title|')) {
-           path = map[key];
-           break;
+          path = map[key];
+          break;
         }
       }
 

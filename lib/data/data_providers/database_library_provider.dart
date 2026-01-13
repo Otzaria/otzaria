@@ -11,6 +11,7 @@ import 'package:otzaria/migration/core/models/book.dart' as db_models;
 import 'package:otzaria/migration/core/models/toc_entry.dart' as db_models;
 import 'package:otzaria/utils/text_manipulation.dart';
 import 'package:otzaria/utils/toc_parser.dart';
+import 'package:otzaria/utils/docx_to_otzaria.dart';
 
 /// Library provider that loads books from the SQLite database.
 class DatabaseLibraryProvider implements LibraryProvider {
@@ -425,7 +426,16 @@ class DatabaseLibraryProvider implements LibraryProvider {
     int bookId,
   ) async {
     try {
-      final content = await file.readAsString();
+      final lowerPath = file.path.toLowerCase();
+
+      String content;
+      if (lowerPath.endsWith('.docx')) {
+        final title = getTitleFromPath(file.path);
+        final bytes = await file.readAsBytes();
+        content = await Isolate.run(() => docxToText(bytes, title));
+      } else {
+        content = await file.readAsString();
+      }
 
       // Parse TOC using the existing TocParser
       final tocEntries =
@@ -855,9 +865,9 @@ class DatabaseLibraryProvider implements LibraryProvider {
       // Get or create category in DB
       final categoryId = await _getOrCreateCategoryInDb(categoryPath);
 
-      // Parse TOC for text files
+      // Parse TOC for text-like files
       List<db_models.TocEntry>? tocEntries;
-      if (fileType == 'txt') {
+      if (fileType == 'txt' || fileType == 'docx') {
         tocEntries = await _parseTocForExternalBook(file, categoryId);
       }
 

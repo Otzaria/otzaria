@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as path;
@@ -17,6 +18,7 @@ import '../dao/repository/seforim_repository.dart';
 import '../shared/link_processor.dart';
 import 'hebrew_text_utils.dart' as hebrew_text_utils;
 import 'catalog_importer.dart';
+import 'package:otzaria/utils/docx_to_otzaria.dart';
 
 /// DatabaseGenerator is responsible for generating the Otzaria database from source files.
 /// It processes directories, books, and links to create a structured database.
@@ -320,9 +322,21 @@ class DatabaseGenerator {
         title, categoryId, fileType);
     if (existingBook != null) {
       if (updateExisting) {
-        if (fileType == 'txt' && insertContent) {
+        if ((fileType == 'txt' || fileType == 'docx') && insertContent) {
           await repository.clearBookContent(existingBook.id);
           await processBookContent(bookPath, existingBook.id);
+          // Keep file stats in sync for externally-referenced files too.
+          if (fileType != 'txt') {
+            try {
+              final file = File(bookPath);
+              final stat = await file.stat();
+              await repository.updateExternalBookMetadata(existingBook.id,
+                  stat.size, stat.modified.millisecondsSinceEpoch);
+            } catch (e) {
+              _log.warning(
+                  'Failed to update stats for external file: $bookPath', e);
+            }
+          }
         } else {
           try {
             final file = File(bookPath);
@@ -521,8 +535,19 @@ class DatabaseGenerator {
   /// [bookId] The ID of the book in the database
   Future<void> processBookContent(String bookPath, int bookId) async {
     final ext = path.extension(bookPath).toLowerCase();
-    if (ext == '.pdf' || ext == '.docx') {
+    if (ext == '.pdf') {
       await repository.updateBookTotalLines(bookId, 0);
+      return;
+    }
+
+    if (ext == '.docx') {
+      final title = path.basenameWithoutExtension(bookPath);
+      final bytes = await File(bookPath).readAsBytes();
+      final content = await Isolate.run(() => docxToText(bytes, title));
+      final lines = content.split('\n');
+
+      await processLinesWithTocEntries(bookId, lines);
+      await repository.updateBookTotalLines(bookId, lines.length);
       return;
     }
 

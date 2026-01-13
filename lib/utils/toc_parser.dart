@@ -21,7 +21,7 @@ class TocParser {
         // Note: We don't have category/fileType here, so we pass empty strings
         // This relies on the fuzzy matching in LibraryProviderManager
         final tocEntries =
-            await LibraryProviderManager.instance.getBookToc(bookTitle, '', 'txt');
+          await LibraryProviderManager.instance.getBookToc(bookTitle, '', 'txt');
         if (tocEntries != null && tocEntries.isNotEmpty) {
           // Convert hierarchical TOC to flat structure
           final flatToc = <Map<String, dynamic>>[];
@@ -79,11 +79,25 @@ class TocParser {
     final List<_Header> headers = [];
 
     for (int i = 0; i < lines.length; i++) {
-      final line = lines[i];
+      final rawLine = lines[i];
+      final line = rawLine.trimLeft();
+
+      // Markdown headings: # .. ######
+      // We require a space after the hashes to reduce false positives.
+      final md = RegExp(r'^(#{1,6})\s+(.+?)\s*$').firstMatch(line);
+      if (md != null) {
+        final level = md.group(1)!.length;
+        final text = md.group(2)!.trim();
+        if (text.isNotEmpty) {
+          headers.add(_Header(text: text, index: i, level: level));
+        }
+        continue;
+      }
 
       // Match <h1>..</h1> up to <h6>
-      if (line.startsWith('<h') && line.length > 3) {
-        final c = line[2];
+      final lower = line.toLowerCase();
+      if (lower.startsWith('<h') && lower.length > 3) {
+        final c = lower[2];
         final code = c.codeUnitAt(0);
         if (code >= '1'.codeUnitAt(0) && code <= '6'.codeUnitAt(0)) {
           final level = int.tryParse(c) ?? 1;

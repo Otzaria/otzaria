@@ -2328,6 +2328,17 @@ extension FileSyncRepository on SeforimRepository {
   /// Clears book content (lines and TOC entries) for updating.
   /// Preserves book metadata.
   Future<void> clearBookContent(int bookId) async {
+    // Clean mapping rows explicitly to avoid orphans when foreign_keys PRAGMA is off.
+    final db = await database.database;
+    await db.rawDelete(
+      'DELETE FROM line_toc WHERE lineId IN (SELECT id FROM line WHERE bookId = ?)',
+      [bookId],
+    );
+    await db.rawDelete(
+      'DELETE FROM line_toc WHERE tocEntryId IN (SELECT id FROM tocEntry WHERE bookId = ?)',
+      [bookId],
+    );
+
     await deleteBookLines(bookId);
     await deleteBookTocEntries(bookId);
   }
