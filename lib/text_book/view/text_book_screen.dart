@@ -1085,30 +1085,49 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       return const SizedBox.shrink();
     }
 
-    const style = TextStyle(fontSize: 17);
+    const titleStyle = TextStyle(fontSize: 17);
+    const authorStyle = TextStyle(fontSize: 12, color: Colors.grey);
     final text = state.currentTitle!;
+    final author = state.book.author;
 
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final textPainter = TextPainter(
-          text: TextSpan(text: text, style: style),
+          text: TextSpan(text: text, style: titleStyle),
           maxLines: 1,
           textDirection: TextDirection.rtl,
         )..layout(minWidth: 0, maxWidth: constraints.maxWidth);
 
-        final child = SelectionArea(
+        final titleWidget = SelectionArea(
           child: Text(
             text,
-            style: style,
+            style: titleStyle,
             textAlign: TextAlign.end,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
         );
 
+        // אם יש מחבר, מציגים אותו מתחת לכותרת
+        final child = author != null && author.isNotEmpty
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  titleWidget,
+                  Text(
+                    author,
+                    style: authorStyle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              )
+            : titleWidget;
+
         if (textPainter.didExceedMaxLines) {
           return Tooltip(
-            message: text,
+            message: author != null ? '$text\n$author' : text,
             child: child,
           );
         }
