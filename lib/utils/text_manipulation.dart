@@ -389,8 +389,20 @@ String removeTeamim(String s) => s
     .replaceAll('׀', '')
     .replaceAll(SearchRegexPatterns.cantillationOnly, '');
 
-String removeSectionNames(String s) {
-  // Handle Amudim first (more specific)
+String normalizeReference(String s) {
+  // 1. הוספת רווחים להתחלה ולסוף כדי שכל מילה תהיה מוקפת ברווחים (מקל על זיהוי מילים שלמות)
+  s = ' $s ';
+
+  // 2. ניקוי מקדים של ניקוד, טעמים וסימני קיצור (גרשיים/מרכאות)
+  // זה קריטי כדי ש-"ד'" יהפוך ל-"ד" ונוכל לזהות אותו כקיצור בהמשך
+  s = removeTeamim(removeVolwels(s));
+  s = s
+      .replaceAll('\u05F4', '')
+      .replaceAll('\u05F3', '')
+      .replaceAll('"', '')
+      .replaceAll("'", '');
+
+  // 3. טיפול בעמודים - המרה לסימנים גרפיים אחידים (. ו- :)
   s = s
       .replaceAll('עמוד א', ' . ')
       .replaceAll('עמוד ב', ' : ')
@@ -399,33 +411,36 @@ String removeSectionNames(String s) {
       .replaceAll('עא', ' . ')
       .replaceAll('עב', ' : ');
 
-  // Handle common section names
-  s = s.replaceAll(
-      RegExp(r'פרק|פסוק|פסקה|סעיף|סימן|הלכה|מאמר|קטן|משנה|דף|עמוד'), ' ');
+  // 4. הסרת שמות סעיפים וקיצורים (כמילים שלמות בלבד)
+  // השימוש ברווחים מסביב מבטיח שלא נמחק בטעות חלקים ממילים אחרות (כמו "דפים")
+  final keywords = [
+    'פרק',
+    'פסוק',
+    'פסקה',
+    'סעיף',
+    'סימן',
+    'הלכה',
+    'מאמר',
+    'קטן',
+    'משנה',
+    'דף',
+    'עמוד',
+    'ד',
+    'פ',
+    'ס',
+    'סי',
+    'עמ'
+  ];
 
-  // Standard cleanup
-  s = s.replaceAll('"', '').replaceAll("'", '').replaceAll(',', '');
+  for (final word in keywords) {
+    s = s.replaceAll(' $word ', ' ');
+  }
 
-  return s;
-}
-
-String normalizeReference(String s) {
-  s = ' $s '; // Add spaces for easier word boundary matching
-
-  // Section abbreviations
-  s = s
-      .replaceAll(' ד ', ' דף ')
-      .replaceAll(' פ ', ' פרק ')
-      .replaceAll(' ס ', ' סעיף ')
-      .replaceAll(' סי ', ' סימן ')
-      .replaceAll(' עמ ', ' עמוד ');
-
-  s = removeSectionNames(s);
+  // 5. נרמול פיסוק וניקוי תווים לא רלוונטיים
   s = s.replaceAll('.', ' . ').replaceAll(':', ' : ');
-  s = removeTeamim(removeVolwels(s));
-  s = s.replaceAll('\u05F4', '').replaceAll('\u05F3', '');
   s = s.replaceAll(RegExp(r'[^a-zA-Z0-9\u0590-\u05FF\s.:]'), ' ');
 
+  // 6. ניקוי סופי: רווחים כפולים, Trim והמרה לאותיות קטנות
   return s.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
 }
 
