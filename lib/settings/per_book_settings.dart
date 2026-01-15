@@ -39,11 +39,8 @@ class PerBookSettings {
   ) async {
     try {
       final file = await _getSettingsFile(bookName);
-      debugPrint('📁 Saving to file: ${file.path}');
       final json = jsonEncode(settings);
-      debugPrint('📄 JSON content: $json');
       await file.writeAsString(json);
-      debugPrint('✅ Saved per-book settings for: $bookName');
     } catch (e) {
       debugPrint('❌ Error saving per-book settings: $e');
       rethrow;
@@ -54,15 +51,11 @@ class PerBookSettings {
   static Future<Map<String, dynamic>?> loadSettings(String bookName) async {
     try {
       final file = await _getSettingsFile(bookName);
-      debugPrint('📁 Looking for file: ${file.path}');
       if (!await file.exists()) {
-        debugPrint('📁 File does not exist');
         return null;
       }
       final json = await file.readAsString();
-      debugPrint('📄 JSON content: $json');
       final settings = jsonDecode(json) as Map<String, dynamic>;
-      debugPrint('✅ Loaded per-book settings for: $bookName');
       return settings;
     } catch (e) {
       debugPrint('❌ Error loading per-book settings: $e');
@@ -76,7 +69,6 @@ class PerBookSettings {
       final file = await _getSettingsFile(bookName);
       if (await file.exists()) {
         await file.delete();
-        debugPrint('✅ Deleted per-book settings for: $bookName');
       }
     } catch (e) {
       debugPrint('❌ Error deleting per-book settings: $e');
@@ -89,7 +81,6 @@ class PerBookSettings {
       final dir = await _getSettingsDirectory();
       if (await dir.exists()) {
         await dir.delete(recursive: true);
-        debugPrint('✅ Deleted all per-book settings');
       }
     } catch (e) {
       debugPrint('❌ Error deleting all per-book settings: $e');
@@ -115,7 +106,9 @@ class PerBookSettings {
             .replaceAll('_', ' ');
       }).toList();
     } catch (e) {
-      debugPrint('❌ Error getting books with settings: $e');
+      if (kDebugMode) {
+        debugPrint('❌ Error getting books with settings: $e');
+      }
       return [];
     }
   }
@@ -133,7 +126,6 @@ class PerBookSettings {
       }
 
       final files = (await dir.list().toList()).whereType<File>();
-      int cleanedCount = 0;
 
       for (final file in files) {
         if (!file.path.endsWith('.json')) continue;
@@ -162,19 +154,17 @@ class PerBookSettings {
 
           if (isRedundant) {
             await file.delete();
-            cleanedCount++;
-            debugPrint('🧹 Cleaned redundant settings file: ${file.path}');
           }
         } catch (e) {
-          debugPrint('❌ Error processing file ${file.path}: $e');
+          if (kDebugMode) {
+            debugPrint('❌ Error processing file ${file.path}: $e');
+          }
         }
       }
-
-      if (cleanedCount > 0) {
-        debugPrint('🧹 Cleaned $cleanedCount redundant settings files');
-      }
     } catch (e) {
-      debugPrint('❌ Error cleaning redundant settings: $e');
+      if (kDebugMode) {
+        debugPrint('❌ Error cleaning redundant settings: $e');
+      }
     }
   }
 }

@@ -50,6 +50,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     on<ClearHighlightedLine>(_onClearHighlightedLine);
     on<TogglePinLeftPane>(_onTogglePinLeftPane);
     on<UpdateSearchText>(_onUpdateSearchText);
+    on<UpdateSectionSpecificHighlight>(_onUpdateSectionSpecificHighlight);
+    on<UpdateSectionSpecificHighlightError>(_onUpdateSectionSpecificHighlightError);
+    on<MarkErrorMessageShown>(_onMarkErrorMessageShown);
     on<CreateNoteFromToolbar>(_onCreateNoteFromToolbar);
     on<UpdateSelectedTextForNote>(_onUpdateSelectedTextForNote);
 
@@ -275,6 +278,12 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
             : null,
         selectedTextEnd: state is TextBookLoaded
             ? (state as TextBookLoaded).selectedTextEnd
+            : null,
+        sectionSpecificHighlight: state is TextBookLoaded
+            ? (state as TextBookLoaded).sectionSpecificHighlight
+            : null,
+        sectionSpecificHighlightIndex: state is TextBookLoaded
+            ? (state as TextBookLoaded).sectionSpecificHighlightIndex
             : null,
       ));
     } catch (e) {
@@ -543,8 +552,64 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   ) {
     if (state is TextBookLoaded) {
       final currentState = state as TextBookLoaded;
+      
+      // חיפוש רגיל מאפס את ההדגשה הספציפית למקטע
       emit(currentState.copyWith(
         searchText: event.text,
+        sectionSpecificHighlight: null,
+        sectionSpecificHighlightIndex: null,
+        selectedIndex: currentState.selectedIndex,
+      ));
+    }
+  }
+
+  void _onUpdateSectionSpecificHighlight(
+    UpdateSectionSpecificHighlight event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is TextBookLoaded) {
+      final currentState = state as TextBookLoaded;
+      
+      final newState = currentState.copyWith(
+        sectionSpecificHighlight: event.text,
+        sectionSpecificHighlightIndex: event.index,
+        sectionSpecificHighlightError: null, // Clear any previous error
+        fullSectionHighlight: event.fullSection,
+        selectedIndex: currentState.selectedIndex,
+      );
+      
+      emit(newState);
+    }
+  }
+
+  void _onUpdateSectionSpecificHighlightError(
+    UpdateSectionSpecificHighlightError event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is TextBookLoaded) {
+      final currentState = state as TextBookLoaded;
+      
+      // אם הטקסט ריק, נקה את השגיאה
+      final errorText = event.searchText.isEmpty ? null : event.searchText;
+      
+      emit(currentState.copyWith(
+        sectionSpecificHighlight: null, // Clear highlight
+        sectionSpecificHighlightIndex: null, // Clear highlight index
+        sectionSpecificHighlightError: errorText, // Set or clear error message
+        errorMessageShown: false, // Always reset to false so error can be shown again if needed
+        selectedIndex: currentState.selectedIndex,
+      ));
+    }
+  }
+
+  void _onMarkErrorMessageShown(
+    MarkErrorMessageShown event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is TextBookLoaded) {
+      final currentState = state as TextBookLoaded;
+      emit(currentState.copyWith(
+        errorMessageShown: true,
         selectedIndex: currentState.selectedIndex,
       ));
     }

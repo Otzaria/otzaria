@@ -17,6 +17,9 @@ import 'package:otzaria/settings/settings_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
+import 'package:otzaria/utils/sharing_utils.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
@@ -54,8 +57,8 @@ import 'package:otzaria/settings/per_book_settings.dart';
 import 'package:otzaria/text_book/view/page_shape/page_shape_settings_dialog.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dart';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
+// import 'package:pdf/pdf.dart'; // Temporarily disabled
+// import 'package:pdf/widgets.dart' as pw; // Temporarily disabled
 
 // קבועים למצבי תצוגה (למניעת magic strings)
 const String _viewModeSplit = 'split';
@@ -1319,6 +1322,18 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     TextBookLoaded state,
   ) {
     return [
+      // העתק קישור לספר זה - ראשון בתפריט
+      ActionButtonData(
+        widget: IconButton(
+          icon: const Icon(FluentIcons.share_24_regular),
+          tooltip: 'העתק קישור לספר זה',
+          onPressed: () => _shareCurrentBook(context, state),
+        ),
+        icon: FluentIcons.share_24_regular,
+        tooltip: 'העתק קישור לספר זה',
+        onPressed: () => _shareCurrentBook(context, state),
+      ),
+
       // כפתורי ניווט - רק בתצוגה משולבת
       if (widget.isInCombinedView) ...[
         ActionButtonData(
@@ -2589,6 +2604,24 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       focusNode: navigationSearchFocusNode,
       closeLeftPaneCallback: () =>
           context.read<TextBookBloc>().add(const ToggleLeftPane(false)),
+    );
+  }
+
+  /// שיתוף קישור לספר הנוכחי
+  void _shareCurrentBook(BuildContext context, TextBookLoaded state) {
+    // יצירת TextBookTab מהמצב הנוכחי
+    final tab = TextBookTab(
+      book: state.book,
+      index: state.positionsListener.itemPositions.value.isNotEmpty
+          ? state.positionsListener.itemPositions.value.first.index
+          : 1,
+    );
+
+    // שימוש ב-SharingUtils לשיתוף
+    SharingUtils.shareBookLink(
+      tab,
+      (message) => UiSnack.showQuick(message),
+      (error) => UiSnack.showError(error),
     );
   }
 }

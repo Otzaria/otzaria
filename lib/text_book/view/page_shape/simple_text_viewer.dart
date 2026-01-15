@@ -9,6 +9,7 @@ import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/utils/html_link_handler.dart';
 import 'package:flutter_context_menu/flutter_context_menu.dart' as ctx;
 import 'package:otzaria/models/books.dart';
@@ -18,7 +19,7 @@ import 'package:otzaria/core/scaffold_messenger.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 import 'package:otzaria/personal_notes/personal_notes_system.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
-import 'package:otzaria/tabs/models/text_tab.dart';
+import 'package:otzaria/utils/sharing_utils.dart';
 
 /// תצוגת טקסט פשוטה - משמשת גם לטקסט המרכזי וגם למפרשים
 class SimpleTextViewer extends StatefulWidget {
@@ -127,6 +128,29 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
           label: const Text('ערוך פסקה זו'),
           icon: const Icon(FluentIcons.edit_24_regular),
           onSelected: (_) => _editParagraph(index),
+        ),
+        const ctx.MenuDivider(),
+        // שיתוף קישורים
+        ctx.MenuItem.submenu(
+          label: const Text('שתף קישור ישיר'),
+          icon: const Icon(FluentIcons.share_24_regular),
+          items: [
+            ctx.MenuItem(
+              label: const Text('העתק קישור ישיר לספר זה'),
+              icon: const Icon(FluentIcons.link_24_regular),
+              onSelected: (_) => _shareBookLink(),
+            ),
+            ctx.MenuItem(
+              label: const Text('העתק קישור ישיר למקטע זה'),
+              icon: const Icon(FluentIcons.link_square_24_regular),
+              onSelected: (_) => _shareSectionLink(index),
+            ),
+            ctx.MenuItem(
+              label: const Text('העתק קישור ישיר למקטע זה עם הדגשת טקסט'),
+              icon: const Icon(FluentIcons.highlight_24_regular),
+              onSelected: (_) => _shareTextHighlightLink(index),
+            ),
+          ],
         ),
       ],
     );
@@ -320,64 +344,175 @@ $textWithBreaks
     }
   }
 
+  /// שיתוף קישור לספר
+  Future<void> _shareBookLink() async {
+    final state = context.read<TextBookBloc>().state;
+    if (state is! TextBookLoaded) return;
+
+    // יצירת TextBookTab זמני לשימוש ב-SharingUtils
+    final tempTab = TextBookTab(book: state.book, index: 0);
+
+    await SharingUtils.shareBookLink(
+      tempTab,
+      (message) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text(message), duration: const Duration(seconds: 2)),
+          );
+        }
+      },
+      (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text(error), duration: const Duration(seconds: 2)),
+          );
+        }
+      },
+    );
+  }
+
+  /// שיתוף קישור למקטע הנוכחי
+  Future<void> _shareSectionLink(int index) async {
+    final state = context.read<TextBookBloc>().state;
+    if (state is! TextBookLoaded) return;
+
+    // יצירת TextBookTab זמני עם האינדקס הנכון
+    final tempTab = TextBookTab(book: state.book, index: index);
+
+    await SharingUtils.shareSectionLink(
+      tempTab,
+      (message) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text(message), duration: const Duration(seconds: 2)),
+          );
+        }
+      },
+      (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text(error), duration: const Duration(seconds: 2)),
+          );
+        }
+      },
+    );
+  }
+
+  /// שיתוף קישור עם הדגשת טקסט
+  Future<void> _shareTextHighlightLink(int index) async {
+    final state = context.read<TextBookBloc>().state;
+    if (state is! TextBookLoaded) return;
+
+    // יצירת TextBookTab זמני עם האינדקס הנכון
+    final tempTab = TextBookTab(book: state.book, index: index);
+
+    await SharingUtils.shareHighlightedTextLink(
+      tempTab,
+      (message) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text(message), duration: const Duration(seconds: 2)),
+          );
+        }
+      },
+      (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text(error), duration: const Duration(seconds: 2)),
+          );
+        }
+      },
+      selectedText: _savedSelectedText,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // כותרת אופציונלית
-        if (widget.title != null)
-          Container(
-            padding: const EdgeInsets.all(12.0),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface.withAlpha(128),
-              border: Border(
-                bottom: BorderSide(
-                  color: Theme.of(context).dividerColor,
-                  width: 0.5,
-                ),
-              ),
-            ),
-            child: Center(
-              child: Text(
-                widget.title!,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ),
-        // תוכן
-        Expanded(
-          child: BlocBuilder<TextBookBloc, TextBookState>(
-            builder: (context, state) {
-              if (state is! TextBookLoaded) {
-                return const Center(child: CircularProgressIndicator());
-              }
+    return BlocListener<TextBookBloc, TextBookState>(
+      listener: (context, state) {
+        if (state is TextBookLoaded &&
+            state.sectionSpecificHighlightError != null &&
+            state.sectionSpecificHighlightError!.isNotEmpty &&
+            !state.errorMessageShown) {
+          // Show error message when text is not found in nearby sections
+          // Using showWithDuration without backgroundColor to get normal black text color
+          UiSnack.showWithDuration(
+            'הטקסט "${state.sectionSpecificHighlightError}" לא נמצא במקטע זה או במקטעים הסמוכים',
+            duration: const Duration(seconds: 10),
+          );
 
-              return SelectionArea(
-                onSelectionChanged: (selection) {
-                  // שמירת הטקסט הנבחר
-                  if (selection != null) {
-                    setState(() {
-                      _savedSelectedText = selection.plainText;
-                    });
-                  }
-                },
-                child: ScrollablePositionedList.builder(
-                  itemScrollController: _scrollController,
-                  itemPositionsListener: _positionsListener,
-                  itemCount: widget.content.length,
-                  padding: const EdgeInsets.all(4),
-                  itemBuilder: (context, index) =>
-                      _buildLine(index, state, context),
+          // Mark error as shown to prevent repeated displays
+          final bloc = context.read<TextBookBloc>();
+          Future.delayed(const Duration(milliseconds: 100), () {
+            if (mounted) {
+              bloc.add(const MarkErrorMessageShown());
+            }
+          });
+        }
+      },
+      child: Column(
+        children: [
+          // כותרת אופציונלית
+          if (widget.title != null)
+            Container(
+              padding: const EdgeInsets.all(12.0),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface.withAlpha(128),
+                border: Border(
+                  bottom: BorderSide(
+                    color: Theme.of(context).dividerColor,
+                    width: 0.5,
+                  ),
                 ),
-              );
-            },
+              ),
+              child: Center(
+                child: Text(
+                  widget.title!,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          // תוכן
+          Expanded(
+            child: BlocBuilder<TextBookBloc, TextBookState>(
+              builder: (context, state) {
+                if (state is! TextBookLoaded) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                return SelectionArea(
+                  onSelectionChanged: (selection) {
+                    // שמירת הטקסט הנבחר
+                    if (selection != null && mounted) {
+                      setState(() {
+                        _savedSelectedText = selection.plainText;
+                      });
+                    }
+                  },
+                  child: ScrollablePositionedList.builder(
+                    itemScrollController: _scrollController,
+                    itemPositionsListener: _positionsListener,
+                    itemCount: widget.content.length,
+                    padding: const EdgeInsets.all(4),
+                    itemBuilder: (context, index) =>
+                        _buildLine(index, state, context),
+                  ),
+                );
+              },
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -407,10 +542,12 @@ $textWithBreaks
       onTap: widget.isMainText
           ? () {
               // איפוס הטקסט השמור
-              setState(() {
-                _savedSelectedText = null;
-                _savedSelectedIndex = null;
-              });
+              if (mounted) {
+                setState(() {
+                  _savedSelectedText = null;
+                  _savedSelectedIndex = null;
+                });
+              }
               // עדכון selectedIndex רק בטקסט המרכזי
               if (isSelected) {
                 context
@@ -436,9 +573,11 @@ $textWithBreaks
           : null,
       onSecondaryTapDown: (details) {
         // שמירת האינדקס לשימוש בתפריט ההקשר
-        setState(() {
-          _savedSelectedIndex = index;
-        });
+        if (mounted) {
+          setState(() {
+            _savedSelectedIndex = index;
+          });
+        }
       },
       child: ctx.ContextMenuRegion(
         contextMenu: _buildContextMenu(state, index, context),
@@ -466,11 +605,27 @@ $textWithBreaks
 
               // הדגשת טקסט חיפוש (רק בטקסט המרכזי)
               String processedData = data;
-              if (widget.isMainText && state.searchText.isNotEmpty) {
-                processedData = state.removeNikud
-                    ? utils.highLight(
-                        utils.removeVolwels('$data\n'), state.searchText)
-                    : utils.highLight('$data\n', state.searchText);
+              if (widget.isMainText) {
+                // בדיקה אם זה הדגשת כל המקטע
+                if (state.fullSectionHighlight &&
+                    state.sectionSpecificHighlightIndex == index) {
+                  processedData = utils.highlightFullSection(processedData);
+                }
+                // הדגשת טקסט ספציפי למקטע (מקישורים)
+                else if (state.sectionSpecificHighlight != null &&
+                    state.sectionSpecificHighlight!.isNotEmpty &&
+                    state.sectionSpecificHighlightIndex == index) {
+                  processedData = utils.exactHighlight(
+                      processedData, state.sectionSpecificHighlight!,
+                      fuzzyForLongText: true);
+                }
+                // הדגשת חיפוש רגיל
+                else if (state.searchText.isNotEmpty) {
+                  processedData = state.removeNikud
+                      ? utils.highLight(
+                          utils.removeVolwels('$data\n'), state.searchText)
+                      : utils.highLight('$data\n', state.searchText);
+                }
               }
 
               processedData = utils.formatTextWithParentheses(processedData);

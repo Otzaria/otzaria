@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/search/utils/regex_patterns.dart';
 import 'package:otzaria/data/book_locator.dart';
@@ -16,7 +17,8 @@ String truncate(String text, int length) {
 
 String removeVolwels(String s) {
   s = s.replaceAll('־', ' ').replaceAll('׀', ' ').replaceAll('|', ' ');
-  return s.replaceAll(SearchRegexPatterns.vowelsAndCantillation, '');
+  final result = s.replaceAll(SearchRegexPatterns.vowelsAndCantillation, '');
+  return result;
 }
 
 List<String> generateFullPartialSpellingVariations(String word) {
@@ -748,4 +750,591 @@ String _getTopicSync(String title, Map<String, String> titleToPath) {
   }
 
   return _defaultCategory;
+}
+/// פונקציה להדגשה מדויקת של טקסט שמתעלמת משינויים קלים כמו ניקוד וטעמים
+/// מיועדת להדגשה ספציפית במקום חיפוש כללי
+/// עם תמיכה ב-fuzzy matching למשפטים ארוכים ומילים מרובות
+String exactHighlight(String text, String searchTerm, {bool fuzzyForLongText = false}) {
+  if (searchTerm.isEmpty || text.isEmpty) {
+    return text;
+  }
+
+  // עבור מילים מרובות או טקסט ארוך, תמיד נשתמש ב-fuzzy matching אם הפרמטר מופעל
+  final hasMultipleWords = searchTerm.trim().contains(' ');
+  final isLongText = searchTerm.length > 10; // גם עבור טקסט ארוך
+  
+  if (fuzzyForLongText && (hasMultipleWords || isLongText)) {
+    return unlimitedHighlight(text, searchTerm);
+  }
+
+  // נרמול הטקסטים - הסרת ניקוד, טעמים, תגי HTML ומקפים
+  String normalizeText(String input) {
+    return input
+        .replaceAll(RegExp(r'<[^>]*>'), '') // הסרת תגי HTML
+        .replaceAll(SearchRegexPatterns.vowelsAndCantillation, '') // הסרת ניקוד וטעמים
+        .replaceAll('־', ' ') // המרת מקף עברי לרווח
+        .replaceAll('-', ' ') // המרת מקף רגיל לרווח
+        .replaceAll(RegExp(r'\s+'), ' ') // נרמול רווחים
+        .trim();
+  }
+
+  final normalizedText = normalizeText(text);
+  final normalizedSearchTerm = normalizeText(searchTerm);
+
+  // בדיקה אם המונח המנורמל קיים בטקסט המנורמל
+  if (!normalizedText.contains(normalizedSearchTerm)) {
+    // במקום לוותר, ננסה unlimitedHighlight שיכול למצוא התאמות חלקיות
+    return unlimitedHighlight(text, searchTerm);
+  }
+
+  // אם הטקסט נמצא, ננסה להדגיש אותו בצורה פשוטה יותר
+  // נשתמש בגישה פשוטה יותר למילים מרובות
+  if (hasMultipleWords) {
+    return _simpleMultiWordHighlight(text, searchTerm);
+  }
+
+  // מציאת המיקום המדויק בטקסט המנורמל (לטקסט של מילה אחת)
+  final startIndex = normalizedText.indexOf(normalizedSearchTerm);
+  final endIndex = startIndex + normalizedSearchTerm.length;
+
+  // עכשיו נמצא את המיקום המתאים בטקסט המקורי (עם HTML וניקוד)
+  // נעבור תו אחר תו ונספור רק תווים שאינם HTML/ניקוד/טעמים/מקפים
+  int originalIndex = 0;
+  int normalizedIndex = 0;
+  int highlightStart = -1;
+  int highlightEnd = -1;
+
+  while (originalIndex < text.length && normalizedIndex <= endIndex) {
+    final char = text[originalIndex];
+    
+    // אם זה תחילת תג HTML, נדלג עליו
+    if (char == '<') {
+      final tagEnd = text.indexOf('>', originalIndex);
+      if (tagEnd != -1) {
+        originalIndex = tagEnd + 1;
+        continue;
+      }
+    }
+    
+    // אם זה תו ניקוד או טעמים, נדלג עליו
+    if (SearchRegexPatterns.vowelsAndCantillation.hasMatch(char)) {
+      originalIndex++;
+      continue;
+    }
+    
+    // אם זה מקף עברי או רגיל, נתרגם לרווח
+    if (char == '־' || char == '-') {
+      if (normalizedIndex == startIndex) {
+        highlightStart = originalIndex;
+      }
+      normalizedIndex++;
+      if (normalizedIndex == endIndex) {
+        highlightEnd = originalIndex + 1;
+        break;
+      }
+      originalIndex++;
+      continue;
+    }
+    
+    // אם זה רווח מיותר (יותר מרווח אחד ברצף), נדלג
+    if (char == ' ' || char == '\n' || char == '\t') {
+      // בדוק אם יש רווח ברצף
+      if (normalizedIndex < normalizedText.length && normalizedText[normalizedIndex] == ' ') {
+        if (normalizedIndex == startIndex) {
+          highlightStart = originalIndex;
+        }
+        normalizedIndex++;
+        if (normalizedIndex == endIndex) {
+          highlightEnd = originalIndex + 1;
+          break;
+        }
+      }
+      originalIndex++;
+      continue;
+    }
+    
+    // תו רגיל - נבדוק אם אנחנו במיקום הנכון
+    if (normalizedIndex == startIndex) {
+      highlightStart = originalIndex;
+    }
+    
+    normalizedIndex++;
+    
+    if (normalizedIndex == endIndex) {
+      highlightEnd = originalIndex + 1;
+      break;
+    }
+    
+    originalIndex++;
+  }
+
+  // אם מצאנו את המיקומים, נדגיש
+  if (highlightStart != -1 && highlightEnd != -1) {
+    final before = text.substring(0, highlightStart);
+    final highlighted = text.substring(highlightStart, highlightEnd);
+    final after = text.substring(highlightEnd);
+    
+    final result = '$before<mark>$highlighted</mark>$after';
+    return result;
+  }
+
+  return unlimitedHighlight(text, searchTerm);
+}
+
+/// פונקציה להדגשה מטושטשת (fuzzy) למשפטים ארוכים
+/// מאפשרת הבדלים קלים בעיצוב ושורות חדשות
+String fuzzyHighlight(String text, String searchTerm) {
+  if (kDebugMode) {
+    debugPrint('fuzzyHighlight called with searchTerm: "$searchTerm"');
+  }
+  
+  if (searchTerm.isEmpty || text.isEmpty) {
+    return text;
+  }
+
+  // נרמול הטקסט והמונח לחיפוש
+  String normalizeText(String input) {
+    return input
+        .replaceAll(RegExp(r'<[^>]*>'), '') // הסרת תגי HTML
+        .replaceAll(SearchRegexPatterns.vowelsAndCantillation, '') // הסרת ניקוד וטעמים
+        .replaceAll('־', ' ') // המרת מקף עברי לרווח
+        .replaceAll('-', ' ') // המרת מקף רגיל לרווח
+        .replaceAll(RegExp(r'\s+'), ' ') // נרמול רווחים
+        .trim();
+  }
+
+  final normalizedText = normalizeText(text);
+  final normalizedSearchTerm = normalizeText(searchTerm);
+
+  // פיצול המונח לחיפוש למילים
+  final searchWords = normalizedSearchTerm.split(' ').where((word) => word.isNotEmpty).toList();
+  
+  // חיפוש רצפים של מילים בטקסט
+  final textWords = normalizedText.split(' ');
+  String bestMatch = '';
+  double bestScore = 0.0;
+
+  // חיפוש רצפים של אורכים שונים
+  for (int length = searchWords.length; length >= 1; length--) {
+    for (int i = 0; i <= textWords.length - length; i++) {
+      final sequence = textWords.sublist(i, i + length).join(' ');
+      final score = _calculateSimilarity(sequence, normalizedSearchTerm);
+      
+      // הורדת דרישת ההתאמה מ-70% ל-30% לגמישות מקסימלית
+      if (score > bestScore && score >= 0.3) {
+        bestScore = score;
+        bestMatch = sequence;
+      }
+    }
+  }
+
+  // אם מצאנו התאמה טובה, נדגיש אותה
+  if (bestMatch.isNotEmpty) {
+    if (kDebugMode) {
+      debugPrint('fuzzyHighlight: Found best match: "$bestMatch"');
+    }
+    return _highlightBestMatch(text, bestMatch);
+  }
+
+  // אם לא מצאנו התאמה טובה, ננסה חיפוש פשוט יותר
+  // נחפש את כל המונח כמו שהוא (עם רווחים)
+  if (normalizedText.contains(normalizedSearchTerm)) {
+    if (kDebugMode) {
+      debugPrint('fuzzyHighlight: Found simple match');
+    }
+    return _highlightBestMatch(text, normalizedSearchTerm);
+  }
+
+  // אם לא מצאנו התאמה מלאה, נדגיש את המילה הראשונה שנמצאה
+  for (final word in searchWords) {
+    if (normalizedText.contains(word)) {
+      if (kDebugMode) {
+        debugPrint('fuzzyHighlight: Found word match: "$word"');
+      }
+      return _highlightBestMatch(text, word);
+    }
+  }
+
+  if (kDebugMode) {
+    debugPrint('fuzzyHighlight: No match found');
+  }
+  return text;
+}
+
+/// פונקציה להדגשת טקסט ללא הגבלות - מיועדת לטקסט ארוך ומשפטים שלמים
+String unlimitedHighlight(String text, String searchTerm) {
+  if (kDebugMode) {
+    debugPrint('unlimitedHighlight called with searchTerm: "$searchTerm"');
+  }
+  
+  if (searchTerm.isEmpty || text.isEmpty) {
+    return text;
+  }
+
+  // נרמול הטקסט והמונח לחיפוש
+  String normalizeForSearch(String input) {
+    return input
+        .replaceAll(RegExp(r'<[^>]*>'), '') // הסרת תגי HTML
+        .replaceAll(SearchRegexPatterns.vowelsAndCantillation, '') // הסרת ניקוד וטעמים
+        .replaceAll('־', ' ') // המרת מקף עברי לרווח
+        .replaceAll('-', ' ') // המרת מקף רגיל לרווח
+        .replaceAll(RegExp(r'\s+'), ' ') // נרמול רווחים
+        .trim();
+  }
+
+  final normalizedText = normalizeForSearch(text);
+  final normalizedSearchTerm = normalizeForSearch(searchTerm);
+
+  // חיפוש ישיר של המונח המלא
+  if (normalizedText.contains(normalizedSearchTerm)) {
+    if (kDebugMode) {
+      debugPrint('unlimitedHighlight: Found exact match');
+    }
+    return _highlightBestMatch(text, normalizedSearchTerm);
+  }
+
+  // חיפוש גמיש - ננסה למצוא את הרצף הטוב ביותר
+  final searchWords = normalizedSearchTerm.split(' ').where((word) => word.isNotEmpty).toList();
+  final textWords = normalizedText.split(' ');
+  
+  // חיפוש רצף הארוך ביותר שמתאים
+  String bestMatch = '';
+  double bestScore = 0.0;
+
+  // ננסה רצפים של אורכים שונים - מהארוך לקצר
+  for (int length = searchWords.length; length >= 1; length--) {
+    for (int startIndex = 0; startIndex <= textWords.length - length; startIndex++) {
+      final sequence = textWords.sublist(startIndex, startIndex + length).join(' ');
+      
+      // חישוב ציון התאמה - כמה מילים מהחיפוש נמצאות ברצף
+      int matchingWords = 0;
+      for (final searchWord in searchWords) {
+        if (sequence.contains(searchWord)) {
+          matchingWords++;
+        }
+      }
+      
+      final score = matchingWords / searchWords.length;
+      
+      // אם מצאנו רצף טוב יותר (ציון גבוה יותר)
+      // הורדנו את הסף ל-0.1 לגמישות מקסימלית
+      if (score > bestScore && score >= 0.1) {
+        bestScore = score;
+        bestMatch = sequence;
+        if (kDebugMode) {
+          debugPrint('unlimitedHighlight: Found better match with score $score: "$bestMatch"');
+        }
+      }
+    }
+  }
+
+  // אם מצאנו התאמה טובה, נדגיש אותה
+  if (bestMatch.isNotEmpty) {
+    if (kDebugMode) {
+      debugPrint('unlimitedHighlight: Using best match: "$bestMatch"');
+    }
+    return _highlightBestMatch(text, bestMatch);
+  }
+
+  // חיפוש חלקי - ננסה למצוא חלק מהמונח
+  final longestWord = searchWords.reduce((a, b) => a.length > b.length ? a : b);
+  if (normalizedText.contains(longestWord)) {
+    if (kDebugMode) {
+      debugPrint('unlimitedHighlight: Using longest word: "$longestWord"');
+    }
+    return _highlightBestMatch(text, longestWord);
+  }
+
+  // כפתרון אחרון, נדגיש את המילה הראשונה שנמצאה
+  for (final word in searchWords) {
+    if (normalizedText.contains(word)) {
+      if (kDebugMode) {
+        debugPrint('unlimitedHighlight: Using first found word: "$word"');
+      }
+      return _highlightBestMatch(text, word);
+    }
+  }
+
+  if (kDebugMode) {
+    debugPrint('unlimitedHighlight: No match found');
+  }
+  return text;
+}
+
+/// פונקציה עזר לחישוב דמיון בין שני מחרוזות
+double _calculateSimilarity(String text1, String text2) {
+  if (text1.isEmpty || text2.isEmpty) return 0.0;
+  if (text1 == text2) return 1.0;
+  
+  final words1 = text1.split(' ').where((w) => w.isNotEmpty).toList();
+  final words2 = text2.split(' ').where((w) => w.isNotEmpty).toList();
+  
+  if (words1.isEmpty || words2.isEmpty) return 0.0;
+  
+  int matchingWords = 0;
+  for (final word1 in words1) {
+    for (final word2 in words2) {
+      if (word1 == word2 || word1.contains(word2) || word2.contains(word1)) {
+        matchingWords++;
+        break;
+      }
+    }
+  }
+  
+  // שיפור: נחשב את הציון על בסיס המילים הקצרות יותר
+  final minLength = words1.length < words2.length ? words1.length : words2.length;
+  return matchingWords / minLength;
+}
+
+/// פונקציה עזר להדגשת ההתאמה הטובה ביותר
+String _highlightBestMatch(String text, String matchTerm) {
+  // נרמול לחיפוש המיקום המדויק
+  String normalizeText(String input) {
+    return input
+        .replaceAll(RegExp(r'<[^>]*>'), '') // הסרת תגי HTML
+        .replaceAll(SearchRegexPatterns.vowelsAndCantillation, '') // הסרת ניקוד וטעמים
+        .replaceAll('־', ' ') // המרת מקף עברי לרווח
+        .replaceAll('-', ' ') // המרת מקף רגיל לרווח
+        .replaceAll(RegExp(r'\s+'), ' ') // נרמול רווחים
+        .trim();
+  }
+
+  final normalizedText = normalizeText(text);
+  final normalizedMatch = normalizeText(matchTerm);
+
+  // ננסה חיפוש ישיר קודם
+  int startIndex = normalizedText.indexOf(normalizedMatch);
+  
+  // אם לא מצאנו, ננסה חיפוש גמיש יותר
+  if (startIndex == -1) {
+    // ננסה לחפש חלקים מהמונח
+    final matchWords = normalizedMatch.split(' ');
+    for (final word in matchWords) {
+      if (word.length > 2) { // רק מילים משמעותיות
+        final wordIndex = normalizedText.indexOf(word);
+        if (wordIndex != -1) {
+          startIndex = wordIndex;
+          break;
+        }
+      }
+    }
+  }
+  
+  if (startIndex == -1) return text;
+
+  // מציאת המיקום המדויק בטקסט המקורי
+  int highlightStart = -1;
+  int highlightEnd = -1;
+  
+  // חיפוש פשוט יותר - נחפש את המונח בטקסט המקורי
+  // ננסה קודם חיפוש ישיר
+  final directIndex = text.toLowerCase().indexOf(matchTerm.toLowerCase());
+  if (directIndex != -1) {
+    highlightStart = directIndex;
+    highlightEnd = directIndex + matchTerm.length;
+  } else {
+    // חיפוש מתקדם יותר
+    int currentPos = 0;
+    int normalizedPos = 0;
+    
+    while (currentPos < text.length && normalizedPos < normalizedText.length) {
+      if (normalizedPos == startIndex) {
+        highlightStart = currentPos;
+      }
+      if (normalizedPos == startIndex + normalizedMatch.length) {
+        highlightEnd = currentPos;
+        break;
+      }
+      
+      final char = text[currentPos];
+      final normalizedChar = normalizeText(char);
+      
+      if (normalizedChar.isNotEmpty) {
+        normalizedPos += normalizedChar.length;
+      }
+      currentPos++;
+    }
+    
+    // אם לא מצאנו את הסוף, נשתמש באורך המונח
+    if (highlightEnd == -1 && highlightStart != -1) {
+      highlightEnd = (highlightStart + matchTerm.length).clamp(0, text.length);
+    }
+  }
+
+  // הדגשה אם מצאנו מיקומים
+  if (highlightStart != -1 && highlightEnd != -1) {
+    final before = text.substring(0, highlightStart);
+    final highlighted = text.substring(highlightStart, highlightEnd);
+    final after = text.substring(highlightEnd);
+    return '$before<mark>$highlighted</mark>$after';
+  }
+
+  return text;
+}
+
+/// פונקציה לחיפוש טקסט בכל המקטעים ומציאת האינדקס הנכון
+int? findTextInContent(List<String> content, String searchTerm) {
+  if (searchTerm.isEmpty) {
+    return null;
+  }
+  
+  // נרמול הטקסט לחיפוש
+  String normalizeText(String input) {
+    return input
+        .replaceAll(RegExp(r'<[^>]*>'), '') // הסרת תגי HTML
+        .replaceAll(SearchRegexPatterns.vowelsAndCantillation, '') // הסרת ניקוד וטעמים
+        .replaceAll('־', '') // הסרת מקף עברי
+        .replaceAll('-', '') // הסרת מקף רגיל
+        .replaceAll(RegExp(r'\s+'), ' ') // נרמול רווחים
+        .trim();
+  }
+  
+  final normalizedSearchTerm = normalizeText(searchTerm);
+  
+  for (int i = 0; i < content.length; i++) {
+    final normalizedContent = normalizeText(content[i]);
+    if (normalizedContent.contains(normalizedSearchTerm)) {
+      return i;
+    }
+  }
+  
+  return null;
+}
+
+/// פונקציה לחיפוש טקסט במקטע הנוכחי ובמקטעים הסמוכים בלבד
+/// מחזירה את האינדקס אם נמצא, או null אם לא נמצא בטווח המוגבל
+int? findTextInNearbyContent(List<String> content, String searchTerm, int originalIndex) {
+  if (searchTerm.isEmpty || content.isEmpty) {
+    return null;
+  }
+  
+  // נרמול הטקסט לחיפוש - טיפול משופר במילים מרובות
+  String normalizeText(String input) {
+    return input
+        .replaceAll(RegExp(r'<[^>]*>'), '') // הסרת תגי HTML
+        .replaceAll(SearchRegexPatterns.vowelsAndCantillation, '') // הסרת ניקוד וטעמים
+        .replaceAll('־', ' ') // המרת מקף עברי לרווח
+        .replaceAll('-', ' ') // המרת מקף רגיל לרווח
+        .replaceAll(RegExp(r'\s+'), ' ') // נרמול רווחים
+        .trim();
+  }
+  
+  // נרמול מונח החיפוש עם טיפול מיוחד ב-%20 ורווחים
+  String normalizedSearchTerm = searchTerm
+      .replaceAll('%20', ' ')  // המרת %20 לרווח
+      .replaceAll('+', ' ')    // המרת + לרווח (אם יש)
+      .trim();
+  
+  normalizedSearchTerm = normalizeText(normalizedSearchTerm);
+  
+  // חיפוש במקטע המקורי ובמקטעים הסמוכים (±2)
+  final startIndex = (originalIndex - 2).clamp(0, content.length - 1);
+  final endIndex = (originalIndex + 2).clamp(0, content.length - 1);
+  
+  for (int i = startIndex; i <= endIndex; i++) {
+    final normalizedContent = normalizeText(content[i]);
+    if (normalizedContent.contains(normalizedSearchTerm)) {
+      return i;
+    }
+  }
+  
+  return null;
+}
+
+/// פונקציה פשוטה להדגשת טקסט ארוך ללא הגבלות
+/// מיועדת לטקסט של כמה מילים או שורות שלמות
+String simpleUnlimitedHighlight(String text, String searchTerm) {
+  if (searchTerm.isEmpty || text.isEmpty) {
+    return text;
+  }
+
+  // נרמול פשוט
+  String simpleNormalize(String input) {
+    return input
+        .replaceAll(SearchRegexPatterns.vowelsAndCantillation, '') // הסרת ניקוד וטעמים
+        .replaceAll('־', ' ') // המרת מקף עברי לרווח
+        .replaceAll('-', ' ') // המרת מקף רגיל לרווח
+        .replaceAll(RegExp(r'\s+'), ' ') // נרמול רווחים
+        .trim()
+        .toLowerCase();
+  }
+
+  final normalizedText = simpleNormalize(text);
+  final normalizedSearchTerm = simpleNormalize(searchTerm);
+
+  // חיפוש ישיר
+  if (normalizedText.contains(normalizedSearchTerm)) {
+    // מציאת המיקום בטקסט המקורי
+    final index = text.toLowerCase().indexOf(searchTerm.toLowerCase());
+    if (index != -1) {
+      final before = text.substring(0, index);
+      final match = text.substring(index, index + searchTerm.length);
+      final after = text.substring(index + searchTerm.length);
+      return '$before<mark>$match</mark>$after';
+    }
+  }
+
+  // אם לא מצאנו התאמה ישירה, ננסה חיפוש גמיש
+  return unlimitedHighlight(text, searchTerm);
+}
+
+/// פונקציה להדגשת כל המקטע (עבור text=true)
+String highlightFullSection(String sectionText) {
+  if (sectionText.isEmpty) {
+    return sectionText;
+  }
+  
+  // הדגשה עדינה עם צהוב בהיר
+  final result = '<div style="background-color: #ffff99; padding: 4px; margin: 4px 0; border-radius: 4px;">$sectionText</div>';
+  return result;
+}
+
+/// פונקציה פשוטה להדגשת טקסט רב-מילים
+String _simpleMultiWordHighlight(String text, String searchTerm) {
+  // נרמול פשוט
+  String simpleNormalize(String input) {
+    return input
+        .replaceAll(SearchRegexPatterns.vowelsAndCantillation, '') // הסרת ניקוד וטעמים
+        .replaceAll('־', ' ') // המרת מקף עברי לרווח
+        .replaceAll('-', ' ') // המרת מקף רגיל לרווח
+        .replaceAll(RegExp(r'\s+'), ' ') // נרמול רווחים
+        .trim();
+  }
+
+  // נרמול הטקסט והמונח
+  final normalizedText = simpleNormalize(text.replaceAll(RegExp(r'<[^>]*>'), ''));
+  final normalizedSearchTerm = simpleNormalize(searchTerm);
+
+  // חיפוש ישיר של המונח המלא
+  if (normalizedText.contains(normalizedSearchTerm)) {
+    // ננסה למצוא את המיקום בטקסט המקורי
+    final words = normalizedSearchTerm.split(' ');
+    final firstWord = words.first;
+    final lastWord = words.last;
+    
+    // חיפוש המילה הראשונה והאחרונה בטקסט המקורי
+    final textLower = text.toLowerCase();
+    final firstWordLower = firstWord.toLowerCase();
+    final lastWordLower = lastWord.toLowerCase();
+    
+    final firstIndex = textLower.indexOf(firstWordLower);
+    if (firstIndex != -1) {
+      // מציאת המילה האחרונה החל מהמילה הראשונה
+      final searchStart = firstIndex;
+      final lastIndex = textLower.indexOf(lastWordLower, searchStart);
+      
+      if (lastIndex != -1) {
+        final endIndex = lastIndex + lastWord.length;
+        final before = text.substring(0, firstIndex);
+        final highlighted = text.substring(firstIndex, endIndex);
+        final after = text.substring(endIndex);
+        
+        final result = '$before<mark>$highlighted</mark>$after';
+        return result;
+      }
+    }
+  }
+  
+  // אם לא הצלחנו, ננסה unlimitedHighlight
+  return unlimitedHighlight(text, searchTerm);
 }

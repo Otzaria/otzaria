@@ -9,7 +9,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_single_instance/flutter_single_instance.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:provider/provider.dart';
@@ -63,6 +62,8 @@ import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria/services/notification_service.dart';
 import 'package:logging/logging.dart';
 import 'package:otzaria/widgets/restart_widget.dart';
+import 'package:otzaria/utils/simple_single_instance.dart';
+import 'package:otzaria/utils/url_handler_service.dart';
 
 // Global reference to window listener for cleanup
 AppWindowListener? _appWindowListener;
@@ -79,7 +80,8 @@ DynamicDataLoaderService? _shamorZachorDataLoader;
 /// 1. Ensures Flutter bindings are initialized
 /// 2. Calls [initialize] to set up required services and configurations
 /// 3. Launches the main application widget
-void main() async {
+/// 4. Handles URL scheme arguments if provided
+void main(List<String> args) async {
   hierarchicalLoggingEnabled = true;
   // write errors to file
   FlutterError.onError = (FlutterErrorDetails details) {
@@ -110,13 +112,61 @@ void main() async {
   // It does not change the actual asset bundling (see pdfrx remove_wasm_modules).
   pdfrxFlutterInitialize(dismissPdfiumWasmWarnings: true);
 
-  // Check for single instance - skip on Apple platforms (macOS/iOS) due to sandbox restrictions
+  // Handle URL scheme arguments first
+  String? initialUrl;
+  debugPrint('Command line arguments: $args');
+
+  // Find URL argument - check both --url= prefix and direct otzaria:// URL
+  for (final arg in args) {
+    if (arg.startsWith('--url=')) {
+      initialUrl = arg.substring(6); // Remove '--url=' prefix
+      debugPrint('Found URL argument: $initialUrl');
+      break;
+    } else if (arg.startsWith('otzaria://')) {
+      initialUrl = arg;
+      debugPrint('Found direct URL argument: $initialUrl');
+      break;
+    }
+  }
+
+  // Check for single instance using our simple implementation
   if (!Platform.isMacOS && !Platform.isIOS) {
-    FlutterSingleInstance flutterSingleInstance = FlutterSingleInstance();
-    bool isFirstInstance = await flutterSingleInstance.isFirstInstance();
-    if (!isFirstInstance) {
-      // If not the first instance, exit the app
-      exit(0);
+    try {
+      debugPrint('SimpleSingleInstance: Starting single instance check...');
+      bool isFirstInstance = await SimpleSingleInstance.isFirstInstance();
+      debugPrint(
+          'SimpleSingleInstance check: isFirstInstance = $isFirstInstance');
+
+      if (!isFirstInstance) {
+        debugPrint('This is not the first instance');
+        // If not the first instance and we have a URL, write it to a file for the running instance
+        if (initialUrl != null) {
+          debugPrint(
+              'Second instance with URL: $initialUrl - writing to file and waiting for processing');
+          await SimpleSingleInstance.writeUrlForRunningInstance(initialUrl);
+
+          // Wait for the first instance to process the URL (indicated by file deletion)
+          // Use handshake protocol instead of fixed delay
+          await SimpleSingleInstance.waitForUrlProcessing();
+
+          debugPrint(
+              'Second instance: URL processed by first instance, exiting now');
+        } else {
+          debugPrint('Second instance without URL - exiting');
+        }
+        exit(0);
+      } else {
+        debugPrint('This is the first instance - creating lock');
+        await SimpleSingleInstance.createLock();
+        debugPrint('Lock created successfully');
+      }
+    } catch (e, stackTrace) {
+      debugPrint('WARNING: Single instance check failed: $e');
+      debugPrint('Stack trace: $stackTrace');
+      debugPrint(
+          'Continuing with app launch - multiple instances may run simultaneously');
+      // Continue anyway if single instance check fails
+      // This is acceptable as it's better to allow the app to run than to fail completely
     }
   }
 
@@ -141,6 +191,8 @@ void main() async {
   // No-op: removed verbose debug printing
 
   final historyRepository = HistoryRepository();
+
+  debugPrint('Creating App with initialUrl: $initialUrl');
 
   runApp(
     RestartWidget(
@@ -207,7 +259,7 @@ void main() async {
               create: (context) => ShamorZachorProgressProvider(),
             ),
           ],
-          child: const App(),
+          child: App(initialUrl: initialUrl),
         ),
       ),
     ),
@@ -328,6 +380,15 @@ Future<void> initialize() async {
       debugPrint('Failed to initialize notification service: $e');
     }
   }
+
+  // Initialize URL Handler Service
+  try {
+    await UrlHandlerService.initialize();
+  } catch (e) {
+    if (kDebugMode) {
+      debugPrint('Failed to initialize URL handler service: $e');
+    }
+  }
 }
 
 /// Creates the necessary directory structure for the application.
@@ -375,10 +436,12 @@ void cleanup() {
 
   // Clear SourcesBooks data from memory
   SourcesBooksService().clearData();
-
   // Clear shared book/acronym caches
   BooksCache.instance.clear();
   AcronymsCache.instance.clear();
+
+  // Clean up single instance lock
+  SimpleSingleInstance.cleanup();
 }
 
 // Note: TOC parsing helper moved to lib/utils/toc_parser.dart for reuse

@@ -16,6 +16,7 @@ import 'package:otzaria/settings/settings_event.dart';
 import 'package:otzaria/widgets/commentary_pane_tooltip.dart';
 import 'package:otzaria/widgets/resizable_drag_handle.dart';
 import 'package:otzaria/utils/context_menu_utils.dart';
+import 'package:otzaria/utils/sharing_utils.dart';
 
 class SplitedViewScreen extends StatefulWidget {
   const SplitedViewScreen({
@@ -90,13 +91,11 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
     // קביעת הטאב הראשוני
     // הטאבים בטור השמאלי: 0=מפרשים, 1=קישורים, 2=הערות אישיות
     if (widget.initialTabIndex != null) {
-      debugPrint('DEBUG: Using initialTabIndex: ${widget.initialTabIndex}');
       // וידוא שהאינדקס תקף (0-2)
       return widget.initialTabIndex!.clamp(0, 2);
     } else {
       // ברירת מחדל - מפרשים (0)
       final saved = Settings.getValue<int>('key-sidebar-tab-index-combined');
-      debugPrint('DEBUG: saved: $saved, returning: ${saved ?? 0}');
       // וידוא שהערך השמור תקף (0-2)
       return (saved ?? 0).clamp(0, 2);
     }
@@ -205,6 +204,13 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
           onSelected: (_) =>
               _selectionKey.currentState?.selectableRegion.selectAll(),
         ),
+        const MenuDivider(),
+        // שיתוף קישור לספר
+        MenuItem(
+          label: const Text('העתק קישור לספר זה'),
+          icon: const Icon(FluentIcons.share_24_regular),
+          onSelected: (_) => _shareBookLink(),
+        ),
       ],
     );
   }
@@ -307,19 +313,12 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                             onClosePane: _togglePane,
                             initialTabIndex: _currentTabIndex,
                             onTabChanged: (index) {
-                              debugPrint(
-                                  'DEBUG: Tab changed to $index, showSplitView: ${widget.showSplitView}');
                               setState(() {
                                 _currentTabIndex = index;
                               });
                               if (!widget.showSplitView) {
-                                debugPrint(
-                                    'DEBUG: Saving tab $index to combined settings');
                                 Settings.setValue<int>(
                                     'key-sidebar-tab-index-combined', index);
-                              } else {
-                                debugPrint(
-                                    'DEBUG: NOT saving tab (split view mode)');
                               }
                             },
                           ),
@@ -382,6 +381,35 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
           );
         },
       ),
+    );
+  }
+
+  /// שיתוף קישור לספר
+  Future<void> _shareBookLink() async {
+    final state = context.read<TextBookBloc>().state;
+    if (state is! TextBookLoaded) return;
+
+    // יצירת TextBookTab זמני לשימוש ב-SharingUtils
+    final tempTab = TextBookTab(book: state.book, index: 0);
+
+    await SharingUtils.shareBookLink(
+      tempTab,
+      (message) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text(message), duration: const Duration(seconds: 2)),
+          );
+        }
+      },
+      (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text(error), duration: const Duration(seconds: 2)),
+          );
+        }
+      },
     );
   }
 }

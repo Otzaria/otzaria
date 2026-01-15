@@ -17,7 +17,9 @@ class AppColors {
 }
 
 class App extends StatelessWidget {
-  const App({super.key});
+  final String? initialUrl;
+  
+  const App({super.key, this.initialUrl});
 
   /// Check if a color is neutral (white/gray) based on its saturation
   bool _isNeutralColor(Color color) {
@@ -128,7 +130,7 @@ class App extends StatelessWidget {
                     ).scaffoldBackgroundColor,
                   ),
                 ),
-          home: const MainWindowScreen(),
+          home: MainWindowScreen(initialUrl: initialUrl),
         );
       },
     );

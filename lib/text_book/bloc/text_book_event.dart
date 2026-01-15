@@ -153,6 +153,33 @@ class UpdateSearchText extends TextBookEvent {
   List<Object?> get props => [text];
 }
 
+class UpdateSectionSpecificHighlight extends TextBookEvent {
+  final String? text;
+  final int? index;
+  final bool fullSection;
+
+  const UpdateSectionSpecificHighlight(this.text, this.index, {this.fullSection = false});
+
+  @override
+  List<Object?> get props => [text, index, fullSection];
+}
+
+class UpdateSectionSpecificHighlightError extends TextBookEvent {
+  final String searchText;
+
+  const UpdateSectionSpecificHighlightError(this.searchText);
+
+  @override
+  List<Object?> get props => [searchText];
+}
+
+class MarkErrorMessageShown extends TextBookEvent {
+  const MarkErrorMessageShown();
+
+  @override
+  List<Object?> get props => [];
+}
+
 class CreateNoteFromToolbar extends TextBookEvent {
   const CreateNoteFromToolbar();
 

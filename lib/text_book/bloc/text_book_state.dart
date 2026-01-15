@@ -101,6 +101,13 @@ class TextBookLoaded extends TextBookState {
   final int? selectedTextStart;
   final int? selectedTextEnd;
   final int? highlightedLine;
+  
+  // Section-specific highlighting
+  final String? sectionSpecificHighlight;
+  final int? sectionSpecificHighlightIndex;
+  final String? sectionSpecificHighlightError;
+  final bool errorMessageShown; // Prevents repeated error messages
+  final bool fullSectionHighlight; // For text=true parameter
 
   // Editor state
   final bool isEditorOpen;
@@ -144,6 +151,11 @@ class TextBookLoaded extends TextBookState {
     this.selectedTextStart,
     this.selectedTextEnd,
     this.highlightedLine,
+    this.sectionSpecificHighlight,
+    this.sectionSpecificHighlightIndex,
+    this.sectionSpecificHighlightError,
+    this.errorMessageShown = false,
+    this.fullSectionHighlight = false,
     this.isEditorOpen = false,
     this.editorIndex,
     this.editorSectionId,
@@ -183,12 +195,16 @@ class TextBookLoaded extends TextBookState {
       selectedTextStart: null,
       selectedTextEnd: null,
       highlightedLine: null,
+      sectionSpecificHighlight: null,
+      sectionSpecificHighlightIndex: null,
       isEditorOpen: false,
       editorIndex: null,
       editorSectionId: null,
       editorText: null,
       hasDraft: false,
       hasLinksFile: false,
+      errorMessageShown: false,
+      fullSectionHighlight: false,
     );
   }
 
@@ -223,6 +239,12 @@ class TextBookLoaded extends TextBookState {
     int? selectedTextEnd,
     int? highlightedLine,
     bool clearHighlight = false,
+    String? sectionSpecificHighlight,
+    int? sectionSpecificHighlightIndex,
+    String? sectionSpecificHighlightError,
+    bool clearSectionHighlight = false,
+    bool? errorMessageShown,
+    bool? fullSectionHighlight,
     bool? isEditorOpen,
     int? editorIndex,
     String? editorSectionId,
@@ -262,6 +284,17 @@ class TextBookLoaded extends TextBookState {
       selectedTextEnd: selectedTextEnd ?? this.selectedTextEnd,
       highlightedLine:
           clearHighlight ? null : (highlightedLine ?? this.highlightedLine),
+      sectionSpecificHighlight: clearSectionHighlight 
+          ? null 
+          : (sectionSpecificHighlight ?? this.sectionSpecificHighlight),
+      sectionSpecificHighlightIndex: clearSectionHighlight 
+          ? null 
+          : (sectionSpecificHighlightIndex ?? this.sectionSpecificHighlightIndex),
+      sectionSpecificHighlightError: clearSectionHighlight 
+          ? null 
+          : (sectionSpecificHighlightError ?? this.sectionSpecificHighlightError),
+      errorMessageShown: errorMessageShown ?? this.errorMessageShown,
+      fullSectionHighlight: fullSectionHighlight ?? this.fullSectionHighlight,
       isEditorOpen: isEditorOpen ?? this.isEditorOpen,
       editorIndex: editorIndex ?? this.editorIndex,
       editorSectionId: editorSectionId ?? this.editorSectionId,
@@ -296,6 +329,11 @@ class TextBookLoaded extends TextBookState {
         selectedTextStart,
         selectedTextEnd,
         highlightedLine,
+        sectionSpecificHighlight,
+        sectionSpecificHighlightIndex,
+        sectionSpecificHighlightError,
+        errorMessageShown,
+        fullSectionHighlight,
         isEditorOpen,
         editorIndex,
         editorSectionId,
