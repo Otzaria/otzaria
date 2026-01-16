@@ -38,6 +38,7 @@ import 'package:otzaria/widgets/resizable_drag_handle.dart';
 import 'pdf_zoom_bar.dart';
 import 'package:otzaria/settings/per_book_settings.dart';
 import 'package:otzaria/widgets/commentary_pane_tooltip.dart';
+import 'package:otzaria/utils/shortcut_helper.dart';
 
 class PdfBookScreen extends StatefulWidget {
   final PdfBookTab tab;
@@ -793,6 +794,19 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                             ),
                           ),
                         ),
+                      // האזנה מקלדת כללית גם כאן (מחוץ ל-if של zoom bar)
+                      Positioned(
+                        top: 0,
+                        right: 0,
+                        width: 1,
+                        height: 1,
+                        child: KeyboardListener(
+                          focusNode: FocusNode()..requestFocus(),
+                          autofocus: true,
+                          onKeyEvent: _handleGlobalKeyEvent,
+                          child: const SizedBox.shrink(),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -1771,5 +1785,16 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       (message) => UiSnack.showQuick(message),
       (error) => UiSnack.showError(error),
     );
+  }
+
+  void _handleGlobalKeyEvent(KeyEvent event) {
+    if (event is! KeyDownEvent) return;
+
+    final togglePdfShortcut =
+        Settings.getValue<String>('key-shortcut-toggle-pdf-view') ??
+            'ctrl+shift+p';
+    if (ShortcutHelper.matchesShortcut(event, togglePdfShortcut)) {
+      _handleTextButtonPress(context);
+    }
   }
 }

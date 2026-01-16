@@ -989,8 +989,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                       return KeyboardListener(
                         focusNode: _bookContentFocusNode,
                         autofocus: true,
-                        onKeyEvent: (event) =>
-                            _handleGlobalKeyEvent(event, context, state),
+                        onKeyEvent: (event) => _handleGlobalKeyEvent(
+                            event, context, state, widget.tab),
                         child: Scaffold(
                           appBar: _buildAppBar(context, state, wideScreen),
                           body: _buildBody(context, state, wideScreen),
@@ -1056,8 +1056,9 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         );
 
         // אם אין הגדרות שמורות, נשתמש בברירות מחדל
-        final currentSettings =
-            config ?? await DefaultCommentators.getDefaults(state.book, links: state.links);
+        final currentSettings = config ??
+            await DefaultCommentators.getDefaults(state.book,
+                links: state.links);
 
         if (!context.mounted) return;
 
@@ -1865,10 +1866,9 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
   /// ניווט לכותרת הקודמת ב-TOC
   void _navigateToPreviousToc(TextBookLoaded state) {
-    final currentIndex =
-        state.positionsListener.itemPositions.value.isNotEmpty
-            ? state.positionsListener.itemPositions.value.first.index
-            : 0;
+    final currentIndex = state.positionsListener.itemPositions.value.isNotEmpty
+        ? state.positionsListener.itemPositions.value.first.index
+        : 0;
     final prevIndex = _findPreviousTocIndex(
         state.tableOfContents, currentIndex, state.book.title);
     if (prevIndex != null) {
@@ -1881,10 +1881,9 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
   /// ניווט לכותרת הבאה ב-TOC
   void _navigateToNextToc(TextBookLoaded state) {
-    final currentIndex =
-        state.positionsListener.itemPositions.value.isNotEmpty
-            ? state.positionsListener.itemPositions.value.first.index
-            : 0;
+    final currentIndex = state.positionsListener.itemPositions.value.isNotEmpty
+        ? state.positionsListener.itemPositions.value.first.index
+        : 0;
     final nextIndex = _findNextTocIndex(
         state.tableOfContents, currentIndex, state.book.title);
     if (nextIndex != null) {
@@ -1987,7 +1986,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
       // 1. Get book path from library or database
       String? bookPath = book.filePath;
-      
+
       if (bookPath == null) {
         final location = await BookLocator.locateBook(bookTitle);
         bookPath = location?.filePath;
@@ -1998,7 +1997,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         String categoryPath = '';
         // Try to use the category path from the book object first
         if (book.categoryPath != null && book.categoryPath!.isNotEmpty) {
-           categoryPath = book.categoryPath!.replaceAll(', ', '/');
+          categoryPath = book.categoryPath!.replaceAll(', ', '/');
         } else {
           final dbProvider = SqliteDataProvider.instance;
           if (await dbProvider.databaseExists() && dbProvider.isInitialized) {
@@ -2007,7 +2006,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
               if (repository != null) {
                 final dbBook = await repository.getBookByTitle(bookTitle);
                 if (dbBook != null) {
-                  final category = await repository.getCategory(dbBook.categoryId);
+                  final category =
+                      await repository.getCategory(dbBook.categoryId);
                   if (category != null) {
                     final categoryParts = <String>[];
                     dynamic currentCategory = category;
@@ -2029,11 +2029,13 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             }
           }
         }
-        
+
         if (categoryPath.isNotEmpty) {
-             final libraryPath = Settings.getValue<String>('key-library-path') ?? '.';
-             bookPath = '$libraryPath${Platform.pathSeparator}אוצריא${Platform.pathSeparator}$categoryPath${Platform.pathSeparator}$bookTitle.txt';
-             debugPrint('Book path from DB: $bookPath');
+          final libraryPath =
+              Settings.getValue<String>('key-library-path') ?? '.';
+          bookPath =
+              '$libraryPath${Platform.pathSeparator}אוצריא${Platform.pathSeparator}$categoryPath${Platform.pathSeparator}$bookTitle.txt';
+          debugPrint('Book path from DB: $bookPath');
         }
       }
 
@@ -2650,8 +2652,8 @@ void _handleFullFileEditorPress(BuildContext context, TextBookLoaded state) {
   context.read<TextBookBloc>().add(OpenFullFileEditor());
 }
 
-bool _handleGlobalKeyEvent(
-    KeyEvent event, BuildContext context, TextBookLoaded state) {
+bool _handleGlobalKeyEvent(KeyEvent event, BuildContext context,
+    TextBookLoaded state, TextBookTab tab) {
   // קריאת קיצורים מההגדרות
   final editSectionShortcut =
       Settings.getValue<String>('key-shortcut-edit-section') ?? 'ctrl+e';
@@ -2663,6 +2665,9 @@ bool _handleGlobalKeyEvent(
       Settings.getValue<String>('key-shortcut-add-bookmark') ?? 'ctrl+b';
   final addNoteShortcut =
       Settings.getValue<String>('key-shortcut-add-note') ?? 'ctrl+n';
+  final togglePdfShortcut =
+      Settings.getValue<String>('key-shortcut-toggle-pdf-view') ??
+          'ctrl+shift+p';
 
   // עריכת קטע
   if (ShortcutHelper.matchesShortcut(event, editSectionShortcut)) {
@@ -2717,6 +2722,12 @@ bool _handleGlobalKeyEvent(
   // הוספת הערה
   if (ShortcutHelper.matchesShortcut(event, addNoteShortcut)) {
     _addNoteFromKeyboard(context, state);
+    return true;
+  }
+
+  // מעבר ל-PDF
+  if (ShortcutHelper.matchesShortcut(event, togglePdfShortcut)) {
+    _togglePdfView(context, state, tab);
     return true;
   }
 
@@ -2980,4 +2991,29 @@ void _openEditorDialog(BuildContext context, TextBookLoaded state) async {
 
   // Close editor when dialog is dismissed
   context.read<TextBookBloc>().add(const CloseEditor());
+}
+
+void _togglePdfView(
+    BuildContext context, TextBookLoaded state, TextBookTab tab) async {
+  final currentIndex = state.positionsListener.itemPositions.value.isNotEmpty
+      ? state.positionsListener.itemPositions.value.first.index
+      : 0;
+  tab.index = currentIndex;
+
+  final library = await DataRepository.instance.library;
+  if (!context.mounted) return;
+
+  final book = library.findBookByTitle(state.book.title, PdfBook);
+  if (book == null) {
+    return;
+  }
+
+  final index = await textToPdfPage(
+    state.book,
+    currentIndex,
+  );
+
+  if (!context.mounted) return;
+
+  openBook(context, book, index ?? 1, '', ignoreHistory: true);
 }

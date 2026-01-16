@@ -520,6 +520,14 @@ class _MySettingsScreenState extends State<MySettingsScreen>
                                     const Icon(FluentIcons.note_24_regular),
                               ),
                               ShortcutDropDownTile(
+                                settingKey: 'key-shortcut-toggle-pdf-view',
+                                title: 'החלף מצב תצוגה',
+                                allShortcuts: shortcuctsList,
+                                selected: 'ctrl+shift+p',
+                                leading: const Icon(
+                                    FluentIcons.document_pdf_24_regular),
+                              ),
+                              ShortcutDropDownTile(
                                 selected: 'ctrl+w',
                                 settingKey: 'key-shortcut-close-tab',
                                 title: 'סגור ספר נוכחי',
