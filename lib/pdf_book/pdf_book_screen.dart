@@ -38,6 +38,8 @@ import 'package:otzaria/widgets/resizable_drag_handle.dart';
 import 'pdf_zoom_bar.dart';
 import 'package:otzaria/settings/per_book_settings.dart';
 import 'package:otzaria/widgets/commentary_pane_tooltip.dart';
+import 'package:otzaria/utils/shortcut_helper.dart';
+import 'package:otzaria/utils/shortcut_validator.dart';
 
 class PdfBookScreen extends StatefulWidget {
   final PdfBookTab tab;
@@ -144,7 +146,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   @override
   void initState() {
     super.initState();
-
     pdfController = PdfViewerController();
     widget.tab.pdfViewerController = pdfController;
 
@@ -225,6 +226,21 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         settings.zoom!,
       );
     }
+  }
+
+  @override
+  void dispose() {
+    _zoomBarTimer?.cancel();
+    textSearcher?.removeListener(_onTextSearcherUpdated);
+    widget.tab.pdfViewerController.removeListener(_onPdfViewerControllerUpdate);
+    _leftPaneTabController?.dispose();
+    _searchFieldFocusNode.dispose();
+    _navigationFieldFocusNode.dispose();
+    _sidebarWidth.dispose();
+    _rightPaneWidth.dispose();
+    _showRightPane.dispose();
+    _settingsSub.cancel();
+    super.dispose();
   }
 
   /// שמירת הגדרות פר-ספר
@@ -368,21 +384,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   }
 
   @override
-  void dispose() {
-    _zoomBarTimer?.cancel();
-    textSearcher?.removeListener(_onTextSearcherUpdated);
-    widget.tab.pdfViewerController.removeListener(_onPdfViewerControllerUpdate);
-    _leftPaneTabController?.dispose();
-    _searchFieldFocusNode.dispose();
-    _navigationFieldFocusNode.dispose();
-    _sidebarWidth.dispose();
-    _rightPaneWidth.dispose();
-    _showRightPane.dispose();
-    _settingsSub.cancel();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     super.build(context);
     return LayoutBuilder(builder: (context, constrains) {
@@ -410,8 +411,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           LogicalKeySet(LogicalKeyboardKey.pageUp): _goPreviousPage,
         },
         child: Focus(
-          focusNode: FocusNode(),
           autofocus: !Platform.isAndroid,
+          onKeyEvent: (node, event) {
+            _handleGlobalKeyEvent(event);
+            return KeyEventResult.ignored;
+          },
           child: Scaffold(
             appBar: AppBar(
               centerTitle: false,
@@ -1499,6 +1503,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
   /// טיפול בלחיצה על כפתור הסימניה
   void _handleBookmarkPress(BuildContext context) {
+    if (!mounted) return;
     int index = widget.tab.pdfViewerController.isReady
         ? (widget.tab.pdfViewerController.pageNumber ?? 1)
         : 1;
@@ -1521,11 +1526,19 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           '${widget.tab.title} עמוד $index'; // אם אין outline, הצג עם מספר עמוד
     }
 
-    bool bookmarkAdded = Provider.of<BookmarkBloc>(context, listen: false)
-        .addBookmark(ref: ref, book: widget.tab.book, index: index);
-    if (mounted) {
-      UiSnack.show(
-          bookmarkAdded ? 'הסימניה נוספה בהצלחה' : 'הסימניה כבר קיימת');
+    try {
+      bool bookmarkAdded = context
+          .read<BookmarkBloc>()
+          .addBookmark(ref: ref, book: widget.tab.book, index: index);
+      if (mounted) {
+        UiSnack.show(
+            bookmarkAdded ? 'הסימניה נוספה בהצלחה' : 'הסימניה כבר קיימת');
+      }
+    } catch (e) {
+      debugPrint('Error adding bookmark: $e');
+      if (mounted) {
+        UiSnack.show('שגיאה בהוספת סימניה');
+      }
     }
   }
 
@@ -1771,5 +1784,19 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       (message) => UiSnack.showQuick(message),
       (error) => UiSnack.showError(error),
     );
+  }
+
+  void _handleGlobalKeyEvent(KeyEvent event) {
+    if (!mounted) return;
+    if (event is! KeyDownEvent) return;
+
+    final togglePdfShortcut =
+        Settings.getValue<String>('key-shortcut-toggle-pdf-view') ??
+            ShortcutValidator
+                .defaultShortcuts['key-shortcut-toggle-pdf-view'] ??
+            'ctrl+shift+p';
+    if (ShortcutHelper.matchesShortcut(event, togglePdfShortcut)) {
+      _handleTextButtonPress(context);
+    }
   }
 }

@@ -20,6 +20,7 @@ class ShortcutValidator {
     'key-shortcut-add-bookmark',
     'key-shortcut-add-note',
     'key-shortcut-switch-workspace',
+    'key-shortcut-toggle-pdf-view',
   ];
 
   /// Default values for shortcuts
@@ -40,6 +41,7 @@ class ShortcutValidator {
     'key-shortcut-add-bookmark': 'ctrl+b',
     'key-shortcut-add-note': 'ctrl+n',
     'key-shortcut-switch-workspace': 'ctrl+k',
+    'key-shortcut-toggle-pdf-view': 'ctrl+shift+p',
   };
 
   /// Shortcut names for display
@@ -60,6 +62,7 @@ class ShortcutValidator {
     'key-shortcut-add-bookmark': 'הוספת סימניה',
     'key-shortcut-add-note': 'הוספת הערה',
     'key-shortcut-switch-workspace': 'החלף שולחן עבודה',
+    'key-shortcut-toggle-pdf-view': 'החלף מצב תצוגה (PDF/טקסט)',
   };
 
   /// Check for conflicts in current shortcuts

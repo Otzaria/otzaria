@@ -30,10 +30,38 @@ class KeyboardShortcuts extends StatefulWidget {
 }
 
 class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
+  /// בודק אם הפוקוס הנוכחי נמצא על שדה טקסט
+  bool _isEditing() {
+    final focusNode = FocusManager.instance.primaryFocus;
+    if (focusNode == null || focusNode.context == null) return false;
+    // בדיקה מעמיקה יותר - האם הוידג'ט שמחזיק את הפוקוס הוא צאצא של EditableText
+    return focusNode.context!.widget is EditableText ||
+        focusNode.context!.findAncestorWidgetOfExactType<EditableText>() !=
+            null;
+  }
+
   /// מטפל באירועי מקלדת ברמה הגלובלית - עובד גם כשיש TextField עם focus
   KeyEventResult _handleKeyEvent(
       FocusNode node, KeyEvent event, Map<String, String> shortcutSettings) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
+
+    // מניעת הפעלת קיצורי מקשים של תו בודד (ללא modifiers) בזמן עריכת טקסט
+    if (_isEditing()) {
+      final isModifierPressed = HardwareKeyboard.instance.isControlPressed ||
+          HardwareKeyboard.instance.isAltPressed ||
+          HardwareKeyboard.instance.isMetaPressed;
+
+      if (!isModifierPressed) {
+        // מתיר רק מקשי F ומקש Escape
+        final isAllowed = event.logicalKey == LogicalKeyboardKey.escape ||
+            (event.logicalKey.keyId >= LogicalKeyboardKey.f1.keyId &&
+                event.logicalKey.keyId <= LogicalKeyboardKey.f12.keyId);
+
+        if (!isAllowed) {
+          return KeyEventResult.ignored;
+        }
+      }
+    }
 
     // קריאת ערכי הקיצורים מההגדרות
     final libraryShortcut =
