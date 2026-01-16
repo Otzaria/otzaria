@@ -7,6 +7,7 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/combined_view/commentary_content.dart';
 import 'package:otzaria/widgets/progressive_scrolling.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
+import 'package:flutter/foundation.dart';
 
 class CommentaryListForCombinedView extends StatefulWidget {
   final Function(TextBookTab) openBookCallback;
@@ -29,14 +30,23 @@ class CommentaryListForCombinedView extends StatefulWidget {
 
 class _CommentaryListForCombinedViewState
     extends State<CommentaryListForCombinedView> {
-  late Future<List<Link>> thisLinks;
-  late List<int> indexes;
   final ScrollOffsetController scrollController = ScrollOffsetController();
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<TextBookBloc, TextBookState>(builder: (context, state) {
+    return BlocBuilder<TextBookBloc, TextBookState>(
+        buildWhen: (previous, current) {
+      if (previous is! TextBookLoaded || current is! TextBookLoaded) {
+        return true;
+      }
+      return !listEquals(
+              previous.activeCommentators, current.activeCommentators) ||
+          previous.links != current.links ||
+          previous.fontSize != current.fontSize ||
+          previous.removeNikud != current.removeNikud;
+    }, builder: (context, state) {
       if (state is! TextBookLoaded) return const Center();
+
       return FutureBuilder(
         future: getLinksforIndexs(
             indexes: [widget.index],
@@ -52,7 +62,8 @@ class _CommentaryListForCombinedViewState
                     curve: 10.0,
                     accelerationFactor: 5,
                     child: ScrollablePositionedList.builder(
-                      key: PageStorageKey('${thisLinksSnapshot.data![0].heRef}_${widget.index}'),
+                      key: PageStorageKey(
+                          '${thisLinksSnapshot.data![0].heRef}_${widget.index}'),
                       physics: const ClampingScrollPhysics(),
                       scrollOffsetController: scrollController,
                       shrinkWrap: true,
@@ -62,7 +73,8 @@ class _CommentaryListForCombinedViewState
                           focusNode: FocusNode(),
                           title: Text(thisLinksSnapshot.data![index1].heRef),
                           subtitle: CommentaryContent(
-                            key: ValueKey('${thisLinksSnapshot.data![index1].path2}_${thisLinksSnapshot.data![index1].index2}_${widget.index}'),
+                            key: ValueKey(
+                                '${thisLinksSnapshot.data![index1].path2}_${thisLinksSnapshot.data![index1].index2}_${widget.index}'),
                             link: thisLinksSnapshot.data![index1],
                             fontSize: widget.fontSize,
                             openBookCallback: widget.openBookCallback,
