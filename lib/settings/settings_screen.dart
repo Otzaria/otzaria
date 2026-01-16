@@ -29,6 +29,7 @@ import 'package:otzaria/widgets/confirmation_dialog.dart';
 import 'package:otzaria/settings/custom_folders/custom_folders_tile.dart';
 import 'package:otzaria/widgets/dialogs.dart';
 import 'package:otzaria/utils/fullscreen_helper.dart';
+import 'package:otzaria/utils/shortcut_validator.dart';
 import 'dart:async';
 
 class MySettingsScreen extends StatefulWidget {
@@ -523,7 +524,8 @@ class _MySettingsScreenState extends State<MySettingsScreen>
                                 settingKey: 'key-shortcut-toggle-pdf-view',
                                 title: 'החלף מצב תצוגה',
                                 allShortcuts: shortcuctsList,
-                                selected: 'ctrl+shift+p',
+                                selected: ShortcutValidator.defaultShortcuts[
+                                    'key-shortcut-toggle-pdf-view']!,
                                 leading: const Icon(
                                     FluentIcons.document_pdf_24_regular),
                               ),

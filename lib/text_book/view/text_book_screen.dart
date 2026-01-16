@@ -45,6 +45,7 @@ import 'package:otzaria/models/phone_report_data.dart';
 import 'package:otzaria/services/phone_report_service.dart';
 import 'package:otzaria/services/sources_books_service.dart';
 import 'package:otzaria/utils/shortcut_helper.dart';
+import 'package:otzaria/utils/shortcut_validator.dart';
 import 'package:otzaria/utils/fullscreen_helper.dart';
 
 import 'package:otzaria/widgets/responsive_action_bar.dart';
@@ -2667,7 +2668,7 @@ bool _handleGlobalKeyEvent(KeyEvent event, BuildContext context,
       Settings.getValue<String>('key-shortcut-add-note') ?? 'ctrl+n';
   final togglePdfShortcut =
       Settings.getValue<String>('key-shortcut-toggle-pdf-view') ??
-          'ctrl+shift+p';
+          ShortcutValidator.defaultShortcuts['key-shortcut-toggle-pdf-view']!;
 
   // עריכת קטע
   if (ShortcutHelper.matchesShortcut(event, editSectionShortcut)) {

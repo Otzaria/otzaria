@@ -62,6 +62,7 @@ class ShortcutValidator {
     'key-shortcut-add-bookmark': 'הוספת סימניה',
     'key-shortcut-add-note': 'הוספת הערה',
     'key-shortcut-switch-workspace': 'החלף שולחן עבודה',
+    'key-shortcut-toggle-pdf-view': 'החלף מצב תצוגה (PDF/טקסט)',
   };
 
   /// Check for conflicts in current shortcuts
