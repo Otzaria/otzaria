@@ -2668,7 +2668,8 @@ bool _handleGlobalKeyEvent(KeyEvent event, BuildContext context,
       Settings.getValue<String>('key-shortcut-add-note') ?? 'ctrl+n';
   final togglePdfShortcut =
       Settings.getValue<String>('key-shortcut-toggle-pdf-view') ??
-          ShortcutValidator.defaultShortcuts['key-shortcut-toggle-pdf-view']!;
+          ShortcutValidator.defaultShortcuts['key-shortcut-toggle-pdf-view'] ??
+          'ctrl+shift+p';
 
   // עריכת קטע
   if (ShortcutHelper.matchesShortcut(event, editSectionShortcut)) {
