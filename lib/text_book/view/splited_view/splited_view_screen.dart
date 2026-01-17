@@ -53,7 +53,8 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
   int? _currentTabIndex;
   late double _leftPaneWidth;
   bool _isHovering = false; // מצב ריחוף על הטאב
-  String? _savedSelectedText; // טקסט נבחר לתפריט הקשר
+  final ValueNotifier<String?> _savedSelectedText =
+      ValueNotifier<String?>(null); // טקסט נבחר לתפריט הקשר
 
   @override
   void initState() {
@@ -179,20 +180,20 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
   @override
   void dispose() {
     _controller.dispose();
+    _savedSelectedText.dispose();
     super.dispose();
   }
 
-  ContextMenu _buildContextMenu(TextBookLoaded state) {
+  ContextMenu _buildContextMenu(TextBookLoaded state, String? selectedText) {
     return ContextMenu(
       entries: [
         MenuItem(
           label: const Text('העתק'),
           icon: const Icon(FluentIcons.copy_24_regular),
-          enabled: _savedSelectedText != null &&
-              _savedSelectedText!.trim().isNotEmpty,
+          enabled: selectedText != null && selectedText.trim().isNotEmpty,
           onSelected: (_) => ContextMenuUtils.copyFormattedText(
             context: context,
-            savedSelectedText: _savedSelectedText,
+            savedSelectedText: selectedText,
             fontSize: state.fontSize,
           ),
         ),
@@ -284,8 +285,8 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                   if (_paneOpen)
                     SizedBox(
                       width: _leftPaneWidth,
-                      child: ContextMenuRegion(
-                        contextMenu: _buildContextMenu(state),
+                      child: ValueListenableBuilder<String?>(
+                        valueListenable: _savedSelectedText,
                         child: SelectionArea(
                           key: _selectionKey,
                           contextMenuBuilder: (context, selectableRegionState) {
@@ -295,9 +296,7 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                           onSelectionChanged: (selection) {
                             if (selection != null &&
                                 selection.plainText.isNotEmpty) {
-                              setState(() {
-                                _savedSelectedText = selection.plainText;
-                              });
+                              _savedSelectedText.value = selection.plainText;
                             }
                           },
                           child: TabbedCommentaryPanel(
@@ -324,6 +323,12 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                             },
                           ),
                         ),
+                        builder: (context, selectedText, child) {
+                          return ContextMenuRegion(
+                            contextMenu: _buildContextMenu(state, selectedText),
+                            child: child!,
+                          );
+                        },
                       ),
                     ),
                 ],

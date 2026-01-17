@@ -56,9 +56,10 @@ class CombinedView extends StatefulWidget {
 
 class _CombinedViewState extends State<CombinedView> {
   // שמירת הטקסט הנבחר האחרון
-  String? _savedSelectedText;
+  final ValueNotifier<String?> _savedSelectedText =
+      ValueNotifier<String?>(null);
   // שמירת האינדקס של השורה שממנה הטקסט הודגש
-  int? _savedSelectedIndex;
+  final ValueNotifier<int?> _savedSelectedIndex = ValueNotifier<int?>(null);
 
   // שמירת reference ל-BLoC לשימוש ב-listeners
   late final TextBookBloc _textBookBloc;
@@ -116,6 +117,9 @@ class _CombinedViewState extends State<CombinedView> {
   void dispose() {
     widget.tab.positionsListener.itemPositions.removeListener(_onScroll);
     widget.tab.positionsListener.itemPositions.removeListener(_updateTabIndex);
+    _savedSelectedText.dispose();
+    _savedSelectedIndex.dispose();
+    _currentSelectedIndex.dispose();
     _focusNode.dispose();
     super.dispose();
   }
@@ -150,7 +154,7 @@ class _CombinedViewState extends State<CombinedView> {
   }
 
   // מעקב אחר האינדקס הנוכחי שנבחר (לשימוש בהעתקה עם כותרות)
-  int? _currentSelectedIndex;
+  final ValueNotifier<int?> _currentSelectedIndex = ValueNotifier<int?>(null);
 
   /// helper קטן שמחזיר רשימת MenuEntry מקבוצה אחת, כולל כפתור הצג/הסתר הכל
   List<ctx.MenuItem<void>> _buildGroup(
@@ -201,8 +205,8 @@ class _CombinedViewState extends State<CombinedView> {
   }
 
   // בניית תפריט קונטקסט "מקובע" לאינדקס ספציפי של פסקה
-  ctx.ContextMenu _buildContextMenuForIndex(
-      TextBookLoaded state, int paragraphIndex, BuildContext menuContext) {
+  ctx.ContextMenu _buildContextMenuForIndex(TextBookLoaded state,
+      int paragraphIndex, BuildContext menuContext, String? selectedText) {
     // אם זה מצב תצוגה מקדימה, החזר תפריט מצומצם
     if (widget.isPreviewMode) {
       return ctx.ContextMenu(
@@ -210,8 +214,7 @@ class _CombinedViewState extends State<CombinedView> {
           ctx.MenuItem(
             label: const Text('העתק'),
             icon: const Icon(FluentIcons.copy_24_regular),
-            enabled: _savedSelectedText != null &&
-                _savedSelectedText!.trim().isNotEmpty,
+            enabled: selectedText != null && selectedText.trim().isNotEmpty,
             onSelected: (_) => _copyFormattedText(),
           ),
         ],
@@ -359,8 +362,7 @@ class _CombinedViewState extends State<CombinedView> {
         ctx.MenuItem(
           label: const Text('העתק'),
           icon: const Icon(FluentIcons.copy_24_regular),
-          enabled: _savedSelectedText != null &&
-              _savedSelectedText!.trim().isNotEmpty,
+          enabled: selectedText != null && selectedText.trim().isNotEmpty,
           onSelected: (_) => _copyFormattedText(),
         ),
         ctx.MenuItem(
@@ -505,10 +507,10 @@ $textWithBreaks
   /// העתקת טקסט מעוצב (HTML) ללוח
   Future<void> _copyFormattedText() async {
     // משתמש בטקסט השמור שנבחר לפני פתיחת התפריט
-    final plainText = _savedSelectedText;
+    final plainText = _savedSelectedText.value;
 
     debugPrint('_copyFormattedText called with: "$plainText"');
-    debugPrint('_currentSelectedIndex: $_currentSelectedIndex');
+    debugPrint('_currentSelectedIndex: ${_currentSelectedIndex.value}');
 
     if (plainText == null || plainText.trim().isEmpty) {
       UiSnack.show('אנא בחר טקסט להעתקה');
@@ -526,10 +528,11 @@ $textWithBreaks
         String htmlContentToUse = plainText;
 
         // אם יש לנו אינדקס נוכחי, ננסה למצוא את הטקסט המקורי
-        if (_currentSelectedIndex != null &&
-            _currentSelectedIndex! >= 0 &&
-            _currentSelectedIndex! < widget.data.length) {
-          final originalData = widget.data[_currentSelectedIndex!];
+        final selectedIndex = _currentSelectedIndex.value;
+        if (selectedIndex != null &&
+            selectedIndex >= 0 &&
+            selectedIndex < widget.data.length) {
+          final originalData = widget.data[selectedIndex];
 
           // בדיקה אם הטקסט הפשוט מופיע בטקסט המקורי
           final plainTextCleaned =
@@ -551,7 +554,7 @@ $textWithBreaks
         if (settingsState.copyWithHeaders != 'none' &&
             textBookState is TextBookLoaded) {
           final bookName = CopyUtils.extractBookName(textBookState.book);
-          final currentIndex = _currentSelectedIndex ?? 0;
+          final currentIndex = _currentSelectedIndex.value ?? 0;
           final currentPath = await CopyUtils.extractCurrentPath(
             textBookState.book,
             currentIndex,
@@ -601,10 +604,10 @@ $textWithBreaks
     if (state is! TextBookLoaded) return;
 
     // שמירת הטקסט הנבחר לפני פתיחת הדיאלוג
-    final selectedText = _savedSelectedText;
+    final selectedText = _savedSelectedText.value;
 
     // משתמש בשורה שממנה הודגש טקסט (אם קיים), אחרת בשורה הנבחרת, אחרת בשורה הראשונה הנראית
-    final currentIndex = _savedSelectedIndex ??
+    final currentIndex = _savedSelectedIndex.value ??
         state.selectedIndex ??
         (state.visibleIndices.isNotEmpty ? state.visibleIndices.first : 0);
 
@@ -714,11 +717,11 @@ $textWithBreaks
                   foundIndex ??= state.selectedIndex;
                 }
 
-                setState(() {
-                  _savedSelectedText = plain;
-                  _savedSelectedIndex = foundIndex;
-                  _currentSelectedIndex = foundIndex;
-                });
+                if (mounted) {
+                  _savedSelectedText.value = plain;
+                  _savedSelectedIndex.value = foundIndex;
+                  _currentSelectedIndex.value = foundIndex;
+                }
               },
               child: Directionality(
                 textDirection: widget.isPreviewMode
@@ -828,10 +831,10 @@ $textWithBreaks
             onTap: () {
               _focusNode.requestFocus();
               // מאפס את הטקסט השמור כשלוחצים על הפסקה
-              setState(() {
-                _savedSelectedText = null;
-                _currentSelectedIndex = null;
-              });
+              if (mounted) {
+                _savedSelectedText.value = null;
+                _currentSelectedIndex.value = null;
+              }
               // פשוט מעדכן את selectedIndex - זה יגרום לבנייה מחדש
               if (isSelected) {
                 _textBookBloc.add(const UpdateSelectedIndex(null));
@@ -867,12 +870,12 @@ $textWithBreaks
             },
             onSecondaryTapDown: (details) {
               // שומר את האינדקס הנוכחי לשימוש בתפריט ההקשר
-              setState(() {
-                _currentSelectedIndex = index;
-              });
+              if (mounted) {
+                _currentSelectedIndex.value = index;
+              }
             },
-            child: ctx.ContextMenuRegion(
-              contextMenu: _buildContextMenuForIndex(state, index, context),
+            child: ValueListenableBuilder<String?>(
+              valueListenable: _savedSelectedText,
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4.0),
                 child: LayoutBuilder(
@@ -980,6 +983,13 @@ $textWithBreaks
                   },
                 ),
               ),
+              builder: (context, selectedText, child) {
+                return ctx.ContextMenuRegion(
+                  contextMenu: _buildContextMenuForIndex(
+                      state, index, context, selectedText),
+                  child: child!,
+                );
+              },
             ),
           ),
         ),
