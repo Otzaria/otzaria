@@ -6,15 +6,70 @@ import 'package:flutter/foundation.dart';
 /// מחלקה לניהול הגדרות פר-ספר
 class PerBookSettings {
   static const String _settingsFolderName = 'per_book_settings';
+  static bool _migrationAttempted = false;
 
   /// קבלת נתיב תיקיית ההגדרות
+  /// נשמר בתיקיית ה־Application Support (זהה לשאר הגדרות האפליקציה)
   static Future<Directory> _getSettingsDirectory() async {
-    final appDir = await getApplicationDocumentsDirectory();
+    final appDir = await getApplicationSupportDirectory();
     final settingsDir = Directory('${appDir.path}/$_settingsFolderName');
     if (!await settingsDir.exists()) {
       await settingsDir.create(recursive: true);
     }
+    // מיגרציה לאחור: העברת הגדרות שנשמרו בעבר בתיקיית Documents
+    if (!_migrationAttempted) {
+      _migrationAttempted = true;
+      await _migrateFromDocuments(settingsDir);
+    }
     return settingsDir;
+  }
+
+  /// העברת קבצי הגדרות מתיקיית Documents לתיקיית Application Support
+  static Future<void> _migrateFromDocuments(Directory newDir) async {
+    try {
+      final oldAppDir = await getApplicationDocumentsDirectory();
+      final oldDir = Directory('${oldAppDir.path}/$_settingsFolderName');
+      if (!await oldDir.exists()) return;
+
+        final files = await oldDir
+          .list()
+          .where((entity) => entity is File)
+          .cast<File>()
+          .toList();
+        for (final file in files) {
+        if (!file.path.endsWith('.json')) continue;
+
+        final fileName = file.path.split(Platform.pathSeparator).last;
+        final destPath = '${newDir.path}/$fileName';
+        final destFile = File(destPath);
+
+        if (await destFile.exists()) {
+          continue;
+        }
+
+        try {
+          await file.rename(destPath);
+        } catch (_) {
+          // אם rename נכשל (למשל בין כוננים), נעתיק ואז נמחק
+          await file.copy(destPath);
+          await file.delete();
+        }
+      }
+
+      // אם לא נשארו קבצי JSON - נמחק את התיקייה הישנה
+        final hasJson = await oldDir
+          .list()
+          .where((entity) => entity is File)
+          .cast<File>()
+          .any((f) => f.path.endsWith('.json'));
+      if (!hasJson) {
+        await oldDir.delete(recursive: true);
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('❌ Error migrating per-book settings: $e');
+      }
+    }
   }
 
   /// יצירת שם קובץ בטוח מתוך שם ספר
