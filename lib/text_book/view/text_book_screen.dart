@@ -2395,10 +2395,13 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   Widget _buildTabBar(TextBookLoaded state) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (state.showLeftPane && !Platform.isAndroid && !_isInitialFocusDone) {
-        if (tabController.index == 1) {
-          textSearchFocusNode.requestFocus();
-        } else if (tabController.index == 0) {
-          navigationSearchFocusNode.requestFocus();
+        final hasSearchText = state.searchText.trim().isNotEmpty;
+        if (hasSearchText) {
+          if (tabController.index == 1) {
+            textSearchFocusNode.requestFocus();
+          } else if (tabController.index == 0) {
+            navigationSearchFocusNode.requestFocus();
+          }
         }
         _isInitialFocusDone = true;
       }

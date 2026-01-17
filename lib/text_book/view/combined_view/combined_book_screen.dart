@@ -77,6 +77,8 @@ class _CombinedViewState extends State<CombinedView> {
 
   late final FocusNode _focusNode;
 
+  bool _didRequestInitialFocus = false;
+
   // שמירת גובה הבלוק בפועל לחישובים דינאמיים
   double _viewportHeight = 0;
 
@@ -109,6 +111,22 @@ class _CombinedViewState extends State<CombinedView> {
             );
           }
         });
+      }
+    });
+
+    // מוודא שהפוקוס מגיע לאזור הקריאה מיד אחרי פתיחת ספר
+    // כדי שגלילה בחיצים תעבוד בלי לחיצה בעכבר, אך בלי לגנוב פוקוס משדות טקסט.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _didRequestInitialFocus) return;
+      _didRequestInitialFocus = true;
+
+      final primaryFocus = FocusManager.instance.primaryFocus;
+      final focusContext = primaryFocus?.context;
+      final isTextInputFocused = focusContext?.widget is EditableText ||
+          focusContext?.findAncestorWidgetOfExactType<EditableText>() != null;
+
+      if (!isTextInputFocused && !_focusNode.hasFocus) {
+        _focusNode.requestFocus();
       }
     });
   }
