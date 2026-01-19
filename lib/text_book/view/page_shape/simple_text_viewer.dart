@@ -599,7 +599,15 @@ $textWithBreaks
               // הדגשת טקסט חיפוש (רק בטקסט המרכזי)
               String processedData = data;
               if (widget.isMainText) {
-                // בדיקה אם זה הדגשת כל המקטע
+                // תחילה נחיל הדגשת חיפוש רגיל (אם קיימת)
+                if (state.searchText.isNotEmpty) {
+                  processedData = state.removeNikud
+                      ? utils.highLight(
+                          utils.removeVolwels('$processedData\n'), state.searchText)
+                      : utils.highLight('$processedData\n', state.searchText);
+                }
+                
+                // לאחר מכן נחיל הדגשות ספציפיות (שיכולות להיות בנוסף לחיפוש)
                 if (state.fullSectionHighlight && 
                     state.sectionSpecificHighlightIndex == index) {
                   processedData = utils.highlightFullSection(processedData);
@@ -609,13 +617,6 @@ $textWithBreaks
                     state.sectionSpecificHighlight!.isNotEmpty &&
                     state.sectionSpecificHighlightIndex == index) {
                   processedData = utils.exactHighlight(processedData, state.sectionSpecificHighlight!, fuzzyForLongText: true);
-                }
-                // הדגשת חיפוש רגיל
-                else if (state.searchText.isNotEmpty) {
-                  processedData = state.removeNikud
-                      ? utils.highLight(
-                          utils.removeVolwels('$data\n'), state.searchText)
-                      : utils.highLight('$data\n', state.searchText);
                 }
               }
 

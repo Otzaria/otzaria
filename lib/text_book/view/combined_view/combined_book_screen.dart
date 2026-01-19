@@ -807,7 +807,7 @@ $textWithBreaks
                                 isFuzzy: state.searchMode == SearchMode.fuzzy,
                               );
 
-                        // בדיקה אם זה הדגשת כל המקטע
+                        // לאחר מכן נחיל הדגשות ספציפיות (שיכולות להיות בנוסף לחיפוש)
                         if (state.fullSectionHighlight && 
                             state.sectionSpecificHighlightIndex == index) {
                           processedData = utils.highlightFullSection(processedData);
