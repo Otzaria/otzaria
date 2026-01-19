@@ -17,7 +17,7 @@ import 'package:otzaria/widgets/commentary_pane_tooltip.dart';
 import 'package:otzaria/widgets/resizable_drag_handle.dart';
 import 'package:otzaria/utils/context_menu_utils.dart';
 
-import 'package:otzaria/utils/context_menu_sharing.dart';
+import 'package:otzaria/links/ui/sharing_links.dart';
 
 class SplitedViewScreen extends StatefulWidget {
   const SplitedViewScreen({
@@ -210,24 +210,9 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
         MenuItem(
           label: const Text('העתק קישור לספר זה'),
           icon: const Icon(FluentIcons.share_24_regular),
-          onSelected: (_) => ContextMenuSharing.shareBookLink(
-            context,
-            widget.tab,
-            (message) {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
-                );
-              }
-            },
-            (error) {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(error), duration: const Duration(seconds: 2)),
-                );
-              }
-            },
-          ),
+          onSelected: (_) {
+            SharingLinks.shareBookLink(context, widget.tab.book, position: widget.tab.index);
+          },
         ),
       ],
     );
