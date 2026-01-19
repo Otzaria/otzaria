@@ -32,5 +32,16 @@
 	<array>
 		<string>mailto</string>
 	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>otzaria.url.scheme</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>otzaria</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

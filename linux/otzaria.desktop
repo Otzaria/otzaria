@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Otzaria
+Name[he]=אוצריא
+Comment=Jewish books library
+Comment[he]=ספריית ספרים יהודיים
+Exec=otzaria %u
+Icon=otzaria
+Terminal=false
+Categories=Education;Literature;
+MimeType=x-scheme-handler/otzaria;
+StartupNotify=true

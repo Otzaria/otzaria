@@ -16,6 +16,7 @@ msix_config:
   certificate_path: sivan22.pfx
   certificate_password: sivan22
   signtool_options: /debug
+  protocol_activation: otzaria
   app_installer: #<-- app installer configuration
     publish_folder_path: C:\dev\otzaria\build\windows\x64\runner\Release
     hours_between_update_checks: 24
