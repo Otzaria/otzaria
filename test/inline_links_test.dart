@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/links.dart';
-import 'package:otzaria/utils/text_with_inline_links.dart';
+import 'package:otzaria/links/utils/text_with_inline_links.dart';
 
 void main() {
   group('Inline Links Tests', () {

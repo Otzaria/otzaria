@@ -15,7 +15,7 @@ import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
-import 'package:otzaria/utils/book_navigation.dart';
+import 'package:otzaria/links/utils/book_navigation.dart';
 import 'package:otzaria/links/models/link_models.dart';
 import 'package:otzaria/links/core/link_parser.dart';
 

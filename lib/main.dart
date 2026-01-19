@@ -57,7 +57,7 @@ import 'package:otzaria/settings/backup_service.dart';
 import 'package:otzaria/services/sources_books_service.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria/services/notification_service.dart';
-import 'package:otzaria/utils/url_handler_service.dart';
+import 'package:otzaria/links/utils/url_handler_service.dart';
 import 'package:otzaria/utils/simple_single_instance.dart';
 
 // Global reference to window listener for cleanup

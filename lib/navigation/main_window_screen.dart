@@ -33,8 +33,8 @@ import 'package:otzaria/widgets/ad_popup_dialog.dart';
 
 import 'package:window_manager/window_manager.dart';
 import 'package:otzaria/main.dart' show appWindowListener;
-import 'package:otzaria/utils/url_processor.dart';
-import 'package:otzaria/utils/url_handler_service.dart';
+import 'package:otzaria/links/utils/url_processor.dart';
+import 'package:otzaria/links/utils/url_handler_service.dart';
 
 
 class MainWindowScreen extends StatefulWidget {

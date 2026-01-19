@@ -19,6 +19,10 @@
 
 ### Utils:
 - `url_encoding.dart` - קידוד ופענוח URLs
+- `url_handler_service.dart` - שירות לטיפול בקישורים בין instances של האפליקציה
+- `url_processor.dart` - עיבוד קישורים בעת הפעלת האפליקציה
+- `book_navigation.dart` - ניווט בתוך ספרים (כותרות, דפים)
+- `text_with_inline_links.dart` - הטמעת קישורים בתוך טקסט
 
 ### Main Export:
 - `links.dart` - ייצוא כל המחלקות
