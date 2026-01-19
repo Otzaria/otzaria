@@ -143,13 +143,18 @@ class BookNavigation {
       return true;
     }
 
-    // Check if header contains the requested text
-    if (cleanText.contains(cleanHeader)) {
-      return true;
+    // Use word boundaries to avoid partial matches
+    try {
+      final pattern = RegExp(r'\b' + RegExp.escape(cleanHeader) + r'\b');
+      if (pattern.hasMatch(cleanText)) {
+        return true;
+      }
+    } catch (e) {
+      // Fallback for complex patterns
     }
 
-    // Reverse check - if requested text contains the header
-    if (cleanHeader.contains(cleanText)) {
+    // Fallback to original logic if regex fails or doesn't match
+    if (cleanText.contains(cleanHeader)) {
       return true;
     }
 

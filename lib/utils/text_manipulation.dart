@@ -897,8 +897,8 @@ String fuzzyHighlight(String text, String searchTerm) {
       final sequence = textWords.sublist(i, i + length).join(' ');
       final score = _calculateSimilarity(sequence, normalizedSearchTerm);
       
-      // הורדת דרישת ההתאמה מ-70% ל-30% לגמישות מקסימלית
-      if (score > bestScore && score >= 0.3) {
+      // העלנו את דרישת ההתאמה ל-50% לדיוק טוב יותר
+      if (score > bestScore && score >= 0.5) {
         bestScore = score;
         bestMatch = sequence;
       }
@@ -994,8 +994,8 @@ String unlimitedHighlight(String text, String searchTerm) {
       final score = matchingWords / searchWords.length;
       
       // אם מצאנו רצף טוב יותר (ציון גבוה יותר)
-      // הורדנו את הסף ל-0.1 לגמישות מקסימלית
-      if (score > bestScore && score >= 0.1) {
+      // העלנו את הסף ל-0.4 למניעת התאמות לא רלוונטיות
+      if (score > bestScore && score >= 0.4) {
         bestScore = score;
         bestMatch = sequence;
         if (kDebugMode) {
@@ -1039,28 +1039,56 @@ String unlimitedHighlight(String text, String searchTerm) {
 }
 
 /// פונקציה עזר לחישוב דמיון בין שני מחרוזות
+/// משתמשת באלגוריתם משופר המבוסס על Levenshtein distance
 double _calculateSimilarity(String text1, String text2) {
   if (text1.isEmpty || text2.isEmpty) return 0.0;
   if (text1 == text2) return 1.0;
   
-  final words1 = text1.split(' ').where((w) => w.isNotEmpty).toList();
-  final words2 = text2.split(' ').where((w) => w.isNotEmpty).toList();
+  // נרמול הטקסטים
+  final normalized1 = text1.toLowerCase().trim();
+  final normalized2 = text2.toLowerCase().trim();
   
-  if (words1.isEmpty || words2.isEmpty) return 0.0;
+  if (normalized1 == normalized2) return 1.0;
   
-  int matchingWords = 0;
-  for (final word1 in words1) {
-    for (final word2 in words2) {
-      if (word1 == word2 || word1.contains(word2) || word2.contains(word1)) {
-        matchingWords++;
-        break;
-      }
+  // חישוב Levenshtein distance
+  final distance = _levenshteinDistance(normalized1, normalized2);
+  final maxLength = normalized1.length > normalized2.length ? normalized1.length : normalized2.length;
+  
+  // המרה לציון דמיון (1.0 = זהה, 0.0 = שונה לחלוטין)
+  final similarity = 1.0 - (distance / maxLength);
+  
+  return similarity;
+}
+
+/// חישוב Levenshtein distance בין שתי מחרוזות
+int _levenshteinDistance(String s1, String s2) {
+  if (s1.isEmpty) return s2.length;
+  if (s2.isEmpty) return s1.length;
+  
+  final matrix = List.generate(s1.length + 1, 
+    (i) => List.generate(s2.length + 1, (j) => 0));
+  
+  // אתחול השורה והעמודה הראשונות
+  for (int i = 0; i <= s1.length; i++) {
+    matrix[i][0] = i;
+  }
+  for (int j = 0; j <= s2.length; j++) {
+    matrix[0][j] = j;
+  }
+  
+  // מילוי המטריצה
+  for (int i = 1; i <= s1.length; i++) {
+    for (int j = 1; j <= s2.length; j++) {
+      final cost = s1[i - 1] == s2[j - 1] ? 0 : 1;
+      matrix[i][j] = [
+        matrix[i - 1][j] + 1,      // deletion
+        matrix[i][j - 1] + 1,      // insertion
+        matrix[i - 1][j - 1] + cost // substitution
+      ].reduce((a, b) => a < b ? a : b);
     }
   }
   
-  // שיפור: נחשב את הציון על בסיס המילים הקצרות יותר
-  final minLength = words1.length < words2.length ? words1.length : words2.length;
-  return matchingWords / minLength;
+  return matrix[s1.length][s2.length];
 }
 
 /// פונקציה עזר להדגשת ההתאמה הטובה ביותר

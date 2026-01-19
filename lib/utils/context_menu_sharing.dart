@@ -3,27 +3,33 @@
 // import 'package:otzaria/links/links.dart';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
-import 'package:otzaria/links/ui/sharing_links.dart' as links;
+import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
+import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/links/ui/sharing_links.dart';
 
-/// Legacy wrapper for ContextMenuSharing - use ContextMenuSharing from links module instead
+/// Legacy wrapper for ContextMenuSharing - use SharingLinks from links module instead
 /// 
 /// This class is deprecated and will be removed in a future version.
 /// Please use the new links module: import 'package:otzaria/links/links.dart';
-@Deprecated('Use ContextMenuSharing from the links module instead')
+@Deprecated('Use SharingLinks from the links module instead')
 class ContextMenuSharing {
   
-  @Deprecated('Use ContextMenuSharing from links module instead')
+  @Deprecated('Use SharingLinks from links module instead')
   static Future<void> shareBookLink(
     BuildContext context,
     TextBookTab tab,
     Function(String) onSuccess,
     Function(String) onError,
   ) async {
-    return links.ContextMenuSharing.shareBookLink(context, tab, onSuccess, onError);
+    final state = context.read<TextBookBloc>().state;
+    if (state is! TextBookLoaded) return;
+    
+    await SharingLinks.shareBookLinkLegacy(tab, onSuccess, onError);
   }
 
-  @Deprecated('Use ContextMenuSharing from links module instead')
+  @Deprecated('Use SharingLinks from links module instead')
   static Future<void> shareSectionLink(
     BuildContext context,
     String bookTitle,
@@ -31,10 +37,16 @@ class ContextMenuSharing {
     Function(String) onSuccess,
     Function(String) onError,
   ) async {
-    return links.ContextMenuSharing.shareSectionLink(context, bookTitle, index, onSuccess, onError);
+    final state = context.read<TextBookBloc>().state;
+    if (state is! TextBookLoaded) return;
+    
+    // Create temporary tab with the specific index
+    final tempTab = TextBookTab(book: state.book, index: index);
+    
+    await SharingLinks.shareSectionLink(tempTab, onSuccess, onError);
   }
 
-  @Deprecated('Use ContextMenuSharing from links module instead')
+  @Deprecated('Use SharingLinks from links module instead')
   static Future<void> shareTextHighlightLink(
     BuildContext context,
     String bookTitle,
@@ -43,6 +55,17 @@ class ContextMenuSharing {
     Function(String) onSuccess,
     Function(String) onError,
   ) async {
-    return links.ContextMenuSharing.shareTextHighlightLink(context, bookTitle, index, selectedText, onSuccess, onError);
+    final state = context.read<TextBookBloc>().state;
+    if (state is! TextBookLoaded) return;
+    
+    // Create temporary tab with the specific index
+    final tempTab = TextBookTab(book: state.book, index: index);
+    
+    await SharingLinks.shareHighlightedTextLink(
+      tempTab,
+      onSuccess,
+      onError,
+      selectedText: selectedText,
+    );
   }
 }

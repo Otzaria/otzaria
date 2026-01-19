@@ -3,14 +3,12 @@ library;
 
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:otzaria/core/scaffold_messenger.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
-import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/links/core/link_generator.dart';
 
@@ -262,62 +260,5 @@ class SharingLinks {
   static String getTabLinkText(OpenedTab tab) {
     final link = LinkGenerator.createLinkFromTab(tab);
     return LinkGenerator.generateUrl(link);
-  }
-}
-
-/// מחלקה לטיפול בשיתוף מתפריטי הקשר (legacy compatibility)
-class ContextMenuSharing {
-  
-  /// Share book link from any text book view
-  static Future<void> shareBookLink(
-    BuildContext context,
-    TextBookTab tab,
-    Function(String) onSuccess,
-    Function(String) onError,
-  ) async {
-    final state = context.read<TextBookBloc>().state;
-    if (state is! TextBookLoaded) return;
-    
-    await SharingLinks.shareBookLinkLegacy(tab, onSuccess, onError);
-  }
-
-  /// Share section link for a specific index
-  static Future<void> shareSectionLink(
-    BuildContext context,
-    String bookTitle,
-    int index,
-    Function(String) onSuccess,
-    Function(String) onError,
-  ) async {
-    final state = context.read<TextBookBloc>().state;
-    if (state is! TextBookLoaded) return;
-    
-    // Create temporary tab with the specific index
-    final tempTab = TextBookTab(book: state.book, index: index);
-    
-    await SharingLinks.shareSectionLink(tempTab, onSuccess, onError);
-  }
-
-  /// Share highlighted text link for a specific index
-  static Future<void> shareTextHighlightLink(
-    BuildContext context,
-    String bookTitle,
-    int index,
-    String? selectedText,
-    Function(String) onSuccess,
-    Function(String) onError,
-  ) async {
-    final state = context.read<TextBookBloc>().state;
-    if (state is! TextBookLoaded) return;
-    
-    // Create temporary tab with the specific index
-    final tempTab = TextBookTab(book: state.book, index: index);
-    
-    await SharingLinks.shareHighlightedTextLink(
-      tempTab,
-      onSuccess,
-      onError,
-      selectedText: selectedText,
-    );
   }
 }
