@@ -264,8 +264,15 @@ class LinkParser {
     // בדיקה לקישורים שמכילים פרמטרים אופייניים
     if (cleanText.contains('path=') && cleanText.contains('index=')) return true;
     
-    // בדיקה לקישורים שמכילים שמות ספרים עם פרמטרים
-    if (cleanText.contains('?page=') || cleanText.contains('?index=') || cleanText.contains('?text=')) return true;
+    // בדיקה לקישורים שמכילים שמות ספרים עם פרמטרים - בדיקה קפדנית יותר
+    final queryIndex = cleanText.indexOf('?');
+    if (queryIndex > 0 && (cleanText.contains('page=') || cleanText.contains('index=') || cleanText.contains('?text='))) {
+      // ודא שזה לא נראה כמו URL מלא שכבר נבדק
+      final beforeQuery = cleanText.substring(0, queryIndex);
+      if (!beforeQuery.contains('://')) {
+        return true;
+      }
+    }
     
     return false;
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_context_menu/flutter_context_menu.dart';
@@ -21,6 +22,7 @@ import 'package:otzaria/text_book/view/text_book_screen.dart';
 import 'package:otzaria/core/scaffold_messenger.dart';
 import 'package:otzaria/utils/text_manipulation.dart';
 import 'package:otzaria/utils/context_menu_sharing.dart';
+import 'package:otzaria/links/ui/sharing_links.dart';
 import 'package:otzaria/workspaces/view/workspace_switcher_dialog.dart';
 import 'package:otzaria/history/history_dialog.dart';
 import 'package:otzaria/bookmarks/bookmarks_dialog.dart';
@@ -881,24 +883,51 @@ class _ReadingScreenState extends State<ReadingScreen>
   }
 
   Future<void> _shareBookLink(OpenedTab tab) async {
-    await ContextMenuSharing.shareBookLink(
-      context,
-      tab as TextBookTab,
-      (message) {
+    // בדיקה אם זה TextBookTab
+    if (tab is TextBookTab) {
+      await ContextMenuSharing.shareBookLink(
+        context,
+        tab,
+        (message) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+            );
+          }
+        },
+        (error) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(error), duration: const Duration(seconds: 2)),
+            );
+          }
+        },
+      );
+    } else {
+      // עבור סוגי טאבים אחרים, נשתמש בשיטה הכללית
+      try {
+        final link = SharingLinks.getTabLinkText(tab);
+        await Clipboard.setData(ClipboardData(text: link));
+        
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+            const SnackBar(
+              content: Text('קישור הועתק ללוח'),
+              duration: Duration(seconds: 2),
+            ),
           );
         }
-      },
-      (error) {
+      } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(error), duration: const Duration(seconds: 2)),
+            SnackBar(
+              content: Text('שגיאה בהעתקת הקישור: $e'),
+              duration: const Duration(seconds: 2),
+            ),
           );
         }
-      },
-    );
+      }
+    }
   }
 }
 

@@ -1091,12 +1091,13 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         final state = context.read<LibraryBloc>().state;
         final settingsState = context.read<SettingsBloc>().state;
         _update(context, state, settingsState);
-        
-        return;
       }
+      // אם הטיפול בקישור נכשל, אל תמשיך לחיפוש רגיל.
+      // הודעת השגיאה תוצג על ידי LinkHandler.
+      return;
     }
     
-    // אם זה לא קישור או הטיפול נכשל, המשך עם חיפוש רגיל
+    // אם זה לא קישור, המשך עם חיפוש רגיל
     // (הלוגיקה הקיימת תמשיך לעבוד)
   }
 
