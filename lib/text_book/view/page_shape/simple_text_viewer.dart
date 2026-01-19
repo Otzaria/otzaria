@@ -20,7 +20,7 @@ import 'package:super_clipboard/super_clipboard.dart';
 import 'package:otzaria/personal_notes/personal_notes_system.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 
-import 'package:otzaria/links/ui/sharing_links.dart';
+import 'package:otzaria/utils/context_menu_sharing.dart';
 
 /// תצוגת טקסט פשוטה - משמשת גם לטקסט המרכזי וגם למפרשים
 class SimpleTextViewer extends StatefulWidget {

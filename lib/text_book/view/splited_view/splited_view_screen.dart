@@ -17,7 +17,7 @@ import 'package:otzaria/widgets/commentary_pane_tooltip.dart';
 import 'package:otzaria/widgets/resizable_drag_handle.dart';
 import 'package:otzaria/utils/context_menu_utils.dart';
 
-import 'package:otzaria/links/ui/sharing_links.dart';
+import 'package:otzaria/utils/context_menu_sharing.dart';
 
 class SplitedViewScreen extends StatefulWidget {
   const SplitedViewScreen({
