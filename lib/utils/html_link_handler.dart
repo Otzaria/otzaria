@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/core/scaffold_messenger.dart';
@@ -7,8 +6,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
-import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
-import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/utils/book_navigation.dart';
 
 /// מחלקה לטיפול בקישורי HTML בתוך הטקסט
 class HtmlLinkHandler {
@@ -319,7 +317,7 @@ class HtmlLinkHandler {
       // בדיקה אם זה קישור פנימי לכותרת באותו ספר
       if (url.startsWith('#')) {
         final headerName = _safeDecode(url.substring(1));
-        await _navigateToHeader(context, headerName);
+        await BookNavigation.navigateToHeader(context, headerName);
         return true;
       }
 
@@ -369,43 +367,7 @@ class HtmlLinkHandler {
     }
   }
 
-  /// מנווט לכותרת באותו ספר הנוכחי
-  static Future<void> _navigateToHeader(
-      BuildContext context, String headerName) async {
-    try {
-      // נקבל את הספר הנוכחי מה-BLoC
-      final textBookBloc = context.read<TextBookBloc>();
-      final state = textBookBloc.state;
 
-      if (state is! TextBookLoaded) {
-        throw Exception('לא ניתן לנווט - הספר לא נטען');
-      }
-
-      // חיפוש הכותרת בתוכן הספציפי
-      final index = await _findHeaderIndex(state.book, headerName);
-
-      if (index != null) {
-        // ניווט לאינדקס שנמצא
-        state.scrollController.scrollTo(
-          index: index,
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.ease,
-        );
-
-        if (context.mounted) {
-          UiSnack.show('נווט ל: $headerName');
-        }
-      } else {
-        throw Exception('לא נמצאה הכותרת: $headerName');
-      }
-    } catch (e) {
-      debugPrint('שגיאה בניווט לכותרת: $e');
-
-      if (context.mounted) {
-        UiSnack.show('לא ניתן לנווט לכותרת: $headerName');
-      }
-    }
-  }
 
   /// פותח ספר ומנווט לכותרת ספציפית (אם צוינה)
   static Future<void> _openBookWithHeader(
@@ -448,7 +410,7 @@ class HtmlLinkHandler {
 
       // אם צוינה כותרת, נחפש את האינדקס שלה
       if (headerName != null && headerName.isNotEmpty) {
-        final headerIndex = await _findHeaderIndex(book, headerName);
+        final headerIndex = await BookNavigation.findHeaderIndex(book, headerName);
         if (headerIndex != null) {
           startIndex = headerIndex;
         } else {
@@ -482,110 +444,9 @@ class HtmlLinkHandler {
     }
   }
 
-  /// מחפש את האינדקס של כותרת בספר
-  static Future<int?> _findHeaderIndex(TextBook book, String headerName) async {
-    try {
-      // קבלת תוכן הספציפי
-      final tableOfContents = await book.tableOfContents;
 
-      // חיפוש בתוכן העניינים - קודם חיפוש מדויק
-      for (final entry in tableOfContents) {
-        if (isHeaderMatch(entry.text, headerName)) {
-          return entry.index;
-        }
-      }
 
-      // אם לא נמצא, ננסה לחפש רק לפי מספר הדף (בלי עמוד)
-      // זה עוזר כשהקישור כולל עמוד שלא קיים בתוכן העניינים
-      final pageOnlyMatch = _extractPageNumber(headerName);
-      if (pageOnlyMatch != null) {
-        for (final entry in tableOfContents) {
-          final entryPageMatch = _extractPageNumber(entry.text);
-          if (entryPageMatch != null && entryPageMatch == pageOnlyMatch) {
-            return entry.index;
-          }
-        }
-      }
 
-      // אם לא נמצא בתוכן העניינים, נחפש בתוכן הספר עצמו
-      final content = await book.text;
-      final lines = content.split('\n');
 
-      // חיפוש מדויק
-      for (int i = 0; i < lines.length; i++) {
-        final line = lines[i];
-        final cleanLine = line.replaceAll(RegExp(r'<[^>]*>'), '').trim();
 
-        if (isHeaderMatch(cleanLine, headerName)) {
-          return i;
-        }
-      }
-
-      // חיפוש לפי דף בלבד
-      if (pageOnlyMatch != null) {
-        for (int i = 0; i < lines.length; i++) {
-          final line = lines[i];
-          final cleanLine = line.replaceAll(RegExp(r'<[^>]*>'), '').trim();
-          final linePageMatch = _extractPageNumber(cleanLine);
-
-          if (linePageMatch != null && linePageMatch == pageOnlyMatch) {
-            return i;
-          }
-        }
-      }
-
-      return null;
-    } catch (e) {
-      debugPrint('שגיאה בחיפוש כותרת: $e');
-      return null;
-    }
-  }
-
-  /// מחלץ את מספר הדף מכותרת (למשל "דף כג א" -> "כג")
-  static String? _extractPageNumber(String text) {
-    // דפוס לזיהוי מספר דף עברי
-    final pagePattern = RegExp(r'דף\s+([א-ת]{1,3})');
-    final match = pagePattern.firstMatch(text);
-    if (match != null) {
-      return match.group(1);
-    }
-
-    // אם אין "דף", ננסה למצוא מספר עברי בתחילת המחרוזת
-    final numberPattern = RegExp(r'^([א-ת]{1,3})(?:\s|$)');
-    final numberMatch = numberPattern.firstMatch(text.trim());
-    if (numberMatch != null) {
-      return numberMatch.group(1);
-    }
-
-    return null;
-  }
-
-  /// בדיקה אם טקסט תואם לכותרת המבוקשת
-  static bool isHeaderMatch(String text, String headerName) {
-    // ניקוי הטקסטים לצורך השוואה
-    final cleanText = text.trim().replaceAll(RegExp(r'\s+'), ' ');
-    final cleanHeader = headerName.trim().replaceAll(RegExp(r'\s+'), ' ');
-
-    // השוואה מדויקת
-    if (cleanText == cleanHeader) {
-      return true;
-    }
-
-    // השוואה ללא רגישות לרווחים
-    if (cleanText.replaceAll(' ', '') == cleanHeader.replaceAll(' ', '')) {
-      return true;
-    }
-
-    // בדיקה אם הכותרת מכילה את הטקסט המבוקש
-    if (cleanText.contains(cleanHeader)) {
-      return true;
-    }
-
-    // בדיקה הפוכה - אם הטקסט המבוקש מכיל את הכותרת
-    if (cleanHeader.contains(cleanText)) {
-      return true;
-    }
-
-    return false;
-  }
 }

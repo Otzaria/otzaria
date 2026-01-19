@@ -30,12 +30,12 @@ import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/navigation/calendar_cubit.dart';
 import 'package:otzaria/widgets/ad_popup_dialog.dart';
-import 'package:otzaria/library/bloc/library_bloc.dart';
+
 import 'package:window_manager/window_manager.dart';
 import 'package:otzaria/main.dart' show appWindowListener;
-import 'package:otzaria/utils/html_link_handler.dart';
+import 'package:otzaria/utils/url_processor.dart';
 import 'package:otzaria/utils/url_handler_service.dart';
-import 'package:otzaria/tabs/models/text_tab.dart';
+
 
 class MainWindowScreen extends StatefulWidget {
   final String? initialUrl;
@@ -97,7 +97,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
     // Handle initial URL if provided
     if (widget.initialUrl != null) {
       debugPrint('MainWindowScreen: Initial URL provided: ${widget.initialUrl}');
-      _handleInitialUrl(widget.initialUrl!);
+      UrlProcessor.handleInitialUrl(context, widget.initialUrl!, null);
     } else {
       debugPrint('MainWindowScreen: No initial URL provided');
     }
@@ -106,8 +106,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
     UrlHandlerService.setUrlHandler((url) {
       debugPrint('MainWindowScreen: Received URL from another instance: $url');
       // Bring window to front when receiving URL from another instance
-      _bringWindowToFront();
-      _handleInitialUrl(url);
+      UrlProcessor.bringWindowToFront();
+      UrlProcessor.handleInitialUrl(context, url, null);
     });
   }
 
@@ -168,103 +168,11 @@ class MainWindowScreenState extends State<MainWindowScreen>
     super.dispose();
   }
 
-  /// Bring the window to front and focus it
-  Future<void> _bringWindowToFront() async {
-    if (kIsWeb || (!Platform.isWindows && !Platform.isLinux && !Platform.isMacOS)) {
-      return;
-    }
 
-    try {
-      // Show the window if it's minimized
-      if (await windowManager.isMinimized()) {
-        await windowManager.restore();
-      }
-      
-      // Bring to front and focus
-      await windowManager.show();
-      await windowManager.focus();
-      
-      debugPrint('MainWindowScreen: Brought window to front');
-    } catch (e) {
-      debugPrint('MainWindowScreen: Error bringing window to front: $e');
-    }
-  }
 
-  /// Handle initial URL when app is launched with otzaria:// scheme
-  void _handleInitialUrl(String url) {
-    debugPrint('MainWindowScreen: Received initial URL: $url');
-    
-    // Wait for the app to be fully initialized before handling the URL
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted) {
-        debugPrint('MainWindowScreen: Widget not mounted, skipping URL handling');
-        return;
-      }
-      
-      // Wait for library to be loaded using state-driven approach
-      final libraryBloc = context.read<LibraryBloc>();
-      
-      // If library is already loaded, handle URL immediately
-      if (libraryBloc.state.library != null && !libraryBloc.state.isLoading) {
-        debugPrint('MainWindowScreen: Library already loaded, handling URL immediately');
-        await _processUrl(url);
-        return;
-      }
-      
-      // Otherwise, listen for library to load
-      debugPrint('MainWindowScreen: Waiting for library to load...');
-      
-      // Wait for library to be loaded using firstWhere
-      // Note: We can't check 'mounted' inside firstWhere predicate as it's not async
-      // Instead, we check mounted before and after the wait
-      try {
-        await libraryBloc.stream.firstWhere(
-          (state) => state.library != null && !state.isLoading,
-        );
-        
-        debugPrint('MainWindowScreen: Library loaded, handling URL now');
-        if (mounted) {
-          await _processUrl(url);
-        } else {
-          debugPrint('MainWindowScreen: Widget unmounted after library load, skipping URL processing');
-        }
-      } catch (e) {
-        debugPrint('MainWindowScreen: Error waiting for library: $e');
-      }
-    });
-  }
+
   
-  /// Process the URL after library is loaded
-  Future<void> _processUrl(String url) async {
-    debugPrint('MainWindowScreen: Starting URL handling for: $url');
-    
-    try {
-      // Handle the URL using the existing link handler
-      final success = await HtmlLinkHandler.handleLink(
-        context,
-        url,
-        (tab) {
-          debugPrint('MainWindowScreen: Opening tab: ${tab.title}');
-          if (tab is TextBookTab) {
-            debugPrint('MainWindowScreen: TextBookTab - highlightText: "${tab.highlightText}", index: ${tab.index}');
-          }
-          // Open the tab using the TabsBloc
-          context.read<TabsBloc>().add(AddTab(tab));
-          // Navigate to reading screen
-          context.read<NavigationBloc>().add(const NavigateToScreen(Screen.reading));
-        },
-      );
-      
-      if (success) {
-        debugPrint('MainWindowScreen: URL handled successfully');
-      } else {
-        debugPrint('MainWindowScreen: URL handling returned false');
-      }
-    } catch (e, stackTrace) {
-      debugPrint('MainWindowScreen: Error handling URL: $e');
-      debugPrint('MainWindowScreen: Stack trace: $stackTrace');
-    }
-  }
+
 
   void _handleOrientationChange(BuildContext context, Orientation orientation) {
     if (_previousOrientation != orientation) {

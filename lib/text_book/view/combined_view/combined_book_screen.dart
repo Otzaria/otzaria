@@ -21,7 +21,8 @@ import 'package:otzaria/core/scaffold_messenger.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 import 'package:otzaria/utils/html_link_handler.dart';
 import 'package:otzaria/utils/text_with_inline_links.dart';
-import 'package:otzaria/utils/sharing_utils.dart';
+
+import 'package:otzaria/utils/context_menu_sharing.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 
 class CombinedView extends StatefulWidget {
@@ -212,7 +213,12 @@ class _CombinedViewState extends State<CombinedView> {
         ctx.MenuItem(
           label: const Text('העתק קישור לספר זה'),
           icon: const Icon(FluentIcons.share_24_regular),
-          onSelected: (_) => _shareBookLink(),
+          onSelected: (_) => ContextMenuSharing.shareBookLink(
+            context,
+            widget.tab,
+            (message) => UiSnack.showQuick(message),
+            (error) => UiSnack.showError(error),
+          ),
         ),
         const ctx.MenuDivider(),
         // תת-תפריט שיתוף קישורים ישירים
@@ -223,17 +229,71 @@ class _CombinedViewState extends State<CombinedView> {
             ctx.MenuItem(
               label: const Text('העתק קישור ישיר לספר זה'),
               icon: const Icon(FluentIcons.book_24_regular),
-              onSelected: (_) => _shareBookLinkDirect(),
+              onSelected: (_) => ContextMenuSharing.shareBookLink(
+                context,
+                widget.tab,
+                (message) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+                    );
+                  }
+                },
+                (error) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(error), duration: const Duration(seconds: 2)),
+                    );
+                  }
+                },
+              ),
             ),
             ctx.MenuItem(
               label: const Text('העתק קישור ישיר למקטע זה'),
               icon: const Icon(FluentIcons.document_24_regular),
-              onSelected: (_) => _shareSectionLinkForIndex(paragraphIndex),
+              onSelected: (_) => ContextMenuSharing.shareSectionLink(
+                context,
+                widget.tab.book.title,
+                paragraphIndex,
+                (message) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+                    );
+                  }
+                },
+                (error) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(error), duration: const Duration(seconds: 2)),
+                    );
+                  }
+                },
+              ),
             ),
             ctx.MenuItem(
               label: const Text('העתק קישור ישיר למקטע זה עם הדגשת טקסט'),
               icon: const Icon(FluentIcons.highlight_24_regular),
-              onSelected: (_) => _shareTextHighlightLinkForIndex(paragraphIndex),
+              onSelected: (_) => ContextMenuSharing.shareTextHighlightLink(
+                context,
+                widget.tab.book.title,
+                paragraphIndex,
+                _savedSelectedText,
+                (message) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+                    );
+                  }
+                },
+                (error) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(error), duration: const Duration(seconds: 2)),
+                    );
+                  }
+                },
+              ),
             ),
           ],
         ),
@@ -907,7 +967,7 @@ $textWithBreaks
           
           // Mark error as shown to prevent repeated displays
           Future.delayed(const Duration(milliseconds: 100), () {
-            if (mounted) {
+            if (mounted && context.mounted) {
               context.read<TextBookBloc>().add(const MarkErrorMessageShown());
             }
           });
@@ -922,85 +982,6 @@ $textWithBreaks
     if (paragraphIndex >= 0 && paragraphIndex < widget.data.length) {
       context.read<TextBookBloc>().add(OpenEditor(index: paragraphIndex));
     }
-  }
-
-  /// שיתוף קישור לספר (פונקציה ישנה לתאימות לאחור)
-  Future<void> _shareBookLink() async {
-    await _shareBookLinkDirect();
-  }
-  Future<void> _shareBookLinkDirect() async {
-    await SharingUtils.shareBookLink(
-      widget.tab,
-      (message) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
-          );
-        }
-      },
-      (error) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(error), duration: const Duration(seconds: 2)),
-          );
-        }
-      },
-    );
-  }
-
-  /// שיתוף קישור למקטע ספציפי (מתפריט הקשר)
-  Future<void> _shareSectionLinkForIndex(int index) async {
-    final state = context.read<TextBookBloc>().state;
-    if (state is! TextBookLoaded) return;
-    
-    // יצירת TextBookTab זמני עם האינדקס הספציפי
-    final tempTab = TextBookTab(book: state.book, index: index);
-    
-    await SharingUtils.shareSectionLink(
-      tempTab,
-      (message) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
-          );
-        }
-      },
-      (error) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(error), duration: const Duration(seconds: 2)),
-          );
-        }
-      },
-    );
-  }
-
-  /// שיתוף קישור עם הדגשת טקסט למקטע ספציפי (מתפריט הקשר)
-  Future<void> _shareTextHighlightLinkForIndex(int index) async {
-    final state = context.read<TextBookBloc>().state;
-    if (state is! TextBookLoaded) return;
-    
-    // יצירת TextBookTab זמני עם האינדקס הספציפי
-    final tempTab = TextBookTab(book: state.book, index: index);
-    
-    await SharingUtils.shareHighlightedTextLink(
-      tempTab,
-      (message) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
-          );
-        }
-      },
-      (error) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(error), duration: const Duration(seconds: 2)),
-          );
-        }
-      },
-      selectedText: _savedSelectedText,
-    );
   }
 }
 

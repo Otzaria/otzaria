@@ -17,7 +17,8 @@ import 'package:otzaria/settings/settings_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
-import 'package:otzaria/utils/sharing_utils.dart';
+
+import 'package:otzaria/utils/context_menu_sharing.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -2559,8 +2560,9 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           : 1,
     );
 
-    // שימוש ב-SharingUtils לשיתוף
-    SharingUtils.shareBookLink(
+    // שימוש ב-ContextMenuSharing לשיתוף
+    ContextMenuSharing.shareBookLink(
+      context,
       tab,
       (message) => UiSnack.showQuick(message),
       (error) => UiSnack.showError(error),

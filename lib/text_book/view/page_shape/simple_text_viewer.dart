@@ -19,7 +19,8 @@ import 'package:otzaria/core/scaffold_messenger.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 import 'package:otzaria/personal_notes/personal_notes_system.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
-import 'package:otzaria/utils/sharing_utils.dart';
+
+import 'package:otzaria/utils/context_menu_sharing.dart';
 
 /// תצוגת טקסט פשוטה - משמשת גם לטקסט המרכזי וגם למפרשים
 class SimpleTextViewer extends StatefulWidget {
@@ -138,17 +139,74 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
             ctx.MenuItem(
               label: const Text('העתק קישור ישיר לספר זה'),
               icon: const Icon(FluentIcons.link_24_regular),
-              onSelected: (_) => _shareBookLink(),
+              onSelected: (_) => ContextMenuSharing.shareBookLink(
+                context,
+                TextBookTab(book: context.read<TextBookBloc>().state is TextBookLoaded 
+                  ? (context.read<TextBookBloc>().state as TextBookLoaded).book 
+                  : widget.bookTitle != null ? TextBook(title: widget.bookTitle!) : TextBook(title: 'Unknown'), 
+                  index: 0),
+                (message) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+                    );
+                  }
+                },
+                (error) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(error), duration: const Duration(seconds: 2)),
+                    );
+                  }
+                },
+              ),
             ),
             ctx.MenuItem(
               label: const Text('העתק קישור ישיר למקטע זה'),
               icon: const Icon(FluentIcons.link_square_24_regular),
-              onSelected: (_) => _shareSectionLink(index),
+              onSelected: (_) => ContextMenuSharing.shareSectionLink(
+                context,
+                widget.bookTitle ?? 'Unknown',
+                index,
+                (message) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+                    );
+                  }
+                },
+                (error) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(error), duration: const Duration(seconds: 2)),
+                    );
+                  }
+                },
+              ),
             ),
             ctx.MenuItem(
               label: const Text('העתק קישור ישיר למקטע זה עם הדגשת טקסט'),
               icon: const Icon(FluentIcons.highlight_24_regular),
-              onSelected: (_) => _shareTextHighlightLink(index),
+              onSelected: (_) => ContextMenuSharing.shareTextHighlightLink(
+                context,
+                widget.bookTitle ?? 'Unknown',
+                index,
+                _savedSelectedText,
+                (message) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+                    );
+                  }
+                },
+                (error) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(error), duration: const Duration(seconds: 2)),
+                    );
+                  }
+                },
+              ),
             ),
           ],
         ),
@@ -344,88 +402,6 @@ $textWithBreaks
     }
   }
 
-  /// שיתוף קישור לספר
-  Future<void> _shareBookLink() async {
-    final state = context.read<TextBookBloc>().state;
-    if (state is! TextBookLoaded) return;
-    
-    // יצירת TextBookTab זמני לשימוש ב-SharingUtils
-    final tempTab = TextBookTab(book: state.book, index: 0);
-    
-    await SharingUtils.shareBookLink(
-      tempTab,
-      (message) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
-          );
-        }
-      },
-      (error) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(error), duration: const Duration(seconds: 2)),
-          );
-        }
-      },
-    );
-  }
-
-  /// שיתוף קישור למקטע הנוכחי
-  Future<void> _shareSectionLink(int index) async {
-    final state = context.read<TextBookBloc>().state;
-    if (state is! TextBookLoaded) return;
-    
-    // יצירת TextBookTab זמני עם האינדקס הנכון
-    final tempTab = TextBookTab(book: state.book, index: index);
-    
-    await SharingUtils.shareSectionLink(
-      tempTab,
-      (message) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
-          );
-        }
-      },
-      (error) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(error), duration: const Duration(seconds: 2)),
-          );
-        }
-      },
-    );
-  }
-
-  /// שיתוף קישור עם הדגשת טקסט
-  Future<void> _shareTextHighlightLink(int index) async {
-    final state = context.read<TextBookBloc>().state;
-    if (state is! TextBookLoaded) return;
-    
-    // יצירת TextBookTab זמני עם האינדקס הנכון
-    final tempTab = TextBookTab(book: state.book, index: index);
-    
-    await SharingUtils.shareHighlightedTextLink(
-      tempTab,
-      (message) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
-          );
-        }
-      },
-      (error) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(error), duration: const Duration(seconds: 2)),
-          );
-        }
-      },
-      selectedText: _savedSelectedText,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return BlocListener<TextBookBloc, TextBookState>(
@@ -443,7 +419,7 @@ $textWithBreaks
           
           // Mark error as shown to prevent repeated displays
           Future.delayed(const Duration(milliseconds: 100), () {
-            if (mounted) {
+            if (mounted && context.mounted) {
               context.read<TextBookBloc>().add(const MarkErrorMessageShown());
             }
           });

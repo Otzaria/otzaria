@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_context_menu/flutter_context_menu.dart';
@@ -21,6 +20,7 @@ import 'package:otzaria/search/view/full_text_search_screen.dart';
 import 'package:otzaria/text_book/view/text_book_screen.dart';
 import 'package:otzaria/core/scaffold_messenger.dart';
 import 'package:otzaria/utils/text_manipulation.dart';
+import 'package:otzaria/utils/context_menu_sharing.dart';
 import 'package:otzaria/workspaces/view/workspace_switcher_dialog.dart';
 import 'package:otzaria/history/history_dialog.dart';
 import 'package:otzaria/bookmarks/bookmarks_dialog.dart';
@@ -31,7 +31,7 @@ import 'package:otzaria/settings/reading_settings_dialog.dart';
 import 'package:otzaria/settings/settings_bloc.dart';
 import 'package:otzaria/settings/settings_state.dart';
 import 'package:otzaria/utils/fullscreen_helper.dart';
-import 'package:otzaria/utils/sharing_utils.dart';
+
 import 'package:otzaria/widgets/resizable_drag_handle.dart';
 
 class ReadingScreen extends StatefulWidget {
@@ -881,8 +881,9 @@ class _ReadingScreenState extends State<ReadingScreen>
   }
 
   Future<void> _shareBookLink(OpenedTab tab) async {
-    await SharingUtils.shareBookLink(
-      tab,
+    await ContextMenuSharing.shareBookLink(
+      context,
+      tab as TextBookTab,
       (message) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
