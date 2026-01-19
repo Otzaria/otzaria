@@ -19,10 +19,10 @@ import 'package:otzaria/personal_notes/personal_notes_system.dart';
 import 'package:otzaria/utils/copy_utils.dart';
 import 'package:otzaria/core/scaffold_messenger.dart';
 import 'package:super_clipboard/super_clipboard.dart';
-import 'package:otzaria/utils/html_link_handler.dart';
+import 'package:otzaria/links/core/link_handler.dart';
 import 'package:otzaria/utils/text_with_inline_links.dart';
 
-import 'package:otzaria/utils/context_menu_sharing.dart';
+import 'package:otzaria/links/ui/sharing_links.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 
 class CombinedView extends StatefulWidget {
@@ -895,7 +895,7 @@ $textWithBreaks
                             height: 1.5,
                           ),
                           onTapUrl: (url) async {
-                            return await HtmlLinkHandler.handleLink(
+                            return await LinkHandler.handleLink(
                               context,
                               url,
                               (tab) => widget.openBookCallback(tab),

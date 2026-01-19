@@ -10,7 +10,7 @@ import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
-import 'package:otzaria/utils/html_link_handler.dart';
+import 'package:otzaria/links/core/link_handler.dart';
 import 'package:flutter_context_menu/flutter_context_menu.dart' as ctx;
 import 'package:otzaria/models/books.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -20,7 +20,7 @@ import 'package:super_clipboard/super_clipboard.dart';
 import 'package:otzaria/personal_notes/personal_notes_system.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 
-import 'package:otzaria/utils/context_menu_sharing.dart';
+import 'package:otzaria/links/ui/sharing_links.dart';
 
 /// תצוגת טקסט פשוטה - משמשת גם לטקסט המרכזי וגם למפרשים
 class SimpleTextViewer extends StatefulWidget {
@@ -611,7 +611,7 @@ $textWithBreaks
                   height: 1.5,
                 ),
                 onTapUrl: (url) async {
-                  return await HtmlLinkHandler.handleLink(
+                  return await LinkHandler.handleLink(
                     context,
                     url,
                     (tab) => widget.openBookCallback(tab),

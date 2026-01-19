@@ -37,6 +37,7 @@ import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
+import 'package:otzaria/links/ui/search_box_link_handler.dart';
 
 class LibraryBrowser extends StatefulWidget {
   const LibraryBrowser({super.key});
@@ -56,6 +57,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   bool _showPreview = true; // האם להציג את התצוגה המקדימה
   ViewMode _viewMode = ViewMode.grid; // מצב תצוגה: רשת או רשימה
   final Set<String> _expandedCategories = {}; // קטגוריות שנפתחו בתצוגת רשימה
+  bool _isUrlDetected = false; // האם זוהה קישור בתיבת החיפוש
 
   // FileSyncBloc יווצר פעם אחת בלבד
   late final FileSyncBloc _fileSyncBloc;
@@ -324,26 +326,91 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                   autofocus: true,
                   decoration: InputDecoration(
                     constraints: const BoxConstraints(maxWidth: 400),
-                    prefixIcon: const Icon(FluentIcons.search_24_regular),
-                    suffixIcon: IconButton(
-                      onPressed: () {
-                        focusRepository.librarySearchController.clear();
-                        _update(context, state, settingsState);
-                        _refocusSearchBar();
-                      },
-                      icon: const Icon(FluentIcons.dismiss_24_regular),
+                    prefixIcon: Icon(
+                      _isUrlDetected 
+                        ? FluentIcons.link_24_regular 
+                        : FluentIcons.search_24_regular,
+                      color: _isUrlDetected 
+                        ? Theme.of(context).colorScheme.primary 
+                        : null,
                     ),
-                    border: const OutlineInputBorder(
-                      borderRadius: BorderRadius.all(Radius.circular(8.0)),
+                    suffixIcon: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_isUrlDetected)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 4.0),
+                            child: Tooltip(
+                              message: 'לחץ Enter לפתיחת הקישור',
+                              child: Icon(
+                                FluentIcons.arrow_right_24_regular,
+                                size: 16,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                            ),
+                          ),
+                        IconButton(
+                          onPressed: () {
+                            focusRepository.librarySearchController.clear();
+                            setState(() {
+                              _isUrlDetected = false;
+                            });
+                            _update(context, state, settingsState);
+                            _refocusSearchBar();
+                          },
+                          icon: const Icon(FluentIcons.dismiss_24_regular),
+                        ),
+                      ],
                     ),
-                    hintText:
-                        'איתור ספר או מחבר ב${state.currentCategory?.title ?? ""}',
+                    border: OutlineInputBorder(
+                      borderRadius: const BorderRadius.all(Radius.circular(8.0)),
+                      borderSide: _isUrlDetected 
+                        ? BorderSide(
+                            color: Theme.of(context).colorScheme.primary,
+                            width: 2.0,
+                          )
+                        : const BorderSide(),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: const BorderRadius.all(Radius.circular(8.0)),
+                      borderSide: BorderSide(
+                        color: Theme.of(context).colorScheme.primary,
+                        width: 2.0,
+                      ),
+                    ),
+                    hintText: _isUrlDetected
+                        ? 'קישור זוהה - לחץ Enter לפתיחה'
+                        : 'איתור ספר או מחבר ב${state.currentCategory?.title ?? ""} (או הדבק קישור)',
+                    hintStyle: _isUrlDetected
+                        ? TextStyle(
+                            color: Theme.of(context).colorScheme.primary,
+                            fontWeight: FontWeight.w500,
+                          )
+                        : null,
                   ),
+                  style: _isUrlDetected
+                      ? TextStyle(
+                          color: Theme.of(context).colorScheme.primary,
+                          fontWeight: FontWeight.w500,
+                        )
+                      : null,
                   onChanged: (value) {
-                    context.read<LibraryBloc>().add(UpdateSearchQuery(value));
-                    context.read<LibraryBloc>().add(const SelectTopics([]));
-                    _update(context, state, settingsState);
+                    // בדיקה אם הטקסט הוא קישור
+                    final isUrl = SearchBoxLinkHandler.isValidUrl(value);
+                    if (isUrl != _isUrlDetected) {
+                      setState(() {
+                        _isUrlDetected = isUrl;
+                      });
+                    }
+                    
+                    // אם זה לא קישור, המשך עם החיפוש הרגיל
+                    if (!isUrl) {
+                      context.read<LibraryBloc>().add(UpdateSearchQuery(value));
+                      context.read<LibraryBloc>().add(const SelectTopics([]));
+                      _update(context, state, settingsState);
+                    }
                   },
+                  onSubmitted: _handleSearchSubmit,
                 ),
               ),
               // כפתור מעבר בין תצוגת רשת לרשימה
@@ -1001,6 +1068,36 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   void _refocusSearchBar({bool selectAll = false}) {
     final focusRepository = context.read<FocusRepository>();
     focusRepository.requestLibrarySearchFocus(selectAll: selectAll);
+  }
+
+  /// מטפל בלחיצה על Enter בתיבת החיפוש
+  Future<void> _handleSearchSubmit(String searchText) async {
+    if (searchText.isEmpty) return;
+    
+    // בדיקה אם הטקסט הוא קישור
+    if (SearchBoxLinkHandler.isValidUrl(searchText)) {
+      final success = await SearchBoxLinkHandler.handleSearchUrl(context, searchText);
+      
+      if (success) {
+        // אם הקישור נפתח בהצלחה, נקה את תיבת החיפוש ואפס את האינדיקציה
+        final focusRepository = context.read<FocusRepository>();
+        focusRepository.librarySearchController.clear();
+        
+        setState(() {
+          _isUrlDetected = false;
+        });
+        
+        // עדכן את מצב החיפוש
+        final state = context.read<LibraryBloc>().state;
+        final settingsState = context.read<SettingsBloc>().state;
+        _update(context, state, settingsState);
+        
+        return;
+      }
+    }
+    
+    // אם זה לא קישור או הטיפול נכשל, המשך עם חיפוש רגיל
+    // (הלוגיקה הקיימת תמשיך לעבוד)
   }
 
   void _showHistoryDialog(BuildContext context) {

@@ -9,7 +9,7 @@ import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
-import 'package:otzaria/utils/html_link_handler.dart';
+import 'package:otzaria/links/core/link_handler.dart';
 
 /// Utility class for processing URLs when app is launched or receives URLs
 class UrlProcessor {
@@ -67,7 +67,7 @@ class UrlProcessor {
     
     try {
       // Handle the URL using the existing link handler
-      final success = await HtmlLinkHandler.handleLink(
+      final success = await LinkHandler.handleLink(
         context,
         url,
         (tab) {

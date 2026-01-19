@@ -1,135 +1,53 @@
-import 'package:flutter/services.dart';
-import 'package:otzaria/tabs/models/tab.dart';
-import 'package:otzaria/tabs/models/text_tab.dart';
-import 'package:otzaria/tabs/models/pdf_tab.dart';
-import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
-import 'package:otzaria/text_book/bloc/text_book_state.dart';
+// This file has been moved to lib/links/ui/sharing_links.dart
+// Import the new module instead:
+// import 'package:otzaria/links/links.dart';
 
-/// Utility class for generating and handling sharing links
+import 'package:otzaria/links/ui/sharing_links.dart';
+
+/// Legacy wrapper for SharingUtils - use SharingLinks instead
+/// 
+/// This class is deprecated and will be removed in a future version.
+/// Please use the new links module: import 'package:otzaria/links/links.dart';
+@Deprecated('Use SharingLinks from the links module instead')
 class SharingUtils {
-  /// Helper function to determine the current section index reliably
-  /// This function prioritizes visible position over selectedIndex to avoid index=0 issues
-  static int getCurrentSectionIndex(
-    TextBookTab tab,
-    ItemPositionsListener positionsListener,
-    TextBookLoaded? state,
-  ) {
-    // First priority: visible position from scroll listener
-    final positions = positionsListener.itemPositions.value;
-    if (positions.isNotEmpty) {
-      final visibleIndex = positions.first.index;
-      return visibleIndex;
-    }
-    
-    // Second priority: selectedIndex from state (if not null)
-    if (state?.selectedIndex != null) {
-      return state!.selectedIndex!;
-    }
-    
-    // Third priority: tab.index (current tab index)
-    return tab.index;
-  }
-  /// Generates a basic book link without specific location
-  static String generateBookLink(OpenedTab tab) {
-    if (tab is TextBookTab) {
-      return 'otzaria://book/${Uri.encodeComponent(tab.book.title)}';
-    } else if (tab is PdfBookTab) {
-      return 'otzaria://pdf/${Uri.encodeComponent(tab.book.title)}';
-    } else {
-      return 'otzaria://book/${Uri.encodeComponent(tab.title)}';
-    }
+  
+  @Deprecated('Use SharingLinks.getCurrentSectionIndex instead')
+  static int getCurrentSectionIndex(tab, positionsListener, state) {
+    return SharingLinks.getCurrentSectionIndex(tab, positionsListener, state);
   }
 
-  /// Generates a section/page specific link
-  static String generateSectionLink(OpenedTab tab) {
-    if (tab is TextBookTab) {
-      return 'otzaria://book/${Uri.encodeComponent(tab.book.title)}?index=${tab.index}';
-    } else if (tab is PdfBookTab) {
-      return 'otzaria://pdf/${Uri.encodeComponent(tab.book.title)}?page=${tab.pageNumber}';
-    } else {
-      // For generic tabs, add a section parameter to make it different from book link
-      return 'otzaria://book/${Uri.encodeComponent(tab.title)}?section=1';
-    }
+  @Deprecated('Use SharingLinks.generateBookLink instead')
+  static String generateBookLink(tab) {
+    return SharingLinks.generateBookLink(tab);
   }
 
-  /// Generates a link with text highlighting parameters
-  static String generateHighlightedTextLink(OpenedTab tab, {String? selectedText}) {
-    String baseLink = generateSectionLink(tab);
-    
-    if (selectedText != null && selectedText.trim().isNotEmpty) {
-      final trimmedText = selectedText.trim();
-      final encodedText = Uri.encodeComponent(trimmedText);
-      final separator = baseLink.contains('?') ? '&' : '?';
-      final finalLink = '$baseLink${separator}text=$encodedText';
-      
-      return finalLink;
-    } else {
-      // If no specific text, just add text flag
-      final separator = baseLink.contains('?') ? '&' : '?';
-      final fallbackLink = '$baseLink${separator}text=true';
-      return fallbackLink;
-    }
+  @Deprecated('Use SharingLinks.generateSectionLink instead')
+  static String generateSectionLink(tab) {
+    return SharingLinks.generateSectionLink(tab);
   }
 
-  /// Copies a link to clipboard and shows user feedback
-  static Future<void> copyLinkToClipboard(
-    String link, 
-    String successMessage,
-    Function(String) showSnackBar,
-    Function(String) showErrorSnackBar,
-  ) async {
-    try {
-      await Clipboard.setData(ClipboardData(text: link));
-      showSnackBar(successMessage);
-    } catch (e) {
-      showErrorSnackBar('שגיאה ביצירת קישור: $e');
-    }
+  @Deprecated('Use SharingLinks.generateHighlightedTextLink instead')
+  static String generateHighlightedTextLink(tab, {String? selectedText}) {
+    return SharingLinks.generateHighlightedTextLink(tab, selectedText: selectedText);
   }
 
-  /// Shares book link with user feedback
-  static Future<void> shareBookLink(
-    OpenedTab tab,
-    Function(String) showSnackBar,
-    Function(String) showErrorSnackBar,
-  ) async {
-    final link = generateBookLink(tab);
-    await copyLinkToClipboard(
-      link,
-      'קישור ישיר לספר "${tab.title}" הועתק ללוח',
-      showSnackBar,
-      showErrorSnackBar,
-    );
+  @Deprecated('Use SharingLinks.copyLinkToClipboard instead')
+  static Future<void> copyLinkToClipboard(link, successMessage, showSnackBar, showErrorSnackBar) async {
+    return SharingLinks.copyLinkToClipboard(link, successMessage, showSnackBar, showErrorSnackBar);
   }
 
-  /// Shares section link with user feedback
-  static Future<void> shareSectionLink(
-    OpenedTab tab,
-    Function(String) showSnackBar,
-    Function(String) showErrorSnackBar,
-  ) async {
-    final link = generateSectionLink(tab);
-    await copyLinkToClipboard(
-      link,
-      'קישור ישיר למקטע הנוכחי ב"${tab.title}" הועתק ללוח',
-      showSnackBar,
-      showErrorSnackBar,
-    );
+  @Deprecated('Use SharingLinks.shareBookLinkLegacy instead')
+  static Future<void> shareBookLink(tab, showSnackBar, showErrorSnackBar) async {
+    return SharingLinks.shareBookLinkLegacy(tab, showSnackBar, showErrorSnackBar);
   }
 
-  /// Shares highlighted text link with user feedback
-  static Future<void> shareHighlightedTextLink(
-    OpenedTab tab,
-    Function(String) showSnackBar,
-    Function(String) showErrorSnackBar,
-    {String? selectedText}
-  ) async {
-    final link = generateHighlightedTextLink(tab, selectedText: selectedText);
-    
-    await copyLinkToClipboard(
-      link,
-      'קישור ישיר עם הדגשה ב"${tab.title}" הועתק ללוח',
-      showSnackBar,
-      showErrorSnackBar,
-    );
+  @Deprecated('Use SharingLinks.shareSectionLink instead')
+  static Future<void> shareSectionLink(tab, showSnackBar, showErrorSnackBar) async {
+    return SharingLinks.shareSectionLink(tab, showSnackBar, showErrorSnackBar);
+  }
+
+  @Deprecated('Use SharingLinks.shareHighlightedTextLink instead')
+  static Future<void> shareHighlightedTextLink(tab, showSnackBar, showErrorSnackBar, {String? selectedText}) async {
+    return SharingLinks.shareHighlightedTextLink(tab, showSnackBar, showErrorSnackBar, selectedText: selectedText);
   }
 }

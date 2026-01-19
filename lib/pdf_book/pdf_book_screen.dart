@@ -18,7 +18,7 @@ import 'package:otzaria/settings/settings_bloc.dart';
 import 'package:otzaria/settings/settings_event.dart';
 import 'package:otzaria/settings/settings_state.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
-import 'package:otzaria/utils/sharing_utils.dart';
+import 'package:otzaria/links/ui/sharing_links.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/utils/open_book.dart';
 import 'package:otzaria/utils/ref_helper.dart';
@@ -1708,8 +1708,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       pageNumber: widget.tab.pdfViewerController.pageNumber ?? 1,
     );
 
-    // שימוש ב-SharingUtils לשיתוף
-    SharingUtils.shareBookLink(
+    // שימוש ב-SharingLinks לשיתוף
+    SharingLinks.shareBookLinkLegacy(
       tab,
       (message) => UiSnack.showQuick(message),
       (error) => UiSnack.showError(error),
@@ -1724,8 +1724,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       pageNumber: widget.tab.pdfViewerController.pageNumber ?? 1,
     );
 
-    // שימוש ב-SharingUtils לשיתוף קישור לדף ספציפי
-    SharingUtils.shareSectionLink(
+    // שימוש ב-SharingLinks לשיתוף קישור לדף ספציפי
+    SharingLinks.shareSectionLink(
       tab,
       (message) => UiSnack.showQuick(message),
       (error) => UiSnack.showError(error),
