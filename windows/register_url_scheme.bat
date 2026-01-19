@@ -23,7 +23,7 @@ if exist "%APP_PATH_DEBUG%" (
 )
 
 REM Register the URL scheme in Windows Registry
-reg add "HKEY_CLASSES_ROOT\otzaria" /ve /d "URL:Otzaria Protocol" /f
+reg add "HKEY_CLASSES_ROOT\otzaria" /ve /d "פתיחת אוצריא" /f
 reg add "HKEY_CLASSES_ROOT\otzaria" /v "URL Protocol" /d "" /f
 reg add "HKEY_CLASSES_ROOT\otzaria\DefaultIcon" /ve /d "\"%APP_PATH%\",0" /f
 reg add "HKEY_CLASSES_ROOT\otzaria\shell" /f
