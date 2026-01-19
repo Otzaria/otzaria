@@ -1709,11 +1709,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     );
 
     // שימוש ב-SharingLinks לשיתוף
-    SharingLinks.shareBookLinkLegacy(
-      tab,
-      (message) => UiSnack.showQuick(message),
-      (error) => UiSnack.showError(error),
-    );
+    SharingLinks.shareBookLink(context, tab.book);
   }
 
   /// שיתוף קישור לדף הנוכחי בספר PDF
@@ -1725,10 +1721,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     );
 
     // שימוש ב-SharingLinks לשיתוף קישור לדף ספציפי
-    SharingLinks.shareSectionLink(
-      tab,
-      (message) => UiSnack.showQuick(message),
-      (error) => UiSnack.showError(error),
+    SharingLinks.shareBookLink(
+      context,
+      tab.book,
+      position: tab.pageNumber,
     );
   }
 }
