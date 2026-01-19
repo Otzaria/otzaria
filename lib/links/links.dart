@@ -1,4 +1,5 @@
 /// מודול קישורים - ייצוא כל המחלקות הקשורות לטיפול בקישורים
+library;
 
 // Core classes
 export 'core/link_handler.dart';
