@@ -21,7 +21,6 @@ import 'package:otzaria/search/view/full_text_search_screen.dart';
 import 'package:otzaria/text_book/view/text_book_screen.dart';
 import 'package:otzaria/core/scaffold_messenger.dart';
 import 'package:otzaria/utils/text_manipulation.dart';
-import 'package:otzaria/utils/context_menu_sharing.dart';
 import 'package:otzaria/links/ui/sharing_links.dart';
 import 'package:otzaria/workspaces/view/workspace_switcher_dialog.dart';
 import 'package:otzaria/history/history_dialog.dart';
@@ -883,49 +882,27 @@ class _ReadingScreenState extends State<ReadingScreen>
   }
 
   Future<void> _shareBookLink(OpenedTab tab) async {
-    // בדיקה אם זה TextBookTab
-    if (tab is TextBookTab) {
-      await ContextMenuSharing.shareBookLink(
-        context,
-        tab,
-        (message) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
-            );
-          }
-        },
-        (error) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(error), duration: const Duration(seconds: 2)),
-            );
-          }
-        },
-      );
-    } else {
-      // עבור סוגי טאבים אחרים, נשתמש בשיטה הכללית
-      try {
-        final link = SharingLinks.getTabLinkText(tab);
-        await Clipboard.setData(ClipboardData(text: link));
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('קישור הועתק ללוח'),
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('שגיאה בהעתקת הקישור: $e'),
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        }
+    try {
+      // שימוש בפונקציה הכללית שמטפלת בכל סוגי הטאבים
+      final link = SharingLinks.getTabLinkText(tab);
+      await Clipboard.setData(ClipboardData(text: link));
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('קישור הועתק ללוח: ${tab.title}'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('שגיאה בהעתקת הקישור: $e'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
       }
     }
   }

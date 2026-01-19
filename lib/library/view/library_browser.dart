@@ -341,11 +341,24 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                           Padding(
                             padding: const EdgeInsets.only(left: 4.0),
                             child: Tooltip(
-                              message: 'לחץ Enter לפתיחת הקישור',
-                              child: Icon(
-                                FluentIcons.arrow_right_24_regular,
-                                size: 16,
-                                color: Theme.of(context).colorScheme.primary,
+                              message: 'לחץ לפתיחת הקישור',
+                              child: IconButton(
+                                constraints: const BoxConstraints(
+                                  minWidth: 24,
+                                  minHeight: 24,
+                                  maxWidth: 24,
+                                  maxHeight: 24,
+                                ),
+                                padding: EdgeInsets.zero,
+                                onPressed: () async {
+                                  final searchText = focusRepository.librarySearchController.text;
+                                  await _handleSearchSubmit(searchText);
+                                },
+                                icon: Icon(
+                                  FluentIcons.arrow_right_24_regular,
+                                  size: 16,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
                               ),
                             ),
                           ),
@@ -379,7 +392,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                       ),
                     ),
                     hintText: _isUrlDetected
-                        ? 'קישור זוהה - לחץ Enter לפתיחה'
+                        ? 'קישור זוהה - לחץ Enter או על החץ לפתיחה'
                         : 'איתור ספר או מחבר ב${state.currentCategory?.title ?? ""} (או הדבק קישור)',
                     hintStyle: _isUrlDetected
                         ? TextStyle(
@@ -1098,7 +1111,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     }
     
     // אם זה לא קישור, המשך עם חיפוש רגיל
-    // (הלוגיקה הקיימת תמשיך לעבוד)
+    final state = context.read<LibraryBloc>().state;
+    final settingsState = context.read<SettingsBloc>().state;
+    _update(context, state, settingsState);
   }
 
   void _showHistoryDialog(BuildContext context) {

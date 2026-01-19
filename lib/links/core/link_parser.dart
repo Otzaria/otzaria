@@ -270,6 +270,13 @@ class LinkParser {
       // ודא שזה לא נראה כמו URL מלא שכבר נבדק
       final beforeQuery = cleanText.substring(0, queryIndex);
       if (!beforeQuery.contains('://')) {
+        // בדיקה נוספת: ודא שהחלק שלפני ? לא מכיל מילים שמרמזות על חיפוש רגיל
+        // למשל "מהו page=5" לא צריך להיחשב כקישור
+        final beforeQueryWords = beforeQuery.split(' ');
+        if (beforeQueryWords.length > 1) {
+          // אם יש יותר ממילה אחת לפני ?, זה כנראה לא קישור
+          return false;
+        }
         return true;
       }
     }
