@@ -1092,6 +1092,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       final success = await SearchBoxLinkHandler.handleSearchUrl(context, searchText);
       
       if (success) {
+        // בדיקה שהווידג'ט עדיין קיים לפני שימוש ב-context
+        if (!mounted) return;
+        
         // אם הקישור נפתח בהצלחה, נקה את תיבת החיפוש ואפס את האינדיקציה
         final focusRepository = context.read<FocusRepository>();
         focusRepository.librarySearchController.clear();

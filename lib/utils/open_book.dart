@@ -14,9 +14,12 @@ import 'package:collection/collection.dart';
 
 void openBook(BuildContext context, Book book, int index, String searchQuery,
     {bool ignoreHistory = false}) {
+  debugPrint('DEBUG: פתיחת ספר - ${book.title}, אינדקס: $index');
+
   // שמירת המצב הנוכחי לפני פתיחת ספר חדש כדי למנוע בלבול במיקום
   final tabsState = context.read<TabsBloc>().state;
   if (tabsState.hasOpenTabs) {
+    debugPrint('DEBUG: שמירת מצב הטאב הנוכחי לפני פתיחת ספר חדש');
     context
         .read<HistoryBloc>()
         .add(CaptureStateForHistory(tabsState.currentTab!));
@@ -34,10 +37,14 @@ void openBook(BuildContext context, Book book, int index, String searchQuery,
       (ignoreHistory || index != 0) ? index : (lastOpened?.index ?? 0);
   final List<String>? initialCommentators = lastOpened?.commentatorsToShow;
 
+  debugPrint(
+      'DEBUG: אינדקס סופי לטאב: $initialIndex (מועבר: $index, מהיסטוריה: ${lastOpened?.index})');
+
   final bool shouldOpenLeftPane =
       (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
           (Settings.getValue<bool>('key-default-sidebar-open') ?? false);
 
+  debugPrint('DEBUG: יצירת טאב עם אינדקס: $initialIndex');
   final tab = OpenedTab.fromBook(
     book,
     initialIndex,

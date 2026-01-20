@@ -201,6 +201,9 @@ class _SearchDialogState extends State<SearchDialog> {
 
   void _updateAlternativesList() {
     final wordIndex = _getCurrentWordIndex();
+    debugPrint(
+      '🟣 Dialog _updateAlternativesList: wordIndex=$wordIndex, searchOptions keys=${_searchTab.searchOptions.keys.toList()}',
+    );
     if (wordIndex != null) {
       // עדכון הרשימה לפי המילים החילופיות השמורות ב-tab
       final alternatives = _searchTab.alternativeWords[wordIndex] ?? [];
@@ -418,6 +421,9 @@ class _SearchDialogState extends State<SearchDialog> {
         opacity: isEnabled ? 1.0 : 0.5,
         child: InkWell(
           onTap: () {
+            debugPrint(
+              '🔴 Dialog: Checkbox clicked! isEnabled=$isEnabled, currentWord=$currentWord, wordIndex=$wordIndex',
+            );
             if (isEnabled && currentWord != null && wordIndex != null) {
               setState(() {
                 final key = '${currentWord}_$wordIndex';
@@ -425,7 +431,15 @@ class _SearchDialogState extends State<SearchDialog> {
                   _searchTab.searchOptions[key] = {};
                 }
                 _searchTab.searchOptions[key]![option] = !isChecked;
+                debugPrint(
+                  '🔵 Dialog: Set search option $key[$option] = ${!isChecked}',
+                );
+                debugPrint(
+                  '🔵 Dialog: Total search options: ${_searchTab.searchOptions.keys.toList()}',
+                );
               });
+            } else {
+              debugPrint('❌ Dialog: Cannot set option - conditions not met');
             }
           },
           borderRadius: BorderRadius.circular(4),
