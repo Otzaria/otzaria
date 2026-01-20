@@ -18,7 +18,7 @@ import 'package:otzaria/settings/settings_bloc.dart';
 import 'package:otzaria/settings/settings_event.dart';
 import 'package:otzaria/settings/settings_state.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
-import 'package:otzaria/links/ui/sharing_links.dart';
+import 'package:otzaria/links/links.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/utils/open_book.dart';
 import 'package:otzaria/utils/ref_helper.dart';
@@ -1709,7 +1709,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     );
 
     // שימוש ב-SharingLinks לשיתוף
-    SharingLinks.shareBookLink(context, tab.book);
+    SharingService.shareBook(context, tab.book);
   }
 
   /// שיתוף קישור לדף הנוכחי בספר PDF
@@ -1721,7 +1721,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     );
 
     // שימוש ב-SharingLinks לשיתוף קישור לדף ספציפי
-    SharingLinks.shareBookLink(
+    SharingService.shareBook(
       context,
       tab.book,
       position: tab.pageNumber,

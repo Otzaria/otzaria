@@ -7,7 +7,7 @@ import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/widgets/commentators_filter_button.dart';
 import 'package:otzaria/widgets/commentators_filter_screen.dart';
 import 'package:otzaria/models/books.dart';
-import 'package:otzaria/models/links.dart';
+import 'package:otzaria/links/links.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';

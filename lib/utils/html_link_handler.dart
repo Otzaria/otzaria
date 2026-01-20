@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/tabs/models/tab.dart';
-import 'package:otzaria/links/core/link_handler.dart';
+import 'package:otzaria/links/links.dart';
 
 /// מחלקה לטיפול בקישורי HTML בתוך הטקסט
 /// 
@@ -16,6 +16,6 @@ class HtmlLinkHandler {
     String url,
     Function(OpenedTab) openBookCallback,
   ) async {
-    return await LinkHandler.handleLink(context, url, openBookCallback);
+    return await LinkHandler.handle(context, url, openBookCallback);
   }
 }

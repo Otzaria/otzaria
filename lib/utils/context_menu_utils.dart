@@ -6,7 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 import 'package:otzaria/core/scaffold_messenger.dart';
 import 'package:otzaria/models/books.dart';
-import 'package:otzaria/models/links.dart';
+import 'package:otzaria/links/links.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:otzaria/utils/copy_utils.dart';

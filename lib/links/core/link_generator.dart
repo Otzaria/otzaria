@@ -1,37 +1,38 @@
 /// יצירת קישורים לספרים
 library;
 
-import 'package:otzaria/links/models/link_models.dart';
-import 'package:otzaria/links/utils/url_encoding.dart';
+import '../models/link.dart';
+import '../models/link_types.dart';
+import '../utils/encoding.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 
-/// מחלקה ליצירת קישורים לספרים
+/// מחלקה ליצירת קישורים
 class LinkGenerator {
   
-  /// יצירת קישור מ-BookLink
-  static String generateUrl(BookLink link) {
+  /// יצירת URL מ-BookLink
+  static String generate(BookLink link) {
     switch (link.type) {
       case LinkType.textBook:
-        return _generateOtzariaBookUrl(link, 'book');
+        return _generateOtzariaUrl(link, 'book');
       case LinkType.pdfBook:
-        return _generateOtzariaBookUrl(link, 'pdf');
+        return _generateOtzariaUrl(link, 'pdf');
       case LinkType.simpleBook:
-        return _generateSimpleBookUrl(link);
+        return _generateSimpleUrl(link);
       case LinkType.internal:
         return _generateInternalUrl(link);
       case LinkType.inlineLink:
         return _generateInlineUrl(link);
       case LinkType.external:
-        return link.bookTitle; // עבור קישורים חיצוניים, השם הוא ה-URL
+        return link.bookTitle; // עבור קישורים חיצוניים
     }
   }
 
-  /// יצירת קישור otzaria://book/ או otzaria://pdf/
-  static String _generateOtzariaBookUrl(BookLink link, String scheme) {
-    final encodedTitle = UrlEncoding.safeEncode(link.bookTitle);
+  /// יצירת קישור otzaria://
+  static String _generateOtzariaUrl(BookLink link, String scheme) {
+    final encodedTitle = UrlEncoding.encode(link.bookTitle);
     final baseUrl = 'otzaria://$scheme/$encodedTitle';
     
     final params = <String, String>{};
@@ -53,19 +54,19 @@ class LinkGenerator {
     }
     
     // הוספת פרמטרים נוספים
-    params.addAll(link.additionalParams);
+    params.addAll(link.params);
     
-    final queryString = UrlEncoding.buildQueryString(params);
+    final queryString = UrlEncoding.buildQuery(params);
     return '$baseUrl$queryString';
   }
 
   /// יצירת קישור book://
-  static String _generateSimpleBookUrl(BookLink link) {
-    final encodedTitle = UrlEncoding.safeEncode(link.bookTitle);
+  static String _generateSimpleUrl(BookLink link) {
+    final encodedTitle = UrlEncoding.encode(link.bookTitle);
     String url = 'book://$encodedTitle';
     
     if (link.header != null && link.header!.isNotEmpty) {
-      final encodedHeader = UrlEncoding.safeEncode(link.header!);
+      final encodedHeader = UrlEncoding.encode(link.header!);
       url += '#$encodedHeader';
     }
     
@@ -78,7 +79,7 @@ class LinkGenerator {
       return '#';
     }
     
-    final encodedHeader = UrlEncoding.safeEncode(link.header!);
+    final encodedHeader = UrlEncoding.encode(link.header!);
     return '#$encodedHeader';
   }
 
@@ -98,94 +99,80 @@ class LinkGenerator {
       params['ref'] = link.reference!;
     }
     
-    final queryString = UrlEncoding.buildQueryString(params);
+    final queryString = UrlEncoding.buildQuery(params);
     return 'otzaria://inline-link$queryString';
   }
 
   /// יצירת קישור מספר
-  static BookLink createLinkFromBook(Book book, {
+  static BookLink fromBook(
+    Book book, {
     int? position,
     String? highlightText,
     bool fullSectionHighlight = false,
     String? header,
   }) {
-    final linkType = book is PdfBook ? LinkType.pdfBook : LinkType.textBook;
-    
-    return BookLink(
-      bookTitle: book.title,
-      type: linkType,
-      position: position,
-      highlightText: highlightText,
-      fullSectionHighlight: fullSectionHighlight,
-      header: header,
-    );
+    if (book is PdfBook) {
+      return BookLink.pdfBook(book.title, page: position);
+    } else {
+      return BookLink.textBook(
+        book.title,
+        index: position,
+        highlightText: highlightText,
+        fullSectionHighlight: fullSectionHighlight,
+      );
+    }
   }
 
   /// יצירת קישור מטאב פתוח
-  static BookLink createLinkFromTab(OpenedTab tab) {
+  static BookLink fromTab(OpenedTab tab) {
     if (tab is TextBookTab) {
-      return BookLink(
-        bookTitle: tab.book.title,
-        type: LinkType.textBook,
-        position: tab.index,
+      return BookLink.textBook(
+        tab.book.title,
+        index: tab.index,
         highlightText: tab.searchText.isEmpty ? null : tab.searchText,
       );
     } else if (tab is PdfBookTab) {
-      return BookLink(
-        bookTitle: tab.book.title,
-        type: LinkType.pdfBook,
-        position: tab.pageNumber,
+      return BookLink.pdfBook(
+        tab.book.title,
+        page: tab.pageNumber,
       );
     }
     
     throw ArgumentError('Unsupported tab type: ${tab.runtimeType}');
   }
 
-  /// יצירת קישור שיתוף מהיר
-  static String createSharingUrl(Book book, {
+  /// יצירת URL לשיתוף מהיר
+  static String createSharingUrl(
+    Book book, {
     int? position,
     String? highlightText,
     bool fullSectionHighlight = false,
   }) {
-    final link = createLinkFromBook(
+    final link = fromBook(
       book,
       position: position,
       highlightText: highlightText,
       fullSectionHighlight: fullSectionHighlight,
     );
     
-    return generateUrl(link);
+    return generate(link);
   }
 
-  /// יצירת קישור פשוט לספר (ללא פרמטרים)
-  static String createSimpleBookUrl(String bookTitle) {
-    final link = BookLink(
-      bookTitle: bookTitle,
-      type: LinkType.simpleBook,
-    );
-    
-    return generateUrl(link);
+  /// יצירת קישור פשוט לספר
+  static String createSimpleUrl(String bookTitle) {
+    final link = BookLink.simple(bookTitle);
+    return generate(link);
   }
 
-  /// יצירת קישור לכותרת ספציפית בספר
-  static String createBookHeaderUrl(String bookTitle, String header) {
-    final link = BookLink(
-      bookTitle: bookTitle,
-      type: LinkType.simpleBook,
-      header: header,
-    );
-    
-    return generateUrl(link);
+  /// יצירת קישור לכותרת ספציפית
+  static String createHeaderUrl(String bookTitle, String header) {
+    final link = BookLink.simple(bookTitle, header: header);
+    return generate(link);
   }
 
   /// יצירת קישור פנימי לכותרת
-  static String createInternalHeaderUrl(String header) {
-    final link = BookLink(
-      bookTitle: '',
-      type: LinkType.internal,
-      header: header,
-    );
-    
-    return generateUrl(link);
+  static String createInternalUrl(String header) {
+    final link = BookLink.internal(header);
+    return generate(link);
   }
 }

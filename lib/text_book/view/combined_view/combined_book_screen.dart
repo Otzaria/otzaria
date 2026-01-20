@@ -19,10 +19,7 @@ import 'package:otzaria/personal_notes/personal_notes_system.dart';
 import 'package:otzaria/utils/copy_utils.dart';
 import 'package:otzaria/core/scaffold_messenger.dart';
 import 'package:super_clipboard/super_clipboard.dart';
-import 'package:otzaria/links/core/link_handler.dart';
-import 'package:otzaria/links/utils/text_with_inline_links.dart';
-
-import 'package:otzaria/links/ui/sharing_links.dart';
+import 'package:otzaria/links/links.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 
 class CombinedView extends StatefulWidget {
@@ -214,7 +211,7 @@ class _CombinedViewState extends State<CombinedView> {
           label: const Text('העתק קישור לספר זה'),
           icon: const Icon(FluentIcons.share_24_regular),
           onSelected: (_) {
-            SharingLinks.shareBookLink(context, widget.tab.book, position: widget.tab.index);
+            SharingService.shareBook(context, widget.tab.book, position: widget.tab.index);
           },
         ),
         const ctx.MenuDivider(),
@@ -227,25 +224,25 @@ class _CombinedViewState extends State<CombinedView> {
               label: const Text('העתק קישור ישיר לספר זה'),
               icon: const Icon(FluentIcons.book_24_regular),
               onSelected: (_) {
-                SharingLinks.shareBookLink(context, widget.tab.book);
+                SharingService.shareBook(context, widget.tab.book);
               },
             ),
             ctx.MenuItem(
               label: const Text('העתק קישור ישיר למקטע זה'),
               icon: const Icon(FluentIcons.document_24_regular),
               onSelected: (_) {
-                SharingLinks.shareBookLink(context, widget.tab.book, position: paragraphIndex);
+                SharingService.shareBook(context, widget.tab.book, position: paragraphIndex);
               },
             ),
             ctx.MenuItem(
               label: const Text('העתק קישור ישיר למקטע זה עם הדגשת טקסט'),
               icon: const Icon(FluentIcons.highlight_24_regular),
               onSelected: (_) {
-                SharingLinks.shareBookLink(
+                SharingService.shareWithHighlight(
                   context, 
                   widget.tab.book, 
-                  position: paragraphIndex,
-                  highlightText: _savedSelectedText,
+                  paragraphIndex,
+                  _savedSelectedText ?? '',
                 );
               },
             ),
@@ -787,7 +784,7 @@ $textWithBreaks
 
                             if (linksForLine.isNotEmpty) {
                               dataWithLinks =
-                                  addInlineLinksToText(data, linksForLine);
+                                  TextProcessing.addInlineLinks(data, linksForLine);
                             }
                           } catch (e) {
                             // אם יש שגיאה, פשוט נשתמש בטקסט המקורי
@@ -849,7 +846,7 @@ $textWithBreaks
                             height: 1.5,
                           ),
                           onTapUrl: (url) async {
-                            return await LinkHandler.handleLink(
+                            return await LinkHandler.handle(
                               context,
                               url,
                               (tab) => widget.openBookCallback(tab),

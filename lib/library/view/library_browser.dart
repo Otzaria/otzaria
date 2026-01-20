@@ -37,7 +37,7 @@ import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
-import 'package:otzaria/links/ui/search_box_link_handler.dart';
+import 'package:otzaria/links/links.dart';
 
 class LibraryBrowser extends StatefulWidget {
   const LibraryBrowser({super.key});
@@ -409,7 +409,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                       : null,
                   onChanged: (value) {
                     // בדיקה אם הטקסט הוא קישור
-                    final isUrl = SearchBoxLinkHandler.isValidUrl(value);
+                    final isUrl = SearchIntegration.isValidUrl(value);
                     if (isUrl != _isUrlDetected) {
                       setState(() {
                         _isUrlDetected = isUrl;
@@ -1088,8 +1088,8 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     if (searchText.isEmpty) return;
     
     // בדיקה אם הטקסט הוא קישור
-    if (SearchBoxLinkHandler.isValidUrl(searchText)) {
-      final success = await SearchBoxLinkHandler.handleSearchUrl(context, searchText);
+    if (SearchIntegration.isValidUrl(searchText)) {
+      final success = await SearchIntegration.handleSearchUrl(context, searchText);
       
       if (success) {
         // בדיקה שהווידג'ט עדיין קיים לפני שימוש ב-context

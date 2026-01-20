@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/models/links.dart';
+import 'package:otzaria/links/links.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
 
 void main() {

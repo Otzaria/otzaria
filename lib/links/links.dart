@@ -1,22 +1,20 @@
 /// מודול קישורים - ייצוא כל המחלקות הקשורות לטיפול בקישורים
 library;
 
-// Core classes
-export 'core/link_handler.dart';
+// Export new architecture
+export 'models/link.dart';
+export 'models/link_types.dart';
 export 'core/link_parser.dart';
 export 'core/link_generator.dart';
+export 'core/link_handler.dart';
+export 'services/navigation_service.dart';
+export 'services/sharing_service.dart';
+export 'services/url_service.dart';
+export 'ui/context_menu.dart';
+export 'ui/search_integration.dart';
+export 'utils/encoding.dart';
+export 'utils/validation.dart';
+export 'utils/text_processing.dart';
 
-// Models
-export 'models/link_models.dart';
-
-// UI integration
-export 'ui/search_box_link_handler.dart';
-export 'ui/sharing_links.dart';
-export 'ui/context_menu_links.dart';
-
-// Utils
-export 'utils/url_encoding.dart';
-export 'utils/url_handler_service.dart';
-export 'utils/url_processor.dart';
-export 'utils/book_navigation.dart';
-export 'utils/text_with_inline_links.dart';
+// Backward compatibility - export old Link class
+export '../models/links.dart' show Link, getLinksforIndexs;

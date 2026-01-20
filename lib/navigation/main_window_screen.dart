@@ -33,8 +33,7 @@ import 'package:otzaria/widgets/ad_popup_dialog.dart';
 
 import 'package:window_manager/window_manager.dart';
 import 'package:otzaria/main.dart' show appWindowListener;
-import 'package:otzaria/links/utils/url_processor.dart';
-import 'package:otzaria/links/utils/url_handler_service.dart';
+import 'package:otzaria/links/services/url_service.dart';
 
 
 class MainWindowScreen extends StatefulWidget {
@@ -97,17 +96,17 @@ class MainWindowScreenState extends State<MainWindowScreen>
     // Handle initial URL if provided
     if (widget.initialUrl != null) {
       debugPrint('MainWindowScreen: Initial URL provided: ${widget.initialUrl}');
-      UrlProcessor.handleInitialUrl(context, widget.initialUrl!, null);
+      UrlService.handleInitialUrl(context, widget.initialUrl!, null);
     } else {
       debugPrint('MainWindowScreen: No initial URL provided');
     }
 
     // Set up URL handler for inter-process communication
-    UrlHandlerService.setUrlHandler((url) {
+    UrlService.setHandler((url) {
       debugPrint('MainWindowScreen: Received URL from another instance: $url');
       // Bring window to front when receiving URL from another instance
-      UrlProcessor.bringWindowToFront();
-      UrlProcessor.handleInitialUrl(context, url, null);
+      UrlService.bringToFront();
+      UrlService.handleInitialUrl(context, url, null);
     });
   }
 

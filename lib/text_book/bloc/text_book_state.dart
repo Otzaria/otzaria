@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:otzaria/models/books.dart';
-import 'package:otzaria/models/links.dart';
+import 'package:otzaria/links/links.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';

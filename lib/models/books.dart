@@ -1,6 +1,6 @@
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/library/models/library.dart';
-import 'package:otzaria/models/links.dart';
+import 'package:otzaria/links/links.dart';
 //import 'package:pdfrx/pdfrx.dart';
 
 /// Represents a book in the application.

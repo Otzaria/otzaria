@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/models/links.dart';
-import 'package:otzaria/links/utils/text_with_inline_links.dart';
+import 'package:otzaria/links/links.dart';
 
 void main() {
   group('Inline Links Tests', () {
@@ -16,7 +15,7 @@ void main() {
         end: 29,
       );
 
-      final result = addInlineLinksToText(text, [link]);
+      final result = TextProcessing.addInlineLinks(text, [link]);
 
       expect(result, contains('<a href='));
       expect(result, contains('otzaria://inline-link'));
@@ -47,7 +46,7 @@ void main() {
         ),
       ];
 
-      final result = addInlineLinksToText(text, links);
+      final result = TextProcessing.addInlineLinks(text, links);
 
       expect(result.split('<a href=').length - 1, equals(2));
     });
@@ -62,7 +61,7 @@ void main() {
         connectionType: 'reference',
       );
 
-      final result = addInlineLinksToText(text, [link]);
+      final result = TextProcessing.addInlineLinks(text, [link]);
 
       expect(result, equals(text));
       expect(result, isNot(contains('<a href=')));
@@ -80,7 +79,7 @@ void main() {
         end: 5,
       );
 
-      final result = addInlineLinksToText(text, [link]);
+      final result = TextProcessing.addInlineLinks(text, [link]);
 
       expect(result, equals(text));
     });
@@ -108,7 +107,7 @@ void main() {
         ),
       ];
 
-      final result = addInlineLinksToText(text, links);
+      final result = TextProcessing.addInlineLinks(text, links);
 
       // רק הקישור הראשון צריך להתווסף
       expect(result.split('<a href=').length - 1, equals(1));
@@ -126,7 +125,7 @@ void main() {
         end: 17,
       );
 
-      final result = addInlineLinksToText(text, [link]);
+      final result = TextProcessing.addInlineLinks(text, [link]);
 
       // הטקסט המקורי צריך להישמר
       expect(result, contains('טקסט רגיל'));
@@ -169,7 +168,7 @@ void main() {
         ),
       ];
 
-      final result = addInlineLinksToText(text, invalidLinks);
+      final result = TextProcessing.addInlineLinks(text, invalidLinks);
 
       // כל הקישורים הלא תקינים צריכים להידלג
       expect(result, equals(text));

@@ -1,4 +1,4 @@
-import 'package:otzaria/models/links.dart';
+import 'package:otzaria/links/links.dart';
 
 /// עוזר לסנכרון מפרשים - מוצא את הקישור הטוב ביותר
 class CommentarySyncHelper {

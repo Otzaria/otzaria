@@ -5,7 +5,7 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:flutter_context_menu/flutter_context_menu.dart' as ctx;
 import 'package:otzaria/models/books.dart';
-import 'package:otzaria/models/links.dart';
+import 'package:otzaria/links/links.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';

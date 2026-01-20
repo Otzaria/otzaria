@@ -12,7 +12,7 @@ import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
 import 'package:otzaria/widgets/loading_indicator.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/models/books.dart';
-import 'package:otzaria/models/links.dart';
+import 'package:otzaria/links/links.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/resizable_drag_handle.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:otzaria/models/books.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'dart:io';
-import 'package:otzaria/models/links.dart';
+import 'package:otzaria/links/links.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/text_book_repository.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';

@@ -3,7 +3,7 @@ import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/models/books.dart';
-import 'package:otzaria/models/links.dart';
+import 'package:otzaria/links/links.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 
 /// מחלקה לניהול ברירות מחדל של מפרשים לפי סוג הספר

@@ -1,51 +1,79 @@
-# Links Module
+# Links Module - מודול קישורים
 
 תיקייה זו מכילה את כל הקוד הקשור ליצירה, העתקה ופתיחה של קישורים ישירים לספרים באוצריא.
 
-## מבנה התיקייה:
+## ארכיטקטורה חדשה (2024)
 
-### Core Files:
-- `link_handler.dart` - מחלקה מרכזית לטיפול בכל סוגי הקישורים
-- `link_generator.dart` - יצירת קישורים לספרים
-- `link_parser.dart` - פענוח וניתוח קישורים
+המודול עבר ארגון מחדש מקצועי עם הפרדה ברורה בין שכבות:
 
-### UI Integration:
-- `search_box_link_handler.dart` - טיפול בקישורים מתיבת החיפוש
-- `context_menu_links.dart` - קישורים בתפריטי הקשר
-- `sharing_links.dart` - שיתוף קישורים
+### מבנה התיקייה:
 
-### Models:
-- `link_models.dart` - מודלים לייצוג קישורים
+```
+lib/links/
+├── links.dart                    # ייצוא ראשי
+├── models/                       # מודלים בסיסיים
+│   ├── link.dart                 # מודל קישור מרכזי
+│   └── link_types.dart           # סוגי קישורים ו-enums
+├── core/                         # פונקציונליות ליבה
+│   ├── link_parser.dart          # פענוח קישורים
+│   ├── link_generator.dart       # יצירת קישורים
+│   └── link_handler.dart         # טיפול בקישורים
+├── services/                     # שירותים
+│   ├── navigation_service.dart   # ניווט בספרים
+│   ├── sharing_service.dart      # שיתוף קישורים
+│   └── url_service.dart          # טיפול ב-URLs
+├── ui/                          # ממשק משתמש
+│   ├── context_menu.dart         # תפריטי הקשר
+│   └── search_integration.dart   # אינטגרציה עם חיפוש
+├── utils/                       # כלים עזר
+│   ├── encoding.dart             # קידוד/פענוח
+│   ├── validation.dart           # בדיקות תקינות
+│   └── text_processing.dart      # עיבוד טקסט
+└── legacy/                      # תאימות לאחור (זמני)
+    ├── link_models_wrapper.dart
+    └── sharing_links_wrapper.dart
+```
 
-### Utils:
-- `url_encoding.dart` - קידוד ופענוח URLs
-- `url_handler_service.dart` - שירות לטיפול בקישורים בין instances של האפליקציה
-- `url_processor.dart` - עיבוד קישורים בעת הפעלת האפליקציה
-- `book_navigation.dart` - ניווט בתוך ספרים (כותרות, דפים)
-- `text_with_inline_links.dart` - הטמעת קישורים בתוך טקסט
+## שימוש מהיר
 
-### Main Export:
-- `links.dart` - ייצוא כל המחלקות
+### יבוא המודול
+```dart
+import 'package:otzaria/links/links.dart';
+```
+
+### פתיחת קישור
+```dart
+await LinkHandler.openInApp(context, 'otzaria://book/ברכות?index=5');
+```
+
+### יצירת קישור
+```dart
+final link = BookLink.textBook('ברכות', index: 5);
+final url = LinkGenerator.generate(link);
+```
+
+### שיתוף קישור
+```dart
+await SharingService.shareBook(context, book, position: 10);
+```
+
+### בדיקת תקינות
+```dart
+if (LinkValidation.isValidUrl(text)) {
+  // הטקסט הוא קישור תקין
+}
+```
 
 ## פורמטים נתמכים
 
-המודול תומך בכל הפורמטים הבאים:
-
 ### 1. קישורי otzaria:// מלאים
 - **`otzaria://book/שם_ספר?index=מספר&text=טקסט`** - קישורים לספרי טקסט
-  - `index` - מספר המקטע בספר (0-based)
-  - `text` - טקסט להדגשה או `true` להדגשת כל המקטע
 - **`otzaria://pdf/שם_ספר?page=מספר`** - קישורים לספרי PDF
-  - `page` - מספר העמוד בספר PDF
 - **`otzaria://inline-link?path=נתיב&index=אינדקס&ref=הפניה`** - קישורים מבוססי תווים
-  - `path` - נתיב מדויק לקובץ הספר
-  - `index` - אינדקס המקטע (1-based, יומר ל-0-based)
-  - `ref` - הפניה או תיאור המיקום
 
 ### 2. קישורי book:// פשוטים
 - **`book://שם_ספר`** - פתיחת ספר מההתחלה
 - **`book://שם_ספר#כותרת`** - פתיחת ספר במקום ספציפי
-- **`book://שם_ספר#דף#צד`** - מבנה תלמודי מלא
 
 ### 3. קישורים פנימיים
 - **`#כותרת`** - מעבר לכותרת באותו ספר הפתוח
@@ -53,48 +81,70 @@
 ### 4. קישורים מקוצרים (זיהוי אוטומטי)
 - **`שם_ספר?page=מספר`** - יזוהה כקישור לספר
 - **`שם_ספר?index=מספר`** - יזוהה כקישור לספר טקסט
-- **`path=נתיב&index=אינדקס`** - יזוהה כקישור inline
 
-### 5. קישורים חיצוניים (תמיכה עתידית)
-- **`http://...`** / **`https://...`** - קישורים חיצוניים
+## API עיקרי
 
-## שימוש:
-
-### פתיחת קישור:
+### LinkHandler - טיפול בקישורים
 ```dart
-import 'package:otzaria/links/links.dart';
-
 // פתיחת קישור באפליקציה
-await LinkHandler.openLinkInApp(context, 'otzaria://book/ברכות?index=5');
+await LinkHandler.openInApp(context, url);
+
+// טיפול מותאם אישית
+await LinkHandler.handle(context, url, (tab) {
+  // פתיחת הטאב
+});
 ```
 
-### יצירת קישור:
+### LinkGenerator - יצירת קישורים
 ```dart
-// יצירת קישור לספר
-final url = LinkGenerator.createSharingUrl(book, position: 10);
+// יצירה מספר
+final link = LinkGenerator.fromBook(book, position: 5);
+final url = LinkGenerator.generate(link);
 
-// שיתוף קישור
-await SharingLinks.shareBookLink(context, book, position: 10);
+// יצירה מטאב
+final link = LinkGenerator.fromTab(tab);
+final url = LinkGenerator.generate(link);
 ```
 
-### בדיקת תקינות קישור:
+### SharingService - שיתוף קישורים
 ```dart
-if (LinkParser.isValidUrl(text)) {
-  // הטקסט הוא קישור תקין
-}
+// שיתוף ספר
+await SharingService.shareBook(context, book);
+
+// שיתוף עם הדגשה
+await SharingService.shareWithHighlight(context, book, position, text);
+
+// שיתוף טאב
+await SharingService.shareTab(context, tab);
 ```
 
-## אינטגרציה עם הקוד הקיים:
+### NavigationService - ניווט בספרים
+```dart
+// ניווט לכותרת
+await NavigationService.navigateToHeader(context, 'כותרת');
 
-המודול מחליף את הקבצים הישנים:
-- `lib/utils/html_link_handler.dart` - עכשיו wrapper ל-LinkHandler
-- `lib/utils/search_url_handler.dart` - הועבר ל-SearchBoxLinkHandler
-- `lib/utils/search_url_examples.dart` - מידע עבר לתיעוד
+// ניווט לאינדקס
+await NavigationService.navigateToIndex(context, 10);
+```
 
-## עקרונות עיצוב:
+## יתרונות הארכיטקטורה החדשה
 
-1. **הפרדה** - כל הקוד הקשור לקישורים במקום אחד
-2. **מודולריות** - כל מחלקה אחראית על תחום ספציפי
-3. **תאימות לאחור** - הקוד הקיים ממשיך לעבוד
-4. **הרחבה** - קל להוסיף סוגי קישורים חדשים
-5. **בדיקות** - מבנה שמאפשר בדיקות יחידה קלות
+1. **ארגון מקצועי** - הפרדה ברורה בין שכבות
+2. **שמות ברורים** - API פשוט וקל לשימוש
+3. **הרחבה קלה** - קל להוסיף פיצ'רים חדשים
+4. **תחזוקה קלה** - קוד מאורגן ונקי
+5. **ביצועים טובים** - קוד יעיל ומהיר
+6. **בדיקות קלות** - כל מחלקה ניתנת לבדיקה בנפרד
+
+## מעבר מהקוד הישן
+
+ראה `MIGRATION_GUIDE.md` למדריך מפורט על המעבר מהקוד הישן לחדש.
+
+## תאימות לאחור
+
+הקוד הישן ממשיך לעבוד באמצעות wrapper files בתיקיית `legacy/`. 
+הקבצים הישנים יוסרו בגרסה עתידית לאחר המעבר המלא.
+
+---
+
+*עודכן לאחרונה: ינואר 2025*

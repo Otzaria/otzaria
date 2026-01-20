@@ -10,7 +10,7 @@ import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
-import 'package:otzaria/links/core/link_handler.dart';
+import 'package:otzaria/links/links.dart';
 import 'package:flutter_context_menu/flutter_context_menu.dart' as ctx;
 import 'package:otzaria/models/books.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -19,8 +19,6 @@ import 'package:otzaria/core/scaffold_messenger.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 import 'package:otzaria/personal_notes/personal_notes_system.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
-
-import 'package:otzaria/links/ui/sharing_links.dart';
 
 /// תצוגת טקסט פשוטה - משמשת גם לטקסט המרכזי וגם למפרשים
 class SimpleTextViewer extends StatefulWidget {
@@ -142,9 +140,9 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
               onSelected: (_) {
                 final state = context.read<TextBookBloc>().state;
                 if (state is TextBookLoaded) {
-                  SharingLinks.shareBookLink(context, state.book);
+                  SharingService.shareBook(context, state.book);
                 } else if (widget.bookTitle != null) {
-                  SharingLinks.shareSimpleBookLink(context, widget.bookTitle!);
+                  SharingService.shareSimpleBook(context, widget.bookTitle!);
                 }
               },
             ),
@@ -154,9 +152,9 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
               onSelected: (_) {
                 final state = context.read<TextBookBloc>().state;
                 if (state is TextBookLoaded) {
-                  SharingLinks.shareBookLink(context, state.book, position: index);
+                  SharingService.shareBook(context, state.book, position: index);
                 } else if (widget.bookTitle != null) {
-                  SharingLinks.shareBookHeaderLink(context, widget.bookTitle!, 'מקטע $index');
+                  SharingService.shareBookHeader(context, widget.bookTitle!, 'מקטע $index');
                 }
               },
             ),
@@ -166,14 +164,14 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
               onSelected: (_) {
                 final state = context.read<TextBookBloc>().state;
                 if (state is TextBookLoaded) {
-                  SharingLinks.shareBookLink(
+                  SharingService.shareWithHighlight(
                     context, 
                     state.book, 
-                    position: index,
-                    highlightText: _savedSelectedText,
+                    index,
+                    _savedSelectedText ?? '',
                   );
                 } else if (widget.bookTitle != null) {
-                  SharingLinks.shareBookHeaderLink(context, widget.bookTitle!, 'מקטע $index');
+                  SharingService.shareBookHeader(context, widget.bookTitle!, 'מקטע $index');
                 }
               },
             ),
@@ -580,7 +578,7 @@ $textWithBreaks
                   height: 1.5,
                 ),
                 onTapUrl: (url) async {
-                  return await LinkHandler.handleLink(
+                  return await LinkHandler.handle(
                     context,
                     url,
                     (tab) => widget.openBookCallback(tab),

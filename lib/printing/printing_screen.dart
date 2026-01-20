@@ -8,7 +8,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/constants/fonts.dart';
-import 'package:otzaria/models/links.dart';
+import 'package:otzaria/links/links.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
 import 'package:otzaria/pdf_book/pdf_page_number_dispaly.dart';

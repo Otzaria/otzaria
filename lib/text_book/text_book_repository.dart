@@ -1,6 +1,6 @@
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/models/books.dart';
-import 'package:otzaria/models/links.dart';
+import 'package:otzaria/links/links.dart';
 import 'package:otzaria/utils/text_manipulation.dart';
 
 class TextBookRepository {

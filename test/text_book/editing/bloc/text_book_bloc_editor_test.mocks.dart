@@ -8,7 +8,7 @@ import 'dart:async' as _i3;
 import 'package:mockito/mockito.dart' as _i1;
 import 'package:mockito/src/dummies.dart' as _i5;
 import 'package:otzaria/models/books.dart' as _i4;
-import 'package:otzaria/models/links.dart' as _i6;
+import 'package:otzaria/links/links.dart' as _i6;
 import 'package:otzaria/text_book/editing/models/text_draft.dart' as _i9;
 import 'package:otzaria/text_book/editing/models/text_override.dart' as _i8;
 import 'package:otzaria/text_book/editing/repository/overrides_repository.dart'

@@ -18,7 +18,7 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 
-import 'package:otzaria/links/ui/sharing_links.dart';
+import 'package:otzaria/links/links.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -2553,7 +2553,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   /// שיתוף קישור לספר הנוכחי
   void _shareCurrentBook(BuildContext context, TextBookLoaded state) {
     // שימוש ישיר ב-SharingLinks
-    SharingLinks.shareBookLink(
+    SharingService.shareBook(
       context,
       state.book,
       position: state.positionsListener.itemPositions.value.isNotEmpty

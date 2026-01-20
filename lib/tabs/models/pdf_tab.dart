@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/pdf_headings.dart';
-import 'package:otzaria/models/links.dart';
+import 'package:otzaria/links/links.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/utils/text_manipulation.dart';
 import 'package:pdfrx/pdfrx.dart';

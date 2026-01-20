@@ -11,7 +11,7 @@ import 'package:otzaria/settings/settings_repository.dart';
 import 'package:otzaria/utils/text_manipulation.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/library/models/library.dart';
-import 'package:otzaria/models/links.dart';
+import 'package:otzaria/links/links.dart';
 import 'package:otzaria/utils/toc_parser.dart';
 
 /// A data provider that manages file system operations for the library.

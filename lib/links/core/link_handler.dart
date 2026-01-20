@@ -1,4 +1,4 @@
-/// מחלקה מרכזית לטיפול בכל סוגי הקישורים
+/// מחלקה מרכזית לטיפול בקישורים
 library;
 
 import 'package:flutter/material.dart';
@@ -15,24 +15,24 @@ import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
-import 'package:otzaria/links/utils/book_navigation.dart';
-import 'package:otzaria/links/models/link_models.dart';
-import 'package:otzaria/links/core/link_parser.dart';
+import '../models/link.dart';
+import '../models/link_types.dart';
+import '../core/link_parser.dart';
+import '../services/navigation_service.dart';
 
 /// מחלקה מרכזית לטיפול בקישורים לספרים
 class LinkHandler {
   
-  /// מטפל בקישור ופותח את הספר המתאים
-  static Future<bool> handleLink(
+  /// טיפול בקישור ופתיחת הספר המתאים
+  static Future<bool> handle(
     BuildContext context,
     String url,
-    Function(OpenedTab) openBookCallback,
+    Function(OpenedTab) openTab,
   ) async {
-    debugPrint('LinkHandler: handleLink called with URL: $url');
+    debugPrint('LinkHandler: Processing URL: $url');
     
     try {
-      // פענוח הקישור
-      final parseResult = LinkParser.parseUrl(url);
+      final parseResult = LinkParser.parse(url);
       
       if (!parseResult.success) {
         debugPrint('LinkHandler: Failed to parse URL: ${parseResult.error}');
@@ -44,26 +44,25 @@ class LinkHandler {
 
       final link = parseResult.link!;
       
-      // טיפול לפי סוג הקישור
       switch (link.type) {
         case LinkType.textBook:
         case LinkType.pdfBook:
-          return await _handleBookLink(context, link, openBookCallback);
+          return await _handleBookLink(context, link, openTab);
         
         case LinkType.simpleBook:
-          return await _handleSimpleBookLink(context, link, openBookCallback);
+          return await _handleSimpleLink(context, link, openTab);
         
         case LinkType.internal:
           return await _handleInternalLink(context, link);
         
         case LinkType.inlineLink:
-          return await _handleInlineLink(context, link, openBookCallback);
+          return await _handleInlineLink(context, link, openTab);
         
         case LinkType.external:
           return await _handleExternalLink(context, link);
       }
     } catch (e, stackTrace) {
-      debugPrint('LinkHandler: שגיאה בטיפול בקישור: $e');
+      debugPrint('LinkHandler: Error handling link: $e');
       debugPrint('Stack trace: $stackTrace');
 
       if (context.mounted) {
@@ -78,10 +77,9 @@ class LinkHandler {
   static Future<bool> _handleBookLink(
     BuildContext context,
     BookLink link,
-    Function(OpenedTab) openBookCallback,
+    Function(OpenedTab) openTab,
   ) async {
     try {
-      // מציאת הספר בספרייה
       final library = await DataRepository.instance.library;
       final bookType = link.type == LinkType.pdfBook ? PdfBook : TextBook;
       final foundBook = library.findBookByTitle(link.bookTitle, bookType);
@@ -90,64 +88,18 @@ class LinkHandler {
         throw Exception('לא נמצא ספר בשם: ${link.bookTitle}');
       }
 
+      // Store mounted status before async calls
+      final isMounted = context.mounted;
+      if (!isMounted) return false;
+
       if (link.type == LinkType.pdfBook) {
-        if (foundBook is! PdfBook) {
-          throw Exception('הספר ${link.bookTitle} אינו ספר PDF');
-        }
-
-        final startPage = link.position ?? 1;
-        final pdfTab = PdfBookTab(
-          book: foundBook,
-          pageNumber: startPage,
-        );
-
-        openBookCallback(pdfTab);
-        
-        if (context.mounted) {
-          UiSnack.show('נפתח ספר PDF: ${link.bookTitle} (עמוד $startPage)');
-        }
-        
+        return _openPdfBook(foundBook as PdfBook, link, openTab);
       } else {
-        if (foundBook is! TextBook) {
-          throw Exception('הספר ${link.bookTitle} אינו ספר טקסט');
-        }
-
-        final startIndex = link.position ?? 0;
-        
-        final tab = TextBookTab(
-          book: foundBook,
-          index: startIndex,
-          highlightText: link.highlightText ?? '',
-          fullSectionHighlight: link.fullSectionHighlight,
-          openLeftPane: (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
-              (Settings.getValue<bool>('key-default-sidebar-open') ?? false),
-        );
-
-        openBookCallback(tab);
-
-        // הצגת הודעה למשתמש
-        if (context.mounted) {
-          String message;
-          if (link.fullSectionHighlight) {
-            message = startIndex > 0 
-              ? 'נפתח ספר: ${link.bookTitle} (מקטע $startIndex) עם הדגשת כל המקטע'
-              : 'נפתח ספר: ${link.bookTitle} עם הדגשת כל המקטע';
-          } else if (link.highlightText != null && link.highlightText!.isNotEmpty) {
-            message = startIndex > 0 
-              ? 'נפתח ספר: ${link.bookTitle} (מקטע $startIndex) עם הדגשה: ${link.highlightText}'
-              : 'נפתח ספר: ${link.bookTitle} עם הדגשה: ${link.highlightText}';
-          } else {
-            message = startIndex > 0 
-              ? 'נפתח ספר: ${link.bookTitle} (מקטע $startIndex)'
-              : 'נפתח ספר: ${link.bookTitle}';
-          }
-          UiSnack.show(message);
-        }
+        return _openTextBook(foundBook as TextBook, link, openTab);
       }
-      
-      return true;
     } catch (e) {
-      debugPrint('LinkHandler: שגיאה בטיפול בקישור ספר: $e');
+      debugPrint('LinkHandler: Error handling book link: $e');
+      // Check if context is still mounted before using it
       if (context.mounted) {
         UiSnack.show('לא ניתן לפתוח את הקישור: $e');
       }
@@ -155,11 +107,53 @@ class LinkHandler {
     }
   }
 
+  /// פתיחת ספר PDF
+  static bool _openPdfBook(
+    PdfBook book,
+    BookLink link,
+    Function(OpenedTab) openTab,
+  ) {
+    final startPage = link.position ?? 1;
+    final pdfTab = PdfBookTab(
+      book: book,
+      pageNumber: startPage,
+    );
+
+    openTab(pdfTab);
+    return true;
+  }
+
+  /// פתיחת ספר טקסט
+  static bool _openTextBook(
+    TextBook book,
+    BookLink link,
+    Function(OpenedTab) openTab,
+  ) {
+    final startIndex = link.position ?? 0;
+    
+    final tab = TextBookTab(
+      book: book,
+      index: startIndex,
+      highlightText: link.highlightText ?? '',
+      fullSectionHighlight: link.fullSectionHighlight,
+      openLeftPane: _shouldOpenSidebar(),
+    );
+
+    openTab(tab);
+    return true;
+  }
+
+  /// בדיקה אם לפתוח את הסרגל הצדדי
+  static bool _shouldOpenSidebar() {
+    return (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
+           (Settings.getValue<bool>('key-default-sidebar-open') ?? false);
+  }
+
   /// טיפול בקישורי book://
-  static Future<bool> _handleSimpleBookLink(
+  static Future<bool> _handleSimpleLink(
     BuildContext context,
     BookLink link,
-    Function(OpenedTab) openBookCallback,
+    Function(OpenedTab) openTab,
   ) async {
     try {
       final library = await DataRepository.instance.library;
@@ -175,28 +169,24 @@ class LinkHandler {
 
       int startIndex = 0;
 
-      // אם צוינה כותרת, נחפש את האינדקס שלה
+      // חיפוש כותרת אם צוינה
       if (link.header != null && link.header!.isNotEmpty) {
-        final headerIndex = await BookNavigation.findHeaderIndex(foundBook, link.header!);
+        final headerIndex = await NavigationService.findHeaderIndex(foundBook, link.header!);
         if (headerIndex != null) {
           startIndex = headerIndex;
-        } else {
-          // אם לא נמצאה הכותרת, נציג אזהרה אבל עדיין נפתח את הספר
-          if (context.mounted) {
-            UiSnack.show(
-                'לא נמצאה הכותרת "${link.header}" בספר ${link.bookTitle}, פותח את תחילת הספר');
-          }
+        } else if (context.mounted) {
+          UiSnack.show(
+              'לא נמצאה הכותרת "${link.header}" בספר ${link.bookTitle}, פותח את תחילת הספר');
         }
       }
 
       final tab = TextBookTab(
         book: foundBook,
         index: startIndex,
-        openLeftPane: (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
-            (Settings.getValue<bool>('key-default-sidebar-open') ?? false),
+        openLeftPane: _shouldOpenSidebar(),
       );
 
-      openBookCallback(tab);
+      openTab(tab);
 
       if (context.mounted && link.header != null && link.header!.isNotEmpty) {
         UiSnack.show('פתח ספר: ${link.bookTitle} - ${link.header}');
@@ -204,7 +194,7 @@ class LinkHandler {
       
       return true;
     } catch (e) {
-      debugPrint('LinkHandler: שגיאה בטיפול בקישור book: $e');
+      debugPrint('LinkHandler: Error handling simple link: $e');
       if (context.mounted) {
         UiSnack.show('לא ניתן לפתוח את הספר: ${link.bookTitle}');
       }
@@ -222,10 +212,10 @@ class LinkHandler {
         throw Exception('כותרת ריקה בקישור פנימי');
       }
 
-      await BookNavigation.navigateToHeader(context, link.header!);
+      await NavigationService.navigateToHeader(context, link.header!);
       return true;
     } catch (e) {
-      debugPrint('LinkHandler: שגיאה בטיפול בקישור פנימי: $e');
+      debugPrint('LinkHandler: Error handling internal link: $e');
       if (context.mounted) {
         UiSnack.show('לא ניתן לנווט לכותרת: ${link.header}');
       }
@@ -237,7 +227,7 @@ class LinkHandler {
   static Future<bool> _handleInlineLink(
     BuildContext context,
     BookLink link,
-    Function(OpenedTab) openBookCallback,
+    Function(OpenedTab) openTab,
   ) async {
     try {
       if (link.filePath == null || link.filePath!.isEmpty) {
@@ -260,11 +250,10 @@ class LinkHandler {
       final tab = TextBookTab(
         book: foundBook,
         index: startIndex,
-        openLeftPane: (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
-            (Settings.getValue<bool>('key-default-sidebar-open') ?? false),
+        openLeftPane: _shouldOpenSidebar(),
       );
 
-      openBookCallback(tab);
+      openTab(tab);
 
       if (context.mounted && link.reference != null && link.reference!.isNotEmpty) {
         UiSnack.show('נפתח: ${link.reference}');
@@ -272,7 +261,7 @@ class LinkHandler {
       
       return true;
     } catch (e) {
-      debugPrint('LinkHandler: שגיאה בטיפול בקישור inline: $e');
+      debugPrint('LinkHandler: Error handling inline link: $e');
       if (context.mounted) {
         UiSnack.show('לא ניתן לפתוח את הקישור: $e');
       }
@@ -286,7 +275,6 @@ class LinkHandler {
     BookLink link,
   ) async {
     // כרגע לא מטפלים בקישורים חיצוניים
-    // ניתן להוסיף תמיכה ב-url_launcher בעתיד
     if (context.mounted) {
       UiSnack.show('קישורים חיצוניים אינם נתמכים כרגע');
     }
@@ -294,17 +282,15 @@ class LinkHandler {
   }
 
   /// פתיחת קישור עם אינטגרציה מלאה לאפליקציה
-  static Future<bool> openLinkInApp(
+  static Future<bool> openInApp(
     BuildContext context,
     String url,
   ) async {
-    return await handleLink(
+    return await handle(
       context,
       url,
       (OpenedTab tab) {
-        // פתיחת הטאב החדש
         context.read<TabsBloc>().add(AddTab(tab));
-        // מעבר למסך הקריאה
         context.read<NavigationBloc>().add(const NavigateToScreen(Screen.reading));
       },
     );
