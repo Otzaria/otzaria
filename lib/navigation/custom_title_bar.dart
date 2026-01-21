@@ -148,7 +148,8 @@ class _CustomTitleBarState extends State<CustomTitleBar>
 
   Widget _buildContent(BuildContext context, NavigationState navState,
       SettingsState settingsState) {
-    if (navState.currentScreen == Screen.reading) {
+    if (navState.currentScreen == Screen.reading ||
+        navState.currentScreen == Screen.search) {
       return _buildReadingTabs(context, settingsState);
     } else {
       return _buildStandardTitle(context, navState);
