@@ -209,7 +209,7 @@ class _AboutScreenState extends State<AboutScreen> {
         'url': 'https://mitmachim.top/user/sivan22',
       },
       {
-        'name': 'יהודי צעיר', // יהודי צעיר
+        'name': 'י. צ.', // יהודי צעיר
         'url':
             'https://forum.otzaria.org/user/%D7%99%D7%94%D7%95%D7%93%D7%99-%D7%A6%D7%A2%D7%99%D7%A8',
       },
