@@ -250,6 +250,10 @@ class _AboutScreenState extends State<AboutScreen> {
         'url':
             'https://forum.otzaria.org/user/%D7%94%D7%91%D7%9C-%D7%94%D7%91%D7%9C%D7%99%D7%9D',
       },
+      {
+        'name': 'י. א. ח.', // U88
+        'url': 'https://otzaria.org/forum/user/u88',
+      },
     ];
 
     // מהדירים שההדירו בין 5 ל-10 ספרים
