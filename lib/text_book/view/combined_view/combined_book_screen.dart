@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:flutter_context_menu/flutter_context_menu.dart' as ctx;
 import 'package:otzaria/settings/settings_bloc.dart';
 import 'package:otzaria/settings/settings_state.dart';
@@ -22,10 +21,10 @@ import 'package:otzaria/personal_notes/personal_notes_system.dart';
 import 'package:otzaria/utils/copy_utils.dart';
 import 'package:otzaria/core/scaffold_messenger.dart';
 import 'package:super_clipboard/super_clipboard.dart';
-import 'package:otzaria/utils/html_link_handler.dart';
 import 'package:otzaria/utils/text_with_inline_links.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/widgets/scrollable_positioned_list_scrollbar.dart';
+import 'package:otzaria/widgets/smart_text/smart_text.dart';
 
 class CombinedView extends StatefulWidget {
   const CombinedView({
@@ -956,54 +955,24 @@ $textWithBreaks
                           }
                         }
 
-                        // עיבודים נוספים
-                        if (!settingsState.showTeamim) {
-                          dataWithLinks = utils.removeTeamim(dataWithLinks);
-                        }
-                        if (settingsState.replaceHolyNames) {
-                          dataWithLinks = utils.replaceHolyNames(dataWithLinks);
-                        }
-
-                        String processedData = state.removeNikud
-                            ? utils.highLight(
-                                utils.removeVolwels('$dataWithLinks\n'),
-                                state.searchText,
-                                searchOptions: state.searchOptions,
-                                alternativeWords: state.alternativeWords,
-                                spacingValues: state.spacingValues,
-                                isFuzzy: state.searchMode == SearchMode.fuzzy,
-                              )
-                            : utils.highLight(
-                                '$dataWithLinks\n',
-                                state.searchText,
-                                searchOptions: state.searchOptions,
-                                alternativeWords: state.alternativeWords,
-                                spacingValues: state.spacingValues,
-                                isFuzzy: state.searchMode == SearchMode.fuzzy,
-                              );
-
-                        processedData =
-                            utils.formatTextWithParentheses(processedData);
-
-                        final textWidget = HtmlWidget(
-                          '''
-                          <div style="text-align: justify; direction: rtl;">
-                            $processedData
-                          </div>
-                          ''',
-                          key: ValueKey('html_${widget.tab.book.title}_$index'),
-                          textStyle: TextStyle(
+                        final textWidget = SmartTextWidget(
+                          text: dataWithLinks,
+                          widgetKey:
+                              ValueKey('html_${widget.tab.book.title}_$index'),
+                          settings: RenderSettings(
+                            removeNikud: state.removeNikud,
+                            removeTeamim: !settingsState.showTeamim,
+                            replaceHolyNames: settingsState.replaceHolyNames,
+                            searchText: state.searchText,
+                            searchOptions: state.searchOptions,
+                            alternativeWords: state.alternativeWords,
+                            spacingValues: state.spacingValues,
+                            isFuzzySearch: state.searchMode == SearchMode.fuzzy,
+                            searchMode: state.searchMode,
                             fontSize: widget.textSize,
                             fontFamily: settingsState.fontFamily,
-                            height: 1.5,
                           ),
-                          onTapUrl: (url) async {
-                            return await HtmlLinkHandler.handleLink(
-                              context,
-                              url,
-                              (tab) => widget.openBookCallback(tab),
-                            );
-                          },
+                          onOpenBook: widget.openBookCallback,
                         );
 
                         // אם textMaxWidth הוא 0, הטקסט ימלא את כל הרוחב

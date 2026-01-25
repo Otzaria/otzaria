@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
@@ -8,6 +7,7 @@ import 'package:otzaria/settings/settings_bloc.dart';
 import 'package:otzaria/settings/settings_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
+import 'package:otzaria/widgets/smart_text/smart_text.dart';
 
 /// תוכן מפרש/קישור עבור PDF - מבוסס על CommentaryContent מטקסט
 class PdfCommentaryContent extends StatefulWidget {
@@ -67,18 +67,17 @@ class _PdfCommentaryContentState extends State<PdfCommentaryContent> {
         future: content,
         builder: (context, snapshot) {
           if (snapshot.hasData) {
-            String text = snapshot.data!;
+            final text = snapshot.data!;
 
-            // החלת חיפוש
+            // ספירת תוצאות חיפוש
             if (widget.searchQuery.isNotEmpty) {
-              final searchCount = utils.countMatches(text, widget.searchQuery);
+              final searchCount = TextRendererService.countSearchMatches(
+                  text, widget.searchQuery);
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (mounted) {
                   widget.onSearchResultsCountChanged?.call(searchCount);
                 }
               });
-              text = utils.highLight(text, widget.searchQuery,
-                  currentIndex: widget.currentSearchIndex);
             } else {
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (mounted) {
@@ -87,20 +86,14 @@ class _PdfCommentaryContentState extends State<PdfCommentaryContent> {
               });
             }
 
-            // החלת עיצוב הסוגריים העגולים
-            text = utils.formatTextWithParentheses(text);
-
             return BlocBuilder<SettingsBloc, SettingsState>(
               builder: (context, settingsState) {
-                // החלפת שמות קדושים אם נדרש
-                String displayText = text;
-                if (settingsState.replaceHolyNames) {
-                  displayText = utils.replaceHolyNames(displayText);
-                }
-
-                return HtmlWidget(
-                  '<div style="text-align: justify; direction: rtl;">$displayText</div>',
-                  textStyle: TextStyle(
+                return SmartTextWidget(
+                  text: text,
+                  settings: RenderSettings(
+                    replaceHolyNames: settingsState.replaceHolyNames,
+                    searchText: widget.searchQuery,
+                    currentSearchIndex: widget.currentSearchIndex,
                     fontSize: settingsState.commentatorsFontSize,
                     fontFamily: settingsState.commentatorsFontFamily,
                   ),

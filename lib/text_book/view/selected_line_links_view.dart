@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
-import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:flutter_context_menu/flutter_context_menu.dart' as ctx;
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
@@ -16,6 +15,7 @@ import 'package:otzaria/settings/settings_state.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:otzaria/utils/context_menu_utils.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
+import 'package:otzaria/widgets/smart_text/smart_text.dart';
 
 /// Widget שמציג את הקישורים של השורה הנבחרת בלבד
 class SelectedLineLinksView extends StatefulWidget {
@@ -360,44 +360,26 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
   Widget _buildHighlightedText(String content, Link link) {
     return BlocBuilder<SettingsBloc, SettingsState>(
       builder: (context, settingsState) {
-        String cleanContent = utils.stripHtmlIfNeeded(content);
+        final cleanContent = TextRendererService.stripHtml(content);
 
-        // החלפת שמות קדושים אם נדרש
-        if (settingsState.replaceHolyNames) {
-          cleanContent = utils.replaceHolyNames(cleanContent);
-        }
-
-        // אם יש חיפוש בתוכן והקישור הזה מכיל תוצאות, מדגיש
+        // חיפוש בתוכן - בדיקה אם הקישור הזה מכיל תוצאות
+        String searchText = '';
         if (_searchQuery.isNotEmpty && _searchInContent) {
           final keyStr = '${link.path2}_${link.index2}';
           if (_linksWithSearchResults.contains(keyStr)) {
-            cleanContent = utils.highLight(cleanContent, _searchQuery);
+            searchText = _searchQuery;
           }
         }
 
-        // אם יש תגי HTML (הדגשה), משתמש ב-HtmlWidget
-        if (cleanContent.contains('<font color=')) {
-          return HtmlWidget(
-            cleanContent,
-            textStyle: TextStyle(
-              fontSize: settingsState.commentatorsFontSize,
-              height: 1.5,
-              fontFamily: settingsState.commentatorsFontFamily,
-            ),
-          );
-        } else {
-          // אם אין הדגשה, משתמש ב-Text רגיל
-          return Text(
-            cleanContent,
-            style: TextStyle(
-              fontSize: settingsState.commentatorsFontSize,
-              height: 1.5,
-              fontFamily: settingsState.commentatorsFontFamily,
-            ),
-            textAlign: TextAlign.justify,
-            textDirection: TextDirection.rtl,
-          );
-        }
+        return SmartTextWidget(
+          text: cleanContent,
+          settings: RenderSettings(
+            replaceHolyNames: settingsState.replaceHolyNames,
+            searchText: searchText,
+            fontSize: settingsState.commentatorsFontSize,
+            fontFamily: settingsState.commentatorsFontFamily,
+          ),
+        );
       },
     );
   }

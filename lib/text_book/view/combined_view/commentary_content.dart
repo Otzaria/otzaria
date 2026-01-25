@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
@@ -9,6 +8,7 @@ import 'package:otzaria/settings/settings_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/app_future_builder.dart';
+import 'package:otzaria/widgets/smart_text/smart_text.dart';
 
 class CommentaryContent extends StatefulWidget {
   const CommentaryContent({
@@ -55,14 +55,7 @@ class _CommentaryContentState extends State<CommentaryContent> {
   }
 
   int _countSearchMatches(String text, String searchQuery) {
-    if (searchQuery.isEmpty) return 0;
-
-    final RegExp regex = RegExp(
-      RegExp.escape(searchQuery),
-      caseSensitive: false,
-    );
-
-    return regex.allMatches(text).length;
+    return TextRendererService.countSearchMatches(text, searchQuery);
   }
 
   @override
@@ -83,37 +76,26 @@ class _CommentaryContentState extends State<CommentaryContent> {
                 child: Text('שגיאה בטעינת הפרשן: $error'),
               ),
           builder: (context, data) {
-            String text = data;
-            if (widget.removeNikud) {
-              text = utils.removeVolwels(text);
-            }
-
             // ספירת תוצאות החיפוש ועדכון הרכיב האב
             if (widget.searchQuery.isNotEmpty) {
-              final searchCount = _countSearchMatches(text, widget.searchQuery);
+              final textForCount =
+                  widget.removeNikud ? utils.removeVolwels(data) : data;
+              final searchCount =
+                  _countSearchMatches(textForCount, widget.searchQuery);
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 widget.onSearchResultsCountChanged?.call(searchCount);
               });
             }
 
-            text = utils.highLight(text, widget.searchQuery,
-                currentIndex: widget.currentSearchIndex);
-
-            // החלת עיצוב הסוגריים העגולים
-            text = utils.formatTextWithParentheses(text);
-
             return BlocBuilder<SettingsBloc, SettingsState>(
               builder: (context, settingsState) {
-                // החלפת שמות קדושים אם נדרש
-                String displayText = text;
-                if (settingsState.replaceHolyNames) {
-                  displayText = utils.replaceHolyNames(displayText);
-                }
-
-                return HtmlWidget(
-                  '<div style="text-align: justify; direction: rtl;">$displayText</div>',
-                  renderMode: RenderMode.column,
-                  textStyle: TextStyle(
+                return SmartTextWidget(
+                  text: data,
+                  settings: RenderSettings(
+                    removeNikud: widget.removeNikud,
+                    replaceHolyNames: settingsState.replaceHolyNames,
+                    searchText: widget.searchQuery,
+                    currentSearchIndex: widget.currentSearchIndex,
                     fontSize: settingsState.commentatorsFontSize,
                     fontFamily: settingsState.commentatorsFontFamily,
                   ),

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:otzaria/settings/settings_bloc.dart';
 import 'package:otzaria/settings/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -9,7 +8,6 @@ import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:otzaria/tabs/models/tab.dart';
-import 'package:otzaria/utils/html_link_handler.dart';
 import 'package:flutter_context_menu/flutter_context_menu.dart' as ctx;
 import 'package:otzaria/models/books.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -19,6 +17,7 @@ import 'package:super_clipboard/super_clipboard.dart';
 import 'package:otzaria/personal_notes/personal_notes_system.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
+import 'package:otzaria/widgets/smart_text/smart_text.dart';
 
 /// תצוגת טקסט פשוטה - משמשת גם לטקסט המרכזי וגם למפרשים
 class SimpleTextViewer extends StatefulWidget {
@@ -451,49 +450,23 @@ $textWithBreaks
           padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
           child: BlocBuilder<SettingsBloc, SettingsState>(
             builder: (context, settingsState) {
-              String data = widget.content[index];
+              final data = widget.content[index];
 
-              // החלת מניפולציות טקסט
-              if (!settingsState.showTeamim) {
-                data = utils.removeTeamim(data);
-              }
-              if (settingsState.replaceHolyNames) {
-                data = utils.replaceHolyNames(data);
-              }
-              if (state.removeNikud) {
-                data = utils.removeVolwels(data);
-              }
+              // הדגשת טקסט חיפוש רק בטקסט המרכזי
+              final searchText = widget.isMainText ? state.searchText : '';
 
-              // הדגשת טקסט חיפוש (רק בטקסט המרכזי)
-              String processedData = data;
-              if (widget.isMainText && state.searchText.isNotEmpty) {
-                processedData = state.removeNikud
-                    ? utils.highLight(
-                        utils.removeVolwels('$data\n'), state.searchText)
-                    : utils.highLight('$data\n', state.searchText);
-              }
-
-              processedData = utils.formatTextWithParentheses(processedData);
-
-              return HtmlWidget(
-                '''
-              <div style="text-align: justify; direction: rtl;">
-                $processedData
-              </div>
-              ''',
-                key: ValueKey('html_simple_text_$index'),
-                textStyle: TextStyle(
+              return SmartTextWidget(
+                text: data,
+                widgetKey: ValueKey('html_simple_text_$index'),
+                settings: RenderSettings(
+                  removeNikud: state.removeNikud,
+                  removeTeamim: !settingsState.showTeamim,
+                  replaceHolyNames: settingsState.replaceHolyNames,
+                  searchText: searchText,
                   fontSize: widget.fontSize,
                   fontFamily: widget.fontFamily ?? settingsState.fontFamily,
-                  height: 1.5,
                 ),
-                onTapUrl: (url) async {
-                  return await HtmlLinkHandler.handleLink(
-                    context,
-                    url,
-                    (tab) => widget.openBookCallback(tab),
-                  );
-                },
+                onOpenBook: widget.openBookCallback,
               );
             },
           ),
