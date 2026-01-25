@@ -188,9 +188,13 @@ class CalendarState extends Equatable {
 // Calendar Cubit
 class CalendarCubit extends Cubit<CalendarState> {
   final SettingsRepository _settingsRepository;
+  final NotificationService _notificationService;
 
-  CalendarCubit({SettingsRepository? settingsRepository})
-      : _settingsRepository = settingsRepository ?? SettingsRepository(),
+  CalendarCubit({
+    SettingsRepository? settingsRepository,
+    NotificationService? notificationService,
+  })  : _settingsRepository = settingsRepository ?? SettingsRepository(),
+        _notificationService = notificationService ?? NotificationService(),
         super(CalendarState.initial()) {
     _initializeCalendar();
   }
@@ -211,7 +215,7 @@ class CalendarCubit extends Cubit<CalendarState> {
     final String zmanAlertsJson = settings['calendarZmanAlerts'] as String;
 
     final Map<String, ZmanAlertPreference> zmanAlerts =
-      _parseZmanAlertPreferences(zmanAlertsJson);
+        _parseZmanAlertPreferences(zmanAlertsJson);
 
     // טעינת אירועים מהאחסון
     List<CustomEvent> events = [];
@@ -268,15 +272,6 @@ class CalendarCubit extends Cubit<CalendarState> {
     return key.hashCode & 0x7fffffff;
   }
 
-  static DateTime? _parseTimeOnDate(DateTime date, String timeStr) {
-    final parts = timeStr.split(':');
-    if (parts.length != 2) return null;
-    final h = int.tryParse(parts[0]);
-    final m = int.tryParse(parts[1]);
-    if (h == null || m == null) return null;
-    return DateTime(date.year, date.month, date.day, h, m);
-  }
-
   static String _formatMinutesBefore(int minutes) {
     if (minutes <= 0) return 'עכשיו';
     final h = minutes ~/ 60;
@@ -291,7 +286,7 @@ class CalendarCubit extends Cubit<CalendarState> {
     required String displayName,
     required int minutesBefore,
   }) async {
-    final notificationService = NotificationService();
+    final notificationService = _notificationService;
 
     if (!notificationService.isInitialized) {
       await notificationService.init();
@@ -320,8 +315,8 @@ class CalendarCubit extends Cubit<CalendarState> {
       displayName: displayName,
     );
     emit(state.copyWith(zmanAlerts: updated));
-    await _settingsRepository
-        .updateCalendarZmanAlertsJson(jsonEncode(updated.map((k, v) => MapEntry(k, v.toJson()))));
+    await _settingsRepository.updateCalendarZmanAlertsJson(
+        jsonEncode(updated.map((k, v) => MapEntry(k, v.toJson()))));
 
     await _rescheduleZmanAlerts();
     UiSnack.showSuccess('התראה הופעלה עבור $displayName');
@@ -336,11 +331,11 @@ class CalendarCubit extends Cubit<CalendarState> {
     final updated = Map<String, ZmanAlertPreference>.from(state.zmanAlerts);
     updated.remove(timeId);
     emit(state.copyWith(zmanAlerts: updated));
-    await _settingsRepository
-        .updateCalendarZmanAlertsJson(jsonEncode(updated.map((k, v) => MapEntry(k, v.toJson()))));
+    await _settingsRepository.updateCalendarZmanAlertsJson(
+        jsonEncode(updated.map((k, v) => MapEntry(k, v.toJson()))));
 
     // Cancel scheduled notifications for this timeId in our rolling window.
-    final notificationService = NotificationService();
+    final notificationService = _notificationService;
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     for (int i = 0; i <= _zmanScheduleDaysAhead; i++) {
@@ -355,7 +350,7 @@ class CalendarCubit extends Cubit<CalendarState> {
   Future<void> _rescheduleZmanAlerts() async {
     if (state.zmanAlerts.isEmpty) return;
 
-    final notificationService = NotificationService();
+    final notificationService = _notificationService;
     if (!notificationService.isInitialized) {
       return;
     }
@@ -363,6 +358,19 @@ class CalendarCubit extends Cubit<CalendarState> {
     // Don't prompt here; only schedule if we already have permissions.
     final hasPermission = await notificationService.checkPermissions();
     if (!hasPermission) return;
+
+    final cityData = _getCityData(state.selectedCity);
+    final String timeZoneId;
+    if (cityData == null) {
+      debugPrint(
+          'CalendarCubit: city data not found for "${state.selectedCity}", defaulting to Asia/Jerusalem timezone.');
+      UiSnack.showError(
+          'לא נמצאו נתונים עבור העיר שנבחרה. נעשה שימוש באזור זמן ברירת המחדל.');
+      timeZoneId = 'Asia/Jerusalem';
+    } else {
+      timeZoneId = cityData['timezone'] as String? ?? 'Asia/Jerusalem';
+    }
+    final location = tz.getLocation(timeZoneId);
 
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -375,23 +383,36 @@ class CalendarCubit extends Cubit<CalendarState> {
         final d = today.add(Duration(days: i));
         final times = _calculateDailyTimes(d, state.selectedCity);
         final timeStr = times[timeId];
+
+        final cancellationId = _zmanNotificationId(timeId, d);
+
         if (timeStr == null) {
           // Ensure no stale notification for days the zman doesn't exist.
-          await notificationService.cancelNotification(_zmanNotificationId(timeId, d));
+          await notificationService.cancelNotification(cancellationId);
           continue;
         }
 
-        final eventDt = _parseTimeOnDate(d, timeStr);
-        if (eventDt == null) {
-          await notificationService.cancelNotification(_zmanNotificationId(timeId, d));
+        final parts = timeStr.split(':');
+        if (parts.length != 2) {
+          await notificationService.cancelNotification(cancellationId);
           continue;
         }
 
-        final id = _zmanNotificationId(timeId, d);
-        await notificationService.cancelNotification(id);
+        final h = int.tryParse(parts[0]);
+        final m = int.tryParse(parts[1]);
+
+        if (h == null || m == null) {
+          await notificationService.cancelNotification(cancellationId);
+          continue;
+        }
+
+        // Construct TZDateTime in the correct timezone
+        final eventDt = tz.TZDateTime(location, d.year, d.month, d.day, h, m);
+
+        await notificationService.cancelNotification(cancellationId);
 
         await notificationService.scheduleNotification(
-          id: id,
+          id: cancellationId,
           title: 'תזכורת: ${pref.displayName}',
           body:
               'בעוד ${_formatMinutesBefore(pref.minutesBefore)} ${pref.displayName} ($timeStr)',
@@ -707,7 +728,7 @@ class CalendarCubit extends Cubit<CalendarState> {
           }
           if (expired) return false;
         }
-        
+
         // בדיקת התאמה לפי סוג החזרה
         switch (e.recurrenceType) {
           case RecurrenceType.weekly:
@@ -762,7 +783,7 @@ class CalendarCubit extends Cubit<CalendarState> {
   Future<void> changeCalendarNotificationsEnabled(bool enabled) async {
     if (enabled) {
       // בקש הרשאות לפני הפעלת התראות
-      final notificationService = NotificationService();
+      final notificationService = _notificationService;
       if (!notificationService.isInitialized) {
         await notificationService.init();
       }
@@ -817,10 +838,11 @@ class CalendarCubit extends Cubit<CalendarState> {
   }
 
   Future<void> _rescheduleNotifications() async {
-    final notificationService = NotificationService();
+    final notificationService = _notificationService;
 
     // Cancel previously scheduled calendar EVENT notifications only.
-    final prevIdsJson = _settingsRepository.getCalendarEventNotificationIdsJson();
+    final prevIdsJson =
+        _settingsRepository.getCalendarEventNotificationIdsJson();
     final prevIds = <int>[];
     try {
       final decoded = jsonDecode(prevIdsJson);
@@ -995,7 +1017,9 @@ class CustomEvent extends Equatable {
   final int? recurringYears; // כמה שנים האירוע יחזור
 
   bool get recurring => recurrenceType != RecurrenceType.none;
-  bool get recurOnHebrew => recurrenceType == RecurrenceType.annualHebrew || recurrenceType == RecurrenceType.monthlyHebrew;
+  bool get recurOnHebrew =>
+      recurrenceType == RecurrenceType.annualHebrew ||
+      recurrenceType == RecurrenceType.monthlyHebrew;
 
   const CustomEvent({
     required this.id,
@@ -1065,7 +1089,9 @@ class CustomEvent extends Equatable {
       if (!recurring) {
         type = RecurrenceType.none;
       } else {
-        type = recurOnHebrew ? RecurrenceType.annualHebrew : RecurrenceType.annualGregorian;
+        type = recurOnHebrew
+            ? RecurrenceType.annualHebrew
+            : RecurrenceType.annualGregorian;
       }
     }
 
