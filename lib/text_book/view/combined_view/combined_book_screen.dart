@@ -82,9 +82,14 @@ class _CombinedViewState extends State<CombinedView> {
   // שמירת גובה הבלוק בפועל לחישובים דינאמיים
   double _viewportHeight = 0;
 
+  ScrollController? _previewScrollController;
+
   @override
   void initState() {
     super.initState();
+    if (widget.isPreviewMode) {
+      _previewScrollController = ScrollController();
+    }
     _focusNode = FocusNode();
     // שמירת ה-BLoC מראש
     _textBookBloc = context.read<TextBookBloc>();
@@ -133,6 +138,7 @@ class _CombinedViewState extends State<CombinedView> {
 
   @override
   void dispose() {
+    _previewScrollController?.dispose();
     widget.tab.positionsListener.itemPositions.removeListener(_onScroll);
     widget.tab.positionsListener.itemPositions.removeListener(_updateTabIndex);
     _savedSelectedText.dispose();
@@ -742,10 +748,10 @@ $textWithBreaks
                 }
               },
               child: Directionality(
-                textDirection: widget.isPreviewMode
-                    ? TextDirection.ltr
-                    : TextDirection.rtl,
+                textDirection: TextDirection.rtl,
                 child: Scrollbar(
+                  controller:
+                      widget.isPreviewMode ? _previewScrollController : null,
                   thumbVisibility: widget.isPreviewMode,
                   thickness: 8.0,
                   radius: const Radius.circular(4.0),
@@ -779,14 +785,24 @@ $textWithBreaks
                       },
                       child: Directionality(
                         textDirection: TextDirection.rtl,
-                        child: ProgressiveScroll(
-                          focusNode: _focusNode,
-                          maxSpeed: 10000.0,
-                          curve: 10.0,
-                          accelerationFactor: 5,
-                          scrollController: widget.tab.mainOffsetController,
-                          child: buildOuterList(state),
-                        ),
+                        child: widget.isPreviewMode
+                            ? ListView.builder(
+                                controller: _previewScrollController,
+                                itemCount: widget.data.length,
+                                itemBuilder: (context, index) {
+                                  return buildExpansiomTile(
+                                      ExpansibleController(), index, state);
+                                },
+                              )
+                            : ProgressiveScroll(
+                                focusNode: _focusNode,
+                                maxSpeed: 10000.0,
+                                curve: 10.0,
+                                accelerationFactor: 5,
+                                scrollController:
+                                    widget.tab.mainOffsetController,
+                                child: buildOuterList(state),
+                              ),
                       ),
                     ),
                   ),
