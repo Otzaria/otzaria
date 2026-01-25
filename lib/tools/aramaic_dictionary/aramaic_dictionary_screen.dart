@@ -174,8 +174,8 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen> {
           IconButton(
             icon: Icon(
               _isHebrewToAramaic
-                  ? FluentIcons.arrow_left_24_regular
-                  : FluentIcons.arrow_right_24_regular,
+                  ? FluentIcons.arrow_right_24_regular
+                  : FluentIcons.arrow_left_24_regular,
             ),
             onPressed: _toggleDirection,
             tooltip: 'החלף כיוון',
