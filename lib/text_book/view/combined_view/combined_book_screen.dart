@@ -25,6 +25,7 @@ import 'package:super_clipboard/super_clipboard.dart';
 import 'package:otzaria/utils/html_link_handler.dart';
 import 'package:otzaria/utils/text_with_inline_links.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/widgets/scrollable_positioned_list_scrollbar.dart';
 
 class CombinedView extends StatefulWidget {
   const CombinedView({
@@ -749,52 +750,57 @@ $textWithBreaks
               },
               child: Directionality(
                 textDirection: TextDirection.rtl,
-                child: Scrollbar(
-                  controller:
-                      widget.isPreviewMode ? _previewScrollController : null,
-                  thumbVisibility: widget.isPreviewMode,
-                  thickness: 8.0,
-                  radius: const Radius.circular(4.0),
-                  child: Shortcuts(
-                    shortcuts: <ShortcutActivator, Intent>{
-                      // Windows/Linux
-                      LogicalKeySet(
-                        LogicalKeyboardKey.control,
-                        LogicalKeyboardKey.keyC,
-                      ): const _CopySelectedTextIntent(),
-                      // Windows "classic" copy
-                      LogicalKeySet(
-                        LogicalKeyboardKey.control,
-                        LogicalKeyboardKey.insert,
-                      ): const _CopySelectedTextIntent(),
-                      // macOS (למקרה שמריצים שם)
-                      LogicalKeySet(
-                        LogicalKeyboardKey.meta,
-                        LogicalKeyboardKey.keyC,
-                      ): const _CopySelectedTextIntent(),
+                child: Shortcuts(
+                  shortcuts: <ShortcutActivator, Intent>{
+                    // Windows/Linux
+                    LogicalKeySet(
+                      LogicalKeyboardKey.control,
+                      LogicalKeyboardKey.keyC,
+                    ): const _CopySelectedTextIntent(),
+                    // Windows "classic" copy
+                    LogicalKeySet(
+                      LogicalKeyboardKey.control,
+                      LogicalKeyboardKey.insert,
+                    ): const _CopySelectedTextIntent(),
+                    // macOS (למקרה שמריצים שם)
+                    LogicalKeySet(
+                      LogicalKeyboardKey.meta,
+                      LogicalKeyboardKey.keyC,
+                    ): const _CopySelectedTextIntent(),
+                  },
+                  child: Actions(
+                    actions: <Type, Action<Intent>>{
+                      _CopySelectedTextIntent:
+                          CallbackAction<_CopySelectedTextIntent>(
+                        onInvoke: (_) {
+                          _copyFormattedText();
+                          return null;
+                        },
+                      ),
                     },
-                    child: Actions(
-                      actions: <Type, Action<Intent>>{
-                        _CopySelectedTextIntent:
-                            CallbackAction<_CopySelectedTextIntent>(
-                          onInvoke: (_) {
-                            _copyFormattedText();
-                            return null;
-                          },
-                        ),
-                      },
-                      child: Directionality(
-                        textDirection: TextDirection.rtl,
-                        child: widget.isPreviewMode
-                            ? ListView.builder(
+                    child: Directionality(
+                      textDirection: TextDirection.rtl,
+                      child: widget.isPreviewMode
+                          ? Scrollbar(
+                              controller: _previewScrollController,
+                              thumbVisibility: true,
+                              thickness: 8.0,
+                              radius: const Radius.circular(4.0),
+                              child: ListView.builder(
                                 controller: _previewScrollController,
                                 itemCount: widget.data.length,
                                 itemBuilder: (context, index) {
                                   return buildExpansiomTile(
                                       ExpansibleController(), index, state);
                                 },
-                              )
-                            : ProgressiveScroll(
+                              ),
+                            )
+                          : ScrollablePositionedListScrollbar(
+                              scrollController: widget.tab.scrollController,
+                              itemPositionsListener:
+                                  widget.tab.positionsListener,
+                              itemCount: widget.data.length,
+                              child: ProgressiveScroll(
                                 focusNode: _focusNode,
                                 maxSpeed: 10000.0,
                                 curve: 10.0,
@@ -803,7 +809,7 @@ $textWithBreaks
                                     widget.tab.mainOffsetController,
                                 child: buildOuterList(state),
                               ),
-                      ),
+                            ),
                     ),
                   ),
                 ),
