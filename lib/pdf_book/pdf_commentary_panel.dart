@@ -508,6 +508,7 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
               onPressed: () {
                 setState(() {
                   _allExpanded = !_allExpanded;
+                  _expansionStates.clear();
                 });
               },
             ),
