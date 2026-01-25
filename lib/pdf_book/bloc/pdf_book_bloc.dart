@@ -186,6 +186,8 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
       alternativeWords: alternativeWords,
       spacingValues: spacingValues,
       searchMode: searchMode,
+      isLoading: false, // Document is ready, so no longer loading
+      loadSucceeded: true,
     ));
 
     // Load per-book settings after document is ready

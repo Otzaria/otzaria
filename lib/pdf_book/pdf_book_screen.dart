@@ -626,6 +626,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                                       widget.tab.outline.value =
                                           await document.loadOutline();
 
+                                      // 1.1. שליחת אירוע DocumentReady ל-Bloc
+                                      _bloc.add(pdf_events.DocumentReady(
+                                        documentRef: controller.documentRef,
+                                        outline: widget.tab.outline.value,
+                                        totalPages: document.pages.length,
+                                      ));
+
                                       // 1.5. שחזור מצב הזום אם נשמר קודם
                                       if (widget.tab.savedZoom != null &&
                                           widget.tab.savedZoom != 1.0) {
