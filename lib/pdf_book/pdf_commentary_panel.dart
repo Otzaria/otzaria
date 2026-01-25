@@ -504,7 +504,7 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
                     : FluentIcons.arrow_expand_all_24_regular,
               ),
               tooltip:
-                  _allExpanded ? 'סגור את כל המפרשים' : 'פתח את כל המפרשים',
+                  _allExpanded ? 'כווץ את כל המפרשים' : 'הצג את כל המפרשים',
               onPressed: () {
                 setState(() {
                   _allExpanded = !_allExpanded;

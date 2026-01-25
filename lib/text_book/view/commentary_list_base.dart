@@ -722,8 +722,8 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                                 : FluentIcons.arrow_expand_all_24_regular,
                           ),
                           tooltip: _allExpanded
-                              ? 'סגור את כל המפרשים'
-                              : 'פתח את כל המפרשים',
+                              ? 'כווץ את כל המפרשים'
+                              : 'הצג את כל המפרשים',
                           onPressed: () {
                             setState(() {
                               _allExpanded = !_allExpanded;
@@ -798,8 +798,8 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                               : FluentIcons.arrow_expand_all_24_regular,
                         ),
                         tooltip: _allExpanded
-                            ? 'סגור את כל המפרשים'
-                            : 'פתח את כל המפרשים',
+                            ? 'כווץ את כל המפרשים'
+                            : 'הצג את כל המפרשים',
                         onPressed: () {
                           setState(() {
                             _allExpanded = !_allExpanded;
