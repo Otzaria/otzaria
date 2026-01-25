@@ -172,11 +172,11 @@ class _ScrollablePositionedListScrollbarState
                                   ? Theme.of(context)
                                       .colorScheme
                                       .primary
-                                      .withOpacity(0.8)
+                                      .withValues(alpha: 0.8)
                                   : Theme.of(context)
                                       .colorScheme
                                       .onSurfaceVariant
-                                      .withOpacity(0.4),
+                                      .withValues(alpha: 0.4),
                               borderRadius: BorderRadius.circular(4),
                             ),
                           ),
