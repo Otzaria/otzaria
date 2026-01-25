@@ -21,51 +21,14 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:async';
+import 'package:otzaria/services/commentary_service.dart';
 
-/// מייצג קבוצת קטעי פירוש רצופים מאותו ספר
-class CommentaryGroup {
-  final String bookTitle;
-  final List<Link> links;
+// Type alias לתאימות לאחור - משתמש ב-LinkGroup מה-Service
+typedef CommentaryGroup = LinkGroup;
 
-  CommentaryGroup({required this.bookTitle, required this.links});
-}
-
-/// מקבץ רשימת קישורים לקבוצות לפי שם הספר (רק קטעים רצופים)
+// פונקציה לתאימות לאחור - משתמש ב-Service
 List<CommentaryGroup> _groupConsecutiveLinks(List<Link> links) {
-  if (links.isEmpty) return [];
-
-  final groups = <CommentaryGroup>[];
-  String? currentTitle;
-  List<Link> currentGroup = [];
-
-  for (final link in links) {
-    final title = utils.getTitleFromPath(link.path2);
-
-    if (currentTitle == null || currentTitle != title) {
-      // ספר חדש - שומר את הקבוצה הקודמת ומתחיל קבוצה חדשה
-      if (currentGroup.isNotEmpty) {
-        groups.add(CommentaryGroup(
-          bookTitle: currentTitle!,
-          links: List.from(currentGroup),
-        ));
-      }
-      currentTitle = title;
-      currentGroup = [link];
-    } else {
-      // אותו ספר - מוסיף לקבוצה הנוכחית
-      currentGroup.add(link);
-    }
-  }
-
-  // מוסיף את הקבוצה האחרונה
-  if (currentGroup.isNotEmpty) {
-    groups.add(CommentaryGroup(
-      bookTitle: currentTitle!,
-      links: List.from(currentGroup),
-    ));
-  }
-
-  return groups;
+  return CommentaryService.groupConsecutiveLinks(links);
 }
 
 class CommentaryListBase extends StatefulWidget {
