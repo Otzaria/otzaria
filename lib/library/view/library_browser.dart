@@ -17,9 +17,8 @@ import 'package:otzaria/file_sync/file_sync_repository.dart';
 import 'package:otzaria/file_sync/file_sync_state.dart';
 import 'package:otzaria/daf_yomi/daf_yomi.dart';
 import 'package:otzaria/file_sync/file_sync_widget.dart';
-import 'package:otzaria/widgets/filter_list/src/filter_list_dialog.dart';
+import 'package:otzaria/widgets/filter_chips_widget.dart';
 import 'package:otzaria/navigation/main_window_screen.dart';
-import 'package:otzaria/widgets/filter_list/src/theme/filter_list_theme.dart';
 import 'package:otzaria/library/view/grid_items.dart';
 import 'package:otzaria/library/view/otzar_book_dialog.dart';
 import 'package:otzaria/library/view/book_preview_panel.dart';
@@ -464,30 +463,23 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     final relevantTopics =
         categoryTopics.where((element) => allTopics.contains(element)).toList();
 
-    return FilterListWidget<String>(
-      hideSearchField: true,
-      controlButtons: const [],
-      themeData: FilterListThemeData(
-        context,
-        wrapAlignment: WrapAlignment.center,
-      ),
-      onApplyButtonClick: (list) {
-        context.read<LibraryBloc>().add(SelectTopics(list ?? []));
+    return FilterChipsSelector<String>(
+      items: relevantTopics,
+      selectedItems: state.selectedTopics ?? [],
+      labelBuilder: (item) => item,
+      wrapAlignment: WrapAlignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+      onSelectionChanged: (list) {
+        context.read<LibraryBloc>().add(SelectTopics(list));
         _update(context, state, settingsState);
         _refocusSearchBar();
       },
-      validateSelectedItem: (list, item) => list != null && list.contains(item),
-      onItemSearch: (item, query) => item == query,
-      listData: relevantTopics,
-      selectedListData: state.selectedTopics ?? [],
-      choiceChipLabel: (p0) => p0,
-      hideSelectedTextCount: true,
-      choiceChipBuilder: (context, item, isSelected) => Padding(
+      chipBuilder: (context, item, isSelected) => Padding(
         padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
         child: Chip(
           label: Text(item),
           backgroundColor:
-              isSelected! ? Theme.of(context).colorScheme.secondary : null,
+              isSelected ? Theme.of(context).colorScheme.secondary : null,
           labelStyle: TextStyle(
             color:
                 isSelected ? Theme.of(context).colorScheme.onSecondary : null,

@@ -3,8 +3,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
-import 'package:otzaria/widgets/filter_list/src/filter_list_dialog.dart';
-import 'package:otzaria/widgets/filter_list/src/theme/filter_list_theme.dart';
+import 'package:otzaria/widgets/filter_chips_widget.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
 
 /// Widget לבחירת מפרשים עבור PDF - מבוסס על CommentatorsListView
@@ -206,31 +205,23 @@ class _PdfCommentatorsSelectorState extends State<PdfCommentatorsSelector> {
 
     return Column(
       children: [
-        FilterListWidget<String>(
-          hideSearchField: true,
-          controlButtons: const [],
-          onApplyButtonClick: (list) {
-            selectedTopics = list ?? [];
-            _update();
-          },
-          validateSelectedItem: (list, item) =>
-              list != null && list.contains(item),
-          onItemSearch: (item, query) => item == query,
-          listData: [
+        FilterChipsSelector<String>(
+          items: [
             'תורה שבכתב',
             'חז"ל',
             'ראשונים',
             'אחרונים',
             'מחברי זמננו',
           ],
-          selectedListData: selectedTopics,
-          choiceChipLabel: (p0) => p0,
-          hideSelectedTextCount: true,
-          themeData: FilterListThemeData(
-            context,
-            wrapAlignment: WrapAlignment.center,
-          ),
-          choiceChipBuilder: (context, item, isSelected) => Padding(
+          selectedItems: selectedTopics,
+          labelBuilder: (item) => item,
+          wrapAlignment: WrapAlignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+          onSelectionChanged: (list) {
+            selectedTopics = list;
+            _update();
+          },
+          chipBuilder: (context, item, isSelected) => Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: 3,
               vertical: 2,
@@ -238,7 +229,7 @@ class _PdfCommentatorsSelectorState extends State<PdfCommentatorsSelector> {
             child: Chip(
               label: Text(item),
               backgroundColor:
-                  isSelected! ? Theme.of(context).colorScheme.secondary : null,
+                  isSelected ? Theme.of(context).colorScheme.secondary : null,
               labelStyle: TextStyle(
                 color: isSelected
                     ? Theme.of(context).colorScheme.onSecondary

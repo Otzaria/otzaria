@@ -7,8 +7,7 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/utils/text_manipulation.dart';
-import 'package:otzaria/widgets/filter_list/src/filter_list_dialog.dart';
-import 'package:otzaria/widgets/filter_list/src/theme/filter_list_theme.dart';
+import 'package:otzaria/widgets/filter_chips_widget.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
 
 class CommentatorsListView extends StatefulWidget {
@@ -138,344 +137,342 @@ class CommentatorsListViewState extends State<CommentatorsListView> {
   @override
   Widget build(BuildContext context) {
     return TextBookStateBuilder(
-      loadingWidget: const Center(),
-      builder: (context, state) {
-      if (state.availableCommentators.isEmpty) {
-        return const Center(
-          child: Text("אין מפרשים"),
-        );
-      }
-      if (commentatorsList.isEmpty) _update(context, state);
-      return Column(
-        children: [
-          FilterListWidget<String>(
-            hideSearchField: true,
-            controlButtons: const [],
-            onApplyButtonClick: (list) {
-              selectedTopics = list ?? [];
-              _update(context, state);
-            },
-            validateSelectedItem: (list, item) =>
-                list != null && list.contains(item),
-            onItemSearch: (item, query) => item == query,
-            listData: [
-              'תורה שבכתב',
-              'חז"ל',
-              'ראשונים',
-              'אחרונים',
-              'מחברי זמננו',
-              'על ${state.book.title}'
-            ],
-            selectedListData: selectedTopics,
-            choiceChipLabel: (p0) => p0,
-            hideSelectedTextCount: true,
-            themeData: FilterListThemeData(
-              context,
-              wrapAlignment: WrapAlignment.center,
-            ),
-            choiceChipBuilder: (context, item, isSelected) => Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 3,
-                vertical: 2,
-              ),
-              child: Chip(
-                label: Text(item),
-                backgroundColor: isSelected!
-                    ? Theme.of(context).colorScheme.secondary
-                    : null,
-                labelStyle: TextStyle(
-                  color: isSelected
-                      ? Theme.of(context).colorScheme.onSecondary
-                      : null,
-                  fontSize: 11,
-                ),
-                labelPadding: const EdgeInsets.all(0),
-              ),
-            ),
-          ),
-          Expanded(
-            child: Column(
-              children: [
-                // --- שדה החיפוש ---
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: RtlTextField(
-                    controller: searchController,
-                    decoration: InputDecoration(
-                      hintText: "סינון מפרשים...",
-                      prefixIcon: const Icon(FluentIcons.search_24_regular),
-                      suffixIcon: searchController.text.isNotEmpty
-                          ? IconButton(
-                              onPressed: () {
-                                searchController.clear();
-                                _update(context, state);
-                              },
-                              icon: const Icon(FluentIcons.dismiss_24_regular),
-                            )
+        loadingWidget: const Center(),
+        builder: (context, state) {
+          if (state.availableCommentators.isEmpty) {
+            return const Center(
+              child: Text("אין מפרשים"),
+            );
+          }
+          if (commentatorsList.isEmpty) _update(context, state);
+          return Column(
+            children: [
+              FilterChipsSelector<String>(
+                items: [
+                  'תורה שבכתב',
+                  'חז"ל',
+                  'ראשונים',
+                  'אחרונים',
+                  'מחברי זמננו',
+                  'על ${state.book.title}'
+                ],
+                selectedItems: selectedTopics,
+                labelBuilder: (item) => item,
+                wrapAlignment: WrapAlignment.center,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                onSelectionChanged: (list) {
+                  selectedTopics = list;
+                  _update(context, state);
+                },
+                chipBuilder: (context, item, isSelected) => Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 3,
+                    vertical: 2,
+                  ),
+                  child: Chip(
+                    label: Text(item),
+                    backgroundColor: isSelected
+                        ? Theme.of(context).colorScheme.secondary
+                        : null,
+                    labelStyle: TextStyle(
+                      color: isSelected
+                          ? Theme.of(context).colorScheme.onSecondary
                           : null,
-                      isDense: true,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8.0),
+                      fontSize: 11,
+                    ),
+                    labelPadding: const EdgeInsets.all(0),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  children: [
+                    // --- שדה החיפוש ---
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: RtlTextField(
+                        controller: searchController,
+                        decoration: InputDecoration(
+                          hintText: "סינון מפרשים...",
+                          prefixIcon: const Icon(FluentIcons.search_24_regular),
+                          suffixIcon: searchController.text.isNotEmpty
+                              ? IconButton(
+                                  onPressed: () {
+                                    searchController.clear();
+                                    _update(context, state);
+                                  },
+                                  icon: const Icon(
+                                      FluentIcons.dismiss_24_regular),
+                                )
+                              : null,
+                          isDense: true,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8.0),
+                          ),
+                        ),
+                        onChanged: (_) => _update(context, state),
                       ),
                     ),
-                    onChanged: (_) => _update(context, state),
-                  ),
-                ),
 
-                // --- כפתור הכל ---
-                if (commentatorsList.isNotEmpty)
-                  CheckboxListTile(
-                    title:
-                        const Text('הצג את כל המפרשים'), // שמרתי את השינוי שלך
-                    value: commentatorsList
-                        .where((e) =>
-                            !e.startsWith('__TITLE_') &&
-                            !e.startsWith('__BUTTON_'))
-                        .every(state.activeCommentators.contains),
-                    onChanged: (checked) {
-                      final items = commentatorsList
-                          .where((e) =>
-                              !e.startsWith('__TITLE_') &&
-                              !e.startsWith('__BUTTON_'))
-                          .toList();
-                      if (checked ?? false) {
-                        _updateAndNotify(
-                            {...state.activeCommentators, ...items}.toList());
-                      } else {
-                        context.read<TextBookBloc>().add(UpdateCommentators(
-                            state.activeCommentators
-                                .where((e) => !items.contains(e))
-                                .toList()));
-                      }
-                    },
-                  ),
-
-                // --- רשימת המפרשים ---
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: commentatorsList.length,
-                    itemBuilder: (context, index) {
-                      final item = commentatorsList[index];
-
-                      // בדוק אם הפריט הוא כפתור הצגת קבוצה
-                      if (item == _torahShebichtavButton) {
-                        final allActive = _torahShebichtav
-                            .every(state.activeCommentators.contains);
-                        return CheckboxListTile(
-                          title: const Text('הצג את כל התורה שבכתב'),
-                          value: allActive,
-                          onChanged: (checked) {
-                            final current =
-                                List<String>.from(state.activeCommentators);
-                            if (checked ?? false) {
-                              for (final t in _torahShebichtav) {
-                                if (!current.contains(t)) current.add(t);
-                              }
-                              _updateAndNotify(current);
-                            } else {
-                              current.removeWhere(_torahShebichtav.contains);
-                            }
-                            context
-                                .read<TextBookBloc>()
-                                .add(UpdateCommentators(current));
-                          },
-                        );
-                      }
-                      if (item == _chazalButton) {
-                        final allActive =
-                            _chazal.every(state.activeCommentators.contains);
-                        return CheckboxListTile(
-                          title: const Text('הצג את כל חז"ל'),
-                          value: allActive,
-                          onChanged: (checked) {
-                            final current =
-                                List<String>.from(state.activeCommentators);
-                            if (checked ?? false) {
-                              for (final t in _chazal) {
-                                if (!current.contains(t)) current.add(t);
-                              }
-                              _updateAndNotify(current);
-                            } else {
-                              current.removeWhere(_chazal.contains);
-                            }
-                            context
-                                .read<TextBookBloc>()
-                                .add(UpdateCommentators(current));
-                          },
-                        );
-                      }
-                      if (item == _rishonimButton) {
-                        final allActive =
-                            _rishonim.every(state.activeCommentators.contains);
-                        return CheckboxListTile(
-                          title: const Text('הצג את כל הראשונים'),
-                          value: allActive,
-                          onChanged: (checked) {
-                            final current =
-                                List<String>.from(state.activeCommentators);
-                            if (checked ?? false) {
-                              for (final t in _rishonim) {
-                                if (!current.contains(t)) current.add(t);
-                              }
-                              _updateAndNotify(current);
-                            } else {
-                              current.removeWhere(_rishonim.contains);
-                            }
-                            context
-                                .read<TextBookBloc>()
-                                .add(UpdateCommentators(current));
-                          },
-                        );
-                      }
-                      if (item == _acharonimButton) {
-                        final allActive =
-                            _acharonim.every(state.activeCommentators.contains);
-                        return CheckboxListTile(
-                          title: const Text('הצג את כל האחרונים'),
-                          value: allActive,
-                          onChanged: (checked) {
-                            final current =
-                                List<String>.from(state.activeCommentators);
-                            if (checked ?? false) {
-                              for (final t in _acharonim) {
-                                if (!current.contains(t)) current.add(t);
-                              }
-                              _updateAndNotify(current);
-                            } else {
-                              current.removeWhere(_acharonim.contains);
-                            }
-                            context
-                                .read<TextBookBloc>()
-                                .add(UpdateCommentators(current));
-                          },
-                        );
-                      }
-                      if (item == _modernButton) {
-                        final allActive =
-                            _modern.every(state.activeCommentators.contains);
-                        return CheckboxListTile(
-                          title: const Text('הצג את כל מחברי זמננו'),
-                          value: allActive,
-                          onChanged: (checked) {
-                            final current =
-                                List<String>.from(state.activeCommentators);
-                            if (checked ?? false) {
-                              for (final t in _modern) {
-                                if (!current.contains(t)) current.add(t);
-                              }
-                              _updateAndNotify(current);
-                            } else {
-                              current.removeWhere(_modern.contains);
-                            }
-                            context
-                                .read<TextBookBloc>()
-                                .add(UpdateCommentators(current));
-                          },
-                        );
-                      }
-                      if (item == _ungroupedButton) {
-                        final allActive =
-                            _ungrouped.every(state.activeCommentators.contains);
-                        return CheckboxListTile(
-                          title: const Text('הצג את כל שאר המפרשים'),
-                          value: allActive,
-                          onChanged: (checked) {
-                            final current =
-                                List<String>.from(state.activeCommentators);
-                            if (checked ?? false) {
-                              for (final t in _ungrouped) {
-                                if (!current.contains(t)) current.add(t);
-                              }
-                              _updateAndNotify(current);
-                            } else {
-                              current.removeWhere(_ungrouped.contains);
-                            }
-                            context
-                                .read<TextBookBloc>()
-                                .add(UpdateCommentators(current));
-                          },
-                        );
-                      }
-
-                      // בדוק אם הפריט הוא כותרת
-                      if (item.startsWith('__TITLE_')) {
-                        String titleText = '';
-                        switch (item) {
-                          case _torahShebichtavTitle:
-                            titleText = 'תורה שבכתב';
-                            break;
-                          case _chazalTitle:
-                            titleText = 'חז"ל';
-                            break;
-                          case _rishonimTitle:
-                            titleText = 'ראשונים';
-                            break;
-                          case _acharonimTitle:
-                            titleText = 'אחרונים';
-                            break;
-                          case _modernTitle:
-                            titleText = 'מחברי זמננו';
-                            break;
-                          case _ungroupedTitle:
-                            titleText = 'שאר מפרשים';
-                            break;
-                        }
-
-                        // ווידג'ט הכותרת
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 10.0, horizontal: 16.0),
-                          child: Row(
-                            children: [
-                              const Expanded(child: Divider()),
-                              Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 8.0),
-                                child: Text(
-                                  titleText,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .primary
-                                        .withValues(alpha: 0.8),
-                                  ),
-                                ),
-                              ),
-                              const Expanded(child: Divider()),
-                            ],
-                          ),
-                        );
-                      }
-
-                      // אם זה לא כותרת, הצג CheckboxListTile רגיל
-                      return CheckboxListTile(
-                        title: Text(item),
-                        value: state.activeCommentators.contains(item),
+                    // --- כפתור הכל ---
+                    if (commentatorsList.isNotEmpty)
+                      CheckboxListTile(
+                        title: const Text(
+                            'הצג את כל המפרשים'), // שמרתי את השינוי שלך
+                        value: commentatorsList
+                            .where((e) =>
+                                !e.startsWith('__TITLE_') &&
+                                !e.startsWith('__BUTTON_'))
+                            .every(state.activeCommentators.contains),
                         onChanged: (checked) {
+                          final items = commentatorsList
+                              .where((e) =>
+                                  !e.startsWith('__TITLE_') &&
+                                  !e.startsWith('__BUTTON_'))
+                              .toList();
                           if (checked ?? false) {
-                            context.read<TextBookBloc>().add(
-                                  UpdateCommentators(
-                                      [...state.activeCommentators, item]),
-                                );
+                            _updateAndNotify({
+                              ...state.activeCommentators,
+                              ...items
+                            }.toList());
                           } else {
-                            context.read<TextBookBloc>().add(
-                                  UpdateCommentators(state.activeCommentators
-                                      .where((e) => e != item)
-                                      .toList()),
-                                );
+                            context.read<TextBookBloc>().add(UpdateCommentators(
+                                state.activeCommentators
+                                    .where((e) => !items.contains(e))
+                                    .toList()));
                           }
                         },
-                      );
-                    },
-                  ),
+                      ),
+
+                    // --- רשימת המפרשים ---
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: commentatorsList.length,
+                        itemBuilder: (context, index) {
+                          final item = commentatorsList[index];
+
+                          // בדוק אם הפריט הוא כפתור הצגת קבוצה
+                          if (item == _torahShebichtavButton) {
+                            final allActive = _torahShebichtav
+                                .every(state.activeCommentators.contains);
+                            return CheckboxListTile(
+                              title: const Text('הצג את כל התורה שבכתב'),
+                              value: allActive,
+                              onChanged: (checked) {
+                                final current =
+                                    List<String>.from(state.activeCommentators);
+                                if (checked ?? false) {
+                                  for (final t in _torahShebichtav) {
+                                    if (!current.contains(t)) current.add(t);
+                                  }
+                                  _updateAndNotify(current);
+                                } else {
+                                  current
+                                      .removeWhere(_torahShebichtav.contains);
+                                }
+                                context
+                                    .read<TextBookBloc>()
+                                    .add(UpdateCommentators(current));
+                              },
+                            );
+                          }
+                          if (item == _chazalButton) {
+                            final allActive = _chazal
+                                .every(state.activeCommentators.contains);
+                            return CheckboxListTile(
+                              title: const Text('הצג את כל חז"ל'),
+                              value: allActive,
+                              onChanged: (checked) {
+                                final current =
+                                    List<String>.from(state.activeCommentators);
+                                if (checked ?? false) {
+                                  for (final t in _chazal) {
+                                    if (!current.contains(t)) current.add(t);
+                                  }
+                                  _updateAndNotify(current);
+                                } else {
+                                  current.removeWhere(_chazal.contains);
+                                }
+                                context
+                                    .read<TextBookBloc>()
+                                    .add(UpdateCommentators(current));
+                              },
+                            );
+                          }
+                          if (item == _rishonimButton) {
+                            final allActive = _rishonim
+                                .every(state.activeCommentators.contains);
+                            return CheckboxListTile(
+                              title: const Text('הצג את כל הראשונים'),
+                              value: allActive,
+                              onChanged: (checked) {
+                                final current =
+                                    List<String>.from(state.activeCommentators);
+                                if (checked ?? false) {
+                                  for (final t in _rishonim) {
+                                    if (!current.contains(t)) current.add(t);
+                                  }
+                                  _updateAndNotify(current);
+                                } else {
+                                  current.removeWhere(_rishonim.contains);
+                                }
+                                context
+                                    .read<TextBookBloc>()
+                                    .add(UpdateCommentators(current));
+                              },
+                            );
+                          }
+                          if (item == _acharonimButton) {
+                            final allActive = _acharonim
+                                .every(state.activeCommentators.contains);
+                            return CheckboxListTile(
+                              title: const Text('הצג את כל האחרונים'),
+                              value: allActive,
+                              onChanged: (checked) {
+                                final current =
+                                    List<String>.from(state.activeCommentators);
+                                if (checked ?? false) {
+                                  for (final t in _acharonim) {
+                                    if (!current.contains(t)) current.add(t);
+                                  }
+                                  _updateAndNotify(current);
+                                } else {
+                                  current.removeWhere(_acharonim.contains);
+                                }
+                                context
+                                    .read<TextBookBloc>()
+                                    .add(UpdateCommentators(current));
+                              },
+                            );
+                          }
+                          if (item == _modernButton) {
+                            final allActive = _modern
+                                .every(state.activeCommentators.contains);
+                            return CheckboxListTile(
+                              title: const Text('הצג את כל מחברי זמננו'),
+                              value: allActive,
+                              onChanged: (checked) {
+                                final current =
+                                    List<String>.from(state.activeCommentators);
+                                if (checked ?? false) {
+                                  for (final t in _modern) {
+                                    if (!current.contains(t)) current.add(t);
+                                  }
+                                  _updateAndNotify(current);
+                                } else {
+                                  current.removeWhere(_modern.contains);
+                                }
+                                context
+                                    .read<TextBookBloc>()
+                                    .add(UpdateCommentators(current));
+                              },
+                            );
+                          }
+                          if (item == _ungroupedButton) {
+                            final allActive = _ungrouped
+                                .every(state.activeCommentators.contains);
+                            return CheckboxListTile(
+                              title: const Text('הצג את כל שאר המפרשים'),
+                              value: allActive,
+                              onChanged: (checked) {
+                                final current =
+                                    List<String>.from(state.activeCommentators);
+                                if (checked ?? false) {
+                                  for (final t in _ungrouped) {
+                                    if (!current.contains(t)) current.add(t);
+                                  }
+                                  _updateAndNotify(current);
+                                } else {
+                                  current.removeWhere(_ungrouped.contains);
+                                }
+                                context
+                                    .read<TextBookBloc>()
+                                    .add(UpdateCommentators(current));
+                              },
+                            );
+                          }
+
+                          // בדוק אם הפריט הוא כותרת
+                          if (item.startsWith('__TITLE_')) {
+                            String titleText = '';
+                            switch (item) {
+                              case _torahShebichtavTitle:
+                                titleText = 'תורה שבכתב';
+                                break;
+                              case _chazalTitle:
+                                titleText = 'חז"ל';
+                                break;
+                              case _rishonimTitle:
+                                titleText = 'ראשונים';
+                                break;
+                              case _acharonimTitle:
+                                titleText = 'אחרונים';
+                                break;
+                              case _modernTitle:
+                                titleText = 'מחברי זמננו';
+                                break;
+                              case _ungroupedTitle:
+                                titleText = 'שאר מפרשים';
+                                break;
+                            }
+
+                            // ווידג'ט הכותרת
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 10.0, horizontal: 16.0),
+                              child: Row(
+                                children: [
+                                  const Expanded(child: Divider()),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8.0),
+                                    child: Text(
+                                      titleText,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary
+                                            .withValues(alpha: 0.8),
+                                      ),
+                                    ),
+                                  ),
+                                  const Expanded(child: Divider()),
+                                ],
+                              ),
+                            );
+                          }
+
+                          // אם זה לא כותרת, הצג CheckboxListTile רגיל
+                          return CheckboxListTile(
+                            title: Text(item),
+                            value: state.activeCommentators.contains(item),
+                            onChanged: (checked) {
+                              if (checked ?? false) {
+                                context.read<TextBookBloc>().add(
+                                      UpdateCommentators(
+                                          [...state.activeCommentators, item]),
+                                    );
+                              } else {
+                                context.read<TextBookBloc>().add(
+                                      UpdateCommentators(state
+                                          .activeCommentators
+                                          .where((e) => e != item)
+                                          .toList()),
+                                    );
+                              }
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          )
-        ],
-      );
-    });
+              )
+            ],
+          );
+        });
   }
 }
