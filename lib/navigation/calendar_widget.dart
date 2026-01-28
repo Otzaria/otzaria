@@ -13,6 +13,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'dart:io';
 import 'package:otzaria/widgets/rtl_text_field.dart';
+import 'package:otzaria/printing/printing_screen.dart';
+import 'calendar_print_helper.dart' as print_helper;
 
 // הפכנו את הווידג'ט ל-Stateless כי הוא כבר לא מנהל מצב בעצמו.
 class CalendarWidget extends StatelessWidget {
@@ -237,6 +239,23 @@ class CalendarWidget extends StatelessWidget {
                     FluentIcons.calendar_week_numbers_24_regular, 'שבוע'),
                 buildViewButton(CalendarView.day,
                     FluentIcons.calendar_day_24_regular, 'יום'),
+
+                // קו הפרדה קטן
+                Container(
+                  height: 24,
+                  width: 1,
+                  color: Theme.of(context).dividerColor,
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                ),
+
+                // כפתור הדפסה
+                Tooltip(
+                  message: 'הדפס לוח שנה',
+                  child: IconButton(
+                    onPressed: () => _printCalendar(context, state),
+                    icon: const Icon(FluentIcons.print_24_regular),
+                  ),
+                ),
 
                 // קו הפרדה קטן
                 Container(
@@ -801,7 +820,8 @@ class CalendarWidget extends StatelessWidget {
             children: [
               Text(
                 '$dayOfWeek $jewishDateStr',
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                style:
+                    const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
               Text(
@@ -1513,6 +1533,122 @@ class CalendarWidget extends StatelessWidget {
     }
 
     return baseYear + yearFromLetters;
+  }
+
+  void _printCalendar(BuildContext context, CalendarState state) {
+    _showPrintOptionsDialog(context, state);
+  }
+
+  void _showPrintOptionsDialog(BuildContext context, CalendarState state) {
+    int count = 1;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            String periodName;
+            String periodNamePlural;
+            int maxCount;
+
+            switch (state.calendarView) {
+              case CalendarView.month:
+                periodName = 'חודש';
+                periodNamePlural = 'חודשים';
+                maxCount = 12;
+                break;
+              case CalendarView.week:
+                periodName = 'שבוע';
+                periodNamePlural = 'שבועות';
+                maxCount = 52;
+                break;
+              case CalendarView.day:
+                periodName = 'יום';
+                periodNamePlural = 'ימים';
+                maxCount = 365;
+                break;
+            }
+
+            return AlertDialog(
+              title: const Text('הגדרות הדפסה'),
+              content: SizedBox(
+                width: 400, // הרחבת הדיאלוג
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('בחר כמה $periodNamePlural להדפיס:'),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Slider(
+                            value: count.toDouble(),
+                            min: 1,
+                            max: maxCount.toDouble(),
+                            divisions: maxCount - 1,
+                            label: count.toString(),
+                            onChanged: (value) {
+                              setState(() {
+                                count = value.round();
+                              });
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        SizedBox(
+                          width: 100, // הרחבת השטח לטקסט
+                          child: Text(
+                            count == 1
+                                ? '$count $periodName'
+                                : '$count $periodNamePlural',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'טווח: ${count == 1 ? periodName : '$count $periodNamePlural'} החל מהתאריך הנוכחי',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('ביטול'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop();
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => PrintingScreen(
+                          data: Future.value(''),
+                          bookId: 'calendar',
+                          createPdfOverride: (format) =>
+                              print_helper.createCalendarPdf(
+                            state,
+                            format,
+                            count: count,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                  child: const Text('הדפס'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   void _showJumpToDateDialog(BuildContext context) {
