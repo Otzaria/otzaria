@@ -53,9 +53,9 @@ class _EnhancedGestureDetectorState extends State<EnhancedGestureDetector> {
   }
 
   void _handlePointerDown(PointerDownEvent event) {
-    _tapDownPosition = event.localPosition;
-
-    if (event.buttons == kSecondaryMouseButton) {
+    if (event.buttons == kPrimaryMouseButton) {
+      _tapDownPosition = event.localPosition;
+    } else if (event.buttons == kSecondaryMouseButton) {
       widget.onSecondaryTapDown?.call(
         TapDownDetails(
           globalPosition: event.position,
