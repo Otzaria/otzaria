@@ -108,10 +108,9 @@ class _CombinedViewState extends State<CombinedView> {
     // האזנה לשינויים במצב הבחירה כדי לכפות rebuild של SelectionArea
     _selectionManager.addListener(() {
       if (!_selectionManager.isInSelectionMode && mounted) {
-        // כשיוצאים ממצב בחירה, מעדכנים את המפתח כדי לכפות rebuild
-        setState(() {
-          // המפתח ישתנה ויגרום ל-SelectionArea להיבנות מחדש
-        });
+        // כשיוצאים ממצב בחירה, קוראים ל-setState כדי לכפות בנייה מחדש
+        // של SelectionArea ולנקות את הבחירה באופן ויזואלי.
+        setState(() {});
       }
     });
 

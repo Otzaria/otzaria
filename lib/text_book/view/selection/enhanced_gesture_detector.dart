@@ -72,6 +72,9 @@ class _EnhancedGestureDetectorState extends State<EnhancedGestureDetector> {
         // A drag has started, notify the parent to handle selection
         widget.onDragSelectionStart?.call();
         _tapDownPosition = null;
+        // איפוס ספירת הלחיצות כדי לבטל single tap שממתין
+        _tapCount = 0;
+        _lastTapTime = null;
       }
     }
   }
