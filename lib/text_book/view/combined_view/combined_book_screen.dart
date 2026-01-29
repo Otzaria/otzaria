@@ -71,8 +71,8 @@ class _CombinedViewState extends State<CombinedView> {
   // מנהל בחירת טקסט משופר
   late final TextSelectionManager _selectionManager;
 
-  // מפתח גלובלי ל-SelectionArea כדי לכפות rebuild
-  final GlobalKey _selectionAreaKey = GlobalKey();
+  // מפתח גלובלי ל-SelectionArea - ישתנה כשצריך לנקות בחירה
+  Key _selectionAreaKey = const ValueKey('selection_area_initial');
 
   /// פתיחת חלון הצד של המפרשים רק אם מוסיפים מפרשים ומפרשים מוגדרים בצד הטקסט (לא מתחת)
   void _openCommentatorsPane({required bool isAdding}) {
@@ -108,9 +108,11 @@ class _CombinedViewState extends State<CombinedView> {
     // האזנה לשינויים במצב הבחירה כדי לכפות rebuild של SelectionArea
     _selectionManager.addListener(() {
       if (!_selectionManager.isInSelectionMode && mounted) {
-        // כשיוצאים ממצב בחירה, קוראים ל-setState כדי לכפות בנייה מחדש
-        // של SelectionArea ולנקות את הבחירה באופן ויזואלי.
-        setState(() {});
+        // כשיוצאים ממצב בחירה, משנים את המפתח כדי לכפות בנייה מחדש
+        // של SelectionArea בלבד (ולא של כל הווידג'ט) ולנקות את הבחירה באופן ויזואלי.
+        setState(() {
+          _selectionAreaKey = UniqueKey();
+        });
       }
     });
 
@@ -966,9 +968,12 @@ $textWithBreaks
             },
             onDoubleTap: () {
               // Double-click → בחירת פסקה שלמה
+              // הערה: SelectionArea של Flutter לא תומך בבחירה פרוגרמטית,
+              // לכן הפיצ'ר הזה לא מומש במלואו. SelectionArea יבצע את פעולת
+              // ברירת המחדל שלו (בחירת מילה). לבחירת פסקה, המשתמש יכול
+              // להשתמש ב-Shift+Click או Drag.
               _focusNode.requestFocus();
               _selectionManager.enterDoubleClickMode(index);
-              // SelectionArea יטפל בבחירה בפועל
             },
             onShiftClick: () {
               // Shift+Click → בחירת טווח
