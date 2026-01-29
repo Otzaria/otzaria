@@ -719,7 +719,12 @@ $textWithBreaks
 
                 // כניסה למצב בחירה כשיש טקסט נבחר
                 if (!_selectionManager.isInSelectionMode) {
-                  _selectionManager.setAnchor(0);
+                  // שימוש באינדקס הראשון הנראה במקום 0
+                  final positions =
+                      widget.tab.positionsListener.itemPositions.value;
+                  final firstVisibleIndex =
+                      positions.isNotEmpty ? positions.first.index : 0;
+                  _selectionManager.setAnchor(firstVisibleIndex);
                 }
 
                 // חשוב: כדי ש-Ctrl+C יעבוד מיד אחרי סימון טקסט עם העכבר
@@ -898,7 +903,14 @@ $textWithBreaks
               : null,
           child: EnhancedGestureDetector(
             behavior: HitTestBehavior.translucent,
-            selectionManager: _selectionManager,
+            onDragSelectionStart: () {
+              // כניסה למצב בחירה בגלל drag
+              final positions =
+                  widget.tab.positionsListener.itemPositions.value;
+              final firstVisibleIndex =
+                  positions.isNotEmpty ? positions.first.index : index;
+              _selectionManager.setAnchor(firstVisibleIndex);
+            },
             onSingleTap: () {
               _focusNode.requestFocus();
               // מאפס את הטקסט השמור כשלוחצים על הפסקה
