@@ -832,17 +832,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                         ResponsiveActionBar(
                           key: ValueKey('loading_actions_$screenWidth'),
                           actions: [
-                            ActionButtonData(
-                              widget: IconButton(
-                                icon: const Icon(
-                                    FluentIcons.document_pdf_24_regular),
-                                tooltip: 'פתח ספר במהדורה מודפסת',
-                                onPressed: null,
-                              ),
-                              icon: FluentIcons.document_pdf_24_regular,
-                              tooltip: 'פתח ספר במהדורה מודפסת',
-                              onPressed: null,
-                            ),
+                            // NOTE: PDF button intentionally omitted during loading
                             ActionButtonData(
                               widget: IconButton(
                                 icon: const Icon(
@@ -942,7 +932,23 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                               onPressed: null,
                             ),
                           ],
-                          alwaysInMenu: [],
+                          // כך שהכפתור "..." יוצג גם במצב טעינה
+                          alwaysInMenu: [
+                            ActionButtonData(
+                              widget: const SizedBox.shrink(),
+                              icon: FluentIcons.more_horizontal_24_regular,
+                              tooltip: 'פעולות נוספות',
+                              onPressed: null,
+                              submenuItems: [
+                                ActionButtonData(
+                                  widget: const SizedBox.shrink(),
+                                  icon: FluentIcons.more_horizontal_24_regular,
+                                  tooltip: '',
+                                  onPressed: null,
+                                ),
+                              ],
+                            ),
+                          ],
                           maxVisibleButtons: screenWidth < 400
                               ? 2
                               : screenWidth < 500
