@@ -71,6 +71,9 @@ class _CombinedViewState extends State<CombinedView> {
   // מנהל בחירת טקסט משופר
   late final TextSelectionManager _selectionManager;
 
+  // מפתח גלובלי ל-SelectionArea כדי לכפות rebuild
+  final GlobalKey _selectionAreaKey = GlobalKey();
+
   /// פתיחת חלון הצד של המפרשים רק אם מוסיפים מפרשים ומפרשים מוגדרים בצד הטקסט (לא מתחת)
   void _openCommentatorsPane({required bool isAdding}) {
     if (isAdding &&
@@ -101,6 +104,16 @@ class _CombinedViewState extends State<CombinedView> {
 
     // אתחול מנהל הבחירה
     _selectionManager = TextSelectionManager();
+
+    // האזנה לשינויים במצב הבחירה כדי לכפות rebuild של SelectionArea
+    _selectionManager.addListener(() {
+      if (!_selectionManager.isInSelectionMode && mounted) {
+        // כשיוצאים ממצב בחירה, מעדכנים את המפתח כדי לכפות rebuild
+        setState(() {
+          // המפתח ישתנה ויגרום ל-SelectionArea להיבנות מחדש
+        });
+      }
+    });
 
     // האזנה לשינויים במיקומי הפריטים כדי לאפס את הבחירה בגלילה
     widget.tab.positionsListener.itemPositions.addListener(_onScroll);
@@ -705,6 +718,7 @@ $textWithBreaks
             _viewportHeight = constraints.maxHeight;
 
             return SelectionArea(
+              key: _selectionAreaKey,
               // SelectionArea אחד לכל הרשימה - מאפשר בחירה רציפה בין פסקאות
               contextMenuBuilder: (context, selectableRegionState) {
                 return const SizedBox.shrink();

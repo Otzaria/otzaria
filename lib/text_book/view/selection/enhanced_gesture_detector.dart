@@ -77,7 +77,9 @@ class _EnhancedGestureDetectorState extends State<EnhancedGestureDetector> {
   }
 
   void _handlePointerUp(PointerUpEvent event) {
-    if (event.buttons != 0 || _tapDownPosition == null) {
+    // בדיקה שהכפתור ששוחרר הוא הכפתור הראשי
+    // לאחר שחרור הכפתור, event.buttons הוא 0, אז אנחנו בודקים שהאירוע הוא מהכפתור הראשי
+    if (_tapDownPosition == null) {
       return;
     }
 
