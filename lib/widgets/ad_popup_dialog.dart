@@ -475,9 +475,9 @@ class _OrganizationsList extends StatelessWidget {
       'name': 'החוטפים הגיעו',
       'phone': '02-800-8080',
       'logo': 'assets/logos/hachotfim_higiu.jpg',
-      'details': '''שימו לב! מערכת חדשה ומשודרגת 
+      'details': '''**שימו לב! המערכת חודשה ושודרגה**
 נוספו עשרות ערים חדשות ואפשרויות רבות נוספות
-יש לבצע רישום מחדש 
+גם מי שנרשם כבר במערכת הישנה, יש לבצע רישום מחדש 
 לנרשמים ברשימה של כל הארץ ישלח צינתוק ולא מבזק
 
 1 - לרישום
@@ -748,6 +748,55 @@ class _ExpandableOrgCard extends StatefulWidget {
 class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
   bool _isExpanded = false;
 
+  Widget _buildDetailsText(String details) {
+    final spans = <TextSpan>[];
+    final regex = RegExp(r'\*\*(.*?)\*\*');
+    int lastIndex = 0;
+    
+    for (final match in regex.allMatches(details)) {
+      // טקסט רגיל לפני ההדגשה
+      if (match.start > lastIndex) {
+        spans.add(TextSpan(
+          text: details.substring(lastIndex, match.start),
+          style: TextStyle(
+            fontSize: 13,
+            height: 1.6,
+            color: Colors.grey[800],
+          ),
+        ));
+      }
+      
+      // טקסט מודגש (ללא הכוכביות)
+      spans.add(TextSpan(
+        text: match.group(1), // group(1) מחזיר את הטקסט בלי הכוכביות
+        style: TextStyle(
+          fontSize: 13,
+          height: 1.6,
+          color: Colors.red[700],
+          fontWeight: FontWeight.bold,
+        ),
+      ));
+      
+      lastIndex = match.end;
+    }
+    
+    // שאר הטקסט
+    if (lastIndex < details.length) {
+      spans.add(TextSpan(
+        text: details.substring(lastIndex),
+        style: TextStyle(
+          fontSize: 13,
+          height: 1.6,
+          color: Colors.grey[800],
+        ),
+      ));
+    }
+    
+    return Text.rich(
+      TextSpan(children: spans),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -830,6 +879,7 @@ class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
           if (_isExpanded) ...[
             const Divider(height: 1),
             Container(
+              width: double.infinity,
               padding: const EdgeInsets.all(16),
               color: Colors.grey[50],
               child: Column(
@@ -871,14 +921,7 @@ class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      widget.org['details'],
-                      style: TextStyle(
-                        fontSize: 13,
-                        height: 1.6,
-                        color: Colors.grey[800],
-                      ),
-                    ),
+                    _buildDetailsText(widget.org['details']),
                   ],
                 ],
               ),
