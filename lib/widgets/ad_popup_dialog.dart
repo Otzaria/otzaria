@@ -477,7 +477,7 @@ class _OrganizationsList extends StatelessWidget {
       'logo': 'assets/logos/hachotfim_higiu.jpg',
       'details': '''**שימו לב! המערכת חודשה ושודרגה**
 נוספו עשרות ערים חדשות ואפשרויות רבות נוספות
-גם מי שנרשם כבר במערכת הישנה, יש לבצע רישום מחדש 
+גם מי שנרשם כבר במערכת הישנה, יש לבצע רישום מחדש
 לנרשמים ברשימה של כל הארץ ישלח צינתוק ולא מבזק
 
 1 - לרישום
@@ -504,10 +504,10 @@ class _OrganizationsList extends StatelessWidget {
 
 1 בני ברק
 2 ירושלים
-3 בית שמש 
+3 בית שמש
 4 מודיעין עילית
-5 ביתר 
-6 אשדוד 
+5 ביתר
+6 אשדוד
 7 אלעד
 8 אופקים
 9 אור יהודה
@@ -540,7 +540,7 @@ class _OrganizationsList extends StatelessWidget {
 36 מעלות
 37 נהריה
 38 נצרת נוף הגליל
-39 נתיבות 
+39 נתיבות
 40 נתניה
 41 עמנואל
 42 עפולה
@@ -567,9 +567,9 @@ class _OrganizationsList extends StatelessWidget {
 להקשה מחודשת הקישו 2
 (אחרי לחיצה על 1 לאישור)
 להוספת מספרכם לרשימת הצינתוקים הקישו 1
-להסרת מספרכם מרשימת הצינתוקים הקישו 2 
+להסרת מספרכם מרשימת הצינתוקים הקישו 2
 להוספת מספרכם לרשימת הצינתוקים לזמן מסוים הקישו 3
-להשתקת קבלת צינתוקים עד לזמן מסוים הקישו 4 
+להשתקת קבלת צינתוקים עד לזמן מסוים הקישו 4
 ליציאה הקישו *
 
 לאחר לחיצה על 2 (להרשמה לפי אזור)
@@ -749,6 +749,17 @@ class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
   bool _isExpanded = false;
 
   Widget _buildDetailsText(String details) {
+    final defaultStyle = TextStyle(
+      fontSize: 13,
+      height: 1.6,
+      color: Colors.grey[800],
+    );
+    
+    final boldStyle = defaultStyle.copyWith(
+      color: Colors.red[700],
+      fontWeight: FontWeight.bold,
+    );
+    
     final spans = <TextSpan>[];
     final regex = RegExp(r'\*\*(.*?)\*\*');
     int lastIndex = 0;
@@ -758,23 +769,14 @@ class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
       if (match.start > lastIndex) {
         spans.add(TextSpan(
           text: details.substring(lastIndex, match.start),
-          style: TextStyle(
-            fontSize: 13,
-            height: 1.6,
-            color: Colors.grey[800],
-          ),
+          style: defaultStyle,
         ));
       }
       
       // טקסט מודגש (ללא הכוכביות)
       spans.add(TextSpan(
-        text: match.group(1), // group(1) מחזיר את הטקסט בלי הכוכביות
-        style: TextStyle(
-          fontSize: 13,
-          height: 1.6,
-          color: Colors.red[700],
-          fontWeight: FontWeight.bold,
-        ),
+        text: match.group(1),
+        style: boldStyle,
       ));
       
       lastIndex = match.end;
@@ -784,11 +786,7 @@ class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
     if (lastIndex < details.length) {
       spans.add(TextSpan(
         text: details.substring(lastIndex),
-        style: TextStyle(
-          fontSize: 13,
-          height: 1.6,
-          color: Colors.grey[800],
-        ),
+        style: defaultStyle,
       ));
     }
     
