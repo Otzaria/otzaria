@@ -53,7 +53,6 @@ class TocDao {
       entry.textId,
       entry.level,
       entry.lineId,
-      entry.lineIndex,
       entry.isLastChild ? 1 : 0,
       entry.hasChildren ? 1 : 0,
     ]);
@@ -68,7 +67,6 @@ class TocDao {
       entry.textId,
       entry.level,
       entry.lineId,
-      entry.lineIndex,
       entry.isLastChild ? 1 : 0,
       entry.hasChildren ? 1 : 0,
     ]);
@@ -81,12 +79,14 @@ class TocDao {
 
   Future<int> updateIsLastChild(int tocId, bool isLastChild) async {
     final db = await database;
-    return await db.rawUpdate(_queries['updateIsLastChild']!, [isLastChild ? 1 : 0, tocId]);
+    return await db.rawUpdate(
+        _queries['updateIsLastChild']!, [isLastChild ? 1 : 0, tocId]);
   }
 
   Future<int> updateHasChildren(int tocId, bool hasChildren) async {
     final db = await database;
-    return await db.rawUpdate(_queries['updateHasChildren']!, [hasChildren ? 1 : 0, tocId]);
+    return await db.rawUpdate(
+        _queries['updateHasChildren']!, [hasChildren ? 1 : 0, tocId]);
   }
 
   Future<int> delete(int id) async {
