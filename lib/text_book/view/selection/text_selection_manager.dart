@@ -9,26 +9,21 @@ class TextSelectionManager extends ChangeNotifier {
   /// האם נמצאים במצב בחירה זמני
   bool _isInSelectionMode = false;
 
-  /// האם הבחירה הנוכחית נוצרה על ידי double-click
-  bool _isDoubleClickSelection = false;
-
   int? get anchorIndex => _anchorIndex;
   bool get isInSelectionMode => _isInSelectionMode;
-  bool get isDoubleClickSelection => _isDoubleClickSelection;
 
   /// קביעת anchor point (נקודת התחלה לבחירה)
   void setAnchor(int index) {
     _anchorIndex = index;
     _isInSelectionMode = true;
-    _isDoubleClickSelection = false;
     notifyListeners();
   }
 
   /// כניסה למצב בחירה עם double-click
+  /// הערה: הפיצ'ר לא מומש במלואו בגלל מגבלות Flutter
   void enterDoubleClickMode(int index) {
     _anchorIndex = index;
     _isInSelectionMode = true;
-    _isDoubleClickSelection = true;
     notifyListeners();
   }
 
@@ -36,7 +31,6 @@ class TextSelectionManager extends ChangeNotifier {
   void exitSelectionMode() {
     _anchorIndex = null;
     _isInSelectionMode = false;
-    _isDoubleClickSelection = false;
     notifyListeners();
   }
 
@@ -47,7 +41,6 @@ class TextSelectionManager extends ChangeNotifier {
   void reset() {
     _anchorIndex = null;
     _isInSelectionMode = false;
-    _isDoubleClickSelection = false;
     notifyListeners();
   }
 }

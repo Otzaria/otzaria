@@ -74,6 +74,17 @@ class _CombinedViewState extends State<CombinedView> {
   // מפתח גלובלי ל-SelectionArea - ישתנה כשצריך לנקות בחירה
   Key _selectionAreaKey = const ValueKey('selection_area_initial');
 
+  // listener לניקוי בחירה - נשמור אותו כדי להסיר אותו ב-dispose
+  void _onSelectionModeChanged() {
+    if (!_selectionManager.isInSelectionMode && mounted) {
+      // כשיוצאים ממצב בחירה, משנים את המפתח כדי לכפות בנייה מחדש
+      // של SelectionArea בלבד (ולא של כל הווידג'ט) ולנקות את הבחירה באופן ויזואלי.
+      setState(() {
+        _selectionAreaKey = UniqueKey();
+      });
+    }
+  }
+
   /// פתיחת חלון הצד של המפרשים רק אם מוסיפים מפרשים ומפרשים מוגדרים בצד הטקסט (לא מתחת)
   void _openCommentatorsPane({required bool isAdding}) {
     if (isAdding &&
@@ -106,15 +117,7 @@ class _CombinedViewState extends State<CombinedView> {
     _selectionManager = TextSelectionManager();
 
     // האזנה לשינויים במצב הבחירה כדי לכפות rebuild של SelectionArea
-    _selectionManager.addListener(() {
-      if (!_selectionManager.isInSelectionMode && mounted) {
-        // כשיוצאים ממצב בחירה, משנים את המפתח כדי לכפות בנייה מחדש
-        // של SelectionArea בלבד (ולא של כל הווידג'ט) ולנקות את הבחירה באופן ויזואלי.
-        setState(() {
-          _selectionAreaKey = UniqueKey();
-        });
-      }
-    });
+    _selectionManager.addListener(_onSelectionModeChanged);
 
     // האזנה לשינויים במיקומי הפריטים כדי לאפס את הבחירה בגלילה
     widget.tab.positionsListener.itemPositions.addListener(_onScroll);
@@ -167,6 +170,7 @@ class _CombinedViewState extends State<CombinedView> {
     _savedSelectedIndex.dispose();
     _currentSelectedIndex.dispose();
     _focusNode.dispose();
+    _selectionManager.removeListener(_onSelectionModeChanged);
     _selectionManager.dispose();
     super.dispose();
   }
@@ -920,11 +924,9 @@ $textWithBreaks
             behavior: HitTestBehavior.translucent,
             onDragSelectionStart: () {
               // כניסה למצב בחירה בגלל drag
-              final positions =
-                  widget.tab.positionsListener.itemPositions.value;
-              final firstVisibleIndex =
-                  positions.isNotEmpty ? positions.first.index : index;
-              _selectionManager.setAnchor(firstVisibleIndex);
+              if (!_selectionManager.isInSelectionMode) {
+                _selectionManager.setAnchor(index);
+              }
             },
             onSingleTap: () {
               _focusNode.requestFocus();
