@@ -279,8 +279,8 @@ class _OutlineViewState extends State<OutlineView>
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         itemCount: outline.length,
-        itemBuilder: (context, index) =>
-            _buildOutlineItem(outline[index], level: 0),
+        itemBuilder: (context, index) => _buildOutlineItem(outline[index],
+            level: 0, isFirstChild: index == 0),
       ),
     );
   }
@@ -317,7 +317,8 @@ class _OutlineViewState extends State<OutlineView>
     );
   }
 
-  Widget _buildOutlineItem(PdfOutlineNode node, {int level = 0}) {
+  Widget _buildOutlineItem(PdfOutlineNode node,
+      {int level = 0, bool isFirstChild = false}) {
     final itemKey = _tocItemKeys.putIfAbsent(node, () => GlobalKey());
     void navigateToEntry() {
       setState(() {
@@ -392,7 +393,7 @@ class _OutlineViewState extends State<OutlineView>
         ),
       );
     } else {
-      final bool isExpanded = _expanded[node] ?? (level == 0);
+      final bool isExpanded = _expanded[node] ?? (level == 0 || isFirstChild);
 
       return Column(
         key: itemKey,
@@ -486,7 +487,10 @@ class _OutlineViewState extends State<OutlineView>
             ),
           ),
           if (isExpanded)
-            ...node.children.map((c) => _buildOutlineItem(c, level: level + 1)),
+            ...node.children.asMap().entries.map((e) => _buildOutlineItem(
+                e.value,
+                level: level + 1,
+                isFirstChild: isFirstChild && e.key == 0)),
         ],
       );
     }

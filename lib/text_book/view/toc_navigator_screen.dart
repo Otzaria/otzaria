@@ -305,7 +305,8 @@ class _TocViewerState extends State<TocViewer>
         });
   }
 
-  Widget _buildTocItem(TocEntry entry, {bool showFullText = false}) {
+  Widget _buildTocItem(TocEntry entry,
+      {bool showFullText = false, bool isFirstChild = false}) {
     final itemKey = _tocItemKeys.putIfAbsent(entry.index, () => GlobalKey());
     void navigateToEntry() {
       setState(() {
@@ -388,7 +389,8 @@ class _TocViewerState extends State<TocViewer>
         },
       );
     } else {
-      final bool isExpanded = _expanded[entry.index] ?? (entry.level == 1);
+      final bool isExpanded =
+          _expanded[entry.index] ?? (entry.level == 1 || isFirstChild);
 
       return Column(
         key: itemKey,
@@ -497,7 +499,8 @@ class _TocViewerState extends State<TocViewer>
             },
           ),
           if (isExpanded)
-            ...entry.children.map((child) => _buildTocItem(child)),
+            ...entry.children.asMap().entries.map((e) => _buildTocItem(e.value,
+                isFirstChild: isFirstChild && e.key == 0)),
         ],
       );
     }
@@ -585,8 +588,9 @@ class _TocViewerState extends State<TocViewer>
                               shrinkWrap: true,
                               physics: const NeverScrollableScrollPhysics(),
                               itemCount: state.tableOfContents.length,
-                              itemBuilder: (context, index) =>
-                                  _buildTocItem(state.tableOfContents[index]))
+                              itemBuilder: (context, index) => _buildTocItem(
+                                  state.tableOfContents[index],
+                                  isFirstChild: index == 0))
                           : _buildFilteredList(state.tableOfContents, context),
                     ),
                   ),
