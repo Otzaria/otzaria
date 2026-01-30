@@ -132,7 +132,7 @@ class _AboutScreenState extends State<AboutScreen> {
         'url': 'https://github.com/Sivan22',
       },
       {
-        'name': 'rachelGrayover',
+        'name': 'ר. נבון',
         'url': 'https://github.com/rachelGrayover',
         'description': 'השקעה עצומה במעבר ל-SQLite'
       },
