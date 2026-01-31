@@ -3,7 +3,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/tools/measurement_converter/measurement_converter_screen.dart';
 import 'package:otzaria/tools/gematria/gematria_search_screen.dart';
-import 'package:otzaria/tools/aramaic_dictionary/aramaic_dictionary_screen.dart';
+import 'package:otzaria/tools/dictionary/dictionary_screen.dart';
 import 'package:otzaria/shamor_zachor/shamor_zachor.dart';
 import 'calendar_widget.dart';
 import 'calendar_cubit.dart';
@@ -17,7 +17,8 @@ class MoreScreen extends StatefulWidget {
   State<MoreScreen> createState() => _MoreScreenState();
 }
 
-class _MoreScreenState extends State<MoreScreen> with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
+class _MoreScreenState extends State<MoreScreen>
+    with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   late final TabController _tabController;
   late final CalendarCubit _calendarCubit;
   late final SettingsRepository _settingsRepository;
@@ -49,7 +50,7 @@ class _MoreScreenState extends State<MoreScreen> with TickerProviderStateMixin, 
       icon: FluentIcons.calculator_24_regular,
     ),
     const _TabInfo(
-      label: 'מילון ארמי',
+      label: 'מילון',
       icon: FluentIcons.book_24_regular,
     ),
   ];
@@ -59,7 +60,7 @@ class _MoreScreenState extends State<MoreScreen> with TickerProviderStateMixin, 
     super.initState();
     _settingsRepository = SettingsRepository();
     _calendarCubit = CalendarCubit(settingsRepository: _settingsRepository);
-    
+
     _tabController = TabController(length: _tabs.length, vsync: this);
 
     _tabWidgets = _tabs.map((tab) {
@@ -93,7 +94,7 @@ class _MoreScreenState extends State<MoreScreen> with TickerProviderStateMixin, 
       const MeasurementConverterScreen(),
       const PersonalNotesManagerScreen(),
       GematriaSearchScreen(key: _gematriaKey),
-      const AramaicDictionaryScreen(),
+      const DictionaryScreen(),
     ];
   }
 

@@ -182,6 +182,7 @@ flutter:
     - assets/icon/iconnew.png
     - lib/migration/dao/sqflite/
     - assets/dictionary.json
+    - assets/Acronyms.json
     - assets/default_commentators.json
 
   # An image asset can refer to one or more resolution-specific "variants", see
