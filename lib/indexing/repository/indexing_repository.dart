@@ -127,6 +127,11 @@ class IndexingRepository {
     final title = book.title;
     final topics = "/${book.topics.replaceAll(', ', '/')}";
 
+    debugPrint('📚 Indexing book: $title\n'
+        '   book.topics: "${book.topics}"\n'
+        '   book.categoryPath: "${book.categoryPath}"\n'
+        '   final facet: "$topics/$title"');
+
     final texts = text.split('\n');
     List<String> reference = [];
 
