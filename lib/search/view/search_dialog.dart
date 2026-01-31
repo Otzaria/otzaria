@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
+import 'package:otzaria/history/bloc/history_state.dart';
 import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
 import 'package:otzaria/indexing/bloc/indexing_state.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
@@ -119,83 +120,93 @@ class _SearchDialogState extends State<SearchDialog> {
     );
   }
 
-  // שמירת חיפוש להיסטוריה (מקסימום 5)
-  void _saveSearchToHistory(String query) {
-    // שמירה כ-String מופרד בפסיקים
-    final historyString = Settings.getValue<String>('key-search-history') ?? '';
-    final history =
-        historyString.isEmpty ? <String>[] : historyString.split('|||');
-
-    // הסרת החיפוש אם הוא כבר קיים
-    history.remove(query);
-
-    // הוספה בתחילת הרשימה
-    history.insert(0, query);
-
-    // שמירת רק 5 אחרונים
-    if (history.length > 5) {
-      history.removeRange(5, history.length);
-    }
-
-    Settings.setValue<String>('key-search-history', history.join('|||'));
-  }
-
-  // קבלת היסטוריית חיפושים
-  List<String> _getSearchHistory() {
-    final historyString = Settings.getValue<String>('key-search-history') ?? '';
-    if (historyString.isEmpty) return [];
-    return historyString.split('|||');
-  }
-
-  // בניית מגירת ההיסטוריה
+  // בניית מגירת ההיסטוריה - מציג רק חיפושים מההיסטוריה הכללית
   Widget _buildHistoryDropdown() {
-    final history = _getSearchHistory();
-    if (history.isEmpty) return const SizedBox.shrink();
+    return BlocBuilder<HistoryBloc, HistoryState>(
+      builder: (context, state) {
+        // סינון רק חיפושים
+        final searchHistory =
+            state.history.where((item) => item.isSearch).toList();
 
-    return Container(
-      margin: const EdgeInsets.only(top: 4),
-      constraints: const BoxConstraints(maxHeight: 200),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: ListView.separated(
-        shrinkWrap: true,
-        padding: EdgeInsets.zero,
-        itemCount: history.length,
-        separatorBuilder: (context, index) => Divider(
-          height: 1,
-          thickness: 1,
-          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
-        ),
-        itemBuilder: (context, index) {
-          final query = history[index];
-          return ListTile(
-            dense: true,
-            leading: const Icon(FluentIcons.search_24_regular, size: 18),
-            title: Text(
-              query,
-              textAlign: TextAlign.right,
-              style: const TextStyle(fontSize: 14),
+        if (searchHistory.isEmpty) return const SizedBox.shrink();
+
+        // הגבלה ל-5 אחרונים
+        final recentSearches = searchHistory.take(5).toList();
+
+        return Container(
+          margin: const EdgeInsets.only(top: 4),
+          constraints: const BoxConstraints(maxHeight: 200),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color:
+                  Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
             ),
-            onTap: () {
-              _searchTab.queryController.text = query;
-              setState(() => _showHistoryDropdown = false);
-              _searchTab.searchFieldFocusNode.requestFocus();
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: ListView.separated(
+            shrinkWrap: true,
+            padding: EdgeInsets.zero,
+            itemCount: recentSearches.length,
+            separatorBuilder: (context, index) => Divider(
+              height: 1,
+              thickness: 1,
+              color:
+                  Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+            ),
+            itemBuilder: (context, index) {
+              final bookmark = recentSearches[index];
+              final query = bookmark.book.title; // הטקסט הפשוט של החיפוש
+              final displayText =
+                  bookmark.ref; // הטקסט המעוצב (עם קידומות וסיומות)
+
+              return ListTile(
+                dense: true,
+                leading: const Icon(FluentIcons.search_24_regular, size: 18),
+                title: Text(
+                  displayText,
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(fontSize: 14),
+                ),
+                onTap: () {
+                  // שחזור הטקסט הפשוט (ללא קידומות וסיומות)
+                  _searchTab.queryController.text = query;
+
+                  // שחזור האפשרויות הנוספות
+                  if (bookmark.searchOptions != null) {
+                    _searchTab.searchOptions.clear();
+                    _searchTab.searchOptions.addAll(bookmark.searchOptions!);
+                  }
+                  if (bookmark.alternativeWords != null) {
+                    _searchTab.alternativeWords.clear();
+                    _searchTab.alternativeWords
+                        .addAll(bookmark.alternativeWords!);
+                  }
+                  if (bookmark.spacingValues != null) {
+                    _searchTab.spacingValues.clear();
+                    _searchTab.spacingValues.addAll(bookmark.spacingValues!);
+                  }
+
+                  // עדכון התצוגה
+                  setState(() {
+                    _showHistoryDropdown = false;
+                    _updateAlternativesList();
+                  });
+
+                  _searchTab.searchFieldFocusNode.requestFocus();
+                },
+              );
             },
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -278,10 +289,7 @@ class _SearchDialogState extends State<SearchDialog> {
       return;
     }
 
-    // שמירת החיפוש להיסטוריה
-    _saveSearchToHistory(query);
-
-    // שמירת מצב החיפוש האחרון (לא את הטקסט - הוא כבר נשמר בזמן ההקלדה)
+    // שמירת מצב החיפוש האחרון
     final currentMode = _searchTab.searchBloc.state.configuration.searchMode;
     final modeString = currentMode == SearchMode.advanced
         ? 'advanced'
