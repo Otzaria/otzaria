@@ -830,6 +830,7 @@ class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
           if (_isExpanded) ...[
             const Divider(height: 1),
             Container(
+              width: double.infinity,
               padding: const EdgeInsets.all(16),
               color: Colors.grey[50],
               child: Column(
