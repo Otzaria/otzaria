@@ -5,7 +5,10 @@ import 'package:otzaria/settings/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
+import 'package:otzaria/text_book/models/commentator_group.dart';
+import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
+import 'package:otzaria/models/link_types.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:flutter_context_menu/flutter_context_menu.dart' as ctx;
@@ -31,6 +34,7 @@ class SimpleTextViewer extends StatefulWidget {
   final String? title; // כותרת (לכותרת עליונה)
   final String? bookTitle; // שם הספר (למפרשים - לפתיחה בטאב נפרד)
   final Set<int>? highlightedIndices; // אינדקסים להדגשה (למפרשים)
+  final VoidCallback? onCommentatorChanged; // callback לרענון אחרי החלפת מפרש
 
   const SimpleTextViewer({
     super.key,
@@ -44,6 +48,7 @@ class SimpleTextViewer extends StatefulWidget {
     this.title,
     this.bookTitle,
     this.highlightedIndices,
+    this.onCommentatorChanged,
   });
 
   @override
@@ -88,6 +93,12 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   /// תפריט הקשר - מעתיק מהתצוגה הרגילה
   ctx.ContextMenu _buildContextMenu(
       TextBookLoaded state, int index, BuildContext menuContext) {
+    // בניית רשימת מפרשים אם זה מפרש (לא טקסט ראשי)
+    List<ctx.MenuItem> commentatorMenuItems = [];
+    if (!widget.isMainText && widget.bookTitle != null) {
+      commentatorMenuItems = _buildCommentatorSwitchMenu(state);
+    }
+
     return ctx.ContextMenu(
       entries: [
         ctx.MenuItem(
@@ -98,6 +109,11 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
             UiSnack.show('חיפוש לא זמין בתצוגה זו');
           },
         ),
+        // הוספת תפריט החלפת מפרש אם זה מפרש
+        if (commentatorMenuItems.isNotEmpty) ...[
+          const ctx.MenuDivider(),
+          ...commentatorMenuItems,
+        ],
         const ctx.MenuDivider(),
         // הערות אישיות
         ctx.MenuItem(
@@ -473,5 +489,144 @@ $textWithBreaks
         ),
       ),
     );
+  }
+
+  /// בניית תפריט החלפת מפרש
+  List<ctx.MenuItem> _buildCommentatorSwitchMenu(TextBookLoaded state) {
+    // קבלת רשימת המפרשים הזמינים
+    final availableCommentators = state.links
+        .where((link) => LinkTypes.isCommentaryOrTargum(link.connectionType))
+        .map((link) => utils.getTitleFromPath(link.path2))
+        .toSet()
+        .toList();
+
+    if (availableCommentators.isEmpty) {
+      return [];
+    }
+
+    // קיבוץ המפרשים לפי קבוצות
+    final groups = state.commentatorGroups;
+    final tanachGroup = CommentatorGroup.groupByTitle(groups, 'תורה שבכתב');
+    final chazalGroup = CommentatorGroup.groupByTitle(groups, 'תורה שבעל פה');
+    final rishonimGroup = CommentatorGroup.groupByTitle(groups, 'ראשונים');
+    final acharonimGroup = CommentatorGroup.groupByTitle(groups, 'אחרונים');
+    final modernGroup = CommentatorGroup.groupByTitle(groups, 'מודרני');
+
+    final allGrouped = [
+      ...tanachGroup.commentators,
+      ...chazalGroup.commentators,
+      ...rishonimGroup.commentators,
+      ...acharonimGroup.commentators,
+      ...modernGroup.commentators,
+    ];
+    final ungrouped =
+        availableCommentators.where((c) => !allGrouped.contains(c)).toList();
+
+    // בניית תפריט משנה
+    final submenuItems = <dynamic>[];
+
+    // הוספת קבוצות
+    if (tanachGroup.commentators.isNotEmpty) {
+      submenuItems
+          .addAll(_buildCommentatorGroupItems(tanachGroup.commentators, state));
+    }
+    if (chazalGroup.commentators.isNotEmpty) {
+      if (submenuItems.isNotEmpty) submenuItems.add(const ctx.MenuDivider());
+      submenuItems
+          .addAll(_buildCommentatorGroupItems(chazalGroup.commentators, state));
+    }
+    if (rishonimGroup.commentators.isNotEmpty) {
+      if (submenuItems.isNotEmpty) submenuItems.add(const ctx.MenuDivider());
+      submenuItems.addAll(
+          _buildCommentatorGroupItems(rishonimGroup.commentators, state));
+    }
+    if (acharonimGroup.commentators.isNotEmpty) {
+      if (submenuItems.isNotEmpty) submenuItems.add(const ctx.MenuDivider());
+      submenuItems.addAll(
+          _buildCommentatorGroupItems(acharonimGroup.commentators, state));
+    }
+    if (modernGroup.commentators.isNotEmpty) {
+      if (submenuItems.isNotEmpty) submenuItems.add(const ctx.MenuDivider());
+      submenuItems
+          .addAll(_buildCommentatorGroupItems(modernGroup.commentators, state));
+    }
+    if (ungrouped.isNotEmpty) {
+      if (submenuItems.isNotEmpty) submenuItems.add(const ctx.MenuDivider());
+      submenuItems.addAll(_buildCommentatorGroupItems(ungrouped, state));
+    }
+
+    return [
+      ctx.MenuItem.submenu(
+        label: const Text('החלף מפרש'),
+        icon: const Icon(FluentIcons.arrow_swap_24_regular),
+        items: submenuItems.cast<ctx.ContextMenuEntry>(),
+      ),
+    ];
+  }
+
+  /// בניית פריטי תפריט לקבוצת מפרשים
+  List<ctx.MenuItem> _buildCommentatorGroupItems(
+      List<String> commentators, TextBookLoaded state) {
+    return commentators.map((commentator) {
+      final isSelected = commentator == widget.bookTitle;
+      return ctx.MenuItem<void>(
+        label: Text(commentator),
+        icon: isSelected ? const Icon(FluentIcons.checkmark_24_regular) : null,
+        onSelected: (_) => _switchCommentator(commentator, state),
+      );
+    }).toList();
+  }
+
+  /// החלפת מפרש
+  void _switchCommentator(String newCommentator, TextBookLoaded state) {
+    if (newCommentator == widget.bookTitle) {
+      return; // כבר מוצג מפרש זה
+    }
+
+    // צריך למצוא באיזה טור המפרש הנוכחי מוצג ולהחליף אותו
+    // נשתמש ב-PageShapeSettingsManager לעדכון ההגדרות
+    final config = PageShapeSettingsManager.loadConfiguration(
+      state.book.title,
+      heCategories: state.book.heCategories,
+    );
+
+    if (config == null) return;
+
+    // מציאת הטור שבו המפרש הנוכחי מוצג
+    String? columnToUpdate;
+    for (final entry in config.entries) {
+      if (entry.value == widget.bookTitle ||
+          (entry.value != null && newCommentator.startsWith(entry.value!)) ||
+          (entry.value != null && entry.value!.startsWith(widget.bookTitle!))) {
+        columnToUpdate = entry.key;
+        break;
+      }
+    }
+
+    if (columnToUpdate == null) return;
+
+    // עדכון ההגדרה
+    final updatedConfig = Map<String, String?>.from(config);
+    updatedConfig[columnToUpdate] = newCommentator;
+
+    final hasBookSettings =
+        PageShapeSettingsManager.hasBookSpecificSettings(state.book.title);
+
+    // אם יש הגדרות ספציפיות לספר, שומרים לספר (saveToCategory = null)
+    // אחרת, שומרים לקטגוריה (אם יש קטגוריה ולא ריקה)
+    final categoryToSave = (!hasBookSettings &&
+            state.book.heCategories != null &&
+            state.book.heCategories!.isNotEmpty)
+        ? state.book.heCategories
+        : null;
+
+    PageShapeSettingsManager.saveConfiguration(
+      state.book.title,
+      updatedConfig,
+      saveToCategory: categoryToSave,
+    );
+
+    // קריאה ל-callback לרענון המסך
+    widget.onCommentatorChanged?.call();
   }
 }

@@ -560,6 +560,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
   @override
   void didUpdateWidget(_CommentaryPane oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // אם שם המפרש השתנה, טען מחדש את התוכן
     if (oldWidget.commentatorName != widget.commentatorName) {
       _loadCommentary();
     }
@@ -827,11 +828,25 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
               isMainText: false,
               bookTitle: widget.commentatorName, // לפתיחה בטאב נפרד
               highlightedIndices: _highlightedIndices, // הדגשות מקומיות
+              onCommentatorChanged: _reloadCommentary, // callback לרענון
             );
           },
         );
       },
     );
+  }
+
+  /// טעינה מחדש של המפרש (אחרי החלפה)
+  void _reloadCommentary() {
+    // נטען מחדש את ההגדרות מה-parent
+    if (mounted) {
+      // נאלץ את ה-parent לטעון מחדש את ההגדרות
+      final parentState =
+          context.findAncestorStateOfType<_PageShapeScreenState>();
+      if (parentState != null) {
+        parentState._loadConfiguration();
+      }
+    }
   }
 }
 
