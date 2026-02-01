@@ -77,11 +77,21 @@ Future<String> refFromIndex(
       if (entry.index > index) {
         return;
       }
+
+      // Guard against invalid level values
+      if (entry.level <= 0) {
+        continue;
+      }
+
       if (entry.level > texts.length) {
         texts.add(entry.text);
       } else {
-        texts[entry.level - 1] = entry.text;
-        texts = texts.getRange(0, entry.level).toList();
+        final targetIndex = entry.level - 1;
+        // Guard against negative index
+        if (targetIndex >= 0 && targetIndex < texts.length) {
+          texts[targetIndex] = entry.text;
+          texts = texts.getRange(0, entry.level).toList();
+        }
       }
 
       searchToc(entry.children, index);
@@ -96,9 +106,9 @@ Future<String> refFromIndex(
 
 Future<String> refFromPageNumber(
   int pageNumber,
-  List<PdfOutlineNode>? outline,
-  [String? bookTitle,
-  ]) async {
+  List<PdfOutlineNode>? outline, [
+  String? bookTitle,
+]) async {
   if (outline == null) return "";
 
   List<String> texts = [];

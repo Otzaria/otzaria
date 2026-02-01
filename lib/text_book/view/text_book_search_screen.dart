@@ -117,6 +117,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         title: bookTitle,
         initialTopics: state.book.topics,
         type: TextBook,
+        categoryPath: state.book.categoryPath,
       );
 
       if (!mounted) return;
