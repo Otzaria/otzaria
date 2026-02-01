@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
@@ -402,15 +403,12 @@ $detailsSection
         'Ben-Yehuda': '$_fallbackMail,editor@benyehuda.org', // שליחה גם לאוצריא וגם ל-Ben-Yehuda
       };
 
-      String emailAddress = _fallbackMail;
-      if (sourceFolder != null) {
-        for (final entry in sourceToEmailMap.entries) {
-          if (sourceFolder.contains(entry.key)) {
-            emailAddress = entry.value;
-            break;
-          }
-        }
-      }
+      final emailAddress = sourceFolder == null
+          ? _fallbackMail
+          : sourceToEmailMap.entries
+                  .firstWhereOrNull((entry) => sourceFolder.contains(entry.key))
+                  ?.value ??
+              _fallbackMail;
 
       final emailUri = Uri(
         scheme: 'mailto',
