@@ -208,81 +208,119 @@ class BookGridItem extends StatelessWidget {
                         style: const TextStyle(fontSize: 13)),
                   ),
                 ),
-                // Data source indicator (DB or File)
-                book is TextBook
-                    ? Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                        child: DataSourceIndicatorAsync(
-                          sourceFuture: FileSystemData.instance
-                              .getBookDataSource(
-                                  book.title, book.categoryPath, book.fileType),
-                          size: 18.0,
-                        ),
-                      )
-                    : const SizedBox.shrink(),
-                book.heShortDesc == null || book.heShortDesc == ''
-                    ? const SizedBox.shrink()
-                    : Tooltip(
-                        richMessage: WidgetSpan(
-                            alignment: PlaceholderAlignment.baseline,
-                            baseline: TextBaseline.alphabetic,
-                            child: Container(
-                              padding: const EdgeInsets.all(10),
-                              constraints: const BoxConstraints(maxWidth: 250),
-                              child: Text(
-                                book.heShortDesc!,
-                                style: TextStyle(
-                                    fontSize: 13,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onPrimary),
-                              ),
-                            )),
-                        child: IconButton(
-                          mouseCursor: SystemMouseCursors.click,
-                          onPressed: () {
-                            _showBookInfoDialog(context, book);
-                          },
-                          icon: const Icon(FluentIcons.info_24_regular),
-                          color: Theme.of(context)
-                              .colorScheme
-                              .secondary
-                              .withValues(alpha: 0.6),
+                // כפתורים מאונכים - מחולקים באופן שווה לאורך גובה הכרטיס
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    mainAxisSize: MainAxisSize.max,
+                    children: [
+                      // Data source indicator (DB or File)
+                      SizedBox(
+                        width: 32,
+                        height: 32,
+                        child: Center(
+                          child: book is TextBook
+                              ? DataSourceIndicatorAsync(
+                                  sourceFuture: FileSystemData.instance
+                                      .getBookDataSource(book.title,
+                                          book.categoryPath, book.fileType),
+                                  size: 18.0,
+                                )
+                              : const SizedBox.shrink(),
                         ),
                       ),
-                // כפתור תפריט אפשרויות (3 נקודות)
-                book is! ExternalLibraryBook
-                    ? PopupMenuButton<String>(
-                        icon: Icon(
-                          FluentIcons.more_vertical_24_regular,
-                          color: Theme.of(context)
-                              .colorScheme
-                              .secondary
-                              .withValues(alpha: 0.6),
-                        ),
-                        tooltip: 'אפשרויות',
-                        position: PopupMenuPosition.under,
-                        onSelected: (value) {
-                          if (value == 'delete') {
-                            _showDeleteBookDialog(context, book, onBookDeleted);
-                          }
-                        },
-                        itemBuilder: (BuildContext context) => [
-                          const PopupMenuItem<String>(
-                            value: 'delete',
-                            child: Row(
-                              children: [
-                                Icon(FluentIcons.delete_24_regular,
-                                    color: Colors.red),
-                                SizedBox(width: 8),
-                                Text('מחק ספר זה',
-                                    style: TextStyle(color: Colors.red)),
-                              ],
-                            ),
-                          ),
-                        ],
-                      )
-                    : const SizedBox.shrink(),
+                      // כפתור מידע
+                      SizedBox(
+                        width: 32,
+                        height: 32,
+                        child: (book.heShortDesc == null ||
+                                book.heShortDesc == '')
+                            ? const SizedBox.shrink()
+                            : Tooltip(
+                                richMessage: WidgetSpan(
+                                    alignment: PlaceholderAlignment.baseline,
+                                    baseline: TextBaseline.alphabetic,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(10),
+                                      constraints:
+                                          const BoxConstraints(maxWidth: 250),
+                                      child: Text(
+                                        book.heShortDesc!,
+                                        style: TextStyle(
+                                            fontSize: 13,
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .onPrimary),
+                                      ),
+                                    )),
+                                child: IconButton(
+                                  mouseCursor: SystemMouseCursors.click,
+                                  onPressed: () {
+                                    _showBookInfoDialog(context, book);
+                                  },
+                                  icon: const Icon(FluentIcons.info_24_regular),
+                                  iconSize: 18,
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(
+                                    minWidth: 32,
+                                    minHeight: 32,
+                                  ),
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .secondary
+                                      .withValues(alpha: 0.6),
+                                ),
+                              ),
+                      ),
+                      // כפתור תפריט אפשרויות (3 נקודות)
+                      SizedBox(
+                        width: 32,
+                        height: 32,
+                        child: book is! ExternalLibraryBook
+                            ? PopupMenuButton<String>(
+                                icon: Icon(
+                                  FluentIcons.more_vertical_24_regular,
+                                  size: 18,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .secondary
+                                      .withValues(alpha: 0.6),
+                                ),
+                                tooltip: 'אפשרויות',
+                                position: PopupMenuPosition.under,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(
+                                  minWidth: 32,
+                                  minHeight: 32,
+                                ),
+                                onSelected: (value) {
+                                  if (value == 'delete') {
+                                    _showDeleteBookDialog(
+                                        context, book, onBookDeleted);
+                                  }
+                                },
+                                itemBuilder: (BuildContext context) => [
+                                  const PopupMenuItem<String>(
+                                    value: 'delete',
+                                    child: Row(
+                                      children: [
+                                        Icon(FluentIcons.delete_24_regular,
+                                            color: Colors.red),
+                                        SizedBox(width: 8),
+                                        Text('מחק ספר זה',
+                                            style:
+                                                TextStyle(color: Colors.red)),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
