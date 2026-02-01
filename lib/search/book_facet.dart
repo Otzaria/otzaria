@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
+import 'package:otzaria/migration/dao/repository/seforim_repository.dart';
 
 class BookFacet {
   BookFacet._();
@@ -81,7 +82,7 @@ class BookFacet {
   }
 
   static Future<String> _buildCategoryPath(
-      dynamic repository, int categoryId) async {
+      SeforimRepository repository, int categoryId) async {
     try {
       final List<String> pathParts = [];
       int? currentId = categoryId;
