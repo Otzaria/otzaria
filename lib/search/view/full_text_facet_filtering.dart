@@ -108,24 +108,6 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
     );
   }
 
-  Map<String, int> _buildFacetCountsFromResults(
-      SearchState state, Library library) {
-    if (state.searchQuery.isEmpty || state.results.isEmpty) {
-      return {};
-    }
-
-    final allBooks = _getAllBooksFromLibrary(library);
-    final bookByTitle = <String, Book>{};
-    for (final book in allBooks) {
-      bookByTitle.putIfAbsent(book.title, () => book);
-    }
-
-    return FacetHelper.buildFacetCountsFromResults(
-      state.results,
-      bookByTitle,
-    );
-  }
-
   int _getBookFacetCount(Book book, Map<String, int> counts) {
     final categoryPath = FacetHelper.resolveCategoryPath(book);
     final bookFacet = FacetHelper.buildBookFacet(categoryPath, book.title);
@@ -428,9 +410,7 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
             }
 
             final rootCategory = libraryState.library!;
-            final facetCounts = searchState.facetCounts.isNotEmpty
-                ? searchState.facetCounts
-                : _buildFacetCountsFromResults(searchState, rootCategory);
+            final facetCounts = searchState.facetCounts;
 
             // בדיקה אם יש סינון ספרים
             if (_filterQuery.text.length >= _kMinQueryLength) {

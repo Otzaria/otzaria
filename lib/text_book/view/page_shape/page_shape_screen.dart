@@ -13,6 +13,7 @@ import 'package:otzaria/widgets/loading_indicator.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
+import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/resizable_drag_handle.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
@@ -135,9 +136,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
       Map<String, String?> config, List<Link> links) {
     // קבלת רשימת שמות המפרשים הזמינים
     final availableCommentators = links
-        .where((link) =>
-            link.connectionType == 'COMMENTARY' ||
-            link.connectionType == 'TARGUM')
+        .where((link) => LinkTypes.isCommentaryOrTargum(link.connectionType))
         .map((link) => utils.getTitleFromPath(link.path2))
         .toSet()
         .toList();
@@ -227,9 +226,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
 
     // קבלת רשימת המפרשים הזמינים
     final availableCommentators = state.links
-        .where((link) =>
-            link.connectionType == 'COMMENTARY' ||
-            link.connectionType == 'TARGUM')
+        .where((link) => LinkTypes.isCommentaryOrTargum(link.connectionType))
         .map((link) => utils.getTitleFromPath(link.path2))
         .toSet()
         .toList();
@@ -655,8 +652,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
         _relevantLinks = state.links.where((link) {
           final linkTitle = utils.getTitleFromPath(link.path2);
           return linkTitle == widget.commentatorName &&
-              (link.connectionType == 'COMMENTARY' ||
-                  link.connectionType == 'TARGUM');
+              LinkTypes.isCommentaryOrTargum(link.connectionType);
         }).toList();
 
         // אם עדיין אין נתיב, ננסה לחלץ מקישורים (Fallback)

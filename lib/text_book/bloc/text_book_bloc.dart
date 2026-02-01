@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/models/links.dart';
+import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/text_book_repository.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
@@ -587,8 +588,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           .where(
             (link) =>
                 link.index1 == index + 1 &&
-                link.connectionType != 'COMMENTARY' &&
-                link.connectionType != 'TARGUM' &&
+                !LinkTypes.isCommentaryOrTargum(link.connectionType) &&
                 // מסנן קישורים מבוססי תווים (inline links) - הם אמורים להופיע רק בתוך הטקסט
                 link.start == null &&
                 link.end == null,

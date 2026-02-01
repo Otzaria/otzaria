@@ -3,6 +3,7 @@ import 'package:collection/collection.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
+import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 
@@ -42,10 +43,8 @@ class DefaultCommentators {
   static Map<String, String?> _resolveCommentatorNames(
       Map<String, String?> defaults, List<Link> links) {
     // קבלת רשימת שמות המפרשים הזמינים
-    final availableLinks = links.where((link) =>
-        link.connectionType == 'COMMENTARY' || link.connectionType == 'TARGUM');
-
-    final availableCommentators = availableLinks
+    final availableCommentators = links
+        .where((link) => LinkTypes.isCommentaryOrTargum(link.connectionType))
         .map((link) => utils.getTitleFromPath(link.path2))
         .toSet()
         .toList();

@@ -35,6 +35,15 @@ class DatabaseLibraryProvider implements LibraryProvider {
     return '$title|$category|$fileType';
   }
 
+  /// Helper method to build topics string from database book and category path
+  String _buildTopics(db_models.Book dbBook, String categoryPath) {
+    String topics = dbBook.topics.map((t) => t.name).join(', ');
+    if (topics.isEmpty && categoryPath.isNotEmpty) {
+      topics = categoryPath.split('/').where((p) => p.isNotEmpty).join(', ');
+    }
+    return topics;
+  }
+
   @override
   String get providerId => 'database';
 
@@ -111,13 +120,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
         final categoryName =
             dbBook.topics.isNotEmpty ? dbBook.topics.first.name : 'ללא קטגוריה';
 
-        // Build topics from category path if topics table is empty
-        String topics = dbBook.topics.map((t) => t.name).join(', ');
-        if (topics.isEmpty && categoryPath.isNotEmpty) {
-          // Use category path as topics
-          topics =
-              categoryPath.split('/').where((p) => p.isNotEmpty).join(', ');
-        }
+        final topics = _buildTopics(dbBook, categoryPath);
 
         final book = TextBook(
           title: dbBook.title,
@@ -641,12 +644,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
 
     final categoryPath = getCategoryPath(category);
 
-    // Build topics from category path if topics table is empty
-    String topics = dbBook.topics.map((t) => t.name).join(', ');
-    if (topics.isEmpty && categoryPath.isNotEmpty) {
-      // Use category path as topics
-      topics = categoryPath.split('/').where((p) => p.isNotEmpty).join(', ');
-    }
+    final topics = _buildTopics(dbBook, categoryPath);
 
     if (dbBook.filePath != null && dbBook.fileType == 'pdf') {
       return PdfBook(
