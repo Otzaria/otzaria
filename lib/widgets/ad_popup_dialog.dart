@@ -748,6 +748,54 @@ class _ExpandableOrgCard extends StatefulWidget {
 class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
   bool _isExpanded = false;
 
+  static final _defaultDetailsStyle = TextStyle(
+    fontSize: 13,
+    height: 1.6,
+    color: Colors.grey[800],
+  );
+
+  static final _boldDetailsStyle = _defaultDetailsStyle.copyWith(
+    color: Colors.red[700],
+    fontWeight: FontWeight.bold,
+  );
+
+  static final _detailsRegex = RegExp(r'\*\*(.*?)\*\*');
+
+  Widget _buildDetailsText(String details) {
+    final spans = <TextSpan>[];
+    int lastIndex = 0;
+
+    for (final match in _detailsRegex.allMatches(details)) {
+      // טקסט רגיל לפני ההדגשה
+      if (match.start > lastIndex) {
+        spans.add(TextSpan(
+          text: details.substring(lastIndex, match.start),
+          style: _defaultDetailsStyle,
+        ));
+      }
+      
+      // טקסט מודגש (ללא הכוכביות)
+      spans.add(TextSpan(
+        text: match.group(1),
+        style: _boldDetailsStyle,
+      ));
+      
+      lastIndex = match.end;
+    }
+    
+    // שאר הטקסט
+    if (lastIndex < details.length) {
+      spans.add(TextSpan(
+        text: details.substring(lastIndex),
+        style: _defaultDetailsStyle,
+      ));
+    }
+    
+    return Text.rich(
+      TextSpan(children: spans),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
