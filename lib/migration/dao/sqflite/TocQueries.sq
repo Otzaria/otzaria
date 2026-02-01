@@ -1,51 +1,57 @@
 -- TocQueries.sq
--- Note: l.lineIndex is used from the line table via the lineId foreign key
+-- Note: COALESCE(l.lineIndex, t.lineIndex, t.lineId) is used to support:
+-- 1. Regular books: lineId points to line table, l.lineIndex is used
+-- 2. External books: lineIndex stored directly in tocEntry table
+-- 3. Legacy fallback: lineId used directly if neither above works
 
 selectByBookId:
-SELECT t.*, tt.text, l.lineIndex
+SELECT t.*, tt.text, COALESCE(l.lineIndex, t.lineIndex, t.lineId) as lineIndex
 FROM tocEntry t
 JOIN tocText tt ON t.textId = tt.id
 LEFT JOIN line l ON t.lineId = l.id
 WHERE t.bookId = ?;
 
 selectTocById:
-SELECT t.*, tt.text, l.lineIndex
+SELECT t.*, tt.text, COALESCE(l.lineIndex, t.lineIndex, t.lineId) as lineIndex
 FROM tocEntry t
 JOIN tocText tt ON t.textId = tt.id
 LEFT JOIN line l ON t.lineId = l.id
 WHERE t.id = ?;
 
 selectRootByBookId:
-SELECT t.*, tt.text, l.lineIndex
+SELECT t.*, tt.text, COALESCE(l.lineIndex, t.lineIndex, t.lineId) as lineIndex
 FROM tocEntry t
 JOIN tocText tt ON t.textId = tt.id
 LEFT JOIN line l ON t.lineId = l.id
 WHERE t.bookId = ? AND t.parentId IS NULL;
 
 selectChildren:
-SELECT t.*, tt.text, l.lineIndex
+SELECT t.*, tt.text, COALESCE(l.lineIndex, t.lineIndex, t.lineId) as lineIndex
 FROM tocEntry t
 JOIN tocText tt ON t.textId = tt.id
 LEFT JOIN line l ON t.lineId = l.id
 WHERE t.parentId = ?;
 
 selectByLineId:
-SELECT t.*, tt.text, l.lineIndex
+SELECT t.*, tt.text, COALESCE(l.lineIndex, t.lineIndex, t.lineId) as lineIndex
 FROM tocEntry t
 JOIN tocText tt ON t.textId = tt.id
 LEFT JOIN line l ON t.lineId = l.id
 WHERE t.lineId = ?;
 
 insert:
-INSERT INTO tocEntry (bookId, parentId, textId, level, lineId, isLastChild, hasChildren)
-VALUES (?, ?, ?, ?, ?, ?, ?);
+INSERT INTO tocEntry (bookId, parentId, textId, level, lineId, lineIndex, isLastChild, hasChildren)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 
 insertWithId:
-INSERT INTO tocEntry (id, bookId, parentId, textId, level, lineId, isLastChild, hasChildren)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+INSERT INTO tocEntry (id, bookId, parentId, textId, level, lineId, lineIndex, isLastChild, hasChildren)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 updateLineId:
 UPDATE tocEntry SET lineId = ? WHERE id = ?;
+
+updateLineIndex:
+UPDATE tocEntry SET lineIndex = ? WHERE id = ?;
 
 updateIsLastChild:
 UPDATE tocEntry SET isLastChild = ? WHERE id = ?;

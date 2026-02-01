@@ -2545,13 +2545,15 @@ extension BookAcronymRepository on SeforimRepository {
     final db = await _database.database;
 
     // Get all TOC entries for the book
+    // Note: COALESCE(l.lineIndex, t.lineId) is used to support external books
+    // where lineId stores the line/page index directly (no entry in line table)
     final tocEntries = await db.rawQuery('''
-        SELECT t.id, tt.text, t.level, l.lineIndex, t.parentId
+        SELECT t.id, tt.text, t.level, COALESCE(l.lineIndex, t.lineId) as lineIndex, t.parentId
         FROM tocEntry t
         JOIN tocText tt ON t.textId = tt.id
         LEFT JOIN line l ON t.lineId = l.id
         WHERE t.bookId = ?
-        ORDER BY l.lineIndex, t.level
+        ORDER BY COALESCE(l.lineIndex, t.lineId), t.level
       ''', [bookId]);
 
     if (tocEntries.isEmpty) {
