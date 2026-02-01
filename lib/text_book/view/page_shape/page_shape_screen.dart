@@ -96,38 +96,26 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
   Future<void> _loadConfiguration() async {
     final state = context.read<TextBookBloc>().state;
     if (state is! TextBookLoaded) {
-      debugPrint('PageShape: _loadConfiguration - state is not TextBookLoaded');
       return;
     }
-
-    debugPrint(
-        'PageShape: Loading configuration for book: ${state.book.title}');
-    debugPrint('PageShape: Book heCategories: ${state.book.heCategories}');
-    debugPrint('PageShape: Available links count: ${state.links.length}');
 
     final config = PageShapeSettingsManager.loadConfiguration(
       state.book.title,
       heCategories: state.book.heCategories,
     );
 
-    debugPrint('PageShape: Loaded config: $config');
-
     _columnVisibility =
         PageShapeSettingsManager.getColumnVisibility(state.book.title);
 
     final Map<String, String?> commentators;
     if (config != null) {
-      debugPrint('PageShape: Using saved configuration');
       // יש הגדרה שמורה - צריך להתאים שמות בסיסיים לשמות מלאים
       // (כי הגדרות קטגוריה שומרות רק שמות בסיסיים כמו "רמב"ן")
       commentators = _resolveCommentatorNames(config, state.links);
-      debugPrint('PageShape: Resolved commentators: $commentators');
     } else {
-      debugPrint('PageShape: No saved config, using defaults');
       // אין הגדרה שמורה בכלל - השתמש בברירות מחדל
       commentators =
           await DefaultCommentators.getDefaults(state.book, links: state.links);
-      debugPrint('PageShape: Default commentators: $commentators');
     }
 
     if (mounted) {
@@ -138,12 +126,6 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
         _bottomRightCommentator = commentators['bottomRight'];
         _isLoadingConfig = false;
       });
-
-      debugPrint('PageShape: Configuration loaded:');
-      debugPrint('  Left: $_leftCommentator');
-      debugPrint('  Right: $_rightCommentator');
-      debugPrint('  Bottom: $_bottomCommentator');
-      debugPrint('  BottomRight: $_bottomRightCommentator');
     }
   }
 
@@ -160,16 +142,9 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
         .toSet()
         .toList();
 
-    debugPrint(
-        'PageShape: Available commentators (${availableCommentators.length}): ${availableCommentators.take(10).join(", ")}...');
-
     return Map.fromEntries(config.entries.map((entry) {
       final resolved =
           _findMatchingCommentator(entry.value, availableCommentators);
-      if (entry.value != null && resolved == null) {
-        debugPrint(
-            'PageShape: WARNING - Could not resolve "${entry.value}" for ${entry.key}');
-      }
       return MapEntry(entry.key, resolved);
     }));
   }
@@ -245,12 +220,8 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
 
   /// פתיחת דיאלוג בחירת מפרש לטור ספציפי
   Future<void> _openCommentatorSelector(String column) async {
-    debugPrint('PageShape: Opening commentator selector for column: $column');
-
     final state = context.read<TextBookBloc>().state;
     if (state is! TextBookLoaded) {
-      debugPrint(
-          'PageShape: Cannot open selector - state is not TextBookLoaded');
       return;
     }
 
@@ -263,11 +234,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
         .toSet()
         .toList();
 
-    debugPrint(
-        'PageShape: Found ${availableCommentators.length} available commentators');
-
     if (availableCommentators.isEmpty) {
-      debugPrint('PageShape: No commentators available');
       return;
     }
 
@@ -284,11 +251,8 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
       ),
     );
 
-    debugPrint('PageShape: Dialog closed with result: $result');
-
     // אם היו שינויים, טען מחדש את ההגדרות
     if (result == true) {
-      debugPrint('PageShape: Reloading configuration after dialog');
       _loadConfiguration();
     }
   }
@@ -681,9 +645,6 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
       categoryPath = await FileSystemData.instance
           .findBookCategoryPath(widget.commentatorName);
 
-      debugPrint('PageShape: Loading commentator "${widget.commentatorName}"');
-      debugPrint('PageShape: categoryPath from DB: $categoryPath');
-
       if (!mounted) return;
 
       final bloc = context.read<TextBookBloc>();
@@ -698,12 +659,9 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
                   link.connectionType == 'TARGUM');
         }).toList();
 
-        debugPrint('PageShape: Found ${_relevantLinks.length} relevant links');
-
         // אם עדיין אין נתיב, ננסה לחלץ מקישורים (Fallback)
         if (categoryPath == null && _relevantLinks.isNotEmpty) {
           final firstLinkPath = _relevantLinks.first.path2;
-          debugPrint('PageShape: Extracting path from link: $firstLinkPath');
 
           var normalizedPath = firstLinkPath;
           if (normalizedPath.startsWith('/') ||
@@ -728,7 +686,6 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
             categoryPath =
                 normalizedPath.replaceAll('/', ', ').replaceAll('\\', ', ');
           }
-          debugPrint('PageShape: Extracted categoryPath: $categoryPath');
         }
 
         // אם עדיין אין נתיב, ננסה להשתמש בנתיב של הספר הראשי
@@ -737,14 +694,10 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
           final mainBookCategory =
               state.book.categoryPath ?? state.book.heCategories;
           if (mainBookCategory != null && mainBookCategory.isNotEmpty) {
-            debugPrint(
-                'PageShape: Using main book category as fallback: $mainBookCategory');
             categoryPath = mainBookCategory;
           }
         }
       }
-
-      debugPrint('PageShape: Final categoryPath: $categoryPath');
 
       final book =
           TextBook(title: widget.commentatorName, categoryPath: categoryPath);
@@ -755,8 +708,6 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
       }
 
       final lines = bookContent.split('\n');
-
-      debugPrint('PageShape: Successfully loaded ${lines.length} lines');
 
       if (!mounted) return;
 
@@ -770,10 +721,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
       if (state is TextBookLoaded) {
         _syncWithMainText(state);
       }
-    } catch (e, stackTrace) {
-      debugPrint(
-          'PageShape: ERROR loading commentator "${widget.commentatorName}": $e');
-      debugPrint('PageShape: Stack trace: $stackTrace');
+    } catch (e) {
       if (mounted) {
         setState(() {
           _content = null;

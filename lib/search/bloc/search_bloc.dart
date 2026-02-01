@@ -7,8 +7,8 @@ import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/models/books.dart';
-import 'package:otzaria/search/book_facet.dart';
 import 'package:otzaria/search/search_repository.dart';
+import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:flutter/foundation.dart';
 import 'package:search_engine/search_engine.dart';
 
@@ -114,54 +114,6 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     }
   }
 
-  String? _resolveCategoryPath(Book book) {
-    if (book.category?.path != null && book.category!.path.isNotEmpty) {
-      return book.category!.path;
-    }
-    if (book.categoryPath != null && book.categoryPath!.isNotEmpty) {
-      return book.categoryPath;
-    }
-    if (book.topics.isNotEmpty) {
-      final topicsPath = BookFacet.topicsToPath(book.topics);
-      return topicsPath.isEmpty ? null : topicsPath;
-    }
-    return null;
-  }
-
-  String _buildBookFacet(String? categoryPath, String title) {
-    if (categoryPath == null || categoryPath.isEmpty || categoryPath == '/') {
-      return '/$title';
-    }
-    return '$categoryPath/$title';
-  }
-
-  void _addFacetCount(
-    Map<String, int> counts,
-    String facet,
-    int delta,
-  ) {
-    counts[facet] = (counts[facet] ?? 0) + delta;
-  }
-
-  void _addFacetAncestors(
-    Map<String, int> counts,
-    String categoryPath,
-    int delta,
-  ) {
-    if (categoryPath.isEmpty) return;
-    final normalized = categoryPath.startsWith('/')
-        ? categoryPath
-        : '/$categoryPath';
-
-    _addFacetCount(counts, '/', delta);
-    final parts = normalized.split('/').where((p) => p.isNotEmpty).toList();
-    var current = '';
-    for (final part in parts) {
-      current = '$current/$part';
-      _addFacetCount(counts, current, delta);
-    }
-  }
-
   Future<void> _refreshFacetCountsForAllBooks(UpdateSearchQuery event) async {
     final query = event.query;
     if (query.isEmpty) return;
@@ -176,10 +128,11 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
 
     // עשה חיפוש גדול שמחזיר הרבה תוצאות (במקום לספור כל facet בנפרד)
     // זה הרבה יותר מהיר מ-6876 ספירות נפרדות!
+    const int kFacetAggregationLimit = 50000;
     final largeResults = await _repository.searchTexts(
       query.replaceAll('"', '\\"'),
       state.currentFacets,
-      50000, // limit גדול כדי לקבל את רוב/כל התוצאות
+      kFacetAggregationLimit, // limit גדול כדי לקבל את רוב/כל התוצאות
       fuzzy: state.fuzzy,
       distance: state.distance,
       order: ResultsOrder.relevance,
@@ -193,28 +146,15 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       return;
     }
 
-    // ספור את התוצאות לפי ספר
-    final aggregated = <String, int>{};
-    for (final result in largeResults) {
-      final title = result.title;
-      final book = bookByTitle[title];
-      final categoryPath = book != null ? _resolveCategoryPath(book) : null;
-      final bookFacet = _buildBookFacet(categoryPath, title);
-
-      // ספור את הספר עצמו
-      _addFacetCount(aggregated, bookFacet, 1);
-      _addFacetCount(aggregated, '/$title', 1);
-
-      // ספור את כל הקטגוריות האב
-      if (categoryPath != null && categoryPath.isNotEmpty) {
-        _addFacetAncestors(aggregated, categoryPath, 1);
-      } else {
-        _addFacetCount(aggregated, '/', 1);
-      }
-    }
+    // ספור את התוצאות לפי ספר באמצעות FacetHelper
+    final aggregated = FacetHelper.buildFacetCountsFromResults(
+      largeResults,
+      bookByTitle,
+    );
 
     add(UpdateFacetCounts(aggregated));
   }
+
   void _onUpdateFilterQuery(
     UpdateFilterQuery event,
     Emitter<SearchState> emit,

@@ -645,7 +645,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
     String topics = dbBook.topics.map((t) => t.name).join(', ');
     if (topics.isEmpty && categoryPath.isNotEmpty) {
       // Use category path as topics
-      topics = categoryPath;
+      topics = categoryPath.split('/').where((p) => p.isNotEmpty).join(', ');
     }
 
     if (dbBook.filePath != null && dbBook.fileType == 'pdf') {

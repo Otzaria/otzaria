@@ -7,7 +7,7 @@ import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
-import 'package:otzaria/search/book_facet.dart';
+import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
@@ -108,52 +108,10 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
     );
   }
 
-  String? _resolveCategoryPath(Book book) {
-    if (book.category?.path != null && book.category!.path.isNotEmpty) {
-      return book.category!.path;
-    }
-    if (book.categoryPath != null && book.categoryPath!.isNotEmpty) {
-      return book.categoryPath;
-    }
-    if (book.topics.isNotEmpty) {
-      final topicsPath = BookFacet.topicsToPath(book.topics);
-      return topicsPath.isEmpty ? null : topicsPath;
-    }
-    return null;
-  }
-
-  String _buildBookFacet(String? categoryPath, String title) {
-    if (categoryPath == null || categoryPath.isEmpty || categoryPath == '/') {
-      return '/$title';
-    }
-    return '$categoryPath/$title';
-  }
-
-  void _incrementFacet(Map<String, int> counts, String facet) {
-    counts[facet] = (counts[facet] ?? 0) + 1;
-  }
-
-  void _incrementFacetWithAncestors(
-      Map<String, int> counts, String categoryPath) {
-    if (categoryPath.isEmpty) return;
-    if (!categoryPath.startsWith('/')) {
-      categoryPath = '/$categoryPath';
-    }
-
-    _incrementFacet(counts, '/');
-    final parts = categoryPath.split('/').where((p) => p.isNotEmpty).toList();
-    var current = '';
-    for (final part in parts) {
-      current = '$current/$part';
-      _incrementFacet(counts, current);
-    }
-  }
-
   Map<String, int> _buildFacetCountsFromResults(
       SearchState state, Library library) {
-    final counts = <String, int>{};
     if (state.searchQuery.isEmpty || state.results.isEmpty) {
-      return counts;
+      return {};
     }
 
     final allBooks = _getAllBooksFromLibrary(library);
@@ -162,26 +120,15 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
       bookByTitle.putIfAbsent(book.title, () => book);
     }
 
-    for (final result in state.results) {
-      final title = result.title;
-      final book = bookByTitle[title];
-      final categoryPath = book != null ? _resolveCategoryPath(book) : null;
-      final bookFacet = _buildBookFacet(categoryPath, title);
-
-      _incrementFacet(counts, bookFacet);
-      _incrementFacet(counts, '/$title');
-
-      if (categoryPath != null && categoryPath.isNotEmpty) {
-        _incrementFacetWithAncestors(counts, categoryPath);
-      }
-    }
-
-    return counts;
+    return FacetHelper.buildFacetCountsFromResults(
+      state.results,
+      bookByTitle,
+    );
   }
 
   int _getBookFacetCount(Book book, Map<String, int> counts) {
-    final categoryPath = _resolveCategoryPath(book);
-    final bookFacet = _buildBookFacet(categoryPath, book.title);
+    final categoryPath = FacetHelper.resolveCategoryPath(book);
+    final bookFacet = FacetHelper.buildBookFacet(categoryPath, book.title);
     return counts[bookFacet] ?? counts['/${book.title}'] ?? 0;
   }
 
@@ -197,11 +144,9 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
     }
 
     // בניית facet בהתאם לפורמט האינדקס: /<topics>/<title>
-    final fallbackFacet =
-        BookFacet.buildFacetPath(title: book.title, topics: book.topics);
-    final facet = categoryPath != null
-        ? "$categoryPath/${book.title}"
-        : fallbackFacet;
+    final resolvedCategoryPath =
+        categoryPath ?? FacetHelper.resolveCategoryPath(book);
+    final facet = FacetHelper.buildBookFacet(resolvedCategoryPath, book.title);
     final isSelected = state.currentFacets.contains(facet);
     return InkWell(
       onTap: () => HardwareKeyboard.instance.isControlPressed
@@ -434,7 +379,7 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
     // הוספת ספרים
     for (final book in category.books) {
       final categoryPath = category.path;
-      final fullFacet = _buildBookFacet(categoryPath, book.title);
+      final fullFacet = FacetHelper.buildBookFacet(categoryPath, book.title);
       final titleOnlyFacet = '/${book.title}';
       final count = facetCounts[fullFacet] ?? facetCounts[titleOnlyFacet] ?? 0;
       children.add(
@@ -484,8 +429,8 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
 
             final rootCategory = libraryState.library!;
             final facetCounts = searchState.facetCounts.isNotEmpty
-              ? searchState.facetCounts
-              : _buildFacetCountsFromResults(searchState, rootCategory);
+                ? searchState.facetCounts
+                : _buildFacetCountsFromResults(searchState, rootCategory);
 
             // בדיקה אם יש סינון ספרים
             if (_filterQuery.text.length >= _kMinQueryLength) {
