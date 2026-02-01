@@ -350,7 +350,8 @@ class TantivyDataProvider {
       int distance = 2,
       Map<String, String>? customSpacing,
       Map<int, List<String>>? alternativeWords,
-      Map<String, Map<String, bool>>? searchOptions}) async {
+      Map<String, Map<String, bool>>? searchOptions,
+      bool allowEarlyStop = true}) async {
     debugPrint(
         '🔍 TantivyDataProvider: Starting batch count for ${facets.length} facets');
     final stopwatch = Stopwatch()..start();
@@ -390,7 +391,9 @@ class TantivyDataProvider {
         }
 
         // אם יש יותר מדי facets עם 0 תוצאות, נפסיק מוקדם
-        if (processedCount >= 10 && zeroResultsCount > processedCount * 0.8) {
+        if (allowEarlyStop &&
+            processedCount >= 10 &&
+            zeroResultsCount > processedCount * 0.8) {
           debugPrint('⚠️ Too many zero results, stopping early');
           // נמלא את השאר עם 0
           for (int i = processedCount; i < facets.length; i++) {

@@ -12,7 +12,6 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
-import 'package:otzaria/widgets/count_future_builder.dart';
 import 'package:otzaria/widgets/thin_divider.dart';
 
 // Constants
@@ -109,31 +108,229 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
     );
   }
 
-  Widget _buildBookTile(Book book, int count, int level,
-      {String? categoryPath}) {
+  String? _resolveCategoryPath(Book book) {
+    if (book.category?.path != null && book.category!.path.isNotEmpty) {
+      return book.category!.path;
+    }
+    if (book.categoryPath != null && book.categoryPath!.isNotEmpty) {
+      return book.categoryPath;
+    }
+    if (book.topics.isNotEmpty) {
+      final topicsPath = BookFacet.topicsToPath(book.topics);
+      return topicsPath.isEmpty ? null : topicsPath;
+    }
+    return null;
+  }
+
+  String _buildBookFacet(String? categoryPath, String title) {
+    if (categoryPath == null || categoryPath.isEmpty || categoryPath == '/') {
+      return '/$title';
+    }
+    return '$categoryPath/$title';
+  }
+
+  void _incrementFacet(Map<String, int> counts, String facet) {
+    counts[facet] = (counts[facet] ?? 0) + 1;
+  }
+
+  void _incrementFacetWithAncestors(
+      Map<String, int> counts, String categoryPath) {
+    if (categoryPath.isEmpty) return;
+    if (!categoryPath.startsWith('/')) {
+      categoryPath = '/$categoryPath';
+    }
+
+    _incrementFacet(counts, '/');
+    final parts = categoryPath.split('/').where((p) => p.isNotEmpty).toList();
+    var current = '';
+    for (final part in parts) {
+      current = '$current/$part';
+      _incrementFacet(counts, current);
+    }
+  }
+
+  Map<String, int> _buildFacetCountsFromResults(
+      SearchState state, Library library) {
+    final counts = <String, int>{};
+    if (state.searchQuery.isEmpty || state.results.isEmpty) {
+      return counts;
+    }
+
+    final allBooks = _getAllBooksFromLibrary(library);
+    final bookByTitle = <String, Book>{};
+    for (final book in allBooks) {
+      bookByTitle.putIfAbsent(book.title, () => book);
+    }
+
+    for (final result in state.results) {
+      final title = result.title;
+      final book = bookByTitle[title];
+      final categoryPath = book != null ? _resolveCategoryPath(book) : null;
+      final bookFacet = _buildBookFacet(categoryPath, title);
+
+      _incrementFacet(counts, bookFacet);
+      _incrementFacet(counts, '/$title');
+
+      if (categoryPath != null && categoryPath.isNotEmpty) {
+        _incrementFacetWithAncestors(counts, categoryPath);
+      }
+    }
+
+    return counts;
+  }
+
+  int _getBookFacetCount(Book book, Map<String, int> counts) {
+    final categoryPath = _resolveCategoryPath(book);
+    final bookFacet = _buildBookFacet(categoryPath, book.title);
+    return counts[bookFacet] ?? counts['/${book.title}'] ?? 0;
+  }
+
+  Widget _buildBookTile(
+    Book book,
+    int count,
+    int level,
+    SearchState state, {
+    String? categoryPath,
+  }) {
     if (count == 0) {
       return const SizedBox.shrink();
     }
 
     // בניית facet בהתאם לפורמט האינדקס: /<topics>/<title>
     final fallbackFacet =
-      BookFacet.buildFacetPath(title: book.title, topics: book.topics);
-    final facet = categoryPath != null ? "$categoryPath/${book.title}" : fallbackFacet;
-    return BlocBuilder<SearchBloc, SearchState>(
-      builder: (context, state) {
-        final isSelected = state.currentFacets.contains(facet);
-        return InkWell(
-          onTap: () => HardwareKeyboard.instance.isControlPressed
-              ? _handleFacetToggle(context, facet)
-              : _setFacet(context, facet),
-          onDoubleTap: () => _handleFacetToggle(context, facet),
-          onLongPress: () => _handleFacetToggle(context, facet),
+        BookFacet.buildFacetPath(title: book.title, topics: book.topics);
+    final facet = categoryPath != null
+        ? "$categoryPath/${book.title}"
+        : fallbackFacet;
+    final isSelected = state.currentFacets.contains(facet);
+    return InkWell(
+      onTap: () => HardwareKeyboard.instance.isControlPressed
+          ? _handleFacetToggle(context, facet)
+          : _setFacet(context, facet),
+      onDoubleTap: () => _handleFacetToggle(context, facet),
+      onLongPress: () => _handleFacetToggle(context, facet),
+      child: Container(
+        padding: EdgeInsets.only(
+          right: 16.0 + (level * 24.0) + 32.0, // הזחה נוספת לספרים
+          left: 16.0,
+          top: 10.0,
+          bottom: 10.0,
+        ),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? Theme.of(context)
+                  .colorScheme
+                  .primaryContainer
+                  .withValues(alpha: 0.3)
+              : null,
+          border: Border(
+            bottom: BorderSide(
+              color: Theme.of(context).dividerColor,
+              width: 0.5,
+            ),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              FluentIcons.book_24_regular,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              size: 18,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                book.title,
+                style: const TextStyle(fontSize: 14),
+              ),
+            ),
+            // מספר התוצאות
+            if (count != -1)
+              Text(
+                '($count)',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            if (count == -1)
+              const SizedBox(
+                width: 12,
+                height: 12,
+                child: CircularProgressIndicator(strokeWidth: 1.5),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBooksList(
+    List<Book> books,
+    SearchState state,
+    Map<String, int> facetCounts,
+  ) {
+    // אם אין ספרים, הצג הודעה
+    if (books.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Text('לא נמצאו ספרים'),
+        ),
+      );
+    }
+
+    if (state.isLoading && state.results.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return ListView.builder(
+      shrinkWrap: true,
+      itemCount: books.length,
+      itemBuilder: (context, index) {
+        final book = books[index];
+        final count = _getBookFacetCount(book, facetCounts);
+        return _buildBookTile(book, count, 0, state);
+      },
+    );
+  }
+
+  Widget _buildCategoryTile(
+    Category category,
+    int count,
+    int level,
+    SearchState state,
+    Map<String, int> facetCounts,
+  ) {
+    if (count == 0) return const SizedBox.shrink();
+    final isSelected = state.currentFacets.contains(category.path);
+    final isExpanded = _expansionState[category.path] ?? level == 0;
+
+    void toggle() {
+      setState(() {
+        _expansionState[category.path] = !isExpanded;
+      });
+    }
+
+    return Column(
+      children: [
+        // שורת הקטגוריה - סגנון ספרייה
+        InkWell(
+          onTap: () {
+            // Ctrl+לחיצה = toggle, לחיצה רגילה = set
+            if (HardwareKeyboard.instance.isControlPressed) {
+              _handleFacetToggle(context, category.path);
+            } else {
+              _setFacet(context, category.path);
+            }
+          },
+          onLongPress: () => _handleFacetToggle(context, category.path),
           child: Container(
             padding: EdgeInsets.only(
-              right: 16.0 + (level * 24.0) + 32.0, // הזחה נוספת לספרים
+              right: 16.0 + (level * 24.0),
               left: 16.0,
-              top: 10.0,
-              bottom: 10.0,
+              top: 12.0,
+              bottom: 12.0,
             ),
             decoration: BoxDecoration(
               color: isSelected
@@ -152,15 +349,21 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
             child: Row(
               children: [
                 Icon(
-                  FluentIcons.book_24_regular,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  size: 18,
+                  isExpanded
+                      ? FluentIcons.folder_open_24_regular
+                      : FluentIcons.folder_24_regular,
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 20,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    book.title,
-                    style: const TextStyle(fontSize: 14),
+                    category.title,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                   ),
                 ),
                 // מספר התוצאות
@@ -168,7 +371,7 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
                   Text(
                     '($count)',
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: 14,
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
@@ -178,245 +381,71 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
                     height: 12,
                     child: CircularProgressIndicator(strokeWidth: 1.5),
                   ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildBooksList(List<Book> books) {
-    // אם אין ספרים, הצג הודעה
-    if (books.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(16.0),
-          child: Text('לא נמצאו ספרים'),
-        ),
-      );
-    }
-
-    return BlocBuilder<SearchBloc, SearchState>(
-      builder: (context, state) {
-        // יצירת רשימת כל ה-facets בבת אחת (כמו באינדקס)
-        final facets = books
-            .map((book) =>
-                BookFacet.buildFacetPath(title: book.title, topics: book.topics))
-            .toList();
-
-        // ספירה מקבצת של כל ה-facets
-        final countsFuture = widget.tab.countForMultipleFacets(facets);
-
-        return FutureBuilder<Map<String, int>>(
-          key: ValueKey(
-              '${state.searchQuery}_books_batch'), // מפתח שמשתנה עם החיפוש
-          future: countsFuture,
-          builder: (context, snapshot) {
-            if (snapshot.hasData) {
-              final counts = snapshot.data!;
-              return ListView.builder(
-                shrinkWrap: true,
-                itemCount: books.length,
-                itemBuilder: (context, index) {
-                  final book = books[index];
-                  final facet = BookFacet.buildFacetPath(
-                    title: book.title, topics: book.topics);
-                  final count = counts[facet] ?? 0;
-                  return _buildBookTile(book, count, 0);
-                },
-              );
-            }
-            return const Center(child: CircularProgressIndicator());
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildCategoryTile(Category category, int count, int level) {
-    if (count == 0) return const SizedBox.shrink();
-
-    return BlocBuilder<SearchBloc, SearchState>(
-      builder: (context, state) {
-        final isSelected = state.currentFacets.contains(category.path);
-        final isExpanded = _expansionState[category.path] ?? level == 0;
-
-        void toggle() {
-          setState(() {
-            _expansionState[category.path] = !isExpanded;
-          });
-        }
-
-        return Column(
-          children: [
-            // שורת הקטגוריה - סגנון ספרייה
-            InkWell(
-              onTap: () {
-                // Ctrl+לחיצה = toggle, לחיצה רגילה = set
-                if (HardwareKeyboard.instance.isControlPressed) {
-                  _handleFacetToggle(context, category.path);
-                } else {
-                  _setFacet(context, category.path);
-                }
-              },
-              onLongPress: () => _handleFacetToggle(context, category.path),
-              child: Container(
-                padding: EdgeInsets.only(
-                  right: 16.0 + (level * 24.0),
-                  left: 16.0,
-                  top: 12.0,
-                  bottom: 12.0,
-                ),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? Theme.of(context)
-                          .colorScheme
-                          .primaryContainer
-                          .withValues(alpha: 0.3)
-                      : null,
-                  border: Border(
-                    bottom: BorderSide(
-                      color: Theme.of(context).dividerColor,
-                      width: 0.5,
+                const SizedBox(width: 8),
+                // כפתור החץ - מרחיב/מכווץ בלבד
+                InkWell(
+                  onTap: toggle,
+                  borderRadius: BorderRadius.circular(4),
+                  child: Padding(
+                    padding: const EdgeInsets.all(4.0),
+                    child: Icon(
+                      isExpanded
+                          ? FluentIcons.chevron_up_24_regular
+                          : FluentIcons.chevron_down_24_regular,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ),
-                child: Row(
-                  children: [
-                    Icon(
-                      isExpanded
-                          ? FluentIcons.folder_open_24_regular
-                          : FluentIcons.folder_24_regular,
-                      color: Theme.of(context).colorScheme.primary,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        category.title,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ),
-                    ),
-                    // מספר התוצאות
-                    if (count != -1)
-                      Text(
-                        '($count)',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    if (count == -1)
-                      const SizedBox(
-                        width: 12,
-                        height: 12,
-                        child: CircularProgressIndicator(strokeWidth: 1.5),
-                      ),
-                    const SizedBox(width: 8),
-                    // כפתור החץ - מרחיב/מכווץ בלבד
-                    InkWell(
-                      onTap: toggle,
-                      borderRadius: BorderRadius.circular(4),
-                      child: Padding(
-                        padding: const EdgeInsets.all(4.0),
-                        child: Icon(
-                          isExpanded
-                              ? FluentIcons.chevron_up_24_regular
-                              : FluentIcons.chevron_down_24_regular,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              ],
             ),
+          ),
+        ),
 
-            // ילדים
-            if (isExpanded)
-              Column(children: _buildCategoryChildren(category, level)),
-          ],
-        );
-      },
+        // ילדים
+        if (isExpanded)
+          Column(
+            children: _buildCategoryChildren(
+              category,
+              level,
+              state,
+              facetCounts,
+            ),
+          ),
+      ],
     );
   }
 
-  List<Widget> _buildCategoryChildren(Category category, int level) {
+  List<Widget> _buildCategoryChildren(
+    Category category,
+    int level,
+    SearchState state,
+    Map<String, int> facetCounts,
+  ) {
     final List<Widget> children = [];
 
     // הוספת תת-קטגוריות
     for (final subCategory in category.subCategories) {
-      children.add(BlocBuilder<SearchBloc, SearchState>(
-        builder: (context, state) {
-          final countFuture = widget.tab.countForFacetCached(subCategory.path);
-          return CountFutureBuilder(
-            key: ValueKey('${state.searchQuery}_${subCategory.path}'),
-            future: countFuture,
-            builder: (context, count) =>
-                _buildCategoryTile(subCategory, count, level + 1),
-          );
-        },
-      ));
+      final count = facetCounts[subCategory.path] ?? 0;
+      children.add(
+        _buildCategoryTile(subCategory, count, level + 1, state, facetCounts),
+      );
     }
 
     // הוספת ספרים
     for (final book in category.books) {
-      children.add(BlocBuilder<SearchBloc, SearchState>(
-        builder: (context, state) {
-          // בניית facet נכון על בסיס נתיב הקטגוריה
-          final categoryPath = category.path;
-          final fullFacet = "$categoryPath/${book.title}";
-          final topicsOnlyFacet = categoryPath;
-          final titleOnlyFacet = "/${book.title}";
-
-          // ננסה קודם עם ה-facet המלא
-          final countFuture = widget.tab.countForFacetCached(fullFacet);
-          return CountFutureBuilder(
-            key: ValueKey('${state.searchQuery}_$fullFacet'),
-            future: countFuture,
-            builder: (context, count) => _buildBookTile(book, count, level + 1,
-                categoryPath: category.path),
-            emptyBuilder: FutureBuilder<int>(
-              key: ValueKey('${state.searchQuery}_$topicsOnlyFacet'),
-              future: widget.tab.countForFacetCached(topicsOnlyFacet),
-              builder: (context, topicsSnapshot) {
-                if (topicsSnapshot.hasData) {
-                  final topicsCount = topicsSnapshot.data!;
-
-                  if (topicsCount > 0 || topicsCount == -1) {
-                    // יש תוצאות בקטגוריה, אבל לא בספר הספציפי
-                    // לא נציג את הספר כי זה יגרום להצגת ספרים ללא תוצאות
-                    return const SizedBox.shrink();
-                  }
-
-                  // ננסה עם שם הספר בלבד
-                  return FutureBuilder<int>(
-                    key: ValueKey('${state.searchQuery}_$titleOnlyFacet'),
-                    future: widget.tab.countForFacetCached(titleOnlyFacet),
-                    builder: (context, titleSnapshot) {
-                      if (titleSnapshot.hasData) {
-                        final titleCount = titleSnapshot.data!;
-
-                        if (titleCount > 0 || titleCount == -1) {
-                          return _buildBookTile(book, titleCount, level + 1,
-                              categoryPath: category.path);
-                        }
-                      }
-                      return const SizedBox.shrink();
-                    },
-                  );
-                }
-                return _buildBookTile(book, -1, level + 1);
-              },
-            ),
-          );
-        },
-      ));
+      final categoryPath = category.path;
+      final fullFacet = _buildBookFacet(categoryPath, book.title);
+      final titleOnlyFacet = '/${book.title}';
+      final count = facetCounts[fullFacet] ?? facetCounts[titleOnlyFacet] ?? 0;
+      children.add(
+        _buildBookTile(
+          book,
+          count,
+          level + 1,
+          state,
+          categoryPath: category.path,
+        ),
+      );
     }
 
     return children;
@@ -447,20 +476,6 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
           return Center(child: Text('Error: ${libraryState.error}'));
         }
 
-        // בדיקה אם יש סינון ספרים - מחוץ ל-BlocBuilder
-        if (_filterQuery.text.length >= _kMinQueryLength) {
-          if (libraryState.library != null) {
-            // סינון ידנית מהספרייה
-            final allBooks = _getAllBooksFromLibrary(libraryState.library!);
-            final filtered = allBooks
-                .where((book) => book.title
-                    .toLowerCase()
-                    .contains(_filterQuery.text.toLowerCase()))
-                .toList();
-            return _buildBooksList(filtered);
-          }
-        }
-
         return BlocBuilder<SearchBloc, SearchState>(
           builder: (context, searchState) {
             if (libraryState.library == null) {
@@ -468,21 +483,32 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
             }
 
             final rootCategory = libraryState.library!;
-            final countFuture =
-                widget.tab.countForFacetCached(rootCategory.path);
-            return FutureBuilder<int>(
-              key: ValueKey(
-                  '${searchState.searchQuery}_${rootCategory.path}'), // מפתח שמשתנה עם החיפוש
-              future: countFuture,
-              builder: (context, snapshot) {
-                if (snapshot.hasData) {
-                  return SingleChildScrollView(
-                    key: PageStorageKey(widget.tab),
-                    child: _buildCategoryTile(rootCategory, snapshot.data!, 0),
-                  );
-                }
-                return const Center(child: CircularProgressIndicator());
-              },
+            final facetCounts = searchState.facetCounts.isNotEmpty
+              ? searchState.facetCounts
+              : _buildFacetCountsFromResults(searchState, rootCategory);
+
+            // בדיקה אם יש סינון ספרים
+            if (_filterQuery.text.length >= _kMinQueryLength) {
+              // סינון ידנית מהספרייה
+              final allBooks = _getAllBooksFromLibrary(rootCategory);
+              final filtered = allBooks
+                  .where((book) => book.title
+                      .toLowerCase()
+                      .contains(_filterQuery.text.toLowerCase()))
+                  .toList();
+              return _buildBooksList(filtered, searchState, facetCounts);
+            }
+
+            final rootCount = facetCounts[rootCategory.path] ?? 0;
+            return SingleChildScrollView(
+              key: PageStorageKey(widget.tab),
+              child: _buildCategoryTile(
+                rootCategory,
+                rootCount,
+                0,
+                searchState,
+                facetCounts,
+              ),
             );
           },
         );
