@@ -395,7 +395,7 @@ $detailsSection
       final sourceToEmailMap = {
         'sefariaToOtzaria': 'corrections@sefaria.org',
         'sefaria': 'corrections@sefaria.org',
-        'wiki_jewish_books': 'WikiJewishBooks@gmail.com',
+        'wiki_jewish_books': '$_fallbackMail,WikiJewishBooks@gmail.com', // שליחה גם לאוצריא וגם ל-WikiJewishBooks
         'wikiSource': '$_fallbackMail,novartza@gmail.com', // שליחה גם לאוצריא וגם ל-wikiSource
         'Pninim': '$_fallbackMail,contact@pninim.org', // שליחה גם לאוצריא וגם ל-Pninim
         'Tashma': '$_fallbackMail,jewishoffice@gmail.com', // שליחה גם לאוצריא וגם ל-Tashma
