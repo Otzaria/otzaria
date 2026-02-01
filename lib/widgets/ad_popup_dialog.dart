@@ -920,14 +920,7 @@ class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      widget.org['details'],
-                      style: TextStyle(
-                        fontSize: 13,
-                        height: 1.6,
-                        color: Colors.grey[800],
-                      ),
-                    ),
+                    _buildDetailsText(widget.org['details']),
                   ],
                 ],
               ),
