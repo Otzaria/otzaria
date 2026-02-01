@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:logging/logging.dart';
 
 import '../models/error_model.dart';
@@ -100,7 +101,7 @@ class _ErrorBoundaryState extends State<ErrorBoundary> {
                 crossAxisAlignment: CrossAxisAlignment.center, // ממורכז אופקית
                 children: [
                   const Icon(
-                    Icons.error_outline_rounded,
+                    FluentIcons.error_circle_24_regular,
                     size: 64,
                     color: Colors.redAccent,
                   ),
@@ -126,7 +127,7 @@ class _ErrorBoundaryState extends State<ErrorBoundary> {
                     children: [
                       if (error.isRecoverable)
                         ElevatedButton.icon(
-                          icon: const Icon(Icons.refresh),
+                          icon: const Icon(FluentIcons.arrow_sync_24_regular),
                           onPressed: _retry,
                           label: const Text('נסה שוב'),
                         ),

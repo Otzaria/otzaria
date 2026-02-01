@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:path/path.dart' as path;
@@ -136,7 +137,7 @@ class _AddPersonalBookDialogState extends State<AddPersonalBookDialog> {
               const SizedBox(height: 16),
               OutlinedButton.icon(
                 onPressed: _isProcessing ? null : _pickFile,
-                icon: const Icon(Icons.file_open),
+                icon: const Icon(FluentIcons.folder_open_24_regular),
                 label: Text(
                   _selectedFilePath == null
                       ? 'בחר קובץ (TXT או DOCX)'

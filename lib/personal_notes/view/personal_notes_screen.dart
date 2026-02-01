@@ -188,7 +188,7 @@ class _PersonalNotesManagerScreenState
                 _isNavigationVisible = !_isNavigationVisible;
               });
             },
-            icon: const Icon(Icons.menu),
+            icon: const Icon(FluentIcons.navigation_24_regular),
           ),
           const SizedBox(width: 8),
           // חלונית חיפוש באמצע

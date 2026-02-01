@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:logging/logging.dart';
 
@@ -171,7 +172,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                         ),
                         if (completionPercentage >= 1.0)
                           Icon(
-                            Icons.check,
+                            FluentIcons.checkmark_24_regular,
                             size: 14,
                             color: Theme.of(context).colorScheme.primary,
                           ),
@@ -205,7 +206,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.error_outline,
+                      const Icon(FluentIcons.error_circle_24_regular,
                           size: 64, color: Colors.red),
                       const SizedBox(height: 16),
                       Text(
@@ -242,7 +243,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.book_outlined,
+                      const Icon(FluentIcons.book_24_regular,
                           size: 64, color: Colors.grey),
                       const SizedBox(height: 16),
                       Text(

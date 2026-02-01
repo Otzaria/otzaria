@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:logging/logging.dart';
 
@@ -58,7 +59,7 @@ class _TrackingScreenState extends State<TrackingScreen>
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Icon(
-                  Icons.error_outline,
+                  FluentIcons.error_circle_24_regular,
                   size: 64,
                   color: Colors.red,
                 ),
@@ -84,13 +85,16 @@ class _TrackingScreenState extends State<TrackingScreen>
         }
 
         final allBookData = dataProvider.allBookData;
-        _logger.info('TrackingScreen - Categories in allBookData: ${allBookData.keys.toList()}');
-        _logger.info('TrackingScreen - Total categories: ${allBookData.length}');
+        _logger.info(
+            'TrackingScreen - Categories in allBookData: ${allBookData.keys.toList()}');
+        _logger
+            .info('TrackingScreen - Total categories: ${allBookData.length}');
 
         final (inProgressItems, completedItems) =
             progressProvider.getCategorizedTrackedBooks(allBookData);
 
-        _logger.info('TrackingScreen - In progress: ${inProgressItems.length}, Completed: ${completedItems.length}');
+        _logger.info(
+            'TrackingScreen - In progress: ${inProgressItems.length}, Completed: ${completedItems.length}');
 
         final List<Map<String, dynamic>> itemsToShow;
         switch (_selectedFilter) {
@@ -129,17 +133,17 @@ class _TrackingScreenState extends State<TrackingScreen>
           ButtonSegment<TrackingFilter>(
             value: TrackingFilter.all,
             label: Text('הכל'),
-            icon: Icon(Icons.library_books),
+            icon: Icon(FluentIcons.library_24_regular),
           ),
           ButtonSegment<TrackingFilter>(
             value: TrackingFilter.inProgress,
             label: Text('בתהליך'),
-            icon: Icon(Icons.hourglass_empty_outlined),
+            icon: Icon(FluentIcons.hourglass_24_regular),
           ),
           ButtonSegment<TrackingFilter>(
             value: TrackingFilter.completed,
             label: Text('הושלם'),
-            icon: Icon(Icons.check_circle_outline),
+            icon: Icon(FluentIcons.checkmark_circle_24_regular),
           ),
         ],
         selected: {_selectedFilter},
@@ -164,17 +168,17 @@ class _TrackingScreenState extends State<TrackingScreen>
 
       switch (_selectedFilter) {
         case TrackingFilter.inProgress:
-          icon = Icons.hourglass_empty;
+          icon = FluentIcons.hourglass_24_regular;
           title = 'אין ספרים בתהליך כעת';
           subtitle = 'התחל ללמוד ספר כדי לראות אותו כאן';
           break;
         case TrackingFilter.completed:
-          icon = Icons.check_circle_outline;
+          icon = FluentIcons.checkmark_circle_24_regular;
           title = 'עדיין לא סיימת ספרים';
           subtitle = 'סיים ספר כדי לראות אותו כאן';
           break;
         case TrackingFilter.all:
-          icon = Icons.library_books;
+          icon = FluentIcons.library_24_regular;
           title = 'אין ספרים במעקב';
           subtitle = 'התחל ללמוד ספר כדי לראות אותו כאן';
           break;

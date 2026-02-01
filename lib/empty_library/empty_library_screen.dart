@@ -65,7 +65,7 @@ class _EmptyLibraryView extends StatelessWidget {
         actions: [
           FilledButton.icon(
             onPressed: () => exit(0),
-            icon: const Icon(Icons.exit_to_app),
+            icon: const Icon(FluentIcons.sign_out_24_regular),
             label: const Text('סגור את האפליקציה'),
           ),
         ],

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/widgets/restart_widget.dart';
@@ -238,7 +239,7 @@ class _DatabaseManagementDialogState extends State<DatabaseManagementDialog> {
             // Export button
             ElevatedButton.icon(
               onPressed: _isProcessing ? null : _exportDatabase,
-              icon: const Icon(Icons.upload),
+              icon: const Icon(FluentIcons.arrow_upload_24_regular),
               label: const Text('ייצא מסד נתונים'),
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.all(16),
@@ -256,7 +257,7 @@ class _DatabaseManagementDialogState extends State<DatabaseManagementDialog> {
             // Import button
             ElevatedButton.icon(
               onPressed: _isProcessing ? null : _importDatabase,
-              icon: const Icon(Icons.download),
+              icon: const Icon(FluentIcons.arrow_download_24_regular),
               label: const Text('ייבא מסד נתונים'),
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.all(16),

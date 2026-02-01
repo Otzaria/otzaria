@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 
 /// Widget that displays database statistics
@@ -64,7 +65,8 @@ class _DatabaseStatsWidgetState extends State<DatabaseStatsWidget> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.storage, size: 14, color: Colors.green),
+            const Icon(FluentIcons.database_24_regular,
+                size: 14, color: Colors.green),
             const SizedBox(width: 4),
             Text(
               '$bookCount',

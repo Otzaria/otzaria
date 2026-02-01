@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:logging/logging.dart';
 import '../models/book_model.dart';
@@ -172,13 +173,13 @@ class _BookCardWidgetState extends State<BookCardWidget> {
                     ),
                     if (_isCompleted) ...[
                       const SizedBox(width: 8),
-                      const Icon(Icons.check_circle,
+                      const Icon(FluentIcons.checkmark_circle_24_regular,
                           color: Colors.green, size: 24),
                     ],
                     if (widget.onDelete != null) ...[
                       const SizedBox(width: 8),
                       IconButton(
-                        icon: const Icon(Icons.delete_outline),
+                        icon: const Icon(FluentIcons.delete_24_regular),
                         tooltip: 'הסר ספר',
                         onPressed: widget.onDelete,
                       ),
@@ -193,7 +194,9 @@ class _BookCardWidgetState extends State<BookCardWidget> {
                 Row(
                   children: [
                     Icon(
-                      widget.bookDetails.isDafType ? Icons.book : Icons.article,
+                      widget.bookDetails.isDafType
+                          ? FluentIcons.book_24_regular
+                          : FluentIcons.document_24_regular,
                       size: 16,
                       color: Theme.of(context)
                           .colorScheme
@@ -212,7 +215,7 @@ class _BookCardWidgetState extends State<BookCardWidget> {
                     ),
                     const Spacer(),
                     if (_completedCycles > 0) ...[
-                      Icon(Icons.repeat,
+                      Icon(FluentIcons.arrow_repeat_all_24_regular,
                           size: 16,
                           color: Theme.of(context).colorScheme.primary),
                       const SizedBox(width: 4),
@@ -378,7 +381,8 @@ class _BookCardWidgetState extends State<BookCardWidget> {
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: Colors.green, width: 2),
         ),
-        child: const Icon(Icons.check, color: Colors.green, size: 28),
+        child: const Icon(FluentIcons.checkmark_24_regular,
+            color: Colors.green, size: 28),
       );
     }
 

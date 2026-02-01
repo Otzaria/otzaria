@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:logging/logging.dart';
 
@@ -95,7 +96,7 @@ class _BooksScreenState extends State<BooksScreen>
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Icon(
-                  Icons.error_outline,
+                  FluentIcons.error_circle_24_regular,
                   size: 64,
                   color: Colors.red,
                 ),
@@ -209,10 +210,10 @@ class _BooksScreenState extends State<BooksScreen>
         textDirection: TextDirection.rtl,
         decoration: InputDecoration(
           hintText: 'חפש ספר...',
-          prefixIcon: const Icon(Icons.search),
+          prefixIcon: const Icon(FluentIcons.search_24_regular),
           suffixIcon: _searchController.text.isNotEmpty
               ? IconButton(
-                  icon: const Icon(Icons.clear),
+                  icon: const Icon(FluentIcons.dismiss_24_regular),
                   onPressed: () {
                     _searchController.clear();
                     _performSearch('');
@@ -239,7 +240,7 @@ class _BooksScreenState extends State<BooksScreen>
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    Icons.search_off,
+                    FluentIcons.search_info_24_regular,
                     size: 64,
                     color: Theme.of(context)
                         .colorScheme
@@ -276,7 +277,8 @@ class _BooksScreenState extends State<BooksScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error, size: 64, color: Colors.red),
+            const Icon(FluentIcons.error_circle_24_regular,
+                size: 64, color: Colors.red),
             const SizedBox(height: 16),
             Text('שגיאה בבניית תוצאות חיפוש'),
             Text('Error: $e'),
@@ -355,7 +357,7 @@ class _BooksScreenState extends State<BooksScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.library_add,
+              FluentIcons.library_24_regular,
               size: 64,
               color: Theme.of(context)
                   .colorScheme
@@ -437,7 +439,7 @@ class _BooksScreenState extends State<BooksScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.book_outlined,
+              FluentIcons.book_24_regular,
               size: 64,
               color: Theme.of(context)
                   .colorScheme

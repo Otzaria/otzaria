@@ -1231,8 +1231,8 @@ class _PrintingScreenState extends State<PrintingScreen> {
                                             borderRadius:
                                                 BorderRadius.circular(8),
                                           ),
-                                          suffixIcon:
-                                              const Icon(Icons.arrow_drop_down),
+                                          suffixIcon: const Icon(FluentIcons
+                                              .chevron_down_24_regular),
                                         ),
                                         child: Text(
                                           fontNames[fontName] ?? fontName,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
 
 /// דיאלוג בחירה מרובה עם חיפוש
@@ -69,7 +70,7 @@ class _MultiSelectionDialogState<T> extends State<MultiSelectionDialog<T>> {
               controller: _searchController,
               decoration: InputDecoration(
                 labelText: widget.searchHint,
-                prefixIcon: const Icon(Icons.search),
+                prefixIcon: const Icon(FluentIcons.search_24_regular),
                 border: const OutlineInputBorder(),
               ),
               autofocus: true,

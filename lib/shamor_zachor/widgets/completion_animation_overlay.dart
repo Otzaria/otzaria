@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 /// Overlay widget for showing completion animations
 class CompletionAnimationOverlay {
@@ -6,14 +7,14 @@ class CompletionAnimationOverlay {
   static void show(BuildContext context, String message) {
     final overlay = Overlay.of(context);
     late OverlayEntry overlayEntry;
-    
+
     overlayEntry = OverlayEntry(
       builder: (context) => _CompletionAnimation(
         message: message,
         onComplete: () => overlayEntry.remove(),
       ),
     );
-    
+
     overlay.insert(overlayEntry);
   }
 }
@@ -21,12 +22,12 @@ class CompletionAnimationOverlay {
 class _CompletionAnimation extends StatefulWidget {
   final String message;
   final VoidCallback onComplete;
-  
+
   const _CompletionAnimation({
     required this.message,
     required this.onComplete,
   });
-  
+
   @override
   State<_CompletionAnimation> createState() => _CompletionAnimationState();
 }
@@ -36,7 +37,7 @@ class _CompletionAnimationState extends State<_CompletionAnimation>
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
   late Animation<double> _opacityAnimation;
-  
+
   @override
   void initState() {
     super.initState();
@@ -44,7 +45,7 @@ class _CompletionAnimationState extends State<_CompletionAnimation>
       duration: const Duration(milliseconds: 2000),
       vsync: this,
     );
-    
+
     _scaleAnimation = Tween<double>(
       begin: 0.0,
       end: 1.0,
@@ -52,7 +53,7 @@ class _CompletionAnimationState extends State<_CompletionAnimation>
       parent: _controller,
       curve: const Interval(0.0, 0.5, curve: Curves.elasticOut),
     ));
-    
+
     _opacityAnimation = Tween<double>(
       begin: 1.0,
       end: 0.0,
@@ -60,16 +61,16 @@ class _CompletionAnimationState extends State<_CompletionAnimation>
       parent: _controller,
       curve: const Interval(0.7, 1.0, curve: Curves.easeOut),
     ));
-    
+
     _controller.forward().then((_) => widget.onComplete());
   }
-  
+
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
   }
-  
+
   @override
   Widget build(BuildContext context) {
     return Material(
@@ -100,7 +101,7 @@ class _CompletionAnimationState extends State<_CompletionAnimation>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        Icons.celebration,
+                        FluentIcons.trophy_24_regular,
                         size: 64,
                         color: Theme.of(context).colorScheme.primary,
                       ),
@@ -108,10 +109,13 @@ class _CompletionAnimationState extends State<_CompletionAnimation>
                       Text(
                         widget.message,
                         textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurface,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: Theme.of(context)
+                            .textTheme
+                            .headlineSmall
+                            ?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurface,
+                              fontWeight: FontWeight.bold,
+                            ),
                       ),
                     ],
                   ),

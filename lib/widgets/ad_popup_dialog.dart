@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/services/ad_popup_service.dart';
 
 /// פופאפ פרסומת עם אנימציה מתקדמת
@@ -155,7 +156,7 @@ class _AdPopupDialogState extends State<AdPopupDialog>
                   left: 8,
                   child: IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close),
+                    icon: const Icon(FluentIcons.dismiss_24_regular),
                     tooltip: 'סגור',
                     style: IconButton.styleFrom(
                       backgroundColor: Colors.black.withValues(alpha: 0.1),
@@ -345,7 +346,7 @@ class _AdPopupDialogState extends State<AdPopupDialog>
                 value: 'week',
                 child: Row(
                   children: [
-                    Icon(Icons.calendar_today, size: 20),
+                    Icon(FluentIcons.calendar_24_regular, size: 20),
                     SizedBox(width: 12),
                     Text('למשך שבוע'),
                   ],
@@ -355,7 +356,7 @@ class _AdPopupDialogState extends State<AdPopupDialog>
                 value: 'month',
                 child: Row(
                   children: [
-                    Icon(Icons.calendar_month, size: 20),
+                    Icon(FluentIcons.calendar_month_24_regular, size: 20),
                     SizedBox(width: 12),
                     Text('למשך חודש'),
                   ],
@@ -365,7 +366,7 @@ class _AdPopupDialogState extends State<AdPopupDialog>
                 value: 'forever',
                 child: Row(
                   children: [
-                    Icon(Icons.block, size: 20),
+                    Icon(FluentIcons.prohibited_24_regular, size: 20),
                     SizedBox(width: 12),
                     Text('לעולם'),
                   ],
@@ -379,7 +380,7 @@ class _AdPopupDialogState extends State<AdPopupDialog>
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 side: BorderSide(color: Colors.grey.shade400),
               ),
-              icon: const Icon(Icons.close, size: 18),
+              icon: const Icon(FluentIcons.dismiss_24_regular, size: 18),
               label: const Text('אל תציג שוב'),
             ),
           ),
@@ -834,7 +835,8 @@ class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
                         widget.org['logo'],
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
-                          return const Icon(Icons.business, size: 30);
+                          return const Icon(FluentIcons.building_24_regular,
+                              size: 30);
                         },
                       ),
                     ),
@@ -899,7 +901,8 @@ class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
                           padding: const EdgeInsets.only(bottom: 4),
                           child: Row(
                             children: [
-                              const Icon(Icons.phone, size: 16),
+                              const Icon(FluentIcons.phone_24_regular,
+                                  size: 16),
                               const SizedBox(width: 8),
                               Text(
                                 phone,

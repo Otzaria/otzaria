@@ -645,7 +645,7 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
                     child: Row(
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.remove),
+                          icon: const Icon(FluentIcons.subtract_24_regular),
                           onPressed: _commentaryFontSize > 10
                               ? () =>
                                   _onFontSizeChanged(_commentaryFontSize - 1)
@@ -660,7 +660,7 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.add),
+                          icon: const Icon(FluentIcons.add_24_regular),
                           onPressed: _commentaryFontSize < 30
                               ? () =>
                                   _onFontSizeChanged(_commentaryFontSize + 1)
@@ -751,7 +751,9 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
         if (visibilityKey != null)
           IconButton(
             icon: Icon(
-              isVisible ? Icons.visibility : Icons.visibility_off,
+              isVisible
+                  ? FluentIcons.eye_24_regular
+                  : FluentIcons.eye_off_24_regular,
               size: 20,
               color: isVisible
                   ? Theme.of(context).colorScheme.primary
@@ -780,7 +782,7 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
                 border: OutlineInputBorder(),
                 contentPadding:
                     EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                suffixIcon: Icon(Icons.arrow_drop_down, size: 20),
+                suffixIcon: Icon(FluentIcons.chevron_down_24_regular, size: 20),
               ),
               child: Text(
                 value ?? 'ללא מפרש',
@@ -1005,7 +1007,8 @@ class _CommentatorPickerDialogState extends State<_CommentatorPickerDialog> {
     return ListTile(
       title: Text(commentator),
       selected: isSelected,
-      trailing: isSelected ? const Icon(Icons.check) : null,
+      trailing:
+          isSelected ? const Icon(FluentIcons.checkmark_24_regular) : null,
       onTap: () => Navigator.of(context).pop(commentator),
     );
   }

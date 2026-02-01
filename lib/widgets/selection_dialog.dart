@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
 
 /// דיאלוג בחירה עם חיפוש
@@ -50,50 +51,52 @@ class _SelectionDialogState<T> extends State<SelectionDialog<T>> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-        title: Text(widget.title),
-        content: SizedBox(
-          width: 300,
-          height: 400,
-          child: Column(
-            children: [
-              RtlTextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  labelText: widget.searchHint,
-                  prefixIcon: const Icon(Icons.search),
-                  border: const OutlineInputBorder(),
-                ),
-                autofocus: true,
+      title: Text(widget.title),
+      content: SizedBox(
+        width: 300,
+        height: 400,
+        child: Column(
+          children: [
+            RtlTextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                labelText: widget.searchHint,
+                prefixIcon: const Icon(FluentIcons.search_24_regular),
+                border: const OutlineInputBorder(),
               ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: filteredItems.length,
-                  itemBuilder: (context, index) {
-                    final item = filteredItems[index];
-                    final isSelected = item.value == widget.initialValue;
+              autofocus: true,
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: ListView.builder(
+                itemCount: filteredItems.length,
+                itemBuilder: (context, index) {
+                  final item = filteredItems[index];
+                  final isSelected = item.value == widget.initialValue;
 
-                    return ListTile(
-                      title: Text(item.label),
-                      selected: isSelected,
-                      trailing: isSelected ? const Icon(Icons.check) : null,
-                      onTap: () {
-                        Navigator.of(context).pop(item.value);
-                      },
-                    );
-                  },
-                ),
+                  return ListTile(
+                    title: Text(item.label),
+                    selected: isSelected,
+                    trailing: isSelected
+                        ? const Icon(FluentIcons.checkmark_24_regular)
+                        : null,
+                    onTap: () {
+                      Navigator.of(context).pop(item.value);
+                    },
+                  );
+                },
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('ביטול'),
-          ),
-        ],
-      );
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('ביטול'),
+        ),
+      ],
+    );
   }
 }
 

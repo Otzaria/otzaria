@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:logging/logging.dart';
 
@@ -102,7 +103,7 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           const Icon(
-                            Icons.storage_rounded,
+                            FluentIcons.database_24_regular,
                             size: 64,
                             color: Colors.orange,
                           ),
@@ -160,13 +161,13 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
         height: 60,
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.timeline_outlined),
-            selectedIcon: Icon(Icons.timeline),
+            icon: Icon(FluentIcons.timeline_24_regular),
+            selectedIcon: Icon(FluentIcons.timeline_24_filled),
             label: 'מעקב',
           ),
           NavigationDestination(
-            icon: Icon(Icons.menu_book_outlined),
-            selectedIcon: Icon(Icons.menu_book),
+            icon: Icon(FluentIcons.book_24_regular),
+            selectedIcon: Icon(FluentIcons.book_24_filled),
             label: 'ספרים',
           ),
         ],

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/utils/shortcut_helper.dart';
 
@@ -24,7 +25,8 @@ class _CustomShortcutDialogState extends State<CustomShortcutDialog> {
   void initState() {
     super.initState();
     if (widget.initialShortcut != null) {
-      _displayText = ShortcutHelper.formatShortcutForDisplay(widget.initialShortcut!);
+      _displayText =
+          ShortcutHelper.formatShortcutForDisplay(widget.initialShortcut!);
     }
   }
 
@@ -41,7 +43,6 @@ class _CustomShortcutDialogState extends State<CustomShortcutDialog> {
       _displayText = ShortcutHelper.formatShortcutForDisplay(shortcut);
     });
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -131,7 +132,7 @@ class _CustomShortcutDialogState extends State<CustomShortcutDialog> {
                       _isRecording = false;
                     });
                   },
-                  icon: const Icon(Icons.stop),
+                  icon: const Icon(FluentIcons.stop_24_regular),
                   label: const Text('עצור הקלטה'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Theme.of(context).colorScheme.error,
@@ -147,7 +148,7 @@ class _CustomShortcutDialogState extends State<CustomShortcutDialog> {
                       _displayText = 'לחץ על המקשים...';
                     });
                   },
-                  icon: const Icon(Icons.fiber_manual_record),
+                  icon: const Icon(FluentIcons.record_24_regular),
                   label: const Text('התחל הקלטה'),
                 ),
             ],
@@ -162,7 +163,8 @@ class _CustomShortcutDialogState extends State<CustomShortcutDialog> {
             onPressed: _pressedKeys.isEmpty
                 ? null
                 : () {
-                    final shortcut = ShortcutHelper.formatKeysToShortcut(_pressedKeys);
+                    final shortcut =
+                        ShortcutHelper.formatKeysToShortcut(_pressedKeys);
                     Navigator.pop(context, shortcut);
                   },
             child: const Text('אישור'),

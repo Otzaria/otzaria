@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/constants/fonts.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
@@ -192,7 +193,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
           children: [
             ElevatedButton.icon(
               onPressed: onSelectCommentator,
-              icon: const Icon(Icons.book_outlined),
+              icon: const Icon(FluentIcons.book_24_regular),
               label: const Text('בחר מפרש'),
               style: ElevatedButton.styleFrom(
                 padding:
@@ -202,7 +203,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
             const SizedBox(height: 12),
             TextButton.icon(
               onPressed: onHideColumn,
-              icon: const Icon(Icons.visibility_off_outlined, size: 18),
+              icon: const Icon(FluentIcons.eye_off_24_regular, size: 18),
               label: const Text('הסתר טור זה'),
               style: TextButton.styleFrom(
                 foregroundColor: Theme.of(context)

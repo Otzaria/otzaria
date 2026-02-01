@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:logging/logging.dart';
@@ -506,7 +507,7 @@ class _DatabaseGenerationScreenState extends State<DatabaseGenerationScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.timer_outlined, size: 20),
+                        const Icon(FluentIcons.timer_24_regular, size: 20),
                         const SizedBox(width: 8),
                         Text(
                           'זמן שעבר: ${_formatDuration(_elapsed)}',
@@ -617,7 +618,8 @@ class _DatabaseGenerationScreenState extends State<DatabaseGenerationScreen> {
                 ),
                 child: Center(
                   child: isComplete
-                      ? const Icon(Icons.check, color: Colors.white, size: 20)
+                      ? const Icon(FluentIcons.checkmark_24_regular,
+                          color: Colors.white, size: 20)
                       : Text(
                           '$stepNumber',
                           style: const TextStyle(
@@ -700,7 +702,7 @@ class _DatabaseGenerationScreenState extends State<DatabaseGenerationScreen> {
               label: 'תיקיית אוצריא (תיקיית האב)',
               path: _selectedLibraryPath,
               onTap: _selectLibraryFolder,
-              icon: Icons.folder_open,
+              icon: FluentIcons.folder_open_24_regular,
             ),
             const SizedBox(height: 8),
             if (_selectedDbPath != null)
@@ -713,7 +715,8 @@ class _DatabaseGenerationScreenState extends State<DatabaseGenerationScreen> {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
+                    Icon(FluentIcons.info_24_regular,
+                        color: Colors.blue[700], size: 20),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text('מסד הנתונים: $_selectedDbPath',
@@ -753,7 +756,7 @@ class _DatabaseGenerationScreenState extends State<DatabaseGenerationScreen> {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.warning_amber,
+                    Icon(FluentIcons.warning_24_regular,
                         color: Colors.orange[700], size: 24),
                     const SizedBox(width: 12),
                     const Expanded(
@@ -784,7 +787,7 @@ class _DatabaseGenerationScreenState extends State<DatabaseGenerationScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.error_outline, color: Colors.red[700]),
+              Icon(FluentIcons.error_circle_24_regular, color: Colors.red[700]),
               const SizedBox(width: 12),
               Expanded(
                 child: Container(
@@ -805,7 +808,7 @@ class _DatabaseGenerationScreenState extends State<DatabaseGenerationScreen> {
                 const SnackBar(content: Text('השגיאה הועתקה ללוח')),
               );
             },
-            icon: const Icon(Icons.copy, size: 18),
+            icon: const Icon(FluentIcons.copy_24_regular, size: 18),
             label: const Text('העתק שגיאה'),
             style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red[700],
@@ -823,7 +826,7 @@ class _DatabaseGenerationScreenState extends State<DatabaseGenerationScreen> {
           Expanded(
             child: ElevatedButton.icon(
               onPressed: _resetToInitialState,
-              icon: const Icon(Icons.refresh),
+              icon: const Icon(FluentIcons.arrow_sync_24_regular),
               label: const Text('חזור להתחלה'),
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
@@ -836,7 +839,7 @@ class _DatabaseGenerationScreenState extends State<DatabaseGenerationScreen> {
           Expanded(
             child: ElevatedButton.icon(
               onPressed: _startGeneration,
-              icon: const Icon(Icons.replay),
+              icon: const Icon(FluentIcons.arrow_sync_24_regular),
               label: const Text('נסה שוב'),
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
@@ -852,7 +855,7 @@ class _DatabaseGenerationScreenState extends State<DatabaseGenerationScreen> {
     if (_currentStep == GenerationStep.complete && _progress.error == null) {
       return ElevatedButton.icon(
         onPressed: () => exit(0),
-        icon: const Icon(Icons.restart_alt),
+        icon: const Icon(FluentIcons.arrow_reset_24_regular),
         label: Text(_getButtonText(),
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         style: ElevatedButton.styleFrom(
@@ -915,8 +918,12 @@ class _DatabaseGenerationScreenState extends State<DatabaseGenerationScreen> {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          Icon(exists ? Icons.check_circle : Icons.cancel,
-              color: exists ? Colors.green : Colors.red, size: 20),
+          Icon(
+              exists
+                  ? FluentIcons.checkmark_circle_24_regular
+                  : FluentIcons.error_circle_24_regular,
+              color: exists ? Colors.green : Colors.red,
+              size: 20),
           const SizedBox(width: 8),
           Expanded(
             child: Column(

@@ -1050,7 +1050,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   Widget _buildPageShapeSettingsButton(
       BuildContext context, TextBookLoaded state) {
     return IconButton(
-      icon: const Icon(Icons.settings, size: 20),
+      icon: const Icon(FluentIcons.settings_24_regular, size: 20),
       tooltip: 'הגדרות צורת הדף',
       onPressed: () async {
         // טעינת ההגדרות הנוכחיות

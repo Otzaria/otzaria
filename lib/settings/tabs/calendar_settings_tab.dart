@@ -279,7 +279,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                                       }
                                     }
                                   : null,
-                              icon: const Icon(Icons.calendar_today),
+                              icon: const Icon(FluentIcons.calendar_24_regular),
                               label: Text(
                                   'בחר לוחות שנה (${state.googleCalendarSelectedIds.length})'),
                             ),
