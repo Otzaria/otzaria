@@ -29,13 +29,17 @@ void main() {
               SettingsRepository.keySwatchColor,
               defaultValue: '#ff2c1b02'))
           .thenReturn('#ff2c1b02');
+      when(mockSettingsWrapper.getValue<String>(
+              SettingsRepository.keyDarkSwatchColor,
+              defaultValue: '#ffce93d8'))
+          .thenReturn('#ffce93d8');
       when(mockSettingsWrapper.getValue<double>(
               SettingsRepository.keyTextMaxWidth,
-              defaultValue: 0))
-          .thenReturn(0.0);
+              defaultValue: -1))
+          .thenReturn(-1.0);
       when(mockSettingsWrapper.getValue<double>(SettingsRepository.keyFontSize,
-              defaultValue: 16))
-          .thenReturn(16);
+              defaultValue: 25))
+          .thenReturn(25.0);
       when(mockSettingsWrapper.getValue<String>(
               SettingsRepository.keyFontFamily,
               defaultValue: 'FrankRuhlCLM'))
@@ -89,8 +93,10 @@ void main() {
       expect(settings['isDarkMode'], false);
       expect(settings['followSystemTheme'], false);
       expect(settings['seedColor'], ColorUtils.colorFromString('#ff2c1b02'));
-      expect(settings['textMaxWidth'], 0.0);
-      expect(settings['fontSize'], 16.0);
+      expect(
+          settings['darkSeedColor'], ColorUtils.colorFromString('#ffce93d8'));
+      expect(settings['textMaxWidth'], -1.0);
+      expect(settings['fontSize'], 25.0);
       expect(settings['fontFamily'], 'FrankRuhlCLM');
       expect(settings['showOtzarHachochma'], false);
       expect(settings['showHebrewBooks'], false);
@@ -118,13 +124,17 @@ void main() {
               SettingsRepository.keySwatchColor,
               defaultValue: '#ff2c1b02'))
           .thenReturn('#ff0000ff'); // Blue
+      when(mockSettingsWrapper.getValue<String>(
+              SettingsRepository.keyDarkSwatchColor,
+              defaultValue: '#ffce93d8'))
+          .thenReturn('#ffce93d8');
       when(mockSettingsWrapper.getValue<double>(
               SettingsRepository.keyTextMaxWidth,
-              defaultValue: 0))
+              defaultValue: -1))
           .thenReturn(800.0);
       when(mockSettingsWrapper.getValue<double>(SettingsRepository.keyFontSize,
-              defaultValue: 16))
-          .thenReturn(20);
+              defaultValue: 25))
+          .thenReturn(20.0);
       when(mockSettingsWrapper.getValue<String>(
               SettingsRepository.keyFontFamily,
               defaultValue: 'FrankRuhlCLM'))
@@ -178,6 +188,8 @@ void main() {
       expect(settings['isDarkMode'], true);
       expect(settings['followSystemTheme'], true);
       expect(settings['seedColor'], ColorUtils.colorFromString('#ff0000ff'));
+      expect(
+          settings['darkSeedColor'], ColorUtils.colorFromString('#ffce93d8'));
       expect(settings['textMaxWidth'], 800.0);
       expect(settings['fontSize'], 20.0);
       expect(settings['fontFamily'], 'Rubik');
@@ -268,13 +280,17 @@ void main() {
               SettingsRepository.keySwatchColor,
               defaultValue: '#ff2c1b02'))
           .thenReturn('#ff2c1b02');
+      when(mockSettingsWrapper.getValue<String>(
+              SettingsRepository.keyDarkSwatchColor,
+              defaultValue: '#ffce93d8'))
+          .thenReturn('#ffce93d8');
       when(mockSettingsWrapper.getValue<double>(
               SettingsRepository.keyTextMaxWidth,
-              defaultValue: 0))
-          .thenReturn(0.0);
+              defaultValue: -1))
+          .thenReturn(-1.0);
       when(mockSettingsWrapper.getValue<double>(SettingsRepository.keyFontSize,
-              defaultValue: 16))
-          .thenReturn(16);
+              defaultValue: 25))
+          .thenReturn(25.0);
       when(mockSettingsWrapper.getValue<String>(
               SettingsRepository.keyFontFamily,
               defaultValue: 'FrankRuhlCLM'))
@@ -325,9 +341,12 @@ void main() {
               SettingsRepository.keySwatchColor, '#ff2c1b02'))
           .called(1);
       verify(mockSettingsWrapper.setValue(
-              SettingsRepository.keyTextMaxWidth, 0))
+              SettingsRepository.keyDarkSwatchColor, '#ffce93d8'))
           .called(1);
-      verify(mockSettingsWrapper.setValue(SettingsRepository.keyFontSize, 16.0))
+      verify(mockSettingsWrapper.setValue(
+              SettingsRepository.keyTextMaxWidth, -1.0))
+          .called(1);
+      verify(mockSettingsWrapper.setValue(SettingsRepository.keyFontSize, 25.0))
           .called(1);
       verify(mockSettingsWrapper.setValue(
               SettingsRepository.keyFontFamily, 'FrankRuhlCLM'))
@@ -370,10 +389,8 @@ void main() {
     test('loadSettings does not initialize defaults when fontFamily exists',
         () async {
       // Setup mock to return existing fontFamily value
-      when(mockSettingsWrapper.getValue<String?>(
-              SettingsRepository.keyFontFamily,
-              defaultValue: null))
-          .thenReturn('FrankRuhlCLM');
+      when(mockSettingsWrapper.getValue<bool>('settings_initialized', defaultValue: false)).thenReturn(true);
+      when(mockSettingsWrapper.getValue<String?>(SettingsRepository.keyFontFamily, defaultValue: null)).thenReturn('FrankRuhlCLM');
 
       // Setup mock to return values for loadSettings
       when(mockSettingsWrapper.getValue<bool>(SettingsRepository.keyDarkMode,
@@ -383,13 +400,17 @@ void main() {
               SettingsRepository.keySwatchColor,
               defaultValue: '#ff2c1b02'))
           .thenReturn('#ff2c1b02');
+      when(mockSettingsWrapper.getValue<String>(
+              SettingsRepository.keyDarkSwatchColor,
+              defaultValue: '#ffce93d8'))
+          .thenReturn('#ffce93d8');
       when(mockSettingsWrapper.getValue<double>(
               SettingsRepository.keyTextMaxWidth,
-              defaultValue: 0))
-          .thenReturn(0.0);
+              defaultValue: -1))
+          .thenReturn(-1.0);
       when(mockSettingsWrapper.getValue<double>(SettingsRepository.keyFontSize,
-              defaultValue: 16))
-          .thenReturn(16);
+              defaultValue: 25))
+          .thenReturn(25.0);
       when(mockSettingsWrapper.getValue<String>(
               SettingsRepository.keyFontFamily,
               defaultValue: 'FrankRuhlCLM'))
@@ -437,3 +458,6 @@ void main() {
     });
   });
 }
+
+
+

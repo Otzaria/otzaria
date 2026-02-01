@@ -16,6 +16,11 @@ class MockSettingsRepository implements SettingsRepository {
     'calendarNotificationTime': 60,
     'calendarNotificationSound': true,
     'calendarZmanAlerts': '{}',
+    'googleCalendarEnabled': false,
+    'googleCalendarSelectedIds': 'primary',
+    'googleCalendarSyncPastDays': 60,
+    'googleCalendarSyncFutureDays': 365,
+    'googleCalendarLastSync': 0,
   };
 
   @override

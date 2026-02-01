@@ -8,6 +8,8 @@ import 'package:otzaria/settings/settings_state.dart';
 import '../../unit/mocks/mock_settings_repository.mocks.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('SettingsBloc', () {
     late SettingsBloc settingsBloc;
     late MockSettingsRepository mockRepository;
