@@ -12,6 +12,8 @@ import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/search/view/search_options_dropdown.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
+import 'package:otzaria/utils/text_manipulation.dart' as utils;
+import 'package:otzaria/widgets/nikud_search_button.dart';
 
 class EnhancedSearchField extends StatefulWidget {
   final dynamic widget;
@@ -38,6 +40,7 @@ final GlobalKey enhancedSearchFieldKey = GlobalKey();
 class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
   final GlobalKey _textFieldKey = GlobalKey();
   OverlayEntry? _searchOptionsOverlay;
+  bool _searchWithNikud = false;
 
   static const double _kSearchFieldMinWidth = 300;
   static const double _kControlHeight = 48;
@@ -301,8 +304,13 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
   }
 
   void _performSearch() {
-    final query = widget.tab.queryController.text.trim();
+    String query = widget.tab.queryController.text.trim();
     if (query.isNotEmpty) {
+      // הסרת ניקוד כברירת מחדל, אלא אם המשתמש לחץ על כפתור "עם ניקוד"
+      if (!_searchWithNikud && utils.hasNikud(query)) {
+        query = utils.removeVolwels(query);
+      }
+
       context.read<HistoryBloc>().add(AddHistory(widget.tab));
       context.read<SearchBloc>().add(
             UpdateSearchQuery(
@@ -400,6 +408,7 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
                             // ניקוי מלא של כל הנתונים
                             widget.tab.queryController.clear();
                             widget.tab.searchOptions.clear();
+                            _searchWithNikud = false;
                             context
                                 .read<SearchBloc>()
                                 .add(UpdateSearchQuery(''));
@@ -415,6 +424,24 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
                 ),
               ),
             ),
+            // כפתור "עם ניקוד" - מופיע רק כאשר יש ניקוד בטקסט
+            if (utils.hasNikud(widget.tab.queryController.text))
+              Positioned(
+                left: 56,
+                top: 8,
+                bottom: 8,
+                child: Center(
+                  child: NikudSearchButton(
+                    isActive: _searchWithNikud,
+                    onPressed: () {
+                      setState(() {
+                        _searchWithNikud = !_searchWithNikud;
+                      });
+                      _performSearch();
+                    },
+                  ),
+                ),
+              ),
             // אזורי ריחוף הוסרו - לא נחוצים יותר
             // כפתורי ה+ וכפתורי המרווח הוסרו - עכשיו משתמשים בבקרים בדיאלוג
           ],

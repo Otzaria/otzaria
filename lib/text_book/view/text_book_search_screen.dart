@@ -19,6 +19,7 @@ import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/widgets/nikud_search_button.dart';
 
 class _GroupedResultItem {
   final String? header;
@@ -71,6 +72,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
   Map<int, List<String>> _alternativeWords = {};
   Map<String, String> _spacingValues = {};
   SearchMode _searchMode = SearchMode.exact;
+  bool _searchWithNikud = false;
 
   bool get _isSimpleSearch =>
       !_forceSearchEngine &&
@@ -136,7 +138,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
   }
 
   Future<void> _searchTextUpdated() async {
-    final query = searchTextController.text.trim();
+    String query = searchTextController.text.trim();
     if (query.isEmpty ||
         (!_isSimpleSearch && (_bookPath == null || _bookTitle == null))) {
       setState(() {
@@ -144,6 +146,11 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         _isSearching = false;
       });
       return;
+    }
+
+    // הסרת ניקוד כברירת מחדל, אלא אם המשתמש לחץ על כפתור "עם ניקוד"
+    if (!_searchWithNikud && utils.hasNikud(query)) {
+      query = utils.removeVolwels(query);
     }
 
     setState(() {
@@ -457,8 +464,22 @@ class TextBookSearchViewState extends State<TextBookSearchView>
           _alternativeWords = {};
           _spacingValues = {};
           _searchMode = SearchMode.exact;
+          _searchWithNikud = false;
         });
       },
+      additionalActions: utils.hasNikud(searchTextController.text)
+          ? [
+              NikudSearchButton(
+                isActive: _searchWithNikud,
+                onPressed: () {
+                  setState(() {
+                    _searchWithNikud = !_searchWithNikud;
+                  });
+                  _searchTextUpdated();
+                },
+              ),
+            ]
+          : null,
       hintText: 'חפש כאן...',
       onAdvancedSearch: () {
         // Create a temporary SearchingTab to hold the state

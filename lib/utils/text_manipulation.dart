@@ -19,6 +19,11 @@ String removeVolwels(String s) {
   return s.replaceAll(SearchRegexPatterns.vowelsAndCantillation, '');
 }
 
+/// בדיקה אם טקסט מכיל ניקוד או טעמים
+bool hasNikud(String text) {
+  return SearchRegexPatterns.vowelsAndCantillation.hasMatch(text);
+}
+
 List<String> generateFullPartialSpellingVariations(String word) {
   if (word.isEmpty) return [word];
 
