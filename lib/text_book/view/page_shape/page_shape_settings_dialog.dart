@@ -80,7 +80,7 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
     // טעינת קטגוריות זמינות
     _availableCategories =
         PageShapeSettingsManager.parseCategories(widget.heCategories);
-    
+
     // אם אין קטגוריות, נסה לחלץ מהכותרת
     if (_availableCategories.isEmpty && widget.bookTitle.contains(',')) {
       // למשל: "משנה תורה, הלכות שבת" → ["משנה תורה"]
@@ -99,9 +99,8 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
     } else {
       _commentatorSaveScope = CommentatorSaveScope.book;
       // בחירת קטגוריית ברירת מחדל
-      _selectedCategory = _availableCategories.isNotEmpty 
-          ? _availableCategories.first
-          : null;
+      _selectedCategory =
+          _availableCategories.isNotEmpty ? _availableCategories.first : null;
     }
 
     setState(() {
@@ -172,6 +171,9 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
   }
 
   Future<void> _saveSettings() async {
+    debugPrint(
+        'PageShapeDialog: Saving settings for book: ${widget.bookTitle}');
+
     // שמירת הגדרות מפרשים - לספר או לקטגוריה לפי הבחירה
     final config = {
       'left': _leftCommentator,
@@ -180,9 +182,14 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
       'bottomRight': _bottomRightCommentator,
     };
 
+    debugPrint('PageShapeDialog: Config to save: $config');
+    debugPrint('PageShapeDialog: Save scope: $_commentatorSaveScope');
+    debugPrint('PageShapeDialog: Selected category: $_selectedCategory');
+
     if (_commentatorSaveScope == CommentatorSaveScope.category &&
         _selectedCategory != null) {
       // שמירה לקטגוריה
+      debugPrint('PageShapeDialog: Saving to category: $_selectedCategory');
       await PageShapeSettingsManager.saveConfiguration(
         widget.bookTitle,
         config,
@@ -193,6 +200,7 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
           widget.bookTitle);
     } else {
       // שמירה לספר ספציפי
+      debugPrint('PageShapeDialog: Saving to book: ${widget.bookTitle}');
       await PageShapeSettingsManager.saveConfiguration(
         widget.bookTitle,
         config,
@@ -216,6 +224,8 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
       _columnVisibility,
       saveAsGlobal: !_saveForCurrentBookOnly,
     );
+
+    debugPrint('PageShapeDialog: Settings saved successfully');
   }
 
   void _onCommentatorChanged(String? value, void Function(String?) setter,
@@ -452,8 +462,7 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
                                         const Text('לספר הנוכחי בלבד'),
                                         Text(
                                           'המפרשים יחולו רק על "${widget.bookTitle}"',
-                                          style:
-                                              const TextStyle(fontSize: 11),
+                                          style: const TextStyle(fontSize: 11),
                                         ),
                                       ],
                                     ),
