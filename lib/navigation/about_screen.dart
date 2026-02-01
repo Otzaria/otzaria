@@ -283,6 +283,9 @@ class _AboutScreenState extends State<AboutScreen> {
         'url':
             'https://forum.otzaria.org/user/%D7%99%D7%90%D7%99%D7%A8-%D7%93%D7%A0%D7%99%D7%90%D7%9C',
       },
+      {
+        'name': 'ש. נ.', // שילה נוי
+      },
     ];
 
     return Column(
