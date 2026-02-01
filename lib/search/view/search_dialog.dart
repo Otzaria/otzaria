@@ -23,6 +23,8 @@ import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/widgets/indexing_warning.dart';
 import 'package:otzaria/core/scaffold_messenger.dart';
+import 'package:otzaria/utils/text_manipulation.dart' as utils;
+import 'package:otzaria/widgets/nikud_search_button.dart';
 
 /// דיאלוג חיפוש מתקדם - מכיל את כל פקדי החיפוש וההגדרות
 /// כשמבצעים חיפוש, הדיאלוג נסגר ונפתחת לשונית תוצאות
@@ -50,6 +52,7 @@ class _SearchDialogState extends State<SearchDialog> {
   bool _showHistoryDropdown = false;
   final ValueNotifier<bool> _advancedControlsHasFocus = ValueNotifier(false);
   late final VoidCallback _queryListener;
+  bool _searchWithNikud = false;
 
   @override
   void initState() {
@@ -208,11 +211,16 @@ class _SearchDialogState extends State<SearchDialog> {
   }
 
   void _performSearch() {
-    final query = _searchTab.queryController.text.trim();
+    String query = _searchTab.queryController.text.trim();
 
     if (query.isEmpty) {
       UiSnack.show('נא להזין טקסט לחיפוש');
       return;
+    }
+
+    // הסרת ניקוד כברירת מחדל, אלא אם המשתמש לחץ על כפתור "עם ניקוד"
+    if (!_searchWithNikud && utils.hasNikud(query)) {
+      query = utils.removeVolwels(query);
     }
 
     // שמירת מצב החיפוש האחרון
@@ -493,6 +501,26 @@ class _SearchDialogState extends State<SearchDialog> {
                                                   ),
                                                 ),
                                               ),
+                                              // כפתור "עם ניקוד" - מופיע רק כאשר יש ניקוד
+                                              if (utils.hasNikud(_searchTab
+                                                  .queryController.text))
+                                                Positioned(
+                                                  left: 96,
+                                                  top: 8,
+                                                  bottom: 8,
+                                                  child: Center(
+                                                    child: NikudSearchButton(
+                                                      isActive:
+                                                          _searchWithNikud,
+                                                      onPressed: () {
+                                                        setState(() {
+                                                          _searchWithNikud =
+                                                              !_searchWithNikud;
+                                                        });
+                                                      },
+                                                    ),
+                                                  ),
+                                                ),
                                               // כפתור היסטוריה - ליד כפתור ה-X
                                               Positioned(
                                                 left: 48,

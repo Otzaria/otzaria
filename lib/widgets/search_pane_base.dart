@@ -15,6 +15,7 @@ class SearchPaneBase extends StatefulWidget {
     required this.resetSearchCallback,
     this.hintText,
     this.onAdvancedSearch,
+    this.additionalActions,
     super.key,
   });
 
@@ -28,6 +29,7 @@ class SearchPaneBase extends StatefulWidget {
   final VoidCallback resetSearchCallback;
   final String? hintText;
   final VoidCallback? onAdvancedSearch;
+  final List<Widget>? additionalActions;
 
   @override
   State<SearchPaneBase> createState() => _SearchPaneBaseState();
@@ -77,6 +79,8 @@ class _SearchPaneBaseState extends State<SearchPaneBase> {
                   suffixIcon: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      if (widget.additionalActions != null)
+                        ...widget.additionalActions!,
                       if (widget.onAdvancedSearch != null)
                         IconButton(
                           icon: const Icon(FluentIcons.settings_24_regular),
