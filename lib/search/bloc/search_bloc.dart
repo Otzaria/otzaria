@@ -189,8 +189,6 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
   ) {
     emit(state.copyWith(
       filterQuery: null,
-      filteredBooks: null,
-      facetCounts: {}, // ניקוי ספירות הפאסטים כשמנקים את הסינון
     ));
   }
 
