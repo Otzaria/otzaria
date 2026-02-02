@@ -71,17 +71,15 @@ class _CombinedViewState extends State<CombinedView> {
   // מנהל בחירת טקסט משופר
   late final TextSelectionManager _selectionManager;
 
-  // מפתח גלובלי ל-SelectionArea - ישתנה כשצריך לנקות בחירה
-  Key _selectionAreaKey = const ValueKey('selection_area_initial');
+  // מפתח גלובלי ל-SelectionArea כדי לכפות rebuild
+  final GlobalKey _selectionAreaKey = GlobalKey();
 
   // listener לניקוי בחירה - נשמור אותו כדי להסיר אותו ב-dispose
   void _onSelectionModeChanged() {
     if (!_selectionManager.isInSelectionMode && mounted) {
-      // כשיוצאים ממצב בחירה, משנים את המפתח כדי לכפות בנייה מחדש
-      // של SelectionArea בלבד (ולא של כל הווידג'ט) ולנקות את הבחירה באופן ויזואלי.
-      setState(() {
-        _selectionAreaKey = UniqueKey();
-      });
+      // כשיוצאים ממצב בחירה, קוראים ל-setState כדי לכפות בנייה מחדש
+      // של SelectionArea ולנקות את הבחירה באופן ויזואלי.
+      setState(() {});
     }
   }
 
@@ -815,6 +813,13 @@ $textWithBreaks
                     actions: <Type, Action<Intent>>{
                       _CopySelectedTextIntent:
                           CallbackAction<_CopySelectedTextIntent>(
+                        onInvoke: (_) {
+                          _copyFormattedText();
+                          return null;
+                        },
+                      ),
+                      CopySelectionTextIntent:
+                          CallbackAction<CopySelectionTextIntent>(
                         onInvoke: (_) {
                           _copyFormattedText();
                           return null;
