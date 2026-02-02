@@ -33,8 +33,12 @@ migrate_working_dir/
 .pub/
 build/
 windows
-macos/
+macos/*
+!macos/Runner/
+macos/Runner/*
 !macos/Runner/*.entitlements
+!macos/Runner/Assets.xcassets/
+!macos/Runner/Info.plist
 ios/
 .dart_tool
 web/
