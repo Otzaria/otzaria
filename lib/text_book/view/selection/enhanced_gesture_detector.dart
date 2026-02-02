@@ -36,6 +36,7 @@ class EnhancedGestureDetector extends StatefulWidget {
 
 class _EnhancedGestureDetectorState extends State<EnhancedGestureDetector> {
   Offset? _tapDownPosition;
+  int? _tapDownButtons;
   int? _lastTapTime;
   int _tapCount = 0;
   static const int _doubleTapTimeout = 300;
@@ -53,9 +54,10 @@ class _EnhancedGestureDetectorState extends State<EnhancedGestureDetector> {
   }
 
   void _handlePointerDown(PointerDownEvent event) {
-    if (event.buttons == kPrimaryMouseButton) {
-      _tapDownPosition = event.localPosition;
-    } else if (event.buttons == kSecondaryMouseButton) {
+    _tapDownPosition = event.localPosition;
+    _tapDownButtons = event.buttons;
+
+    if (event.buttons == kSecondaryMouseButton) {
       widget.onSecondaryTapDown?.call(
         TapDownDetails(
           globalPosition: event.position,
@@ -66,7 +68,7 @@ class _EnhancedGestureDetectorState extends State<EnhancedGestureDetector> {
   }
 
   void _handlePointerMove(PointerMoveEvent event) {
-    if (_tapDownPosition != null) {
+    if (_tapDownPosition != null && _tapDownButtons == kPrimaryMouseButton) {
       final distance = (event.localPosition - _tapDownPosition!).distance;
       if (distance > _dragThreshold) {
         // A drag has started, notify the parent to handle selection
@@ -80,6 +82,12 @@ class _EnhancedGestureDetectorState extends State<EnhancedGestureDetector> {
   }
 
   void _handlePointerUp(PointerUpEvent event) {
+    if (_tapDownButtons == kSecondaryMouseButton) {
+      _tapDownPosition = null;
+      _tapDownButtons = null;
+      return;
+    }
+
     // בדיקה שהכפתור ששוחרר הוא הכפתור הראשי
     // לאחר שחרור הכפתור, event.buttons הוא 0, אז אנחנו בודקים שהאירוע הוא מהכפתור הראשי
     if (_tapDownPosition == null) {
@@ -124,5 +132,6 @@ class _EnhancedGestureDetectorState extends State<EnhancedGestureDetector> {
     });
 
     _tapDownPosition = null;
+    _tapDownButtons = null;
   }
 }
