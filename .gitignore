@@ -81,3 +81,7 @@ flutter/
 seforim.db
 LOG.txt
 pubspec.lock
+macos/Podfile.lock
+macos/Flutter/GeneratedPluginRegistrant.swift
+macos/Runner.xcodeproj/project.pbxproj
+macos/Runner.xcodeproj/project.pbxproj
