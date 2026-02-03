@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:otzaria/personal_notes/models/personal_note.dart';
 
 abstract class PersonalNotesEvent extends Equatable {
   const PersonalNotesEvent();
@@ -11,7 +12,6 @@ class LoadPersonalNotes extends PersonalNotesEvent {
   final String bookId;
 
   const LoadPersonalNotes(this.bookId);
-
   @override
   List<Object?> get props => [bookId];
 }
@@ -20,32 +20,42 @@ class AddPersonalNote extends PersonalNotesEvent {
   final String bookId;
   final int lineNumber;
   final String content;
+  final String contentPlain;
+  final PersonalNoteContentFormat contentFormat;
   final String? selectedText;
 
   const AddPersonalNote({
     required this.bookId,
     required this.lineNumber,
     required this.content,
+    required this.contentPlain,
+    required this.contentFormat,
     this.selectedText,
   });
 
   @override
-  List<Object?> get props => [bookId, lineNumber, content, selectedText];
+  List<Object?> get props =>
+      [bookId, lineNumber, content, contentPlain, contentFormat, selectedText];
 }
 
 class UpdatePersonalNote extends PersonalNotesEvent {
   final String bookId;
   final String noteId;
   final String content;
+  final String contentPlain;
+  final PersonalNoteContentFormat contentFormat;
 
   const UpdatePersonalNote({
     required this.bookId,
     required this.noteId,
     required this.content,
+    required this.contentPlain,
+    required this.contentFormat,
   });
 
   @override
-  List<Object?> get props => [bookId, noteId, content];
+  List<Object?> get props =>
+      [bookId, noteId, content, contentPlain, contentFormat];
 }
 
 class DeletePersonalNote extends PersonalNotesEvent {
@@ -76,4 +86,34 @@ class RepositionPersonalNote extends PersonalNotesEvent {
   List<Object?> get props => [bookId, noteId, lineNumber];
 }
 
+class StartCreatingPersonalNote extends PersonalNotesEvent {
+  final String bookId;
+  final int lineNumber;
+  final String? referenceText;
+  final String? selectedText;
+  final String? initialContent;
+  final PersonalNoteContentFormat? initialFormat;
 
+  const StartCreatingPersonalNote({
+    required this.bookId,
+    required this.lineNumber,
+    this.referenceText,
+    this.selectedText,
+    this.initialContent,
+    this.initialFormat,
+  });
+
+  @override
+  List<Object?> get props => [
+        bookId,
+        lineNumber,
+        referenceText,
+        selectedText,
+        initialContent,
+        initialFormat,
+      ];
+}
+
+class CancelCreatingPersonalNote extends PersonalNotesEvent {
+  const CancelCreatingPersonalNote();
+}

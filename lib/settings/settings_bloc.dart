@@ -47,6 +47,8 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     on<UpdateOfflineMode>(_onUpdateOfflineMode);
     on<UpdateAlignTabsToRight>(_onUpdateAlignTabsToRight);
     on<UpdateEnableHtmlLinks>(_onUpdateEnableHtmlLinks);
+    on<UpdatePersonalNotesCollapsedByDefault>(
+      _onUpdatePersonalNotesCollapsedByDefault);
   }
 
   Future<void> _onLoadSettings(
@@ -96,6 +98,8 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       isOfflineMode: settings['isOfflineMode'] ?? false,
       alignTabsToRight: settings['alignTabsToRight'] ?? false,
       enableHtmlLinks: settings['enableHtmlLinks'] ?? true,
+      personalNotesCollapsedByDefault:
+          settings['personalNotesCollapsedByDefault'] ?? true,
     ));
   }
 
@@ -129,6 +133,16 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   ) async {
     await _repository.updateEnableHtmlLinks(event.enableHtmlLinks);
     emit(state.copyWith(enableHtmlLinks: event.enableHtmlLinks));
+  }
+
+  Future<void> _onUpdatePersonalNotesCollapsedByDefault(
+    UpdatePersonalNotesCollapsedByDefault event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository
+        .updatePersonalNotesCollapsedByDefault(event.collapsedByDefault);
+    emit(state.copyWith(
+        personalNotesCollapsedByDefault: event.collapsedByDefault));
   }
 
   Future<void> _onUpdateDarkMode(

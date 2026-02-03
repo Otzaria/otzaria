@@ -15,6 +15,8 @@ class PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState> {
     on<UpdatePersonalNote>(_onUpdateNote);
     on<DeletePersonalNote>(_onDeleteNote);
     on<RepositionPersonalNote>(_onRepositionNote);
+    on<StartCreatingPersonalNote>(_onStartCreatingNote);
+    on<CancelCreatingPersonalNote>(_onCancelCreatingNote);
   }
 
   final PersonalNotesRepository _repository;
@@ -56,9 +58,11 @@ class PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState> {
         bookId: event.bookId,
         lineNumber: event.lineNumber,
         content: event.content,
+        contentPlain: event.contentPlain,
+        contentFormat: event.contentFormat,
         selectedText: event.selectedText,
       );
-      _emitNotes(event.bookId, notes, emit);
+      _emitNotes(event.bookId, notes, emit, clearCreatingState: true);
     } catch (e) {
       emit(state.copyWith(isLoading: false, errorMessage: e.toString()));
     }
@@ -76,6 +80,8 @@ class PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState> {
         bookId: event.bookId,
         noteId: event.noteId,
         content: event.content,
+        contentPlain: event.contentPlain,
+        contentFormat: event.contentFormat,
       );
       _emitNotes(event.bookId, notes, emit);
     } catch (e) {
@@ -120,11 +126,39 @@ class PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState> {
     }
   }
 
+  void _onStartCreatingNote(
+    StartCreatingPersonalNote event,
+    Emitter<PersonalNotesState> emit,
+  ) {
+    print(
+        'DEBUG: StartCreatingNote event received for bookId=${event.bookId}, line=${event.lineNumber}');
+    emit(
+      state.copyWith(
+        isCreatingNewNote: true,
+        newNoteLineNumber: event.lineNumber,
+        newNoteReferenceText: event.referenceText,
+        newNoteSelectedText: event.selectedText,
+        newNoteInitialContent: event.initialContent,
+        newNoteInitialFormat: event.initialFormat,
+      ),
+    );
+    print(
+        'DEBUG: State updated - isCreatingNewNote=${state.isCreatingNewNote}');
+  }
+
+  void _onCancelCreatingNote(
+    CancelCreatingPersonalNote event,
+    Emitter<PersonalNotesState> emit,
+  ) {
+    emit(state.copyWith(clearNewNoteData: true));
+  }
+
   void _emitNotes(
     String bookId,
     List<PersonalNote> notes,
-    Emitter<PersonalNotesState> emit,
-  ) {
+    Emitter<PersonalNotesState> emit, {
+    bool clearCreatingState = false,
+  }) {
     final split = _splitNotes(notes);
     emit(
       state.copyWith(
@@ -133,6 +167,7 @@ class PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState> {
         locatedNotes: split.locatedNotes,
         missingNotes: split.missingNotes,
         errorMessage: null,
+        clearNewNoteData: clearCreatingState, // רק נקה אם מבוקש במפורש
       ),
     );
   }

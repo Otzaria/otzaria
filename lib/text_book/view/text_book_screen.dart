@@ -2507,7 +2507,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             child: Column(
               children: [
                 SizedBox(
-                  height: 48,
+                  height: 44,
                   child: Container(
                     decoration: BoxDecoration(
                       border: Border(
@@ -2525,28 +2525,28 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                             tabs: [
                               const Tab(
                                 icon: Icon(FluentIcons.navigation_24_regular,
-                                    size: 18),
-                                iconMargin: EdgeInsets.only(bottom: 2),
-                                height: 48,
+                                    size: 16),
+                                iconMargin: EdgeInsets.only(bottom: 1),
+                                height: 44,
                                 child: Text('ניווט',
-                                    style: TextStyle(fontSize: 12)),
+                                    style: TextStyle(fontSize: 11)),
                               ),
                               if (_hasAltTitles)
                                 const Tab(
                                   icon: Icon(FluentIcons.list_24_regular,
-                                      size: 18),
-                                  iconMargin: EdgeInsets.only(bottom: 2),
-                                  height: 48,
+                                      size: 16),
+                                  iconMargin: EdgeInsets.only(bottom: 1),
+                                  height: 44,
                                   child: Text('כותרות',
-                                      style: TextStyle(fontSize: 12)),
+                                      style: TextStyle(fontSize: 11)),
                                 ),
                               const Tab(
                                 icon: Icon(FluentIcons.search_24_regular,
-                                    size: 18),
-                                iconMargin: EdgeInsets.only(bottom: 2),
-                                height: 48,
+                                    size: 16),
+                                iconMargin: EdgeInsets.only(bottom: 1),
+                                height: 44,
                                 child: Text('חיפוש',
-                                    style: TextStyle(fontSize: 12)),
+                                    style: TextStyle(fontSize: 11)),
                               ),
                             ],
                             labelColor: Theme.of(context).colorScheme.primary,
@@ -2936,8 +2936,6 @@ Future<void> _addNoteFromKeyboard(
   final currentIndex = state.selectedIndex ??
       (state.visibleIndices.isNotEmpty ? state.visibleIndices.first : 0);
   // לא צריך טקסט נבחר - ההערה חלה על כל השורה
-  final controller = TextEditingController();
-  final notesBloc = context.read<PersonalNotesBloc>();
   final textBookBloc = context.read<TextBookBloc>();
 
   // קבלת הטקסט המזהה של השורה (כמו שיוצג ככותרת ההערה)
@@ -2947,38 +2945,27 @@ Future<void> _addNoteFromKeyboard(
     excludeBookTitle: state.book.title,
   );
 
-  final noteContent = await showDialog<String>(
-    context: context,
-    builder: (dialogContext) => PersonalNoteEditorDialog(
-      title: 'הוסף הערה',
-      controller: controller,
-      referenceText: referenceText,
-      icon: FluentIcons.note_add_24_regular,
-    ),
+  // טען טיוטה אם קיימת
+  final draftService = PersonalNoteDraftService();
+  final draft = await draftService.loadDraft(
+    bookId: state.book.title,
+    lineNumber: currentIndex + 1,
   );
-
-  if (noteContent == null) {
-    return;
-  }
-
-  final trimmed = noteContent.trim();
-  if (trimmed.isEmpty) {
-    UiSnack.show('ההערה ריקה, לא נשמרה');
-    return;
-  }
 
   if (!context.mounted) return;
 
-  try {
-    notesBloc.add(AddPersonalNote(
-      bookId: state.book.title,
-      lineNumber: currentIndex + 1,
-      content: trimmed,
-    ));
+  // שלח event לפתיחת מצב יצירה בסיידבר
+  context.read<PersonalNotesBloc>().add(StartCreatingPersonalNote(
+        bookId: state.book.title,
+        lineNumber: currentIndex + 1,
+        referenceText: referenceText,
+        initialContent: draft?.content ?? '',
+        initialFormat: draft?.contentFormat ?? PersonalNoteContentFormat.plain,
+      ));
+
+  // פתח את ה-split view אם הוא סגור
+  if (!state.showSplitView) {
     textBookBloc.add(const ToggleSplitView(true));
-    UiSnack.show('ההערה נשמרה בהצלחה');
-  } catch (e) {
-    UiSnack.showError('שמירת ההערה נכשלה: $e');
   }
 }
 

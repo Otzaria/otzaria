@@ -46,6 +46,8 @@ class PersonalNotesService {
     required String bookContent,
     required int lineNumber,
     required String content,
+    required String contentPlain,
+    required PersonalNoteContentFormat contentFormat,
     String? selectedText,
   }) async {
     final lines = splitBookContentIntoLines(bookContent);
@@ -69,6 +71,8 @@ class PersonalNotesService {
       lastKnownLineNumber: null,
       status: PersonalNoteStatus.located,
       content: content.trimRight(),
+      contentPlain: contentPlain.trimRight(),
+      contentFormat: contentFormat,
       createdAt: now,
       updatedAt: now,
     );
@@ -83,6 +87,8 @@ class PersonalNotesService {
     required String bookContent,
     required String noteId,
     String? content,
+    String? contentPlain,
+    PersonalNoteContentFormat? contentFormat,
   }) async {
     final note = await _database.getNote(noteId);
     if (note == null) {
@@ -92,6 +98,8 @@ class PersonalNotesService {
     final now = DateTime.now();
     final updatedNote = note.copyWith(
       content: content?.trimRight() ?? note.content,
+      contentPlain: contentPlain?.trimRight() ?? note.contentPlain,
+      contentFormat: contentFormat ?? note.contentFormat,
       updatedAt: now,
     );
 

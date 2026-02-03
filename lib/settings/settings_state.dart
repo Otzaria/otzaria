@@ -35,6 +35,7 @@ class SettingsState extends Equatable {
   final bool isOfflineMode;
   final bool alignTabsToRight;
   final bool enableHtmlLinks;
+  final bool personalNotesCollapsedByDefault;
 
   const SettingsState({
     required this.isDarkMode,
@@ -70,6 +71,7 @@ class SettingsState extends Equatable {
     required this.isOfflineMode,
     required this.alignTabsToRight,
     required this.enableHtmlLinks,
+    required this.personalNotesCollapsedByDefault,
   });
 
   factory SettingsState.initial() {
@@ -108,6 +110,7 @@ class SettingsState extends Equatable {
       isOfflineMode: false,
       alignTabsToRight: false,
       enableHtmlLinks: true,
+      personalNotesCollapsedByDefault: true,
     );
   }
 
@@ -145,6 +148,7 @@ class SettingsState extends Equatable {
     bool? isOfflineMode,
     bool? alignTabsToRight,
     bool? enableHtmlLinks,
+    bool? personalNotesCollapsedByDefault,
   }) {
     return SettingsState(
       isDarkMode: isDarkMode ?? this.isDarkMode,
@@ -183,6 +187,8 @@ class SettingsState extends Equatable {
       isOfflineMode: isOfflineMode ?? this.isOfflineMode,
       alignTabsToRight: alignTabsToRight ?? this.alignTabsToRight,
       enableHtmlLinks: enableHtmlLinks ?? this.enableHtmlLinks,
+      personalNotesCollapsedByDefault: personalNotesCollapsedByDefault ??
+          this.personalNotesCollapsedByDefault,
     );
   }
 
@@ -221,5 +227,6 @@ class SettingsState extends Equatable {
         isOfflineMode,
         alignTabsToRight,
         enableHtmlLinks,
+        personalNotesCollapsedByDefault,
       ];
 }

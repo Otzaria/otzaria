@@ -146,6 +146,7 @@ class BackupService {
       SettingsRepository.keyDevChannel,
       SettingsRepository.keyAutoSync,
       SettingsRepository.keyOfflineMode,
+        SettingsRepository.keyPersonalNotesCollapsedByDefault,
     ];
 
     final settings = <String, dynamic>{};
@@ -207,6 +208,8 @@ class BackupService {
       'lastKnownLineNumber': note.lastKnownLineNumber,
       'status': note.status.name,
       'content': note.content,
+      'contentPlain': note.contentPlain,
+      'contentFormat': note.contentFormat.name,
       'createdAt': note.createdAt.toIso8601String(),
       'updatedAt': note.updatedAt.toIso8601String(),
     };
@@ -379,6 +382,12 @@ class BackupService {
       lastKnownLineNumber: json['lastKnownLineNumber'] as int?,
       status: PersonalNoteStatus.values.byName(json['status'] as String),
       content: json['content'] as String,
+      contentPlain:
+          (json['contentPlain'] as String?) ?? (json['content'] as String),
+      contentFormat: PersonalNoteContentFormat.values.byName(
+        json['contentFormat'] as String? ??
+            PersonalNoteContentFormat.plain.name,
+      ),
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
@@ -413,6 +422,8 @@ class BackupService {
           lastKnownLineNumber: map['last_known_line'] as int?,
           status: PersonalNoteStatus.values.byName(map['status'] as String),
           content: content,
+          contentPlain: content,
+          contentFormat: PersonalNoteContentFormat.plain,
           createdAt: DateTime.parse(map['created_at'] as String),
           updatedAt: DateTime.parse(map['updated_at'] as String),
         );

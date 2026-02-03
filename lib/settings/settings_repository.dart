@@ -46,6 +46,8 @@ class SettingsRepository {
   static const String keyCustomFolders = 'key-custom-folders';
   static const String keyAlignTabsToRight = 'key-align-tabs-to-right';
   static const String keyEnableHtmlLinks = 'key-enable-html-links';
+  static const String keyPersonalNotesCollapsedByDefault =
+      'key-personal-notes-collapsed';
 
   // Calendar Notification Settings
   static const String keyCalendarNotificationsEnabled =
@@ -211,6 +213,10 @@ class SettingsRepository {
       ),
       'enableHtmlLinks': _settings.getValue<bool>(
         keyEnableHtmlLinks,
+        defaultValue: true,
+      ),
+      'personalNotesCollapsedByDefault': _settings.getValue<bool>(
+        keyPersonalNotesCollapsedByDefault,
         defaultValue: true,
       ),
 
@@ -411,6 +417,10 @@ class SettingsRepository {
     await _settings.setValue(keyEnableHtmlLinks, value);
   }
 
+  Future<void> updatePersonalNotesCollapsedByDefault(bool value) async {
+    await _settings.setValue(keyPersonalNotesCollapsedByDefault, value);
+  }
+
   // Calendar Notification Settings
   Future<void> updateCalendarNotificationsEnabled(bool value) async {
     await _settings.setValue(keyCalendarNotificationsEnabled, value);
@@ -583,6 +593,7 @@ class SettingsRepository {
     await _settings.setValue(keyLibraryShowPreview, true);
     await _settings.setValue(keyEnablePerBookSettings, true);
     await _settings.setValue(keyAlignTabsToRight, false);
+    await _settings.setValue(keyPersonalNotesCollapsedByDefault, true);
 
     // Calendar Notification Settings
     await _settings.setValue(keyCalendarNotificationsEnabled, true);

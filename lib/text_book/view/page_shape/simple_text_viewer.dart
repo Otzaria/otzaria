@@ -148,8 +148,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   }
 
   /// יצירת הערה לשורה הנוכחית
-  void _createNoteForCurrentLine(int index) {
-    final controller = TextEditingController();
+  Future<void> _createNoteForCurrentLine(int index) async {
     final state = context.read<TextBookBloc>().state;
     if (state is! TextBookLoaded) return;
 
@@ -158,38 +157,25 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         ? utils.removeVolwels(selectedText!.trim())
         : widget.content[index];
 
-    showDialog(
-      context: context,
-      builder: (dialogContext) => PersonalNoteEditorDialog(
-        title: 'הוסף הערה',
-        controller: controller,
-        referenceText: referenceText,
-        icon: FluentIcons.note_add_24_regular,
-      ),
-    ).then((noteContent) async {
-      if (noteContent == null) return;
+    // טען טיוטה אם קיימת
+    final draftService = PersonalNoteDraftService();
+    final draft = await draftService.loadDraft(
+      bookId: state.book.title,
+      lineNumber: index + 1,
+    );
 
-      final trimmed = noteContent.trim();
-      if (trimmed.isEmpty) {
-        UiSnack.show('ההערה ריקה, לא נשמרה');
-        return;
-      }
+    if (!mounted) return;
 
-      if (!mounted) return;
-
-      try {
-        final lineNumber = index + 1;
-        context.read<PersonalNotesBloc>().add(AddPersonalNote(
-              bookId: state.book.title,
-              lineNumber: lineNumber,
-              content: trimmed,
-              selectedText: selectedText?.trim(),
-            ));
-        UiSnack.show('ההערה נשמרה בהצלחה');
-      } catch (e) {
-        UiSnack.showError('שמירת ההערה נכשלה: $e');
-      }
-    });
+    // שלח event לפתיחת מצב יצירה בסיידבר
+    context.read<PersonalNotesBloc>().add(StartCreatingPersonalNote(
+          bookId: state.book.title,
+          lineNumber: index + 1,
+          referenceText: referenceText,
+          selectedText: selectedText?.trim(),
+          initialContent: draft?.content ?? '',
+          initialFormat:
+              draft?.contentFormat ?? PersonalNoteContentFormat.plain,
+        ));
   }
 
   /// עריכת פסקה
@@ -212,7 +198,6 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     String finalText = text;
     String finalHtmlText = text;
 
-    // אם צריך להוסיף כותרות
     if (settingsState.copyWithHeaders != 'none' &&
         textBookState is TextBookLoaded) {
       final bookName = CopyUtils.extractBookName(textBookState.book);
@@ -371,23 +356,36 @@ $textWithBreaks
                 return const Center(child: CircularProgressIndicator());
               }
 
-              return SelectionArea(
-                onSelectionChanged: (selection) {
-                  // שמירת הטקסט הנבחר
-                  if (selection != null) {
-                    setState(() {
-                      _savedSelectedText = selection.plainText;
-                    });
+              return BlocBuilder<PersonalNotesBloc, PersonalNotesState>(
+                builder: (context, notesState) {
+                  final noteMap = <int, List<PersonalNote>>{};
+                  if (notesState.bookId == state.book.title) {
+                    for (final note in notesState.locatedNotes) {
+                      final line = note.lineNumber;
+                      if (line == null) continue;
+                      noteMap.putIfAbsent(line, () => []).add(note);
+                    }
                   }
+
+                  return SelectionArea(
+                    onSelectionChanged: (selection) {
+                      // שמירת הטקסט הנבחר
+                      if (selection != null) {
+                        setState(() {
+                          _savedSelectedText = selection.plainText;
+                        });
+                      }
+                    },
+                    child: ScrollablePositionedList.builder(
+                      itemScrollController: _scrollController,
+                      itemPositionsListener: _positionsListener,
+                      itemCount: widget.content.length,
+                      padding: const EdgeInsets.all(4),
+                      itemBuilder: (context, index) =>
+                          _buildLine(index, state, context, noteMap),
+                    ),
+                  );
                 },
-                child: ScrollablePositionedList.builder(
-                  itemScrollController: _scrollController,
-                  itemPositionsListener: _positionsListener,
-                  itemCount: widget.content.length,
-                  padding: const EdgeInsets.all(4),
-                  itemBuilder: (context, index) =>
-                      _buildLine(index, state, context),
-                ),
               );
             },
           ),
@@ -396,7 +394,12 @@ $textWithBreaks
     );
   }
 
-  Widget _buildLine(int index, TextBookLoaded state, BuildContext context) {
+  Widget _buildLine(
+    int index,
+    TextBookLoaded state,
+    BuildContext context,
+    Map<int, List<PersonalNote>> noteMap,
+  ) {
     final isSelected = widget.isMainText && state.selectedIndex == index;
     final isHighlighted = widget.isMainText && state.highlightedLine == index;
 
@@ -416,6 +419,8 @@ $textWithBreaks
       }
       return null;
     }();
+
+    final notesForLine = noteMap[index + 1] ?? const <PersonalNote>[];
 
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
@@ -464,27 +469,77 @@ $textWithBreaks
               ? BoxDecoration(color: backgroundColor)
               : null,
           padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
-          child: BlocBuilder<SettingsBloc, SettingsState>(
-            builder: (context, settingsState) {
-              final data = widget.content[index];
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (widget.isMainText && notesForLine.isNotEmpty)
+                Tooltip(
+                  message: notesForLine.first.contentPlain,
+                  child: GestureDetector(
+                    onTap: () {
+                      context
+                          .read<TextBookBloc>()
+                          .add(UpdateSelectedIndex(index));
+                      context.read<TextBookBloc>().add(HighlightLine(index));
+                      context
+                          .read<TextBookBloc>()
+                          .add(const ToggleLeftPane(true));
+                    },
+                    onLongPress: () {
+                      final note = notesForLine.first;
+                      showDialog<void>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('הערה לשורה זו'),
+                          content: PersonalNoteContentView(note: note),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              child: const Text('סגור'),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 6, right: 2, top: 2),
+                      child: Icon(
+                        FluentIcons.note_24_filled,
+                        size: 12,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                )
+              else
+                const SizedBox(width: 16),
+              Expanded(
+                child: BlocBuilder<SettingsBloc, SettingsState>(
+                  builder: (context, settingsState) {
+                    final data = widget.content[index];
 
-              // הדגשת טקסט חיפוש רק בטקסט המרכזי
-              final searchText = widget.isMainText ? state.searchText : '';
+                    // הדגשת טקסט חיפוש רק בטקסט המרכזי
+                    final searchText =
+                        widget.isMainText ? state.searchText : '';
 
-              return SmartTextWidget(
-                text: data,
-                widgetKey: ValueKey('html_simple_text_$index'),
-                settings: RenderSettings(
-                  removeNikud: state.removeNikud,
-                  removeTeamim: !settingsState.showTeamim,
-                  replaceHolyNames: settingsState.replaceHolyNames,
-                  searchText: searchText,
-                  fontSize: widget.fontSize,
-                  fontFamily: widget.fontFamily ?? settingsState.fontFamily,
+                    return SmartTextWidget(
+                      text: data,
+                      widgetKey: ValueKey('html_simple_text_$index'),
+                      settings: RenderSettings(
+                        removeNikud: state.removeNikud,
+                        removeTeamim: !settingsState.showTeamim,
+                        replaceHolyNames: settingsState.replaceHolyNames,
+                        searchText: searchText,
+                        fontSize: widget.fontSize,
+                        fontFamily:
+                            widget.fontFamily ?? settingsState.fontFamily,
+                      ),
+                      onOpenBook: widget.openBookCallback,
+                    );
+                  },
                 ),
-                onOpenBook: widget.openBookCallback,
-              );
-            },
+              ),
+            ],
           ),
         ),
       ),

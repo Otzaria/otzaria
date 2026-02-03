@@ -17,7 +17,10 @@ import 'package:otzaria/pdf_book/pdf_page_number_dispaly.dart';
 import 'package:otzaria/pdf_book/pdf_commentary_panel.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
+import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_editor_dialog.dart';
+import 'package:otzaria/personal_notes/widgets/personal_note_editor.dart';
+import 'package:otzaria/personal_notes/services/personal_note_draft_service.dart';
 import 'package:otzaria/settings/settings_bloc.dart';
 import 'package:otzaria/settings/settings_event.dart';
 import 'package:otzaria/settings/settings_state.dart';
@@ -1629,14 +1632,26 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
     if (!mounted) return;
 
-    final controller = TextEditingController();
+    final draftService = PersonalNoteDraftService();
+    final draft = await draftService.loadDraft(
+      bookId: widget.tab.book.title,
+      lineNumber: currentPage,
+    );
 
-    final noteContent = await showDialog<String>(
+    final noteContent = await showDialog<PersonalNoteEditorResult>(
       // ignore: use_build_context_synchronously
       context: dialogContext,
       builder: (context) => PersonalNoteEditorDialog(
         title: dialogTitle,
-        controller: controller,
+        bookId: widget.tab.book.title,
+        draftLineNumber: currentPage,
+        initialContent: draft?.content ?? '',
+        initialContentFormat:
+            draft?.contentFormat ?? PersonalNoteContentFormat.plain,
+        linkableNotes: [
+          ...notesBloc.state.locatedNotes,
+          ...notesBloc.state.missingNotes,
+        ],
       ),
     );
 
@@ -1647,7 +1662,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       return;
     }
 
-    final trimmed = noteContent.trim();
+    final trimmed = noteContent.contentPlain.trim();
     if (trimmed.isEmpty) {
       UiSnack.show('ההערה ריקה, לא נשמרה');
       return;
@@ -1665,7 +1680,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       notesBloc.add(AddPersonalNote(
         bookId: bookId,
         lineNumber: currentPage,
-        content: trimmed,
+        content: noteContent.content,
+        contentPlain: noteContent.contentPlain,
+        contentFormat: noteContent.contentFormat,
       ));
 
       // פתיחת חלונית המפרשים בטאב ההערות

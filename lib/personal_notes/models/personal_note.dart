@@ -9,6 +9,15 @@ enum PersonalNoteStatus {
   missing,
 }
 
+/// Supported formats for note content.
+enum PersonalNoteContentFormat {
+  /// Plain text content.
+  plain,
+
+  /// Quill Delta JSON content.
+  quillDelta,
+}
+
 /// Represents a stored personal note.
 class PersonalNote extends Equatable {
   /// Unique note identifier.
@@ -31,7 +40,15 @@ class PersonalNote extends Equatable {
   final PersonalNoteStatus status;
 
   /// Full user supplied note content (trimmed, can span multiple lines).
+  /// For [PersonalNoteContentFormat.plain] this is plain text.
+  /// For [PersonalNoteContentFormat.quillDelta] this is Delta JSON.
   final String content;
+
+  /// Plain-text representation for search and previews.
+  final String contentPlain;
+
+  /// Content format.
+  final PersonalNoteContentFormat contentFormat;
 
   /// Creation timestamp.
   final DateTime createdAt;
@@ -47,6 +64,8 @@ class PersonalNote extends Equatable {
     required this.lastKnownLineNumber,
     required this.status,
     required this.content,
+    required this.contentPlain,
+    required this.contentFormat,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -65,6 +84,8 @@ class PersonalNote extends Equatable {
     int? lastKnownLineNumber,
     PersonalNoteStatus? status,
     String? content,
+    String? contentPlain,
+    PersonalNoteContentFormat? contentFormat,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -77,6 +98,8 @@ class PersonalNote extends Equatable {
       lastKnownLineNumber: lastKnownLineNumber ?? this.lastKnownLineNumber,
       status: status ?? this.status,
       content: content ?? this.content,
+      contentPlain: contentPlain ?? this.contentPlain,
+      contentFormat: contentFormat ?? this.contentFormat,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -91,6 +114,8 @@ class PersonalNote extends Equatable {
         lastKnownLineNumber,
         status,
         content,
+        contentPlain,
+        contentFormat,
         createdAt,
         updatedAt,
       ];

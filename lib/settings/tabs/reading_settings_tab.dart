@@ -256,6 +256,22 @@ class ReadingSettingsTab extends StatelessWidget {
         ),
         const Divider(height: 1),
         SwitchListTile(
+          title: const Text('הערות אישיות מקופלות כברירת מחדל',
+              style: TextStyle(fontSize: 16)),
+          subtitle: Text(
+              state.personalNotesCollapsedByDefault
+                  ? 'רשימות ההערות ייפתחו במצב סגור'
+                  : 'רשימות ההערות ייפתחו במצב פתוח',
+              style: const TextStyle(fontSize: 13)),
+          value: state.personalNotesCollapsedByDefault,
+          onChanged: (value) {
+            context
+                .read<SettingsBloc>()
+                .add(UpdatePersonalNotesCollapsedByDefault(value));
+          },
+        ),
+        const Divider(height: 1),
+        SwitchListTile(
           title: const Text('פתיחת סרגל צד כברירת מחדל', style: TextStyle(fontSize: 16)),
           subtitle: Text(state.defaultSidebarOpen
               ? 'סרגל הצד יפתח אוטומטית'

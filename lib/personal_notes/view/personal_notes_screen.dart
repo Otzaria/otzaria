@@ -8,8 +8,11 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
+import 'package:otzaria/personal_notes/services/personal_notes_import_export_service.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
+import 'package:otzaria/personal_notes/widgets/personal_note_editor.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_editor_dialog.dart';
+import 'package:otzaria/personal_notes/widgets/personal_notes_export_dialog.dart';
 import 'package:otzaria/widgets/dialogs.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
@@ -17,6 +20,7 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
 import 'package:otzaria/widgets/resizable_drag_handle.dart';
+import 'package:file_picker/file_picker.dart';
 
 class PersonalNotesManagerScreen extends StatefulWidget {
   const PersonalNotesManagerScreen({super.key});
@@ -29,6 +33,8 @@ class PersonalNotesManagerScreen extends StatefulWidget {
 class _PersonalNotesManagerScreenState
     extends State<PersonalNotesManagerScreen> {
   final PersonalNotesRepository _repository = PersonalNotesRepository();
+  final PersonalNotesImportExportService _importExportService =
+      PersonalNotesImportExportService();
 
   List<BookNotesInfo> _books = [];
   String? _selectedFilter; // null = all notes
@@ -228,9 +234,114 @@ class _PersonalNotesManagerScreenState
             onPressed: _loadBooks,
             icon: const Icon(FluentIcons.arrow_clockwise_24_regular),
           ),
+          const SizedBox(width: 8),
+          IconButton(
+            tooltip: 'ייצוא הערות',
+            onPressed: _exportNotes,
+            icon: const Icon(FluentIcons.arrow_download_24_regular),
+          ),
+          IconButton(
+            tooltip: 'ייבוא הערות',
+            onPressed: _importNotes,
+            icon: const Icon(FluentIcons.arrow_upload_24_regular),
+          ),
         ],
       ),
     );
+  }
+
+  List<PersonalNote> _collectAllNotes() {
+    final allNotes = <PersonalNote>[];
+    for (final book in _books) {
+      final state = _bookStates[book.bookId];
+      if (state == null) continue;
+      allNotes.addAll(state.locatedNotes);
+      allNotes.addAll(state.missingNotes);
+    }
+    return allNotes;
+  }
+
+  Future<void> _exportNotes() async {
+    final selection = await showDialog<NotesExportSelection>(
+      context: context,
+      builder: (context) => PersonalNotesExportDialog(
+        allNotes: _collectAllNotes(),
+      ),
+    );
+    if (!mounted) return;
+    if (selection == null || selection.notes.isEmpty) return;
+
+    final path = await FilePicker.platform.saveFile(
+      dialogTitle: 'בחר מיקום לשמירת קובץ הייצוא',
+      fileName: 'otzaria_notes_export.json',
+      allowedExtensions: ['json'],
+      type: FileType.custom,
+    );
+    if (!mounted) return;
+    if (path == null) return;
+
+    await _importExportService.exportToFile(
+      path: path,
+      notes: selection.notes,
+      description: selection.description,
+    );
+
+    if (!mounted) return;
+    UiSnack.show('הייצוא הושלם בהצלחה');
+  }
+
+  Future<void> _importNotes() async {
+    final picked = await FilePicker.platform.pickFiles(
+      dialogTitle: 'בחר קובץ ייבוא',
+      allowedExtensions: ['json'],
+      type: FileType.custom,
+    );
+    if (!mounted) return;
+    if (picked == null || picked.files.isEmpty) return;
+
+    final strategy = await showDialog<NotesImportConflictStrategy>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('ייבוא הערות - טיפול בהתנגשויות'),
+        content: const Text('כיצד לטפל בהערות קיימות עם אותו מזהה?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context)
+                .pop(NotesImportConflictStrategy.merge),
+            child: const Text('מזג'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context)
+                .pop(NotesImportConflictStrategy.skip),
+            child: const Text('דלג על כפולים'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context)
+                .pop(NotesImportConflictStrategy.keepBoth),
+            child: const Text('שמור גם וגם'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context)
+                .pop(NotesImportConflictStrategy.overwrite),
+            child: const Text('דרוס'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (strategy == null) return;
+
+    final summary = await _importExportService.importFromFile(
+      path: picked.files.first.path!,
+      strategy: strategy,
+    );
+
+    if (!mounted) return;
+    UiSnack.show(
+      'ייבוא הושלם: נוספו ${summary.inserted}, עודכנו ${summary.updated}, '
+      'דולגו ${summary.skipped}, שוכפלו ${summary.duplicated}',
+    );
+    _loadBooks();
   }
 
   Widget _buildNotesTree() {
@@ -664,7 +775,7 @@ class _PersonalNotesManagerScreenState
       final query = _searchQuery.toLowerCase();
       allNotes.removeWhere((noteWithBook) {
         final note = noteWithBook.note;
-        return !note.content.toLowerCase().contains(query) &&
+          return !note.contentPlain.toLowerCase().contains(query) &&
             !note.bookId.toLowerCase().contains(query) &&
             !(note.lineNumber?.toString().contains(query) ?? false);
       });
@@ -920,7 +1031,7 @@ class _PersonalNotesManagerScreenState
                 Padding(
                   padding: const EdgeInsets.only(bottom: 24),
                   child: Text(
-                    note.content,
+                    note.contentPlain,
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -960,19 +1071,24 @@ class _PersonalNotesManagerScreenState
   }
 
   Future<void> _editNote(PersonalNote note) async {
-    final controller = TextEditingController(text: note.content);
-    final result = await showDialog<String>(
+    final result = await showDialog<PersonalNoteEditorResult>(
       context: context,
       builder: (context) => PersonalNoteEditorDialog(
         title: 'ערוך הערה',
-        controller: controller,
+        initialContent: note.content,
+        initialContentFormat: note.contentFormat,
         referenceText: note.displayTitle,
         icon: FluentIcons.edit_24_regular,
+        bookId: note.bookId,
+        linkableNotes: [
+          ...context.read<PersonalNotesBloc>().state.locatedNotes,
+          ...context.read<PersonalNotesBloc>().state.missingNotes,
+        ],
       ),
     );
     if (result == null) return;
 
-    final trimmed = result.trim();
+    final trimmed = result.contentPlain.trim();
     if (trimmed.isEmpty) {
       UiSnack.show('ההערה ריקה, לא נשמרה');
       return;
@@ -983,7 +1099,9 @@ class _PersonalNotesManagerScreenState
           UpdatePersonalNote(
             bookId: note.bookId,
             noteId: note.id,
-            content: trimmed,
+            content: result.content,
+            contentPlain: result.contentPlain,
+            contentFormat: result.contentFormat,
           ),
         );
     UiSnack.show('ההערה עודכנה');

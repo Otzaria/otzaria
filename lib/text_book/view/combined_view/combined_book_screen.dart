@@ -645,9 +645,7 @@ $textWithBreaks
   }
 
   /// הצגת עורך ההערות
-  void _showNoteEditor() {
-    final controller = TextEditingController();
-
+  Future<void> _showNoteEditor() async {
     // שמירת ה-state הנוכחי לפני פתיחת הדיאלוג
     final state = _textBookBloc.state;
     if (state is! TextBookLoaded) return;
@@ -669,43 +667,28 @@ $textWithBreaks
             excludeBookTitle: widget.tab.book.title,
           );
 
-    showDialog(
-      context: context,
-      builder: (dialogContext) => PersonalNoteEditorDialog(
-        title: 'הוסף הערה',
-        controller: controller,
-        referenceText: referenceText,
-        icon: FluentIcons.note_add_24_regular,
-      ),
-    ).then((noteContent) async {
-      if (noteContent == null) return;
+    // טען טיוטה אם קיימת
+    final draftService = PersonalNoteDraftService();
+    final draft = await draftService.loadDraft(
+      bookId: widget.tab.book.title,
+      lineNumber: currentIndex + 1,
+    );
 
-      final trimmed = noteContent.trim();
-      if (trimmed.isEmpty) {
-        UiSnack.show('ההערה ריקה, לא נשמרה');
-        return;
-      }
+    if (!mounted) return;
 
-      if (!mounted) return;
+    // שלח event לפתיחת מצב יצירה בסיידבר
+    context.read<PersonalNotesBloc>().add(StartCreatingPersonalNote(
+          bookId: widget.tab.book.title,
+          lineNumber: currentIndex + 1,
+          referenceText: referenceText,
+          selectedText: selectedText?.trim(),
+          initialContent: draft?.content ?? '',
+          initialFormat:
+              draft?.contentFormat ?? PersonalNoteContentFormat.plain,
+        ));
 
-      try {
-        // מציאת מספר השורה על בסיס האינדקס שנשמר
-        final lineNumber = currentIndex + 1;
-
-        context.read<PersonalNotesBloc>().add(AddPersonalNote(
-              bookId: widget.tab.book.title,
-              lineNumber: lineNumber,
-              content: trimmed,
-              selectedText: selectedText?.trim(),
-            ));
-        UiSnack.show('ההערה נשמרה בהצלחה');
-
-        // פתיחת חלונית ההערות האישיות
-        widget.onOpenPersonalNotes?.call();
-      } catch (e) {
-        UiSnack.showError('שמירת ההערה נכשלה: $e');
-      }
-    });
+    // פתח את חלונית ההערות
+    widget.onOpenPersonalNotes?.call();
   }
 
   Widget buildKeyboardListener() {
@@ -850,7 +833,10 @@ $textWithBreaks
                                 itemCount: widget.data.length,
                                 itemBuilder: (context, index) {
                                   return buildExpansiomTile(
-                                      ExpansibleController(), index, state);
+                                      ExpansibleController(),
+                                      index,
+                                      state,
+                                      const <int, List<PersonalNote>>{});
                                 },
                               ),
                             )
@@ -866,7 +852,25 @@ $textWithBreaks
                                 accelerationFactor: 5,
                                 scrollController:
                                     widget.tab.mainOffsetController,
-                                child: buildOuterList(state),
+                                child: BlocBuilder<PersonalNotesBloc,
+                                    PersonalNotesState>(
+                                  builder: (context, notesState) {
+                                    final noteMap =
+                                        <int, List<PersonalNote>>{};
+                                    if (notesState.bookId ==
+                                        state.book.title) {
+                                      for (final note
+                                          in notesState.locatedNotes) {
+                                        final line = note.lineNumber;
+                                        if (line == null) continue;
+                                        noteMap
+                                            .putIfAbsent(line, () => [])
+                                            .add(note);
+                                      }
+                                    }
+                                    return buildOuterList(state, noteMap);
+                                  },
+                                ),
                               ),
                             ),
                     ),
@@ -880,7 +884,10 @@ $textWithBreaks
     );
   }
 
-  Widget buildOuterList(TextBookLoaded state) {
+  Widget buildOuterList(
+    TextBookLoaded state,
+    Map<int, List<PersonalNote>> noteMap,
+  ) {
     return ScrollablePositionedList.builder(
       key: ValueKey('combined-${widget.tab.book.title}'),
       initialScrollIndex: widget.tab.index,
@@ -890,7 +897,7 @@ $textWithBreaks
       itemCount: widget.data.length,
       itemBuilder: (context, index) {
         ExpansibleController controller = ExpansibleController();
-        return buildExpansiomTile(controller, index, state);
+        return buildExpansiomTile(controller, index, state, noteMap);
       },
     );
   }
@@ -899,9 +906,11 @@ $textWithBreaks
     ExpansibleController controller,
     int index,
     TextBookLoaded state,
+    Map<int, List<PersonalNote>> noteMap,
   ) {
     final isSelected = state.selectedIndex == index;
     final isHighlighted = state.highlightedLine == index;
+    final notesForLine = noteMap[index + 1] ?? const <PersonalNote>[];
 
     final theme = Theme.of(context);
     final backgroundColor = () {
@@ -1059,18 +1068,74 @@ $textWithBreaks
                           onOpenBook: widget.openBookCallback,
                         );
 
-                        // אם textMaxWidth הוא 0, הטקסט ימלא את כל הרוחב
-                        // אחרת, הטקסט יהיה ממורכז עם רוחב מקסימלי
-                        if (textMaxWidth > 0) {
-                          return Center(
-                            child: ConstrainedBox(
-                              constraints:
-                                  BoxConstraints(maxWidth: textMaxWidth),
-                              child: textWidget,
-                            ),
+                        final constrainedText = textMaxWidth > 0
+                            ? Center(
+                                child: ConstrainedBox(
+                                  constraints:
+                                      BoxConstraints(maxWidth: textMaxWidth),
+                                  child: textWidget,
+                                ),
+                              )
+                            : textWidget;
+
+                        if (notesForLine.isEmpty) {
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(width: 16),
+                              Expanded(child: constrainedText),
+                            ],
                           );
                         }
-                        return textWidget;
+
+                        final note = notesForLine.first;
+                        final indicator = Tooltip(
+                          message: note.contentPlain,
+                          child: GestureDetector(
+                            onTap: () {
+                              _textBookBloc.add(UpdateSelectedIndex(index));
+                              _textBookBloc.add(HighlightLine(index));
+                              if (widget.onOpenPersonalNotes != null) {
+                                widget.onOpenPersonalNotes!.call();
+                              } else {
+                                _textBookBloc.add(const ToggleLeftPane(true));
+                              }
+                            },
+                            onLongPress: () {
+                              showDialog<void>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const Text('הערה לשורה זו'),
+                                  content: PersonalNoteContentView(note: note),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.of(context).pop(),
+                                      child: const Text('סגור'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                            child: Padding(
+                              padding:
+                                  const EdgeInsets.only(left: 6, right: 2),
+                              child: Icon(
+                                FluentIcons.note_24_filled,
+                                size: 12,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                            ),
+                          ),
+                        );
+
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            indicator,
+                            Expanded(child: constrainedText),
+                          ],
+                        );
                       },
                     );
                   },

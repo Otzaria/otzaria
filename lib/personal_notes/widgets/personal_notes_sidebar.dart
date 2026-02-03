@@ -6,11 +6,15 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
-import 'package:otzaria/personal_notes/widgets/personal_note_editor_dialog.dart';
+import 'package:otzaria/personal_notes/widgets/personal_note_content_view.dart';
+import 'package:otzaria/personal_notes/widgets/personal_note_editor.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/widgets/dialogs.dart';
+import 'package:otzaria/widgets/selection_dialog.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
+import 'package:otzaria/settings/settings_repository.dart';
+import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 
 class PersonalNotesSidebar extends StatefulWidget {
   final String bookId;
@@ -23,13 +27,23 @@ class PersonalNotesSidebar extends StatefulWidget {
   });
 
   @override
-  State<PersonalNotesSidebar> createState() => _PersonalNotesSidebarState();
+  State<PersonalNotesSidebar> createState() => PersonalNotesSidebarState();
+
+  // פונקציה סטטית לגישה ל-state מבחוץ
+  static PersonalNotesSidebarState? of(BuildContext context) {
+    return context.findAncestorStateOfType<PersonalNotesSidebarState>();
+  }
 }
 
-class _PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
+class PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   bool _showOnlyVisible = true; // ברירת מחדל: הצג רק הערות לטקסט הנראה
+
+  // קונטרולרים לעורך הערה חדשה
+  PersonalNoteEditorController? _newNoteController;
+  final FocusNode _newNoteFocusNode = FocusNode();
+  final ScrollController _newNoteScrollController = ScrollController();
 
   @override
   void initState() {
@@ -46,6 +60,7 @@ class _PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
     if (oldWidget.bookId != widget.bookId) {
       _searchController.clear();
       _searchQuery = '';
+      _cancelNewNote(); // ביטול יצירת הערה אם עוברים לספר אחר
       context.read<PersonalNotesBloc>().add(LoadPersonalNotes(widget.bookId));
     }
   }
@@ -53,29 +68,105 @@ class _PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
   @override
   void dispose() {
     _searchController.dispose();
+    _newNoteFocusNode.dispose();
+    _newNoteScrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _cancelNewNote({bool confirmIfDirty = true}) async {
+    if (!mounted) return;
+
+    if (confirmIfDirty && _newNoteController != null) {
+      final result = _newNoteController!.buildResult();
+      if (result.contentPlain.trim().isNotEmpty) {
+        final shouldDiscard = await showConfirmationDialog(
+          context: context,
+          title: 'לבטל הערה?',
+          content: 'יש הערה שלא נשמרה. האם לבטל ולמחוק את הטיוטה?',
+          confirmText: 'מחק טיוטה',
+          isDangerous: true,
+        );
+        if (shouldDiscard != true) {
+          return;
+        }
+      }
+    }
+
+    setState(() {
+      _newNoteController = null;
+    });
+    context.read<PersonalNotesBloc>().add(const CancelCreatingPersonalNote());
+  }
+
+  void _saveNewNote() {
+    if (_newNoteController == null) return;
+
+    final bloc = context.read<PersonalNotesBloc>();
+    final lineNumber = bloc.state.newNoteLineNumber;
+    final selectedText = bloc.state.newNoteSelectedText;
+
+    if (lineNumber == null) return;
+
+    final result = _newNoteController!.buildResult();
+    final trimmed = result.contentPlain.trim();
+
+    if (trimmed.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ההערה ריקה, לא נשמרה')),
+      );
+      return;
+    }
+
+    bloc.add(AddPersonalNote(
+      bookId: widget.bookId,
+      lineNumber: lineNumber,
+      content: result.content,
+      contentPlain: result.contentPlain,
+      contentFormat: result.contentFormat,
+      selectedText: selectedText?.trim(),
+    ));
+
+    _cancelNewNote(confirmIfDirty: false);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('ההערה נשמרה בהצלחה')),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<TextBookBloc, TextBookState>(
+    return BlocBuilder<PersonalNotesBloc, PersonalNotesState>(
       buildWhen: (previous, current) {
-        if (previous is TextBookLoaded && current is TextBookLoaded) {
-          return previous.visibleIndices != current.visibleIndices;
+        // תמיד rebuild אם משהו השתנה ביצירת הערה חדשה
+        if (previous.isCreatingNewNote != current.isCreatingNewNote) {
+          print(
+              'DEBUG: buildWhen - isCreatingNewNote changed: ${previous.isCreatingNewNote} -> ${current.isCreatingNewNote}');
+          return true;
         }
-        return true;
+        // rebuild אם זה הספר הנכון
+        final shouldBuild = current.bookId == widget.bookId;
+        print(
+            'DEBUG: buildWhen - bookId match: ${current.bookId} == ${widget.bookId} = $shouldBuild');
+        return shouldBuild;
       },
-      builder: (context, textBookState) {
-        final visibleIndices = textBookState is TextBookLoaded
-            ? textBookState.visibleIndices
-            : <int>[];
+      builder: (context, state) {
+        print(
+            'DEBUG: Building sidebar for ${widget.bookId}, isCreatingNewNote=${state.isCreatingNewNote}');
+        if (state.isLoading) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-        return BlocBuilder<PersonalNotesBloc, PersonalNotesState>(
-          buildWhen: (previous, current) => current.bookId == widget.bookId,
-          builder: (context, state) {
-            if (state.isLoading) {
-              return const Center(child: CircularProgressIndicator());
+        return BlocBuilder<TextBookBloc, TextBookState>(
+          buildWhen: (previous, current) {
+            if (previous is TextBookLoaded && current is TextBookLoaded) {
+              return previous.visibleIndices != current.visibleIndices;
             }
+            return true;
+          },
+          builder: (context, textBookState) {
+            final visibleIndices = textBookState is TextBookLoaded
+                ? textBookState.visibleIndices
+                : <int>[];
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -83,7 +174,16 @@ class _PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
                 _buildHeader(context, state, visibleIndices),
                 const Divider(height: 1),
                 Expanded(
-                  child: _buildContent(context, state, visibleIndices),
+                  child: _buildContent(
+                    context,
+                    state,
+                    visibleIndices,
+                    selectedLineNumber: textBookState is TextBookLoaded
+                        ? (textBookState.selectedIndex != null
+                            ? textBookState.selectedIndex! + 1
+                            : null)
+                        : null,
+                  ),
                 ),
               ],
             );
@@ -199,8 +299,12 @@ class _PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
     );
   }
 
-  Widget _buildContent(BuildContext context, PersonalNotesState state,
-      List<int> visibleIndices) {
+  Widget _buildContent(
+    BuildContext context,
+    PersonalNotesState state,
+    List<int> visibleIndices, {
+    int? selectedLineNumber,
+  }) {
     if (state.errorMessage != null) {
       return Center(
         child: Padding(
@@ -211,12 +315,6 @@ class _PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
             style: TextStyle(color: Theme.of(context).colorScheme.error),
           ),
         ),
-      );
-    }
-
-    if (state.locatedNotes.isEmpty && state.missingNotes.isEmpty) {
-      return const Center(
-        child: Text('אין עדיין הערות על ספר זה'),
       );
     }
 
@@ -235,7 +333,7 @@ class _PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
         ? locatedNotes
         : locatedNotes.where((note) {
             final query = _searchQuery.toLowerCase();
-            return note.content.toLowerCase().contains(query) ||
+            return note.contentPlain.toLowerCase().contains(query) ||
                 note.lineNumber.toString().contains(query);
           }).toList();
 
@@ -246,102 +344,297 @@ class _PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
             ? state.missingNotes
             : state.missingNotes.where((note) {
                 final query = _searchQuery.toLowerCase();
-                return note.content.toLowerCase().contains(query) ||
+                return note.contentPlain.toLowerCase().contains(query) ||
                     (note.lastKnownLineNumber?.toString().contains(query) ??
                         false);
               }).toList());
 
-    // אם אין תוצאות
-    if (filteredLocatedNotes.isEmpty && filteredMissingNotes.isEmpty) {
+    final defaultExpanded = !(Settings.getValue<bool>(
+            SettingsRepository.keyPersonalNotesCollapsedByDefault) ??
+        true);
+
+    print(
+        'DEBUG: Checking controller - isCreatingNewNote=${state.isCreatingNewNote}, _newNoteController==null=${_newNoteController == null}');
+
+    // בנה קונטרולר אם צריך
+    if (state.isCreatingNewNote && _newNoteController == null) {
+      print(
+          'DEBUG: Building new note controller for line ${state.newNoteLineNumber}');
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        print('DEBUG: Setting state to create controller');
+        setState(() {
+          _newNoteController = buildPersonalNoteEditorController(
+            initialContent: state.newNoteInitialContent ?? '',
+            initialFormat:
+                state.newNoteInitialFormat ?? PersonalNoteContentFormat.plain,
+          );
+        });
+        _newNoteFocusNode.requestFocus();
+      });
+    }
+
+    print(
+        'DEBUG: Building sidebar - isCreatingNewNote=${state.isCreatingNewNote}, hasController=${_newNoteController != null}');
+
+    final items = <Widget>[];
+
+    // עורך הערה חדשה
+    if (state.isCreatingNewNote && _newNoteController != null) {
+      items.add(
+        Container(
+          margin: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Theme.of(context)
+                .colorScheme
+                .primaryContainer
+                .withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.primary,
+              width: 2,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    FluentIcons.note_add_24_regular,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'הערה חדשה - שורה ${state.newNoteLineNumber}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'ביטול',
+                    icon: const Icon(FluentIcons.dismiss_24_regular),
+                    onPressed: _cancelNewNote,
+                    iconSize: 20,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              PersonalNoteEditorBody(
+                controller: _newNoteController!,
+                focusNode: _newNoteFocusNode,
+                scrollController: _newNoteScrollController,
+                autofocus: true,
+                referenceText: state.newNoteReferenceText,
+                bookId: widget.bookId,
+                linkableNotes: [
+                  ...state.locatedNotes,
+                  ...state.missingNotes,
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: _cancelNewNote,
+                    child: const Text('ביטול'),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    onPressed: _saveNewNote,
+                    child: const Text('שמור'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (filteredLocatedNotes.isNotEmpty) {
+      items.addAll(
+        filteredLocatedNotes.map(
+          (note) => _LocatedNoteTile(
+            note: note,
+              onTap: () => widget.onNavigateToLine(note.lineNumber!),
+              onInlineSave: (result) => _saveInline(context, note, result),
+              onDelete: () => _confirmDelete(context, note),
+              onLinkTap: (url) => _handleNoteLinkTap(context, url),
+              onReanchor: () => _reanchorNote(
+                    context,
+                    note,
+                    selectedLineNumber,
+                  ),
+              searchQuery: _searchQuery,
+              defaultExpanded: defaultExpanded,
+              bookId: widget.bookId,
+              linkableNotes: [
+              ...state.locatedNotes,
+              ...state.missingNotes,
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (filteredMissingNotes.isNotEmpty) {
+      if (filteredLocatedNotes.isNotEmpty) {
+        items.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text(
+              'הערות חסרות מיקום',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.5),
+                  ),
+            ),
+          ),
+        );
+      }
+      items.addAll(
+        filteredMissingNotes.map(
+          (note) => _MissingNoteTile(
+            note: note,
+            onReposition: () => _reposition(context, note),
+            onInlineSave: (result) => _saveInline(context, note, result),
+            onDelete: () => _confirmDelete(context, note),
+            onLinkTap: (url) => _handleNoteLinkTap(context, url),
+            searchQuery: _searchQuery,
+            defaultExpanded: defaultExpanded,
+            bookId: widget.bookId,
+            linkableNotes: [
+              ...state.locatedNotes,
+              ...state.missingNotes,
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (items.isEmpty) {
       final message = _showOnlyVisible && visibleIndices.isNotEmpty
           ? 'אין הערות לטקסט הנראה במסך'
           : (_searchQuery.isNotEmpty
               ? 'לא נמצאו הערות התואמות לחיפוש'
               : 'אין עדיין הערות על ספר זה');
-      return Center(
-        child: Padding(
+      items.add(
+        Padding(
           padding: const EdgeInsets.all(16.0),
-          child: Text(
-            message,
-            style: TextStyle(
-              color: Theme.of(context)
-                  .colorScheme
-                  .onSurface
-                  .withValues(alpha: 0.6),
+          child: Center(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurface
+                    .withValues(alpha: 0.6),
+              ),
             ),
           ),
         ),
       );
     }
 
+    if (state.isLoading) {
+      items.add(
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 16),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
+
     return ListView(
       padding: EdgeInsets.zero,
-      children: [
-        if (filteredLocatedNotes.isNotEmpty) ...[
-          ...filteredLocatedNotes.map(
-            (note) => _LocatedNoteTile(
-              note: note,
-              onTap: () => widget.onNavigateToLine(note.lineNumber!),
-              onEdit: () => _editNote(context, note),
-              onDelete: () => _confirmDelete(context, note),
-              searchQuery: _searchQuery,
-            ),
-          ),
-        ],
-        if (filteredMissingNotes.isNotEmpty) ...[
-          if (filteredLocatedNotes.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Text(
-                'הערות חסרות מיקום',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(alpha: 0.5),
-                    ),
-              ),
-            ),
-          ...filteredMissingNotes.map(
-            (note) => _MissingNoteTile(
-              note: note,
-              onReposition: () => _reposition(context, note),
-              onEdit: () => _editNote(context, note),
-              onDelete: () => _confirmDelete(context, note),
-              searchQuery: _searchQuery,
-            ),
-          ),
-        ],
-        if (state.isLoading)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 16),
-            child: Center(child: CircularProgressIndicator()),
-          ),
-      ],
+      children: items,
     );
   }
 
-  Future<void> _editNote(BuildContext context, PersonalNote note) async {
-    final controller = TextEditingController(text: note.content);
-    final bloc = context.read<PersonalNotesBloc>();
-    final result = await showDialog<String>(
-      context: context,
-      builder: (context) => PersonalNoteEditorDialog(
-        title: 'ערוך הערה',
-        controller: controller,
-        referenceText: note.displayTitle,
-        icon: FluentIcons.edit_24_regular,
-      ),
-    );
-    if (result == null) return;
+  void _saveInline(
+    BuildContext context,
+    PersonalNote note,
+    PersonalNoteEditorResult result,
+  ) {
     if (!mounted) return;
-    bloc.add(
-      UpdatePersonalNote(
-        bookId: widget.bookId,
-        noteId: note.id,
-        content: result,
-      ),
-    );
+    if (result.contentPlain.trim().isEmpty) return;
+    context.read<PersonalNotesBloc>().add(
+          UpdatePersonalNote(
+            bookId: widget.bookId,
+            noteId: note.id,
+            content: result.content,
+            contentPlain: result.contentPlain,
+            contentFormat: result.contentFormat,
+          ),
+        );
+  }
+
+  Future<void> _handleNoteLinkTap(BuildContext context, String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    if (uri.scheme != 'otzaria') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('קישור חיצוני: $url')),
+      );
+      return;
+    }
+
+    switch (uri.host) {
+      case 'book':
+        final bookId = uri.queryParameters['bookId'] ?? '';
+        final line = int.tryParse(uri.queryParameters['line'] ?? '');
+        if (line == null) return;
+        if (bookId.isEmpty || bookId == widget.bookId) {
+          widget.onNavigateToLine(line);
+          return;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('קישור לספר אחר: $bookId')),
+        );
+        return;
+      case 'note':
+        final noteId = uri.queryParameters['id'];
+        if (noteId == null) return;
+        final state = context.read<PersonalNotesBloc>().state;
+        final allNotes = [...state.locatedNotes, ...state.missingNotes];
+        PersonalNote? note;
+        for (final candidate in allNotes) {
+          if (candidate.id == noteId) {
+            note = candidate;
+            break;
+          }
+        }
+        if (note == null) return;
+        if (note.lineNumber != null) {
+          widget.onNavigateToLine(note.lineNumber!);
+          return;
+        }
+        await showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('הערה מקושרת'),
+            content: PersonalNoteContentView(note: note!),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('סגור'),
+              ),
+            ],
+          ),
+        );
+        return;
+      default:
+        return;
+    }
   }
 
   Future<void> _confirmDelete(BuildContext context, PersonalNote note) async {
@@ -393,21 +686,101 @@ class _PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
       );
     }
   }
+
+  void _reanchorToSelectedLine(
+    BuildContext context,
+    PersonalNote note,
+    int selectedLineNumber,
+  ) {
+    final bloc = context.read<PersonalNotesBloc>();
+    bloc.add(
+      RepositionPersonalNote(
+        bookId: widget.bookId,
+        noteId: note.id,
+        lineNumber: selectedLineNumber,
+      ),
+    );
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('ההערה שויכה לשורה $selectedLineNumber')),
+    );
+  }
+
+  Future<void> _reanchorNote(
+    BuildContext context,
+    PersonalNote note,
+    int? selectedLineNumber,
+  ) async {
+    if (selectedLineNumber != null) {
+      final choice = await showSelectionDialog<String>(
+        context: context,
+        title: 'שינוי שיוך הערה',
+        items: [
+          SelectionItem(
+            label: 'שייך לשורה נבחרת ($selectedLineNumber)',
+            value: 'selected',
+          ),
+          const SelectionItem(
+            label: 'הקלד מספר שורה',
+            value: 'manual',
+          ),
+        ],
+      );
+      if (choice == 'selected') {
+        if (!mounted) return;
+        _reanchorToSelectedLine(context, note, selectedLineNumber);
+        return;
+      }
+      if (choice == null) return;
+    }
+
+    final result = await showInputDialog(
+      context: context,
+      title: 'שנה שיוך הערה',
+      subtitle:
+          note.lineNumber != null ? 'מיקום נוכחי: שורה ${note.lineNumber}' : null,
+      labelText: 'שורה חדשה',
+      hintText: 'הקלד מספר שורה',
+      initialValue: note.lineNumber?.toString() ?? '',
+      keyboardType: TextInputType.number,
+    );
+
+    final newLine = result != null ? int.tryParse(result) : null;
+    if (newLine != null) {
+      if (!mounted) return;
+      context.read<PersonalNotesBloc>().add(
+            RepositionPersonalNote(
+              bookId: widget.bookId,
+              noteId: note.id,
+              lineNumber: newLine,
+            ),
+          );
+    }
+  }
 }
 
 class _LocatedNoteTile extends StatefulWidget {
   final PersonalNote note;
   final VoidCallback onTap;
-  final VoidCallback onEdit;
+  final ValueChanged<PersonalNoteEditorResult> onInlineSave;
+  final VoidCallback? onReanchor;
   final VoidCallback onDelete;
+  final ValueChanged<String> onLinkTap;
   final String searchQuery;
+  final bool defaultExpanded;
+  final String bookId;
+  final List<PersonalNote> linkableNotes;
 
   const _LocatedNoteTile({
     required this.note,
     required this.onTap,
-    required this.onEdit,
+    required this.onInlineSave,
+    this.onReanchor,
     required this.onDelete,
+    required this.onLinkTap,
     this.searchQuery = '',
+    required this.defaultExpanded,
+    required this.bookId,
+    required this.linkableNotes,
   });
 
   @override
@@ -415,7 +788,42 @@ class _LocatedNoteTile extends StatefulWidget {
 }
 
 class _LocatedNoteTileState extends State<_LocatedNoteTile> {
-  bool _isExpanded = true;
+  late bool _isExpanded;
+  bool _isInlineEditing = false;
+  PersonalNoteEditorController? _inlineController;
+  final FocusNode _inlineFocusNode = FocusNode();
+  final ScrollController _inlineScrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _isExpanded = widget.defaultExpanded;
+  }
+
+  @override
+  void dispose() {
+    _inlineFocusNode.dispose();
+    _inlineScrollController.dispose();
+    super.dispose();
+  }
+
+  void _startInlineEdit() {
+    setState(() {
+      _isExpanded = true;
+      _isInlineEditing = true;
+      _inlineController = buildPersonalNoteEditorController(
+        initialContent: widget.note.content,
+        initialFormat: widget.note.contentFormat,
+      );
+    });
+  }
+
+  void _cancelInlineEdit() {
+    setState(() {
+      _isInlineEditing = false;
+      _inlineController = null;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -441,7 +849,7 @@ class _LocatedNoteTileState extends State<_LocatedNoteTile> {
                   ),
                 ),
                 _NoteActions(
-                  onEdit: widget.onEdit,
+                  onEdit: _startInlineEdit,
                   onDelete: widget.onDelete,
                   isExpanded: _isExpanded,
                   onToggleExpansion: () {
@@ -449,6 +857,20 @@ class _LocatedNoteTileState extends State<_LocatedNoteTile> {
                       _isExpanded = !_isExpanded;
                     });
                   },
+                  extraAction: widget.onReanchor == null
+                      ? null
+                      : IconButton(
+                          tooltip: 'שנה שיוך לשורה נבחרת',
+                          icon:
+                              const Icon(FluentIcons.pin_24_regular, size: 18),
+                          iconSize: 18,
+                          padding: const EdgeInsets.all(8),
+                          constraints: const BoxConstraints(
+                            minWidth: 32,
+                            minHeight: 32,
+                          ),
+                          onPressed: widget.onReanchor,
+                        ),
                 ),
               ],
             ),
@@ -465,14 +887,51 @@ class _LocatedNoteTileState extends State<_LocatedNoteTile> {
                     color: Theme.of(context).colorScheme.surface,
                     child: Align(
                       alignment: Alignment.centerRight,
-                      child: Text(
-                        widget.note.content,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              height: 1.5,
+                      child: _isInlineEditing && _inlineController != null
+                          ? Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                PersonalNoteEditorBody(
+                                  controller: _inlineController!,
+                                  focusNode: _inlineFocusNode,
+                                  scrollController: _inlineScrollController,
+                                  autofocus: true,
+                                  referenceText: widget.note.displayTitle,
+                                  bookId: widget.bookId,
+                                  linkableNotes: widget.linkableNotes,
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    TextButton(
+                                      onPressed: _cancelInlineEdit,
+                                      child: const Text('ביטול'),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    FilledButton(
+                                      onPressed: () {
+                                        final result =
+                                            _inlineController!.buildResult();
+                                        widget.onInlineSave(result);
+                                        _cancelInlineEdit();
+                                      },
+                                      child: const Text('שמור'),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            )
+                          : PersonalNoteContentView(
+                              note: widget.note,
+                              textStyle: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(
+                                    height: 1.5,
+                                  ),
+                              onLinkTap: widget.onLinkTap,
                             ),
-                        textAlign: TextAlign.justify,
-                        textDirection: TextDirection.rtl,
-                      ),
                     ),
                   ),
                 )
@@ -491,16 +950,24 @@ class _LocatedNoteTileState extends State<_LocatedNoteTile> {
 class _MissingNoteTile extends StatefulWidget {
   final PersonalNote note;
   final VoidCallback onReposition;
-  final VoidCallback onEdit;
+  final ValueChanged<PersonalNoteEditorResult> onInlineSave;
   final VoidCallback onDelete;
+  final ValueChanged<String> onLinkTap;
   final String searchQuery;
+  final bool defaultExpanded;
+  final String bookId;
+  final List<PersonalNote> linkableNotes;
 
   const _MissingNoteTile({
     required this.note,
     required this.onReposition,
-    required this.onEdit,
+    required this.onInlineSave,
     required this.onDelete,
+    required this.onLinkTap,
     this.searchQuery = '',
+    required this.defaultExpanded,
+    required this.bookId,
+    required this.linkableNotes,
   });
 
   @override
@@ -508,7 +975,42 @@ class _MissingNoteTile extends StatefulWidget {
 }
 
 class _MissingNoteTileState extends State<_MissingNoteTile> {
-  bool _isExpanded = true;
+  late bool _isExpanded;
+  bool _isInlineEditing = false;
+  PersonalNoteEditorController? _inlineController;
+  final FocusNode _inlineFocusNode = FocusNode();
+  final ScrollController _inlineScrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _isExpanded = widget.defaultExpanded;
+  }
+
+  @override
+  void dispose() {
+    _inlineFocusNode.dispose();
+    _inlineScrollController.dispose();
+    super.dispose();
+  }
+
+  void _startInlineEdit() {
+    setState(() {
+      _isExpanded = true;
+      _isInlineEditing = true;
+      _inlineController = buildPersonalNoteEditorController(
+        initialContent: widget.note.content,
+        initialFormat: widget.note.contentFormat,
+      );
+    });
+  }
+
+  void _cancelInlineEdit() {
+    setState(() {
+      _isInlineEditing = false;
+      _inlineController = null;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -535,7 +1037,7 @@ class _MissingNoteTileState extends State<_MissingNoteTile> {
                   ),
                 ),
                 _NoteActions(
-                  onEdit: widget.onEdit,
+                  onEdit: _startInlineEdit,
                   onDelete: widget.onDelete,
                   isExpanded: _isExpanded,
                   onToggleExpansion: () {
@@ -593,17 +1095,52 @@ class _MissingNoteTileState extends State<_MissingNoteTile> {
                           ),
                         Align(
                           alignment: Alignment.centerRight,
-                          child: Text(
-                            widget.note.content,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
-                                ?.copyWith(
-                                  height: 1.5,
+                          child: _isInlineEditing && _inlineController != null
+                              ? Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    PersonalNoteEditorBody(
+                                      controller: _inlineController!,
+                                      focusNode: _inlineFocusNode,
+                                      scrollController: _inlineScrollController,
+                                      autofocus: true,
+                                      referenceText: widget.note.displayTitle,
+                                      bookId: widget.bookId,
+                                      linkableNotes: widget.linkableNotes,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.end,
+                                      children: [
+                                        TextButton(
+                                          onPressed: _cancelInlineEdit,
+                                          child: const Text('ביטול'),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        FilledButton(
+                                          onPressed: () {
+                                            final result = _inlineController!
+                                                .buildResult();
+                                            widget.onInlineSave(result);
+                                            _cancelInlineEdit();
+                                          },
+                                          child: const Text('שמור'),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                )
+                              : PersonalNoteContentView(
+                                  note: widget.note,
+                                  textStyle: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(
+                                        height: 1.5,
+                                      ),
+                                  onLinkTap: widget.onLinkTap,
                                 ),
-                            textAlign: TextAlign.justify,
-                            textDirection: TextDirection.rtl,
-                          ),
                         ),
                       ],
                     ),

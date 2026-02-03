@@ -316,3 +316,12 @@ class UpdateEnableHtmlLinks extends SettingsEvent {
   @override
   List<Object?> get props => [enableHtmlLinks];
 }
+
+class UpdatePersonalNotesCollapsedByDefault extends SettingsEvent {
+  final bool collapsedByDefault;
+
+  const UpdatePersonalNotesCollapsedByDefault(this.collapsedByDefault);
+
+  @override
+  List<Object?> get props => [collapsedByDefault];
+}

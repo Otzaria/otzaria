@@ -240,6 +240,8 @@ class _MetadataOnlyNote {
       lastKnownLineNumber: lastKnownLine,
       status: status,
       content: content,
+      contentPlain: content,
+      contentFormat: PersonalNoteContentFormat.plain,
       createdAt: createdAt,
       updatedAt: updatedAt,
     );

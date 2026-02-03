@@ -60,6 +60,7 @@ void main() {
         'enablePerBookSettings': true,
         'shortcuts': <String, String>{},
         'isOfflineMode': false,
+        'personalNotesCollapsedByDefault': true,
       };
 
       blocTest<SettingsBloc, SettingsState>(
@@ -112,6 +113,9 @@ void main() {
             alignTabsToRight:
                 mockSettings['alignTabsToRight'] as bool? ?? false,
             enableHtmlLinks: mockSettings['enableHtmlLinks'] as bool? ?? true,
+            personalNotesCollapsedByDefault:
+              mockSettings['personalNotesCollapsedByDefault'] as bool? ??
+                true,
           ),
         ],
         verify: (_) {

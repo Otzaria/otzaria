@@ -1,20 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:otzaria/widgets/rtl_text_field.dart';
+import 'package:otzaria/personal_notes/models/personal_note.dart';
+import 'package:otzaria/personal_notes/services/personal_note_draft_service.dart';
+import 'package:otzaria/personal_notes/widgets/personal_note_editor.dart';
 
 class PersonalNoteEditorDialog extends StatefulWidget {
-  final TextEditingController controller;
+  final String initialContent;
+  final PersonalNoteContentFormat initialContentFormat;
   final String title;
   final String? referenceText;
   final IconData? icon;
+  final String? bookId;
+  final List<PersonalNote> linkableNotes;
+  final int? draftLineNumber;
 
-  PersonalNoteEditorDialog({
+  const PersonalNoteEditorDialog({
     super.key,
-    TextEditingController? controller,
+    this.initialContent = '',
+    this.initialContentFormat = PersonalNoteContentFormat.plain,
     this.title = 'הערה חדשה',
     this.referenceText,
     this.icon,
-  }) : controller = controller ?? TextEditingController();
+    this.bookId,
+    this.linkableNotes = const [],
+    this.draftLineNumber,
+  });
 
   @override
   State<PersonalNoteEditorDialog> createState() =>
@@ -24,22 +34,32 @@ class PersonalNoteEditorDialog extends StatefulWidget {
 class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog> {
   int _focusedButtonIndex = 1; // 0 = ביטול, 1 = שמור (ברירת מחדל)
   final FocusNode _textFieldFocusNode = FocusNode();
-  String _initialText = '';
+  late final PersonalNoteEditorController _editorController;
+  late final ScrollController _scrollController;
+  late final PersonalNoteEditorResult _initialResult;
+  final PersonalNoteDraftService _draftService = PersonalNoteDraftService();
   bool _hasUnsavedChanges = false;
 
   @override
   void initState() {
     super.initState();
-    _initialText = widget.controller.text;
-    widget.controller.addListener(_checkForChanges);
+    _scrollController = ScrollController();
+    _editorController = buildPersonalNoteEditorController(
+      initialContent: widget.initialContent,
+      initialFormat: widget.initialContentFormat,
+    );
+    _initialResult = _editorController.buildResult();
+    _editorController.quillController.addListener(_checkForChanges);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _textFieldFocusNode.requestFocus();
     });
   }
 
   void _checkForChanges() {
-    final hasChanges = widget.controller.text.trim() != _initialText.trim() &&
-        widget.controller.text.trim().isNotEmpty;
+    final current = _editorController.buildResult();
+    final hasChanges = current.contentPlain.trim() !=
+            _initialResult.contentPlain.trim() &&
+        current.contentPlain.trim().isNotEmpty;
     if (hasChanges != _hasUnsavedChanges) {
       setState(() {
         _hasUnsavedChanges = hasChanges;
@@ -49,8 +69,9 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog> {
 
   @override
   void dispose() {
-    widget.controller.removeListener(_checkForChanges);
+    _editorController.quillController.removeListener(_checkForChanges);
     _textFieldFocusNode.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -59,25 +80,41 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog> {
       return true;
     }
 
-    final result = await showDialog<bool>(
+    final result = await showDialog<_DraftDecision>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('אזהרה'),
-        content: const Text('ההערה לא נשמרה, לסגור?'),
+        content: const Text('ההערה לא נשמרה. לשמור טיוטה?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
+            onPressed: () =>
+                Navigator.of(context).pop(_DraftDecision.cancel),
             child: const Text('ביטול'),
           ),
+          TextButton(
+            onPressed: () =>
+                Navigator.of(context).pop(_DraftDecision.discard),
+            child: const Text('סגור בלי לשמור'),
+          ),
           FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('סגור'),
+            onPressed: () =>
+                Navigator.of(context).pop(_DraftDecision.saveDraft),
+            child: const Text('שמור טיוטה'),
           ),
         ],
       ),
     );
 
-    return result ?? false;
+    if (result == _DraftDecision.saveDraft) {
+      await _saveDraftIfPossible();
+      return true;
+    }
+
+    if (result == _DraftDecision.discard) {
+      return true;
+    }
+
+    return false;
   }
 
   Future<void> _handleCancel() async {
@@ -89,11 +126,37 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog> {
   }
 
   void _submit() {
-    final text = widget.controller.text.trim();
-    if (text.isEmpty) {
+    final result = _editorController.buildResult();
+    if (result.contentPlain.trim().isEmpty) {
       return;
     }
-    Navigator.of(context).pop(text);
+    _clearDraftIfPossible();
+    Navigator.of(context).pop(result);
+  }
+
+  Future<void> _saveDraftIfPossible() async {
+    final bookId = widget.bookId;
+    final lineNumber = widget.draftLineNumber;
+    if (bookId == null || lineNumber == null) return;
+    final result = _editorController.buildResult();
+    if (result.contentPlain.trim().isEmpty) return;
+    await _draftService.saveDraft(
+      bookId: bookId,
+      lineNumber: lineNumber,
+      draft: PersonalNoteDraft(
+        content: result.content,
+        contentPlain: result.contentPlain,
+        contentFormat: result.contentFormat,
+        updatedAt: DateTime.now(),
+      ),
+    );
+  }
+
+  Future<void> _clearDraftIfPossible() async {
+    final bookId = widget.bookId;
+    final lineNumber = widget.draftLineNumber;
+    if (bookId == null || lineNumber == null) return;
+    await _draftService.clearDraft(bookId: bookId, lineNumber: lineNumber);
   }
 
   @override
@@ -171,71 +234,14 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog> {
               maxWidth: 480,
               minWidth: 450,
             ),
-            child: Container(
-              decoration: BoxDecoration(
-                border: Border.all(
-                  color: Theme.of(context).colorScheme.outline,
-                  width: 1.5,
-                ),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (widget.referenceText != null &&
-                      widget.referenceText!.isNotEmpty) ...[
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .surfaceContainerHighest
-                            .withValues(alpha: 0.5),
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(4),
-                          topRight: Radius.circular(4),
-                        ),
-                      ),
-                      child: Text(
-                        widget.referenceText!,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w500,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
-                            ),
-                        textAlign: TextAlign.right,
-                        textDirection: TextDirection.rtl,
-                      ),
-                    ),
-                    Divider(
-                      height: 1,
-                      thickness: 1,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .outline
-                          .withValues(alpha: 0.3),
-                    ),
-                  ],
-                  Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: RtlTextField(
-                      controller: widget.controller,
-                      focusNode: _textFieldFocusNode,
-                      minLines: 6,
-                      maxLines: 12,
-                      autofocus: true,
-                      keyboardType: TextInputType.multiline,
-                      decoration: const InputDecoration(
-                        hintText: 'כתוב כאן\n(Alt+Enter לשמירה)',
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.all(4),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+            child: PersonalNoteEditorBody(
+              controller: _editorController,
+              focusNode: _textFieldFocusNode,
+              scrollController: _scrollController,
+              autofocus: true,
+              referenceText: widget.referenceText,
+              bookId: widget.bookId,
+              linkableNotes: widget.linkableNotes,
             ),
           ),
           actions: [
@@ -286,4 +292,10 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog> {
       );
     }
   }
+}
+
+enum _DraftDecision {
+  saveDraft,
+  discard,
+  cancel,
 }
