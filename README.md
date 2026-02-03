@@ -206,6 +206,31 @@ Don't forget to give the project a star! Thanks again!
 4. Push to the Branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
+### Build Troubleshooting
+
+**SSL Certificate Error on Filtered Networks (NetFree, etc.)**
+
+If you encounter an SSL certificate error when building on Windows with a filtered network:
+
+```
+status_code: 60
+status_string: "SSL peer certificate or SSH remote key was not OK"
+CERT_TRUST_REVOCATION_STATUS_UNKNOWN
+```
+
+Run this command before building:
+
+```powershell
+$env:CMAKE_TLS_VERIFY="0"
+flutter clean
+flutter build windows
+```
+
+After successful build, you can restore the setting:
+```powershell
+Remove-Item Env:\CMAKE_TLS_VERIFY -ErrorAction SilentlyContinue
+```
+
 <p align="right">(<a href="#readme-top">&#8679;</a>)</p>
 
 
