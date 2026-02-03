@@ -560,6 +560,12 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     // טעינת הגדרות פר-ספר
     _loadPerBookSettings();
 
+    final pendingSidebarTab =
+        Settings.getValue<int>('key-sidebar-tab-index-pending');
+    if (pendingSidebarTab != null && pendingSidebarTab >= 0) {
+      _sidebarTabIndex = pendingSidebarTab;
+    }
+
     // וודא שהמיקום הנוכחי נשמר בטאב
 
     // אם יש טקסט חיפוש (searchText), נתחיל בלשונית 'חיפוש' (שנמצאת במקום ה-2)
@@ -808,19 +814,33 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                   _openEditorDialog(context, state);
                 }
 
-                // איפוס אינדקס הכרטיסייה כשהחלונית נסגרת
-                if (state is TextBookLoaded &&
-                    !state.showSplitView &&
-                    _sidebarTabIndex != null) {
-                  setState(() {
-                    _sidebarTabIndex = null;
-                  });
+                if (state is TextBookLoaded) {
+                  final pendingSidebarTab =
+                      Settings.getValue<int>('key-sidebar-tab-index-pending');
+                  if (pendingSidebarTab != null && pendingSidebarTab >= 0) {
+                    if (_sidebarTabIndex != pendingSidebarTab) {
+                      setState(() {
+                        _sidebarTabIndex = pendingSidebarTab;
+                      });
+                    }
+                    if (state.showSplitView) {
+                      Settings.setValue<int>(
+                          'key-sidebar-tab-index-pending', -1);
+                    }
+                  } else if (!state.showSplitView && _sidebarTabIndex != null) {
+                    setState(() {
+                      _sidebarTabIndex = null;
+                    });
+                  }
                 }
               },
               builder: (context, state) {
-                if (state is TextBookInitial) {
-                  // איפוס אינדקס הכרטיסייה כשטוענים ספר חדש
-                  if (_sidebarTabIndex != null) {
+                  if (state is TextBookInitial) {
+                    // איפוס אינדקס הכרטיסייה כשטוענים ספר חדש
+                  final pendingSidebarTab =
+                      Settings.getValue<int>('key-sidebar-tab-index-pending');
+                  if (_sidebarTabIndex != null &&
+                      (pendingSidebarTab == null || pendingSidebarTab < 0)) {
                     WidgetsBinding.instance.addPostFrameCallback((_) {
                       setState(() {
                         _sidebarTabIndex = null;

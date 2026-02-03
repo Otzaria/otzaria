@@ -73,6 +73,16 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _scrollToCurrentPosition();
       });
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final state = context.read<TextBookBloc>().state;
+        if (state is TextBookLoaded) {
+          context
+              .read<PersonalNotesBloc>()
+              .add(LoadPersonalNotes(state.book.title));
+        }
+      });
     }
   }
 
@@ -89,6 +99,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       }
     }
   }
+
 
   /// תפריט הקשר - מעתיק מהתצוגה הרגילה
   ctx.ContextMenu _buildContextMenu(
@@ -469,77 +480,76 @@ $textWithBreaks
               ? BoxDecoration(color: backgroundColor)
               : null,
           padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (widget.isMainText && notesForLine.isNotEmpty)
-                Tooltip(
-                  message: notesForLine.first.contentPlain,
-                  child: GestureDetector(
-                    onTap: () {
-                      context
-                          .read<TextBookBloc>()
-                          .add(UpdateSelectedIndex(index));
-                      context.read<TextBookBloc>().add(HighlightLine(index));
-                      context
-                          .read<TextBookBloc>()
-                          .add(const ToggleLeftPane(true));
-                    },
-                    onLongPress: () {
-                      final note = notesForLine.first;
-                      showDialog<void>(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('הערה לשורה זו'),
-                          content: PersonalNoteContentView(note: note),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.of(context).pop(),
-                              child: const Text('סגור'),
-                            ),
-                          ],
+          child: BlocBuilder<SettingsBloc, SettingsState>(
+            builder: (context, settingsState) {
+              final data = widget.content[index];
+
+              // הדגשת טקסט חיפוש רק בטקסט המרכזי
+              final searchText = widget.isMainText ? state.searchText : '';
+
+              final textWidget = SmartTextWidget(
+                text: data,
+                widgetKey: ValueKey('html_simple_text_$index'),
+                settings: RenderSettings(
+                  removeNikud: state.removeNikud,
+                  removeTeamim: !settingsState.showTeamim,
+                  replaceHolyNames: settingsState.replaceHolyNames,
+                  searchText: searchText,
+                  fontSize: widget.fontSize,
+                  fontFamily: widget.fontFamily ?? settingsState.fontFamily,
+                ),
+                onOpenBook: widget.openBookCallback,
+              );
+
+              if (!widget.isMainText || notesForLine.isEmpty) {
+                return textWidget;
+              }
+
+              final note = notesForLine.first;
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Tooltip(
+                    message: note.contentPlain,
+                    child: GestureDetector(
+                      onTap: () {
+                        context
+                            .read<TextBookBloc>()
+                            .add(UpdateSelectedIndex(index));
+                        context.read<TextBookBloc>().add(HighlightLine(index));
+                        context
+                            .read<TextBookBloc>()
+                            .add(const ToggleLeftPane(true));
+                      },
+                      onLongPress: () {
+                        showDialog<void>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text('הערה לשורה זו'),
+                            content: PersonalNoteContentView(note: note),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(context).pop(),
+                                child: const Text('סגור'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 6, right: 2),
+                        child: Icon(
+                          FluentIcons.note_24_filled,
+                          size: 12,
+                          color: Theme.of(context).colorScheme.primary,
                         ),
-                      );
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 6, right: 2, top: 2),
-                      child: Icon(
-                        FluentIcons.note_24_filled,
-                        size: 12,
-                        color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
                   ),
-                )
-              else
-                const SizedBox(width: 16),
-              Expanded(
-                child: BlocBuilder<SettingsBloc, SettingsState>(
-                  builder: (context, settingsState) {
-                    final data = widget.content[index];
-
-                    // הדגשת טקסט חיפוש רק בטקסט המרכזי
-                    final searchText =
-                        widget.isMainText ? state.searchText : '';
-
-                    return SmartTextWidget(
-                      text: data,
-                      widgetKey: ValueKey('html_simple_text_$index'),
-                      settings: RenderSettings(
-                        removeNikud: state.removeNikud,
-                        removeTeamim: !settingsState.showTeamim,
-                        replaceHolyNames: settingsState.replaceHolyNames,
-                        searchText: searchText,
-                        fontSize: widget.fontSize,
-                        fontFamily:
-                            widget.fontFamily ?? settingsState.fontFamily,
-                      ),
-                      onOpenBook: widget.openBookCallback,
-                    );
-                  },
-                ),
-              ),
-            ],
+                  Expanded(child: textWidget),
+                ],
+              );
+            },
           ),
         ),
       ),

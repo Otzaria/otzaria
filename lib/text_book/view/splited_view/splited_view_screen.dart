@@ -62,6 +62,9 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
     _controller = MultiSplitViewController();
     _selectionKey = GlobalKey<SelectionAreaState>();
     _currentTabIndex = _getInitialTabIndex();
+    if (widget.initialTabIndex != null) {
+      _paneOpen = true;
+    }
     // טען את רוחב הפאנל מההגדרות
     _leftPaneWidth = context.read<SettingsBloc>().state.commentaryPaneWidth;
   }

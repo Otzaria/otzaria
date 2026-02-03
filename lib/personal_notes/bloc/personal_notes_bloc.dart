@@ -130,8 +130,6 @@ class PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState> {
     StartCreatingPersonalNote event,
     Emitter<PersonalNotesState> emit,
   ) {
-    print(
-        'DEBUG: StartCreatingNote event received for bookId=${event.bookId}, line=${event.lineNumber}');
     emit(
       state.copyWith(
         isCreatingNewNote: true,
@@ -142,8 +140,6 @@ class PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState> {
         newNoteInitialFormat: event.initialFormat,
       ),
     );
-    print(
-        'DEBUG: State updated - isCreatingNewNote=${state.isCreatingNewNote}');
   }
 
   void _onCancelCreatingNote(

@@ -11,7 +11,6 @@ import 'package:otzaria/personal_notes/widgets/personal_note_editor.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/widgets/dialogs.dart';
-import 'package:otzaria/widgets/selection_dialog.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
 import 'package:otzaria/settings/settings_repository.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
@@ -86,6 +85,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
           confirmText: 'מחק טיוטה',
           isDangerous: true,
         );
+        if (!mounted) return;
         if (shouldDiscard != true) {
           return;
         }
@@ -139,19 +139,13 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
       buildWhen: (previous, current) {
         // תמיד rebuild אם משהו השתנה ביצירת הערה חדשה
         if (previous.isCreatingNewNote != current.isCreatingNewNote) {
-          print(
-              'DEBUG: buildWhen - isCreatingNewNote changed: ${previous.isCreatingNewNote} -> ${current.isCreatingNewNote}');
-          return true;
+    return true;
         }
         // rebuild אם זה הספר הנכון
         final shouldBuild = current.bookId == widget.bookId;
-        print(
-            'DEBUG: buildWhen - bookId match: ${current.bookId} == ${widget.bookId} = $shouldBuild');
         return shouldBuild;
       },
       builder: (context, state) {
-        print(
-            'DEBUG: Building sidebar for ${widget.bookId}, isCreatingNewNote=${state.isCreatingNewNote}');
         if (state.isLoading) {
           return const Center(child: CircularProgressIndicator());
         }
@@ -353,16 +347,10 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
             SettingsRepository.keyPersonalNotesCollapsedByDefault) ??
         true);
 
-    print(
-        'DEBUG: Checking controller - isCreatingNewNote=${state.isCreatingNewNote}, _newNoteController==null=${_newNoteController == null}');
-
     // בנה קונטרולר אם צריך
     if (state.isCreatingNewNote && _newNoteController == null) {
-      print(
-          'DEBUG: Building new note controller for line ${state.newNoteLineNumber}');
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        print('DEBUG: Setting state to create controller');
         setState(() {
           _newNoteController = buildPersonalNoteEditorController(
             initialContent: state.newNoteInitialContent ?? '',
@@ -373,9 +361,6 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
         _newNoteFocusNode.requestFocus();
       });
     }
-
-    print(
-        'DEBUG: Building sidebar - isCreatingNewNote=${state.isCreatingNewNote}, hasController=${_newNoteController != null}');
 
     final items = <Widget>[];
 
@@ -660,7 +645,6 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
 
   Future<void> _reposition(BuildContext context, PersonalNote note) async {
     final bloc = context.read<PersonalNotesBloc>();
-
     final result = await showInputDialog(
       context: context,
       title: 'שחזור מיקום הערה',
@@ -687,12 +671,12 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
     }
   }
 
-  void _reanchorToSelectedLine(
-    BuildContext context,
+  void _reanchorToSelectedLineWith(
+    PersonalNotesBloc bloc,
+    ScaffoldMessengerState messenger,
     PersonalNote note,
     int selectedLineNumber,
   ) {
-    final bloc = context.read<PersonalNotesBloc>();
     bloc.add(
       RepositionPersonalNote(
         bookId: widget.bookId,
@@ -700,7 +684,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
         lineNumber: selectedLineNumber,
       ),
     );
-    ScaffoldMessenger.of(context).showSnackBar(
+    messenger.showSnackBar(
       SnackBar(content: Text('ההערה שויכה לשורה $selectedLineNumber')),
     );
   }
@@ -710,6 +694,8 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
     PersonalNote note,
     int? selectedLineNumber,
   ) async {
+    final bloc = context.read<PersonalNotesBloc>();
+    final messenger = ScaffoldMessenger.of(context);
     if (selectedLineNumber != null) {
       final choice = await showSelectionDialog<String>(
         context: context,
@@ -725,14 +711,20 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
           ),
         ],
       );
+      if (!mounted) return;
       if (choice == 'selected') {
-        if (!mounted) return;
-        _reanchorToSelectedLine(context, note, selectedLineNumber);
+        _reanchorToSelectedLineWith(
+          bloc,
+          messenger,
+          note,
+          selectedLineNumber,
+        );
         return;
       }
       if (choice == null) return;
     }
 
+    if (!context.mounted) return;
     final result = await showInputDialog(
       context: context,
       title: 'שנה שיוך הערה',
@@ -743,17 +735,17 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
       initialValue: note.lineNumber?.toString() ?? '',
       keyboardType: TextInputType.number,
     );
+    if (!mounted) return;
 
     final newLine = result != null ? int.tryParse(result) : null;
     if (newLine != null) {
-      if (!mounted) return;
-      context.read<PersonalNotesBloc>().add(
-            RepositionPersonalNote(
-              bookId: widget.bookId,
-              noteId: note.id,
-              lineNumber: newLine,
-            ),
-          );
+      bloc.add(
+        RepositionPersonalNote(
+          bookId: widget.bookId,
+          noteId: note.id,
+          lineNumber: newLine,
+        ),
+      );
     }
   }
 }

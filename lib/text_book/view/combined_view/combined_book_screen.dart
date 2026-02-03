@@ -101,6 +101,7 @@ class _CombinedViewState extends State<CombinedView> {
 
   ScrollController? _previewScrollController;
 
+
   @override
   void initState() {
     super.initState();
@@ -116,6 +117,13 @@ class _CombinedViewState extends State<CombinedView> {
 
     // האזנה לשינויים במצב הבחירה כדי לכפות rebuild של SelectionArea
     _selectionManager.addListener(_onSelectionModeChanged);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context
+          .read<PersonalNotesBloc>()
+          .add(LoadPersonalNotes(widget.tab.book.title));
+    });
 
     // האזנה לשינויים במיקומי הפריטים כדי לאפס את הבחירה בגלילה
     widget.tab.positionsListener.itemPositions.addListener(_onScroll);
@@ -157,6 +165,16 @@ class _CombinedViewState extends State<CombinedView> {
         _focusNode.requestFocus();
       }
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant CombinedView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.tab.book.title != widget.tab.book.title) {
+      context
+          .read<PersonalNotesBloc>()
+          .add(LoadPersonalNotes(widget.tab.book.title));
+    }
   }
 
   @override
@@ -1165,6 +1183,7 @@ $textWithBreaks
       ],
     );
   }
+
 
   /// בדיקה אם יש מפרשים לאינדקס מסוים
   bool _hasCommentaries(TextBookLoaded state, int index) {

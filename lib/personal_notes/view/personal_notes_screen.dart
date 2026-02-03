@@ -20,7 +20,12 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
 import 'package:otzaria/widgets/resizable_drag_handle.dart';
+import 'package:otzaria/utils/open_book.dart';
+import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
+import 'package:otzaria/tabs/models/text_tab.dart';
+import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 
 class PersonalNotesManagerScreen extends StatefulWidget {
   const PersonalNotesManagerScreen({super.key});
@@ -1013,6 +1018,19 @@ class _PersonalNotesManagerScreenState
                           ),
                         ],
                         IconButton(
+                          tooltip: 'פתח ספר בשורה',
+                          icon: const Icon(FluentIcons.book_open_24_regular,
+                              size: 18),
+                          onPressed: isMissing
+                              ? null
+                              : () => _openNoteInBook(note),
+                          padding: const EdgeInsets.all(8),
+                          constraints: const BoxConstraints(
+                            minWidth: 36,
+                            minHeight: 36,
+                          ),
+                        ),
+                        IconButton(
                           tooltip: 'מחיקה',
                           icon: const Icon(FluentIcons.delete_24_regular,
                               size: 18),
@@ -1153,6 +1171,56 @@ class _PersonalNotesManagerScreenState
           );
       UiSnack.show('ההערה הועברה לשורה $newLine');
     }
+  }
+
+  Future<void> _openNoteInBook(PersonalNote note) async {
+    if (note.lineNumber == null) {
+      UiSnack.show('להערה הזו אין מיקום');
+      return;
+    }
+
+    final libraryState = context.read<LibraryBloc>().state;
+    final library = libraryState.library;
+    if (library == null) {
+      UiSnack.show('הספרייה לא נטענה עדיין');
+      return;
+    }
+
+    final book =
+        library.findBookByTitle(note.bookId, TextBook) ??
+            library.findBookByTitle(note.bookId, null);
+    if (book == null) {
+      UiSnack.show('הספר לא נמצא: ${note.bookId}');
+      return;
+    }
+
+    final lineIndex = (note.lineNumber! - 1).clamp(0, 1 << 30);
+    final tabsBloc = context.read<TabsBloc>();
+    final previousSidebarTab =
+        Settings.getValue<int>('key-sidebar-tab-index-combined');
+    Settings.setValue<int>('key-sidebar-tab-index-combined', 2);
+    Settings.setValue<int>('key-sidebar-tab-index-pending', 2);
+
+    openBook(context, book, lineIndex, '', ignoreHistory: true);
+
+    Future.delayed(const Duration(milliseconds: 350), () {
+      if (!mounted) return;
+      final tabsState = tabsBloc.state;
+      if (tabsState.tabs.isEmpty) return;
+      final currentTab = tabsState.tabs[tabsState.currentTabIndex];
+      if (currentTab is TextBookTab) {
+        currentTab.bloc.add(UpdateSelectedIndex(lineIndex));
+        currentTab.bloc.add(HighlightLine(lineIndex));
+        currentTab.bloc.add(const ToggleSplitView(true));
+      }
+
+      if (previousSidebarTab != null) {
+        Settings.setValue<int>(
+            'key-sidebar-tab-index-combined', previousSidebarTab);
+      } else {
+        Settings.setValue<int>('key-sidebar-tab-index-combined', 0);
+      }
+    });
   }
 
   String _formatDate(DateTime date) {
