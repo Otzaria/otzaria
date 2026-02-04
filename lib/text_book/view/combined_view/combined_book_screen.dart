@@ -753,6 +753,7 @@ $textWithBreaks
                 // משתמש באותה לוגיקה כמו בדיווח שגיאות
                 final state = _textBookBloc.state;
                 int? foundIndex;
+                var fixedPlain = plain;
 
                 if (state is TextBookLoaded) {
                   // מקבל את השורה הראשונה הנראית
@@ -766,8 +767,11 @@ $textWithBreaks
                           widget.data[idx].replaceAll(RegExp(r'<[^>]*>'), ''))
                       .join('\n');
 
+                  fixedPlain =
+                      _restoreNewlinesFromVisibleText(plain, visibleText);
+
                   // מוצא את המיקום של הטקסט המודגש
-                  final selectionStart = visibleText.indexOf(plain);
+                  final selectionStart = visibleText.indexOf(fixedPlain);
 
                   if (selectionStart >= 0) {
                     // סופר כמה שורות יש לפני הטקסט המודגש
@@ -781,7 +785,7 @@ $textWithBreaks
                 }
 
                 if (mounted) {
-                  _savedSelectedText.value = plain;
+                  _savedSelectedText.value = fixedPlain;
                   _savedSelectedIndex.value = foundIndex;
                   _currentSelectedIndex.value = foundIndex;
                 }
@@ -900,6 +904,32 @@ $textWithBreaks
         );
       },
     );
+  }
+
+  String _restoreNewlinesFromVisibleText(String plain, String visibleText) {
+    if (plain.contains('\n')) return plain;
+
+    final normalizedVisible = visibleText.replaceAll('\n', '');
+    final normalizedPlain = plain.replaceAll('\n', '');
+
+    if (normalizedPlain.isEmpty) return plain;
+
+    final startNon = normalizedVisible.indexOf(normalizedPlain);
+    if (startNon < 0) return plain;
+
+    final nonNewlineToVisible = <int>[];
+    for (var i = 0; i < visibleText.length; i++) {
+      if (visibleText[i] != '\n') {
+        nonNewlineToVisible.add(i);
+      }
+    }
+
+    final endNon = startNon + normalizedPlain.length - 1;
+    if (endNon >= nonNewlineToVisible.length) return plain;
+
+    final startVisible = nonNewlineToVisible[startNon];
+    final endVisible = nonNewlineToVisible[endNon];
+    return visibleText.substring(startVisible, endVisible + 1);
   }
 
   Widget buildOuterList(
@@ -1096,12 +1126,26 @@ $textWithBreaks
                               )
                             : textWidget;
 
+                        // Invisible newline to preserve line breaks when copying
+                        // from SelectionArea across multiple widgets.
+                        final textWithNewline = Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            constrainedText,
+                            const Text(
+                              '\n',
+                              style: TextStyle(fontSize: 0, height: 0),
+                            ),
+                          ],
+                        );
+
                         if (notesForLine.isEmpty) {
                           return Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const SizedBox(width: 16),
-                              Expanded(child: constrainedText),
+                              Expanded(child: textWithNewline),
                             ],
                           );
                         }
@@ -1151,7 +1195,7 @@ $textWithBreaks
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             indicator,
-                            Expanded(child: constrainedText),
+                            Expanded(child: textWithNewline),
                           ],
                         );
                       },
