@@ -117,3 +117,25 @@ class StartCreatingPersonalNote extends PersonalNotesEvent {
 class CancelCreatingPersonalNote extends PersonalNotesEvent {
   const CancelCreatingPersonalNote();
 }
+
+class UpdateSearchQuery extends PersonalNotesEvent {
+  final String query;
+
+  const UpdateSearchQuery(this.query);
+
+  @override
+  List<Object?> get props => [query];
+}
+
+class UpdateVisibleLines extends PersonalNotesEvent {
+  final List<int> visibleLineIndices;
+
+  const UpdateVisibleLines(this.visibleLineIndices);
+
+  @override
+  List<Object?> get props => [visibleLineIndices];
+}
+
+class ToggleShowOnlyVisible extends PersonalNotesEvent {
+  const ToggleShowOnlyVisible();
+}

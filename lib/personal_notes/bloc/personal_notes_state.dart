@@ -9,6 +9,13 @@ class PersonalNotesState extends Equatable {
   final List<PersonalNote> missingNotes;
   final String? errorMessage;
 
+  // סינון והצגה
+  final List<PersonalNote> filteredLocatedNotes;
+  final List<PersonalNote> filteredMissingNotes;
+  final String searchQuery;
+  final bool showOnlyVisible;
+  final List<int> visibleLineIndices;
+
   // מצב יצירת הערה חדשה
   final bool isCreatingNewNote;
   final int? newNoteLineNumber;
@@ -23,6 +30,11 @@ class PersonalNotesState extends Equatable {
     required this.locatedNotes,
     required this.missingNotes,
     required this.errorMessage,
+    this.filteredLocatedNotes = const [],
+    this.filteredMissingNotes = const [],
+    this.searchQuery = '',
+    this.showOnlyVisible = true,
+    this.visibleLineIndices = const [],
     this.isCreatingNewNote = false,
     this.newNoteLineNumber,
     this.newNoteReferenceText,
@@ -37,6 +49,11 @@ class PersonalNotesState extends Equatable {
         locatedNotes = const [],
         missingNotes = const [],
         errorMessage = null,
+        filteredLocatedNotes = const [],
+        filteredMissingNotes = const [],
+        searchQuery = '',
+        showOnlyVisible = true,
+        visibleLineIndices = const [],
         isCreatingNewNote = false,
         newNoteLineNumber = null,
         newNoteReferenceText = null,
@@ -50,6 +67,11 @@ class PersonalNotesState extends Equatable {
     List<PersonalNote>? locatedNotes,
     List<PersonalNote>? missingNotes,
     String? errorMessage,
+    List<PersonalNote>? filteredLocatedNotes,
+    List<PersonalNote>? filteredMissingNotes,
+    String? searchQuery,
+    bool? showOnlyVisible,
+    List<int>? visibleLineIndices,
     bool? isCreatingNewNote,
     int? newNoteLineNumber,
     String? newNoteReferenceText,
@@ -64,6 +86,11 @@ class PersonalNotesState extends Equatable {
       locatedNotes: locatedNotes ?? this.locatedNotes,
       missingNotes: missingNotes ?? this.missingNotes,
       errorMessage: errorMessage,
+      filteredLocatedNotes: filteredLocatedNotes ?? this.filteredLocatedNotes,
+      filteredMissingNotes: filteredMissingNotes ?? this.filteredMissingNotes,
+      searchQuery: searchQuery ?? this.searchQuery,
+      showOnlyVisible: showOnlyVisible ?? this.showOnlyVisible,
+      visibleLineIndices: visibleLineIndices ?? this.visibleLineIndices,
       isCreatingNewNote: clearNewNoteData
           ? false
           : (isCreatingNewNote ?? this.isCreatingNewNote),
@@ -92,6 +119,11 @@ class PersonalNotesState extends Equatable {
         locatedNotes,
         missingNotes,
         errorMessage,
+        filteredLocatedNotes,
+        filteredMissingNotes,
+        searchQuery,
+        showOnlyVisible,
+        visibleLineIndices,
         isCreatingNewNote,
         newNoteLineNumber,
         newNoteReferenceText,
