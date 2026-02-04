@@ -202,23 +202,13 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     final state = context.read<TextBookBloc>().state;
     if (state is! TextBookLoaded) return;
 
-    // קבלת מספר השורה הנוכחי
-    final currentLineNumber = _savedSelectedIndex ??
-        state.selectedIndex ??
-        (state.visibleIndices.isNotEmpty ? state.visibleIndices.first : 0);
-
-    // פתיחת הדיאלוג
-    showDialog<dynamic>(
+    ErrorReportHelper.showErrorReportDialog(
       context: context,
-      builder: (BuildContext context) {
-        return TabbedReportDialog(
-          selectedText: selectedText,
-          fontSize: widget.fontSize,
-          bookTitle: widget.bookTitle ?? 'ספר לא ידוע',
-          currentLineNumber: currentLineNumber + 1, // +1 כי השורות מתחילות מ-1
-          state: state,
-        );
-      },
+      selectedText: selectedText,
+      state: state,
+      fontSize: widget.fontSize,
+      bookTitle: widget.bookTitle ?? 'ספר לא ידוע',
+      savedSelectedIndex: _savedSelectedIndex,
     );
   }
 

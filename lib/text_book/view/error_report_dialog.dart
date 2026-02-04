@@ -450,6 +450,56 @@ $detailsSection
       }
     }
   }
+
+  /// Show error report dialog for text book
+  ///
+  /// This is a shared helper to avoid code duplication across different views.
+  ///
+  /// Parameters:
+  /// - [context]: BuildContext for showing the dialog
+  /// - [selectedText]: The text selected by the user
+  /// - [state]: Current TextBookLoaded state
+  /// - [fontSize]: Font size to use in the dialog
+  /// - [bookTitle]: Title of the book
+  /// - [savedSelectedIndex]: Optional saved selected index (can be int or ValueNotifier of int)
+  static void showErrorReportDialog({
+    required BuildContext context,
+    required String selectedText,
+    required TextBookLoaded state,
+    required double fontSize,
+    required String bookTitle,
+    dynamic savedSelectedIndex,
+  }) {
+    // קבלת מספר השורה הנוכחי
+    int? currentLineNumber;
+
+    // טיפול ב-savedSelectedIndex שיכול להיות int, int?, או ValueNotifier<int?>
+    if (savedSelectedIndex != null) {
+      if (savedSelectedIndex is ValueNotifier<int?>) {
+        currentLineNumber = savedSelectedIndex.value;
+      } else if (savedSelectedIndex is int) {
+        currentLineNumber = savedSelectedIndex;
+      }
+    }
+
+    // אם אין savedSelectedIndex, נשתמש ב-state
+    currentLineNumber ??= state.selectedIndex ??
+        (state.visibleIndices.isNotEmpty ? state.visibleIndices.first : 0);
+
+    // פתיחת הדיאלוג
+    showDialog<dynamic>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return TabbedReportDialog(
+          selectedText: selectedText,
+          fontSize: fontSize,
+          bookTitle: bookTitle,
+          currentLineNumber: currentLineNumber! + 1, // +1 כי השורות מתחילות מ-1
+          state: state,
+        );
+      },
+    );
+  }
 }
 
 /// Tabbed dialog for error reporting with regular and phone options

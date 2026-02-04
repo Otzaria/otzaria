@@ -225,22 +225,13 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
     final state = context.read<TextBookBloc>().state;
     if (state is! TextBookLoaded) return;
 
-    // קבלת מספר השורה הנוכחי
-    final currentLineNumber = state.selectedIndex ??
-        (state.visibleIndices.isNotEmpty ? state.visibleIndices.first : 0);
-
-    // פתיחת הדיאלוג
-    showDialog<dynamic>(
+    ErrorReportHelper.showErrorReportDialog(
       context: context,
-      builder: (BuildContext context) {
-        return TabbedReportDialog(
-          selectedText: selectedText,
-          fontSize: state.fontSize,
-          bookTitle: widget.tab.book.title,
-          currentLineNumber: currentLineNumber + 1, // +1 כי השורות מתחילות מ-1
-          state: state,
-        );
-      },
+      selectedText: selectedText,
+      state: state,
+      fontSize: state.fontSize,
+      bookTitle: widget.tab.book.title,
+      savedSelectedIndex: null, // אין savedSelectedIndex במסך זה
     );
   }
 
