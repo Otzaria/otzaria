@@ -230,7 +230,7 @@ class _TextSectionEditorDialogState extends State<TextSectionEditorDialog> {
           );
 
           // Show success feedback
-          UiSnack.showSuccess(UiSnack.savedSuccessfully);
+          UiSnack.show(UiSnack.savedSuccessfully);
         } catch (e) {
           debugPrint('Failed to verify save: $e');
           // Still show success feedback even if verification fails

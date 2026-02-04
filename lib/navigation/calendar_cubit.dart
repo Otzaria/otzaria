@@ -430,7 +430,7 @@ class CalendarCubit extends Cubit<CalendarState> {
         jsonEncode(updated.map((k, v) => MapEntry(k, v.toJson()))));
 
     await _rescheduleZmanAlerts();
-    UiSnack.showSuccess('התראה הופעלה עבור $displayName');
+    UiSnack.show('התראה הופעלה עבור $displayName');
   }
 
   Future<void> cancelZmanAlertPreference({
@@ -455,7 +455,7 @@ class CalendarCubit extends Cubit<CalendarState> {
       await notificationService.cancelNotification(id);
     }
 
-    UiSnack.showSuccess('ההתראה בוטלה עבור ${existing.displayName}');
+    UiSnack.show('ההתראה בוטלה עבור ${existing.displayName}');
   }
 
   Future<void> _rescheduleZmanAlerts() async {

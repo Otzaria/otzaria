@@ -401,7 +401,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       final columnName = _getColumnDisplayName(columnToMark);
       // השתמש בשם המקורי מהכותרת
       final displayName = chapterName;
-      UiSnack.showSuccess('$displayName סומן כ$columnName בהצלחה!');
+      UiSnack.show('$displayName סומן כ$columnName בהצלחה!');
     } catch (e) {
       debugPrint('Error in _markShamorZachorProgress: $e');
       UiSnack.showError('שגיאה בסימון: ${e.toString()}');
@@ -835,8 +835,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                 }
               },
               builder: (context, state) {
-                  if (state is TextBookInitial) {
-                    // איפוס אינדקס הכרטיסייה כשטוענים ספר חדש
+                if (state is TextBookInitial) {
+                  // איפוס אינדקס הכרטיסייה כשטוענים ספר חדש
                   final pendingSidebarTab =
                       Settings.getValue<int>('key-sidebar-tab-index-pending');
                   if (_sidebarTabIndex != null &&
@@ -2193,9 +2193,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
     final successColor =
         bookmarkAdded ? theme.colorScheme.tertiaryContainer : null;
-    UiSnack.showSuccess(
-        bookmarkAdded ? 'הסימניה נוספה בהצלחה' : 'הסימניה כבר קיימת',
-        backgroundColor: successColor);
+    UiSnack.showQuick(
+        bookmarkAdded ? 'הסימניה נוספה בהצלחה' : 'הסימניה כבר קיימת');
   }
 
   Future<void> _showReportBugDialog(

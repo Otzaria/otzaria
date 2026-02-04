@@ -115,7 +115,7 @@ class ShamorZachorMessenger {
   }
 
   static void showSuccess(String message) {
-    UiSnack.showSuccess(message);
+    UiSnack.show(message);
   }
 
   static void showError(String message) {
