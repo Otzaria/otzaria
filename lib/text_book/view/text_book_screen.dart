@@ -2180,7 +2180,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     final index = state.positionsListener.itemPositions.value.first.index;
     final toc = state.book.tableOfContents;
     final bookmarkBloc = context.read<BookmarkBloc>();
-    final theme = Theme.of(context);
     final ref = await refFromIndex(index, toc);
     if (!mounted || !context.mounted) return;
 
@@ -2191,8 +2190,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       commentatorsToShow: state.activeCommentators,
     );
 
-    final successColor =
-        bookmarkAdded ? theme.colorScheme.tertiaryContainer : null;
     UiSnack.showQuick(
         bookmarkAdded ? 'הסימניה נוספה בהצלחה' : 'הסימניה כבר קיימת');
   }
