@@ -23,6 +23,20 @@ if (flutterVersionName == null) {
     flutterVersionName = '1.0'
 }
 
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withReader('UTF-8') { reader ->
+        keystoreProperties.load(reader)
+    }
+} else {
+    // Fallback for CI environments that inject signing via env vars.
+    keystoreProperties['storeFile'] = System.getenv('ANDROID_KEYSTORE_PATH')
+    keystoreProperties['storePassword'] = System.getenv('ANDROID_KEYSTORE_PASSWORD')
+    keystoreProperties['keyAlias'] = System.getenv('ANDROID_KEY_ALIAS')
+    keystoreProperties['keyPassword'] = System.getenv('ANDROID_KEY_PASSWORD')
+}
+
 android {
     namespace "com.example.otzaria"
     compileSdkVersion 36
@@ -56,11 +70,20 @@ android {
 
 
    
+    signingConfigs {
+        release {
+            if (keystoreProperties['storeFile']) {
+                storeFile file(keystoreProperties['storeFile'])
+            }
+            storePassword keystoreProperties['storePassword']
+            keyAlias keystoreProperties['keyAlias']
+            keyPassword keystoreProperties['keyPassword']
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
         }
     }
 }

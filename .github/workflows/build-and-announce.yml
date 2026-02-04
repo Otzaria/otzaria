@@ -475,6 +475,20 @@ jobs:
           }
           EOF
           echo "Google Calendar credentials file created"
+
+      - name: Setup Android signing
+        shell: bash
+        run: |
+          set -e
+          mkdir -p android/keystore
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/keystore/otzaria-keystore.jks
+          chmod 600 android/keystore/otzaria-keystore.jks
+          cat > android/key.properties << EOF
+          storeFile=keystore/otzaria-keystore.jks
+          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          EOF
       
       - run: sudo apt install ninja-build
       
@@ -909,4 +923,3 @@ jobs:
           TOKEN_YEMOT: ${{ secrets.TOKEN_YEMOT }}
         run: |
           python webhooks/main.py
-
