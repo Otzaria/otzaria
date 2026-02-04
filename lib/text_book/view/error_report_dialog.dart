@@ -390,17 +390,22 @@ $detailsSection
 
     if (action == ErrorReportAction.sendEmail) {
       final String? sourceFolder = bookDetails['תיקיית המקור'];
-      
+
       // קביעת כתובות המייל לפי מקור הספר
       // סדר המפתחות חשוב כדי לחקות את סדר הבדיקות המקורי
       final sourceToEmailMap = {
         'sefariaToOtzaria': 'corrections@sefaria.org',
         'sefaria': 'corrections@sefaria.org',
-        'wiki_jewish_books': '$_fallbackMail,WikiJewishBooks@gmail.com', // שליחה גם לאוצריא וגם ל-WikiJewishBooks
-        'wikiSource': '$_fallbackMail,novartza@gmail.com', // שליחה גם לאוצריא וגם ל-wikiSource
-        'Pninim': '$_fallbackMail,contact@pninim.org', // שליחה גם לאוצריא וגם ל-Pninim
-        'Tashma': '$_fallbackMail,jewishoffice@gmail.com', // שליחה גם לאוצריא וגם ל-Tashma
-        'Ben-Yehuda': '$_fallbackMail,editor@benyehuda.org', // שליחה גם לאוצריא וגם ל-Ben-Yehuda
+        'wiki_jewish_books':
+            '$_fallbackMail,WikiJewishBooks@gmail.com', // שליחה גם לאוצריא וגם ל-WikiJewishBooks
+        'wikiSource':
+            '$_fallbackMail,novartza@gmail.com', // שליחה גם לאוצריא וגם ל-wikiSource
+        'Pninim':
+            '$_fallbackMail,contact@pninim.org', // שליחה גם לאוצריא וגם ל-Pninim
+        'Tashma':
+            '$_fallbackMail,jewishoffice@gmail.com', // שליחה גם לאוצריא וגם ל-Tashma
+        'Ben-Yehuda':
+            '$_fallbackMail,editor@benyehuda.org', // שליחה גם לאוצריא וגם ל-Ben-Yehuda
       };
 
       final emailAddress = sourceFolder == null
@@ -449,7 +454,7 @@ $detailsSection
 
 /// Tabbed dialog for error reporting with regular and phone options
 class TabbedReportDialog extends StatefulWidget {
-  final String visibleText;
+  final String selectedText;
   final double fontSize;
   final String bookTitle;
   final int currentLineNumber;
@@ -457,7 +462,7 @@ class TabbedReportDialog extends StatefulWidget {
 
   const TabbedReportDialog({
     super.key,
-    required this.visibleText,
+    required this.selectedText,
     required this.fontSize,
     required this.bookTitle,
     required this.currentLineNumber,
@@ -471,7 +476,6 @@ class TabbedReportDialog extends StatefulWidget {
 class _TabbedReportDialogState extends State<TabbedReportDialog>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  String? _selectedText;
   final DataCollectionService _dataService = DataCollectionService();
 
   // Phone report data
@@ -531,11 +535,19 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
         mediaQuery.padding.bottom;
 
     return Dialog(
-      child: SizedBox(
-        width: mediaQuery.size.width * 0.9, // רוחב: 90% מרוחב המסך
-        height:
-            availableHeight * 0.95, // גובה: 90% מהגובה הזמין (ללא שורת משימות)
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          minWidth: 400,
+          maxWidth: mediaQuery.size.width * 0.6,
+          minHeight: 400,
+          maxHeight: availableHeight * 0.7,
+        ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Padding(
               padding: const EdgeInsets.all(16.0),
@@ -569,21 +581,11 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
 
   Widget _buildRegularReportTab() {
     return RegularReportTab(
-      visibleText: widget.visibleText,
+      selectedText: widget.selectedText,
       fontSize: widget.fontSize,
-      initialSelectedText: _selectedText,
       state: widget.state,
-      onTextSelected: (text) {
-        setState(() {
-          _selectedText = text;
-        });
-      },
       onActionSelected: (action, reportData) {
         Navigator.of(context).pop(ReportDialogResult(action, reportData));
-      },
-      onPhoneSubmit: (phoneReportData) {
-        Navigator.of(context)
-            .pop(ReportDialogResult(ErrorReportAction.phone, phoneReportData));
       },
       onCancel: () {
         Navigator.of(context).pop();
@@ -636,12 +638,11 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
     }
 
     return PhoneReportTab(
-      visibleText: widget.visibleText,
+      selectedText: widget.selectedText,
       fontSize: widget.fontSize,
       libraryVersion: _libraryVersion,
       bookId: _bookId,
       lineNumber: widget.currentLineNumber,
-      initialSelectedText: _selectedText,
       onSubmit: (selectedText, errorId, moreInfo, lineNumber) async {
         final reportData = PhoneReportData(
           selectedText: selectedText,
@@ -663,24 +664,18 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
 
 /// Regular report tab widget
 class RegularReportTab extends StatefulWidget {
-  final String visibleText;
+  final String selectedText;
   final double fontSize;
-  final String? initialSelectedText;
   final TextBookLoaded state;
-  final Function(String) onTextSelected;
   final Function(ErrorReportAction, ReportedErrorData) onActionSelected;
-  final Function(PhoneReportData) onPhoneSubmit;
   final VoidCallback onCancel;
 
   const RegularReportTab({
     super.key,
-    required this.visibleText,
+    required this.selectedText,
     required this.fontSize,
-    this.initialSelectedText,
     required this.state,
-    required this.onTextSelected,
     required this.onActionSelected,
-    required this.onPhoneSubmit,
     required this.onCancel,
   });
 
@@ -689,15 +684,11 @@ class RegularReportTab extends StatefulWidget {
 }
 
 class _RegularReportTabState extends State<RegularReportTab> {
-  String? _selectedContent;
   final TextEditingController _detailsController = TextEditingController();
-  int? _selectionStart;
-  int? _selectionEnd;
 
   @override
   void initState() {
     super.initState();
-    _selectedContent = widget.initialSelectedText;
   }
 
   Future<bool> _isPhoneReportDisabled() async {
@@ -726,112 +717,84 @@ class _RegularReportTabState extends State<RegularReportTab> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text('סמן את הטקסט שבו נמצאת הטעות:'),
-          const SizedBox(height: 8),
-          Expanded(
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: SingleChildScrollView(
-                child: Builder(
-                  builder: (context) => TextSelectionTheme(
-                    data: const TextSelectionThemeData(
-                      selectionColor: Colors.transparent,
-                    ),
-                    child: SelectableText.rich(
-                      TextSpan(
-                        children: () {
-                          final text = widget.visibleText;
-                          final start = _selectionStart ?? -1;
-                          final end = _selectionEnd ?? -1;
-                          final hasSel =
-                              start >= 0 && end > start && end <= text.length;
-                          if (!hasSel) {
-                            return [TextSpan(text: text)];
-                          }
-                          final highlight = Theme.of(context)
-                              .colorScheme
-                              .primary
-                              .withValues(alpha: 0.25);
-                          return [
-                            if (start > 0)
-                              TextSpan(text: text.substring(0, start)),
-                            TextSpan(
-                              text: text.substring(start, end),
-                              style: TextStyle(backgroundColor: highlight),
-                            ),
-                            if (end < text.length)
-                              TextSpan(text: text.substring(end)),
-                          ];
-                        }(),
-                        style: TextStyle(
-                          fontSize: widget.fontSize,
-                          fontFamily:
-                              Settings.getValue('key-font-family') ?? 'candara',
-                        ),
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text('הטקסט שנבחר:'),
+                const SizedBox(height: 8),
+                Container(
+                  constraints: const BoxConstraints(
+                    maxHeight: 150,
+                  ),
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    border:
+                        Border.all(color: Colors.grey.withValues(alpha: 0.3)),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: SingleChildScrollView(
+                    child: Text(
+                      widget.selectedText,
+                      style: TextStyle(
+                        fontSize: widget.fontSize,
+                        fontFamily:
+                            Settings.getValue('key-font-family') ?? 'candara',
                       ),
                       textAlign: TextAlign.right,
                       textDirection: TextDirection.rtl,
-                      onSelectionChanged: (selection, cause) {
-                        if (selection.start != selection.end) {
-                          final newContent = widget.visibleText.substring(
-                            selection.start,
-                            selection.end,
-                          );
-                          if (newContent.isNotEmpty) {
-                            setState(() {
-                              _selectedContent = newContent;
-                              _selectionStart = selection.start;
-                              _selectionEnd = selection.end;
-                            });
-                            widget.onTextSelected(newContent);
-                          }
-                        }
-                      },
-                      contextMenuBuilder: (context, editableTextState) {
-                        return const SizedBox.shrink();
-                      },
                     ),
                   ),
                 ),
+                const SizedBox(height: 16),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    'פירוט הטעות: (חובה לפרט מהי הטעות, בלא פירוט לא נוכל לטפל)',
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodyMedium
+                        ?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                RtlTextField(
+                  controller: _detailsController,
+                  minLines: 3,
+                  maxLines: null,
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                    hintText: 'כתוב כאן מה לא תקין, הצע תיקון וכו\'',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.all(16.0),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            border: Border(
+              top: BorderSide(
+                color: Theme.of(context).dividerColor,
+                width: 1,
               ),
             ),
-          ),
-          const SizedBox(height: 16),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              'פירוט הטעות: (חובה לפרט מהי הטעות, בלא פירוט לא נוכל לטפל)',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.bold),
+            borderRadius: const BorderRadius.only(
+              bottomLeft: Radius.circular(12),
+              bottomRight: Radius.circular(12),
             ),
           ),
-          const SizedBox(height: 4),
-          RtlTextField(
-            controller: _detailsController,
-            minLines: 2,
-            maxLines: 4,
-            decoration: const InputDecoration(
-              isDense: true,
-              border: OutlineInputBorder(),
-              hintText: 'כתוב כאן מה לא תקין, הצע תיקון וכו\'',
-            ),
-          ),
-          const SizedBox(height: 24),
-          _buildActionButtons(),
-        ],
-      ),
+          child: _buildActionButtons(),
+        ),
+      ],
     );
   }
 
@@ -844,8 +807,7 @@ class _RegularReportTabState extends State<RegularReportTab> {
       future: _isPhoneReportDisabled(),
       builder: (context, snapshot) {
         final isPhoneDisabled = snapshot.data ?? false;
-        final canSubmit =
-            _selectedContent != null && _selectedContent!.isNotEmpty;
+        final canSubmit = widget.selectedText.isNotEmpty;
 
         return SizedBox(
           width: double.infinity,
@@ -865,7 +827,7 @@ class _RegularReportTabState extends State<RegularReportTab> {
                         widget.onActionSelected(
                           ErrorReportAction.saveForLater,
                           ReportedErrorData(
-                            selectedText: _selectedContent!,
+                            selectedText: widget.selectedText,
                             errorDetails: _detailsController.text.trim(),
                           ),
                         );
@@ -882,7 +844,7 @@ class _RegularReportTabState extends State<RegularReportTab> {
                           widget.onActionSelected(
                             ErrorReportAction.sendEmail,
                             ReportedErrorData(
-                              selectedText: _selectedContent!,
+                              selectedText: widget.selectedText,
                               errorDetails: _detailsController.text.trim(),
                             ),
                           );

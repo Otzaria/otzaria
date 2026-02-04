@@ -16,6 +16,7 @@ import 'package:otzaria/settings/settings_event.dart';
 import 'package:otzaria/widgets/commentary_pane_tooltip.dart';
 import 'package:otzaria/widgets/resizable_drag_handle.dart';
 import 'package:otzaria/utils/context_menu_utils.dart';
+import 'package:otzaria/text_book/view/error_report_dialog.dart';
 
 class SplitedViewScreen extends StatefulWidget {
   const SplitedViewScreen({
@@ -203,6 +204,12 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
         MenuItem(
             label: const Text('חיפוש'),
             onSelected: (_) => widget.openLeftPaneTab(1)),
+        MenuItem(
+          label: const Text('דווח על טעות בספר'),
+          icon: const Icon(FluentIcons.error_circle_24_regular),
+          enabled: selectedText != null && selectedText.trim().isNotEmpty,
+          onSelected: (_) => _openErrorReportDialog(selectedText!),
+        ),
         const MenuDivider(),
         MenuItem(
           label: const Text('בחר את כל הטקסט'),
@@ -210,6 +217,30 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
               _selectionKey.currentState?.selectableRegion.selectAll(),
         ),
       ],
+    );
+  }
+
+  /// פתיחת דיאלוג דיווח על טעות בספר
+  void _openErrorReportDialog(String selectedText) {
+    final state = context.read<TextBookBloc>().state;
+    if (state is! TextBookLoaded) return;
+
+    // קבלת מספר השורה הנוכחי
+    final currentLineNumber = state.selectedIndex ??
+        (state.visibleIndices.isNotEmpty ? state.visibleIndices.first : 0);
+
+    // פתיחת הדיאלוג
+    showDialog<dynamic>(
+      context: context,
+      builder: (BuildContext context) {
+        return TabbedReportDialog(
+          selectedText: selectedText,
+          fontSize: state.fontSize,
+          bookTitle: widget.tab.book.title,
+          currentLineNumber: currentLineNumber + 1, // +1 כי השורות מתחילות מ-1
+          state: state,
+        );
+      },
     );
   }
 

@@ -21,6 +21,7 @@ import 'package:otzaria/personal_notes/personal_notes_system.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
+import 'package:otzaria/text_book/view/error_report_dialog.dart';
 
 /// תצוגת טקסט פשוטה - משמשת גם לטקסט המרכזי וגם למפרשים
 class SimpleTextViewer extends StatefulWidget {
@@ -100,7 +101,6 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     }
   }
 
-
   /// תפריט הקשר - מעתיק מהתצוגה הרגילה
   ctx.ContextMenu _buildContextMenu(
       TextBookLoaded state, int index, BuildContext menuContext) {
@@ -131,6 +131,14 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
           label: const Text('הוסף הערה אישית '),
           icon: const Icon(FluentIcons.note_add_24_regular),
           onSelected: (_) => _createNoteForCurrentLine(index),
+        ),
+        // דיווח על טעות בספר
+        ctx.MenuItem(
+          label: const Text('דווח על טעות בספר'),
+          icon: const Icon(FluentIcons.error_circle_24_regular),
+          enabled: _savedSelectedText != null &&
+              _savedSelectedText!.trim().isNotEmpty,
+          onSelected: (_) => _openErrorReportDialog(_savedSelectedText!),
         ),
         const ctx.MenuDivider(),
         // העתקה
@@ -187,6 +195,31 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
           initialFormat:
               draft?.contentFormat ?? PersonalNoteContentFormat.plain,
         ));
+  }
+
+  /// פתיחת דיאלוג דיווח על טעות בספר
+  void _openErrorReportDialog(String selectedText) {
+    final state = context.read<TextBookBloc>().state;
+    if (state is! TextBookLoaded) return;
+
+    // קבלת מספר השורה הנוכחי
+    final currentLineNumber = _savedSelectedIndex ??
+        state.selectedIndex ??
+        (state.visibleIndices.isNotEmpty ? state.visibleIndices.first : 0);
+
+    // פתיחת הדיאלוג
+    showDialog<dynamic>(
+      context: context,
+      builder: (BuildContext context) {
+        return TabbedReportDialog(
+          selectedText: selectedText,
+          fontSize: widget.fontSize,
+          bookTitle: widget.bookTitle ?? 'ספר לא ידוע',
+          currentLineNumber: currentLineNumber + 1, // +1 כי השורות מתחילות מ-1
+          state: state,
+        );
+      },
+    );
   }
 
   /// עריכת פסקה

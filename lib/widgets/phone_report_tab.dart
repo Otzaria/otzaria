@@ -6,12 +6,11 @@ import '../widgets/reporting_numbers_widget.dart';
 
 /// Tab widget for phone-based error reporting
 class PhoneReportTab extends StatefulWidget {
-  final String visibleText;
+  final String selectedText;
   final double fontSize;
   final String libraryVersion;
   final int? bookId;
   final int lineNumber;
-  final String? initialSelectedText;
   final Function(
           String selectedText, int errorId, String moreInfo, int lineNumber)?
       onSubmit;
@@ -19,12 +18,11 @@ class PhoneReportTab extends StatefulWidget {
 
   const PhoneReportTab({
     super.key,
-    required this.visibleText,
+    required this.selectedText,
     required this.fontSize,
     required this.libraryVersion,
     required this.bookId,
     required this.lineNumber,
-    this.initialSelectedText,
     this.onSubmit,
     this.onCancel,
   });
@@ -34,19 +32,11 @@ class PhoneReportTab extends StatefulWidget {
 }
 
 class _PhoneReportTabState extends State<PhoneReportTab> {
-  String? _selectedText;
   ErrorType? _selectedErrorType;
-
-  late int _updatedLineNumber;
-  int? _selectionStart;
-  int? _selectionEnd;
 
   @override
   void initState() {
     super.initState();
-    _selectedText = widget.initialSelectedText;
-    // אתחול מספר השורה עם הערך ההתחלתי שקיבלנו
-    _updatedLineNumber = widget.lineNumber;
   }
 
   @override
@@ -57,7 +47,7 @@ class _PhoneReportTabState extends State<PhoneReportTab> {
   List<String> get _validationErrors {
     final errors = <String>[];
 
-    if (_selectedText == null || _selectedText!.isEmpty) {
+    if (widget.selectedText.isEmpty) {
       errors.add('בחירת הטקסט שבו נמצאת השגיאה');
     }
 
@@ -117,9 +107,8 @@ class _PhoneReportTabState extends State<PhoneReportTab> {
             ),
             const SizedBox(height: 8),
             Text(
-              '1. סמן את הטקסט שבו נמצאת הטעות  •  '
-              '2. בחר את סוג השגיאה   •  '
-              '3. השתמש במספרים המוצגים למטה כשתתקשר',
+              '1. בחר את סוג השגיאה   •  '
+              '2. השתמש במספרים המוצגים למטה כשתתקשר',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.onPrimaryContainer,
                   ),
@@ -136,7 +125,7 @@ class _PhoneReportTabState extends State<PhoneReportTab> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'סמן את הטקסט שבו נמצאת הטעות:',
+          'הטקסט שנבחר:',
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -144,118 +133,33 @@ class _PhoneReportTabState extends State<PhoneReportTab> {
         ),
         const SizedBox(height: 8),
         Container(
-          height: 200,
+          constraints: const BoxConstraints(
+            maxHeight: 200,
+          ),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            // הוספת מסגרת
             border: Border.all(color: Theme.of(context).dividerColor),
             borderRadius: BorderRadius.circular(8),
           ),
           child: SingleChildScrollView(
-            child: Builder(
-              builder: (context) => TextSelectionTheme(
-                data: const TextSelectionThemeData(
-                  selectionColor: Colors.transparent,
-                ),
-                child: SelectableText.rich(
-                  TextSpan(
-                    children: () {
-                      final text = widget.visibleText;
-                      final start = _selectionStart ?? -1;
-                      final end = _selectionEnd ?? -1;
-                      final hasSel =
-                          start >= 0 && end > start && end <= text.length;
-                      if (!hasSel) {
-                        return [TextSpan(text: text)];
-                      }
-                      final highlight = Theme.of(context)
-                          .colorScheme
-                          .primary
-                          .withValues(alpha: 0.25);
-                      return [
-                        if (start > 0) TextSpan(text: text.substring(0, start)),
-                        TextSpan(
-                          text: text.substring(start, end),
-                          style: TextStyle(backgroundColor: highlight),
-                        ),
-                        if (end < text.length)
-                          TextSpan(text: text.substring(end)),
-                      ];
-                    }(),
-                    style: TextStyle(
-                      fontSize: widget.fontSize,
-                      fontFamily:
-                          Settings.getValue('key-font-family') ?? 'candara',
-                    ),
-                  ),
-                  textAlign: TextAlign.right,
-                  textDirection: TextDirection.rtl,
-                  onSelectionChanged: (selection, cause) {
-                    if (selection.start != selection.end) {
-                      final selectedText = widget.visibleText.substring(
-                        selection.start,
-                        selection.end,
-                      );
-
-                      // חישוב מספר השורה על בסיס הטקסט הנבחר
-                      final textBeforeSelection =
-                          widget.visibleText.substring(0, selection.start);
-                      final lineOffset =
-                          '\n'.allMatches(textBeforeSelection).length;
-                      final newLineNumber = widget.lineNumber + lineOffset;
-
-                      if (selectedText.isNotEmpty) {
-                        setState(() {
-                          _selectedText = selectedText;
-                          _selectionStart = selection.start;
-                          _selectionEnd = selection.end;
-                          _updatedLineNumber = newLineNumber;
-                        });
-                      }
-                    }
-                  },
-                  contextMenuBuilder: (context, editableTextState) {
-                    return const SizedBox.shrink();
-                  },
-                ),
+            child: Text(
+              widget.selectedText,
+              style: TextStyle(
+                fontSize: widget.fontSize,
+                fontFamily:
+                    Settings.getValue('key-font-family') ?? 'candara',
               ),
+              textAlign: TextAlign.right,
+              textDirection: TextDirection.rtl,
             ),
           ),
         ),
-        if (_selectedText != null && _selectedText!.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'הטקסט שנבחר:',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                  textDirection: TextDirection.rtl,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _selectedText!,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                  textDirection: TextDirection.rtl,
-                ),
-              ],
-            ),
-          ),
-        ],
       ],
     );
   }
 
   Widget _buildErrorTypeSelection(BuildContext context) {
-    final isEnabled = _selectedText != null && _selectedText!.isNotEmpty;
+    final isEnabled = widget.selectedText.isNotEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -316,8 +220,7 @@ class _PhoneReportTabState extends State<PhoneReportTab> {
     return ReportingNumbersWidget(
       libraryVersion: widget.libraryVersion,
       bookId: widget.bookId,
-      // השתמש במספר השורה המעודכן מה-state
-      lineNumber: _updatedLineNumber,
+      lineNumber: widget.lineNumber,
       errorId: _selectedErrorType?.id,
     );
   }

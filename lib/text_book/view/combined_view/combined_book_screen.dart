@@ -27,6 +27,7 @@ import 'package:otzaria/widgets/scrollable_positioned_list_scrollbar.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
 import 'package:otzaria/text_book/view/selection/text_selection_manager.dart';
 import 'package:otzaria/text_book/view/selection/enhanced_gesture_detector.dart';
+import 'package:otzaria/text_book/view/error_report_dialog.dart';
 
 class CombinedView extends StatefulWidget {
   const CombinedView({
@@ -100,7 +101,6 @@ class _CombinedViewState extends State<CombinedView> {
   double _viewportHeight = 0;
 
   ScrollController? _previewScrollController;
-
 
   @override
   void initState() {
@@ -424,6 +424,13 @@ class _CombinedViewState extends State<CombinedView> {
           icon: const Icon(FluentIcons.note_add_24_regular),
           onSelected: (_) => _createNoteForCurrentLine(),
         ),
+        // דיווח על טעות בספר
+        ctx.MenuItem(
+          label: const Text('דווח על טעות בספר'),
+          icon: const Icon(FluentIcons.error_circle_24_regular),
+          enabled: selectedText != null && selectedText.trim().isNotEmpty,
+          onSelected: (_) => _openErrorReportDialog(selectedText!),
+        ),
         const ctx.MenuDivider(),
         // העתקה
         ctx.MenuItem(
@@ -458,6 +465,31 @@ class _CombinedViewState extends State<CombinedView> {
   void _createNoteForCurrentLine() {
     // לא צריך טקסט נבחר - ההערה חלה על כל השורה
     _showNoteEditor();
+  }
+
+  /// פתיחת דיאלוג דיווח על טעות בספר
+  void _openErrorReportDialog(String selectedText) {
+    final state = _textBookBloc.state;
+    if (state is! TextBookLoaded) return;
+
+    // קבלת מספר השורה הנוכחי
+    final currentLineNumber = _savedSelectedIndex.value ??
+        state.selectedIndex ??
+        (state.visibleIndices.isNotEmpty ? state.visibleIndices.first : 0);
+
+    // פתיחת הדיאלוג
+    showDialog<dynamic>(
+      context: context,
+      builder: (BuildContext context) {
+        return TabbedReportDialog(
+          selectedText: selectedText,
+          fontSize: widget.textSize,
+          bookTitle: widget.tab.book.title,
+          currentLineNumber: currentLineNumber + 1, // +1 כי השורות מתחילות מ-1
+          state: state,
+        );
+      },
+    );
   }
 
   /// העתקת פסקה לפי אינדקס (משתמש ב־widget.data[index] ומייצר גם HTML)
@@ -857,8 +889,7 @@ $textWithBreaks
                                   return buildExpansiomTile(
                                       ExpansibleController(),
                                       index,
-                                      state,
-                                      const <int, List<PersonalNote>>{});
+                                      state, const <int, List<PersonalNote>>{});
                                 },
                               ),
                             )
@@ -877,10 +908,8 @@ $textWithBreaks
                                 child: BlocBuilder<PersonalNotesBloc,
                                     PersonalNotesState>(
                                   builder: (context, notesState) {
-                                    final noteMap =
-                                        <int, List<PersonalNote>>{};
-                                    if (notesState.bookId ==
-                                        state.book.title) {
+                                    final noteMap = <int, List<PersonalNote>>{};
+                                    if (notesState.bookId == state.book.title) {
                                       for (final note
                                           in notesState.locatedNotes) {
                                         final line = note.lineNumber;
@@ -1180,8 +1209,7 @@ $textWithBreaks
                               );
                             },
                             child: Padding(
-                              padding:
-                                  const EdgeInsets.only(left: 6, right: 2),
+                              padding: const EdgeInsets.only(left: 6, right: 2),
                               child: Icon(
                                 FluentIcons.note_24_filled,
                                 size: 12,
@@ -1227,7 +1255,6 @@ $textWithBreaks
       ],
     );
   }
-
 
   /// בדיקה אם יש מפרשים לאינדקס מסוים
   bool _hasCommentaries(TextBookLoaded state, int index) {
