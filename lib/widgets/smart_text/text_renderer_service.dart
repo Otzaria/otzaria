@@ -15,6 +15,11 @@ class TextRendererService {
   static String processText(String rawText, RenderSettings settings) {
     String processed = rawText;
 
+    // 0. תיקון סדר סימוני הערות (<sup>) ב-RTL
+    processed = _fixFootnoteMarkers(processed);
+    // 0b. הסתרת טקסט ההערות המודפסות בתוך השורה (למשל "מ: ...")
+    processed = _hideInlineFootnotes(processed);
+
     // 1. הסרת טעמים (אם נדרש)
     if (settings.removeTeamim) {
       processed = utils.removeTeamim(processed);
@@ -49,6 +54,107 @@ class TextRendererService {
     }
 
     return processed;
+  }
+
+  /// מתקן תגי <sup> כדי למנוע היפוך סדר ב-RTL
+  ///
+  /// כאשר יש מספר תגי <sup> ברצף, האלגוריתם של bidi עלול להציג אותם בסדר הפוך.
+  /// הפתרון: בידוד כל <sup> באמצעות סימני בידוד דו־כיווניות (LRI/RLI + PDI)
+  /// בהתאם לתוכן (מספרים/לטינית -> LTR, עברית/ערבית -> RTL).
+  static String _fixFootnoteMarkers(String text) {
+    final supRegex = RegExp(
+      r'<sup(\s[^>]*)?>(.*?)</sup>',
+      caseSensitive: false,
+      dotAll: true,
+    );
+
+    return text.replaceAllMapped(supRegex, (match) {
+      final attrs = match[1] ?? '';
+      final innerHtml = match[2] ?? '';
+      final innerText = innerHtml.replaceAll(RegExp(r'<[^>]+>'), '');
+      if (innerText.trim().isEmpty) {
+        return '';
+      }
+
+      final isFootnoteMarker = RegExp(
+        r'\bclass\s*=\s*"[^"]*\bfootnote-marker\b[^"]*"',
+        caseSensitive: false,
+      ).hasMatch(attrs);
+
+      final isSimple = RegExp(r'^[0-9\u0590-\u05FF]+$').hasMatch(innerText);
+
+      if (!isFootnoteMarker && !isSimple) {
+        final wrappedInner = _wrapWithBidiIsolate(innerHtml);
+        if (identical(wrappedInner, innerHtml)) {
+          return match[0]!;
+        }
+        return '<sup$attrs>$wrappedInner</sup>';
+      }
+
+      final converted = _convertToSuperscriptText(innerText);
+      return converted;
+    });
+  }
+
+  static String _hideInlineFootnotes(String text) {
+    return text.replaceAllMapped(
+      RegExp(
+        r'<i\b([^>]*)\bclass="[^"]*\bfootnote\b[^"]*"([^>]*)>.*?</i>',
+        caseSensitive: false,
+        dotAll: true,
+      ),
+      (match) =>
+          '<span class="footnote-hidden">\u200B</span>',
+    );
+  }
+
+  static String _wrapWithBidiIsolate(String innerHtml) {
+    if (innerHtml.isEmpty) return innerHtml;
+
+    // Skip if already wrapped with isolate marks.
+    if (RegExp(r'[\u2066\u2067\u2068]').hasMatch(innerHtml) ||
+        innerHtml.contains('\u2069')) {
+      return innerHtml;
+    }
+
+    final stripped = innerHtml.replaceAll(RegExp(r'<[^>]+>'), '');
+    if (stripped.isEmpty) return innerHtml;
+
+    final hasRtl = RegExp(r'[\u0590-\u08FF]').hasMatch(stripped);
+    final isolateStart = hasRtl ? '\u2067' /* RLI */ : '\u2066' /* LRI */;
+    const isolateEnd = '\u2069'; // PDI
+
+    return '$isolateStart$innerHtml$isolateEnd';
+  }
+
+  static String _convertToSuperscriptText(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return trimmed;
+
+    final digitMap = <String, String>{
+      '0': '⁰',
+      '1': '¹',
+      '2': '²',
+      '3': '³',
+      '4': '⁴',
+      '5': '⁵',
+      '6': '⁶',
+      '7': '⁷',
+      '8': '⁸',
+      '9': '⁹',
+    };
+
+    final isNumeric = RegExp(r'^[0-9]+$').hasMatch(trimmed);
+    final hasRtl = RegExp(r'[\u0590-\u08FF]').hasMatch(trimmed);
+
+    final isolatedText = isNumeric
+        ? '<span class="footnote-marker-number">$trimmed</span>'
+        : trimmed;
+
+    final isolateStart = hasRtl ? '\u2067' /* RLI */ : '\u2066' /* LRI */;
+    const isolateEnd = '\u2069'; // PDI
+    final dirMark = hasRtl ? '\u200F' /* RLM */ : '\u200E' /* LRM */;
+    return '$dirMark$isolateStart$isolatedText$isolateEnd$dirMark';
   }
 
   /// עוטף טקסט ב-div עם כיווניות RTL ו-justify
