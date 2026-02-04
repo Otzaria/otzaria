@@ -242,7 +242,7 @@ class PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState> {
       final query = searchQuery.toLowerCase();
       filteredLocated = filteredLocated.where((note) {
         return note.contentPlain.toLowerCase().contains(query) ||
-            note.lineNumber.toString().contains(query);
+            (note.lineNumber?.toString().contains(query) ?? false);
       }).toList();
     }
 
