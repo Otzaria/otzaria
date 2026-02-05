@@ -616,7 +616,7 @@ $textWithBreaks
         // ניסיון למצוא את הטקסט המקורי עם תגי HTML
         String htmlContentToUse = plainText;
 
-        // אם יש לנו אינדקס נוכחי, ננסה למצוא את הטקסט המקורי
+        // אם יש לנו אינדקס נוכחי, ננסה למצוא את החלק הרלוונטי מהטקסט המקורי
         final selectedIndex = _currentSelectedIndex.value;
         if (selectedIndex != null &&
             selectedIndex >= 0 &&
@@ -631,10 +631,13 @@ $textWithBreaks
               .replaceAll(RegExp(r'\s+'), ' ')
               .trim();
 
-          // אם הטקסט הפשוט תואם לטקסט המקורי (או חלק ממנו), נשתמש במקורי
-          if (originalCleaned.contains(plainTextCleaned) ||
-              plainTextCleaned.contains(originalCleaned)) {
+          // אם הטקסט הפשוט תואם בדיוק לכל הטקסט המקורי, נשתמש במקורי
+          if (plainTextCleaned == originalCleaned) {
             htmlContentToUse = originalData;
+          } else if (originalCleaned.contains(plainTextCleaned)) {
+            // אם הטקסט הנבחר הוא חלק מהטקסט המקורי, נמצא את החלק הרלוונטי
+            // נשתמש בטקסט הפשוט שנבחר (ללא HTML) כדי לא להעתיק יותר ממה שנבחר
+            htmlContentToUse = plainText;
           }
         }
 
