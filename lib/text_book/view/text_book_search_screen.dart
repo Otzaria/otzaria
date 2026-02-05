@@ -73,6 +73,9 @@ class TextBookSearchViewState extends State<TextBookSearchView>
   Map<String, String> _spacingValues = {};
   SearchMode _searchMode = SearchMode.exact;
   bool _searchWithNikud = false;
+  bool _searchInCurrentSection = false;
+  int? _currentSectionStart;
+  int? _currentSectionEnd;
 
   bool get _isSimpleSearch =>
       !_forceSearchEngine &&
@@ -103,6 +106,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeBookPath();
+      _updateCurrentSection();
     });
   }
 
@@ -137,6 +141,41 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     _searchTextUpdated();
   }
 
+  void _updateCurrentSection() {
+    if (!mounted) return;
+    final state = context.read<TextBookBloc>().state;
+    if (state is TextBookLoaded) {
+      final currentIndex = state.index;
+      
+      // מצא את תחילת הקטע (h2 או h3 הקרוב מלפני)
+      int? sectionStart;
+      for (int i = currentIndex; i >= 0; i--) {
+        final line = _content[i];
+        if (line.startsWith('<h2') || line.startsWith('<h3')) {
+          sectionStart = i;
+          break;
+        }
+      }
+      
+      // מצא את סוף הקטע (h2 או h3 הבא)
+      int? sectionEnd;
+      for (int i = currentIndex + 1; i < _content.length; i++) {
+        final line = _content[i];
+        if (line.startsWith('<h2') || line.startsWith('<h3')) {
+          sectionEnd = i - 1;
+          break;
+        }
+      }
+      
+      setState(() {
+        _currentSectionStart = sectionStart ?? 0;
+        _currentSectionEnd = sectionEnd ?? _content.length - 1;
+      });
+      
+      debugPrint('📍 Current section: $_currentSectionStart to $_currentSectionEnd (current: $currentIndex)');
+    }
+  }
+
   Future<void> _searchTextUpdated() async {
     String query = searchTextController.text.trim();
     if (query.isEmpty ||
@@ -163,6 +202,14 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         final List<SearchResult> matches = [];
         final List<String> address = [];
 
+        // קבע את טווח החיפוש
+        final searchStart = _searchInCurrentSection && _currentSectionStart != null 
+            ? _currentSectionStart! 
+            : 0;
+        final searchEnd = _searchInCurrentSection && _currentSectionEnd != null 
+            ? _currentSectionEnd! 
+            : _content.length - 1;
+
         for (int i = 0; i < _content.length; i++) {
           final line = _content[i];
 
@@ -177,6 +224,11 @@ class TextBookSearchViewState extends State<TextBookSearchView>
                   address.length);
             }
             address.add(line);
+          }
+
+          // בדוק אם השורה בטווח החיפוש
+          if (i < searchStart || i > searchEnd) {
+            continue;
           }
 
           // Clean text for search
@@ -301,6 +353,14 @@ class TextBookSearchViewState extends State<TextBookSearchView>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+
+    // עדכן את הקטע הנוכחי כשהמיקום משתנה
+    final state = context.watch<TextBookBloc>().state;
+    if (state is TextBookLoaded && _searchInCurrentSection) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _updateCurrentSection();
+      });
+    }
 
     // יצירת רשימה מקובצת - כותרת מופיעה רק כשהיא משתנה
     final List<_GroupedResultItem> items = [];
@@ -465,21 +525,95 @@ class TextBookSearchViewState extends State<TextBookSearchView>
           _spacingValues = {};
           _searchMode = SearchMode.exact;
           _searchWithNikud = false;
+          _searchInCurrentSection = false;
         });
       },
-      additionalActions: utils.hasNikud(searchTextController.text)
-          ? [
-              NikudSearchButton(
-                isActive: _searchWithNikud,
-                onPressed: () {
-                  setState(() {
-                    _searchWithNikud = !_searchWithNikud;
-                  });
-                  _searchTextUpdated();
-                },
+      additionalActions: [
+        // כפתור "כל הספר"
+        Tooltip(
+          message: 'חיפוש בכל הספר',
+          child: InkWell(
+            onTap: () {
+              setState(() {
+                _searchInCurrentSection = false;
+              });
+              _searchTextUpdated();
+            },
+            borderRadius: BorderRadius.circular(6),
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: !_searchInCurrentSection
+                    ? Theme.of(context).colorScheme.primaryContainer
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: !_searchInCurrentSection
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
+                  width: 1.5,
+                ),
               ),
-            ]
-          : null,
+              child: Icon(
+                FluentIcons.book_24_regular,
+                size: 16,
+                color: !_searchInCurrentSection
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 4),
+        // כפתור "כותרת נוכחית"
+        Tooltip(
+          message: 'חיפוש בקטע נוכחי',
+          child: InkWell(
+            onTap: () {
+              setState(() {
+                _searchInCurrentSection = true;
+              });
+              _searchTextUpdated();
+            },
+            borderRadius: BorderRadius.circular(6),
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: _searchInCurrentSection
+                    ? Theme.of(context).colorScheme.primaryContainer
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: _searchInCurrentSection
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
+                  width: 1.5,
+                ),
+              ),
+              child: Icon(
+                FluentIcons.text_align_right_24_regular,
+                size: 16,
+                color: _searchInCurrentSection
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
+            ),
+          ),
+        ),
+        // כפתור חיפוש עם ניקוד (רק אם יש ניקוד בטקסט)
+        if (utils.hasNikud(searchTextController.text)) ...[
+          const SizedBox(width: 4),
+          NikudSearchButton(
+            isActive: _searchWithNikud,
+            onPressed: () {
+              setState(() {
+                _searchWithNikud = !_searchWithNikud;
+              });
+              _searchTextUpdated();
+            },
+          ),
+        ],
+      ],
       hintText: 'חפש כאן...',
       onAdvancedSearch: () {
         // Create a temporary SearchingTab to hold the state
