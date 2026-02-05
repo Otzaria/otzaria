@@ -530,75 +530,29 @@ class TextBookSearchViewState extends State<TextBookSearchView>
       },
       additionalActions: [
         // כפתור "כל הספר"
-        Tooltip(
+        _buildScopeButton(
           message: 'חיפוש בכל הספר',
-          child: InkWell(
-            onTap: () {
-              setState(() {
-                _searchInCurrentSection = false;
-              });
-              _searchTextUpdated();
-            },
-            borderRadius: BorderRadius.circular(6),
-            child: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: !_searchInCurrentSection
-                    ? Theme.of(context).colorScheme.primaryContainer
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(
-                  color: !_searchInCurrentSection
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
-                  width: 1.5,
-                ),
-              ),
-              child: Icon(
-                FluentIcons.book_24_regular,
-                size: 16,
-                color: !_searchInCurrentSection
-                    ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-              ),
-            ),
-          ),
+          icon: FluentIcons.book_24_regular,
+          isActive: !_searchInCurrentSection,
+          onTap: () {
+            setState(() {
+              _searchInCurrentSection = false;
+            });
+            _searchTextUpdated();
+          },
         ),
         const SizedBox(width: 4),
         // כפתור "כותרת נוכחית"
-        Tooltip(
+        _buildScopeButton(
           message: 'חיפוש בקטע נוכחי',
-          child: InkWell(
-            onTap: () {
-              setState(() {
-                _searchInCurrentSection = true;
-              });
-              _searchTextUpdated();
-            },
-            borderRadius: BorderRadius.circular(6),
-            child: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: _searchInCurrentSection
-                    ? Theme.of(context).colorScheme.primaryContainer
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(
-                  color: _searchInCurrentSection
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
-                  width: 1.5,
-                ),
-              ),
-              child: Icon(
-                FluentIcons.text_align_right_24_regular,
-                size: 16,
-                color: _searchInCurrentSection
-                    ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-              ),
-            ),
-          ),
+          icon: FluentIcons.text_align_right_24_regular,
+          isActive: _searchInCurrentSection,
+          onTap: () {
+            setState(() {
+              _searchInCurrentSection = true;
+            });
+            _searchTextUpdated();
+          },
         ),
         // כפתור חיפוש עם ניקוד (רק אם יש ניקוד בטקסט)
         if (utils.hasNikud(searchTextController.text)) ...[
@@ -786,6 +740,43 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     final prefix = start > 0 ? '... ' : '';
     final suffix = end < len ? ' ...' : '';
     return '$prefix${text.substring(start, end)}$suffix';
+  }
+
+  /// בונה כפתור בחירת טווח חיפוש (כל הספר / קטע נוכחי)
+  Widget _buildScopeButton({
+    required String message,
+    required IconData icon,
+    required bool isActive,
+    required VoidCallback onTap,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: message,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(6),
+        child: Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: isActive ? colorScheme.primaryContainer : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: isActive 
+                  ? colorScheme.primary 
+                  : colorScheme.outline.withValues(alpha: 0.5),
+              width: 1.5,
+            ),
+          ),
+          child: Icon(
+            icon,
+            size: 16,
+            color: isActive 
+                ? colorScheme.primary 
+                : colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
