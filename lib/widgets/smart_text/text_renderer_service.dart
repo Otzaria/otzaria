@@ -103,8 +103,7 @@ class TextRendererService {
         caseSensitive: false,
         dotAll: true,
       ),
-      (match) =>
-          '<span class="footnote-hidden">\u200B</span>',
+      (match) => '<span class="footnote-hidden">\u200B</span>',
     );
   }
 
@@ -130,19 +129,6 @@ class TextRendererService {
   static String _convertToSuperscriptText(String text) {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return trimmed;
-
-    final digitMap = <String, String>{
-      '0': '⁰',
-      '1': '¹',
-      '2': '²',
-      '3': '³',
-      '4': '⁴',
-      '5': '⁵',
-      '6': '⁶',
-      '7': '⁷',
-      '8': '⁸',
-      '9': '⁹',
-    };
 
     final isNumeric = RegExp(r'^[0-9]+$').hasMatch(trimmed);
     final hasRtl = RegExp(r'[\u0590-\u08FF]').hasMatch(trimmed);
