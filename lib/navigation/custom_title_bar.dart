@@ -530,7 +530,7 @@ class _CustomTitleBarState extends State<CustomTitleBar>
             ],
             const MenuDivider(),
             MenuItem.submenu(
-              label: const Text('רשימת הכרטיסיות '),
+              label: const Text('כרטיסיות פתוחות '),
               items: _getMenuItems(state.tabs, context),
             )
           ],
@@ -706,23 +706,41 @@ class _CustomTitleBarState extends State<CustomTitleBar>
   }
 
   List<ContextMenuEntry> _getMenuItems(
-      List<OpenedTab> tabs, BuildContext context) {
-    List<MenuItem> items = tabs
-        .map((tab) => MenuItem(
-              label: Text(tab.title),
-              onSelected: (_) {
-                final index = tabs.indexOf(tab);
-                context.read<TabsBloc>().add(SetCurrentTab(index));
-              },
-            ))
-        .toList();
+    List<OpenedTab> tabs,
+    BuildContext context,
+  ) {
+    final sortedTabs = [...tabs]..sort((a, b) => a.title.compareTo(b.title));
 
-    items.sort((a, b) {
-      final aText = (a.label as Text).data ?? '';
-      final bText = (b.label as Text).data ?? '';
-      return aText.compareTo(bText);
-    });
-    return items;
+    return sortedTabs.map((tab) {
+      return MenuItem(
+        // חשוב: נותן רוחב מינימלי כדי שהשורה לא תהיה "חבילה" ממורכזת
+        constraints: const BoxConstraints(minWidth: 280, minHeight: 32),
+
+        // חשוב: label פשוט, בלי Row
+        label: Text(
+          tab.title,
+          overflow: TextOverflow.ellipsis,
+        ),
+
+        // חשוב: ה-X מגיע כ-trailing, ואז החבילה ממקמת אותו בקצה
+        trailing: IconButton(
+          tooltip: 'סגור',
+          visualDensity: VisualDensity.compact,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+          icon: const Icon(FluentIcons.dismiss_24_regular, size: 14),
+          onPressed: () {
+            Navigator.of(context).maybePop(); // סוגר את התפריט
+            closeTab(tab, context);
+          },
+        ),
+
+        onSelected: (_) {
+          final index = tabs.indexOf(tab); // אינדקס לפי הרשימה המקורית
+          context.read<TabsBloc>().add(SetCurrentTab(index));
+        },
+      );
+    }).toList();
   }
 }
 
