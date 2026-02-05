@@ -610,7 +610,7 @@ class _TextSectionEditorDialogState extends State<TextSectionEditorDialog> {
               onQuote: () => _wrapSelection('<blockquote>', '</blockquote>'),
               onUndo: _undo,
               onRedo: _redo,
-              /* TODO: Implement more */
+               /* TODO: Implement more */
               onSearch: _showSearchDialog,
               hasLinksFile: widget.hasLinksFile,
             ),
