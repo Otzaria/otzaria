@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
+import 'package:html/dom.dart' as dom;
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/utils/html_link_handler.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
@@ -43,6 +44,42 @@ class SmartTextWidget extends StatelessWidget {
     // עיבוד הטקסט דרך השירות המרכזי
     final processedHtml = TextRendererService.render(text, settings);
 
+    if (processedHtml.contains('<sup') ||
+        processedHtml.contains('footnote-marker') ||
+        processedHtml.contains('¹') ||
+        processedHtml.contains('²') ||
+        processedHtml.contains('³')) {
+      assert(() {
+        final supRegex = RegExp(
+          r'<sup[^>]*>(.*?)</sup>',
+          caseSensitive: false,
+          dotAll: true,
+        );
+        final markers = <String>[];
+        for (final match in supRegex.allMatches(processedHtml)) {
+          final inner = (match.group(1) ?? '')
+              .replaceAll(RegExp(r'<[^>]+>'), '')
+              .replaceAll('\u2066', '')
+              .replaceAll('\u2067', '')
+              .replaceAll('\u2068', '')
+              .replaceAll('\u2069', '');
+          if (inner.isNotEmpty) {
+            markers.add(inner);
+          }
+        }
+        if (markers.length >= 2) {
+          debugPrint(
+              '[SmartTextWidget] markers sequence: ${markers.join(', ')}');
+        }
+        return true;
+      }());
+
+      final preview = processedHtml.length > 400
+          ? '${processedHtml.substring(0, 400)}…'
+          : processedHtml;
+      debugPrint('[SmartTextWidget] HTML with <sup>: $preview');
+    }
+
     return HtmlWidget(
       processedHtml,
       key: widgetKey,
@@ -52,6 +89,18 @@ class SmartTextWidget extends StatelessWidget {
         fontFamily: settings.fontFamily,
         height: settings.lineHeight,
       ),
+      customStylesBuilder: (dom.Element element) {
+        if (element.localName == 'span' &&
+            element.classes.contains('footnote-marker-number')) {
+          return {
+            'font-size': '0.75em',
+            'font-style': 'italic',
+            'position': 'relative',
+            'top': '-0.55em',
+          };
+        }
+        return null;
+      },
       onTapUrl: onOpenBook != null
           ? (url) async {
               return await HtmlLinkHandler.handleLink(

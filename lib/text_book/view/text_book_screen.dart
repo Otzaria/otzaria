@@ -38,11 +38,7 @@ import 'package:otzaria/utils/ref_helper.dart';
 import 'package:otzaria/text_book/editing/widgets/text_section_editor_dialog.dart';
 import 'package:otzaria/text_book/view/book_source_dialog.dart';
 import 'package:otzaria/text_book/editing/helpers/editor_settings_helper.dart';
-import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:otzaria/personal_notes/personal_notes_system.dart';
-import 'package:otzaria/models/phone_report_data.dart';
-import 'package:otzaria/services/phone_report_service.dart';
-import 'package:otzaria/services/sources_books_service.dart';
 import 'package:otzaria/utils/shortcut_helper.dart';
 import 'package:otzaria/utils/shortcut_validator.dart';
 import 'package:otzaria/utils/fullscreen_helper.dart';
@@ -52,7 +48,6 @@ import 'package:otzaria/widgets/resizable_drag_handle.dart';
 import 'package:otzaria/shamor_zachor/providers/shamor_zachor_data_provider.dart';
 import 'package:otzaria/shamor_zachor/providers/shamor_zachor_progress_provider.dart';
 import 'package:otzaria/shamor_zachor/models/book_model.dart';
-import 'package:otzaria/text_book/view/error_report_dialog.dart';
 import 'package:otzaria/settings/per_book_settings.dart';
 import 'package:otzaria/text_book/view/page_shape/page_shape_settings_dialog.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
@@ -99,10 +94,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
   // RepaintBoundary key עבור הדפסה של "צורת הדף" כפי שמוצג
   final GlobalKey _pageShapePrintBoundaryKey = GlobalKey();
-
-  // משתנים לשמירת נתונים כבדים שנטענים ברקע
-  Future<Map<String, dynamic>>? _preloadedHeavyData;
-  bool _isLoadingHeavyData = false;
 
   // Cache לרשימת אינדקסי TOC ממוינת - למניעת חישוב מחדש בכל לחיצה
   List<int>? _cachedTocIndices;
@@ -449,24 +440,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         return 'חזרה שלישית';
       default:
         return column;
-    }
-  }
-
-  int _getCurrentLineNumber() {
-    try {
-      final state = context.read<TextBookBloc>().state;
-      if (state is TextBookLoaded) {
-        final positions = state.positionsListener.itemPositions.value;
-        if (positions.isNotEmpty) {
-          final firstVisible =
-              positions.reduce((a, b) => a.index < b.index ? a : b);
-          return firstVisible.index + 1;
-        }
-      }
-      return 1; // Fallback to line 1
-    } catch (e) {
-      debugPrint('Error getting current line number: $e');
-      return 1;
     }
   }
 
@@ -1506,16 +1479,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           onPressed: () => _handleFullFileEditorPress(context, state),
         ),
 
-      // 6) דווח על טעות בספר - לא בתצוגה משולבת
-      if (!widget.isInCombinedView)
-        ActionButtonData(
-          widget: _buildReportBugButton(context, state),
-          icon: FluentIcons.error_circle_24_regular,
-          tooltip: 'דווח על טעות בספר',
-          onPressed: () => _showReportBugDialog(context, state),
-        ),
-
-      // 7) הדפסה - לא בתצוגה משולבת
+      // 6) הדפסה - לא בתצוגה משולבת
       if (!widget.isInCombinedView)
         ActionButtonData(
           widget: _buildPrintButton(context, state),
@@ -1524,7 +1488,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           onPressed: () => _handlePrintPress(state),
         ),
 
-      // 8) אודות הספר - לא בתצוגה משולבת
+      // 7) אודות הספר - לא בתצוגה משולבת
       if (!widget.isInCombinedView)
         ActionButtonData(
           widget: IconButton(
@@ -1558,12 +1522,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
               icon: FluentIcons.document_edit_24_regular,
               tooltip: 'ערוך את הספר',
               onPressed: () => _handleFullFileEditorPress(context, state),
-            ),
-            ActionButtonData(
-              widget: const SizedBox.shrink(),
-              icon: FluentIcons.error_circle_24_regular,
-              tooltip: 'דווח על טעות בספר',
-              onPressed: () => _showReportBugDialog(context, state),
             ),
             ActionButtonData(
               widget: const SizedBox.shrink(),
@@ -1990,14 +1948,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     );
   }
 
-  Widget _buildReportBugButton(BuildContext context, TextBookLoaded state) {
-    return IconButton(
-      icon: const Icon(FluentIcons.error_circle_24_regular),
-      tooltip: 'דווח על טעות בספר',
-      onPressed: () => _showReportBugDialog(context, state),
-    );
-  }
-
   Widget _buildShamorZachorButton(BuildContext context, TextBookLoaded state) {
     // Always show button - either for marking progress or for adding to tracking
     final isTracked = _isBookTrackedInShamorZachor(state.book.title);
@@ -2192,214 +2142,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
     UiSnack.showQuick(
         bookmarkAdded ? 'הסימניה נוספה בהצלחה' : 'הסימניה כבר קיימת');
-  }
-
-  Future<void> _showReportBugDialog(
-    BuildContext context,
-    TextBookLoaded state,
-  ) async {
-    final allText = state.content;
-    final visiblePositions = state.positionsListener.itemPositions.value
-        .toList()
-      ..sort((a, b) => a.index.compareTo(b.index));
-    final visibleText = visiblePositions
-        .map((pos) => utils.stripHtmlIfNeeded(allText[pos.index]))
-        .join('\n');
-
-    if (!mounted || !context.mounted) return;
-
-    // פתיחת הדיאלוג החדש שמחזיר אובייקט תוצאה (פעולה + נתונים)
-    final ReportDialogResult? result = await _showTabbedReportDialog(
-      context,
-      visibleText,
-      state.fontSize,
-      state.book.title,
-      state,
-    );
-
-    try {
-      if (result == null) return; // בוטל או נסגר ללא פעולה
-      if (!mounted || !context.mounted) return;
-
-      // בדיקה איזה סוג נתונים חזר
-      if (result.data is ReportedErrorData) {
-        // === דיווח רגיל (מייל או שמירה) ===
-        final errorData = result.data as ReportedErrorData;
-
-        // שליפת הנתונים הכבדים שנטענו ברקע בזמן שהדיאלוג היה פתוח
-        final heavyData = await _getPreloadedHeavyData(state);
-
-        // חישוב מיקום מדויק והקשר (Context)
-        final baseLineNumber = _getCurrentLineNumber();
-        final selectionStart = visibleText.indexOf(errorData.selectedText);
-        int computedLineNumber = baseLineNumber;
-        if (selectionStart >= 0) {
-          final before = visibleText.substring(0, selectionStart);
-          final offset = '\n'.allMatches(before).length;
-          computedLineNumber = baseLineNumber + offset;
-        }
-        final safeStart = selectionStart >= 0 ? selectionStart : 0;
-        final safeEnd = safeStart + errorData.selectedText.length;
-        final contextText = ErrorReportHelper.buildContextAroundSelection(
-          visibleText,
-          safeStart,
-          safeEnd,
-          wordsBefore: 4,
-          wordsAfter: 4,
-        );
-
-        // ביצוע הפעולה שנבחרה בדיאלוג (ללא דיאלוג נוסף!)
-        if (result.action == ErrorReportAction.sendEmail ||
-            result.action == ErrorReportAction.saveForLater) {
-          if (!context.mounted) return;
-          await ErrorReportHelper.handleRegularReportAction(
-            context,
-            result.action,
-            errorData,
-            state.book.title,
-            heavyData['currentRef'],
-            heavyData['bookDetails'],
-            computedLineNumber,
-            contextText,
-          );
-        }
-      } else if (result.data is PhoneReportData) {
-        // === דיווח טלפוני ===
-        await _handlePhoneReport(result.data as PhoneReportData);
-      }
-    } finally {
-      // נקה את הנתונים הכבדים מהזיכרון
-      _clearHeavyDataFromMemory();
-    }
-  }
-
-  /// Load heavy data for regular report in background
-  Future<Map<String, dynamic>> _loadHeavyDataForRegularReport(
-      TextBookLoaded state) async {
-    final currentRef = await refFromIndex(
-      state.positionsListener.itemPositions.value.isNotEmpty
-          ? state.positionsListener.itemPositions.value.first.index
-          : 0,
-      state.book.tableOfContents,
-    );
-
-    final bookDetails = SourcesBooksService().getBookDetails(state.book.title);
-
-    return {'currentRef': currentRef, 'bookDetails': bookDetails};
-  }
-
-  /// Get preloaded heavy data or load it if not ready
-  Future<Map<String, dynamic>> _getPreloadedHeavyData(
-      TextBookLoaded state) async {
-    if (_preloadedHeavyData != null) {
-      return await _preloadedHeavyData!;
-    } else {
-      return await _loadHeavyDataForRegularReport(state);
-    }
-  }
-
-  /// Clear heavy data from memory to free up resources
-  void _clearHeavyDataFromMemory() {
-    _preloadedHeavyData = null;
-    _isLoadingHeavyData = false;
-  }
-
-  /// Start loading heavy data in background immediately after dialog opens
-  void _startLoadingHeavyDataInBackground(TextBookLoaded state) {
-    if (_isLoadingHeavyData) return; // כבר טוען
-
-    _isLoadingHeavyData = true;
-
-    // התחל טעינה ברקע
-    _preloadedHeavyData = _loadHeavyDataForRegularReport(state).then((data) {
-      _isLoadingHeavyData = false;
-      return data;
-    }).catchError((error) {
-      _isLoadingHeavyData = false;
-      throw error;
-    });
-  }
-
-  Future<dynamic> _showTabbedReportDialog(
-    BuildContext context,
-    String text,
-    double fontSize,
-    String bookTitle,
-    TextBookLoaded state,
-  ) async {
-    // קבל את מספר השורה ההתחלתי לפני פתיחת הדיאלוג
-    final currentLineNumber = _getCurrentLineNumber();
-
-    // התחל לטעון נתונים כבדים ברקע מיד אחרי פתיחת הדיאלוג
-    _startLoadingHeavyDataInBackground(state);
-
-    return showDialog<dynamic>(
-      context: context,
-      builder: (BuildContext context) {
-        return TabbedReportDialog(
-          visibleText: text,
-          fontSize: fontSize,
-          bookTitle: bookTitle,
-          currentLineNumber: currentLineNumber,
-          state: state, // העבר את ה-state לדיאלוג
-        );
-      },
-    );
-  }
-
-  /// Handle phone report submission
-  Future<void> _handlePhoneReport(PhoneReportData reportData) async {
-    try {
-      // Show loading indicator
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-
-      final phoneReportService = PhoneReportService();
-      final result = await phoneReportService.submitReport(reportData);
-      if (!mounted || !context.mounted) return;
-
-      // Hide loading indicator
-      if (context.mounted && Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
-      }
-
-      if (result.isSuccess) {
-        _showPhoneReportSuccessDialog();
-      } else {
-        ErrorReportHelper.showSimpleSnack(context, result.message);
-      }
-    } catch (e) {
-      // Hide loading indicator
-      if (mounted && context.mounted && Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
-      }
-
-      debugPrint('Phone report error: $e');
-      ErrorReportHelper.showSimpleSnack(
-          context, 'שגיאה בשליחת הדיווח: ${e.toString()}');
-    }
-  }
-
-  /// Show success dialog for phone report
-  void _showPhoneReportSuccessDialog() {
-    if (!mounted) return;
-
-    final currentTextBookState = context.read<TextBookBloc>().state;
-    final parentContext = context;
-
-    ErrorReportHelper.showPhoneReportSuccessDialog(
-      context,
-      () {
-        if (parentContext.mounted && currentTextBookState is TextBookLoaded) {
-          _showReportBugDialog(parentContext, currentTextBookState);
-        }
-      },
-    );
   }
 
   Widget _buildBody(
