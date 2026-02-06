@@ -236,12 +236,12 @@ class ShamorZachorDataProvider with ChangeNotifier {
         // Let's create a simple part "Main" if TOC is complex, or map TOC to sections.
         // BookDetails has `sections` field (List<BookSection>).
 
-        sections = _buildSectionsFromToc(tocEntries);
+        sections = _buildSectionsFromToc(tocEntries, dbBook.totalLines);
 
         // Create a default Part that covers the whole book range
         // DB books usually 1-N index.
         int endPage =
-            dbBook.totalLines > 0 ? dbBook.totalLines : 1000; // Fallback
+            dbBook.totalLines > 0 ? dbBook.totalLines : 100; // Fallback
         // Actually if we have cached page count?
         // Let's assume 1 large part.
         parts.add(BookPart(
@@ -277,7 +277,8 @@ class ShamorZachorDataProvider with ChangeNotifier {
     );
   }
 
-  List<BookSection> _buildSectionsFromToc(List<db_models.TocEntry> entries) {
+  List<BookSection> _buildSectionsFromToc(
+      List<db_models.TocEntry> entries, int totalLines) {
     // Map DB entries to BookSection
     // DB entries are flat list. We need to rebuild tree.
     // `TocDao` usually handles relationships.
@@ -297,23 +298,50 @@ class ShamorZachorDataProvider with ChangeNotifier {
     final roots = entries.where((e) => e.parentId == null).toList()
       ..sort((a, b) => (a.lineIndex ?? 0).compareTo(b.lineIndex ?? 0));
 
-    return roots.map((root) => _convertToSection(root, childMap)).toList();
+    final List<BookSection> result = [];
+    for (int i = 0; i < roots.length; i++) {
+      final current = roots[i];
+      final next = (i + 1 < roots.length) ? roots[i + 1] : null;
+      // nextStart is next sibling's startPage or book's totalLines
+      final nextStart = next?.lineIndex ?? totalLines;
+      final currentEnd =
+          (next != null && (next.lineIndex ?? 0) > (current.lineIndex ?? 0))
+              ? (next.lineIndex! - 1)
+              : nextStart;
+      result.add(_convertToSection(
+          current, childMap, currentEnd > 0 ? currentEnd : 100));
+    }
+    return result;
   }
 
-  BookSection _convertToSection(
-      db_models.TocEntry entry, Map<int, List<db_models.TocEntry>> childMap) {
+  BookSection _convertToSection(db_models.TocEntry entry,
+      Map<int, List<db_models.TocEntry>> childMap, int parentEndPage) {
     final children = childMap[entry.id] ?? [];
     children.sort((a, b) => (a.lineIndex ?? 0).compareTo(b.lineIndex ?? 0));
+
+    final List<BookSection> childSections = [];
+    final entryStart = entry.lineIndex ?? 0;
+
+    for (int i = 0; i < children.length; i++) {
+      final current = children[i];
+      final next = (i + 1 < children.length) ? children[i + 1] : null;
+
+      final nextStart = next?.lineIndex ?? parentEndPage;
+      final currentEnd =
+          (next != null && (next.lineIndex ?? 0) > (current.lineIndex ?? 0))
+              ? (next.lineIndex! - 1)
+              : nextStart;
+
+      childSections.add(_convertToSection(current, childMap, currentEnd));
+    }
 
     return BookSection(
       id: entry.id.toString(),
       title: entry.text,
       level: entry.level,
-      startPage: entry.lineIndex ?? 0, // DB lineIndex is often the start
-      endPage:
-          0, // Need to calculate end page? Shamor UI might strictly need it.
-      // Usually endPage is start of next sibling - 1.
-      children: children.map((c) => _convertToSection(c, childMap)).toList(),
+      startPage: entryStart,
+      endPage: parentEndPage > entryStart ? parentEndPage : entryStart,
+      children: childSections,
     );
   }
 
