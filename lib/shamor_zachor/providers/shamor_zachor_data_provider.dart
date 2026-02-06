@@ -72,8 +72,11 @@ class ShamorZachorDataProvider with ChangeNotifier {
 
       final repository = _sqliteDataProvider!.repository!;
 
-      // 1. Fetch "Base Books" from DB
+      // 1. Fetch "Base Books" and "Personal Books" from DB
       final baseBooks = await repository.database.bookDao.getBaseBooks();
+      final personalBooks =
+          await repository.database.bookDao.getPersonalBooks();
+      final allBooks = [...baseBooks, ...personalBooks];
 
       // Cached Data
       /// The book dao is accessed via [SeforimRepository.database]
@@ -90,9 +93,9 @@ class ShamorZachorDataProvider with ChangeNotifier {
 
       final Map<String, BookCategory> resultData = {};
 
-      // Group Base Books by their Category ID first
+      // Group Books by their Category ID first
       final Map<int, List<db_models.Book>> booksByCatId = {};
-      for (var b in baseBooks) {
+      for (var b in allBooks) {
         booksByCatId.putIfAbsent(b.categoryId, () => []);
         booksByCatId[b.categoryId]!.add(b);
       }
@@ -128,8 +131,8 @@ class ShamorZachorDataProvider with ChangeNotifier {
       }
 
       _allBookData = resultData;
-      _logger
-          .info('Loaded ${_allBookData.length} top-level categories from DB.');
+      _logger.info(
+          'Loaded ${_allBookData.length} top-level categories from DB (incl. ${personalBooks.length} personal books).');
     } catch (e, stackTrace) {
       _logger.severe('Error loading from DB', e, stackTrace);
       _error = ShamorZachorError.fromException(e, stackTrace: stackTrace);
@@ -256,7 +259,10 @@ class ShamorZachorDataProvider with ChangeNotifier {
       }
     } catch (e) {
       _logger.warning('Failed to load TOC for ${dbBook.title}', e);
-      parts.add(BookPart(name: "ראשי", startPage: 1, endPage: 100));
+      parts.add(BookPart(
+          name: "ראשי",
+          startPage: 1,
+          endPage: dbBook.totalLines > 0 ? dbBook.totalLines : 100));
     }
 
     return BookDetails(
@@ -456,10 +462,27 @@ class ShamorZachorDataProvider with ChangeNotifier {
   }
 
   List<Map<String, dynamic>> getCustomBooks() {
-    // If we filtered isBaseBook=1, maybe personal books are not included?
-    // isBaseBook usually means "Core Library".
-    // Personal books usually have isPersonal=1.
-    return [];
+    final results = <Map<String, dynamic>>[];
+
+    void scan(BookCategory cat, String topLevel) {
+      cat.books.forEach((name, details) {
+        if (details.isCustom) {
+          results.add({
+            'categoryName': cat.name,
+            'bookName': name,
+            'bookDetails': details,
+            'topLevelCategoryKey': topLevel
+          });
+        }
+      });
+      cat.subcategories?.forEach((sub) => scan(sub, topLevel));
+    }
+
+    _allBookData.forEach((topLevelName, cat) {
+      scan(cat, topLevelName);
+    });
+
+    return results;
   }
 
   bool isBookTracked(String categoryName, String bookName) {
