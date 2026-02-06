@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:logging/logging.dart';
 
@@ -7,10 +6,12 @@ import '../providers/shamor_zachor_data_provider.dart';
 import '../providers/shamor_zachor_progress_provider.dart';
 import '../widgets/error_boundary.dart';
 import '../shamor_zachor_widget.dart';
-import 'tracking_screen.dart';
-import 'books_screen.dart';
+import '../widgets/shamor_zachor_sidebar.dart';
+import '../widgets/category_books_grid.dart';
+import '../models/book_model.dart';
+import 'book_detail_screen.dart';
 
-/// Main screen for Shamor Zachor with bottom navigation
+/// Main screen for Shamor Zachor with Split View (Sidebar + Content)
 class ShamorZachorMainScreen extends StatefulWidget {
   const ShamorZachorMainScreen({super.key});
 
@@ -19,188 +20,189 @@ class ShamorZachorMainScreen extends StatefulWidget {
 }
 
 class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
-    with AutomaticKeepAliveClientMixin, TickerProviderStateMixin {
+    with AutomaticKeepAliveClientMixin {
   static final Logger _logger = Logger('ShamorZachorMainScreen');
+
+  // Navigation State
+  String? _selectedCategoryName; // Display name (e.g. Zeraim)
+  String? _selectedTopLevelName; // Key (e.g. Mishnah)
+  BookCategory? _selectedCategoryObject;
+  String? _selectedBookName;
+  BookDetails? _selectedBookDetails;
 
   @override
   bool get wantKeepAlive => true;
 
-  int _selectedIndex = 0;
-  late final PageController _pageController;
-  late final List<Widget> _screens;
-
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(initialPage: _selectedIndex);
-    _screens = [
-      const TrackingScreen(),
-      const BooksScreen(),
-    ];
-    _logger.info('Initialized ShamorZachorMainScreen');
+    _logger.info('Initialized ShamorZachorMainScreen (Split View)');
 
-    // Notify initial title state
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _notifyTitleChange(_selectedIndex);
-      }
+      if (mounted) _notifyTitleChange();
     });
   }
 
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
+  void _navigateToBook(String category, String book, BookDetails details) {
+    setState(() {
+      _selectedBookName = book;
+      _selectedBookDetails = details;
+    });
+    _notifyTitleChange();
   }
 
-  void _onItemTapped(int index) {
-    if (index != _selectedIndex && mounted) {
-      setState(() {
-        _selectedIndex = index;
-      });
-      // Only animate if PageController is attached
-      if (_pageController.hasClients) {
-        _pageController.animateToPage(
-          index,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
+  void _onCategorySelected(
+      String name, BookCategory category, String topLevelName) {
+    setState(() {
+      _selectedCategoryName = name;
+      _selectedCategoryObject = category;
+      _selectedTopLevelName = topLevelName;
+
+      _selectedBookName = null;
+      _selectedBookDetails = null;
+    });
+    _notifyTitleChange();
+  }
+
+  void _notifyTitleChange() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        String title;
+        if (_selectedBookName != null) {
+          title = 'שמור וזכור - $_selectedBookName';
+        } else if (_selectedCategoryName != null) {
+          title = 'שמור וזכור - $_selectedCategoryName';
+        } else {
+          title = 'שמור וזכור';
+        }
+
+        final ancestorWidget =
+            context.findAncestorWidgetOfExactType<ShamorZachorWidget>();
+        if (ancestorWidget != null && ancestorWidget.onTitleChanged != null) {
+          ancestorWidget.onTitleChanged!(title);
+        }
       }
-      // Notify parent about title change
-      _notifyTitleChange(index);
-    }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    super.build(context); // Required for AutomaticKeepAliveClientMixin
+    super.build(context);
+
+    // Define Sidebar Width
+    const double sidebarWidth = 300.0;
 
     return Scaffold(
       body: ErrorBoundary(
-        child: Column(
-          children: [
-            Expanded(
-              child: Consumer2<ShamorZachorDataProvider,
-                  ShamorZachorProgressProvider>(
-                builder: (context, dataProvider, progressProvider, child) {
-                  // Show loading state
-                  if (dataProvider.isLoading || progressProvider.isLoading) {
-                    return const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          CircularProgressIndicator(),
-                          SizedBox(height: 16),
-                          Text('טוען נתונים...'),
-                        ],
-                      ),
-                    );
-                  }
+        child:
+            Consumer2<ShamorZachorDataProvider, ShamorZachorProgressProvider>(
+          builder: (context, dataProvider, progressProvider, child) {
+            if (dataProvider.isLoading || progressProvider.isLoading) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-                  if (progressProvider.error != null) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            FluentIcons.database_24_regular,
-                            size: 64,
-                            color: Colors.orange,
-                          ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'שגיאה בטעינת נתוני התקדמות',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                                fontSize: 20, fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            progressProvider.error!.userFriendlyMessage,
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                          const SizedBox(height: 16),
-                          ElevatedButton(
-                            onPressed: () {
-                              // נסה לטעון מחדש את שני הספקים
-                              dataProvider.loadAllData();
-                              // צריך להוסיף מתודה לטעינה מחדש ב-progressProvider
-                              // בינתיים, זו התחלה טובה
-                            },
-                            child: const Text('נסה שוב'),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
+            if (dataProvider.error != null || progressProvider.error != null) {
+              return Center(
+                  child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                    const Text('שגיאה בטעינת הנתונים'),
+                    ElevatedButton(
+                        onPressed: () {
+                          dataProvider.loadAllData();
+                        },
+                        child: const Text('נסה שוב'))
+                  ]));
+            }
 
-                  // Show main content
-                  return PageView(
-                    controller: _pageController,
-                    onPageChanged: (index) {
-                      if (mounted) {
-                        setState(() {
-                          _selectedIndex = index;
-                        });
-                        // Notify parent about title change when swiping
-                        _notifyTitleChange(index);
-                      }
-                    },
-                    children: _screens,
-                  );
-                },
+            // Default Selection Logic: 'All Books'
+            BookCategory? currentCategoryObject = _selectedCategoryObject;
+            String? currentCategoryName = _selectedCategoryName;
+            String? currentTopLevelName = _selectedTopLevelName;
+
+            if (currentCategoryObject == null &&
+                currentCategoryName == null &&
+                _selectedBookName == null) {
+              // Construct 'All Books' category (same logic as Sidebar)
+              final allCategories = dataProvider.allBookData;
+              // Use natural order from DataProvider (already sorted by orderIndex from DB)
+              final sortedKeys = allCategories.keys.toList();
+
+              currentCategoryName = 'כל הספרים';
+              currentTopLevelName = 'all_books_virtual';
+              currentCategoryObject = BookCategory(
+                  name: 'כל הספרים',
+                  books: {},
+                  subcategories:
+                      sortedKeys.map((key) => allCategories[key]!).toList(),
+                  isCustom: false,
+                  sourceFile: 'virtual',
+                  schemaVersion: 1,
+                  contentType: 'text',
+                  defaultStartPage: 1);
+            }
+
+            return NotificationListener<BookNavigationNotification>(
+              onNotification: (notification) {
+                _navigateToBook(
+                  notification.categoryName,
+                  notification.bookName,
+                  notification.bookDetails,
+                );
+                return true;
+              },
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // 1. Sidebar
+                  SizedBox(
+                    width: sidebarWidth,
+                    child: ShamorZachorSidebar(
+                      onCategorySelected: _onCategorySelected,
+                      selectedCategoryName:
+                          currentTopLevelName == 'all_books_virtual'
+                              ? 'all_books_virtual'
+                              : _selectedCategoryName,
+                    ),
+                  ),
+
+                  // Vertical Divider
+                  const VerticalDivider(width: 1),
+
+                  // 2. Main Content Area
+                  Expanded(
+                    child: _selectedBookName != null &&
+                            _selectedBookDetails != null
+                        ? KeyedSubtree(
+                            key: ValueKey(
+                                'Book_${_selectedCategoryName}_$_selectedBookName'),
+                            child: BookDetailScreen(
+                              topLevelCategoryKey: _selectedTopLevelName ??
+                                  _selectedCategoryName!,
+                              categoryName: _selectedCategoryName!,
+                              bookName: _selectedBookName!,
+                              onBack: () {
+                                setState(() {
+                                  _selectedBookName = null;
+                                  _selectedBookDetails = null;
+                                });
+                                _notifyTitleChange();
+                              },
+                            ),
+                          )
+                        : CategoryBooksGrid(
+                            categoryName: currentCategoryName,
+                            category: currentCategoryObject,
+                            topLevelName: currentTopLevelName,
+                            onBookSelected: _navigateToBook,
+                          ),
+                  ),
+                ],
               ),
-            ),
-          ],
+            );
+          },
         ),
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: _onItemTapped,
-        height: 60,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(FluentIcons.timeline_24_regular),
-            selectedIcon: Icon(FluentIcons.timeline_24_filled),
-            label: 'מעקב',
-          ),
-          NavigationDestination(
-            icon: Icon(FluentIcons.book_24_regular),
-            selectedIcon: Icon(FluentIcons.book_24_filled),
-            label: 'ספרים',
-          ),
-        ],
-      ),
     );
-  }
-
-  String _getTitle(int index) {
-    switch (index) {
-      case 0:
-        return 'מעקב לימוד';
-      case 1:
-        return 'ספרים';
-      default:
-        return 'שמור וזכור';
-    }
-  }
-
-  /// Notify parent about title change
-  void _notifyTitleChange(int index) {
-    // Use post-frame callback to find ancestor widget
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        final newTitle = _getTitle(index);
-        final fullTitle = 'שמור וזכור - $newTitle';
-
-        // Find the ShamorZachorWidget ancestor
-        final ancestorWidget =
-            context.findAncestorWidgetOfExactType<ShamorZachorWidget>();
-        if (ancestorWidget != null && ancestorWidget.onTitleChanged != null) {
-          ancestorWidget.onTitleChanged!(fullTitle);
-        }
-      }
-    });
   }
 }

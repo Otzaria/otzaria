@@ -1,4 +1,5 @@
 import '../utils/json_utils.dart';
+import 'package:flutter/widgets.dart';
 
 /// Result of a book search operation
 class BookSearchResult {
@@ -531,4 +532,17 @@ class LearnableItem {
       amudKey.hashCode ^
       absoluteIndex.hashCode ^
       sectionId.hashCode;
+}
+
+/// Notification to request navigation to a book
+class BookNavigationNotification extends Notification {
+  final String categoryName;
+  final String bookName;
+  final BookDetails bookDetails;
+
+  BookNavigationNotification({
+    required this.categoryName,
+    required this.bookName,
+    required this.bookDetails,
+  });
 }

@@ -20,6 +20,7 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
 import 'package:otzaria/widgets/resizable_drag_handle.dart';
+import 'package:otzaria/widgets/navigation_tree_tile.dart';
 import 'package:otzaria/utils/open_book.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
@@ -376,83 +377,19 @@ class _PersonalNotesManagerScreenState
             Column(
               children: [
                 // Root "הערות אישיות" folder
-                InkWell(
+                NavigationTreeTile.category(
+                  title: 'הערות אישיות',
+                  level: 0,
+                  isSelected: isRootSelected,
+                  isExpanded: isRootExpanded,
+                  hasChildren: true,
+                  count: totalNotesCount > 0 ? totalNotesCount : null,
                   onTap: () => _onFilterChanged(null),
-                  child: Container(
-                    padding: const EdgeInsets.only(
-                      right: 16.0,
-                      left: 16.0,
-                      top: 12.0,
-                      bottom: 12.0,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isRootSelected
-                          ? Theme.of(context)
-                              .colorScheme
-                              .primaryContainer
-                              .withValues(alpha: 0.3)
-                          : null,
-                      border: Border(
-                        bottom: BorderSide(
-                          color: Theme.of(context).dividerColor,
-                          width: 0.5,
-                        ),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          isRootExpanded
-                              ? FluentIcons.folder_open_24_regular
-                              : FluentIcons.folder_24_regular,
-                          color: Theme.of(context).colorScheme.primary,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'הערות אישיות',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                          ),
-                        ),
-                        if (totalNotesCount > 0)
-                          Text(
-                            '($totalNotesCount)',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
-                            ),
-                          ),
-                        const SizedBox(width: 8),
-                        InkWell(
-                          onTap: () {
-                            setState(() {
-                              _expansionState['/personal_notes_root'] =
-                                  !isRootExpanded;
-                            });
-                          },
-                          borderRadius: BorderRadius.circular(4),
-                          child: Padding(
-                            padding: const EdgeInsets.all(4.0),
-                            child: Icon(
-                              isRootExpanded
-                                  ? FluentIcons.chevron_up_24_regular
-                                  : FluentIcons.chevron_down_24_regular,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  onToggleExpand: () {
+                    setState(() {
+                      _expansionState['/personal_notes_root'] = !isRootExpanded;
+                    });
+                  },
                 ),
                 if (isRootExpanded) ...[
                   ..._buildCategoryChildren(rootCategory, 0),
@@ -569,83 +506,24 @@ class _PersonalNotesManagerScreenState
 
     final isExpanded = _expansionState[category.path] ?? level <= 1;
     final isSelected = _selectedFilter == category.path;
+    final hasChildren =
+        category.subCategories.isNotEmpty || category.books.isNotEmpty;
 
     return Column(
       children: [
-        InkWell(
+        NavigationTreeTile.category(
+          title: category.title,
+          level: level,
+          isSelected: isSelected,
+          isExpanded: isExpanded,
+          hasChildren: hasChildren,
+          count: count > 0 ? count : null,
           onTap: () => _onFilterChanged(category.path),
-          child: Container(
-            padding: EdgeInsets.only(
-              right: 16.0 + (level * 24.0),
-              left: 16.0,
-              top: 12.0,
-              bottom: 12.0,
-            ),
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? Theme.of(context)
-                      .colorScheme
-                      .primaryContainer
-                      .withValues(alpha: 0.3)
-                  : null,
-              border: Border(
-                bottom: BorderSide(
-                  color: Theme.of(context).dividerColor,
-                  width: 0.5,
-                ),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  isExpanded
-                      ? FluentIcons.folder_open_24_regular
-                      : FluentIcons.folder_24_regular,
-                  color: Theme.of(context).colorScheme.primary,
-                  size: 20,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    category.title,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                ),
-                if (count > 0)
-                  Text(
-                    '($count)',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                const SizedBox(width: 8),
-                if (category.subCategories.isNotEmpty ||
-                    category.books.isNotEmpty)
-                  InkWell(
-                    onTap: () {
-                      setState(() {
-                        _expansionState[category.path] = !isExpanded;
-                      });
-                    },
-                    borderRadius: BorderRadius.circular(4),
-                    child: Padding(
-                      padding: const EdgeInsets.all(4.0),
-                      child: Icon(
-                        isExpanded
-                            ? FluentIcons.chevron_up_24_regular
-                            : FluentIcons.chevron_down_24_regular,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
+          onToggleExpand: () {
+            setState(() {
+              _expansionState[category.path] = !isExpanded;
+            });
+          },
         ),
         if (isExpanded && category.path != '/__missing__')
           ..._buildCategoryChildren(category, level),
@@ -689,54 +567,12 @@ class _PersonalNotesManagerScreenState
 
     final isSelected = _selectedFilter == book.title;
 
-    return InkWell(
+    return NavigationTreeTile.book(
+      title: book.title,
+      level: level,
+      isSelected: isSelected,
+      count: count > 0 ? count : null,
       onTap: () => _onFilterChanged(book.title),
-      child: Container(
-        padding: EdgeInsets.only(
-          right: 16.0 + (level * 24.0) + 32.0,
-          left: 16.0,
-          top: 10.0,
-          bottom: 10.0,
-        ),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? Theme.of(context)
-                  .colorScheme
-                  .primaryContainer
-                  .withValues(alpha: 0.3)
-              : null,
-          border: Border(
-            bottom: BorderSide(
-              color: Theme.of(context).dividerColor,
-              width: 0.5,
-            ),
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              FluentIcons.book_24_regular,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-              size: 18,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                book.title,
-                style: const TextStyle(fontSize: 14),
-              ),
-            ),
-            if (count > 0)
-              Text(
-                '($count)',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-          ],
-        ),
-      ),
     );
   }
 

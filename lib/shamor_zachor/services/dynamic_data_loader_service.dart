@@ -1,9 +1,6 @@
 import 'dart:async';
-import 'dart:convert';
 
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:logging/logging.dart';
-import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/built_in_books_config.dart';
@@ -13,16 +10,12 @@ import '../models/tracked_book_model.dart';
 import 'book_scanner_service.dart';
 import 'custom_books_service.dart';
 
-/// Service for loading book data without scanning built-in content on startup.
+/// Service for loading book data.
 ///
-/// Built-in books are distributed as a pre-generated JSON asset and are loaded
-/// directly from disk. Custom books that users add are still scanned once at
-/// the moment of addition and stored in SharedPreferences.
+/// Built-in books are now loaded from Database via ShamorZachorDataProvider.
+/// Custom books that users add are scanned and stored in SharedPreferences.
 class DynamicDataLoaderService {
   static final Logger _logger = Logger('DynamicDataLoaderService');
-
-  static const String _builtInAssetPath =
-      'assets/shamor_zachor/data/built_in_tracked_books.json';
 
   final BookScannerService _scannerService;
   final CustomBooksService _customBooksService;
@@ -41,7 +34,7 @@ class DynamicDataLoaderService {
   })  : _scannerService = scannerService,
         _customBooksService = customBooksService;
 
-  /// Initialize the service and load built-in books from the static asset.
+  /// Initialize the service.
   Future<void> initialize() async {
     if (_isInitialized) {
       _logger.fine('Already initialized, skipping');
@@ -64,89 +57,10 @@ class DynamicDataLoaderService {
   }
 
   Future<void> _loadBuiltInBooksFromAsset() async {
-    if (_builtInTrackedBooks.isNotEmpty) {
-      return;
-    }
-
-    try {
-      final jsonString = await rootBundle.loadString(_builtInAssetPath);
-      final Map<String, dynamic> jsonData = jsonDecode(jsonString);
-      final List<dynamic> booksJson =
-          jsonData['books'] as List<dynamic>? ?? const [];
-
-      final List<TrackedBook> parsed = [];
-      final Map<String, TrackedBook> mapById = {};
-
-      for (final dynamic rawEntry in booksJson) {
-        if (rawEntry is! Map<String, dynamic>) {
-          continue;
-        }
-
-        final entry = Map<String, dynamic>.from(rawEntry);
-        final bookId = entry['bookId'] as String? ?? '';
-        final bookName = entry['bookName'] as String? ?? '';
-        final categoryName = entry['categoryName'] as String? ?? '';
-
-        if (bookId.isEmpty || bookName.isEmpty || categoryName.isEmpty) {
-          _logger
-              .warning('Skipping malformed built-in book entry: ${entry.keys}');
-          continue;
-        }
-
-        final Map<String, dynamic> detailsJson = Map<String, dynamic>.from(
-            entry['bookDetails'] as Map<String, dynamic>? ?? const {});
-        final contentType = detailsJson['contentType'] as String? ?? 'פרק';
-        final bookDetails = BookDetails.fromJson(
-          detailsJson,
-          contentType: contentType,
-          isCustom: false,
-          id: detailsJson['id'] as String?,
-        );
-
-        final relativePath = _resolveRelativePath(
-          categoryName,
-          bookName,
-          entry['relativePath'] as String? ?? '',
-        );
-        final fullPath = _buildFullPath(relativePath);
-
-        final dateAddedStr = entry['dateAdded'] as String?;
-        final lastScannedStr = entry['lastScanned'] as String?;
-        final dateAdded = dateAddedStr != null
-            ? DateTime.tryParse(dateAddedStr) ??
-                DateTime.fromMillisecondsSinceEpoch(0)
-            : DateTime.fromMillisecondsSinceEpoch(0);
-        final lastScanned =
-            lastScannedStr != null ? DateTime.tryParse(lastScannedStr) : null;
-
-        final trackedBook = TrackedBook(
-          bookId: bookId,
-          bookName: bookName,
-          categoryName: categoryName,
-          isBuiltIn: true,
-          bookPath: fullPath,
-          bookDetails: bookDetails,
-          sourceFile:
-              entry['sourceFile'] as String? ?? 'built_in_tracked_books.json',
-          dateAdded: dateAdded,
-          lastScanned: lastScanned,
-        );
-
-        parsed.add(trackedBook);
-        mapById[bookId] = trackedBook;
-      }
-
-      _builtInTrackedBooks = List.unmodifiable(parsed);
-      _builtInBookMap = Map.unmodifiable(mapById);
-      _builtInLoadFailed = false;
-
-      _logger.info(
-          'Loaded ${_builtInTrackedBooks.length} built-in books from static asset');
-    } catch (e, stackTrace) {
-      _builtInLoadFailed = true;
-      _logger.severe('Failed to load built-in books from asset', e, stackTrace);
-      rethrow;
-    }
+    // Legacy JSON loading disabled - built-in books now come from Database
+    _builtInTrackedBooks = [];
+    _builtInBookMap = {};
+    _builtInLoadFailed = false;
   }
 
   void _scheduleBuiltInBooksLoad() {
@@ -185,42 +99,6 @@ class DynamicDataLoaderService {
       _builtInLoadFailed = true;
       rethrow;
     }
-  }
-
-  String _resolveRelativePath(
-    String categoryName,
-    String bookName,
-    String storedRelativePath,
-  ) {
-    if (storedRelativePath.isNotEmpty) {
-      return storedRelativePath;
-    }
-
-    final categoryMap = BuiltInBooksConfig.builtInBookPaths[categoryName];
-    if (categoryMap != null) {
-      final direct = categoryMap[bookName];
-      if (direct != null && direct.isNotEmpty) {
-        return direct;
-      }
-    }
-
-    _logger.warning(
-      'Unable to resolve path for built-in book "$categoryName:$bookName" - using book name as fallback',
-    );
-    return bookName;
-  }
-
-  String _buildFullPath(String relativePath) {
-    final parts = relativePath
-        .split(RegExp(r'[\\/]+'))
-        .where((segment) => segment.isNotEmpty)
-        .toList();
-
-    if (parts.isEmpty) {
-      return _scannerService.libraryBasePath;
-    }
-
-    return p.joinAll([_scannerService.libraryBasePath, ...parts]);
   }
 
   /// Load all book categories (built-in + custom).

@@ -116,16 +116,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         cleanBookName = parts.last.trim();
       }
 
-      // For dynamic provider, use the dedicated method
-      if (dataProvider.useDynamicLoader) {
-        // Try to detect category (similar to add function)
-        // For now, search across all categories
-        final searchResults = dataProvider.searchBooks(cleanBookName);
-        return searchResults.any((result) =>
-            result.bookName == cleanBookName ||
-            result.bookName.contains(cleanBookName) ||
-            cleanBookName.contains(result.bookName));
-      }
+      // Search for the book
 
       // Legacy: Search for the book
       final searchResults = dataProvider.searchBooks(cleanBookName);
@@ -2009,13 +2000,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   Future<void> _addBookToShamorZachorTracking(Book book) async {
     try {
       final dataProvider = context.read<ShamorZachorDataProvider>();
-
-      // Check if provider supports dynamic loading
-      if (!dataProvider.useDynamicLoader) {
-        UiSnack.showError(
-            'הוספת ספרים מותאמת אישית דורשת את הגרסה החדשה של שמור וזכור');
-        return;
-      }
 
       final bookTitle = book.title;
 
