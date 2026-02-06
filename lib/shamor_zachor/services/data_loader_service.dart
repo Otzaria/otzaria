@@ -1,14 +1,10 @@
-import 'package:logging/logging.dart';
 import '../models/book_model.dart';
-import '../models/error_model.dart';
 
 /// Service for loading book data from JSON assets
 ///
 /// DEPRECATED: Book data is now loaded from SQLite via ShamorZachorDataProvider.
 /// This service is kept for backward compatibility but returns empty data.
 class DataLoaderService {
-  static final Logger _logger = Logger('DataLoaderService');
-
   Map<String, BookCategory>? _cachedData;
 
   DataLoaderService(
