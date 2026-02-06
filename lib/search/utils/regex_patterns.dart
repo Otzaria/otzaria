@@ -38,8 +38,10 @@ class SearchRegexPatterns {
   static final RegExp cantillationOnly = RegExp(r'[\u0591-\u05AF]');
 
   /// רגקס לזיהוי שם הקודש (יהוה) עם ניקוד
+  /// הביטוי משתמש ב-negative lookbehind כדי לוודא שלפני השם הקדוש
+  /// אין 3 תווים עבריים רצופים (כדי למנוע החלפה במילים כמו "ויגביהוהו")
   static final RegExp holyName = RegExp(
-    r"י([\p{Mn}]*)ה([\p{Mn}]*)ו([\p{Mn}]*)ה([\p{Mn}]*)",
+    r"(?<![\u0590-\u05FF][\u0590-\u05FF][\u0590-\u05FF])י([\p{Mn}]*)ה([\p{Mn}]*)ו([\p{Mn}]*)ה([\p{Mn}]*)",
     unicode: true,
   );
 
