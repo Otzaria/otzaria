@@ -2519,15 +2519,6 @@ class _TimesAndEventsTabViewState extends State<_TimesAndEventsTabView>
                         ),
                         child: Column(
                           children: [
-                            Text(
-                              'אין לסמוך על הזמנים כלל!',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Theme.of(context).primaryColor,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
                             Text.rich(
                               TextSpan(
                                 children: [
