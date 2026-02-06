@@ -42,6 +42,9 @@ ORDER BY b.orderIndex, b.title;
 selectBaseIds:
 SELECT id FROM book WHERE isBaseBook = 1 ORDER BY orderIndex, title;
 
+selectBaseBooks:
+SELECT * FROM book WHERE isBaseBook = 1 OR isPersonal = 1 ORDER BY orderIndex, title;
+
 insert:
 INSERT INTO book (categoryId, sourceId, title, heShortDesc, notesContent, orderIndex, totalLines, isBaseBook, 
     hasTargumConnection, hasReferenceConnection, hasSourceConnection, hasCommentaryConnection, hasOtherConnection,

@@ -17,12 +17,14 @@ class BookDetailScreen extends StatefulWidget {
   final String topLevelCategoryKey;
   final String categoryName;
   final String bookName;
+  final VoidCallback? onBack;
 
   const BookDetailScreen({
     super.key,
     required this.topLevelCategoryKey,
     required this.categoryName,
     required this.bookName,
+    this.onBack,
   });
 
   @override
@@ -118,6 +120,13 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
+          leading: widget.onBack != null
+              ? IconButton(
+                  icon: const Icon(FluentIcons.arrow_right_24_regular),
+                  onPressed: widget.onBack,
+                  tooltip: 'חזרה',
+                )
+              : null,
           title: Text(widget.bookName),
           actions: [
             Consumer<ShamorZachorProgressProvider>(
@@ -322,11 +331,8 @@ class _BookDetailScreenState extends State<BookDetailScreen>
         children: [
           Expanded(
             flex: 2,
-            child: Text(
-              bookDetails.contentType ?? 'תוכן',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-              textAlign: TextAlign.right,
-            ),
+            child: const SizedBox
+                .shrink(), // הסרת הכפילות של שם הספר/סוג תוכן בראש הרשימה
           ),
           Expanded(
             flex: 10,
@@ -396,7 +402,8 @@ class _BookDetailScreenState extends State<BookDetailScreen>
           final partName = item.partName;
 
           final showHeader = bookDetails.hasMultipleParts == true &&
-              (index == 0 || partName != learnableItems[index - 1].partName);
+              (index == 0 || partName != learnableItems[index - 1].partName) &&
+              partName != widget.bookName; // מניעת כפילות של שם הספר בכותרת חלק
 
           String rowLabel;
           if (bookDetails.isDafType == true) {
@@ -504,6 +511,23 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       delegate: SliverChildBuilderDelegate(
         (ctx, index) {
           final section = sections[index];
+
+          // אם כותרת הסקציה זהה לשם הספר (שכבר מופיע למעלה), נדלג עליה
+          // ונציג ישירות את הילדים שלה אם קיימים.
+          if (section.title == widget.bookName && section.children.isNotEmpty) {
+            return Column(
+              children: section.children
+                  .map((child) => _buildSectionExpansionTile(
+                        context,
+                        child,
+                        0,
+                        bookDetails,
+                        progressProvider,
+                      ))
+                  .toList(),
+            );
+          }
+
           return _buildSectionExpansionTile(
             context,
             section,
@@ -542,12 +566,17 @@ class _BookDetailScreenState extends State<BookDetailScreen>
         leafIndices.first,
       );
 
+      final rowBackgroundColor =
+          learnable.absoluteIndex % (bookDetails.isDafType == true ? 4 : 2) <
+                  (bookDetails.isDafType == true ? 2 : 1)
+              ? Colors.transparent
+              : theme.colorScheme.primaryContainer.withValues(alpha: 0.15);
+
       // מציגים leaf בפורמט של שורה רגילה (כמו ב-flat), עם RTL
-      final theme = Theme.of(context);
       return Directionality(
         textDirection: TextDirection.rtl,
         child: Container(
-          color: Colors.transparent,
+          color: rowBackgroundColor,
           padding: EdgeInsets.fromLTRB(_gridHPad, 2, _rightInset, 2),
           child: Row(
             children: [

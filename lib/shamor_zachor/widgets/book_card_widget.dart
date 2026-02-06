@@ -18,6 +18,7 @@ class BookCardWidget extends StatefulWidget {
   final String? completionDate;
   final bool isInCompletedListContext;
   final VoidCallback? onDelete;
+  final VoidCallback? onTap; // Override default navigation
 
   const BookCardWidget({
     super.key,
@@ -30,6 +31,7 @@ class BookCardWidget extends StatefulWidget {
     this.completionDate,
     this.isInCompletedListContext = false,
     this.onDelete,
+    this.onTap,
   });
 
   @override
@@ -238,6 +240,10 @@ class _BookCardWidgetState extends State<BookCardWidget> {
   }
 
   void _onCardTap(BuildContext context) {
+    if (widget.onTap != null) {
+      widget.onTap!();
+      return;
+    }
     Navigator.of(context).pushNamed(
       '/book_detail',
       arguments: {
