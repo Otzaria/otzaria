@@ -331,36 +331,28 @@ class BookGridItem extends StatelessWidget {
 }
 
 class MyGridView extends StatelessWidget {
-  final Future<List<Widget>> items;
+  final List<Widget> items;
 
   const MyGridView({super.key, required this.items});
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
-        return FutureBuilder(
-            future: items,
-            builder: (context, snapshot) {
-              if (snapshot.hasData) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 45),
-                  child: GridView.builder(
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        //max number of items per row is 5 and min is 1
-                        crossAxisCount:
-                            max(1, min(constraints.maxWidth ~/ 250, 5)),
-                        childAspectRatio: 2,
-                        crossAxisSpacing: 4,
-                        mainAxisSpacing: 4),
-                    itemCount: snapshot.data!.length,
-                    itemBuilder: (context, index) => snapshot.data![index],
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                  ),
-                );
-              }
-              return const Center(child: CircularProgressIndicator());
-            });
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 45),
+          child: GridView.builder(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                //max number of items per row is 5 and min is 1
+                crossAxisCount: max(1, min(constraints.maxWidth ~/ 250, 5)),
+                childAspectRatio: 2,
+                crossAxisSpacing: 4,
+                mainAxisSpacing: 4),
+            itemCount: items.length,
+            itemBuilder: (context, index) => items[index],
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+          ),
+        );
       },
     );
   }

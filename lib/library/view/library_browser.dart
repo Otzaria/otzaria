@@ -491,11 +491,13 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               ),
             );
           }
-          return ListView.builder(
-            shrinkWrap: true,
+          // שינוי: במקום ListView.builder, נשתמש ב-SingleChildScrollView עם Column
+          // כדי למנוע בעיות גלילה כשה-widgets משנים גובה
+          return SingleChildScrollView(
             key: PageStorageKey(state.currentCategory),
-            itemCount: snapshot.data!.length,
-            itemBuilder: (context, index) => snapshot.data![index],
+            child: Column(
+              children: snapshot.data!,
+            ),
           );
         },
       );
@@ -512,19 +514,14 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   }
 
   Future<List<Widget>> _buildSearchResults(List<Book> books) async {
+    // בניית כל הפריטים מראש
+    final bookWidgets = books
+        .take(100)
+        .map((book) => _buildBookItem(book, showTopics: true))
+        .toList();
+
     return [
-      Column(
-        children: [
-          MyGridView(
-            items: Future.value(
-              books
-                  .take(100)
-                  .map((book) => _buildBookItem(book, showTopics: true))
-                  .toList(),
-            ),
-          ),
-        ],
-      ),
+      MyGridView(items: bookWidgets),
     ];
   }
 
@@ -536,13 +533,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
     if (_depth != 0) {
       // Add books
-      items.add(
-        MyGridView(
-          items: Future.value(
-            category.books.map((book) => _buildBookItem(book)).toList(),
-          ),
-        ),
-      );
+      final bookWidgets =
+          category.books.map((book) => _buildBookItem(book)).toList();
+      items.add(MyGridView(items: bookWidgets));
 
       // Add subcategories
       for (Category subCategory in category.subCategories) {
@@ -550,34 +543,33 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         subCategory.subCategories.sort((a, b) => a.order.compareTo(b.order));
 
         items.add(Center(child: HeaderItem(category: subCategory)));
-        items.add(
-          MyGridView(
-            items: Future.value([
-              ...subCategory.books.map((book) => _buildBookItem(book)),
-              ...subCategory.subCategories.map(
-                (cat) => CategoryGridItem(
-                  category: cat,
-                  onCategoryClickCallback: () => _openCategory(cat),
-                ),
-              ),
-            ]),
+
+        // בניית כל הפריטים של תת-הקטגוריה מראש
+        final subCategoryItems = <Widget>[
+          ...subCategory.books.map((book) => _buildBookItem(book)),
+          ...subCategory.subCategories.map(
+            (cat) => CategoryGridItem(
+              category: cat,
+              onCategoryClickCallback: () => _openCategory(cat),
+            ),
           ),
-        );
+        ];
+
+        items.add(MyGridView(items: subCategoryItems));
       }
     } else {
-      items.add(
-        MyGridView(
-          items: Future.value([
-            ...category.books.map((book) => _buildBookItem(book)),
-            ...category.subCategories.map(
-              (cat) => CategoryGridItem(
-                category: cat,
-                onCategoryClickCallback: () => _openCategory(cat),
-              ),
-            ),
-          ]),
+      // בניית כל הפריטים מראש
+      final allItems = <Widget>[
+        ...category.books.map((book) => _buildBookItem(book)),
+        ...category.subCategories.map(
+          (cat) => CategoryGridItem(
+            category: cat,
+            onCategoryClickCallback: () => _openCategory(cat),
+          ),
         ),
-      );
+      ];
+
+      items.add(MyGridView(items: allItems));
     }
 
     return items;
