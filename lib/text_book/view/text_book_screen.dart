@@ -1132,20 +1132,24 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
     const titleStyle = TextStyle(fontSize: 17);
     const authorStyle = TextStyle(fontSize: 12, color: Colors.grey);
-    final text = state.currentTitle!;
+
+    // שימוש בפונקציה העזר להוספת שם הספר
+    String displayText =
+        addBookTitleToRef(state.currentTitle!, state.book.title);
+
     final author = state.book.author;
 
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final textPainter = TextPainter(
-          text: TextSpan(text: text, style: titleStyle),
+          text: TextSpan(text: displayText, style: titleStyle),
           maxLines: 1,
           textDirection: TextDirection.rtl,
         )..layout(minWidth: 0, maxWidth: constraints.maxWidth);
 
         final titleWidget = SelectionArea(
           child: Text(
-            text,
+            displayText,
             style: titleStyle,
             textAlign: TextAlign.end,
             maxLines: 1,
@@ -1172,7 +1176,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
         if (textPainter.didExceedMaxLines) {
           return Tooltip(
-            message: author != null ? '$text\n$author' : text,
+            message: author != null ? '$displayText\n$author' : displayText,
             child: child,
           );
         }
@@ -1716,6 +1720,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         int index = state.positionsListener.itemPositions.value.first.index;
         final toc = state.book.tableOfContents;
         String ref = await refFromIndex(index, toc);
+        // הוספת שם הספר לכותרת
+        ref = addBookTitleToRef(ref, state.book.title);
         if (!mounted || !context.mounted) return;
 
         bool bookmarkAdded = context.read<BookmarkBloc>().addBookmark(
@@ -2130,7 +2136,9 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     final index = state.positionsListener.itemPositions.value.first.index;
     final toc = state.book.tableOfContents;
     final bookmarkBloc = context.read<BookmarkBloc>();
-    final ref = await refFromIndex(index, toc);
+    String ref = await refFromIndex(index, toc);
+    // הוספת שם הספר לכותרת
+    ref = addBookTitleToRef(ref, state.book.title);
     if (!mounted || !context.mounted) return;
 
     final bookmarkAdded = bookmarkBloc.addBookmark(
@@ -2672,7 +2680,9 @@ void _addBookmarkFromKeyboard(
   final index = state.positionsListener.itemPositions.value.first.index;
   final toc = state.book.tableOfContents;
   final bookmarkBloc = context.read<BookmarkBloc>();
-  final ref = await refFromIndex(index, toc);
+  String ref = await refFromIndex(index, toc);
+  // הוספת שם הספר לכותרת
+  ref = addBookTitleToRef(ref, state.book.title);
 
   if (!context.mounted) return;
 

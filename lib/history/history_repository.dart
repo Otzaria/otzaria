@@ -38,8 +38,11 @@ class HistoryRepository extends BaseListRepository<Bookmark> {
       final state = tab.bloc.state;
       if (state is TextBookLoaded) {
         final index = state.positionsListener.itemPositions.value.first.index;
+        String ref = await refFromIndex(index, tab.book.tableOfContents);
+        // הוספת שם הספר לכותרת
+        ref = addBookTitleToRef(ref, tab.book.title);
         addHistoryItem(Bookmark(
-          ref: await refFromIndex(index, tab.book.tableOfContents),
+          ref: ref,
           book: tab.book,
           index: index,
         ));

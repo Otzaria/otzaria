@@ -275,10 +275,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
             ? (state as TextBookLoaded).selectedTextEnd
             : null,
       ));
-      
+
       // טעינת קישורים ברקע אחרי הצגת הספר
       _loadLinksInBackground(book, visibleIndices);
-      
     } catch (e) {
       if (state is TextBookInitial) {
         final initial = state as TextBookInitial;
@@ -940,7 +939,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     if (state is TextBookLoaded) {
       final currentState = state as TextBookLoaded;
       final links = event.links.cast<Link>();
-      
+
       // Calculate visible links
       final visibleLinks = _getVisibleLinks(
         links: links,

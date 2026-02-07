@@ -85,8 +85,10 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
       final blocState = tab.bloc.state;
       if (blocState is TextBookLoaded && blocState.visibleIndices.isNotEmpty) {
         final index = blocState.visibleIndices.first;
-        final ref =
+        String ref =
             await refFromIndex(index, Future.value(blocState.tableOfContents));
+        // הוספת שם הספר לכותרת
+        ref = addBookTitleToRef(ref, blocState.book.title);
         return Bookmark(
           ref: ref,
           book: blocState.book,

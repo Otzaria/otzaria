@@ -103,6 +103,23 @@ Future<String> refFromIndex(
   return texts.join(', ');
 }
 
+/// מוסיף את שם הספר לכותרת אם הוא לא מופיע
+/// ומטפל במקרים מיוחדים כמו כותרת ריקה או פסיק מיותר
+String addBookTitleToRef(String ref, String bookTitle) {
+  // אם הכותרת כבר מתחילה בשם הספר, לא צריך להוסיף
+  if (ref.startsWith(bookTitle)) {
+    return ref;
+  }
+
+  // אם הכותרת ריקה, נחזיר רק את שם הספר
+  if (ref.trim().isEmpty) {
+    return bookTitle;
+  }
+
+  // אחרת, נוסיף את שם הספר עם פסיק
+  return '$bookTitle, $ref';
+}
+
 Future<String> refFromPageNumber(
   int pageNumber,
   List<PdfOutlineNode>? outline, [
