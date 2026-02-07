@@ -193,7 +193,6 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         content: _content,
         query: query,
         bounds: _searchInCurrentSection ? _currentSectionBounds : null,
-        bookTitle: _bookTitle ?? '',
       );
 
       if (mounted) {
@@ -295,13 +294,6 @@ class TextBookSearchViewState extends State<TextBookSearchView>
   Widget build(BuildContext context) {
     super.build(context);
 
-    // עדכן את הקטע הנוכחי כשהמיקום משתנה (תמיד, לא רק כש-_searchInCurrentSection)
-    // השתמש ב-watch כדי לגרום ל-rebuild כשה-state משתנה
-    context.watch<TextBookBloc>();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _updateCurrentSection();
-    });
-
     // יצירת רשימה מקובצת - כותרת מופיעה רק כשהיא משתנה
     final List<_GroupedResultItem> items = [];
     String? lastAddress;
@@ -313,7 +305,15 @@ class TextBookSearchViewState extends State<TextBookSearchView>
       items.add(_GroupedResultItem.result(r));
     }
 
-    return SearchPaneBase(
+    return BlocListener<TextBookBloc, TextBookState>(
+      listenWhen: (prev, current) =>
+          prev is TextBookLoaded &&
+          current is TextBookLoaded &&
+          !listEquals(prev.visibleIndices, current.visibleIndices),
+      listener: (context, state) {
+        _updateCurrentSection();
+      },
+      child: SearchPaneBase(
       searchController: searchTextController,
       focusNode: widget.focusNode,
       progressWidget:
@@ -544,6 +544,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
           ),
         );
       },
+      ),
     );
   }
 
