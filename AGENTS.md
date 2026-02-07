@@ -228,9 +228,9 @@ try {
 ## Testing
 
 ### Testing Instructions
-- **Before every commit, run all tests**
+- **Before every commit, run only the relevant tests for your changes**
 - Run `flutter analyze` to check for static errors
-- Run `flutter test` to run all tests
+- Run specific tests related to the code you modified
 - Run `dart format .` to format code
 - Fix every error or warning before continuing
 - **Add or update tests for code you change, even if not requested**
@@ -240,14 +240,18 @@ try {
 # Check for errors and warnings - mandatory before commit
 flutter analyze
 
-# Run all tests
-flutter test
+# Run only relevant tests for your changes (RECOMMENDED)
+# Example: If you changed search functionality
+flutter test test/search/
 
-# Run specific test
+# Run specific test file
 flutter test test/path/to/test_file.dart
 
-# Run test with specific name
+# Run test with specific name pattern
 flutter test --name "test name pattern"
+
+# Run all tests (only if you made broad changes)
+flutter test
 
 # Check code format
 dart format --set-exit-if-changed .
@@ -261,6 +265,13 @@ flutter pub outdated
 # Clean and rebuild (if there are issues)
 flutter clean && flutter pub get
 ```
+
+### How to Identify Relevant Tests
+1. **Direct changes**: If you modified `lib/search/search_bloc.dart`, run `flutter test test/search/`
+2. **Feature changes**: If you changed bookmarks feature, run all bookmark tests
+3. **Shared utilities**: If you modified shared code (like `RtlTextField`), run tests that use it
+4. **Breaking changes**: If you changed interfaces or contracts, run all affected tests
+5. **New features**: Run tests for the new feature and any integration tests
 
 ### Writing Tests
 - Write tests for Bloc using `bloc_test`
@@ -351,7 +362,7 @@ Examples:
 
 ### Before Submitting PR
 1. **Run `flutter analyze` - must have no errors or warnings**
-2. **Run `flutter test` - all tests must pass**
+2. **Run relevant tests for your changes - all must pass**
 3. **Run `dart format .` - code must be formatted**
 4. **Check that code works on all relevant platforms**
 5. **Ensure you added/updated tests for your changes**
@@ -359,7 +370,7 @@ Examples:
 
 ### Checklist Before Commit
 - [ ] `flutter analyze` passes without errors
-- [ ] `flutter test` passes without errors
+- [ ] Relevant tests pass without errors (run `flutter test test/path/to/relevant/`)
 - [ ] `dart format .` was run
 - [ ] I added/updated tests
 - [ ] I added documentation to new functions
@@ -434,7 +445,7 @@ flutter upgrade
 2. **Plan** - Write detailed action plan with clear steps
 3. **Execute step by step** - Write clean and documented code, check each step before continuing
 4. **Check** - Run `flutter analyze` and fix every error or warning
-5. **Test** - Run `flutter test` and ensure everything works
+5. **Test** - Run relevant tests for your changes and ensure everything works
 6. **Format** - Run `dart format .`
 7. **Document** - Add documentation and comments in Hebrew
 8. **Test in practice** - Run the application and ensure changes work
@@ -453,7 +464,7 @@ flutter upgrade
 7. **Add tests for all new code**
 8. **Document every public function in Hebrew**
 9. **Code must work on all platforms (Windows, Linux, Android, iOS, macOS)**
-10. **Before commit: analyze + test + format = mandatory!**
+10. **Before commit: analyze + relevant tests + format = mandatory!**
 
 ---
 
