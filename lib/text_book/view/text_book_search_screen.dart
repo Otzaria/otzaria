@@ -20,13 +20,7 @@ import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/widgets/nikud_search_button.dart';
-
-/// Section boundaries (start and end line indices, inclusive)
-class _SectionBounds {
-  final int start;
-  final int end;
-  const _SectionBounds(this.start, this.end);
-}
+import 'package:otzaria/text_book/utils/section_search_utils.dart';
 
 class _GroupedResultItem {
   final String? header;
@@ -81,7 +75,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
   SearchMode _searchMode = SearchMode.exact;
   bool _searchWithNikud = false;
   bool _searchInCurrentSection = false;
-  _SectionBounds? _currentSectionBounds;
+  SectionBounds? _currentSectionBounds;
   List<int> _lastVisibleIndices = [];
 
   bool get _isSimpleSearch =>
@@ -148,114 +142,6 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     _searchTextUpdated();
   }
 
-  _SectionBounds _detectCurrentSection(List<String> content, List<int> visibleIndices) {
-    if (content.isEmpty) return const _SectionBounds(0, 0);
-    
-    final currentIndex = (visibleIndices.isNotEmpty ? visibleIndices.first : 0)
-        .clamp(0, content.length - 1);
-    
-    int? headerIndex;
-    for (int i = currentIndex; i >= 0; i--) {
-      if (content[i].contains('<h2') || content[i].contains('<h3')) {
-        headerIndex = i;
-        break;
-      }
-    }
-    
-    int startIndex = headerIndex != null ? headerIndex + 1 : 0;
-    if (headerIndex == null) {
-      for (int i = 0; i < content.length; i++) {
-        if (content[i].contains('<h1')) {
-          startIndex = i + 1;
-          break;
-        }
-      }
-    }
-    
-    int? sectionEnd;
-    for (int i = startIndex; i < content.length; i++) {
-      if (content[i].contains('<h2') || content[i].contains('<h3')) {
-        sectionEnd = i - 1;
-        break;
-      }
-    }
-    
-    return _SectionBounds(startIndex, sectionEnd ?? content.length - 1);
-  }
-
-  Future<List<TextSearchResult>> _searchInContent({
-    required String query,
-    required _SectionBounds? bounds,
-  }) async {
-    if (query.isEmpty || _content.isEmpty) return [];
-    
-    if (bounds != null &&
-        (bounds.start > bounds.end ||
-            bounds.start < 0 ||
-            bounds.end >= _content.length)) {
-      return [];
-    }
-    
-    return Future(() {
-      final results = <TextSearchResult>[];
-      final searchStart = bounds?.start ?? 0;
-      final searchEnd = bounds?.end ?? _content.length - 1;
-      
-      final address = <String>[];
-      for (int i = 0; i <= searchStart && i < _content.length; i++) {
-        final line = _content[i];
-        if (line.contains('<h') && !line.startsWith('<h1')) {
-          if (address.isNotEmpty &&
-              address.any((e) =>
-                  e.length >= 4 &&
-                  line.length >= 4 &&
-                  e.substring(0, 4) == line.substring(0, 4))) {
-            address.removeRange(
-                address.indexWhere((e) =>
-                    e.length >= 4 &&
-                    line.length >= 4 &&
-                    e.substring(0, 4) == line.substring(0, 4)),
-                address.length);
-          }
-          address.add(line);
-        }
-      }
-      
-      for (int i = searchStart; i <= searchEnd && i < _content.length; i++) {
-        final line = _content[i];
-        
-        if (line.contains('<h') && !line.startsWith('<h1')) {
-          if (address.isNotEmpty &&
-              address.any((e) =>
-                  e.length >= 4 &&
-                  line.length >= 4 &&
-                  e.substring(0, 4) == line.substring(0, 4))) {
-            address.removeRange(
-                address.indexWhere((e) =>
-                    e.length >= 4 &&
-                    line.length >= 4 &&
-                    e.substring(0, 4) == line.substring(0, 4)),
-                address.length);
-          }
-          address.add(line);
-        }
-        
-        final cleanLine = utils.removeVolwels(utils.stripHtmlIfNeeded(line));
-        if (cleanLine.contains(query)) {
-          results.add(TextSearchResult(
-            index: i,
-            snippet: cleanLine,
-            address: utils.removeVolwels(utils.stripHtmlIfNeeded(address.join(', '))),
-            query: query,
-          ));
-          if (results.length >= 1000) break;
-        }
-      }
-      
-      return results;
-    });
-  }
-
   void _updateCurrentSection() {
     if (!mounted) return;
     final state = context.read<TextBookBloc>().state;
@@ -269,7 +155,10 @@ class TextBookSearchViewState extends State<TextBookSearchView>
 
     _lastVisibleIndices = List.from(state.visibleIndices);
 
-    final bounds = _detectCurrentSection(_content, state.visibleIndices);
+    final bounds = detectCurrentSection(
+      content: _content,
+      visibleIndices: state.visibleIndices,
+    );
 
     setState(() {
       _currentSectionBounds = bounds;
@@ -305,9 +194,11 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     });
 
     if (_isSimpleSearch) {
-      final results = await _searchInContent(
+      final results = await searchInContent(
+        content: _content,
         query: query,
         bounds: _searchInCurrentSection ? _currentSectionBounds : null,
+        bookTitle: _bookTitle ?? '',
       );
 
       if (mounted) {
