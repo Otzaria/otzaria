@@ -74,10 +74,13 @@ class SmartTextWidget extends StatelessWidget {
         return true;
       }());
 
-      final preview = processedHtml.length > 400
-          ? '${processedHtml.substring(0, 400)}…'
-          : processedHtml;
-      debugPrint('[SmartTextWidget] HTML with <sup>: $preview');
+      assert(() {
+        final preview = processedHtml.length > 400
+            ? '${processedHtml.substring(0, 400)}…'
+            : processedHtml;
+        debugPrint('[SmartTextWidget] HTML with <sup>: $preview');
+        return true;
+      }());
     }
 
     return HtmlWidget(
