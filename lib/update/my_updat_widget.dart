@@ -60,10 +60,10 @@ Widget _hebrewFlatChipAutoHideError({
   if (status == UpdatStatus.error) {
     Future.delayed(const Duration(seconds: 3), dismissUpdate);
   }
-  
+
   // Wrap launchInstaller for Linux
   final wrappedLaunchInstaller = wrapLinuxInstaller(launchInstaller, 'otzaria');
-  
+
   return hebrewFlatChip(
     context: context,
     latestVersion: latestVersion,
@@ -163,7 +163,8 @@ class MyUpdatWidget extends StatelessWidget {
                 }
                 // וידוא שה-release נמצא
                 if (resp.statusCode >= 400) {
-                  throw Exception('Release "$version" not found (status ${resp.statusCode})');
+                  throw Exception(
+                      'Release "$version" not found (status ${resp.statusCode})');
                 }
                 release = jsonDecode(resp.body);
               }
@@ -178,7 +179,8 @@ class MyUpdatWidget extends StatelessWidget {
               // חשוב: לא לבחור קובץ -full.exe כי הוא מכיל את הספרייה המלאה
               // ומיועד רק למשתמשים חדשים, לא לעדכונים
               // allowZipFallback: האם לאפשר נפילה ל-ZIP אם לא נמצא התאמה
-              String? pickWindows(List<String> extsInOrder, {bool allowZipFallback = true}) {
+              String? pickWindows(List<String> extsInOrder,
+                  {bool allowZipFallback = true}) {
                 String? foundZip;
                 for (final a in assets) {
                   final name = (a["name"] as String).toLowerCase();
@@ -192,7 +194,8 @@ class MyUpdatWidget extends StatelessWidget {
                   if (!isWin) continue;
 
                   // דלג על קובץ full - מיועד להתקנה ראשונית בלבד
-                  if (name.contains('-full.exe') || name.contains('_full.exe')) {
+                  if (name.contains('-full.exe') ||
+                      name.contains('_full.exe')) {
                     continue;
                   }
 
@@ -200,7 +203,11 @@ class MyUpdatWidget extends StatelessWidget {
                     if (name.endsWith(ext)) return url;
                   }
                   // רק אם מותר fallback ל-ZIP
-                  if (allowZipFallback && name.endsWith('.zip') && foundZip == null) foundZip = url;
+                  if (allowZipFallback &&
+                      name.endsWith('.zip') &&
+                      foundZip == null) {
+                    foundZip = url;
+                  }
                 }
                 return foundZip;
               }
@@ -241,10 +248,11 @@ class MyUpdatWidget extends StatelessWidget {
                 };
                 // משתמשי MSIX לא יכולים להשתמש ב-ZIP כ-fallback
                 assetUrl = pickWindows(order, allowZipFallback: pref != 'msix');
-                
+
                 // אם זיהינו MSIX אבל לא מצאנו קובץ MSIX - זרוק שגיאה ברורה
                 if (pref == 'msix' && assetUrl == null) {
-                  throw Exception('MSIX installation detected but no MSIX asset found in this release');
+                  throw Exception(
+                      'MSIX installation detected but no MSIX asset found in this release');
                 }
               } else if (platform == 'macos') {
                 // macOS - חיפוש קובץ zip
@@ -300,9 +308,12 @@ class MyUpdatWidget extends StatelessWidget {
             getChangelog: (_, __) async {
               // Load changelog directly from GitHub repository
               try {
-                final response = await http.get(
-                  Uri.parse('https://raw.githubusercontent.com/Y-PLONI/otzaria/refs/heads/dev/assets/%D7%99%D7%95%D7%9E%D7%9F%20%D7%A9%D7%99%D7%A0%D7%95%D7%99%D7%99%D7%9D.md'),
-                ).timeout(const Duration(seconds: 10));
+                final response = await http
+                    .get(
+                      Uri.parse(
+                          'https://raw.githubusercontent.com/Y-PLONI/otzaria/refs/heads/dev/assets/%D7%99%D7%95%D7%9E%D7%9F%20%D7%A9%D7%99%D7%A0%D7%95%D7%99%D7%99%D7%9D.md'),
+                    )
+                    .timeout(const Duration(seconds: 10));
 
                 if (response.statusCode == 200) {
                   return response.body;
