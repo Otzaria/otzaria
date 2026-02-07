@@ -21,6 +21,13 @@ import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/widgets/nikud_search_button.dart';
 
+/// Section boundaries (start and end line indices, inclusive)
+class _SectionBounds {
+  final int start;
+  final int end;
+  const _SectionBounds(this.start, this.end);
+}
+
 class _GroupedResultItem {
   final String? header;
   final TextSearchResult? result;
@@ -74,8 +81,8 @@ class TextBookSearchViewState extends State<TextBookSearchView>
   SearchMode _searchMode = SearchMode.exact;
   bool _searchWithNikud = false;
   bool _searchInCurrentSection = false;
-  int? _currentSectionStart;
-  int? _currentSectionEnd;
+  _SectionBounds? _currentSectionBounds;
+  List<int> _lastVisibleIndices = [];
 
   bool get _isSimpleSearch =>
       !_forceSearchEngine &&
@@ -141,39 +148,140 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     _searchTextUpdated();
   }
 
+  _SectionBounds _detectCurrentSection(List<String> content, List<int> visibleIndices) {
+    if (content.isEmpty) return const _SectionBounds(0, 0);
+    
+    final currentIndex = (visibleIndices.isNotEmpty ? visibleIndices.first : 0)
+        .clamp(0, content.length - 1);
+    
+    int? headerIndex;
+    for (int i = currentIndex; i >= 0; i--) {
+      if (content[i].contains('<h2') || content[i].contains('<h3')) {
+        headerIndex = i;
+        break;
+      }
+    }
+    
+    int startIndex = headerIndex != null ? headerIndex + 1 : 0;
+    if (headerIndex == null) {
+      for (int i = 0; i < content.length; i++) {
+        if (content[i].contains('<h1')) {
+          startIndex = i + 1;
+          break;
+        }
+      }
+    }
+    
+    int? sectionEnd;
+    for (int i = startIndex; i < content.length; i++) {
+      if (content[i].contains('<h2') || content[i].contains('<h3')) {
+        sectionEnd = i - 1;
+        break;
+      }
+    }
+    
+    return _SectionBounds(startIndex, sectionEnd ?? content.length - 1);
+  }
+
+  Future<List<TextSearchResult>> _searchInContent({
+    required String query,
+    required _SectionBounds? bounds,
+  }) async {
+    if (query.isEmpty || _content.isEmpty) return [];
+    
+    if (bounds != null &&
+        (bounds.start > bounds.end ||
+            bounds.start < 0 ||
+            bounds.end >= _content.length)) {
+      return [];
+    }
+    
+    return Future(() {
+      final results = <TextSearchResult>[];
+      final searchStart = bounds?.start ?? 0;
+      final searchEnd = bounds?.end ?? _content.length - 1;
+      
+      final address = <String>[];
+      for (int i = 0; i <= searchStart && i < _content.length; i++) {
+        final line = _content[i];
+        if (line.contains('<h') && !line.startsWith('<h1')) {
+          if (address.isNotEmpty &&
+              address.any((e) =>
+                  e.length >= 4 &&
+                  line.length >= 4 &&
+                  e.substring(0, 4) == line.substring(0, 4))) {
+            address.removeRange(
+                address.indexWhere((e) =>
+                    e.length >= 4 &&
+                    line.length >= 4 &&
+                    e.substring(0, 4) == line.substring(0, 4)),
+                address.length);
+          }
+          address.add(line);
+        }
+      }
+      
+      for (int i = searchStart; i <= searchEnd && i < _content.length; i++) {
+        final line = _content[i];
+        
+        if (line.contains('<h') && !line.startsWith('<h1')) {
+          if (address.isNotEmpty &&
+              address.any((e) =>
+                  e.length >= 4 &&
+                  line.length >= 4 &&
+                  e.substring(0, 4) == line.substring(0, 4))) {
+            address.removeRange(
+                address.indexWhere((e) =>
+                    e.length >= 4 &&
+                    line.length >= 4 &&
+                    e.substring(0, 4) == line.substring(0, 4)),
+                address.length);
+          }
+          address.add(line);
+        }
+        
+        final cleanLine = utils.removeVolwels(utils.stripHtmlIfNeeded(line));
+        if (cleanLine.contains(query)) {
+          results.add(TextSearchResult(
+            index: i,
+            snippet: cleanLine,
+            address: utils.removeVolwels(utils.stripHtmlIfNeeded(address.join(', '))),
+            query: query,
+          ));
+          if (results.length >= 1000) break;
+        }
+      }
+      
+      return results;
+    });
+  }
+
   void _updateCurrentSection() {
     if (!mounted) return;
     final state = context.read<TextBookBloc>().state;
-    if (state is TextBookLoaded) {
-      final currentIndex = state.index;
-      
-      // מצא את תחילת הקטע (h2 או h3 הקרוב מלפני)
-      int? sectionStart;
-      for (int i = currentIndex; i >= 0; i--) {
-        final line = _content[i];
-        if (line.startsWith('<h2') || line.startsWith('<h3')) {
-          sectionStart = i;
-          break;
-        }
-      }
-      
-      // מצא את סוף הקטע (h2 או h3 הבא)
-      int? sectionEnd;
-      for (int i = currentIndex + 1; i < _content.length; i++) {
-        final line = _content[i];
-        if (line.startsWith('<h2') || line.startsWith('<h3')) {
-          sectionEnd = i - 1;
-          break;
-        }
-      }
-      
-      setState(() {
-        _currentSectionStart = sectionStart ?? 0;
-        _currentSectionEnd = sectionEnd ?? _content.length - 1;
-      });
-      
-      debugPrint('📍 Current section: $_currentSectionStart to $_currentSectionEnd (current: $currentIndex)');
+    if (state is! TextBookLoaded) return;
+
+    // Check if visibleIndices changed to avoid unnecessary recalculation
+    if (_lastVisibleIndices.isNotEmpty &&
+        _listEquals(_lastVisibleIndices, state.visibleIndices)) {
+      return;
     }
+
+    _lastVisibleIndices = List.from(state.visibleIndices);
+
+    final bounds = _detectCurrentSection(_content, state.visibleIndices);
+
+    setState(() {
+      _currentSectionBounds = bounds;
+    });
+  }
+
+  bool _listEquals(List<int> a, List<int> b) {
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 
   Future<void> _searchTextUpdated() async {
@@ -197,67 +305,14 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     });
 
     if (_isSimpleSearch) {
-      // Simple search implementation
-      final results = await Future(() {
-        final List<SearchResult> matches = [];
-        final List<String> address = [];
-
-        // קבע את טווח החיפוש
-        final searchStart = _searchInCurrentSection && _currentSectionStart != null 
-            ? _currentSectionStart! 
-            : 0;
-        final searchEnd = _searchInCurrentSection && _currentSectionEnd != null 
-            ? _currentSectionEnd! 
-            : _content.length - 1;
-
-        for (int i = 0; i < _content.length; i++) {
-          final line = _content[i];
-
-          // Update address based on headers
-          if (line.startsWith('<h')) {
-            if (address.isNotEmpty &&
-                address.any((element) =>
-                    element.substring(0, 4) == line.substring(0, 4))) {
-              address.removeRange(
-                  address.indexWhere((element) =>
-                      element.substring(0, 4) == line.substring(0, 4)),
-                  address.length);
-            }
-            address.add(line);
-          }
-
-          // בדוק אם השורה בטווח החיפוש
-          if (i < searchStart || i > searchEnd) {
-            continue;
-          }
-
-          // Clean text for search
-          final cleanLine = utils.removeVolwels(utils.stripHtmlIfNeeded(line));
-          if (cleanLine.contains(query)) {
-            // Build reference string from address (excluding h1 which is usually book title)
-            final filteredAddress =
-                address.where((h) => !h.startsWith('<h1')).toList();
-            final reference = utils.removeVolwels(
-                utils.stripHtmlIfNeeded(filteredAddress.join(', ')));
-
-            matches.add(SearchResult(
-              id: BigInt.zero,
-              title: _bookTitle ?? '',
-              reference: reference,
-              text: cleanLine, // Use cleaned text for snippet generation
-              segment: BigInt.from(i),
-              isPdf: false,
-              filePath: '',
-            ));
-            if (matches.length >= 1000) break;
-          }
-        }
-        return matches;
-      });
+      final results = await _searchInContent(
+        query: query,
+        bounds: _searchInCurrentSection ? _currentSectionBounds : null,
+      );
 
       if (mounted) {
         setState(() {
-          searchResults = _convertSearchResults(results);
+          searchResults = results;
           _isSearching = false;
         });
       }
@@ -354,13 +409,12 @@ class TextBookSearchViewState extends State<TextBookSearchView>
   Widget build(BuildContext context) {
     super.build(context);
 
-    // עדכן את הקטע הנוכחי כשהמיקום משתנה
-    final state = context.watch<TextBookBloc>().state;
-    if (state is TextBookLoaded && _searchInCurrentSection) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _updateCurrentSection();
-      });
-    }
+    // עדכן את הקטע הנוכחי כשהמיקום משתנה (תמיד, לא רק כש-_searchInCurrentSection)
+    // השתמש ב-watch כדי לגרום ל-rebuild כשה-state משתנה
+    context.watch<TextBookBloc>();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _updateCurrentSection();
+    });
 
     // יצירת רשימה מקובצת - כותרת מופיעה רק כשהיא משתנה
     final List<_GroupedResultItem> items = [];
@@ -551,7 +605,11 @@ class TextBookSearchViewState extends State<TextBookSearchView>
             setState(() {
               _searchInCurrentSection = true;
             });
-            _searchTextUpdated();
+            _updateCurrentSection(); // עדכן את הקטע הנוכחי
+            // Wait for the next frame to ensure _currentSectionBounds is updated
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _searchTextUpdated();
+            });
           },
         ),
         // כפתור חיפוש עם ניקוד (רק אם יש ניקוד בטקסט)
