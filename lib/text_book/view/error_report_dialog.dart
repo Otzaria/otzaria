@@ -468,19 +468,13 @@ $detailsSection
     required TextBookLoaded state,
     required double fontSize,
     required String bookTitle,
-    dynamic savedSelectedIndex,
+    int? savedSelectedIndex,
   }) {
     // קבלת מספר השורה הנוכחי
     int? currentLineNumber;
 
-    // טיפול ב-savedSelectedIndex שיכול להיות int, int?, או ValueNotifier<int?>
-    if (savedSelectedIndex != null) {
-      if (savedSelectedIndex is ValueNotifier<int?>) {
-        currentLineNumber = savedSelectedIndex.value;
-      } else if (savedSelectedIndex is int) {
-        currentLineNumber = savedSelectedIndex;
-      }
-    }
+    // אם יש savedSelectedIndex, נשתמש בו
+    currentLineNumber = savedSelectedIndex;
 
     // אם אין savedSelectedIndex, נשתמש ב-state
     currentLineNumber ??= state.selectedIndex ??
@@ -717,7 +711,7 @@ class RegularReportTab extends StatefulWidget {
   final String selectedText;
   final double fontSize;
   final TextBookLoaded state;
-  final Function(ErrorReportAction, ReportedErrorData) onActionSelected;
+  final void Function(ErrorReportAction, ReportedErrorData) onActionSelected;
   final VoidCallback onCancel;
 
   const RegularReportTab({

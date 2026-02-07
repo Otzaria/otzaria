@@ -478,7 +478,7 @@ class _CombinedViewState extends State<CombinedView> {
       state: state,
       fontSize: widget.textSize,
       bookTitle: widget.tab.book.title,
-      savedSelectedIndex: _savedSelectedIndex,
+      savedSelectedIndex: _savedSelectedIndex.value,
     );
   }
 

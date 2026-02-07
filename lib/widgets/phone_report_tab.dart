@@ -11,7 +11,7 @@ class PhoneReportTab extends StatefulWidget {
   final String libraryVersion;
   final int? bookId;
   final int lineNumber;
-  final Function(
+  final void Function(
           String selectedText, int errorId, String moreInfo, int lineNumber)?
       onSubmit;
   final VoidCallback? onCancel;
