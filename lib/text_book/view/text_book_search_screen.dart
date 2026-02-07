@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -149,7 +150,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
 
     // Check if visibleIndices changed to avoid unnecessary recalculation
     if (_lastVisibleIndices.isNotEmpty &&
-        _listEquals(_lastVisibleIndices, state.visibleIndices)) {
+        listEquals(_lastVisibleIndices, state.visibleIndices)) {
       return;
     }
 
@@ -165,13 +166,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     });
   }
 
-  bool _listEquals(List<int> a, List<int> b) {
-    if (a.length != b.length) return false;
-    for (int i = 0; i < a.length; i++) {
-      if (a[i] != b[i]) return false;
-    }
-    return true;
-  }
+
 
   Future<void> _searchTextUpdated() async {
     String query = searchTextController.text.trim();

@@ -1,6 +1,26 @@
 import 'package:otzaria/text_book/models/search_results.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 
+/// Maximum number of search results to return
+const int _maxSearchResults = 1000;
+
+/// Updates the address list with a new header line
+void _updateAddress(List<String> address, String line) {
+  if (address.isNotEmpty &&
+      address.any((e) =>
+          e.length >= 4 &&
+          line.length >= 4 &&
+          e.substring(0, 4) == line.substring(0, 4))) {
+    address.removeRange(
+        address.indexWhere((e) =>
+            e.length >= 4 &&
+            line.length >= 4 &&
+            e.substring(0, 4) == line.substring(0, 4)),
+        address.length);
+  }
+  address.add(line);
+}
+
 /// Represents section boundaries (start and end line indices, inclusive)
 class SectionBounds {
   final int start;
@@ -44,7 +64,7 @@ SectionBounds detectCurrentSection({
   // Determine section start
   int startIndex = headerIndex != null ? headerIndex + 1 : 0;
   if (headerIndex == null) {
-    for (int i = 0; i < content.length; i++) {
+    for (int i = currentIndex; i >= 0; i--) {
       if (content[i].contains('<h1')) {
         startIndex = i + 1;
         break;
@@ -94,19 +114,7 @@ Future<List<TextSearchResult>> searchInContent({
     for (int i = 0; i <= searchStart && i < content.length; i++) {
       final line = content[i];
       if (line.contains('<h') && !line.startsWith('<h1')) {
-        if (address.isNotEmpty &&
-            address.any((e) =>
-                e.length >= 4 &&
-                line.length >= 4 &&
-                e.substring(0, 4) == line.substring(0, 4))) {
-          address.removeRange(
-              address.indexWhere((e) =>
-                  e.length >= 4 &&
-                  line.length >= 4 &&
-                  e.substring(0, 4) == line.substring(0, 4)),
-              address.length);
-        }
-        address.add(line);
+        _updateAddress(address, line);
       }
     }
 
@@ -116,19 +124,7 @@ Future<List<TextSearchResult>> searchInContent({
 
       // Update address for headers
       if (line.contains('<h') && !line.startsWith('<h1')) {
-        if (address.isNotEmpty &&
-            address.any((e) =>
-                e.length >= 4 &&
-                line.length >= 4 &&
-                e.substring(0, 4) == line.substring(0, 4))) {
-          address.removeRange(
-              address.indexWhere((e) =>
-                  e.length >= 4 &&
-                  line.length >= 4 &&
-                  e.substring(0, 4) == line.substring(0, 4)),
-              address.length);
-        }
-        address.add(line);
+        _updateAddress(address, line);
       }
 
       // Search in cleaned text
@@ -140,7 +136,7 @@ Future<List<TextSearchResult>> searchInContent({
           address: utils.removeVolwels(utils.stripHtmlIfNeeded(address.join(', '))),
           query: query,
         ));
-        if (results.length >= 1000) break;
+        if (results.length >= _maxSearchResults) break;
       }
     }
 
