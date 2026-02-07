@@ -65,8 +65,10 @@ class DataRepository {
   ///   - [title]: The title of the book to retrieve
   ///
   /// Returns a [Future] that completes with the book's text content as a [String]
-  Future<String> getBookText(String title, {String? category, String? fileType}) async {
-    return _fileSystemData.getBookText(title, category: category, fileType: fileType);
+  Future<String> getBookText(String title,
+      {String? category, String? fileType}) async {
+    return _fileSystemData.getBookText(title,
+        category: category, fileType: fileType);
   }
 
   /// Retrieves the table of contents for a specific book
@@ -76,8 +78,10 @@ class DataRepository {
   ///
   /// Returns a [Future] that completes with a list of [TocEntry] objects
   /// representing the book's table of contents structure
-  Future<List<TocEntry>> getBookToc(String title, {String? category, String? fileType}) async {
-    return _fileSystemData.getBookToc(title, category: category, fileType: fileType);
+  Future<List<TocEntry>> getBookToc(String title,
+      {String? category, String? fileType}) async {
+    return _fileSystemData.getBookToc(title,
+        category: category, fileType: fileType);
   }
 
   /// Searches for references by relevance to a given reference string
@@ -139,8 +143,8 @@ class DataRepository {
       final author = (book.author ?? '').toLowerCase();
       final bookTopics = book.topics.split(', ');
 
-      bool matchesQuery = queryWords.every((word) => 
-          title.contains(word) || author.contains(word));
+      bool matchesQuery = queryWords
+          .every((word) => title.contains(word) || author.contains(word));
       bool matchesTopics = topics == null ||
           topics.isEmpty ||
           topics.every((t) => bookTopics.contains(t));

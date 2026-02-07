@@ -137,7 +137,8 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
 
     try {
       // קבלת נתיב הספרייה מההגדרות
-      final libraryPath = Settings.getValue<String>(SettingsRepository.keyLibraryPath) ?? '.';
+      final libraryPath =
+          Settings.getValue<String>(SettingsRepository.keyLibraryPath) ?? '.';
 
       // Define book titles to search based on settings
       List<String>? bookTitlesToSearch;

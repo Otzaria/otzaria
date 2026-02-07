@@ -97,8 +97,8 @@ class TextBookSearcher {
             snippet: section.substring(start, end),
             index: sectionIndex,
             query: query,
-            address: removeVolwels(
-                stripHtmlIfNeeded(filteredAddress.join(', ')))));
+            address:
+                removeVolwels(stripHtmlIfNeeded(filteredAddress.join(', ')))));
       }
     }
     return results;

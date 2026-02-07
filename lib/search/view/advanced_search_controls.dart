@@ -294,8 +294,8 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
 
   Widget _buildInputColumn(bool isEnabled) {
     final spacingController = _wordIndex != null
-      ? _getSpacingController(_wordIndex!, _wordIndex! + 1)
-      : null;
+        ? _getSpacingController(_wordIndex!, _wordIndex! + 1)
+        : null;
 
     return Column(
       children: [
@@ -495,9 +495,7 @@ class _AdvancedSearchControlsState extends State<AdvancedSearchControls> {
                     ),
                     borderRadius: BorderRadius.circular(3),
                     color: isEnabled && isChecked
-                        ? Theme.of(context)
-                            .primaryColor
-                            .withValues(alpha: 0.1)
+                        ? Theme.of(context).primaryColor.withValues(alpha: 0.1)
                         : Colors.transparent,
                   ),
                   child: isEnabled && isChecked

@@ -31,12 +31,12 @@ class PerBookSettings {
       final oldDir = Directory('${oldAppDir.path}/$_settingsFolderName');
       if (!await oldDir.exists()) return;
 
-        final files = await oldDir
+      final files = await oldDir
           .list()
           .where((entity) => entity is File)
           .cast<File>()
           .toList();
-        for (final file in files) {
+      for (final file in files) {
         if (!file.path.endsWith('.json')) continue;
 
         final fileName = file.path.split(Platform.pathSeparator).last;
@@ -57,7 +57,7 @@ class PerBookSettings {
       }
 
       // אם לא נשארו קבצי JSON - נמחק את התיקייה הישנה
-        final hasJson = await oldDir
+      final hasJson = await oldDir
           .list()
           .where((entity) => entity is File)
           .cast<File>()

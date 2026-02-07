@@ -30,7 +30,6 @@ class TantivySearchResults extends StatefulWidget {
 }
 
 class _TantivySearchResultsState extends State<TantivySearchResults> {
-
   final ScrollController _scrollController = ScrollController();
 
   @override
@@ -171,25 +170,25 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                 onTap: () {
                   final rawQuery = widget.tab.queryController.text;
                   final hasEnabledOptions = widget.tab.searchOptions.values
-                    .any((m) => m.values.any((v) => v == true));
+                      .any((m) => m.values.any((v) => v == true));
                   final hasAlternativeWords = widget.tab.alternativeWords.values
-                    .any((alts) => alts.any((w) => w.trim().isNotEmpty));
+                      .any((alts) => alts.any((w) => w.trim().isNotEmpty));
                   final hasSpacingValues = widget.tab.spacingValues.values
-                    .any((v) => v.trim().isNotEmpty);
-                  final looksLikeRegex = RegExp(r'[\\.\*\+\?\|\(\)\[\]\{\}\^\$]')
-                    .hasMatch(rawQuery);
+                      .any((v) => v.trim().isNotEmpty);
+                  final looksLikeRegex =
+                      RegExp(r'[\\.\*\+\?\|\(\)\[\]\{\}\^\$]')
+                          .hasMatch(rawQuery);
                   final currentMode =
-                    widget.tab.searchBloc.state.configuration.searchMode;
+                      widget.tab.searchBloc.state.configuration.searchMode;
 
-                  final shouldUseLegacyInBook =
-                    !hasEnabledOptions &&
-                    !hasAlternativeWords &&
-                    !hasSpacingValues &&
-                    !looksLikeRegex &&
-                    currentMode != SearchMode.fuzzy;
+                  final shouldUseLegacyInBook = !hasEnabledOptions &&
+                      !hasAlternativeWords &&
+                      !hasSpacingValues &&
+                      !looksLikeRegex &&
+                      currentMode != SearchMode.fuzzy;
 
                   final inBookMode =
-                    shouldUseLegacyInBook ? SearchMode.exact : currentMode;
+                      shouldUseLegacyInBook ? SearchMode.exact : currentMode;
 
                   if (result.isPdf) {
                     final pageNumber = result.segment.toInt() + 1;
@@ -198,11 +197,11 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                             book: PdfBook(
                                 title: result.title, path: result.filePath),
                             pageNumber: pageNumber,
-                      searchText: rawQuery,
+                            searchText: rawQuery,
                             searchOptions: widget.tab.searchOptions,
                             alternativeWords: widget.tab.alternativeWords,
                             spacingValues: widget.tab.spacingValues,
-                      searchMode: inBookMode,
+                            searchMode: inBookMode,
                             openLeftPane:
                                 (Settings.getValue<bool>('key-pin-sidebar') ??
                                         false) ||
@@ -218,11 +217,11 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                                 title: result.title,
                               ),
                               index: result.segment.toInt(),
-                        searchText: rawQuery,
+                              searchText: rawQuery,
                               searchOptions: widget.tab.searchOptions,
                               alternativeWords: widget.tab.alternativeWords,
                               spacingValues: widget.tab.spacingValues,
-                        searchMode: inBookMode,
+                              searchMode: inBookMode,
                               openLeftPane:
                                   (Settings.getValue<bool>('key-pin-sidebar') ??
                                           false) ||

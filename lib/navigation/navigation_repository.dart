@@ -6,15 +6,17 @@ import 'package:otzaria/settings/settings_repository.dart';
 class NavigationRepository {
   /// בודק אם הספרייה ריקה - כלומר אם קובץ seforim.db לא קיים
   bool checkLibraryIsEmpty() {
-    final libraryPath = Settings.getValue<String>(SettingsRepository.keyLibraryPath);
+    final libraryPath =
+        Settings.getValue<String>(SettingsRepository.keyLibraryPath);
     if (libraryPath == null || libraryPath.isEmpty) {
       return true;
     }
 
     // בדיקה שקובץ seforim.db קיים בנתיב המתאים
-    final databasePath = DatabaseConstants.getDatabasePathForLibrary(libraryPath);
+    final databasePath =
+        DatabaseConstants.getDatabasePathForLibrary(libraryPath);
     final databaseFile = File(databasePath);
-    
+
     if (!databaseFile.existsSync()) {
       return true;
     }

@@ -4,7 +4,8 @@ import 'package:otzaria/widgets/dialogs.dart';
 
 void main() {
   group('ConfirmationDialog Tests', () {
-    testWidgets('ConfirmationDialog shows title and content', (WidgetTester tester) async {
+    testWidgets('ConfirmationDialog shows title and content',
+        (WidgetTester tester) async {
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(
           body: Builder(
@@ -31,7 +32,8 @@ void main() {
   });
 
   group('InputDialog Tests', () {
-    testWidgets('InputDialog shows title and label', (WidgetTester tester) async {
+    testWidgets('InputDialog shows title and label',
+        (WidgetTester tester) async {
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(
           body: Builder(

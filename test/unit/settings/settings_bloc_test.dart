@@ -114,8 +114,8 @@ void main() {
                 mockSettings['alignTabsToRight'] as bool? ?? false,
             enableHtmlLinks: mockSettings['enableHtmlLinks'] as bool? ?? true,
             personalNotesCollapsedByDefault:
-              mockSettings['personalNotesCollapsedByDefault'] as bool? ??
-                true,
+                mockSettings['personalNotesCollapsedByDefault'] as bool? ??
+                    true,
           ),
         ],
         verify: (_) {

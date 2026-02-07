@@ -4,7 +4,8 @@ import 'package:kosher_dart/kosher_dart.dart';
 
 void main() {
   group('CalendarCubit Jewish month navigation', () {
-  test('next month handles Adar I -> Adar II and no year rollover to Nissan', () {
+    test('next month handles Adar I -> Adar II and no year rollover to Nissan',
+        () {
       // Create a JewishDate for a known leap year at Adar I (month 12)
       final jewish = JewishDate();
       // 5784 is a leap year in the 19-year cycle
@@ -13,12 +14,14 @@ void main() {
       expect(jewish.isJewishLeapYear(), isTrue);
       expect(jewish.getJewishMonth(), 12);
 
-  final next = computeNextJewishMonth(jewish);
+      final next = computeNextJewishMonth(jewish);
       expect(next.getJewishYear(), 5784);
-      expect(next.getJewishMonth(), 13, reason: 'Should move to Adar II same year');
+      expect(next.getJewishMonth(), 13,
+          reason: 'Should move to Adar II same year');
 
       final afterAdarII = computeNextJewishMonth(next);
-      expect(afterAdarII.getJewishYear(), 5784, reason: 'After Adar II go to Nissan in same Jewish year');
+      expect(afterAdarII.getJewishYear(), 5784,
+          reason: 'After Adar II go to Nissan in same Jewish year');
       expect(afterAdarII.getJewishMonth(), 1);
     });
 
@@ -30,15 +33,17 @@ void main() {
       expect(nissan.getJewishMonth(), 1);
 
       final prev = computePreviousJewishMonth(nissan);
-      expect(prev.getJewishYear(), 5784, reason: 'Nissan -> Adar stays in same Jewish year');
-      expect(prev.getJewishMonth(), 13, reason: '5784 is leap; previous month is Adar II');
+      expect(prev.getJewishYear(), 5784,
+          reason: 'Nissan -> Adar stays in same Jewish year');
+      expect(prev.getJewishMonth(), 13,
+          reason: '5784 is leap; previous month is Adar II');
     });
 
     test('previous month handles Adar II -> Adar I within leap year', () {
       final adarII = JewishDate();
       adarII.setJewishDate(5784, 13, 3);
       expect(adarII.isJewishLeapYear(), isTrue);
-  final prev = computePreviousJewishMonth(adarII);
+      final prev = computePreviousJewishMonth(adarII);
       expect(prev.getJewishMonth(), 12);
       expect(prev.getJewishYear(), 5784);
     });

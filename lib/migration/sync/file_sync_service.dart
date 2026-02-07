@@ -334,12 +334,11 @@ class FileSyncService {
   }
 
   /// Internal method to scan a single path and import files
-  Future<FileSyncResult> _scanAndImportPath({
-    required String rootPath,
-    required List<String> categoryPrefix,
-    required bool deleteOriginals,
-    required DatabaseGenerator generator
-  }) async {
+  Future<FileSyncResult> _scanAndImportPath(
+      {required String rootPath,
+      required List<String> categoryPrefix,
+      required bool deleteOriginals,
+      required DatabaseGenerator generator}) async {
     int addedBooks = 0;
     int updatedBooks = 0;
     int addedCategories = 0;
@@ -440,7 +439,8 @@ class FileSyncService {
     }
 
     // Find or create category chain using generator's unified method
-    final categoryResult = await generator.findOrCreateCategoryChain(categoryPath);
+    final categoryResult =
+        await generator.findOrCreateCategoryChain(categoryPath);
     final categoryId = categoryResult.categoryId;
     final categoriesCreated = categoryResult.categoriesCreated;
 
@@ -576,11 +576,10 @@ class FileSyncService {
 
           // Use the new internal method
           final result = await _scanAndImportPath(
-            rootPath: folder.path,
-            categoryPrefix: ['ספרים אישיים', folder.name],
-            deleteOriginals: true, // Keep existing behavior
-            generator: generator
-          );
+              rootPath: folder.path,
+              categoryPrefix: ['ספרים אישיים', folder.name],
+              deleteOriginals: true, // Keep existing behavior
+              generator: generator);
 
           addedBooks += result.addedBooks;
           updatedBooks += result.updatedBooks;

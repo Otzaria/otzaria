@@ -81,5 +81,10 @@ class Category {
   }
 
   @override
-  int get hashCode => id.hashCode ^ parentId.hashCode ^ title.hashCode ^ level.hashCode ^ orderIndex.hashCode;
+  int get hashCode =>
+      id.hashCode ^
+      parentId.hashCode ^
+      title.hashCode ^
+      level.hashCode ^
+      orderIndex.hashCode;
 }

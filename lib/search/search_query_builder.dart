@@ -108,7 +108,7 @@ class SearchQueryBuilder {
       Map<String, Map<String, bool>>? searchOptions) {
     // ניקוי תווים מיוחדים שלא צריכים להיות בחיפוש (כמו גרשיים)
     final cleanedQuery = query.replaceAll('"', '');
-    
+
     final words = cleanedQuery
         .trim()
         .split(SearchRegexPatterns.wordSplitter)

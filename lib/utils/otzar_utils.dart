@@ -43,7 +43,7 @@ class OtzarUtils {
       }
       //newer version teh path is under the /Otzardisk/books folder with the extension .book
       final bookPathLocalDisk = '$drive:\\Otzardisk\\books\\$bookId.book';
-      final bookFileLocalDisk = File( bookPathLocalDisk);
+      final bookFileLocalDisk = File(bookPathLocalDisk);
       if (await bookFileLocalDisk.exists()) {
         return true;
       }

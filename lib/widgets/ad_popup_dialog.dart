@@ -775,16 +775,16 @@ class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
           style: _defaultDetailsStyle,
         ));
       }
-      
+
       // טקסט מודגש (ללא הכוכביות)
       spans.add(TextSpan(
         text: match.group(1),
         style: _boldDetailsStyle,
       ));
-      
+
       lastIndex = match.end;
     }
-    
+
     // שאר הטקסט
     if (lastIndex < details.length) {
       spans.add(TextSpan(
@@ -792,7 +792,7 @@ class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
         style: _defaultDetailsStyle,
       ));
     }
-    
+
     return Text.rich(
       TextSpan(children: spans),
     );

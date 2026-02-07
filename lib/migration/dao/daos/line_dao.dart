@@ -26,15 +26,18 @@ class LineDao {
     return result.map((row) => _mapToLine(row)).toList();
   }
 
-  Future<List<Line>> selectByBookIdRange(int bookId, int startIndex, int endIndex) async {
+  Future<List<Line>> selectByBookIdRange(
+      int bookId, int startIndex, int endIndex) async {
     final db = await database;
-    final result = await db.rawQuery(_queries['selectByBookIdRange']!, [bookId, startIndex, endIndex]);
+    final result = await db.rawQuery(
+        _queries['selectByBookIdRange']!, [bookId, startIndex, endIndex]);
     return result.map((row) => _mapToLine(row)).toList();
   }
 
   Future<Line?> selectByBookIdAndIndex(int bookId, int lineIndex) async {
     final db = await database;
-    final result = await db.rawQuery(_queries['selectByBookIdAndIndex']!, [bookId, lineIndex]);
+    final result = await db
+        .rawQuery(_queries['selectByBookIdAndIndex']!, [bookId, lineIndex]);
     if (result.isEmpty) return null;
     return _mapToLine(result.first);
   }
@@ -48,7 +51,8 @@ class LineDao {
 
   Future<List<Line>> selectByHeRefLike(String heRefPattern, int limit) async {
     final db = await database;
-    final result = await db.rawQuery(_queries['selectByHeRefLike']!, [heRefPattern, limit]);
+    final result = await db
+        .rawQuery(_queries['selectByHeRefLike']!, [heRefPattern, limit]);
     return result.map((row) => _mapToLine(row)).toList();
   }
 
@@ -77,7 +81,8 @@ class LineDao {
 
   Future<int> updateTocEntryId(int lineId, int tocEntryId) async {
     final db = await database;
-    return await db.rawUpdate(_queries['updateTocEntryId']!, [tocEntryId, lineId]);
+    return await db
+        .rawUpdate(_queries['updateTocEntryId']!, [tocEntryId, lineId]);
   }
 
   Future<int> updateHeRef(int lineId, String heRef) async {

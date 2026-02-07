@@ -4,22 +4,22 @@ import 'package:equatable/equatable.dart';
 class TextOverride extends Equatable {
   /// Book identifier
   final String bookId;
-  
+
   /// Stable section identifier
   final String sectionId;
-  
+
   /// Markdown content of the override
   final String markdownContent;
-  
+
   /// When this override was last modified
   final DateTime lastModified;
-  
+
   /// Hash of the original source content when this override was created
   final String sourceHashOnOpen;
-  
+
   /// Application schema version for migration purposes
   final String appSchemaVersion;
-  
+
   /// Original content for reference (optional)
   final String? originalContent;
 
@@ -72,11 +72,11 @@ class TextOverride extends Equatable {
     // Parse frontmatter
     final frontmatter = parts[1];
     final markdownContent = parts.sublist(2).join('---');
-    
+
     String sourceHash = '';
     String appSchemaVersion = '1.0';
     DateTime lastModified = DateTime.now();
-    
+
     for (final line in frontmatter.split('\n')) {
       final trimmed = line.trim();
       if (trimmed.startsWith('sourceHashOnOpen:')) {
@@ -106,7 +106,7 @@ sourceHashOnOpen: "$sourceHashOnOpen"
 appSchemaVersion: "$appSchemaVersion"
 lastModified: "${lastModified.toIso8601String()}"
 ---''';
-    
+
     return '$frontmatter\n$markdownContent';
   }
 
@@ -133,12 +133,12 @@ lastModified: "${lastModified.toIso8601String()}"
 
   @override
   List<Object?> get props => [
-    bookId,
-    sectionId,
-    markdownContent,
-    lastModified,
-    sourceHashOnOpen,
-    appSchemaVersion,
-    originalContent,
-  ];
+        bookId,
+        sectionId,
+        markdownContent,
+        lastModified,
+        sourceHashOnOpen,
+        appSchemaVersion,
+        originalContent,
+      ];
 }

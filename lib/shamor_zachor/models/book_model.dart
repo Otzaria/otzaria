@@ -525,7 +525,8 @@ class LearnableItem {
           sectionId == other.sectionId;
 
   @override
-  int get hashCode => partName.hashCode ^
+  int get hashCode =>
+      partName.hashCode ^
       pageNumber.hashCode ^
       amudKey.hashCode ^
       absoluteIndex.hashCode ^

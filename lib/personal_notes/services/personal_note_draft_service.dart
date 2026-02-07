@@ -26,11 +26,11 @@ class PersonalNoteDraft {
   factory PersonalNoteDraft.fromJson(Map<String, dynamic> json) {
     return PersonalNoteDraft(
       content: json['content'] as String,
-      contentPlain: json['contentPlain'] as String? ??
-          (json['content'] as String),
+      contentPlain:
+          json['contentPlain'] as String? ?? (json['content'] as String),
       contentFormat: PersonalNoteContentFormat.values.byName(
         json['contentFormat'] as String? ??
-        PersonalNoteContentFormat.plain.name,
+            PersonalNoteContentFormat.plain.name,
       ),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
@@ -40,8 +40,7 @@ class PersonalNoteDraft {
 class PersonalNoteDraftService {
   static const _prefix = 'personal_note_draft:';
 
-  String _key(String bookId, int lineNumber) =>
-      '$_prefix$bookId:$lineNumber';
+  String _key(String bookId, int lineNumber) => '$_prefix$bookId:$lineNumber';
 
   Future<PersonalNoteDraft?> loadDraft({
     required String bookId,

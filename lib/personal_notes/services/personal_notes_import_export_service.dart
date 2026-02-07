@@ -163,11 +163,11 @@ class PersonalNotesImportExportService {
       lastKnownLineNumber: json['lastKnownLineNumber'] as int?,
       status: PersonalNoteStatus.values.byName(json['status'] as String),
       content: json['content'] as String,
-      contentPlain: (json['contentPlain'] as String?) ??
-          (json['content'] as String),
+      contentPlain:
+          (json['contentPlain'] as String?) ?? (json['content'] as String),
       contentFormat: PersonalNoteContentFormat.values.byName(
         json['contentFormat'] as String? ??
-        PersonalNoteContentFormat.plain.name,
+            PersonalNoteContentFormat.plain.name,
       ),
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),

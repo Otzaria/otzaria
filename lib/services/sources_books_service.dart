@@ -14,7 +14,7 @@ class SourcesBooksService {
 
   /// נתוני הספרים שנטענו מהקובץ CSV
   Map<String, Map<String, String>>? _booksData;
-  
+
   /// האם הנתונים נטענו בהצלחה
   bool get isLoaded => _booksData != null;
 
@@ -22,7 +22,7 @@ class SourcesBooksService {
   Future<void> loadSourcesBooks() async {
     try {
       debugPrint('Loading SourcesBooks.csv...');
-      
+
       final libraryPath = Settings.getValue(SettingsRepository.keyLibraryPath);
       if (libraryPath == null || libraryPath.isEmpty) {
         debugPrint('Library path is null or empty');
@@ -52,27 +52,28 @@ class SourcesBooksService {
 
       // המרת הנתונים למפה לחיפוש מהיר
       final Map<String, Map<String, String>> booksMap = {};
-      
-      for (final row in rows.skip(1)) { // דילוג על שורת הכותרת
+
+      for (final row in rows.skip(1)) {
+        // דילוג על שורת הכותרת
         if (row.isNotEmpty && row.length >= 3) {
           final fileNameRaw = row[0].toString();
           final fileName = fileNameRaw.replaceAll('.txt', '');
-          
+
           // שמירה גם עם השם עם .txt וגם בלי
           final bookData = {
             'שם הקובץ': fileNameRaw,
             'נתיב הקובץ': row[1].toString(),
             'תיקיית המקור': row[2].toString(),
           };
-          
+
           booksMap[fileName] = bookData;
           booksMap[fileNameRaw] = bookData;
         }
       }
 
       _booksData = booksMap;
-      debugPrint('Successfully loaded ${booksMap.length ~/ 2} books from SourcesBooks.csv');
-      
+      debugPrint(
+          'Successfully loaded ${booksMap.length ~/ 2} books from SourcesBooks.csv');
     } catch (e) {
       debugPrint('Error loading SourcesBooks.csv: $e');
       _booksData = {};
@@ -106,7 +107,6 @@ class SourcesBooksService {
 
   /// איפוס הנתונים (לשימוש בעת שינוי נתיב ספרייה)
   void clearData() {
-    
-      _booksData = null;
-    }
+    _booksData = null;
   }
+}

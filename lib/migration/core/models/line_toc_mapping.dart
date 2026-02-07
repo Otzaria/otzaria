@@ -30,13 +30,16 @@ class LineTocMapping {
   }
 
   @override
-  String toString() => 'LineTocMapping(lineId: $lineId, tocEntryId: $tocEntryId)';
+  String toString() =>
+      'LineTocMapping(lineId: $lineId, tocEntryId: $tocEntryId)';
 
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
 
-    return other is LineTocMapping && other.lineId == lineId && other.tocEntryId == tocEntryId;
+    return other is LineTocMapping &&
+        other.lineId == lineId &&
+        other.tocEntryId == tocEntryId;
   }
 
   @override

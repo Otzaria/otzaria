@@ -4,13 +4,13 @@ import 'package:flutter/material.dart';
 class ShamorZachorConfig {
   /// Optional asset path override for data files
   final String? assetsBasePath;
-  
+
   /// Optional theme data to inherit from host app
   final ThemeData? themeData;
-  
+
   /// Optional text direction override
   final TextDirection? textDirection;
-  
+
   /// Optional locale override
   final Locale? locale;
 

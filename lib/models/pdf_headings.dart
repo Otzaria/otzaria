@@ -19,7 +19,8 @@ class PdfHeadings {
   static Future<PdfHeadings?> loadFromFile(String bookTitle) async {
     try {
       // קבלת נתיב הספרייה
-      final libraryPath = Settings.getValue<String>(SettingsRepository.keyLibraryPath);
+      final libraryPath =
+          Settings.getValue<String>(SettingsRepository.keyLibraryPath);
       if (libraryPath == null || libraryPath.isEmpty) {
         debugPrint('Library path not set');
         return null;
@@ -27,8 +28,9 @@ class PdfHeadings {
 
       // נתיב לקובץ ה-JSON בתיקיית links
       final fileName = '${bookTitle}_headings.json';
-      final filePath = '$libraryPath${Platform.pathSeparator}links${Platform.pathSeparator}$fileName';
-      
+      final filePath =
+          '$libraryPath${Platform.pathSeparator}links${Platform.pathSeparator}$fileName';
+
       final file = File(filePath);
       if (!await file.exists()) {
         debugPrint('Headings file not found: $filePath');
@@ -37,7 +39,7 @@ class PdfHeadings {
 
       final jsonString = await file.readAsString();
       final Map<String, dynamic> jsonData = json.decode(jsonString);
-      
+
       // המרה ל-Map<String, int>
       final Map<String, int> headingsMap = {};
       jsonData.forEach((key, value) {

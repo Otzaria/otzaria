@@ -4,10 +4,10 @@ library;
 import 'package:otzaria/models/links.dart';
 
 /// Adds inline links to text based on character positions (start/end).
-/// 
+///
 /// Takes a plain text string and a list of links with start/end positions,
 /// and returns HTML with <a> tags inserted at the exact character positions.
-/// 
+///
 /// Links are styled to match the theme with underline decoration.
 /// The URL format is: otzaria://inline-link?path={path}&index={index}&ref={ref}
 String addInlineLinksToText(String text, List<Link> linksForLine) {
@@ -55,8 +55,9 @@ String addInlineLinksToText(String text, List<Link> linksForLine) {
     final linkText = text.substring(start, end);
     final encodedPath = Uri.encodeComponent(link.path2);
     final encodedRef = Uri.encodeComponent(link.heRef);
-    final url = 'otzaria://inline-link?path=$encodedPath&index=${link.index2}&ref=$encodedRef';
-    
+    final url =
+        'otzaria://inline-link?path=$encodedPath&index=${link.index2}&ref=$encodedRef';
+
     buffer.write('<a href="$url" style="text-decoration: underline;">');
     buffer.write(linkText);
     buffer.write('</a>');

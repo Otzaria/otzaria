@@ -203,8 +203,7 @@ class Book {
       hasTargumConnection: safeBoolFromJson(json['hasTargumConnection'], false),
       hasReferenceConnection:
           safeBoolFromJson(json['hasReferenceConnection'], false),
-      hasSourceConnection:
-          safeBoolFromJson(json['hasSourceConnection'], false),
+      hasSourceConnection: safeBoolFromJson(json['hasSourceConnection'], false),
       hasCommentaryConnection:
           safeBoolFromJson(json['hasCommentaryConnection'], false),
       hasOtherConnection: safeBoolFromJson(json['hasOtherConnection'], false),

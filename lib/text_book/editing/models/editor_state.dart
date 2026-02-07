@@ -4,22 +4,22 @@ import 'package:equatable/equatable.dart';
 class EditorState extends Equatable {
   /// Whether the editor dialog is currently open
   final bool isOpen;
-  
+
   /// Index of the section currently being edited
   final int? currentIndex;
-  
+
   /// Section ID of the section currently being edited
   final String? currentSectionId;
-  
+
   /// Current text content in the editor
   final String? currentText;
-  
+
   /// Whether there are unsaved changes
   final bool hasUnsavedChanges;
-  
+
   /// Whether there's a draft available for the current section
   final bool hasDraft;
-  
+
   /// Whether line breaks should be prevented (for books with links)
   final bool preventLineBreaks;
 
@@ -56,12 +56,12 @@ class EditorState extends Equatable {
 
   @override
   List<Object?> get props => [
-    isOpen,
-    currentIndex,
-    currentSectionId,
-    currentText,
-    hasUnsavedChanges,
-    hasDraft,
-    preventLineBreaks,
-  ];
+        isOpen,
+        currentIndex,
+        currentSectionId,
+        currentText,
+        hasUnsavedChanges,
+        hasDraft,
+        preventLineBreaks,
+      ];
 }

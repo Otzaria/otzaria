@@ -140,14 +140,18 @@ class BookDao {
 
   Future<Book?> getBookByTitleAndCategory(String title, int categoryId) async {
     final db = await database;
-    final result = await db.rawQuery(_queries['selectByTitleAndCategory']!, [title, categoryId]);
+    final result = await db
+        .rawQuery(_queries['selectByTitleAndCategory']!, [title, categoryId]);
     if (result.isEmpty) return null;
     return Book.fromJson(result.first);
   }
 
-  Future<Book?> getBookByTitleCategoryAndFileType(String title, int categoryId, String fileType) async {
+  Future<Book?> getBookByTitleCategoryAndFileType(
+      String title, int categoryId, String fileType) async {
     final db = await database;
-    final result = await db.rawQuery(_queries['selectByTitleCategoryAndFileType']!, [title, categoryId, fileType]);
+    final result = await db.rawQuery(
+        _queries['selectByTitleCategoryAndFileType']!,
+        [title, categoryId, fileType]);
     if (result.isEmpty) return null;
     return Book.fromJson(result.first);
   }
@@ -160,29 +164,29 @@ class BookDao {
   }
 
   Future<int> insertBook(
-      int categoryId,
-      int sourceId,
-      String title,
-      String? heShortDesc,
-      double orderIndex,
-      int totalLines,
-      bool isBaseBook,
-      String? notesContent, {
-      bool hasTargumConnection = false,
-      bool hasReferenceConnection = false,
-      bool hasSourceConnection = false,
-      bool hasCommentaryConnection = false,
-      bool hasOtherConnection = false,
-      bool hasAltStructures = false,
-      bool hasTeamim = false,
-      bool hasNekudot = false,
-      bool isContentExternal = false,
-      String? externalLibraryId,
-      bool isPersonal = false,
-      String? filePath,
-      String? fileType,
-      int? fileSize,
-      int? lastModified,
+    int categoryId,
+    int sourceId,
+    String title,
+    String? heShortDesc,
+    double orderIndex,
+    int totalLines,
+    bool isBaseBook,
+    String? notesContent, {
+    bool hasTargumConnection = false,
+    bool hasReferenceConnection = false,
+    bool hasSourceConnection = false,
+    bool hasCommentaryConnection = false,
+    bool hasOtherConnection = false,
+    bool hasAltStructures = false,
+    bool hasTeamim = false,
+    bool hasNekudot = false,
+    bool isContentExternal = false,
+    String? externalLibraryId,
+    bool isPersonal = false,
+    String? filePath,
+    String? fileType,
+    int? fileSize,
+    int? lastModified,
   }) async {
     final db = await database;
     return await db.rawInsert(_queries['insert']!, [
@@ -213,30 +217,30 @@ class BookDao {
   }
 
   Future<int> insertBookWithId(
-      int id,
-      int categoryId,
-      int sourceId,
-      String title,
-      String? heShortDesc,
-      double orderIndex,
-      int totalLines,
-      bool isBaseBook,
-      String? notesContent, {
-      bool hasTargumConnection = false,
-      bool hasReferenceConnection = false,
-      bool hasSourceConnection = false,
-      bool hasCommentaryConnection = false,
-      bool hasOtherConnection = false,
-      bool hasAltStructures = false,
-      bool hasTeamim = false,
-      bool hasNekudot = false,
-      bool isContentExternal = false,
-      String? externalLibraryId,
-      bool isPersonal = false,
-      String? filePath,
-      String? fileType,
-      int? fileSize,
-      int? lastModified,
+    int id,
+    int categoryId,
+    int sourceId,
+    String title,
+    String? heShortDesc,
+    double orderIndex,
+    int totalLines,
+    bool isBaseBook,
+    String? notesContent, {
+    bool hasTargumConnection = false,
+    bool hasReferenceConnection = false,
+    bool hasSourceConnection = false,
+    bool hasCommentaryConnection = false,
+    bool hasOtherConnection = false,
+    bool hasAltStructures = false,
+    bool hasTeamim = false,
+    bool hasNekudot = false,
+    bool isContentExternal = false,
+    String? externalLibraryId,
+    bool isPersonal = false,
+    String? filePath,
+    String? fileType,
+    int? fileSize,
+    int? lastModified,
   }) async {
     final db = await database;
     return await db.rawInsert(_queries['insertWithId']!, [
@@ -341,13 +345,19 @@ class BookDao {
   /// Gets a book by its external library ID.
   Future<Book?> getBookByExternalLibraryId(String externalLibraryId) async {
     final db = await database;
-    final result = await db.rawQuery(_queries['selectByExternalLibraryId']!, [externalLibraryId]);
+    final result = await db
+        .rawQuery(_queries['selectByExternalLibraryId']!, [externalLibraryId]);
     if (result.isEmpty) return null;
     return Book.fromJson(result.first);
   }
 
-  Future<int> updateBookConnectionFlags(int id, bool hasTargum,
-      bool hasReference, bool hasSource, bool hasCommentary, bool hasOther) async {
+  Future<int> updateBookConnectionFlags(
+      int id,
+      bool hasTargum,
+      bool hasReference,
+      bool hasSource,
+      bool hasCommentary,
+      bool hasOther) async {
     final db = await database;
     return await db.rawUpdate(_queries['updateConnectionFlags']!, [
       hasTargum ? 1 : 0,
@@ -361,26 +371,20 @@ class BookDao {
 
   Future<int> updateAltStructuresFlag(int id, bool hasAltStructures) async {
     final db = await database;
-    return await db.rawUpdate(_queries['updateAltStructuresFlag']!, [
-      hasAltStructures ? 1 : 0,
-      id
-    ]);
+    return await db.rawUpdate(
+        _queries['updateAltStructuresFlag']!, [hasAltStructures ? 1 : 0, id]);
   }
 
   Future<int> updateTeamimFlag(int id, bool hasTeamim) async {
     final db = await database;
-    return await db.rawUpdate(_queries['updateTeamimFlag']!, [
-      hasTeamim ? 1 : 0,
-      id
-    ]);
+    return await db
+        .rawUpdate(_queries['updateTeamimFlag']!, [hasTeamim ? 1 : 0, id]);
   }
 
   Future<int> updateNekudotFlag(int id, bool hasNekudot) async {
     final db = await database;
-    return await db.rawUpdate(_queries['updateNekudotFlag']!, [
-      hasNekudot ? 1 : 0,
-      id
-    ]);
+    return await db
+        .rawUpdate(_queries['updateNekudotFlag']!, [hasNekudot ? 1 : 0, id]);
   }
 
   Future<int> deleteBook(int id) async {

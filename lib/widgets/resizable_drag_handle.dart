@@ -105,7 +105,7 @@ class _ResizableDragHandleState extends State<ResizableDragHandle> {
             final background =
                 theme.colorScheme.primary.withValues(alpha: 0.14 * blend);
             final thickness = lerpDouble(1.0, 3.0, blend) ?? 1.0;
-            
+
             // If showDivider is false, only show line when hovering or dragging
             final showLine = widget.showDivider || blend > 0;
             final lineColor = showLine

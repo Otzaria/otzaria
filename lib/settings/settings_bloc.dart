@@ -48,7 +48,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     on<UpdateAlignTabsToRight>(_onUpdateAlignTabsToRight);
     on<UpdateEnableHtmlLinks>(_onUpdateEnableHtmlLinks);
     on<UpdatePersonalNotesCollapsedByDefault>(
-      _onUpdatePersonalNotesCollapsedByDefault);
+        _onUpdatePersonalNotesCollapsedByDefault);
   }
 
   Future<void> _onLoadSettings(

@@ -111,7 +111,8 @@ class LibraryProviderManager {
             // Add all books to the category list, allowing duplicates
             allBooksByCategory[categoryName]!.add(book);
 
-            final key = _generateKey(book.title, book.categoryPath ?? '', book.fileType ?? 'txt');
+            final key = _generateKey(
+                book.title, book.categoryPath ?? '', book.fileType ?? 'txt');
 
             // Only map the first occurrence (highest priority) for key-based lookups
             if (!loadedKeys.contains(key)) {
@@ -140,7 +141,8 @@ class LibraryProviderManager {
   }
 
   /// Gets the provider that owns a specific book
-  LibraryProvider? getProviderForBook(String title, String category, String fileType) {
+  LibraryProvider? getProviderForBook(
+      String title, String category, String fileType) {
     final key = _generateKey(title, category, fileType);
     if (_bookToProvider.containsKey(key)) {
       return _bookToProvider[key];
@@ -152,18 +154,20 @@ class LibraryProviderManager {
         if (k.startsWith('$title|')) return _bookToProvider[k];
       }
     }
-    
+
     return null;
   }
 
   /// Gets the data source indicator for a book
-  Future<String> getBookDataSource(String title, String category, String fileType) async {
+  Future<String> getBookDataSource(
+      String title, String category, String fileType) async {
     final provider = getProviderForBook(title, category, fileType);
     return provider?.sourceIndicator ?? 'ק';
   }
 
   /// Gets the text content of a book from the appropriate provider
-  Future<String?> getBookText(String title, String category, String fileType) async {
+  Future<String?> getBookText(
+      String title, String category, String fileType) async {
     if (!_isInitialized) await initialize();
 
     final provider = getProviderForBook(title, category, fileType);
@@ -191,7 +195,8 @@ class LibraryProviderManager {
   }
 
   /// Gets the table of contents for a book from the appropriate provider
-  Future<List<TocEntry>?> getBookToc(String title, String category, String fileType) async {
+  Future<List<TocEntry>?> getBookToc(
+      String title, String category, String fileType) async {
     final provider = getProviderForBook(title, category, fileType);
     if (provider != null) {
       return await provider.getBookToc(title, category, fileType);
@@ -214,7 +219,8 @@ class LibraryProviderManager {
   }
 
   /// Checks if a book exists in any provider
-  Future<bool> bookExists(String title, String category, String fileType) async {
+  Future<bool> bookExists(
+      String title, String category, String fileType) async {
     for (final provider in _providers) {
       if (await provider.hasBook(title, category, fileType)) {
         return true;
@@ -235,14 +241,14 @@ class LibraryProviderManager {
   Future<String> getLinkContent(Link link) async {
     // Try to find the provider for the target book
     final targetTitle = link.path2.split('/').last.replaceAll('.txt', '');
-    
+
     // Find key that starts with targetTitle + '|'
     String? key;
     for (final k in _bookToProvider.keys) {
-        if (k.startsWith('$targetTitle|')) {
-            key = k;
-            break;
-        }
+      if (k.startsWith('$targetTitle|')) {
+        key = k;
+        break;
+      }
     }
 
     final provider = key != null ? _bookToProvider[key] : null;
@@ -346,8 +352,9 @@ class LibraryProviderManager {
   void _mapBooksRecursiveWithCache(Category category,
       LibraryProvider primaryProvider, Set<String> dbTitles) {
     for (final book in category.books) {
-      final key = _generateKey(book.title, book.categoryPath ?? '', book.fileType ?? 'txt');  
- 
+      final key = _generateKey(
+          book.title, book.categoryPath ?? '', book.fileType ?? 'txt');
+
       if (book is FileBook) {
         // PDF books are always file-based
         _bookToProvider[key] = fileSystemProvider;

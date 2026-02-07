@@ -31,7 +31,8 @@ class CatalogImporter {
 
     // Process Otzar HaChochma
     try {
-      final otzarSourceId = await repository.insertSource('Otzar HaChochma',-2);
+      final otzarSourceId =
+          await repository.insertSource('Otzar HaChochma', -2);
       await _importOtzarBooks(otzarSourceId);
     } catch (e, stackTrace) {
       _log.severe('Error importing Otzar HaChochma books', e, stackTrace);
@@ -39,7 +40,7 @@ class CatalogImporter {
 
     // Process HebrewBooks
     try {
-      final hbSourceId = await repository.insertSource('HebrewBooks',-3);
+      final hbSourceId = await repository.insertSource('HebrewBooks', -3);
       await _importHebrewBooks(hbSourceId);
     } catch (e, stackTrace) {
       _log.severe('Error importing HebrewBooks', e, stackTrace);

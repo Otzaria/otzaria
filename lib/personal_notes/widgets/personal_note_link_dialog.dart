@@ -61,8 +61,7 @@ class _PersonalNoteLinkDialogState extends State<PersonalNoteLinkDialog> {
             : 'הערה')
         : _labelController.text.trim();
     final url = 'otzaria://note?id=${note.id}';
-    Navigator.of(context)
-        .pop(PersonalNoteLinkTarget(label: label, url: url));
+    Navigator.of(context).pop(PersonalNoteLinkTarget(label: label, url: url));
   }
 
   @override

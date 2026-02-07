@@ -23,7 +23,6 @@ import 'package:otzaria/utils/docx_to_otzaria.dart';
 ///
 /// This is a Dart conversion of the original Kotlin DatabaseGenerator.
 class DatabaseGenerator {
-
   static final _log = Logger('DatabaseGenerator');
 
   /// The path to the source directory containing the data files
@@ -39,13 +38,12 @@ class DatabaseGenerator {
   /// If null, duplicates will be skipped by default.
   /// Parameters: bookTitle, categoryId
   Future<bool> Function(String bookTitle, int categoryId)? onDuplicateBook;
-  
+
   /// Library root path for relative path computations
   late String _libraryRoot;
 
   /// Cache of source name -> id from DB
   final Map<String, int> _sourceNameToId = {};
-
 
   /// Tracks books processed from priority list to avoid double insertion
   final Set<String> _processedPriorityBookKeys = {};
@@ -99,7 +97,6 @@ class DatabaseGenerator {
       // Estimate total number of books for progress tracking
       _totalBooksToProcess = await _countFiles(libraryPath);
 
-     
       // Preload all book contents into RAM
       await processDirectory(libraryPath, null, 0);
 
@@ -137,10 +134,7 @@ class DatabaseGenerator {
   /// [level] The current level in the directory hierarchy
   /// [metadata] The metadata for books
   Future<void> processDirectory(
-    String directory,
-    int? parentCategoryId,
-    int level
-  ) async {
+      String directory, int? parentCategoryId, int level) async {
     final dir = Directory(directory);
     final entities = await dir.list().toList();
     final sortedEntities = entities
@@ -211,7 +205,7 @@ class DatabaseGenerator {
 
       // Try to find existing category with same name and parent
       final existingCategory = await _findCategoryByNameAndParent(
-        categoryName, 
+        categoryName,
         currentParentId,
       );
 
@@ -237,7 +231,8 @@ class DatabaseGenerator {
   }
 
   /// Finds a category by name and parent ID
-  Future<Category?> _findCategoryByNameAndParent(String name, int? parentId) async {
+  Future<Category?> _findCategoryByNameAndParent(
+      String name, int? parentId) async {
     final categories = parentId == null
         ? await repository.getRootCategories()
         : await repository.getCategoryChildren(parentId);
@@ -359,7 +354,7 @@ class DatabaseGenerator {
 
       // קביעת מזהה לספר: שלילי אם אישי או קובץ שאינו txt, אחרת רגיל
       int currentBookId = await repository.getNextNegativeBookId();
-     
+
       // Detect companion notes file named 'הערות על <title>.txt' in the same directory
       String? notesContent;
       try {
@@ -382,15 +377,14 @@ class DatabaseGenerator {
       // For non-txt files (external), get file stats
       int? fileSize;
       int? lastModified;
-        try {
-          final file = File(bookPath);
-          final stat = await file.stat();
-          fileSize = stat.size;
-          lastModified = stat.modified.millisecondsSinceEpoch;
-        } catch (e) {
-          _log.warning('Failed to get stats for external file: $bookPath', e);
-        }
-      
+      try {
+        final file = File(bookPath);
+        final stat = await file.stat();
+        fileSize = stat.size;
+        lastModified = stat.modified.millisecondsSinceEpoch;
+      } catch (e) {
+        _log.warning('Failed to get stats for external file: $bookPath', e);
+      }
 
       final sourceId = await _resolveSourceIdFor(bookPath);
       final book = Book(
@@ -419,7 +413,7 @@ class DatabaseGenerator {
       if (insertedBook?.categoryId != categoryId) {
         await repository.updateBookCategoryId(insertedBookId, categoryId);
       }
-      
+
       // Process content of the book
       if (insertContent) {
         await processBookContent(bookPath, insertedBookId);
@@ -612,7 +606,7 @@ class DatabaseGenerator {
 
       int currentLineId = await repository.getNextNegativeLineId();
       int currentTocEntryId = await repository.getNextNegativeTocEntryId();
-      
+
       if (level > 0) {
         if (plainText.trim().isEmpty) {
           parentStack.remove(level);
@@ -802,11 +796,10 @@ class DatabaseGenerator {
     final sourceName = 'Personal';
     final cached = _sourceNameToId[sourceName];
     if (cached != null) return cached;
-    final id = await repository.insertSource(sourceName,-1);
+    final id = await repository.insertSource(sourceName, -1);
     _sourceNameToId[sourceName] = id;
     return id;
   }
- 
 
   /// Count txt files in directory for progress tracking
   Future<int> _countFiles(String dirPath) async {

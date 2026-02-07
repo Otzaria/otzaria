@@ -1,16 +1,14 @@
-
-
 /// Outcome of a rebase operation
 enum RebaseOutcome {
   /// Rebase was successful
   success,
-  
+
   /// Rebase resulted in conflicts that need manual resolution
   conflict,
-  
+
   /// Rebase was not needed (content hasn't changed)
   notNeeded,
-  
+
   /// Rebase failed due to an error
   failed,
 }
@@ -19,19 +17,19 @@ enum RebaseOutcome {
 class RebaseContext {
   /// Book identifier
   final String bookId;
-  
+
   /// Section identifier
   final String sectionId;
-  
+
   /// Original content when override was created
   final String originalContent;
-  
+
   /// New source content from updated book
   final String newSourceContent;
-  
+
   /// User's override content
   final String overrideContent;
-  
+
   /// When the override was last modified
   final DateTime lastModified;
 
@@ -54,7 +52,7 @@ abstract class OverridesRebaseService {
     required String originalCandidate,
     required String overrideMarkdown,
   });
-  
+
   /// Gets rebase context for manual conflict resolution
   Future<RebaseContext?> getRebaseContext({
     required String bookId,
@@ -65,7 +63,6 @@ abstract class OverridesRebaseService {
 
 /// Default implementation of OverridesRebaseService
 class DefaultOverridesRebaseService implements OverridesRebaseService {
-  
   @override
   Future<RebaseOutcome> rebaseIfSourceChanged({
     required String bookId,
@@ -76,35 +73,34 @@ class DefaultOverridesRebaseService implements OverridesRebaseService {
     try {
       // First, check if content actually changed
       final originalNormalized = _normalizeContent(originalCandidate);
-      
+
       // For now, we'll implement a simple hash-based comparison
       // In a real implementation, you'd compare against the stored sourceHashOnOpen
-      
+
       // If content hasn't changed, no rebase needed
       // This is a simplified check - in practice you'd compare hashes
       if (originalNormalized.isEmpty) {
         return RebaseOutcome.notNeeded;
       }
-      
+
       // Attempt different matching strategies
-      
+
       // Strategy 1: Direct sectionId matching (already handled by caller)
       // This method is called when we know the sectionId matches
-      
+
       // Strategy 2: Content hash matching
       final overrideNormalized = _normalizeContent(overrideMarkdown);
       if (_contentHashMatches(originalNormalized, overrideNormalized)) {
         return RebaseOutcome.success;
       }
-      
+
       // Strategy 3: Fuzzy matching using rolling hash
       if (await _fuzzyMatch(originalNormalized, overrideNormalized)) {
         return RebaseOutcome.success;
       }
-      
+
       // If all strategies fail, mark as conflict
       return RebaseOutcome.conflict;
-      
     } catch (e) {
       return RebaseOutcome.failed;
     }
@@ -139,19 +135,19 @@ class DefaultOverridesRebaseService implements OverridesRebaseService {
   Future<bool> _fuzzyMatch(String original, String override) async {
     const windowSize = 50; // Characters
     const threshold = 0.8; // 80% similarity threshold
-    
+
     if (original.length < windowSize || override.length < windowSize) {
       // For short content, use simple similarity
       return _calculateSimilarity(original, override) >= threshold;
     }
-    
+
     // Rolling hash approach for longer content
     final originalWindows = _getWindows(original, windowSize);
     final overrideWindows = _getWindows(override, windowSize);
-    
+
     int matches = 0;
     int totalWindows = originalWindows.length;
-    
+
     for (final originalWindow in originalWindows) {
       for (final overrideWindow in overrideWindows) {
         if (_calculateSimilarity(originalWindow, overrideWindow) >= threshold) {
@@ -160,7 +156,7 @@ class DefaultOverridesRebaseService implements OverridesRebaseService {
         }
       }
     }
-    
+
     return (matches / totalWindows) >= threshold;
   }
 
@@ -177,12 +173,12 @@ class DefaultOverridesRebaseService implements OverridesRebaseService {
   double _calculateSimilarity(String str1, String str2) {
     if (str1 == str2) return 1.0;
     if (str1.isEmpty || str2.isEmpty) return 0.0;
-    
+
     final longer = str1.length > str2.length ? str1 : str2;
     final shorter = str1.length > str2.length ? str2 : str1;
-    
+
     if (longer.isEmpty) return 1.0;
-    
+
     final editDistance = _levenshteinDistance(longer, shorter);
     return (longer.length - editDistance) / longer.length;
   }
@@ -206,8 +202,8 @@ class DefaultOverridesRebaseService implements OverridesRebaseService {
       for (int j = 1; j <= str2.length; j++) {
         final cost = str1[i - 1] == str2[j - 1] ? 0 : 1;
         matrix[i][j] = [
-          matrix[i - 1][j] + 1,     // deletion
-          matrix[i][j - 1] + 1,     // insertion
+          matrix[i - 1][j] + 1, // deletion
+          matrix[i][j - 1] + 1, // insertion
           matrix[i - 1][j - 1] + cost, // substitution
         ].reduce((a, b) => a < b ? a : b);
       }

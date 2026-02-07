@@ -213,7 +213,8 @@ class MyDatabase {
       // Migration from version 2 to 3: Add lineIndex column to tocEntry table
       try {
         await db.execute('ALTER TABLE tocEntry ADD COLUMN lineIndex INTEGER;');
-        debugPrint('✅ Migration v2→v3: Added lineIndex column to tocEntry table');
+        debugPrint(
+            '✅ Migration v2→v3: Added lineIndex column to tocEntry table');
       } catch (e) {
         // Column might already exist, ignore error
         debugPrint(

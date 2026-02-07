@@ -16,7 +16,7 @@ class DataSourceIndicator extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDb = source == 'DB';
     final isPersonal = source == 'א';
-    
+
     Color backgroundColor;
     Color borderColor;
     Color textColor;
@@ -38,7 +38,7 @@ class DataSourceIndicator extends StatelessWidget {
       textColor = Colors.blue.shade700;
       tooltip = 'ספר זה נשמר כקובץ';
     }
-    
+
     return Tooltip(
       message: tooltip,
       child: Container(
@@ -93,7 +93,10 @@ class DataSourceIndicatorAsync extends StatelessWidget {
                 height: size * 0.6,
                 child: CircularProgressIndicator(
                   strokeWidth: 1.5,
-                  color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.5),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .secondary
+                      .withValues(alpha: 0.5),
                 ),
               ),
             ),

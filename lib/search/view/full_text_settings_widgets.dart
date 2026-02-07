@@ -63,8 +63,8 @@ class SearchModeToggle extends StatelessWidget {
               final modeString = newMode == SearchMode.advanced
                   ? 'advanced'
                   : newMode == SearchMode.fuzzy
-                  ? 'fuzzy'
-                  : 'exact';
+                      ? 'fuzzy'
+                      : 'exact';
               Settings.setValue<String>('key-last-search-mode', modeString);
             },
           ),
@@ -135,8 +135,8 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
             value: state.distance.toDouble(),
             onChanged: isEnabled
                 ? (value) => context.read<SearchBloc>().add(
-                    UpdateDistance(value.toInt()),
-                  )
+                      UpdateDistance(value.toInt()),
+                    )
                 : null,
           ),
         );
@@ -162,8 +162,8 @@ class NumOfResults extends StatelessWidget {
             child: SpinBox(
               value: state.numResults.toDouble(),
               onChanged: (value) => context.read<SearchBloc>().add(
-                UpdateNumResults(value.toInt()),
-              ),
+                    UpdateNumResults(value.toInt()),
+                  ),
               min: 10,
               max: 10000,
               decoration: const InputDecoration(
@@ -284,8 +284,7 @@ class _SearchTermsDisplayState extends State<SearchTermsDisplay> {
 
       // בדיקה אם יש אפשרויות למילה הזו
       final wordOptions = widget.tab.searchOptions[wordKey];
-      final selectedOptions =
-          wordOptions?.entries
+      final selectedOptions = wordOptions?.entries
               .where((entry) => entry.value)
               .map((entry) => entry.key)
               .toList() ??

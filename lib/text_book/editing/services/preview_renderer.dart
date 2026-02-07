@@ -36,7 +36,7 @@ class PreviewRenderer {
 
     try {
       final html = _processor.markdownToHtml(markdown);
-      
+
       return SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: HtmlWidget(
@@ -74,11 +74,11 @@ class PreviewRenderer {
     TextStyle baseStyle,
   ) {
     final styles = <String, String>{};
-    
+
     // Base text direction
     styles['direction'] = 'rtl';
     styles['text-align'] = 'justify';
-    
+
     switch (element.localName) {
       case 'code':
       case 'pre':
@@ -89,54 +89,52 @@ class PreviewRenderer {
         styles['padding'] = '4px 8px';
         styles['border-radius'] = '4px';
         break;
-        
+
       case 'blockquote':
         styles['border-right'] = '4px solid #ddd';
         styles['padding-right'] = '16px';
         styles['margin-right'] = '0';
         styles['font-style'] = 'italic';
         break;
-        
+
       case 'h1':
         styles['font-size'] = '${baseStyle.fontSize! * 1.5}px';
         styles['font-weight'] = 'bold';
         styles['margin-top'] = '6px'; // רווח קטן לפני הכותרת
         styles['margin-bottom'] = '3px'; // רווח קטן אחרי הכותרת
         break;
-        
+
       case 'h2':
         styles['font-size'] = '${baseStyle.fontSize! * 1.3}px';
         styles['font-weight'] = 'bold';
         styles['margin-top'] = '4px';
         styles['margin-bottom'] = '2px';
         break;
-        
+
       case 'h3':
         styles['font-size'] = '${baseStyle.fontSize! * 1.1}px';
         styles['font-weight'] = 'bold';
         styles['margin-top'] = '3px';
         styles['margin-bottom'] = '2px';
         break;
-        
+
       case 'ul':
       case 'ol':
         styles['padding-right'] = '20px';
         break;
-        
+
       case 'li':
         styles['margin-bottom'] = '4px';
         break;
-        
+
       case 'a':
         styles['color'] = '#2196F3';
         styles['text-decoration'] = 'underline';
         break;
     }
-    
+
     return styles.isEmpty ? null : styles;
   }
-
-
 
   /// Handles URL taps in the preview
   bool _handleUrlTap(String url) {

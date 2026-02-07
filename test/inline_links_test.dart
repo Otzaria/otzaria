@@ -69,7 +69,8 @@ void main() {
     });
 
     test('returns text as-is when it already contains inline links', () {
-      final text = 'טקסט עם <a href="otzaria://inline-link?path=test">קישור</a> קיים';
+      final text =
+          'טקסט עם <a href="otzaria://inline-link?path=test">קישור</a> קיים';
       final link = Link(
         heRef: 'בראשית',
         index1: 1,

@@ -19,8 +19,7 @@ class PersonalNotesStorage {
   static final PersonalNotesStorage instance = PersonalNotesStorage._();
 
   static String safeFileName(String bookId) {
-    final sanitized =
-        bookId.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_').trim();
+    final sanitized = bookId.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_').trim();
     return sanitized.isEmpty ? 'ספר_ללא_שם' : sanitized;
   }
 
@@ -48,7 +47,7 @@ class PersonalNotesStorage {
   Future<File?> _getTxtFileIfExists(String bookId) async {
     final dirPath = await _getNotesDirectoryIfExists();
     if (dirPath == null) return null;
-    
+
     final safeBookId = _sanitizeBookId(bookId);
     final txtPath = p.join(dirPath, '$_txtPrefix$safeBookId$_txtExtension');
     final file = File(txtPath);
@@ -61,7 +60,7 @@ class PersonalNotesStorage {
   Future<File?> _getJsonFileIfExists(String bookId) async {
     final dirPath = await _getNotesDirectoryIfExists();
     if (dirPath == null) return null;
-    
+
     final safeBookId = _sanitizeBookId(bookId);
     final jsonPath = p.join(dirPath, '$safeBookId$_jsonSuffix');
     final file = File(jsonPath);
@@ -76,11 +75,13 @@ class PersonalNotesStorage {
     if (jsonFile == null) {
       return [];
     }
-    
+
     final txtFile = await _getTxtFileIfExists(bookId);
 
     final metadata = await _readMetadata(jsonFile, bookId);
-    final contents = txtFile != null ? await _readTxtNotes(txtFile) : <String, _ParsedTxtNote>{};
+    final contents = txtFile != null
+        ? await _readTxtNotes(txtFile)
+        : <String, _ParsedTxtNote>{};
     final notes = <PersonalNote>[];
 
     for (final entry in metadata) {
@@ -96,7 +97,8 @@ class PersonalNotesStorage {
     return notes;
   }
 
-  Future<List<_MetadataOnlyNote>> _readMetadata(File jsonFile, String bookId) async {
+  Future<List<_MetadataOnlyNote>> _readMetadata(
+      File jsonFile, String bookId) async {
     try {
       final data = await jsonFile.readAsString(encoding: utf8);
       if (data.trim().isEmpty) {
@@ -187,8 +189,7 @@ class PersonalNotesStorage {
         final bookId = decoded['book_id'] as String? ?? '';
         if (bookId.isEmpty) continue;
 
-        final safeName =
-            p.basename(entity.path).replaceAll(_jsonSuffix, '');
+        final safeName = p.basename(entity.path).replaceAll(_jsonSuffix, '');
         final stat = await entity.stat();
 
         result.add(

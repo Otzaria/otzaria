@@ -61,14 +61,14 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
 
   void _onReplaceAllTabs(ReplaceAllTabs event, Emitter<TabsState> emit) {
     debugPrint('DEBUG: החלפת כל הטאבים - ${event.tabs.length} טאבים חדשים');
-    
+
     // ניקוי משאבים של כל הטאבים הקיימים
     for (final tab in state.tabs) {
       tab.dispose();
     }
 
     _repository.saveTabs(event.tabs, event.currentTabIndex, null);
-    
+
     emit(state.copyWith(
       tabs: event.tabs,
       currentTabIndex: event.currentTabIndex,
@@ -285,7 +285,9 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
   void _onNavigateToPreviousTab(
       NavigateToPreviousTab event, Emitter<TabsState> emit) {
     if (state.tabs.isEmpty) return;
-    final newIndex = state.currentTabIndex == 0 ? state.tabs.length - 1 : state.currentTabIndex - 1;
+    final newIndex = state.currentTabIndex == 0
+        ? state.tabs.length - 1
+        : state.currentTabIndex - 1;
     _repository.saveTabs(state.tabs, newIndex);
     emit(state.copyWith(currentTabIndex: newIndex));
   }
@@ -336,10 +338,10 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
 
     // הסרת שני הטאבים המקוריים והוספת הטאב המשולב במקומם
     final newTabs = List<OpenedTab>.from(state.tabs);
-    
+
     // מוצאים את האינדקס הנמוך יותר כדי להכניס שם את הטאב המשולב
     final insertIndex = rightIndex < leftIndex ? rightIndex : leftIndex;
-    
+
     // מסירים את שני הטאבים (מהגבוה לנמוך כדי לא לשבש אינדקסים)
     if (rightIndex > leftIndex) {
       newTabs.removeAt(rightIndex);
@@ -348,7 +350,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       newTabs.removeAt(leftIndex);
       newTabs.removeAt(rightIndex);
     }
-    
+
     // מוסיפים את הטאב המשולב
     newTabs.insert(insertIndex, combinedTab);
 
@@ -367,7 +369,6 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
 
   void _onDisableSideBySideMode(
       DisableSideBySideMode event, Emitter<TabsState> emit) {
-
     // אם הטאב הנוכחי הוא CombinedTab, נפרק אותו לשני טאבים נפרדים
     if (state.currentTab is CombinedTab) {
       final combinedTab = state.currentTab as CombinedTab;

@@ -15,7 +15,8 @@ class BookAcronymDao {
   /// Gets all acronym terms for a specific book
   Future<List<String>> getTermsByBookId(int bookId) async {
     final db = await database;
-    final result = await db.rawQuery(_queries['selectTermsByBookId']!, [bookId]);
+    final result =
+        await db.rawQuery(_queries['selectTermsByBookId']!, [bookId]);
     return result.map((row) => row['term'] as String).toList();
   }
 
@@ -35,10 +36,9 @@ class BookAcronymDao {
   /// Gets all book IDs that have acronym terms matching the pattern (LIKE search)
   Future<List<int>> getBookIdsByTermLike(String pattern, {int? limit}) async {
     final db = await database;
-    final result = await db.rawQuery(
-      _queries['selectBookIdsByTermLike']!, 
-      [pattern, limit ?? 1000] // Default limit of 1000 if not specified
-    );
+    final result = await db.rawQuery(_queries['selectBookIdsByTermLike']!,
+        [pattern, limit ?? 1000] // Default limit of 1000 if not specified
+        );
     return result.map((row) => row['bookId'] as int).toList();
   }
 
@@ -77,7 +77,8 @@ class BookAcronymDao {
   }
 
   /// Searches for books by acronym term with LIKE pattern
-  Future<List<int>> searchBooksByAcronym(String searchTerm, {int? limit}) async {
+  Future<List<int>> searchBooksByAcronym(String searchTerm,
+      {int? limit}) async {
     return await getBookIdsByTermLike('%$searchTerm%', limit: limit);
   }
 }

@@ -39,7 +39,8 @@ class BookMetadata {
     this.order,
   });
 
-  factory BookMetadata.fromJson(Map<String, dynamic> json) => BookMetadata.fromMap(json);
+  factory BookMetadata.fromJson(Map<String, dynamic> json) =>
+      BookMetadata.fromMap(json);
 
   Map<String, dynamic> toJson() => {
         'title': title,

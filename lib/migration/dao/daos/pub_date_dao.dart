@@ -53,7 +53,8 @@ class PubDateDao {
 
   Future<int> linkBookPubDate(int bookId, int pubDateId) async {
     final db = await database;
-    return await db.rawInsert(_queries['linkBookPubDate']!, [bookId, pubDateId]);
+    return await db
+        .rawInsert(_queries['linkBookPubDate']!, [bookId, pubDateId]);
   }
 
   Future<int> deletePubDate(int id) async {

@@ -178,7 +178,8 @@ class ReadingSettingsTab extends StatelessWidget {
         SwitchListTile(
           title: const Text('הצגת טעמי המקרא', style: TextStyle(fontSize: 16)),
           subtitle: Text(
-              state.showTeamim ? 'המקרא יוצג עם טעמים' : 'המקרא יוצג ללא טעמים', style: const TextStyle(fontSize: 13)),
+              state.showTeamim ? 'המקרא יוצג עם טעמים' : 'המקרא יוצג ללא טעמים',
+              style: const TextStyle(fontSize: 13)),
           value: state.showTeamim,
           onChanged: (value) {
             context.read<SettingsBloc>().add(UpdateShowTeamim(value));
@@ -186,10 +187,13 @@ class ReadingSettingsTab extends StatelessWidget {
         ),
         const Divider(height: 1),
         SwitchListTile(
-          title: const Text('הסרת ניקוד כברירת מחדל', style: TextStyle(fontSize: 16)),
-          subtitle: Text(state.defaultRemoveNikud
-              ? 'הניקוד יוסר כברירת מחדל'
-              : 'הניקוד יוצג כברירת מחדל', style: const TextStyle(fontSize: 13)),
+          title: const Text('הסרת ניקוד כברירת מחדל',
+              style: TextStyle(fontSize: 16)),
+          subtitle: Text(
+              state.defaultRemoveNikud
+                  ? 'הניקוד יוסר כברירת מחדל'
+                  : 'הניקוד יוצג כברירת מחדל',
+              style: const TextStyle(fontSize: 13)),
           value: state.defaultRemoveNikud,
           onChanged: (value) {
             context.read<SettingsBloc>().add(UpdateDefaultRemoveNikud(value));
@@ -199,8 +203,10 @@ class ReadingSettingsTab extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(right: 32.0),
             child: CheckboxListTile(
-              title: const Text('הסרת ניקוד מספרי התנ"ך', style: TextStyle(fontSize: 16)),
-              subtitle: const Text('גם ספרי התנ"ך יוצגו ללא ניקוד', style: TextStyle(fontSize: 13)),
+              title: const Text('הסרת ניקוד מספרי התנ"ך',
+                  style: TextStyle(fontSize: 16)),
+              subtitle: const Text('גם ספרי התנ"ך יוצגו ללא ניקוד',
+                  style: TextStyle(fontSize: 13)),
               value: state.removeNikudFromTanach,
               onChanged: (value) {
                 if (value != null) {
@@ -221,10 +227,13 @@ class ReadingSettingsTab extends StatelessWidget {
       title: 'הגדרות טאבים',
       children: [
         SwitchListTile(
-          title: const Text('יישור טאבים לימין', style: TextStyle(fontSize: 16)),
-          subtitle: Text(state.alignTabsToRight
-              ? 'הטאבים יוצגו בצד ימין'
-              : 'הטאבים יוצגו במרכז', style: const TextStyle(fontSize: 13)),
+          title:
+              const Text('יישור טאבים לימין', style: TextStyle(fontSize: 16)),
+          subtitle: Text(
+              state.alignTabsToRight
+                  ? 'הטאבים יוצגו בצד ימין'
+                  : 'הטאבים יוצגו במרכז',
+              style: const TextStyle(fontSize: 13)),
           value: state.alignTabsToRight,
           onChanged: (value) {
             context.read<SettingsBloc>().add(UpdateAlignTabsToRight(value));
@@ -241,9 +250,9 @@ class ReadingSettingsTab extends StatelessWidget {
       children: [
         SwitchListTile(
           title: const Text('הצמדת סרגל צד', style: TextStyle(fontSize: 16)),
-          subtitle: Text(state.pinSidebar
-              ? 'סרגל הצד יוצמד תמיד'
-              : 'סרגל הצד יפעל כרגיל', style: const TextStyle(fontSize: 13)),
+          subtitle: Text(
+              state.pinSidebar ? 'סרגל הצד יוצמד תמיד' : 'סרגל הצד יפעל כרגיל',
+              style: const TextStyle(fontSize: 13)),
           value: state.pinSidebar,
           onChanged: (value) {
             context.read<SettingsBloc>().add(UpdatePinSidebar(value));
@@ -272,10 +281,13 @@ class ReadingSettingsTab extends StatelessWidget {
         ),
         const Divider(height: 1),
         SwitchListTile(
-          title: const Text('פתיחת סרגל צד כברירת מחדל', style: TextStyle(fontSize: 16)),
-          subtitle: Text(state.defaultSidebarOpen
-              ? 'סרגל הצד יפתח אוטומטית'
-              : 'סרגל הצד ישאר סגור', style: const TextStyle(fontSize: 13)),
+          title: const Text('פתיחת סרגל צד כברירת מחדל',
+              style: TextStyle(fontSize: 16)),
+          subtitle: Text(
+              state.defaultSidebarOpen
+                  ? 'סרגל הצד יפתח אוטומטית'
+                  : 'סרגל הצד ישאר סגור',
+              style: const TextStyle(fontSize: 13)),
           value: state.defaultSidebarOpen,
           onChanged: state.pinSidebar
               ? null
@@ -291,10 +303,13 @@ class ReadingSettingsTab extends StatelessWidget {
             final splitedView =
                 Settings.getValue<bool>('key-splited-view') ?? false;
             return SwitchListTile(
-              title: const Text('ברירת המחדל להצגת המפרשים', style: TextStyle(fontSize: 16)),
-              subtitle: Text(splitedView
-                  ? 'המפרשים יוצגו לצד הטקסט'
-                  : 'המפרשים יוצגו מתחת הטקסט', style: const TextStyle(fontSize: 13)),
+              title: const Text('ברירת המחדל להצגת המפרשים',
+                  style: TextStyle(fontSize: 16)),
+              subtitle: Text(
+                  splitedView
+                      ? 'המפרשים יוצגו לצד הטקסט'
+                      : 'המפרשים יוצגו מתחת הטקסט',
+                  style: const TextStyle(fontSize: 13)),
               value: splitedView,
               onChanged: (value) {
                 setState(() {
@@ -426,10 +441,13 @@ class ReadingSettingsTab extends StatelessWidget {
       title: 'הגדרות פר-ספר',
       children: [
         SwitchListTile(
-          title: const Text('שמירת התאמות פר-ספר', style: TextStyle(fontSize: 16)),
-          subtitle: Text(state.enablePerBookSettings
-              ? 'שינויים בסרגל הלחצנים יישמרו לכל ספר בנפרד'
-              : 'כל הספרים ישתמשו בהגדרות הכלליות', style: const TextStyle(fontSize: 13)),
+          title:
+              const Text('שמירת התאמות פר-ספר', style: TextStyle(fontSize: 16)),
+          subtitle: Text(
+              state.enablePerBookSettings
+                  ? 'שינויים בסרגל הלחצנים יישמרו לכל ספר בנפרד'
+                  : 'כל הספרים ישתמשו בהגדרות הכלליות',
+              style: const TextStyle(fontSize: 13)),
           value: state.enablePerBookSettings,
           onChanged: (value) {
             context
@@ -545,8 +563,8 @@ class _FontSizeSliderState extends State<_FontSizeSlider> {
             Icon(widget.icon),
             const SizedBox(width: 12),
             Expanded(
-              child:
-                  Text(widget.label, style: Theme.of(context).textTheme.titleMedium),
+              child: Text(widget.label,
+                  style: Theme.of(context).textTheme.titleMedium),
             ),
             Text(
               _currentValue.toStringAsFixed(0),
@@ -605,7 +623,8 @@ class _FontDropdown extends StatelessWidget {
             decoration: InputDecoration(
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              border:
+                  OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             ),
             dropdownColor: Theme.of(context).colorScheme.surface,
             isExpanded: true,
@@ -715,8 +734,7 @@ class _EditorSettingsState extends State<_EditorSettings> {
         Settings.getValue<double>('key-editor-preview-debounce') ?? 150.0;
     cleanupDays =
         Settings.getValue<double>('key-editor-draft-cleanup-days') ?? 30.0;
-    draftsQuota =
-        Settings.getValue<double>('key-editor-drafts-quota') ?? 100.0;
+    draftsQuota = Settings.getValue<double>('key-editor-drafts-quota') ?? 100.0;
   }
 
   @override
@@ -786,7 +804,8 @@ class _EditorSettingsState extends State<_EditorSettings> {
             Icon(icon),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(label, style: Theme.of(context).textTheme.titleMedium),
+              child:
+                  Text(label, style: Theme.of(context).textTheme.titleMedium),
             ),
             Text(
               '${value.toInt()}',

@@ -42,7 +42,9 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
     final lastQuery = _lastCompletedQuery.trim();
     // אם יש חיפוש חדש (הטקסט השתנה) והוא עוד בטעינה — נחסום עם ספינר.
     // אם זה רק "טען עוד" (אותו query) — לא נחסום.
-    return state.isLoading && currentQuery.isNotEmpty && currentQuery != lastQuery;
+    return state.isLoading &&
+        currentQuery.isNotEmpty &&
+        currentQuery != lastQuery;
   }
 
   void _updateLastCompletedQuery(SearchState state) {
@@ -520,7 +522,10 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
                     'חיפוש: ',
                     style: TextStyle(
                       fontSize: 14,
-                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.7),
                     ),
                   ),
                   const SizedBox(width: 8),

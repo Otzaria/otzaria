@@ -5,7 +5,7 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 /// ניתן לקרוא לה מכל מקום באפליקציה
 Future<void> showGematriaSettingsDialog(BuildContext context) async {
   debugPrint('🔧 showGematriaSettingsDialog called');
-  
+
   int maxResults = Settings.getValue<int>('key-gematria-max-results') ?? 100;
   bool filterDuplicates =
       Settings.getValue<bool>('key-gematria-filter-duplicates') ?? false;
@@ -163,6 +163,6 @@ Future<void> showGematriaSettingsDialog(BuildContext context) async {
       ),
     ),
   );
-  
+
   debugPrint('🔧 showGematriaSettingsDialog completed');
 }

@@ -4,15 +4,15 @@ bool safeBoolFromJson(dynamic jsonValue, [bool defaultValue = false]) {
   if (jsonValue == null) {
     return defaultValue;
   }
-  
+
   // מטפל במקרה שבו ה-JSON כבר מגיע כ-bool
   if (jsonValue is bool) {
     return jsonValue;
   }
-  
+
   // מטפל במקרה שבו ה-JSON מגיע כ-int (0 או 1)
   if (jsonValue is int) {
-    return jsonValue != 0; 
+    return jsonValue != 0;
   }
 
   // טיפול כללי או החזרת ערך ברירת מחדל

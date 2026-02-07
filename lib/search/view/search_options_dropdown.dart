@@ -44,8 +44,9 @@ class _SearchOptionsDropdownState extends State<SearchOptionsDropdown> {
   @override
   Widget build(BuildContext context) {
     return IconButton(
-      icon: Icon(
-          _isExpanded ? FluentIcons.chevron_up_24_regular : FluentIcons.chevron_down_24_regular),
+      icon: Icon(_isExpanded
+          ? FluentIcons.chevron_up_24_regular
+          : FluentIcons.chevron_down_24_regular),
       tooltip: 'אפשרויות חיפוש',
       onPressed: _toggleExpanded,
     );

@@ -111,7 +111,8 @@ class PersonalNoteContentView extends StatelessWidget {
     }
   }
 
-  Widget _buildLinks(BuildContext context, List<({String label, String url})> links) {
+  Widget _buildLinks(
+      BuildContext context, List<({String label, String url})> links) {
     return Wrap(
       spacing: 8,
       runSpacing: 8,

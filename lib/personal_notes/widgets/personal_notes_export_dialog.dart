@@ -29,8 +29,7 @@ class PersonalNotesExportDialog extends StatefulWidget {
       _PersonalNotesExportDialogState();
 }
 
-class _PersonalNotesExportDialogState
-    extends State<PersonalNotesExportDialog> {
+class _PersonalNotesExportDialogState extends State<PersonalNotesExportDialog> {
   NotesExportMode _mode = NotesExportMode.all;
   String? _selectedBookId;
   DateTimeRange? _dateRange;
@@ -65,9 +64,8 @@ class _PersonalNotesExportDialogState
       description =
           'הערות בתאריכים ${_dateRange!.start.toIso8601String()} - ${_dateRange!.end.toIso8601String()}';
     } else if (_mode == NotesExportMode.manual) {
-      result = notes
-          .where((note) => _manualSelection[note.id] == true)
-          .toList();
+      result =
+          notes.where((note) => _manualSelection[note.id] == true).toList();
       description = 'בחירה ידנית (${result.length})';
     }
 
@@ -76,10 +74,7 @@ class _PersonalNotesExportDialogState
 
   @override
   Widget build(BuildContext context) {
-    final books = widget.allNotes
-        .map((note) => note.bookId)
-        .toSet()
-        .toList()
+    final books = widget.allNotes.map((note) => note.bookId).toSet().toList()
       ..sort();
 
     final filteredNotes = widget.allNotes.where((note) {
@@ -118,8 +113,7 @@ class _PersonalNotesExportDialogState
                           child: Text(bookId),
                         ))
                     .toList(),
-                onChanged: (value) =>
-                    setState(() => _selectedBookId = value),
+                onChanged: (value) => setState(() => _selectedBookId = value),
                 decoration: const InputDecoration(
                   labelText: 'בחר ספר',
                   border: OutlineInputBorder(),
@@ -171,7 +165,8 @@ class _PersonalNotesExportDialogState
                         overflow: TextOverflow.ellipsis,
                       ),
                       onChanged: (value) {
-                        setState(() => _manualSelection[note.id] = value ?? false);
+                        setState(
+                            () => _manualSelection[note.id] = value ?? false);
                       },
                     );
                   },

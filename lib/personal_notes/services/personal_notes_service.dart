@@ -58,9 +58,11 @@ class PersonalNotesService {
     // Use selectedText if provided, otherwise extract display text from the line
     // Always remove nikud and te'amim from the display title
     final trimmedSelectedText = selectedText?.trim();
-    final displayTitle = (trimmedSelectedText != null && trimmedSelectedText.isNotEmpty)
-        ? removeHebrewDiacritics(trimmedSelectedText)
-        : extractDisplayTextFromLines(lines, normalizedLineNumber, excludeBookTitle: bookId);
+    final displayTitle =
+        (trimmedSelectedText != null && trimmedSelectedText.isNotEmpty)
+            ? removeHebrewDiacritics(trimmedSelectedText)
+            : extractDisplayTextFromLines(lines, normalizedLineNumber,
+                excludeBookTitle: bookId);
 
     final now = DateTime.now();
     final newNote = PersonalNote(
@@ -133,8 +135,9 @@ class PersonalNotesService {
     // Handle empty book content - use line 1 as minimum
     final maxLine = lines.isEmpty ? 1 : lines.length;
     final normalizedLineNumber = lineNumber.clamp(1, maxLine);
-    final newDisplayTitle =
-        extractDisplayTextFromLines(lines, normalizedLineNumber, excludeBookTitle: bookId);
+    final newDisplayTitle = extractDisplayTextFromLines(
+        lines, normalizedLineNumber,
+        excludeBookTitle: bookId);
     final now = DateTime.now();
 
     final updatedNote = note.copyWith(
@@ -150,7 +153,8 @@ class PersonalNotesService {
     return await _database.loadNotes(bookId);
   }
 
-  PersonalNote _reconcileLocation(PersonalNote note, List<String> lines, String bookId) {
+  PersonalNote _reconcileLocation(
+      PersonalNote note, List<String> lines, String bookId) {
     if (note.status == PersonalNoteStatus.missing || note.lineNumber == null) {
       return note;
     }
@@ -173,14 +177,16 @@ class PersonalNotesService {
     }
 
     // Fallback: check if line start matches (for notes without selected text)
-    final actualDisplayTitle =
-        extractDisplayTextFromLines(lines, note.lineNumber!, excludeBookTitle: bookId);
+    final actualDisplayTitle = extractDisplayTextFromLines(
+        lines, note.lineNumber!,
+        excludeBookTitle: bookId);
     if (_displayTitleMatches(note.displayTitle, actualDisplayTitle)) {
       return note;
     }
 
     // Try to find the note in nearby lines using displayTitle
-    final match = _searchNearby(lines, note.lineNumber!, note.displayTitle, bookId);
+    final match =
+        _searchNearby(lines, note.lineNumber!, note.displayTitle, bookId);
     if (match != null) {
       // Found the note in a new location - update line number but keep displayTitle
       return note.copyWith(
@@ -204,11 +210,11 @@ class PersonalNotesService {
     if (displayTitle == null || displayTitle.isEmpty) {
       return false;
     }
-    
+
     // Normalize both strings for comparison (remove diacritics)
     final normalizedTitle = removeHebrewDiacritics(displayTitle);
     final normalizedLine = removeHebrewDiacritics(lineContent);
-    
+
     // Check if the title exists in the line
     return normalizedLine.contains(normalizedTitle);
   }
@@ -222,7 +228,7 @@ class PersonalNotesService {
     if (referenceTitle == null || referenceTitle.isEmpty) {
       return null;
     }
-    
+
     for (int offset = -5; offset <= 5; offset++) {
       if (offset == 0) continue;
       final candidateLine = centerLine + offset;
@@ -231,14 +237,15 @@ class PersonalNotesService {
       }
 
       final lineIndex = candidateLine - 1;
-      
+
       // First check if displayTitle exists anywhere in the line
       if (_displayTitleExistsInLine(referenceTitle, lines[lineIndex])) {
         return _LineMatch(line: candidateLine);
       }
-      
+
       // Fallback: check line start match
-      final candidateTitle = extractDisplayTextFromLines(lines, candidateLine, excludeBookTitle: bookId);
+      final candidateTitle = extractDisplayTextFromLines(lines, candidateLine,
+          excludeBookTitle: bookId);
       if (_displayTitleMatches(referenceTitle, candidateTitle)) {
         return _LineMatch(line: candidateLine);
       }
@@ -254,19 +261,21 @@ class PersonalNotesService {
     if (actual == null || actual.isEmpty) {
       return false;
     }
-    
-    final storedWords = stored.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
-    final actualWords = actual.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
-    
+
+    final storedWords =
+        stored.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    final actualWords =
+        actual.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+
     return computeWordOverlapRatio(storedWords, actualWords) >= 0.8;
   }
 
   String _generateId() {
     final timestamp = DateTime.now().microsecondsSinceEpoch;
-    final randomPart = _random.nextInt(1 << 32).toRadixString(16).padLeft(8, '0');
+    final randomPart =
+        _random.nextInt(1 << 32).toRadixString(16).padLeft(8, '0');
     return 'pn_$timestamp$randomPart';
   }
-
 }
 
 class _LineMatch {

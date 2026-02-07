@@ -13,39 +13,52 @@ class SearchDao {
 
   Future<Database> get database => _db.database;
 
-  Future<List<SearchResult>> searchAll(String query, {int limit = 20, int offset = 0}) async {
+  Future<List<SearchResult>> searchAll(String query,
+      {int limit = 20, int offset = 0}) async {
     final db = await database;
-    final result = await db.rawQuery(_queries['searchAll']!, [query, limit, offset]);
+    final result =
+        await db.rawQuery(_queries['searchAll']!, [query, limit, offset]);
     return result.map((row) => _mapToSearchResult(row)).toList();
   }
 
-  Future<List<SearchResult>> searchInBook(String query, int bookId, {int limit = 20, int offset = 0}) async {
+  Future<List<SearchResult>> searchInBook(String query, int bookId,
+      {int limit = 20, int offset = 0}) async {
     final db = await database;
-    final result = await db.rawQuery(_queries['searchInBook']!, [query, bookId, limit, offset]);
+    final result = await db
+        .rawQuery(_queries['searchInBook']!, [query, bookId, limit, offset]);
     return result.map((row) => _mapToSearchResult(row)).toList();
   }
 
-  Future<List<SearchResult>> searchByAuthor(String query, String authorName, {int limit = 20, int offset = 0}) async {
+  Future<List<SearchResult>> searchByAuthor(String query, String authorName,
+      {int limit = 20, int offset = 0}) async {
     final db = await database;
-    final result = await db.rawQuery(_queries['searchByAuthor']!, [query, authorName, limit, offset]);
+    final result = await db.rawQuery(
+        _queries['searchByAuthor']!, [query, authorName, limit, offset]);
     return result.map((row) => _mapToSearchResult(row)).toList();
   }
 
-  Future<List<SearchResult>> searchWithBookFilter(String query, String bookTitleFilter, {int limit = 20, int offset = 0}) async {
+  Future<List<SearchResult>> searchWithBookFilter(
+      String query, String bookTitleFilter,
+      {int limit = 20, int offset = 0}) async {
     final db = await database;
-    final result = await db.rawQuery(_queries['searchWithBookFilter']!, [query, bookTitleFilter, limit, offset]);
+    final result = await db.rawQuery(_queries['searchWithBookFilter']!,
+        [query, bookTitleFilter, limit, offset]);
     return result.map((row) => _mapToSearchResult(row)).toList();
   }
 
-  Future<List<SearchResult>> searchExactPhrase(String query, {int limit = 20, int offset = 0}) async {
+  Future<List<SearchResult>> searchExactPhrase(String query,
+      {int limit = 20, int offset = 0}) async {
     final db = await database;
-    final result = await db.rawQuery(_queries['searchExactPhrase']!, [query, limit, offset]);
+    final result = await db
+        .rawQuery(_queries['searchExactPhrase']!, [query, limit, offset]);
     return result.map((row) => _mapToSearchResult(row)).toList();
   }
 
-  Future<List<SearchResult>> searchWithOperators(String query, {int limit = 20, int offset = 0}) async {
+  Future<List<SearchResult>> searchWithOperators(String query,
+      {int limit = 20, int offset = 0}) async {
     final db = await database;
-    final result = await db.rawQuery(_queries['searchWithOperators']!, [query, limit, offset]);
+    final result = await db
+        .rawQuery(_queries['searchWithOperators']!, [query, limit, offset]);
     return result.map((row) => _mapToSearchResult(row)).toList();
   }
 
@@ -57,7 +70,8 @@ class SearchDao {
 
   Future<int> countSearchResultsInBook(String query, int bookId) async {
     final db = await database;
-    final result = await db.rawQuery(_queries['countSearchResultsInBook']!, [query, bookId]);
+    final result = await db
+        .rawQuery(_queries['countSearchResultsInBook']!, [query, bookId]);
     return Sqflite.firstIntValue(result) ?? 0;
   }
 

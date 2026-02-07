@@ -2,7 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'
-  show TargetPlatform, defaultTargetPlatform, kIsWeb;
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:system_fonts/system_fonts.dart' show SystemFonts;
 import 'package:otzaria/utils/font_file_reader.dart';
 
@@ -12,10 +12,10 @@ class AppFonts {
 
   /// גופן ברירת מחדל לטקסט ראשי
   static const String defaultFont = 'FrankRuhlCLM';
-  
+
   /// גופן ברירת מחדל למפרשים
   static const String defaultCommentatorsFont = 'NotoRashiHebrew';
-  
+
   /// גופן לעריכת טקסט עם טעמים
   static const String editorFont = 'TaameyAshkenaz';
 
@@ -157,7 +157,8 @@ class AppFonts {
     // Prefer: (platform 0) then (platform 3, enc 10) then (platform 3, enc 1)
     final encodingRecordsOffset = cmapOffset + 4;
     final encodingRecordSize = 8;
-    final encDirSize = encodingRecordsOffset + cmapNumTables * encodingRecordSize;
+    final encDirSize =
+        encodingRecordsOffset + cmapNumTables * encodingRecordSize;
     if (encDirSize > data.length) return false;
 
     int? bestSubtableOffset;

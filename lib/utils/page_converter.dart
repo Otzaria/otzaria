@@ -26,7 +26,8 @@ Future<int?> textToPdfPage(TextBook textBook, int textIndex) async {
   // For now, we load it directly as a fallback.
   final outline =
       await PdfDocument.openFile(pdfBook.path).then((doc) => doc.loadOutline());
-  final map = _pageMapCache[key] ??= await _buildPageMap(pdfBook, outline, textBook);
+  final map =
+      _pageMapCache[key] ??= await _buildPageMap(pdfBook, outline, textBook);
 
   return map.textToPdf(textIndex);
 }

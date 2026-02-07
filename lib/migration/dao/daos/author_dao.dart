@@ -77,7 +77,8 @@ class AuthorDao {
 
   Future<int> unlinkBookAuthor(int bookId, int authorId) async {
     final db = await database;
-    return await db.rawDelete(_queries['unlinkBookAuthor']!, [bookId, authorId]);
+    return await db
+        .rawDelete(_queries['unlinkBookAuthor']!, [bookId, authorId]);
   }
 
   Future<int> deleteAllBookAuthors(int bookId) async {

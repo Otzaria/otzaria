@@ -10,7 +10,6 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 
 /// מחלקה לטיפול בקישורי HTML בתוך הטקסט
 class HtmlLinkHandler {
-
   /// מנסה לפענח URL בצורה בטוחה, תומך בטקסט רגיל ו-URL encoded
   static String _safeDecode(String text) {
     if (text.isEmpty) return text;
@@ -96,8 +95,6 @@ class HtmlLinkHandler {
     }
     return title;
   }
-
-
 
   /// מטפל בלחיצה על קישור HTML
   ///

@@ -172,8 +172,7 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
                     openBookCallback: widget.openBookCallback,
                     fontSize: widget.fontSize,
                     showVisibleLinksIfNoSelection:
-                        widget.initialTabIndex ==
-                            1, // אם נפתח ישירות לקישורים
+                        widget.initialTabIndex == 1, // אם נפתח ישירות לקישורים
                   ),
                   // כרטיסיית ההערות האישיות
                   PersonalNotesSidebar(

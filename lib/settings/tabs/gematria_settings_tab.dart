@@ -54,7 +54,8 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
             children: [
               ListTile(
                 leading: const Icon(FluentIcons.number_row_24_regular),
-                title: const Text('מספר תוצאות מקסימלי', style: TextStyle(fontSize: 16)),
+                title: const Text('מספר תוצאות מקסימלי',
+                    style: TextStyle(fontSize: 16)),
                 trailing: DropdownButton<int>(
                   value: maxResults,
                   underline: const SizedBox(),
@@ -74,7 +75,8 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
               ),
               const Divider(height: 1),
               CheckboxListTile(
-                title: const Text('סינון תוצאות כפולות', style: TextStyle(fontSize: 16)),
+                title: const Text('סינון תוצאות כפולות',
+                    style: TextStyle(fontSize: 16)),
                 value: filterDuplicates,
                 onChanged: (value) {
                   setState(() => filterDuplicates = value ?? false);
@@ -84,7 +86,8 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
               ),
               const Divider(height: 1),
               CheckboxListTile(
-                title: const Text('חיפוש פסוק שלם בלבד', style: TextStyle(fontSize: 16)),
+                title: const Text('חיפוש פסוק שלם בלבד',
+                    style: TextStyle(fontSize: 16)),
                 value: wholeVerseOnly,
                 onChanged: (value) {
                   setState(() => wholeVerseOnly = value ?? false);
@@ -94,7 +97,8 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
               ),
               const Divider(height: 1),
               CheckboxListTile(
-                title: const Text('חיפוש בתורה בלבד', style: TextStyle(fontSize: 16)),
+                title: const Text('חיפוש בתורה בלבד',
+                    style: TextStyle(fontSize: 16)),
                 value: torahOnly,
                 onChanged: (value) {
                   setState(() => torahOnly = value ?? false);
@@ -112,8 +116,10 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
             title: 'שיטת חישוב גימטריה',
             children: [
               CheckboxListTile(
-                title: const Text('גימטריה קטנה', style: TextStyle(fontSize: 16)),
-                subtitle: const Text('כל אות מחושבת לפי ספרה אחת', style: TextStyle(fontSize: 13)),
+                title:
+                    const Text('גימטריה קטנה', style: TextStyle(fontSize: 16)),
+                subtitle: const Text('כל אות מחושבת לפי ספרה אחת',
+                    style: TextStyle(fontSize: 13)),
                 value: useSmallGematria,
                 onChanged: (value) {
                   setState(() {
@@ -130,8 +136,10 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
               ),
               const Divider(height: 1),
               CheckboxListTile(
-                title: const Text('אותיות סופיות שונות', style: TextStyle(fontSize: 16)),
-                subtitle: const Text('מנצפ"ך בערכים שונים', style: TextStyle(fontSize: 13)),
+                title: const Text('אותיות סופיות שונות',
+                    style: TextStyle(fontSize: 16)),
+                subtitle: const Text('מנצפ"ך בערכים שונים',
+                    style: TextStyle(fontSize: 13)),
                 value: useFinalLetters,
                 onChanged: (value) {
                   setState(() {
@@ -148,7 +156,8 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
               const Divider(height: 1),
               CheckboxListTile(
                 title: const Text('עם הכולל', style: TextStyle(fontSize: 16)),
-                subtitle: const Text('הוספת מספר האותיות לסכום', style: TextStyle(fontSize: 13)),
+                subtitle: const Text('הוספת מספר האותיות לסכום',
+                    style: TextStyle(fontSize: 13)),
                 value: useWithKolel,
                 onChanged: (value) {
                   setState(() => useWithKolel = value ?? false);

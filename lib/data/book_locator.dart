@@ -146,7 +146,8 @@ class BookLocator {
     Category? category,
   ) async {
     try {
-      final keyToPath = await FileSystemData.instance.fileSystemProvider.keyToPath;
+      final keyToPath =
+          await FileSystemData.instance.fileSystemProvider.keyToPath;
       String? filePath;
 
       if (category != null) {

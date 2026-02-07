@@ -25,7 +25,8 @@ class BookScannerService {
 
   /// Function to get TOC from a book file
   /// This should be provided by the main app
-  final Future<List<Map<String, dynamic>>> Function(String bookPath) getTocFromFile;
+  final Future<List<Map<String, dynamic>>> Function(String bookPath)
+      getTocFromFile;
 
   BookScannerService({
     required this.libraryBasePath,
@@ -209,7 +210,8 @@ class BookScannerService {
   /// Get cache directory for scanned books
   Future<Directory> _getCacheDirectory() async {
     final appDir = await getApplicationSupportDirectory();
-    final cacheDir = Directory(p.join(appDir.path, 'shamor_zachor', 'scanned_books'));
+    final cacheDir =
+        Directory(p.join(appDir.path, 'shamor_zachor', 'scanned_books'));
 
     if (!await cacheDir.exists()) {
       await cacheDir.create(recursive: true);
@@ -274,8 +276,8 @@ class BookScannerService {
     final minLevel = entries.map((e) => e.level).reduce(math.min);
     final List<_SectionNode> roots = [];
     final List<_SectionNode> stack = [];
-    final int lastIndex =
-        (toc.isNotEmpty ? toc.last['index'] as int? : null) ?? entries.last.index;
+    final int lastIndex = (toc.isNotEmpty ? toc.last['index'] as int? : null) ??
+        entries.last.index;
 
     for (final entry in entries) {
       final normalizedLevel = math.max(1, entry.level - (minLevel - 1));

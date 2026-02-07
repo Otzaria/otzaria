@@ -74,27 +74,30 @@ String extractDisplayTextFromLine(
 }) {
   // Strip HTML tags from the line before extracting text
   final cleanedLine = _stripHtmlTags(line);
-  
+
   if (cleanedLine.isEmpty) {
     return '';
   }
-  
+
   // Remove nikud and te'amim (Hebrew diacritics) but keep the text structure
   final withoutNikud = removeHebrewDiacritics(cleanedLine);
-  
+
   // Split book title into words for exclusion
   final excludedWords = excludeBookTitle != null
-      ? removeHebrewDiacritics(excludeBookTitle).split(RegExp(r'\s+')).map((w) => w.trim().toLowerCase()).toSet()
+      ? removeHebrewDiacritics(excludeBookTitle)
+          .split(RegExp(r'\s+'))
+          .map((w) => w.trim().toLowerCase())
+          .toSet()
       : <String>{};
-  
+
   // Split the line into words by whitespace
   final words = withoutNikud.split(RegExp(r'\s+'));
   final selectedWords = <String>[];
-  
+
   for (final word in words) {
     final trimmedWord = word.trim();
     if (trimmedWord.isEmpty) continue;
-    
+
     // Skip words that are part of the book title
     if (!excludedWords.contains(trimmedWord.toLowerCase())) {
       selectedWords.add(trimmedWord);
@@ -103,15 +106,15 @@ String extractDisplayTextFromLine(
       }
     }
   }
-  
+
   // Join the selected words
   String result = selectedWords.join(' ').trim();
-  
+
   // If the result is too long, truncate it
   if (result.length > 100) {
     result = result.substring(0, 100).trim();
   }
-  
+
   return result;
 }
 
@@ -122,11 +125,11 @@ String removeHebrewDiacritics(String text) {
   // Replace Hebrew maqaf (־) with space to separate words
   // U+05BE is the Hebrew maqaf
   String result = text.replaceAll('\u05BE', ' ');
-  
+
   // Remove Hebrew diacritics (nikud and te'amim)
   // Range: U+0591 to U+05C7
   result = result.replaceAll(RegExp(r'[\u0591-\u05C7]'), '');
-  
+
   return result;
 }
 

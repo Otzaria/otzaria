@@ -150,12 +150,16 @@ class CatalogBook {
       title: json['title'] as String,
       categoryId: json['categoryId'] as int,
       order: (json['order'] as num?)?.toDouble() ?? 999.0,
-      authors: (json['authors'] as List<dynamic>?)?.map((e) => e as String).toList() ?? [],
+      authors: (json['authors'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
       totalLines: json['totalLines'] as int? ?? 0,
       isBaseBook: json['isBaseBook'] as bool? ?? false,
       hasTargumConnection: json['hasTargumConnection'] as bool? ?? false,
       hasReferenceConnection: json['hasReferenceConnection'] as bool? ?? false,
-      hasCommentaryConnection: json['hasCommentaryConnection'] as bool? ?? false,
+      hasCommentaryConnection:
+          json['hasCommentaryConnection'] as bool? ?? false,
       hasOtherConnection: json['hasOtherConnection'] as bool? ?? false,
     );
   }
@@ -198,8 +202,10 @@ class CatalogBook {
       totalLines: totalLines ?? this.totalLines,
       isBaseBook: isBaseBook ?? this.isBaseBook,
       hasTargumConnection: hasTargumConnection ?? this.hasTargumConnection,
-      hasReferenceConnection: hasReferenceConnection ?? this.hasReferenceConnection,
-      hasCommentaryConnection: hasCommentaryConnection ?? this.hasCommentaryConnection,
+      hasReferenceConnection:
+          hasReferenceConnection ?? this.hasReferenceConnection,
+      hasCommentaryConnection:
+          hasCommentaryConnection ?? this.hasCommentaryConnection,
       hasOtherConnection: hasOtherConnection ?? this.hasOtherConnection,
     );
   }

@@ -2,16 +2,22 @@
 enum ShamorZachorErrorType {
   /// Asset file not found
   missingAsset,
+
   /// JSON parsing error
   parseError,
+
   /// SharedPreferences not available
   storageUnavailable,
+
   /// Network error (future use)
   networkError,
+
   /// Invalid data format
   invalidData,
+
   /// Permission denied
   permissionDenied,
+
   /// Unknown error
   unknown,
 }
@@ -41,7 +47,7 @@ class ShamorZachorError {
   }) {
     final errorType = type ?? _inferErrorType(exception);
     final message = customMessage ?? _getDefaultMessage(errorType);
-    
+
     return ShamorZachorError(
       type: errorType,
       message: message,
@@ -126,23 +132,25 @@ class ShamorZachorError {
 /// Infer error type from exception
 ShamorZachorErrorType _inferErrorType(Object exception) {
   final exceptionString = exception.toString().toLowerCase();
-  
+
   if (exceptionString.contains('asset') || exceptionString.contains('file')) {
     return ShamorZachorErrorType.missingAsset;
   }
   if (exceptionString.contains('json') || exceptionString.contains('format')) {
     return ShamorZachorErrorType.parseError;
   }
-  if (exceptionString.contains('storage') || exceptionString.contains('preferences')) {
+  if (exceptionString.contains('storage') ||
+      exceptionString.contains('preferences')) {
     return ShamorZachorErrorType.storageUnavailable;
   }
-  if (exceptionString.contains('network') || exceptionString.contains('connection')) {
+  if (exceptionString.contains('network') ||
+      exceptionString.contains('connection')) {
     return ShamorZachorErrorType.networkError;
   }
   if (exceptionString.contains('permission')) {
     return ShamorZachorErrorType.permissionDenied;
   }
-  
+
   return ShamorZachorErrorType.unknown;
 }
 

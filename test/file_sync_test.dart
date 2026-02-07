@@ -54,8 +54,7 @@ void main() {
     test('handles paths from different sources', () {
       final testCases = [
         {
-          'input':
-              'OraytaToOtzaria/ספרים/אוצריא/משנה/זרעים/ברכות/פרק א.txt',
+          'input': 'OraytaToOtzaria/ספרים/אוצריא/משנה/זרעים/ברכות/פרק א.txt',
           'expected': 'אוצריא/משנה/זרעים/ברכות/פרק א.txt',
         },
         {

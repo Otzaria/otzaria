@@ -1,7 +1,7 @@
 import 'package:otzaria/search/utils/regex_patterns.dart';
 
 /// כלים לטיפול בקידומות, סיומות וכתיב מלא/חסר בעברית (גרסה משולבת ומשופרת)
-/// 
+///
 /// הערה: הרגקסים הבסיסיים עברו לקובץ regex_patterns.dart לארגון טוב יותר
 class HebrewMorphology {
   // קידומות דקדוקיות בסיסיות

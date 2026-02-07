@@ -11,27 +11,26 @@ class FileToDbMigrator {
 
   /// Run migration from file storage to SQLite database.
   /// This should be called once during app initialization.
-  /// 
+  ///
   /// - Migrates notes that don't exist in the database (by ID)
   /// - Deletes old file storage after successful migration
   static Future<void> runMigration() async {
     try {
       final migrator = FileToDbMigrator();
       final summary = await migrator.migrate();
-      
+
       if (summary.hasMigratedNotes) {
         _logger.info('Personal notes migration: ${summary.summaryText}');
       }
-      
+
       // Only cleanup old files if ALL notes were migrated successfully
       // If any book failed, keep the old files to prevent data loss
       if (summary.success && !summary.hasFailures) {
         await migrator.cleanupOldFiles();
       } else if (summary.hasFailures) {
         _logger.warning(
-          'Keeping old note files because ${summary.failedBooks.length} books failed to migrate: '
-          '${summary.failedBooks.keys.join(", ")}'
-        );
+            'Keeping old note files because ${summary.failedBooks.length} books failed to migrate: '
+            '${summary.failedBooks.keys.join(", ")}');
       }
     } catch (e, s) {
       _logger.severe('Personal notes migration failed', e, s);
@@ -49,7 +48,7 @@ class FileToDbMigrator {
 
   /// Migrate all notes from file storage to database.
   /// Returns a summary of the migration.
-  /// 
+  ///
   /// Uses batch insert for better performance.
   /// Notes with duplicate IDs are automatically skipped.
   Future<MigrationSummary> migrate() async {
@@ -58,7 +57,7 @@ class FileToDbMigrator {
     try {
       // Get all books that have notes in file storage
       final storedBooks = await _fileStorage.listStoredBooks();
-      
+
       if (storedBooks.isEmpty) {
         summary.success = true;
         return summary;
@@ -70,14 +69,14 @@ class FileToDbMigrator {
         try {
           // Read notes from file storage
           final notes = await _fileStorage.readNotes(bookInfo.bookId);
-          
+
           if (notes.isEmpty) {
             continue;
           }
 
           // Use batch insert - duplicates are automatically skipped
           final insertedCount = await _database.batchInsertNotes(notes);
-          
+
           if (insertedCount > 0) {
             summary.migratedBooks.add(bookInfo.bookId);
             summary.migratedNotesCount += insertedCount;
@@ -102,7 +101,7 @@ class FileToDbMigrator {
     try {
       final dirPath = await _fileStorage.notesDirectoryPath();
       final dir = Directory(dirPath);
-      
+
       if (await dir.exists()) {
         await dir.delete(recursive: true);
       }
@@ -123,29 +122,30 @@ class MigrationSummary {
   Map<String, String> failedBooks = {};
 
   bool get hasFailures => failedBooks.isNotEmpty;
-  
+
   /// Returns true if any notes were migrated
   bool get hasMigratedNotes => migratedNotesCount > 0;
-  
+
   String get summaryText {
     if (!success && error != null) {
       return 'Migration failed: $error';
     }
-    
+
     final parts = <String>[];
-    
+
     if (migratedNotesCount > 0) {
-      parts.add('Migrated $migratedNotesCount notes from ${migratedBooks.length} books');
+      parts.add(
+          'Migrated $migratedNotesCount notes from ${migratedBooks.length} books');
     }
-    
+
     if (failedBooks.isNotEmpty) {
       parts.add('Failed to migrate ${failedBooks.length} books');
     }
-    
+
     if (parts.isEmpty) {
       return 'No notes to migrate';
     }
-    
+
     return parts.join('. ');
   }
 }

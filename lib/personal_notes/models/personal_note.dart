@@ -73,7 +73,6 @@ class PersonalNote extends Equatable {
   bool get hasLocation =>
       status == PersonalNoteStatus.located && lineNumber != null;
 
-
   /// Get the title to display
   String get title => displayTitle ?? '';
 

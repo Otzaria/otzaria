@@ -17,7 +17,7 @@ class DatabaseConstants {
 
   /// Gets the database path for a specific library path
   static String getDatabasePathForLibrary(String libraryPath) {
-    return path.join(libraryPath,otzariaFolderName, databaseFileName);
+    return path.join(libraryPath, otzariaFolderName, databaseFileName);
   }
 
   /// Private constructor to prevent instantiation

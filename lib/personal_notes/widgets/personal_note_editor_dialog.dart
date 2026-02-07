@@ -57,9 +57,9 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog> {
 
   void _checkForChanges() {
     final current = _editorController.buildResult();
-    final hasChanges = current.contentPlain.trim() !=
-            _initialResult.contentPlain.trim() &&
-        current.contentPlain.trim().isNotEmpty;
+    final hasChanges =
+        current.contentPlain.trim() != _initialResult.contentPlain.trim() &&
+            current.contentPlain.trim().isNotEmpty;
     if (hasChanges != _hasUnsavedChanges) {
       setState(() {
         _hasUnsavedChanges = hasChanges;
@@ -87,13 +87,11 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog> {
         content: const Text('ההערה לא נשמרה. לשמור טיוטה?'),
         actions: [
           TextButton(
-            onPressed: () =>
-                Navigator.of(context).pop(_DraftDecision.cancel),
+            onPressed: () => Navigator.of(context).pop(_DraftDecision.cancel),
             child: const Text('ביטול'),
           ),
           TextButton(
-            onPressed: () =>
-                Navigator.of(context).pop(_DraftDecision.discard),
+            onPressed: () => Navigator.of(context).pop(_DraftDecision.discard),
             child: const Text('סגור בלי לשמור'),
           ),
           FilledButton(

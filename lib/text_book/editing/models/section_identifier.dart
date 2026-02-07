@@ -4,13 +4,13 @@ import 'package:equatable/equatable.dart';
 class SectionIdentifier extends Equatable {
   /// Stable GUID or TOC-based identifier that doesn't change when content is modified
   final String sectionId;
-  
+
   /// Current position index in the content list (may change when content is reordered)
   final int sectionIndex;
-  
+
   /// Hash of normalized content for change detection and matching
   final String contentHash;
-  
+
   const SectionIdentifier({
     required this.sectionId,
     required this.sectionIndex,
@@ -25,8 +25,9 @@ class SectionIdentifier extends Equatable {
   }) {
     final normalizedContent = _normalizeContent(content);
     final contentHash = _generateHash(normalizedContent);
-    final sectionId = existingSectionId ?? _generateSectionId(index, contentHash);
-    
+    final sectionId =
+        existingSectionId ?? _generateSectionId(index, contentHash);
+
     return SectionIdentifier(
       sectionId: sectionId,
       sectionIndex: index,
@@ -77,5 +78,6 @@ class SectionIdentifier extends Equatable {
   List<Object?> get props => [sectionId, sectionIndex, contentHash];
 
   @override
-  String toString() => 'SectionIdentifier(id: $sectionId, index: $sectionIndex, hash: $contentHash)';
+  String toString() =>
+      'SectionIdentifier(id: $sectionId, index: $sectionIndex, hash: $contentHash)';
 }

@@ -221,7 +221,8 @@ class FileSystemLibraryProvider implements LibraryProvider {
   }
 
   @override
-  Future<String?> getBookText(String title, String category, String fileType) async {
+  Future<String?> getBookText(
+      String title, String category, String fileType) async {
     if (!_isInitialized) await initialize();
 
     final path = await _getBookPath(title, category, fileType);
@@ -231,7 +232,8 @@ class FileSystemLibraryProvider implements LibraryProvider {
     if (!await file.exists()) return null;
 
     // PDF content isn't plain text; callers should use the PDF flow.
-    if (fileType.toLowerCase() == 'pdf' || path.toLowerCase().endsWith('.pdf')) {
+    if (fileType.toLowerCase() == 'pdf' ||
+        path.toLowerCase().endsWith('.pdf')) {
       return null;
     }
 
@@ -244,7 +246,8 @@ class FileSystemLibraryProvider implements LibraryProvider {
   }
 
   @override
-  Future<List<TocEntry>?> getBookToc(String title, String category, String fileType) async {
+  Future<List<TocEntry>?> getBookToc(
+      String title, String category, String fileType) async {
     if (fileType.toLowerCase() == 'pdf') return null;
     final text = await getBookText(title, category, fileType);
     if (text == null) return null;
@@ -258,7 +261,8 @@ class FileSystemLibraryProvider implements LibraryProvider {
     return map.keys.toSet();
   }
 
-  Future<String?> _getBookPath(String title, String category, String fileType) async {
+  Future<String?> _getBookPath(
+      String title, String category, String fileType) async {
     final map = await _keyToPath;
     final key = _generateKey(title, category, fileType);
     return map[key];
@@ -268,7 +272,8 @@ class FileSystemLibraryProvider implements LibraryProvider {
     Map<String, String> keyToPath = {};
 
     // Helper to add path
-    void addPath(String path, String rootPath, [List<String> prefix = const []]) {
+    void addPath(String path, String rootPath,
+        [List<String> prefix = const []]) {
       final title = getTitleFromPath(path);
       final fileType = path.split('.').last.toLowerCase();
 
@@ -343,7 +348,8 @@ class FileSystemLibraryProvider implements LibraryProvider {
   }
 
   /// Checks if a book is in the personal folder or a custom folder
-  Future<bool> isPersonalBook(String title, {String? category, String? fileType}) async {
+  Future<bool> isPersonalBook(String title,
+      {String? category, String? fileType}) async {
     String? bookPath;
     if (category != null && fileType != null) {
       bookPath = await _getBookPath(title, category, fileType);
@@ -661,7 +667,8 @@ class FileSystemLibraryProvider implements LibraryProvider {
   }
 
   @override
-  Future<List<Link>> getAllLinksForBook(String title, String category, String fileType) async {
+  Future<List<Link>> getAllLinksForBook(
+      String title, String category, String fileType) async {
     if (!_isInitialized) await initialize();
 
     try {

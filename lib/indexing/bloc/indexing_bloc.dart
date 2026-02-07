@@ -63,7 +63,8 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
   }
 
   /// Handles the EraseIndex event
-  Future<void> _onEraseIndex(ClearIndex event, Emitter<IndexingState> emit) async {
+  Future<void> _onEraseIndex(
+      ClearIndex event, Emitter<IndexingState> emit) async {
     await _repository.clearIndex();
     emit(IndexingInitial());
   }

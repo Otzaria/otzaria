@@ -64,7 +64,7 @@ class LinkProcessResult {
 }
 
 /// Utility class for processing link files.
-/// 
+///
 /// This class provides a unified way to process link JSON files
 /// for both database generation and file sync operations.
 class LinkProcessor {
@@ -90,7 +90,7 @@ class LinkProcessor {
 
     final books = await _repository.getAllBooks();
     for (final book in books) {
-      if(book.fileType != 'txt') {
+      if (book.fileType != 'txt') {
         continue;
       }
       _bookTitleToId[book.title] = book.id;
@@ -100,10 +100,10 @@ class LinkProcessor {
   /// Loads lines cache for a specific book
   Future<void> _loadBookLinesCache(int bookId) async {
     if (_bookLineIndexToId.containsKey(bookId)) return;
-    
+
     // Use optimized query to fetch only IDs and indices
     final rows = await _repository.getLineIdsAndIndices(bookId);
-    
+
     if (rows.isEmpty) {
       _bookLineIndexToId[bookId] = [];
       return;
@@ -115,9 +115,9 @@ class LinkProcessor {
       final idx = row['lineIndex'] as int;
       if (idx > maxIndex) maxIndex = idx;
     }
-    
+
     final arr = List<int>.filled(maxIndex + 1, 0);
-    
+
     for (final row in rows) {
       final idx = row['lineIndex'] as int;
       final id = row['id'] as int;
@@ -129,7 +129,8 @@ class LinkProcessor {
     _bookLineIndexToId[bookId] = arr;
 
     if (verboseLogging) {
-      _log.fine('Loaded ${arr.length} line id/index pairs for book $bookId into memory');
+      _log.fine(
+          'Loaded ${arr.length} line id/index pairs for book $bookId into memory');
     }
   }
 
@@ -140,7 +141,7 @@ class LinkProcessor {
   }
 
   /// Processes a single link JSON file
-  /// 
+  ///
   /// [linkFile] The path to the link file
   /// Returns a [LinkProcessResult] with the processing statistics
   Future<LinkProcessResult> processLinkFile(String linkFile) async {
@@ -149,7 +150,7 @@ class LinkProcessor {
         .basenameWithoutExtension(path.basename(linkFile))
         .replaceAll('_links', '')
         .replaceAll(' links', '');
-    
+
     // Find source book
     final sourceBookId = _findBookIdByTitle(bookTitle);
 
@@ -166,7 +167,7 @@ class LinkProcessor {
       final content = await file.readAsString();
 
       final jsonData = jsonDecode(content);
-      
+
       // Handle different JSON structures
       List<dynamic> linksList;
       if (jsonData is List<dynamic>) {
@@ -182,7 +183,8 @@ class LinkProcessor {
           linksList = [jsonData];
         }
       } else {
-        _log.warning('Unexpected JSON structure in file: ${path.basename(linkFile)}');
+        _log.warning(
+            'Unexpected JSON structure in file: ${path.basename(linkFile)}');
         return const LinkProcessResult(success: false);
       }
 
@@ -193,7 +195,6 @@ class LinkProcessor {
       // Prepare batch of links
       final linksToInsert = <Link>[];
       var skipped = 0;
-
 
       for (final linkData in linksData) {
         try {
@@ -247,7 +248,8 @@ class LinkProcessor {
 
           if (sourceLineId == null || targetLineId == null) {
             if (verboseLogging) {
-              _log.fine('Line not found - source: $sourceLineIndex, target: $targetLineIndex');
+              _log.fine(
+                  'Line not found - source: $sourceLineIndex, target: $targetLineIndex');
             }
             skipped++;
             continue;
@@ -289,7 +291,8 @@ class LinkProcessor {
         success: true,
       );
     } catch (e, stackTrace) {
-      _log.warning('Error processing link file: ${path.basename(linkFile)}', e, stackTrace);
+      _log.warning('Error processing link file: ${path.basename(linkFile)}', e,
+          stackTrace);
       return const LinkProcessResult(success: false);
     }
   }
@@ -306,19 +309,19 @@ class LinkProcessor {
   }
 
   /// Process all link files in a directory with transaction support.
-  /// 
+  ///
   /// This is the unified method for processing links, combining the best
   /// practices from both generator and file sync operations:
   /// - Uses database transactions for atomicity and performance
   /// - Commits in batches to avoid memory issues
   /// - Clears line cache periodically to prevent memory explosion
   /// - Optionally updates the book_has_links table
-  /// 
+  ///
   /// [linksPath] The path to the links directory
   /// [onProgress] Optional callback for progress updates (0.0 to 1.0)
   /// [updateBookHasLinks] Whether to update the book_has_links table after processing
   /// [batchCommitSize] Number of files to process before committing (default: 50)
-  /// 
+  ///
   /// Returns a [LinkDirectoryResult] with processing statistics
   Future<LinkDirectoryResult> processLinksDirectory({
     required String linksPath,
@@ -339,7 +342,7 @@ class LinkProcessor {
     // Collect all JSON link files (excluding _headings.json files)
     final linkFiles = <File>[];
     await for (final entity in linksDir.list()) {
-      if (entity is File && 
+      if (entity is File &&
           path.extension(entity.path) == '.json' &&
           !path.basename(entity.path).endsWith('_headings.json')) {
         linkFiles.add(entity);
@@ -409,7 +412,8 @@ class LinkProcessor {
             await _repository.beginTransaction();
           }
         } catch (e, stackTrace) {
-          _log.warning('Error processing link file: ${file.path}', e, stackTrace);
+          _log.warning(
+              'Error processing link file: ${file.path}', e, stackTrace);
           errors.add('Error processing ${path.basename(file.path)}: $e');
         }
       }

@@ -311,18 +311,18 @@ class _PersonalNotesManagerScreenState
         content: const Text('כיצד לטפל בהערות קיימות עם אותו מזהה?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context)
-                .pop(NotesImportConflictStrategy.merge),
+            onPressed: () =>
+                Navigator.of(context).pop(NotesImportConflictStrategy.merge),
             child: const Text('מזג'),
           ),
           TextButton(
-            onPressed: () => Navigator.of(context)
-                .pop(NotesImportConflictStrategy.skip),
+            onPressed: () =>
+                Navigator.of(context).pop(NotesImportConflictStrategy.skip),
             child: const Text('דלג על כפולים'),
           ),
           TextButton(
-            onPressed: () => Navigator.of(context)
-                .pop(NotesImportConflictStrategy.keepBoth),
+            onPressed: () =>
+                Navigator.of(context).pop(NotesImportConflictStrategy.keepBoth),
             child: const Text('שמור גם וגם'),
           ),
           FilledButton(
@@ -780,7 +780,7 @@ class _PersonalNotesManagerScreenState
       final query = _searchQuery.toLowerCase();
       allNotes.removeWhere((noteWithBook) {
         final note = noteWithBook.note;
-          return !note.contentPlain.toLowerCase().contains(query) &&
+        return !note.contentPlain.toLowerCase().contains(query) &&
             !note.bookId.toLowerCase().contains(query) &&
             !(note.lineNumber?.toString().contains(query) ?? false);
       });
@@ -1021,9 +1021,8 @@ class _PersonalNotesManagerScreenState
                           tooltip: 'פתח ספר בשורה',
                           icon: const Icon(FluentIcons.book_open_24_regular,
                               size: 18),
-                          onPressed: isMissing
-                              ? null
-                              : () => _openNoteInBook(note),
+                          onPressed:
+                              isMissing ? null : () => _openNoteInBook(note),
                           padding: const EdgeInsets.all(8),
                           constraints: const BoxConstraints(
                             minWidth: 36,
@@ -1186,9 +1185,8 @@ class _PersonalNotesManagerScreenState
       return;
     }
 
-    final book =
-        library.findBookByTitle(note.bookId, TextBook) ??
-            library.findBookByTitle(note.bookId, null);
+    final book = library.findBookByTitle(note.bookId, TextBook) ??
+        library.findBookByTitle(note.bookId, null);
     if (book == null) {
       UiSnack.show('הספר לא נמצא: ${note.bookId}');
       return;

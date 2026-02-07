@@ -68,7 +68,8 @@ class Link {
       targetBookId: json['targetBookId'] as int,
       sourceLineId: json['sourceLineId'] as int,
       targetLineId: json['targetLineId'] as int,
-      connectionType: ConnectionType.fromString(json['connectionType'] as String),
+      connectionType:
+          ConnectionType.fromString(json['connectionType'] as String),
     );
   }
 

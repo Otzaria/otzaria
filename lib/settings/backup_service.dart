@@ -146,7 +146,7 @@ class BackupService {
       SettingsRepository.keyDevChannel,
       SettingsRepository.keyAutoSync,
       SettingsRepository.keyOfflineMode,
-        SettingsRepository.keyPersonalNotesCollapsedByDefault,
+      SettingsRepository.keyPersonalNotesCollapsedByDefault,
     ];
 
     final settings = <String, dynamic>{};

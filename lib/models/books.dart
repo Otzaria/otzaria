@@ -138,7 +138,8 @@ class TextBook extends Book {
   /// Returns a [Future] that resolves to a [List] of [TocEntry] objects representing
   /// the table of contents of the book.
   Future<List<TocEntry>> get tableOfContents async {
-    final toc = await LibraryProviderManager.instance.getBookToc(title, categoryPath ?? '', fileType ?? 'txt');
+    final toc = await LibraryProviderManager.instance
+        .getBookToc(title, categoryPath ?? '', fileType ?? 'txt');
     return toc ?? [];
   }
 
@@ -146,16 +147,19 @@ class TextBook extends Book {
   ///
   /// Returns a [Future] that resolves to a [List] of [Link] objects.
   Future<List<Link>> get links async {
-    final provider = LibraryProviderManager.instance.getProviderForBook(title, categoryPath ?? '', fileType ?? 'txt');
+    final provider = LibraryProviderManager.instance
+        .getProviderForBook(title, categoryPath ?? '', fileType ?? 'txt');
     if (provider != null) {
-      return await provider.getAllLinksForBook(title, categoryPath ?? '', fileType ?? 'txt');
+      return await provider.getAllLinksForBook(
+          title, categoryPath ?? '', fileType ?? 'txt');
     }
     return [];
   }
 
   /// The text data of the book.
   Future<String> get text async {
-    final bookText = await LibraryProviderManager.instance.getBookText(title, categoryPath ?? '', fileType ?? 'txt');
+    final bookText = await LibraryProviderManager.instance
+        .getBookText(title, categoryPath ?? '', fileType ?? 'txt');
     return bookText ?? '';
   }
 
@@ -205,26 +209,25 @@ class ExternalLibraryBook extends Book {
   ///
   /// [title] and [id] are required. Other parameters are optional.
   /// [link] is required for online access to the book.
-  ExternalLibraryBook({
-    required super.title,
-    required this.id,
-    super.author,
-    super.heCategories,
-    super.heEra,
-    super.compDateStringHe,
-    super.compPlaceStringHe,
-    super.pubDateStringHe,
-    super.pubPlaceStringHe,
-    super.pubPlace,
-    super.pubDate,
-    super.topics,
-    super.heShortDesc,
-    super.heDesc,
-    required this.link,
-    super.categoryPath,
-    super.fileType = 'link',
-    super.isUserBook
-  });
+  ExternalLibraryBook(
+      {required super.title,
+      required this.id,
+      super.author,
+      super.heCategories,
+      super.heEra,
+      super.compDateStringHe,
+      super.compPlaceStringHe,
+      super.pubDateStringHe,
+      super.pubPlaceStringHe,
+      super.pubPlace,
+      super.pubDate,
+      super.topics,
+      super.heShortDesc,
+      super.heDesc,
+      required this.link,
+      super.categoryPath,
+      super.fileType = 'link',
+      super.isUserBook});
 
   /// Returns the publication date of the book.
   ///

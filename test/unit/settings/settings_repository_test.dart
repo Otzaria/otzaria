@@ -389,8 +389,13 @@ void main() {
     test('loadSettings does not initialize defaults when fontFamily exists',
         () async {
       // Setup mock to return existing fontFamily value
-      when(mockSettingsWrapper.getValue<bool>('settings_initialized', defaultValue: false)).thenReturn(true);
-      when(mockSettingsWrapper.getValue<String?>(SettingsRepository.keyFontFamily, defaultValue: null)).thenReturn('FrankRuhlCLM');
+      when(mockSettingsWrapper.getValue<bool>('settings_initialized',
+              defaultValue: false))
+          .thenReturn(true);
+      when(mockSettingsWrapper.getValue<String?>(
+              SettingsRepository.keyFontFamily,
+              defaultValue: null))
+          .thenReturn('FrankRuhlCLM');
 
       // Setup mock to return values for loadSettings
       when(mockSettingsWrapper.getValue<bool>(SettingsRepository.keyDarkMode,
@@ -458,6 +463,3 @@ void main() {
     });
   });
 }
-
-
-

@@ -20,8 +20,8 @@ class TocParser {
       try {
         // Note: We don't have category/fileType here, so we pass empty strings
         // This relies on the fuzzy matching in LibraryProviderManager
-        final tocEntries =
-          await LibraryProviderManager.instance.getBookToc(bookTitle, '', 'txt');
+        final tocEntries = await LibraryProviderManager.instance
+            .getBookToc(bookTitle, '', 'txt');
         if (tocEntries != null && tocEntries.isNotEmpty) {
           // Convert hierarchical TOC to flat structure
           final flatToc = <Map<String, dynamic>>[];

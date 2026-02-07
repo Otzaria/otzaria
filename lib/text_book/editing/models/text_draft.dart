@@ -4,13 +4,13 @@ import 'package:equatable/equatable.dart';
 class TextDraft extends Equatable {
   /// Book identifier
   final String bookId;
-  
+
   /// Stable section identifier
   final String sectionId;
-  
+
   /// Markdown content of the draft
   final String markdownContent;
-  
+
   /// When this draft was created/updated
   final DateTime timestamp;
 

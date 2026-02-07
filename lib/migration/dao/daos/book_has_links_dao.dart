@@ -85,29 +85,37 @@ class BookHasLinksDao {
     return Sqflite.firstIntValue(result) ?? 0;
   }
 
-  Future<int> upsertBookHasLinks(int bookId, bool hasSourceLinks, bool hasTargetLinks) async {
+  Future<int> upsertBookHasLinks(
+      int bookId, bool hasSourceLinks, bool hasTargetLinks) async {
     final db = await database;
-    return await db.rawInsert(_queries['upsert']!, [bookId, hasSourceLinks ? 1 : 0, hasTargetLinks ? 1 : 0]);
+    return await db.rawInsert(_queries['upsert']!,
+        [bookId, hasSourceLinks ? 1 : 0, hasTargetLinks ? 1 : 0]);
   }
 
   Future<int> updateSourceLinks(int bookId, bool hasSourceLinks) async {
     final db = await database;
-    return await db.rawUpdate(_queries['updateSourceLinks']!, [hasSourceLinks ? 1 : 0, bookId]);
+    return await db.rawUpdate(
+        _queries['updateSourceLinks']!, [hasSourceLinks ? 1 : 0, bookId]);
   }
 
   Future<int> updateTargetLinks(int bookId, bool hasTargetLinks) async {
     final db = await database;
-    return await db.rawUpdate(_queries['updateTargetLinks']!, [hasTargetLinks ? 1 : 0, bookId]);
+    return await db.rawUpdate(
+        _queries['updateTargetLinks']!, [hasTargetLinks ? 1 : 0, bookId]);
   }
 
-  Future<int> updateBothLinkTypes(int bookId, bool hasSourceLinks, bool hasTargetLinks) async {
+  Future<int> updateBothLinkTypes(
+      int bookId, bool hasSourceLinks, bool hasTargetLinks) async {
     final db = await database;
-    return await db.rawUpdate(_queries['updateBothLinkTypes']!, [hasSourceLinks ? 1 : 0, hasTargetLinks ? 1 : 0, bookId]);
+    return await db.rawUpdate(_queries['updateBothLinkTypes']!,
+        [hasSourceLinks ? 1 : 0, hasTargetLinks ? 1 : 0, bookId]);
   }
 
-  Future<int> insertBookHasLinks(int bookId, bool hasSourceLinks, bool hasTargetLinks) async {
+  Future<int> insertBookHasLinks(
+      int bookId, bool hasSourceLinks, bool hasTargetLinks) async {
     final db = await database;
-    return await db.rawInsert(_queries['insert']!, [bookId, hasSourceLinks ? 1 : 0, hasTargetLinks ? 1 : 0]);
+    return await db.rawInsert(_queries['insert']!,
+        [bookId, hasSourceLinks ? 1 : 0, hasTargetLinks ? 1 : 0]);
   }
 
   Future<int> deleteBookHasLinks(int bookId) async {

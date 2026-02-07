@@ -74,8 +74,9 @@ class SnippetBuilder {
           // אם יש כתיב מלא/חסר, נוסיף גם את הווריאציות של המילים החילופיות
           for (final alt in alternatives) {
             try {
-              final altVariations = SearchRegexPatterns
-                  .generateFullPartialSpellingVariations(alt);
+              final altVariations =
+                  SearchRegexPatterns.generateFullPartialSpellingVariations(
+                      alt);
               searchTerms.addAll(altVariations);
             } catch (e) {
               searchTerms.add(alt);
