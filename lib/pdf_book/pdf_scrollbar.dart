@@ -63,6 +63,14 @@ class PdfScrollbar extends StatelessWidget {
 /// שימו לב: Widget זה חייב להיות ישירות בתוך viewerOverlayBuilder של PdfViewer
 /// ולא ניתן לעטוף אותו ב-widgets נוספים בגלל מגבלות של PdfViewerScrollThumb
 class PdfHorizontalScrollbar extends StatelessWidget {
+  // קבועים לחישוב גודל ה-thumb
+  static const double _minThumbRatio = 0.15; // מינימום 15% מהמסך
+  static const double _maxThumbRatio = 0.85; // מקסימום 85% מהמסך
+  static const double _minZoomForNormalization = 0.5; // זום מינימלי
+  static const double _zoomRangeForNormalization = 4.5; // טווח הזום (5.0 - 0.5)
+  static const double _minThumbWidth = 60.0; // רוחב מינימלי בפיקסלים
+  static const double _maxThumbWidthFactor = 0.95; // מקסימום 95% מהמסך
+
   final PdfViewerController controller;
   final double trackThickness;
   final Color? trackColor;
@@ -93,24 +101,19 @@ class PdfHorizontalScrollbar extends StatelessWidget {
 
         // חישוב גודל ה-thumb לפי רמת הזום
         // ככל שהזום גדול יותר, ה-thumb קטן יותר (יש יותר תוכן לגלול)
-        // זום 1.0 = 70% מהמסך
-        // זום 2.0 = 40% מהמסך
-        // זום 3.0 = 25% מהמסך
-        final minThumbRatio = 0.15; // מינימום 15% מהמסך
-        final maxThumbRatio = 0.85; // מקסימום 85% מהמסך
-
         // נורמליזציה של הזום (בדרך כלל בין 0.5 ל-5.0)
-        final normalizedZoom = ((zoom - 0.5) / 4.5).clamp(0.0, 1.0);
-        final thumbRatio =
-            maxThumbRatio - (normalizedZoom * (maxThumbRatio - minThumbRatio));
+        final normalizedZoom =
+            ((zoom - _minZoomForNormalization) / _zoomRangeForNormalization)
+                .clamp(0.0, 1.0);
+        final thumbRatio = _maxThumbRatio -
+            (normalizedZoom * (_maxThumbRatio - _minThumbRatio));
 
         final thumbWidth = screenWidth * thumbRatio;
 
         // מינימום ומקסימום לגודל ה-thumb
-        final minThumbWidth = 60.0;
-        final maxThumbWidth = screenWidth * 0.95;
+        final maxThumbWidth = screenWidth * _maxThumbWidthFactor;
         final clampedThumbWidth =
-            thumbWidth.clamp(minThumbWidth, maxThumbWidth);
+            thumbWidth.clamp(_minThumbWidth, maxThumbWidth);
 
         return PdfViewerScrollThumb(
           controller: controller,
