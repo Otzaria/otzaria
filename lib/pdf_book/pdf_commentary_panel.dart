@@ -731,21 +731,18 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
           }
         }
 
-        return ScrollConfiguration(
-            behavior:
-                ScrollConfiguration.of(context).copyWith(scrollbars: false),
-            child: ScrollablePositionedList.builder(
-              key: PageStorageKey(
-                  'commentary_${widget.tab.currentTextLineNumber}_${widget.tab.activeCommentators.hashCode}_$_allExpanded'),
-              itemCount: sortedGroups.length,
-              itemScrollController: _itemScrollController,
-              itemPositionsListener: _itemPositionsListener,
-              scrollOffsetController: _scrollOffsetController,
-              itemBuilder: (context, index) {
-                final group = sortedGroups[index];
-                return _buildCommentaryGroupTile(group);
-              },
-            ));
+        return ScrollablePositionedList.builder(
+          key: PageStorageKey(
+              'commentary_${widget.tab.currentTextLineNumber}_${widget.tab.activeCommentators.hashCode}_$_allExpanded'),
+          itemCount: sortedGroups.length,
+          itemScrollController: _itemScrollController,
+          itemPositionsListener: _itemPositionsListener,
+          scrollOffsetController: _scrollOffsetController,
+          itemBuilder: (context, index) {
+            final group = sortedGroups[index];
+            return _buildCommentaryGroupTile(group);
+          },
+        );
       },
     );
   }
