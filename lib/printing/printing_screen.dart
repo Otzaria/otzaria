@@ -13,6 +13,7 @@ import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
 import 'package:otzaria/pdf_book/pdf_page_number_dispaly.dart';
 import 'package:otzaria/pdf_book/pdf_thumbnails_screen.dart';
+import 'package:otzaria/pdf_book/pdf_scrollbar.dart';
 import 'package:otzaria/utils/text_manipulation.dart';
 import 'package:otzaria/widgets/dialogs.dart';
 import 'package:pdfrx/pdfrx.dart';
@@ -813,22 +814,15 @@ class _PrintingScreenState extends State<PrintingScreen> {
                                   params: PdfViewerParams(
                                     viewerOverlayBuilder:
                                         (context, size, handleLinkTap) => [
-                                      PdfViewerScrollThumb(
+                                      PdfScrollbar(
                                         controller: _pdfViewerController,
                                         orientation: ScrollbarOrientation.right,
-                                        thumbSize: const Size(40, 25),
-                                        thumbBuilder: (context, thumbSize,
-                                                pageNumber, controller) =>
-                                            Container(
-                                          color: Colors.black,
-                                          child: Center(
-                                            child: Text(
-                                              pageNumber.toString(),
-                                              style: const TextStyle(
-                                                  color: Colors.white),
-                                            ),
-                                          ),
-                                        ),
+                                        trackThickness: 16.0,
+                                        thumbMinSize: 50.0,
+                                      ),
+                                      PdfHorizontalScrollbar(
+                                        controller: _pdfViewerController,
+                                        trackThickness: 10.0,
                                       ),
                                     ],
                                     onDocumentChanged: (document) {
@@ -1404,22 +1398,15 @@ class _PrintingScreenState extends State<PrintingScreen> {
                                   params: PdfViewerParams(
                                     viewerOverlayBuilder:
                                         (context, size, handleLinkTap) => [
-                                      PdfViewerScrollThumb(
+                                      PdfScrollbar(
                                         controller: _pdfViewerController,
                                         orientation: ScrollbarOrientation.right,
-                                        thumbSize: const Size(40, 25),
-                                        thumbBuilder: (context, thumbSize,
-                                                pageNumber, controller) =>
-                                            Container(
-                                          color: Colors.black,
-                                          child: Center(
-                                            child: Text(
-                                              pageNumber.toString(),
-                                              style: const TextStyle(
-                                                  color: Colors.white),
-                                            ),
-                                          ),
-                                        ),
+                                        trackThickness: 16.0,
+                                        thumbMinSize: 50.0,
+                                      ),
+                                      PdfHorizontalScrollbar(
+                                        controller: _pdfViewerController,
+                                        trackThickness: 10.0,
                                       ),
                                     ],
                                     onDocumentChanged: (document) {

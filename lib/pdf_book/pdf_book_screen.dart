@@ -46,6 +46,7 @@ import 'package:otzaria/settings/per_book_settings.dart';
 import 'package:otzaria/widgets/commentary_pane_tooltip.dart';
 import 'package:otzaria/utils/shortcut_helper.dart';
 import 'package:otzaria/utils/shortcut_validator.dart';
+import 'package:otzaria/pdf_book/pdf_scrollbar.dart';
 
 class PdfBookScreen extends StatefulWidget {
   final PdfBookTab tab;
@@ -567,39 +568,19 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                                     },
                                     viewerOverlayBuilder:
                                         (context, size, handleLinkTap) => [
-                                      PdfViewerScrollThumb(
+                                      // פס גלילה אנכי עם track מלא
+                                      PdfScrollbar(
                                         controller:
                                             widget.tab.pdfViewerController,
                                         orientation: ScrollbarOrientation.right,
-                                        thumbSize: const Size(40, 25),
-                                        thumbBuilder: (context, thumbSize,
-                                                pageNumber, controller) =>
-                                            Container(
-                                          color: Colors.black,
-                                          child: Center(
-                                            child: Text(
-                                              pageNumber.toString(),
-                                              style: const TextStyle(
-                                                  color: Colors.white),
-                                            ),
-                                          ),
-                                        ),
+                                        trackThickness: 16.0,
+                                        thumbMinSize: 50.0,
                                       ),
-                                      PdfViewerScrollThumb(
+                                      // פס גלילה אופקי דינמי
+                                      PdfHorizontalScrollbar(
                                         controller:
                                             widget.tab.pdfViewerController,
-                                        orientation:
-                                            ScrollbarOrientation.bottom,
-                                        thumbSize: const Size(80, 5),
-                                        thumbBuilder: (context, thumbSize,
-                                                pageNumber, controller) =>
-                                            Container(
-                                          decoration: BoxDecoration(
-                                            color: Colors.grey[300],
-                                            borderRadius:
-                                                BorderRadius.circular(3),
-                                          ),
-                                        ),
+                                        trackThickness: 10.0,
                                       ),
                                     ],
                                     loadingBannerBuilder: (context,

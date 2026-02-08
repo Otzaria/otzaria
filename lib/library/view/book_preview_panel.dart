@@ -11,6 +11,7 @@ import 'package:otzaria/settings/settings_state.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria/widgets/password_dialog.dart';
+import 'package:otzaria/pdf_book/pdf_scrollbar.dart';
 
 /// פאנל תצוגה מקדימה של ספר בספרייה
 /// מציג את תוכן הספר בלי כרטיסיות, בדומה לחלון העיון
@@ -188,21 +189,17 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                 // נקרא אותו ישירות מה-controller כשנצטרך
               },
               viewerOverlayBuilder: (context, size, handleLinkTap) => [
-                // פס גלילה אנכי בצד ימין עם מספר עמוד
-                PdfViewerScrollThumb(
+                // פס גלילה אנכי עם track מלא
+                PdfScrollbar(
                   controller: _pdfController!,
                   orientation: ScrollbarOrientation.right,
-                  thumbSize: const Size(40, 25),
-                  thumbBuilder: (context, thumbSize, pageNumber, controller) =>
-                      Container(
-                    color: Colors.black,
-                    child: Center(
-                      child: Text(
-                        pageNumber.toString(),
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                    ),
-                  ),
+                  trackThickness: 16.0,
+                  thumbMinSize: 50.0,
+                ),
+                // פס גלילה אופקי דינמי
+                PdfHorizontalScrollbar(
+                  controller: _pdfController!,
+                  trackThickness: 10.0,
                 ),
               ],
             ),
