@@ -36,6 +36,7 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
     on<RenameWorkspace>(_onRenameWorkspace);
     on<ClearWorkspaces>(_onClearWorkspaces);
     on<UpdateCurrentWorkspaceTabs>(_onUpdateCurrentWorkspaceTabs);
+    on<MoveTabToWorkspace>(_onMoveTabToWorkspace);
   }
 
   void _onLoadWorkspaces(LoadWorkspaces event, Emitter<WorkspaceState> emit) {
@@ -214,6 +215,38 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
       emit(state.copyWith(workspaces: updatedWorkspaces));
     } catch (e) {
       emit(state.copyWith(error: 'Failed to update workspace tabs: $e'));
+    }
+  }
+
+  void _onMoveTabToWorkspace(
+      MoveTabToWorkspace event, Emitter<WorkspaceState> emit) {
+    try {
+      final currentId = state.activeWorkspaceId;
+      if (currentId == null) return;
+
+      // מעדכן את שני שולחנות העבודה:
+      // 1. מסיר את הטאב משולחן העבודה הנוכחי
+      // 2. מוסיף את הטאב לשולחן העבודה היעד
+      final updatedWorkspaces = state.workspaces.map((w) {
+        if (w.id == currentId) {
+          // מסיר את הטאב משולחן העבודה הנוכחי
+          return w.copyWith(
+            tabs: event.currentTabs,
+            activeTabIndex: event.currentTabIndex,
+          );
+        } else if (w.id == event.targetWorkspaceId) {
+          // מוסיף את הטאב לשולחן העבודה היעד
+          return w.copyWith(
+            tabs: [...w.tabs, event.tab],
+          );
+        }
+        return w;
+      }).toList();
+
+      _repository.saveWorkspaces(updatedWorkspaces, currentId);
+      emit(state.copyWith(workspaces: updatedWorkspaces));
+    } catch (e) {
+      emit(state.copyWith(error: 'Failed to move tab to workspace: $e'));
     }
   }
 }

@@ -29,6 +29,9 @@ import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:flutter_context_menu/flutter_context_menu.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
+import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
+import 'package:otzaria/workspaces/bloc/workspace_event.dart';
+import 'package:otzaria/core/scaffold_messenger.dart';
 
 class CustomTitleBar extends StatefulWidget {
   const CustomTitleBar({super.key});
@@ -532,7 +535,8 @@ class _CustomTitleBarState extends State<CustomTitleBar>
             MenuItem.submenu(
               label: const Text('כרטיסיות פתוחות '),
               items: _getMenuItems(state.tabs, context),
-            )
+            ),
+            _buildMoveToWorkspaceMenuItem(context, tab)
           ],
         ),
         child: Draggable<OpenedTab>(
@@ -703,6 +707,72 @@ class _CustomTitleBarState extends State<CustomTitleBar>
         ),
       ),
     );
+  }
+
+  /// בונה פריט תפריט להעברת טאב לשולחן עבודה אחר
+  ContextMenuEntry _buildMoveToWorkspaceMenuItem(
+      BuildContext context, OpenedTab tab) {
+    final workspaceState = context.read<WorkspaceBloc>().state;
+
+    // מסנן את שולחנות העבודה - מציג רק את אלו שאינם שולחן העבודה הנוכחי
+    final otherWorkspaces = workspaceState.workspaces
+        .where((w) => w.id != workspaceState.activeWorkspaceId)
+        .toList();
+
+    // אם אין שולחנות עבודה אחרים, מציג פריט מושבת
+    if (otherWorkspaces.isEmpty) {
+      return MenuItem(
+        label: const Text('העבר לשולחן עבודה'),
+        enabled: false,
+        onSelected: (_) {},
+      );
+    }
+
+    // בונה תת-תפריט עם כל שולחנות העבודה האחרים
+    return MenuItem.submenu(
+      label: const Text('העבר לשולחן עבודה'),
+      items: otherWorkspaces.map((workspace) {
+        return MenuItem(
+          label: Text(workspace.name),
+          onSelected: (_) {
+            _moveTabToWorkspace(context, tab, workspace.id);
+          },
+        );
+      }).toList(),
+    );
+  }
+
+  /// מעביר טאב לשולחן עבודה אחר
+  void _moveTabToWorkspace(
+      BuildContext context, OpenedTab tab, String targetWorkspaceId) {
+    final tabsBloc = context.read<TabsBloc>();
+    final workspaceBloc = context.read<WorkspaceBloc>();
+    final tabsState = tabsBloc.state;
+    final workspaceState = workspaceBloc.state;
+
+    // מוצא את שולחן העבודה היעד
+    final targetWorkspace =
+        workspaceState.workspaces.firstWhere((w) => w.id == targetWorkspaceId);
+
+    // מסיר את הטאב מה-UI
+    tabsBloc.add(RemoveTab(tab));
+
+    // מחשב את הטאבים והאינדקס החדשים
+    final currentTabs = tabsState.tabs.where((t) => t != tab).toList();
+    final newActiveIndex = currentTabs.isEmpty
+        ? 0
+        : tabsState.currentTabIndex.clamp(0, currentTabs.length - 1);
+
+    // שולח event להעברת הטאב
+    workspaceBloc.add(MoveTabToWorkspace(
+      tab: tab,
+      targetWorkspaceId: targetWorkspaceId,
+      currentTabs: currentTabs,
+      currentTabIndex: newActiveIndex,
+    ));
+
+    // מציג הודעה למשתמש
+    UiSnack.show('הכרטיסיה הועברה לשולחן העבודה "${targetWorkspace.name}"');
   }
 
   List<ContextMenuEntry> _getMenuItems(

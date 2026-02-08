@@ -105,3 +105,22 @@ class UpdateCurrentWorkspaceTabs extends WorkspaceEvent {
   @override
   List<Object?> get props => [tabs, activeTabIndex];
 }
+
+/// Event to move a tab from current workspace to another workspace.
+class MoveTabToWorkspace extends WorkspaceEvent {
+  final OpenedTab tab;
+  final String targetWorkspaceId;
+  final List<OpenedTab> currentTabs;
+  final int currentTabIndex;
+
+  const MoveTabToWorkspace({
+    required this.tab,
+    required this.targetWorkspaceId,
+    required this.currentTabs,
+    required this.currentTabIndex,
+  });
+
+  @override
+  List<Object?> get props =>
+      [tab, targetWorkspaceId, currentTabs, currentTabIndex];
+}
