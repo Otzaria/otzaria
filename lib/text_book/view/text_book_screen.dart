@@ -728,8 +728,18 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
   void _openLeftPaneTab(int index) {
     context.read<TextBookBloc>().add(const ToggleLeftPane(true));
+
+    // טיפול מיוחד לאינדקס 1 - אם זה אמור להיות חיפוש
+    // צריך לבדוק אם יש כותרות חלופיות
+    int targetIndex = index;
+    if (index == 1) {
+      // אם מבקשים אינדקס 1, זה יכול להיות חיפוש או כותרות
+      // נבדוק אם יש כותרות חלופיות - אם כן, חיפוש הוא באינדקס 2
+      targetIndex = _hasAltTitles ? 2 : 1;
+    }
+
     // וידוא שהאינדקס תקף לפני הגדרה
-    final validIndex = index.clamp(0, tabController.length - 1);
+    final validIndex = targetIndex.clamp(0, tabController.length - 1);
     tabController.index = validIndex;
   }
 
