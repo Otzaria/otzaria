@@ -199,6 +199,32 @@ class SqliteDataProvider {
     }
   }
 
+  /// Retrieves source name for a book from DB source table.
+  Future<String?> getBookSourceNameFromDb(String title,
+      [int? categoryId, String? fileType]) async {
+    if (!_isInitialized) {
+      await initialize();
+    }
+    if (!_isInitialized) return null;
+
+    try {
+      migration.Book? book;
+      if (categoryId != null && fileType != null) {
+        book = await _repository.getBookByTitleCategoryAndFileType(
+            title, categoryId, fileType);
+      } else {
+        book = await _repository.getBookByTitle(title);
+      }
+
+      if (book == null) return null;
+      final source = await _repository.getSourceById(book.sourceId);
+      return source?.name;
+    } catch (e) {
+      debugPrint('Error getting book source name from database: $e');
+      return null;
+    }
+  }
+
   /// Retrieves PDF bytes from the database (book_file) for a given PDF book.
   /// Returns null if not found or DB not initialized.
   Future<Uint8List?> getPdfBytesFromDb(PdfBook book) async {

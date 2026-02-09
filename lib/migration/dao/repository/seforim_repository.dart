@@ -842,6 +842,14 @@ class SeforimRepository {
 
   // --- Sources ---
 
+  /// Returns a Source by id, or null if not found.
+  Future<Source?> getSourceById(int id) async {
+    final db = await _database.database;
+    final result = await db.rawQuery('SELECT * FROM source WHERE id = ?', [id]);
+    if (result.isEmpty) return null;
+    return Source.fromJson(result.first);
+  }
+
   /// Returns a Source by name, or null if not found.
   Future<Source?> getSourceByName(String name) async {
     final db = await _database.database;

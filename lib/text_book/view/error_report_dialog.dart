@@ -9,6 +9,7 @@ import 'package:otzaria/settings/settings_repository.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/models/phone_report_data.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/services/data_collection_service.dart';
 import 'package:otzaria/services/phone_report_service.dart';
 import 'package:otzaria/services/sources_books_service.dart';
@@ -337,6 +338,21 @@ class ErrorReportHelper {
     return parts.join('/');
   }
 
+  /// מעשיר "תיקיית המקור" מה-DB (טבלת source) כאשר SourcesBooks לא מספק מידע אמין.
+  static Future<Map<String, String>> enrichBookSourceFromDatabase({
+    required Map<String, String> baseDetails,
+    required Book stateBook,
+  }) async {
+    final details = Map<String, String>.from(baseDetails);
+    final dbSource =
+        await SqliteDataProvider.instance.getBookSourceNameFromDb(stateBook.title);
+
+    if (dbSource != null && dbSource.trim().isNotEmpty && dbSource != 'null') {
+      details['תיקיית המקור'] = dbSource;
+    }
+    return details;
+  }
+
   /// Build email body for error report
   static String buildEmailBody(
     String bookTitle,
@@ -624,6 +640,7 @@ $detailsSection
 
     if (action == ErrorReportAction.sendEmail) {
       final String? sourceFolder = bookDetails['תיקיית המקור'];
+      final normalizedSource = sourceFolder?.toLowerCase() ?? '';
 
       // קביעת כתובות המייל לפי מקור הספר
       // סדר המפתחות חשוב כדי לחקות את סדר הבדיקות המקורי
@@ -645,7 +662,9 @@ $detailsSection
       final emailAddress = sourceFolder == null
           ? _fallbackMail
           : sourceToEmailMap.entries
-                  .firstWhereOrNull((entry) => sourceFolder.contains(entry.key))
+                  .firstWhereOrNull(
+                    (entry) => normalizedSource.contains(entry.key.toLowerCase()),
+                  )
                   ?.value ??
               _fallbackMail;
 
@@ -750,8 +769,12 @@ $detailsSection
           currentLineNumber,
           state.book.tableOfContents,
         );
-        final bookDetails = enrichBookDetailsFromStateBook(
+        final enrichedBookDetails = enrichBookDetailsFromStateBook(
           baseDetails: SourcesBooksService().getBookDetails(bookTitle),
+          stateBook: state.book,
+        );
+        final bookDetails = await enrichBookSourceFromDatabase(
+          baseDetails: enrichedBookDetails,
           stateBook: state.book,
         );
 

@@ -2,41 +2,43 @@ import 'package:flutter/material.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/services/sources_books_service.dart';
 import 'package:otzaria/core/scaffold_messenger.dart';
+import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// המרת שם המקור לטקסט מתאים עם קישור
 Map<String, String> getSourceDisplayInfo(String source) {
-  switch (source) {
-    case 'Ben-Yehuda':
+  final normalized = source.trim().toLowerCase();
+  switch (normalized) {
+    case 'ben-yehuda':
       return {'text': 'פרוייקט בן-יהודה', 'url': 'https://benyehuda.org/'};
-    case 'Dicta':
+    case 'dicta':
       return {'text': 'ספריית דיקטה', 'url': 'https://library.dicta.org.il/'};
-    case 'OnYourWay':
+    case 'onyourway':
       return {'text': 'ובלכתך בדרך', 'url': 'https://mobile.tora.ws/'};
-    case 'Orayta':
+    case 'orayta':
       return {
         'text': 'אורייתא',
         'url': 'https://github.com/MosheWagner/Orayta-Books'
       };
     case 'sefaria':
       return {'text': 'ספריא', 'url': 'https://www.sefaria.org/texts'};
-    case 'MoreBooks':
+    case 'morebooks':
       return {'text': 'ספרים פרטיים או מקורות נוספים', 'url': ''};
     case 'wiki_jewish_books':
       return {
         'text': 'אוצר הספרים היהודי השיתופי',
         'url': 'https://wiki.jewishbooks.org.il/'
       };
-    case 'Tashma':
+    case 'tashma':
       return {'text': 'תא שמע', 'url': 'https://tashma.co.il/'};
-    case 'ToratEmet':
+    case 'toratemet':
       return {
         'text': 'תורת אמת',
         'url': 'http://www.toratemetfreeware.com/index.html?downloads;1;'
       };
-    case 'wikiSource':
+    case 'wikisource':
       return {'text': 'ויקיטקסט', 'url': 'https://he.wikisource.org/wiki'};
-    case 'Pninim':
+    case 'pninim':
       return {'text': 'פנינים', 'url': 'https://pninim.org/'};
     default:
       return {'text': source, 'url': ''};
@@ -51,9 +53,15 @@ Future<void> showBookSourceDialog(
   try {
     debugPrint('Opening book source dialog for: "${state.book.title}"');
 
-    // קבלת פרטי הספר מהשירות (נטען כבר בזיכרון)
+    // מקור הספר: קודם DB, ואם אין - fallback ל-SourcesBooks.csv
+    final dbSource = await SqliteDataProvider.instance
+        .getBookSourceNameFromDb(state.book.title);
     final bookDetails = SourcesBooksService().getBookDetails(state.book.title);
-    final bookSource = bookDetails['תיקיית המקור'] ?? 'לא נמצא מקור';
+    final csvSource = bookDetails['תיקיית המקור'];
+    final bookSource =
+        (dbSource != null && dbSource.trim().isNotEmpty && dbSource != 'null')
+            ? dbSource
+            : (csvSource ?? 'לא נמצא מקור');
 
     // קבלת מידע התצוגה עבור המקור
     final sourceInfo = getSourceDisplayInfo(bookSource);
