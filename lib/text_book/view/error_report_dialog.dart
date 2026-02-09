@@ -8,6 +8,7 @@ import 'package:otzaria/core/scaffold_messenger.dart';
 import 'package:otzaria/settings/settings_repository.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/models/phone_report_data.dart';
+import 'package:otzaria/models/books.dart';
 import 'package:otzaria/services/data_collection_service.dart';
 import 'package:otzaria/services/phone_report_service.dart';
 import 'package:otzaria/services/sources_books_service.dart';
@@ -63,6 +64,7 @@ class ErrorReportHelper {
   static const String _reportSeparator = '==============================';
   static const String _reportSeparator2 = '------------------------------';
   static const String _fallbackMail = 'otzaria.200@gmail.com';
+  static const String _bookNotFoundText = 'לא ניתן למצוא את הספר';
 
   /// Build 4+4 words context around a selection range within fullText
   static String buildContextAroundSelection(
@@ -239,6 +241,100 @@ class ErrorReportHelper {
       searchFrom = found + pattern.length;
     }
     return indices;
+  }
+
+  /// מעשיר שם/נתיב קובץ על בסיס נתוני הספר מה-state כאשר SourcesBooks חסר.
+  /// לא משנה את "תיקיית המקור".
+  static Map<String, String> enrichBookDetailsFromStateBook({
+    required Map<String, String> baseDetails,
+    required Book stateBook,
+  }) {
+    final details = Map<String, String>.from(baseDetails);
+
+    final hasMissingFileName = _isMissingBookDetail(details['שם הקובץ']);
+    final hasMissingFilePath = _isMissingBookDetail(details['נתיב הקובץ']);
+    if (!hasMissingFileName && !hasMissingFilePath) {
+      return details;
+    }
+
+    final inferredFileName = _inferFileName(stateBook);
+    final inferredFilePath = _inferFilePath(stateBook, inferredFileName);
+
+    if (hasMissingFileName && inferredFileName != null) {
+      details['שם הקובץ'] = inferredFileName;
+    }
+    if (hasMissingFilePath && inferredFilePath != null) {
+      details['נתיב הקובץ'] = inferredFilePath;
+    }
+
+    return details;
+  }
+
+  static bool _isMissingBookDetail(String? value) {
+    if (value == null) return true;
+    final normalized = value.trim();
+    return normalized.isEmpty || normalized == _bookNotFoundText;
+  }
+
+  static String? _inferFileName(Book book) {
+    final bookFilePath = book.filePath?.trim();
+    if (bookFilePath != null && bookFilePath.isNotEmpty) {
+      final normalized = bookFilePath.replaceAll('\\', '/');
+      final slashIndex = normalized.lastIndexOf('/');
+      if (slashIndex >= 0 && slashIndex < normalized.length - 1) {
+        return normalized.substring(slashIndex + 1);
+      }
+      return normalized;
+    }
+
+    final title = book.title.trim();
+    if (title.isEmpty) return null;
+
+    final fileType = (book.fileType ?? 'txt').trim();
+    if (fileType.isEmpty) return title;
+
+    final suffix = '.$fileType';
+    if (title.toLowerCase().endsWith(suffix.toLowerCase())) {
+      return title;
+    }
+    return '$title$suffix';
+  }
+
+  static String? _inferFilePath(Book book, String? inferredFileName) {
+    final bookFilePath = book.filePath?.trim();
+    if (bookFilePath != null && bookFilePath.isNotEmpty) {
+      return bookFilePath;
+    }
+
+    if (inferredFileName == null || inferredFileName.isEmpty) {
+      return null;
+    }
+
+    final normalizedCategoryPath = _normalizeCategoryPath(book.categoryPath);
+    if (normalizedCategoryPath == null || normalizedCategoryPath.isEmpty) {
+      return inferredFileName;
+    }
+
+    return 'אוצריא/$normalizedCategoryPath/$inferredFileName';
+  }
+
+  static String? _normalizeCategoryPath(String? rawCategoryPath) {
+    if (rawCategoryPath == null) return null;
+    final trimmed = rawCategoryPath.trim();
+    if (trimmed.isEmpty) return null;
+
+    final slashNormalized = trimmed
+        .replaceAll('\\', '/')
+        .replaceAll(', ', '/')
+        .replaceAll(',', '/');
+    final parts = slashNormalized
+        .split('/')
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList();
+
+    if (parts.isEmpty) return null;
+    return parts.join('/');
   }
 
   /// Build email body for error report
@@ -654,7 +750,10 @@ $detailsSection
           currentLineNumber,
           state.book.tableOfContents,
         );
-        final bookDetails = SourcesBooksService().getBookDetails(bookTitle);
+        final bookDetails = enrichBookDetailsFromStateBook(
+          baseDetails: SourcesBooksService().getBookDetails(bookTitle),
+          stateBook: state.book,
+        );
 
         // ביצוע הפעולה שנבחרה
         if (result.action == ErrorReportAction.sendEmail ||

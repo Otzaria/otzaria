@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/models/books.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
 
 void main() {
@@ -331,6 +332,61 @@ void main() {
 
       expect(result.selectionStart, greaterThan(-1));
       expect(result.usedLineFallback, isFalse);
+    });
+  });
+
+  group('ErrorReportHelper.enrichBookDetailsFromStateBook', () {
+    test('should fill missing file name and path from category path', () {
+      final baseDetails = {
+        'שם הקובץ': 'לא ניתן למצוא את הספר',
+        'נתיב הקובץ': 'לא ניתן למצוא את הספר',
+        'תיקיית המקור': 'לא ניתן למצוא את הספר',
+      };
+
+      final book = TextBook(
+        title: 'ביאור הרד"ל על פרקי דרבי אליעזר',
+        categoryPath: 'מחשבת ישראל, ספרים קדומים',
+        fileType: 'txt',
+      );
+
+      final details = ErrorReportHelper.enrichBookDetailsFromStateBook(
+        baseDetails: baseDetails,
+        stateBook: book,
+      );
+
+      expect(details['שם הקובץ'], equals('ביאור הרד"ל על פרקי דרבי אליעזר.txt'));
+      expect(
+        details['נתיב הקובץ'],
+        equals(
+            'אוצריא/מחשבת ישראל/ספרים קדומים/ביאור הרד"ל על פרקי דרבי אליעזר.txt'),
+      );
+      expect(details['תיקיית המקור'], equals('לא ניתן למצוא את הספר'));
+    });
+
+    test('should prefer existing absolute file path from state book', () {
+      final baseDetails = {
+        'שם הקובץ': 'לא ניתן למצוא את הספר',
+        'נתיב הקובץ': 'לא ניתן למצוא את הספר',
+        'תיקיית המקור': 'מקור כלשהו',
+      };
+
+      final book = TextBook(
+        title: 'ספר לדוגמה',
+        filePath: '/library/אוצריא/בדיקות/ספר לדוגמה.txt',
+        fileType: 'txt',
+      );
+
+      final details = ErrorReportHelper.enrichBookDetailsFromStateBook(
+        baseDetails: baseDetails,
+        stateBook: book,
+      );
+
+      expect(details['שם הקובץ'], equals('ספר לדוגמה.txt'));
+      expect(
+        details['נתיב הקובץ'],
+        equals('/library/אוצריא/בדיקות/ספר לדוגמה.txt'),
+      );
+      expect(details['תיקיית המקור'], equals('מקור כלשהו'));
     });
   });
 }
