@@ -125,7 +125,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
         appBar: AppBar(
           leading: widget.onBack != null
               ? IconButton(
-                  icon: const Icon(FluentIcons.arrow_right_24_regular),
+                  icon: const Icon(FluentIcons.arrow_left_24_regular),
                   onPressed: widget.onBack,
                   tooltip: 'חזרה',
                 )

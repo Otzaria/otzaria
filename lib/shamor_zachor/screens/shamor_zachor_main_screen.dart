@@ -45,11 +45,18 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
 
   void _navigateToBook(String category, String book, BookDetails details) {
     setState(() {
-      _selectedCategoryName = category;
+      // שמירת הקטגוריה הנוכחית לפני המעבר לספר
+      // כדי שנוכל לחזור אליה אחר כך
+      if (_selectedTopLevelName == null && _selectedCategoryName == null) {
+        // אם לא נבחרה קטגוריה, זה אומר שאנחנו ב"כל הספרים"
+        _selectedTopLevelName = 'all_books_virtual';
+        _selectedCategoryName = 'כל הספרים';
+      }
+
       _selectedBookName = book;
       _selectedBookDetails = details;
-      // Set topLevelName to category for proper lookup
-      _selectedTopLevelName = category;
+      // לא משנים את _selectedTopLevelName ו-_selectedCategoryName
+      // כדי שנוכל לחזור אליהם
     });
     _notifyTitleChange();
   }
