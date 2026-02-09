@@ -15,11 +15,13 @@ import 'package:pdfrx/pdfrx.dart';
 
 class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
   final HistoryRepository _repository;
+  String? _currentWorkspaceName;
   Timer? _debounce;
   final Map<String, Bookmark> _pendingSnapshots = {};
 
   HistoryBloc(this._repository) : super(HistoryInitial()) {
     on<LoadHistory>(_onLoadHistory);
+    on<SetCurrentWorkspaceName>(_onSetCurrentWorkspaceName);
     on<AddHistory>(_onAddHistory);
     on<BulkAddHistory>(_onBulkAddHistory);
     on<RemoveHistory>(_onRemoveHistory);
@@ -63,6 +65,8 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
   }
 
   Future<Bookmark?> _bookmarkFromTab(OpenedTab tab) async {
+    final workspaceName = _currentWorkspaceName;
+
     if (tab is SearchingTab) {
       final searchingTab = tab;
       final text = searchingTab.queryController.text;
@@ -78,6 +82,7 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
         searchOptions: searchingTab.searchOptions,
         alternativeWords: searchingTab.alternativeWords,
         spacingValues: searchingTab.spacingValues,
+        workspaceName: workspaceName,
       );
     }
 
@@ -94,6 +99,7 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
           book: blocState.book,
           index: index,
           commentatorsToShow: blocState.activeCommentators,
+          workspaceName: workspaceName,
         );
       }
     } else if (tab is PdfBookTab) {
@@ -118,6 +124,7 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
         ref: ref,
         book: tab.book,
         index: page,
+        workspaceName: workspaceName,
       );
     }
     return null;
@@ -258,6 +265,11 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
     } catch (e) {
       emit(HistoryError(state.history, e.toString()));
     }
+  }
+
+  void _onSetCurrentWorkspaceName(
+      SetCurrentWorkspaceName event, Emitter<HistoryState> emit) {
+    _currentWorkspaceName = event.workspaceName;
   }
 
   Future<void> _onAddHistory(

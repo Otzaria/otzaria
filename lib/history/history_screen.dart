@@ -117,6 +117,7 @@ class HistoryView extends StatelessWidget {
           clearAllText: 'מחק את כל ההיסטוריה',
           leadingIconBuilder: (item) =>
               _getLeadingIcon(item.book, item.isSearch),
+          subtitleBuilder: (item) => item.workspaceName,
         );
       },
     );

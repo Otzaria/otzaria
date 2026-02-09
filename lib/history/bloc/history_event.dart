@@ -5,6 +5,11 @@ abstract class HistoryEvent {}
 
 class LoadHistory extends HistoryEvent {}
 
+class SetCurrentWorkspaceName extends HistoryEvent {
+  final String? workspaceName;
+  SetCurrentWorkspaceName(this.workspaceName);
+}
+
 class AddHistory extends HistoryEvent {
   final OpenedTab tab;
   AddHistory(this.tab);

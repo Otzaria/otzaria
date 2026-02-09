@@ -12,6 +12,7 @@ class ItemsListView extends StatefulWidget {
   final String notFoundText;
   final String clearAllText;
   final Widget? Function(dynamic item)? leadingIconBuilder;
+  final String? Function(dynamic item)? subtitleBuilder;
 
   const ItemsListView({
     super.key,
@@ -24,6 +25,7 @@ class ItemsListView extends StatefulWidget {
     required this.notFoundText,
     required this.clearAllText,
     this.leadingIconBuilder,
+    this.subtitleBuilder,
   });
 
   @override
@@ -107,15 +109,50 @@ class _ItemsListViewState extends State<ItemsListView> {
                   itemBuilder: (context, index) {
                     final item = filteredItems[index];
                     final originalIndex = widget.items.indexOf(item);
-                    return ListTile(
-                      leading: widget.leadingIconBuilder?.call(item),
-                      title: Text(item.ref),
+                    final centerText = widget.subtitleBuilder?.call(item);
+                    return InkWell(
                       onTap: () =>
                           widget.onItemTap(context, item, originalIndex),
-                      trailing: IconButton(
-                        icon: const Icon(FluentIcons.delete_24_regular),
-                        onPressed: () =>
-                            widget.onDelete(context, originalIndex),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16.0, vertical: 12.0),
+                        child: Row(
+                          children: [
+                            if (widget.leadingIconBuilder?.call(item) != null)
+                              Padding(
+                                padding: const EdgeInsets.only(left: 12.0),
+                                child: widget.leadingIconBuilder!.call(item),
+                              ),
+                            Expanded(
+                              child: Text(
+                                item.ref,
+                                style: const TextStyle(fontSize: 16),
+                                textDirection: TextDirection.rtl,
+                              ),
+                            ),
+                            if (centerText != null)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16.0),
+                                child: Text(
+                                  centerText,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface
+                                        .withValues(alpha: 0.6),
+                                  ),
+                                  textDirection: TextDirection.rtl,
+                                ),
+                              ),
+                            IconButton(
+                              icon: const Icon(FluentIcons.delete_24_regular),
+                              onPressed: () =>
+                                  widget.onDelete(context, originalIndex),
+                            ),
+                          ],
+                        ),
                       ),
                     );
                   },

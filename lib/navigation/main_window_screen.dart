@@ -36,6 +36,10 @@ import 'package:otzaria/navigation/custom_title_bar.dart';
 import 'package:otzaria/migration/sync/background_sync_initializer.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
+import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
+import 'package:otzaria/workspaces/bloc/workspace_state.dart';
+import 'package:otzaria/history/bloc/history_bloc.dart';
+import 'package:otzaria/history/bloc/history_event.dart';
 
 class MainWindowScreen extends StatefulWidget {
   const MainWindowScreen({super.key});
@@ -344,6 +348,22 @@ class MainWindowScreenState extends State<MainWindowScreen>
           listenWhen: (previous, current) =>
               previous.currentScreen != current.currentScreen,
           listener: _handleNavigationChange,
+        ),
+        BlocListener<WorkspaceBloc, WorkspaceState>(
+          listenWhen: (previous, current) =>
+              previous.activeWorkspaceId != current.activeWorkspaceId ||
+              (previous.isLoading && !current.isLoading),
+          listener: (context, state) {
+            // עדכון שם שולחן העבודה הנוכחי ב-HistoryBloc
+            final currentId = state.activeWorkspaceId;
+            if (currentId != null) {
+              final workspace =
+                  state.workspaces.firstWhere((w) => w.id == currentId);
+              context.read<HistoryBloc>().add(
+                    SetCurrentWorkspaceName(workspace.name),
+                  );
+            }
+          },
         ),
         BlocListener<SettingsBloc, SettingsState>(
           listenWhen: (previous, current) {
