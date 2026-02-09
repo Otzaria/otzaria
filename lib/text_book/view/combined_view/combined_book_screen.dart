@@ -45,7 +45,7 @@ class CombinedView extends StatefulWidget {
 
   final List<String> data;
   final Function(OpenedTab) openBookCallback;
-  final void Function(int) openLeftPaneTab;
+  final void Function(int, {String? searchText}) openLeftPaneTab;
   final double textSize;
   final bool showCommentaryAsExpansionTiles;
   final TextBookTab tab;
@@ -309,7 +309,8 @@ class _CombinedViewState extends State<CombinedView> {
         ctx.MenuItem(
             label: const Text('חיפוש'),
             icon: const Icon(FluentIcons.search_24_regular),
-            onSelected: (_) => widget.openLeftPaneTab(1)),
+            onSelected: (_) =>
+                widget.openLeftPaneTab(1, searchText: selectedText)),
         ctx.MenuItem.submenu(
           label: const Text('מפרשים'),
           icon: const Icon(FluentIcons.book_24_regular),

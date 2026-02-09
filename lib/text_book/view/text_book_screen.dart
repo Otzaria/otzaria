@@ -726,7 +726,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     super.dispose();
   }
 
-  void _openLeftPaneTab(int index) {
+  void _openLeftPaneTab(int index, {String? searchText}) {
     context.read<TextBookBloc>().add(const ToggleLeftPane(true));
 
     // טיפול מיוחד לאינדקס 1 - אם זה אמור להיות חיפוש
@@ -736,11 +736,25 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       // אם מבקשים אינדקס 1, זה יכול להיות חיפוש או כותרות
       // נבדוק אם יש כותרות חלופיות - אם כן, חיפוש הוא באינדקס 2
       targetIndex = _hasAltTitles ? 2 : 1;
+
+      // אם זה חיפוש ויש טקסט, נעדכן את טקסט החיפוש
+      if (searchText != null && searchText.trim().isNotEmpty) {
+        context.read<TextBookBloc>().add(UpdateSearchText(searchText.trim()));
+      }
     }
 
     // וידוא שהאינדקס תקף לפני הגדרה
     final validIndex = targetIndex.clamp(0, tabController.length - 1);
     tabController.index = validIndex;
+
+    // אם זה חיפוש, נתן פוקוס לשדה החיפוש
+    if (targetIndex == (_hasAltTitles ? 2 : 1)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          textSearchFocusNode.requestFocus();
+        }
+      });
+    }
   }
 
   @override

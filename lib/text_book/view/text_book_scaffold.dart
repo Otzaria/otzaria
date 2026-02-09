@@ -12,7 +12,7 @@ import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
 class TextBookScaffold extends StatelessWidget {
   final List<String> content;
   final Function(OpenedTab) openBookCallback;
-  final void Function(int) openLeftPaneTab;
+  final void Function(int, {String? searchText}) openLeftPaneTab;
   final TextEditingValue searchTextController;
   final TextBookTab tab;
   final int? initialSidebarTabIndex;

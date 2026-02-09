@@ -6,7 +6,7 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 class TextBookViewConfig {
   final List<String> content;
   final Function(OpenedTab) openBookCallback;
-  final void Function(int) openLeftPaneTab;
+  final void Function(int, {String? searchText}) openLeftPaneTab;
   final TextEditingValue searchTextController;
   final TextBookTab tab;
   final int? initialSidebarTabIndex;

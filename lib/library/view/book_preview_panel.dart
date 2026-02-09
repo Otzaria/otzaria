@@ -344,7 +344,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                         data: state.content,
                         textSize: _fontSize,
                         openBookCallback: (tab) {},
-                        openLeftPaneTab: (index) {},
+                        openLeftPaneTab: (index, {String? searchText}) {},
                         showCommentaryAsExpansionTiles: false,
                         tab: _currentTextTab!,
                         isPreviewMode: true,

@@ -112,6 +112,25 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     });
   }
 
+  @override
+  void didUpdateWidget(TextBookSearchView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // עדכון שדה החיפוש אם initialQuery השתנה
+    if (widget.initialQuery != oldWidget.initialQuery) {
+      searchTextController.text = widget.initialQuery;
+
+      // הרצת חיפוש אם יש טקסט חדש
+      if (widget.initialQuery.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _searchTextUpdated();
+          }
+        });
+      }
+    }
+  }
+
   Future<void> _initializeBookPath() async {
     if (!mounted) return;
     final state = context.read<TextBookBloc>().state;

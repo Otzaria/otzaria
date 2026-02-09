@@ -33,7 +33,7 @@ class SplitedViewScreen extends StatefulWidget {
   final List<String> content;
   final void Function(OpenedTab) openBookCallback;
   final TextEditingValue searchTextController;
-  final void Function(int) openLeftPaneTab;
+  final void Function(int, {String? searchText}) openLeftPaneTab;
   final TextBookTab tab;
   final int? initialTabIndex;
   final bool showSplitView;
@@ -203,7 +203,8 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
         ),
         MenuItem(
             label: const Text('חיפוש'),
-            onSelected: (_) => widget.openLeftPaneTab(1)),
+            onSelected: (_) =>
+                widget.openLeftPaneTab(1, searchText: selectedText)),
         MenuItem(
           label: const Text('דווח על טעות בספר'),
           icon: const Icon(FluentIcons.error_circle_24_regular),
