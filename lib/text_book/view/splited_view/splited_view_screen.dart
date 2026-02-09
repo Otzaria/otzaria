@@ -25,6 +25,7 @@ class SplitedViewScreen extends StatefulWidget {
     required this.openBookCallback,
     required this.searchTextController,
     required this.openLeftPaneTab,
+    this.onSelectedTextChanged,
     required this.tab,
     this.initialTabIndex, // אינדקס הכרטיסייה הראשונית
     required this.showSplitView, // האם להציג בתצוגה מפוצלת
@@ -34,6 +35,7 @@ class SplitedViewScreen extends StatefulWidget {
   final void Function(OpenedTab) openBookCallback;
   final TextEditingValue searchTextController;
   final void Function(int, {String? searchText}) openLeftPaneTab;
+  final ValueChanged<String?>? onSelectedTextChanged;
   final TextBookTab tab;
   final int? initialTabIndex;
   final bool showSplitView;
@@ -271,6 +273,7 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                       textSize: state.fontSize,
                       openBookCallback: widget.openBookCallback,
                       openLeftPaneTab: widget.openLeftPaneTab,
+                      onSelectedTextChanged: widget.onSelectedTextChanged,
                       showCommentaryAsExpansionTiles: !widget.showSplitView,
                       tab: widget.tab,
                       onOpenPersonalNotes: () {

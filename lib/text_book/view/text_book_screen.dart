@@ -88,6 +88,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   bool _isInitialFocusDone = false;
   FocusRepository? _focusRepository; // שמירת הפניה לשימוש ב-dispose
   final GlobalKey _viewModeMenuKey = GlobalKey(); // מפתח לתפריט בחירת התצוגה
+  String? _selectedTextForSearch;
 
   // Key עבור PageShapeScreen - שינוי המפתח יגרום לבנייה מחדש
   Key _pageShapeKey = UniqueKey();
@@ -757,6 +758,14 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     }
   }
 
+  void _onSelectedTextChanged(String? selectedText) {
+    _selectedTextForSearch = selectedText;
+  }
+
+  void _openSearchFromToolbar() {
+    _openLeftPaneTab(1, searchText: _selectedTextForSearch);
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<SettingsBloc, SettingsState>(
@@ -1307,11 +1316,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         widget: _buildSearchButton(context, state),
         icon: FluentIcons.search_24_regular,
         tooltip: 'חיפוש',
-        onPressed: () {
-          context.read<TextBookBloc>().add(const ToggleLeftPane(true));
-          tabController.index = _hasAltTitles ? 2 : 1;
-          textSearchFocusNode.requestFocus();
-        },
+        onPressed: _openSearchFromToolbar,
       ),
 
       // 5) Zoom In Button
@@ -1766,11 +1771,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     final shortcut =
         Settings.getValue<String>('key-shortcut-search-in-book') ?? 'ctrl+f';
     return IconButton(
-      onPressed: () {
-        context.read<TextBookBloc>().add(const ToggleLeftPane(true));
-        tabController.index = _hasAltTitles ? 2 : 1;
-        textSearchFocusNode.requestFocus();
-      },
+      onPressed: _openSearchFromToolbar,
       icon: const Icon(FluentIcons.search_24_regular),
       tooltip: 'חיפוש (${shortcut.toUpperCase()})',
     );
@@ -2250,16 +2251,13 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
               LogicalKeySet(
                 LogicalKeyboardKey.control,
                 LogicalKeyboardKey.keyF,
-              ): () {
-                context.read<TextBookBloc>().add(const ToggleLeftPane(true));
-                tabController.index = _hasAltTitles ? 2 : 1;
-                textSearchFocusNode.requestFocus();
-              },
+              ): _openSearchFromToolbar,
             },
             child: TextBookScaffold(
               content: state.content,
               openBookCallback: widget.openBookCallback,
               openLeftPaneTab: _openLeftPaneTab,
+              onSelectedTextChanged: _onSelectedTextChanged,
               searchTextController: TextEditingValue(text: state.searchText),
               tab: widget.tab,
               initialSidebarTabIndex: _sidebarTabIndex,

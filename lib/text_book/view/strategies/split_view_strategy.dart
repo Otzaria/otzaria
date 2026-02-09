@@ -16,6 +16,7 @@ class SplitViewStrategyImpl extends TextBookViewStrategy {
       openBookCallback: config.openBookCallback,
       searchTextController: config.searchTextController,
       openLeftPaneTab: config.openLeftPaneTab,
+      onSelectedTextChanged: config.onSelectedTextChanged,
       tab: config.tab,
       initialTabIndex: config.initialSidebarTabIndex,
       showSplitView: true, // Split view - panel on the side

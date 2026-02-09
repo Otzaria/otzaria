@@ -38,6 +38,7 @@ class CombinedView extends StatefulWidget {
     required this.textSize,
     required this.showCommentaryAsExpansionTiles,
     required this.tab,
+    this.onSelectedTextChanged,
     this.isPreviewMode = false,
     this.onOpenPersonalNotes,
     this.onOpenCommentatorsPane,
@@ -49,6 +50,7 @@ class CombinedView extends StatefulWidget {
   final double textSize;
   final bool showCommentaryAsExpansionTiles;
   final TextBookTab tab;
+  final ValueChanged<String?>? onSelectedTextChanged;
   final bool isPreviewMode;
   final VoidCallback? onOpenPersonalNotes;
   final VoidCallback? onOpenCommentatorsPane;
@@ -758,6 +760,10 @@ $textWithBreaks
                 if (plain == null || plain.trim().isEmpty) {
                   // אם הבחירה נוקתה, יוצאים ממצב בחירה
                   _selectionManager.exitSelectionMode();
+                  _savedSelectedText.value = null;
+                  _savedSelectedIndex.value = null;
+                  _currentSelectedIndex.value = null;
+                  widget.onSelectedTextChanged?.call(null);
                   return;
                 }
 
@@ -814,6 +820,7 @@ $textWithBreaks
                   _savedSelectedText.value = fixedPlain;
                   _savedSelectedIndex.value = foundIndex;
                   _currentSelectedIndex.value = foundIndex;
+                  widget.onSelectedTextChanged?.call(fixedPlain);
                 }
               },
               child: Directionality(
@@ -864,6 +871,7 @@ $textWithBreaks
                           _savedSelectedText.value = null;
                           _savedSelectedIndex.value = null;
                           _currentSelectedIndex.value = null;
+                          widget.onSelectedTextChanged?.call(null);
                           return null;
                         },
                       ),
@@ -1018,7 +1026,9 @@ $textWithBreaks
               // מאפס את הטקסט השמור כשלוחצים על הפסקה
               if (mounted) {
                 _savedSelectedText.value = null;
+                _savedSelectedIndex.value = null;
                 _currentSelectedIndex.value = null;
+                widget.onSelectedTextChanged?.call(null);
               }
               // פשוט מעדכן את selectedIndex - זה יגרום לבנייה מחדש
               if (isSelected) {

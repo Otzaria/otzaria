@@ -7,6 +7,7 @@ class TextBookViewConfig {
   final List<String> content;
   final Function(OpenedTab) openBookCallback;
   final void Function(int, {String? searchText}) openLeftPaneTab;
+  final ValueChanged<String?>? onSelectedTextChanged;
   final TextEditingValue searchTextController;
   final TextBookTab tab;
   final int? initialSidebarTabIndex;
@@ -17,6 +18,7 @@ class TextBookViewConfig {
     required this.content,
     required this.openBookCallback,
     required this.openLeftPaneTab,
+    this.onSelectedTextChanged,
     required this.searchTextController,
     required this.tab,
     this.initialSidebarTabIndex,

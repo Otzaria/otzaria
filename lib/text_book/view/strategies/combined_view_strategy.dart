@@ -16,6 +16,7 @@ class CombinedViewStrategyImpl extends TextBookViewStrategy {
       openBookCallback: config.openBookCallback,
       searchTextController: config.searchTextController,
       openLeftPaneTab: config.openLeftPaneTab,
+      onSelectedTextChanged: config.onSelectedTextChanged,
       tab: config.tab,
       initialTabIndex: config.initialSidebarTabIndex,
       showSplitView: false, // Combined view - commentaries below
