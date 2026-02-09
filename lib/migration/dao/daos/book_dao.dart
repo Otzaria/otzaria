@@ -19,12 +19,6 @@ class BookDao {
     return result.map((row) => Book.fromJson(row)).toList();
   }
 
-  Future<List<Book>> getBaseBooks() async {
-    final db = await database;
-    final result = await db.rawQuery(_queries['selectBaseBooks']!);
-    return result.map((row) => Book.fromJson(row)).toList();
-  }
-
   /// Gets all books with their relations (authors, topics, pubPlaces, pubDates) in a single optimized query.
   /// This is much faster than calling getAllBooks() and then loading relations separately.
   Future<List<Map<String, dynamic>>> getAllBooksWithRelations() async {

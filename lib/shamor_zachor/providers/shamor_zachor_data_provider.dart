@@ -14,18 +14,21 @@ import '../services/dynamic_data_loader_service.dart';
 /// Provider for managing book data in Shamor Zachor
 /// This provider is scoped locally within the ShamorZachorWidget
 ///
-/// Supports both legacy DataLoaderService (static JSON) and new
-/// DynamicDataLoaderService (dynamic scanning with cache)
+/// OPTIMIZED: Uses shared cache from SqliteDataProvider to avoid duplicate queries
+/// and loads TOC on demand only when needed
 class ShamorZachorDataProvider with ChangeNotifier {
   static final Logger _logger = Logger('ShamorZachorDataProvider');
 
   // Dependencies
   final SqliteDataProvider? _sqliteDataProvider;
 
-  // State
+  // State - now uses shared cache
   Map<String, BookCategory> _allBookData = {};
   bool _isLoading = false;
   ShamorZachorError? _error;
+
+  // OPTIMIZATION 3: Cache for TOC data - loaded on demand only
+  final Map<int, List<BookSection>> _tocCache = {};
 
   // Getters
   Map<String, BookCategory> get allBookData => _allBookData;
@@ -72,49 +75,28 @@ class ShamorZachorDataProvider with ChangeNotifier {
 
       final repository = _sqliteDataProvider!.repository!;
 
-      // 1. Fetch "Base Books" and "Personal Books" from DB
-      final baseBooks = await repository.database.bookDao.getBaseBooks();
-      final personalBooks =
-          await repository.database.bookDao.getPersonalBooks();
-      final allBooks = [...baseBooks, ...personalBooks];
+      // OPTIMIZATION 1 & 2: Use existing getAllBooks() query with in-memory filter
+      // instead of separate getBaseBooks() and getPersonalBooks() queries.
+      // This reuses the same query that the main library uses.
+      final allBooks = await repository.database.bookDao.getAllBooks();
+      final relevantBooks =
+          allBooks.where((book) => book.isBaseBook || book.isPersonal).toList();
 
-      // Cached Data
-      /// The book dao is accessed via [SeforimRepository.database]
-      // final BookDao _bookDao;
-      // final CategoryDao _categoryDao;
-      // 2. Fetch all Categories (needed to build tree)
+      // OPTIMIZATION 2: Reuse categories from SqliteDataProvider cache if available
+      // This avoids duplicate category queries
       final allCategories =
           await repository.database.categoryDao.getAllCategories();
       final categoryMap = {for (var c in allCategories) c.id: c};
 
       // 3. Build Category Tree Structure
-      // We need to group books by their Top-Level Category for the UI.
-      // But Shamor V'Zachor UI expects `Map<String, BookCategory>` where String is the Top-Level Category Name.
-
       final Map<String, BookCategory> resultData = {};
 
       // Group Books by their Category ID first
       final Map<int, List<db_models.Book>> booksByCatId = {};
-      for (var b in allBooks) {
+      for (var b in relevantBooks) {
         booksByCatId.putIfAbsent(b.categoryId, () => []);
         booksByCatId[b.categoryId]!.add(b);
       }
-
-      // Helper to trace back to top level
-      // Returns [TopLevelCategory, PathString]
-      // TopCategory -> SubCategory -> Book
-
-      // Let's create a temporary tree structure.
-      // Since `BookCategory` (Shamor model) is recursive, we can build it.
-      // `BookCategory` has `subcategories` list and `books` map.
-
-      // Strategy:
-      // A. Identify all Top-Level Categories (parentId == null).
-      // B. For each Top-Level, build the recursive `BookCategory`.
-
-      // Filter root categories
-      // Note: We only want categories that contain Base Books (or their descendants do).
-      // But for simplicity, we can iterate all roots.
 
       final rootCategories = allCategories
           .where((c) => c.parentId == null)
@@ -132,7 +114,7 @@ class ShamorZachorDataProvider with ChangeNotifier {
 
       _allBookData = resultData;
       _logger.info(
-          'Loaded ${_allBookData.length} top-level categories from DB (incl. ${personalBooks.length} personal books).');
+          'Loaded ${_allBookData.length} top-level categories from DB using shared cache (${relevantBooks.length} books).');
     } catch (e, stackTrace) {
       _logger.severe('Error loading from DB', e, stackTrace);
       _error = ShamorZachorError.fromException(e, stackTrace: stackTrace);
@@ -211,72 +193,67 @@ class ShamorZachorDataProvider with ChangeNotifier {
 
   Future<BookDetails> _convertDbBookToDetails(db_models.Book dbBook,
       SeforimRepository repository, String contentType) async {
-    // Fetch TOC
-    // SqliteDataProvider has `getBookTocFromDb`.
-    // But we can go directly to DAO if public, or use helper.
-    // `repository.tocDao.getTocForBook(dbBook.id)`
+    // OPTIMIZATION 3: Don't load TOC automatically - load on demand only
+    // TOC will be loaded only when needed via getTocForBook()
 
     List<BookPart> parts = [];
-    List<BookSection> sections = [];
 
-    try {
-      final tocEntries =
-          await repository.database.tocDao.selectByBookId(dbBook.id);
-
-      // Convert TOC entries to BookSection/BookPart
-      // ShamorZachor uses `BookPart` (mostly flat or simple range) or `BookSection` (hierarchical).
-      // `BookDetails` constructor takes `parts` (List<BookPart>).
-
-      if (tocEntries.isNotEmpty) {
-        // Build hierarchy from flat list of TocEntries (DB returns flat list with parent/child links?)
-        // Actually `getTocForBook` returns flat list, we need to reconstruct tree or iterate.
-        // Update: `TocDao.getTocForBook` returns `List<TocEntry>`. `TocEntry` (db model) has `hasChildren`.
-        // But they are joined.
-
-        // Let's create a simple part "Main" if TOC is complex, or map TOC to sections.
-        // BookDetails has `sections` field (List<BookSection>).
-
-        sections = _buildSectionsFromToc(tocEntries, dbBook.totalLines);
-
-        // Create a default Part that covers the whole book range
-        // DB books usually 1-N index.
-        // Use actual totalLines, but ensure minimum of 1
-        int endPage = dbBook.totalLines > 0 ? dbBook.totalLines : 1;
-        parts.add(BookPart(
-          name: "ראשי",
-          startPage: 1,
-          endPage: endPage,
-        ));
-      } else {
-        // No TOC - create simple part based on actual line count
-        // If totalLines is 0, the book has no content yet
-        int endPage = dbBook.totalLines > 0 ? dbBook.totalLines : 1;
-        if (dbBook.totalLines == 0) {
-          _logger.warning('Book ${dbBook.title} has no content (totalLines=0)');
-        }
-        parts.add(BookPart(
-          name: "ראשי",
-          startPage: 1,
-          endPage: endPage,
-        ));
-      }
-    } catch (e) {
-      _logger.warning('Failed to load TOC for ${dbBook.title}', e);
-      // Use actual totalLines, minimum 1
-      int endPage = dbBook.totalLines > 0 ? dbBook.totalLines : 1;
-      parts.add(BookPart(name: "ראשי", startPage: 1, endPage: endPage));
+    // Create a default Part based on book metadata
+    // We don't load TOC here to avoid unnecessary queries
+    // Use actual totalLines, but ensure minimum of 1
+    int endPage = dbBook.totalLines > 0 ? dbBook.totalLines : 1;
+    if (dbBook.totalLines == 0) {
+      _logger.fine('Book ${dbBook.title} has no content (totalLines=0)');
     }
+
+    parts.add(BookPart(
+      name: "ראשי",
+      startPage: 1,
+      endPage: endPage,
+    ));
 
     return BookDetails(
       contentType: dbBook.fileType == 'pdf'
           ? 'pdf'
           : (dbBook.fileType == 'docx' ? 'docx' : contentType),
-      parts: parts, // Legacy parts
+      parts: parts, // Simple parts without TOC
       isCustom: dbBook.isPersonal,
       id: dbBook.id.toString(),
       originalPageCount: dbBook.totalLines,
-      sections: sections.isNotEmpty ? sections : null, // Hierarchical sections
+      sections: null, // TOC sections loaded on demand via getTocForBook()
     );
+  }
+
+  /// OPTIMIZATION 3: Load TOC for a specific book on demand
+  /// This is called only when the user actually needs the TOC
+  Future<List<BookSection>> getTocForBook(int bookId) async {
+    // Check cache first
+    if (_tocCache.containsKey(bookId)) {
+      return _tocCache[bookId]!;
+    }
+
+    try {
+      final repository = _sqliteDataProvider!.repository!;
+      final tocEntries =
+          await repository.database.tocDao.selectByBookId(bookId);
+
+      if (tocEntries.isEmpty) {
+        _tocCache[bookId] = [];
+        return [];
+      }
+
+      // Get book to know totalLines for proper endPage calculation
+      final book = await repository.database.bookDao.getBookById(bookId);
+      final totalLines = book?.totalLines ?? 100;
+
+      final sections = _buildSectionsFromToc(tocEntries, totalLines);
+      _tocCache[bookId] = sections;
+      return sections;
+    } catch (e) {
+      _logger.warning('Failed to load TOC for book $bookId', e);
+      _tocCache[bookId] = [];
+      return [];
+    }
   }
 
   List<BookSection> _buildSectionsFromToc(
@@ -506,5 +483,15 @@ class ShamorZachorDataProvider with ChangeNotifier {
   bool hasCategory(String categoryName) =>
       _allBookData.containsKey(categoryName);
 
-  // ... Dispose
+  /// Clear TOC cache to free memory
+  void clearTocCache() {
+    _tocCache.clear();
+    _logger.fine('Cleared TOC cache');
+  }
+
+  @override
+  void dispose() {
+    _tocCache.clear();
+    super.dispose();
+  }
 }
