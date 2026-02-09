@@ -45,8 +45,11 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
 
   void _navigateToBook(String category, String book, BookDetails details) {
     setState(() {
+      _selectedCategoryName = category;
       _selectedBookName = book;
       _selectedBookDetails = details;
+      // Set topLevelName to category for proper lookup
+      _selectedTopLevelName = category;
     });
     _notifyTitleChange();
   }
@@ -181,6 +184,8 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
                                   _selectedCategoryName!,
                               categoryName: _selectedCategoryName!,
                               bookName: _selectedBookName!,
+                              bookDetails:
+                                  _selectedBookDetails!, // Pass the details directly
                               onBack: () {
                                 setState(() {
                                   _selectedBookName = null;

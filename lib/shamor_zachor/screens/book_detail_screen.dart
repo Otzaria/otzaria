@@ -17,6 +17,8 @@ class BookDetailScreen extends StatefulWidget {
   final String topLevelCategoryKey;
   final String categoryName;
   final String bookName;
+  final BookDetails?
+      bookDetails; // Optional: if provided, use it instead of fetching
   final VoidCallback? onBack;
 
   const BookDetailScreen({
@@ -24,6 +26,7 @@ class BookDetailScreen extends StatefulWidget {
     required this.topLevelCategoryKey,
     required this.categoryName,
     required this.bookName,
+    this.bookDetails,
     this.onBack,
   });
 
@@ -132,12 +135,18 @@ class _BookDetailScreenState extends State<BookDetailScreen>
             Consumer<ShamorZachorProgressProvider>(
               builder: (context, progressProvider, child) {
                 final dataProvider = context.read<ShamorZachorDataProvider>();
-                final bookDetails = dataProvider.getBookDetails(
-                  widget.topLevelCategoryKey,
-                  widget.bookName,
-                );
+                // Use provided bookDetails if available, otherwise fetch from provider
+                final bookDetails = widget.bookDetails ??
+                    dataProvider.getBookDetails(
+                      widget.topLevelCategoryKey,
+                      widget.bookName,
+                    );
 
-                if (bookDetails == null) return const SizedBox.shrink();
+                if (bookDetails == null) {
+                  _logger
+                      .warning('BookDetails not found for ${widget.bookName}');
+                  return const SizedBox.shrink();
+                }
 
                 // חישוב אחוז ההשלמה
                 final learnableItems = bookDetails.learnableItems;
@@ -242,12 +251,16 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                 );
               }
 
-              final bookDetails = dataProvider.getBookDetails(
-                widget.topLevelCategoryKey,
-                widget.bookName,
-              );
+              // Use provided bookDetails if available, otherwise fetch from provider
+              final bookDetails = widget.bookDetails ??
+                  dataProvider.getBookDetails(
+                    widget.topLevelCategoryKey,
+                    widget.bookName,
+                  );
 
               if (bookDetails == null) {
+                _logger.warning(
+                    'BookDetails not found for ${widget.bookName} in category ${widget.topLevelCategoryKey}');
                 return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -258,6 +271,11 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                       Text(
                         'פרטי הספר "${widget.bookName}" לא נמצאו',
                         style: Theme.of(context).textTheme.bodyLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'קטגוריה: ${widget.topLevelCategoryKey}',
+                        style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
                   ),

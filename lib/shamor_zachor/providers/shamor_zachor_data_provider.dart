@@ -240,29 +240,31 @@ class ShamorZachorDataProvider with ChangeNotifier {
 
         // Create a default Part that covers the whole book range
         // DB books usually 1-N index.
-        int endPage =
-            dbBook.totalLines > 0 ? dbBook.totalLines : 100; // Fallback
-        // Actually if we have cached page count?
-        // Let's assume 1 large part.
+        // Use actual totalLines, but ensure minimum of 1
+        int endPage = dbBook.totalLines > 0 ? dbBook.totalLines : 1;
         parts.add(BookPart(
           name: "ראשי",
           startPage: 1,
           endPage: endPage,
         ));
       } else {
-        // No TOC
+        // No TOC - create simple part based on actual line count
+        // If totalLines is 0, the book has no content yet
+        int endPage = dbBook.totalLines > 0 ? dbBook.totalLines : 1;
+        if (dbBook.totalLines == 0) {
+          _logger.warning('Book ${dbBook.title} has no content (totalLines=0)');
+        }
         parts.add(BookPart(
           name: "ראשי",
           startPage: 1,
-          endPage: dbBook.totalLines > 0 ? dbBook.totalLines : 100,
+          endPage: endPage,
         ));
       }
     } catch (e) {
       _logger.warning('Failed to load TOC for ${dbBook.title}', e);
-      parts.add(BookPart(
-          name: "ראשי",
-          startPage: 1,
-          endPage: dbBook.totalLines > 0 ? dbBook.totalLines : 100));
+      // Use actual totalLines, minimum 1
+      int endPage = dbBook.totalLines > 0 ? dbBook.totalLines : 1;
+      parts.add(BookPart(name: "ראשי", startPage: 1, endPage: endPage));
     }
 
     return BookDetails(
@@ -351,9 +353,20 @@ class ShamorZachorDataProvider with ChangeNotifier {
   BookCategory? getCategory(String categoryName) => _allBookData[categoryName];
 
   BookDetails? getBookDetails(String categoryName, String bookName) {
+    // First try direct lookup
     final category = _allBookData[categoryName];
-    if (category == null) return null;
-    return category.getAllBooksRecursive()[bookName];
+    if (category != null) {
+      final book = category.getAllBooksRecursive()[bookName];
+      if (book != null) return book;
+    }
+
+    // If not found, search in all categories (for cases where topLevelCategoryKey is passed)
+    for (final topCategory in _allBookData.values) {
+      final book = topCategory.getAllBooksRecursive()[bookName];
+      if (book != null) return book;
+    }
+
+    return null;
   }
 
   // searchBooks needs to work on _allBookData. copy-paste existing logic or keep it.
@@ -402,63 +415,34 @@ class ShamorZachorDataProvider with ChangeNotifier {
       required String categoryName,
       required String bookPath,
       required String contentType}) async {
+    // NOTE: This method should NOT write to the DB!
+    // The book should already exist in seforim.db
+    // We only need to verify it exists and can be tracked
+
     final repository = _sqliteDataProvider?.repository;
-    if (repository == null) return;
+    if (repository == null) {
+      _logger.warning("Repository not initialized");
+      throw Exception('Database not initialized');
+    }
 
     try {
+      // Check if book exists in DB
       final existing = await repository.getBookByTitle(bookName);
-      if (existing != null) {
-        // Update isPersonal = true
-        final updated = existing.copyWith(isPersonal: true);
-        // BookDao doesn't have update method exposed easily except insertWithId which upserts or specialized updates?
-        // SeforimRepository has insertBook which handles ID check?
-        // But we need to update. `insertBook` uses `insertBookWithId` (REPLACE conflict logic?).
-        // BookDao usually uses INSERT OR REPLACE.
-        await repository.insertBook(updated);
-      } else {
-        // Create new book
-        // Find category ID
-        final cat = await repository.getCategoryByTitle(categoryName);
-        final catId =
-            cat?.id ?? 1; // Default to root if not found (or handle error)
-
-        final newBook = db_models.Book(
-            id: 0, // Auto generate (negative)
-            title: bookName,
-            categoryId: catId,
-            isPersonal: true,
-            filePath: bookPath,
-            fileType: contentType,
-            // Defaults
-            sourceId: 0,
-            heShortDesc: '',
-            order: 999,
-            totalLines: 0,
-            isBaseBook: false,
-            notesContent: '',
-            hasTargumConnection: false,
-            hasReferenceConnection: false,
-            hasSourceConnection: false,
-            hasCommentaryConnection: false,
-            hasOtherConnection: false,
-            hasAltStructures: false,
-            hasTeamim: false,
-            hasNekudot: false,
-            isContentExternal: false,
-            externalLibraryId: null,
-            fileSize: 0,
-            lastModified: DateTime.now().millisecondsSinceEpoch,
-            authors: [],
-            topics: [],
-            pubPlaces: [],
-            pubDates: []);
-        await repository.insertBook(newBook);
+      if (existing == null) {
+        _logger.warning("Book '$bookName' not found in database");
+        throw Exception(
+            'הספר "$bookName" לא נמצא במסד הנתונים. יש להוסיף אותו תחילה לספרייה.');
       }
 
-      // Reload to reflect changes
-      await loadAllData();
+      // Book exists - no need to modify DB
+      // The tracking is handled by SharedPreferences in the progress system
+      // Just reload data to ensure it's available
+      _logger.info("Book '$bookName' verified in database, ready for tracking");
+
+      // No need to reload all data - book already exists
+      // await loadAllData();
     } catch (e) {
-      _logger.warning("Failed to add custom book", e);
+      _logger.warning("Failed to verify book for tracking", e);
       rethrow;
     }
   }

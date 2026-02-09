@@ -2089,12 +2089,9 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         contentType = 'הלכה';
       }
 
-      // 3. Extract clean book name
+      // 3. Use the actual book title as-is (don't modify it)
+      // The title should match exactly what's in the DB
       String cleanBookName = bookTitle;
-      if (bookTitle.contains(' - ')) {
-        final parts = bookTitle.split(' - ');
-        cleanBookName = parts.last.trim();
-      }
 
       // 4. Show loading indicator
       UiSnack.show('מוסיף ספר למעקב...');
