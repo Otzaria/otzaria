@@ -159,7 +159,8 @@ class _BookCardWidgetState extends State<BookCardWidget> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            widget.categoryName,
+                            widget.bookDetails.categoryPath ??
+                                widget.categoryName,
                             style:
                                 Theme.of(context).textTheme.bodySmall?.copyWith(
                                       color: Theme.of(context)

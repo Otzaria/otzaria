@@ -120,46 +120,55 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
                 final effectiveTopLevelName =
                     widget.topLevelName ?? widget.category!.name;
 
+                // Check if this is the virtual "All Books" category
+                final isAllBooksVirtual =
+                    widget.topLevelName == 'all_books_virtual';
+
                 // Check if we should group by subcategories
                 if (widget.category!.subcategories != null &&
                     widget.category!.subcategories!.isNotEmpty) {
                   return ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
-                      // 1. Direct books in this category
-                      Builder(builder: (context) {
-                        final directBooks = _getAllBooksRecursive(
-                            BookCategory(
-                                name: widget.category!.name,
-                                books: widget.category!.books,
-                                subcategories: null, // Only direct books
-                                isCustom: widget.category!.isCustom,
-                                sourceFile: widget.category!.sourceFile,
-                                schemaVersion: widget.category!.schemaVersion,
-                                contentType: widget.category!.contentType,
-                                defaultStartPage:
-                                    widget.category!.defaultStartPage),
-                            effectiveTopLevelName);
-                        final filtered =
-                            _filterBooks(directBooks, progressProvider);
-                        if (filtered.isEmpty) return const SizedBox.shrink();
+                      // 1. Direct books in this category (only if NOT "All Books")
+                      if (!isAllBooksVirtual)
+                        Builder(builder: (context) {
+                          final directBooks = _getAllBooksRecursive(
+                              BookCategory(
+                                  name: widget.category!.name,
+                                  books: widget.category!.books,
+                                  subcategories: null, // Only direct books
+                                  isCustom: widget.category!.isCustom,
+                                  sourceFile: widget.category!.sourceFile,
+                                  schemaVersion: widget.category!.schemaVersion,
+                                  contentType: widget.category!.contentType,
+                                  defaultStartPage:
+                                      widget.category!.defaultStartPage),
+                              effectiveTopLevelName);
+                          final filtered =
+                              _filterBooks(directBooks, progressProvider);
+                          if (filtered.isEmpty) return const SizedBox.shrink();
 
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildSectionHeader(
-                                'ספרים ב${widget.category!.name}'),
-                            _buildBooksGrid(filtered, progressProvider,
-                                shrinkWrap: true),
-                            const SizedBox(height: 24),
-                          ],
-                        );
-                      }),
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildSectionHeader(
+                                  'ספרים ב${widget.category!.name}'),
+                              _buildBooksGrid(filtered, progressProvider,
+                                  shrinkWrap: true),
+                              const SizedBox(height: 24),
+                            ],
+                          );
+                        }),
 
                       // 2. Subcategories - using natural order from DataProvider
                       ...widget.category!.subcategories!.map((sub) {
+                        // For "All Books", use the subcategory's own name as topLevelName
+                        final subTopLevelName = isAllBooksVirtual
+                            ? sub.name
+                            : effectiveTopLevelName;
                         final subBooks =
-                            _getAllBooksRecursive(sub, effectiveTopLevelName);
+                            _getAllBooksRecursive(sub, subTopLevelName);
                         final filtered =
                             _filterBooks(subBooks, progressProvider);
 
@@ -271,10 +280,11 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
             progressProvider.getProgressForBook(category, name);
         final completionDate =
             progressProvider.getCompletionDateSync(category, name);
+        final categoryPath = book['categoryPath'] as String?;
 
         return BookCardWidget(
           topLevelCategoryKey: category,
-          categoryName: widget.categoryName ?? '',
+          categoryName: categoryPath ?? widget.categoryName ?? '',
           bookName: name,
           bookDetails: details,
           bookProgressData: progressData,
@@ -288,15 +298,26 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
   }
 
   List<Map<String, dynamic>> _getAllBooksRecursive(
-      BookCategory category, String topLevelName) {
+      BookCategory category, String topLevelName,
+      {String? parentPath}) {
     List<Map<String, dynamic>> books = [];
 
+    // Build the current category path
+    final currentPath =
+        parentPath != null ? '$parentPath/${category.name}' : category.name;
+
     category.books.forEach((name, details) {
-      books.add({'name': name, 'details': details, 'category': topLevelName});
+      books.add({
+        'name': name,
+        'details': details,
+        'category': topLevelName,
+        'categoryPath': currentPath, // נתיב מלא של הקטגוריות
+      });
     });
 
     category.subcategories?.forEach((sub) {
-      books.addAll(_getAllBooksRecursive(sub, topLevelName));
+      books.addAll(
+          _getAllBooksRecursive(sub, topLevelName, parentPath: currentPath));
     });
 
     return books;

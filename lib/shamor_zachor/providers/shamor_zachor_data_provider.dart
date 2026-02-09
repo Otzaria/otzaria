@@ -220,6 +220,7 @@ class ShamorZachorDataProvider with ChangeNotifier {
       id: dbBook.id.toString(),
       originalPageCount: dbBook.totalLines,
       sections: sections.isNotEmpty ? sections : null,
+      // categoryPath will be set later when we know the full category hierarchy
     );
   }
 

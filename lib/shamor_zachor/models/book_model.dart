@@ -249,6 +249,7 @@ class BookDetails {
   final List<BookPart> parts;
   final num? originalPageCount;
   final List<BookSection>? sections;
+  final String? categoryPath; // נתיב הקטגוריות המלא מה-DB
 
   List<LearnableItem>? _learnableItemsCache;
   Map<String, List<int>>? _sectionLeafIndexMapCache;
@@ -261,6 +262,7 @@ class BookDetails {
     this.id,
     this.originalPageCount,
     this.sections,
+    this.categoryPath,
   });
 
   factory BookDetails.fromJson(
@@ -268,6 +270,7 @@ class BookDetails {
     required String contentType,
     bool isCustom = false,
     String? id,
+    String? categoryPath,
   }) {
     List<BookPart> parts = [];
     num? pageCount;
@@ -315,6 +318,7 @@ class BookDetails {
       id: id,
       originalPageCount: pageCount,
       sections: sections,
+      categoryPath: categoryPath ?? json['categoryPath'] as String?,
     );
   }
 
@@ -400,6 +404,7 @@ class BookDetails {
         if (originalPageCount != null) 'originalPageCount': originalPageCount,
         if (sections != null)
           'sections': sections!.map((section) => section.toJson()).toList(),
+        if (categoryPath != null) 'categoryPath': categoryPath,
       };
 
   bool get hasNestedSections =>
