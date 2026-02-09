@@ -14,6 +14,7 @@ import 'package:otzaria/services/sources_books_service.dart';
 import 'package:otzaria/widgets/phone_report_tab.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
+import 'package:otzaria/utils/ref_helper.dart';
 
 /// נתוני הדיווח שנאספו מתיבת סימון הטקסט + פירוט הטעות שהמשתמש הקליד.
 class ReportedErrorData {
@@ -462,14 +463,14 @@ $detailsSection
   /// - [fontSize]: Font size to use in the dialog
   /// - [bookTitle]: Title of the book
   /// - [savedSelectedIndex]: Optional saved selected index (can be int or ValueNotifier of int)
-  static void showErrorReportDialog({
+  static Future<void> showErrorReportDialog({
     required BuildContext context,
     required String selectedText,
     required TextBookLoaded state,
     required double fontSize,
     required String bookTitle,
     int? savedSelectedIndex,
-  }) {
+  }) async {
     // קבלת מספר השורה הנוכחי
     int? currentLineNumber;
 
@@ -481,7 +482,7 @@ $detailsSection
         (state.visibleIndices.isNotEmpty ? state.visibleIndices.first : 0);
 
     // פתיחת הדיאלוג
-    showDialog<dynamic>(
+    final ReportDialogResult? result = await showDialog<ReportDialogResult>(
       context: context,
       builder: (BuildContext dialogContext) {
         return TabbedReportDialog(
@@ -493,6 +494,61 @@ $detailsSection
         );
       },
     );
+
+    // טיפול בתוצאה
+    if (result == null || !context.mounted) return;
+
+    try {
+      if (result.data is ReportedErrorData) {
+        // === דיווח רגיל (מייל או שמירה) ===
+        final errorData = result.data as ReportedErrorData;
+
+        // חישוב הקשר (Context) סביב הטקסט הנבחר
+        final allText = state.content.join('\n');
+        final selectionStart = allText.indexOf(errorData.selectedText);
+        final safeStart = selectionStart >= 0 ? selectionStart : 0;
+        final safeEnd = safeStart + errorData.selectedText.length;
+        final contextText = buildContextAroundSelection(
+          allText,
+          safeStart,
+          safeEnd,
+          wordsBefore: 4,
+          wordsAfter: 4,
+        );
+
+        // קבלת פרטי הספר
+        final currentRef = await refFromIndex(
+          currentLineNumber,
+          state.book.tableOfContents,
+        );
+        final bookDetails = SourcesBooksService().getBookDetails(bookTitle);
+
+        // ביצוע הפעולה שנבחרה
+        if (result.action == ErrorReportAction.sendEmail ||
+            result.action == ErrorReportAction.saveForLater) {
+          if (!context.mounted) return;
+          await handleRegularReportAction(
+            context,
+            result.action,
+            errorData,
+            bookTitle,
+            currentRef,
+            bookDetails,
+            currentLineNumber + 1,
+            contextText,
+          );
+        }
+      } else if (result.data is PhoneReportData) {
+        // === דיווח טלפוני ===
+        if (!context.mounted) return;
+        await handlePhoneReport(context, result.data as PhoneReportData);
+      }
+    } catch (e) {
+      debugPrint('Error handling report result: $e');
+      if (context.mounted) {
+        showSimpleSnack(context, 'שגיאה בטיפול בדיווח: ${e.toString()}');
+      }
+    }
   }
 }
 
