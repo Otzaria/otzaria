@@ -288,7 +288,7 @@ class ShamorZachorDataProvider with ChangeNotifier {
               ? (next.lineIndex! - 1)
               : nextStart;
       result.add(_convertToSection(
-          current, childMap, currentEnd > 0 ? currentEnd : 100));
+          current, childMap, currentEnd > 0 ? currentEnd : totalLines));
     }
     return result;
   }
