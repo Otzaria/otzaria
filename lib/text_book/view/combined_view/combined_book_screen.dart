@@ -432,7 +432,8 @@ class _CombinedViewState extends State<CombinedView> {
           label: const Text('דווח על טעות בספר'),
           icon: const Icon(FluentIcons.error_circle_24_regular),
           enabled: selectedText != null && selectedText.trim().isNotEmpty,
-          onSelected: (_) => _openErrorReportDialog(selectedText!),
+          onSelected: (_) =>
+              _openErrorReportDialog(selectedText!, fallbackLineIndex: paragraphIndex),
         ),
         const ctx.MenuDivider(),
         // העתקה
@@ -471,7 +472,7 @@ class _CombinedViewState extends State<CombinedView> {
   }
 
   /// פתיחת דיאלוג דיווח על טעות בספר
-  void _openErrorReportDialog(String selectedText) {
+  void _openErrorReportDialog(String selectedText, {int? fallbackLineIndex}) {
     final state = _textBookBloc.state;
     if (state is! TextBookLoaded) return;
 
@@ -481,7 +482,7 @@ class _CombinedViewState extends State<CombinedView> {
       state: state,
       fontSize: widget.textSize,
       bookTitle: widget.tab.book.title,
-      savedSelectedIndex: _savedSelectedIndex.value,
+      savedSelectedIndex: fallbackLineIndex ?? _savedSelectedIndex.value,
     );
   }
 

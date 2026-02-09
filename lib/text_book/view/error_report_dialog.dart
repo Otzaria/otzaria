@@ -42,6 +42,21 @@ class ReportDialogResult {
   ReportDialogResult(this.action, this.data);
 }
 
+/// תוצאת רזולוציית בחירה עבור חישוב הקשר בדיווח שגיאה.
+class SelectionContextResolution {
+  final String contextText;
+  final int selectionStart;
+  final int selectionEnd;
+  final bool usedLineFallback;
+
+  const SelectionContextResolution({
+    required this.contextText,
+    required this.selectionStart,
+    required this.selectionEnd,
+    required this.usedLineFallback,
+  });
+}
+
 /// Helper class for managing error report dialogs and actions
 class ErrorReportHelper {
   static const String _reportFileName = 'דיווח שגיאות בספרים.txt';
@@ -102,6 +117,128 @@ class ErrorReportHelper {
     final to = matches[ctxEnd].end;
     if (from < 0 || to <= from || to > fullText.length) return fullText;
     return fullText.substring(from, to);
+  }
+
+  /// פותר את מיקום הבחירה והקשר סביבה בצורה יציבה.
+  ///
+  /// נותן עדיפות לשורה שנבחרה. אם יש בשורה כמה מופעים של אותו טקסט (עמימות),
+  /// לא בוחרים מופע שרירותי אלא מבצעים fallback בטוח להקשר ברמת השורה.
+  static SelectionContextResolution resolveSelectionContext({
+    required List<String> content,
+    required String selectedText,
+    int? preferredLineNumber,
+    int wordsBefore = 4,
+    int wordsAfter = 4,
+  }) {
+    final allText = content.join('\n');
+    if (allText.isEmpty) {
+      return const SelectionContextResolution(
+        contextText: '',
+        selectionStart: -1,
+        selectionEnd: -1,
+        usedLineFallback: false,
+      );
+    }
+
+    final hasValidPreferredLine = preferredLineNumber != null &&
+        preferredLineNumber >= 0 &&
+        preferredLineNumber < content.length;
+
+    final int? lineNumber = hasValidPreferredLine ? preferredLineNumber : null;
+    final lineStart =
+        lineNumber != null ? _lineStartOffset(content, lineNumber) : 0;
+    final lineEnd =
+        lineNumber != null ? lineStart + content[lineNumber].length : 0;
+
+    int selectionStart = -1;
+    bool usedLineFallback = false;
+
+    if (selectedText.isNotEmpty) {
+      if (lineNumber != null) {
+        final lineText = content[lineNumber];
+        final occurrencesInLine = _findAllOccurrences(lineText, selectedText);
+
+        if (occurrencesInLine.length == 1) {
+          selectionStart = lineStart + occurrencesInLine.first;
+        } else if (occurrencesInLine.length > 1) {
+          // במקרה עמום (אותו טקסט מופיע כמה פעמים באותה שורה) אין לנו
+          // offset מדויק מה-SelectionArea, לכן בוחרים מופע אחרון בשורה.
+          // זה מונע חזרה אוטומטית למופע הראשון ומחזיר הקשר קצר (4+4).
+          selectionStart = lineStart + occurrencesInLine.last;
+          usedLineFallback = true;
+        } else {
+          selectionStart = allText.indexOf(selectedText, lineStart);
+        }
+      } else {
+        selectionStart = allText.indexOf(selectedText);
+      }
+
+      if (selectionStart < 0) {
+        selectionStart = allText.indexOf(selectedText);
+      }
+    }
+
+    if (selectionStart >= 0 && selectedText.isNotEmpty) {
+      final selectionEnd = selectionStart + selectedText.length;
+      final contextText = buildContextAroundSelection(
+        allText,
+        selectionStart,
+        selectionEnd,
+        wordsBefore: wordsBefore,
+        wordsAfter: wordsAfter,
+      );
+      return SelectionContextResolution(
+        contextText: contextText,
+        selectionStart: selectionStart,
+        selectionEnd: selectionEnd,
+        usedLineFallback: usedLineFallback,
+      );
+    }
+
+    if (lineNumber != null) {
+      final contextText = buildContextAroundSelection(
+        allText,
+        lineStart,
+        lineEnd,
+        wordsBefore: wordsBefore,
+        wordsAfter: wordsAfter,
+      );
+      return SelectionContextResolution(
+        contextText: contextText,
+        selectionStart: lineStart,
+        selectionEnd: lineEnd,
+        usedLineFallback: true,
+      );
+    }
+
+    return SelectionContextResolution(
+      contextText: allText,
+      selectionStart: 0,
+      selectionEnd: allText.length,
+      usedLineFallback: usedLineFallback,
+    );
+  }
+
+  static int _lineStartOffset(List<String> content, int lineNumber) {
+    int offset = 0;
+    for (int i = 0; i < lineNumber; i++) {
+      offset += content[i].length + 1; // +1 עבור \n
+    }
+    return offset;
+  }
+
+  static List<int> _findAllOccurrences(String text, String pattern) {
+    final indices = <int>[];
+    if (text.isEmpty || pattern.isEmpty) return indices;
+
+    int searchFrom = 0;
+    while (searchFrom <= text.length - pattern.length) {
+      final found = text.indexOf(pattern, searchFrom);
+      if (found < 0) break;
+      indices.add(found);
+      searchFrom = found + pattern.length;
+    }
+    return indices;
   }
 
   /// Build email body for error report
@@ -503,18 +640,14 @@ $detailsSection
         // === דיווח רגיל (מייל או שמירה) ===
         final errorData = result.data as ReportedErrorData;
 
-        // חישוב הקשר (Context) סביב הטקסט הנבחר
-        final allText = state.content.join('\n');
-        final selectionStart = allText.indexOf(errorData.selectedText);
-        final safeStart = selectionStart >= 0 ? selectionStart : 0;
-        final safeEnd = safeStart + errorData.selectedText.length;
-        final contextText = buildContextAroundSelection(
-          allText,
-          safeStart,
-          safeEnd,
+        final selectionResolution = resolveSelectionContext(
+          content: state.content,
+          selectedText: errorData.selectedText,
+          preferredLineNumber: currentLineNumber,
           wordsBefore: 4,
           wordsAfter: 4,
         );
+        final contextText = selectionResolution.contextText;
 
         // קבלת פרטי הספר
         final currentRef = await refFromIndex(
