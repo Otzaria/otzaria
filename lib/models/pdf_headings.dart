@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/migration/core/models/toc_entry.dart'
-  as migration_models;
+    as migration_models;
 
 /// מודל לניהול קבצי headings של PDF
 /// מקשר בין כותרות ב-PDF למספרי שורות בקובץ הטקסט

@@ -248,7 +248,8 @@ class MyDatabase {
             'CREATE UNIQUE INDEX IF NOT EXISTS uq_book_file_kind_sha ON book_file(kind, sha256);');
         debugPrint('✅ Migration v3→v4: Added book_file table');
       } catch (e) {
-        debugPrint('⚠️ Migration v3→v4: book_file table might already exist: $e');
+        debugPrint(
+            '⚠️ Migration v3→v4: book_file table might already exist: $e');
       }
     }
 
@@ -323,8 +324,7 @@ class MyDatabase {
 
         debugPrint('✅ Migration v4→v5: Aligned book_file and added db_meta');
       } catch (e) {
-        debugPrint(
-            '⚠️ Migration v4→v5: book_file/db_meta migration issue: $e');
+        debugPrint('⚠️ Migration v4→v5: book_file/db_meta migration issue: $e');
       }
     }
 
@@ -475,8 +475,8 @@ class MyDatabase {
       'CREATE INDEX IF NOT EXISTS idx_book_order ON book(orderIndex);',
       'CREATE INDEX IF NOT EXISTS idx_book_source ON book(sourceId);',
 
-        // Book file table (PDF binary content)
-        '''
+      // Book file table (PDF binary content)
+      '''
         CREATE TABLE IF NOT EXISTS book_file (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             bookId INTEGER NOT NULL,
@@ -489,10 +489,10 @@ class MyDatabase {
             FOREIGN KEY (bookId) REFERENCES book(id) ON DELETE CASCADE
         );
         ''',
-        'CREATE INDEX IF NOT EXISTS idx_book_file_book ON book_file(bookId);',
-          'CREATE INDEX IF NOT EXISTS idx_book_file_kind ON book_file(kind);',
-          'CREATE UNIQUE INDEX IF NOT EXISTS uq_book_file_book_kind ON book_file(bookId, kind);',
-          'CREATE UNIQUE INDEX IF NOT EXISTS uq_book_file_kind_sha ON book_file(kind, sha256);',
+      'CREATE INDEX IF NOT EXISTS idx_book_file_book ON book_file(bookId);',
+      'CREATE INDEX IF NOT EXISTS idx_book_file_kind ON book_file(kind);',
+      'CREATE UNIQUE INDEX IF NOT EXISTS uq_book_file_book_kind ON book_file(bookId, kind);',
+      'CREATE UNIQUE INDEX IF NOT EXISTS uq_book_file_kind_sha ON book_file(kind, sha256);',
 
       // Book-publication place junction table
       '''
@@ -607,14 +607,14 @@ class MyDatabase {
       ''',
       'CREATE INDEX IF NOT EXISTS idx_connection_type_name ON connection_type(name);',
 
-        // DB meta table
-        '''
+      // DB meta table
+      '''
         CREATE TABLE IF NOT EXISTS db_meta (
           key TEXT PRIMARY KEY,
           value TEXT NOT NULL
         );
         ''',
-        'CREATE INDEX IF NOT EXISTS idx_db_meta_key ON db_meta(key);',
+      'CREATE INDEX IF NOT EXISTS idx_db_meta_key ON db_meta(key);',
 
       // Links table
       '''

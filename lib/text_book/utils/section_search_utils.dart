@@ -122,7 +122,8 @@ List<TextSearchResult> _searchIsolate(Map<String, dynamic> args) {
       results.add(TextSearchResult(
         index: i,
         snippet: cleanLine,
-        address: utils.removeVolwels(utils.stripHtmlIfNeeded(address.join(', '))),
+        address:
+            utils.removeVolwels(utils.stripHtmlIfNeeded(address.join(', '))),
         query: query,
       ));
       if (results.length >= _maxSearchResults) break;
