@@ -193,13 +193,12 @@ class ShamorZachorDataProvider with ChangeNotifier {
 
   Future<BookDetails> _convertDbBookToDetails(db_models.Book dbBook,
       SeforimRepository repository, String contentType) async {
-    // OPTIMIZATION 3: Don't load TOC automatically - load on demand only
-    // TOC will be loaded only when needed via getTocForBook()
+    // Load TOC sections for the book
+    final sections = await getTocForBook(dbBook.id);
 
     List<BookPart> parts = [];
 
     // Create a default Part based on book metadata
-    // We don't load TOC here to avoid unnecessary queries
     // Use actual totalLines, but ensure minimum of 1
     int endPage = dbBook.totalLines > 0 ? dbBook.totalLines : 1;
     if (dbBook.totalLines == 0) {
@@ -216,11 +215,11 @@ class ShamorZachorDataProvider with ChangeNotifier {
       contentType: dbBook.fileType == 'pdf'
           ? 'pdf'
           : (dbBook.fileType == 'docx' ? 'docx' : contentType),
-      parts: parts, // Simple parts without TOC
+      parts: parts,
       isCustom: dbBook.isPersonal,
       id: dbBook.id.toString(),
       originalPageCount: dbBook.totalLines,
-      sections: null, // TOC sections loaded on demand via getTocForBook()
+      sections: sections.isNotEmpty ? sections : null,
     );
   }
 
