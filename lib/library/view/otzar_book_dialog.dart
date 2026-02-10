@@ -19,7 +19,7 @@ class OtzarBookDialog extends StatelessWidget {
         child: FutureBuilder<(bool, bool)>(
           future: Future.wait([
             OtzarUtils.canLaunchLocally(),
-            OtzarUtils.checkBookExistence(book.id)
+            OtzarUtils.checkBookExistence(book.id!)
           ]).then((results) => (results[0], results[1])),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
@@ -119,7 +119,7 @@ class OtzarBookDialog extends StatelessWidget {
             label: const Text('פתח מקומית'),
             onPressed: () {
               Navigator.of(context).pop();
-              OtzarUtils.launchOtzarLocal(book.id);
+              OtzarUtils.launchOtzarLocal(book.id!);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Theme.of(context).colorScheme.primary,

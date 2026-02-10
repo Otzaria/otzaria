@@ -500,6 +500,139 @@ class ProgressService {
     }
   }
 
+  // ============================================================================
+  // NEW: Functions that work with book ID instead of category+name
+  // ============================================================================
+
+  /// Load progress data by book ID
+  Future<ProgressMapById> loadProgressDataById() async {
+    try {
+      final prefs = await _getPrefs();
+      final jsonString = prefs.getString('${_keyPrefix}progress_by_id');
+
+      if (jsonString == null || jsonString.isEmpty) {
+        return {};
+      }
+
+      final Map<String, dynamic> decoded = json.decode(jsonString);
+      final ProgressMapById progressMap = {};
+
+      decoded.forEach((bookIdKey, bookValue) {
+        final bookId = int.parse(bookIdKey);
+        if (bookValue is Map) {
+          progressMap[bookId] = {};
+          bookValue.forEach((itemIndexKey, itemProgressValue) {
+            if (itemProgressValue is Map) {
+              try {
+                progressMap[bookId]![itemIndexKey] = PageProgress.fromJson(
+                    Map<String, dynamic>.from(itemProgressValue));
+              } catch (e) {
+                _logger.warning(
+                    'Invalid progress data for book $bookId/$itemIndexKey: $e');
+              }
+            }
+          });
+        }
+      });
+
+      _logger
+          .fine('Loaded progress data for ${progressMap.length} books by ID');
+      return progressMap;
+    } catch (e, stackTrace) {
+      if (e is ShamorZachorError) rethrow;
+
+      _logger.severe('Failed to load progress data by ID: $e');
+      throw ShamorZachorError.fromException(
+        e,
+        stackTrace: stackTrace,
+        type: ShamorZachorErrorType.parseError,
+        customMessage: 'Failed to load progress data by ID',
+      );
+    }
+  }
+
+  /// Save progress data by book ID
+  Future<void> saveProgressDataById(ProgressMapById data) async {
+    try {
+      final prefs = await _getPrefs();
+
+      // המרה ידנית ל-JSON כי PageProgress לא ממיר אוטומטית
+      final Map<String, dynamic> jsonData = {};
+      data.forEach((bookId, progressMap) {
+        final Map<String, dynamic> bookProgressJson = {};
+        progressMap.forEach((itemIndex, pageProgress) {
+          bookProgressJson[itemIndex] = pageProgress.toJson();
+        });
+        jsonData[bookId.toString()] = bookProgressJson;
+      });
+
+      final jsonString = json.encode(jsonData);
+      await prefs.setString('${_keyPrefix}progress_by_id', jsonString);
+      _logger.fine('Saved progress data for ${data.length} books by ID');
+    } catch (e, stackTrace) {
+      throw ShamorZachorError.fromException(
+        e,
+        stackTrace: stackTrace,
+        type: ShamorZachorErrorType.storageUnavailable,
+        customMessage: 'Failed to save progress data by ID',
+      );
+    }
+  }
+
+  /// Load completion dates by book ID
+  Future<CompletionDatesByIdMap> loadCompletionDatesById() async {
+    try {
+      final prefs = await _getPrefs();
+      final jsonString = prefs.getString('${_keyPrefix}completion_dates_by_id');
+
+      if (jsonString == null || jsonString.isEmpty) {
+        return {};
+      }
+
+      final Map<String, dynamic> decoded = json.decode(jsonString);
+      final CompletionDatesByIdMap datesMap = {};
+
+      decoded.forEach((bookIdKey, dateValue) {
+        final bookId = int.parse(bookIdKey);
+        if (dateValue is String) {
+          datesMap[bookId] = dateValue;
+        }
+      });
+
+      _logger
+          .fine('Loaded completion dates for ${datesMap.length} books by ID');
+      return datesMap;
+    } catch (e, stackTrace) {
+      _logger.severe('Failed to load completion dates by ID: $e');
+      throw ShamorZachorError.fromException(
+        e,
+        stackTrace: stackTrace,
+        type: ShamorZachorErrorType.parseError,
+        customMessage: 'Failed to load completion dates by ID',
+      );
+    }
+  }
+
+  /// Save completion date for a book by ID
+  Future<void> saveCompletionDateById(int bookId, String date) async {
+    try {
+      final dates = await loadCompletionDatesById();
+      dates[bookId] = date;
+
+      final prefs = await _getPrefs();
+      final jsonString = json.encode(dates);
+      await prefs.setString('${_keyPrefix}completion_dates_by_id', jsonString);
+
+      _logger.fine('Saved completion date for book $bookId');
+    } catch (e, stackTrace) {
+      throw ShamorZachorError.fromException(
+        e,
+        stackTrace: stackTrace,
+        customMessage: 'Failed to save completion date by ID',
+      );
+    }
+  }
+
   /// Dispose resources
   void dispose() {
     _saveTimer?.cancel();

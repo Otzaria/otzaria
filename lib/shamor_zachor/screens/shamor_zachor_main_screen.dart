@@ -44,19 +44,19 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
   }
 
   void _navigateToBook(String category, String book, BookDetails details) {
+    _logger.info(
+        '_navigateToBook called: category=$category, book=$book, bookId=${details.id}');
+
     setState(() {
-      // שמירת הקטגוריה הנוכחית לפני המעבר לספר
-      // כדי שנוכל לחזור אליה אחר כך
-      if (_selectedTopLevelName == null && _selectedCategoryName == null) {
-        // אם לא נבחרה קטגוריה, זה אומר שאנחנו ב"כל הספרים"
-        _selectedTopLevelName = 'all_books_virtual';
-        _selectedCategoryName = 'כל הספרים';
-      }
+      // עדכון הקטגוריה לקטגוריה האמיתית של הספר
+      // (לא "all_books_virtual")
+      _selectedCategoryName = category;
+
+      // שמירת ה-topLevelName הנוכחי אם לא הוגדר
+      _selectedTopLevelName ??= 'all_books_virtual';
 
       _selectedBookName = book;
       _selectedBookDetails = details;
-      // לא משנים את _selectedTopLevelName ו-_selectedCategoryName
-      // כדי שנוכל לחזור אליהם
     });
     _notifyTitleChange();
   }
@@ -183,24 +183,34 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
                   Expanded(
                     child: _selectedBookName != null &&
                             _selectedBookDetails != null
-                        ? KeyedSubtree(
-                            key: ValueKey(
-                                'Book_${_selectedCategoryName}_$_selectedBookName'),
-                            child: BookDetailScreen(
-                              topLevelCategoryKey: _selectedTopLevelName ??
-                                  _selectedCategoryName!,
-                              categoryName: _selectedCategoryName!,
-                              bookName: _selectedBookName!,
-                              bookDetails:
-                                  _selectedBookDetails!, // Pass the details directly
-                              onBack: () {
-                                setState(() {
-                                  _selectedBookName = null;
-                                  _selectedBookDetails = null;
-                                });
-                                _notifyTitleChange();
-                              },
-                            ),
+                        ? Builder(
+                            builder: (context) {
+                              // Debug log
+                              _logger.info(
+                                  'Creating BookDetailScreen: bookName=$_selectedBookName, bookId=${_selectedBookDetails!.id}');
+
+                              return KeyedSubtree(
+                                key: ValueKey(
+                                    'Book_${_selectedCategoryName}_$_selectedBookName'),
+                                child: BookDetailScreen(
+                                  topLevelCategoryKey: _selectedTopLevelName ??
+                                      _selectedCategoryName!,
+                                  categoryName: _selectedCategoryName!,
+                                  bookName: _selectedBookName!,
+                                  bookId:
+                                      _selectedBookDetails!.id, // העברת ה-ID
+                                  bookDetails:
+                                      _selectedBookDetails!, // Pass the details directly
+                                  onBack: () {
+                                    setState(() {
+                                      _selectedBookName = null;
+                                      _selectedBookDetails = null;
+                                    });
+                                    _notifyTitleChange();
+                                  },
+                                ),
+                              );
+                            },
                           )
                         : CategoryBooksGrid(
                             categoryName: currentCategoryName,

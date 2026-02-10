@@ -9,6 +9,9 @@ import 'package:otzaria/models/links.dart';
 /// and an [author], [heShortDesc], [pubPlace], [pubDate], and [order] if available.
 ///
 abstract class Book {
+  /// The unique identifier of the book from the database (if available)
+  final int? id;
+
   /// The title of the book.
   final String title;
 
@@ -85,7 +88,8 @@ abstract class Book {
   ///
   /// The [title] parameter is required and cannot be null.
   Book(
-      {required this.title,
+      {this.id,
+      required this.title,
       this.category,
       this.author,
       this.heCategories,
@@ -112,7 +116,8 @@ abstract class Book {
 ///it has also a 'tableOfContents' field that returns a [Future] that resolvs to a list of [TocEntry]s
 class TextBook extends Book {
   TextBook(
-      {required super.title,
+      {super.id,
+      required super.title,
       super.category,
       super.author,
       super.heCategories,
@@ -199,9 +204,6 @@ class TextBook extends Book {
 /// This class extends the [Book] class and includes additional properties
 /// specific to Otzar HaChochma books, such as the Otzar ID and online link.
 class ExternalLibraryBook extends Book {
-  /// The unique identifier for the book in the Otzar HaChochma system.
-  final int id;
-
   /// The online link to access the book in the Otzar HaChochma system.
   final String link;
 
@@ -211,7 +213,7 @@ class ExternalLibraryBook extends Book {
   /// [link] is required for online access to the book.
   ExternalLibraryBook(
       {required super.title,
-      required this.id,
+      required int id,
       super.author,
       super.heCategories,
       super.heEra,
@@ -227,7 +229,8 @@ class ExternalLibraryBook extends Book {
       required this.link,
       super.categoryPath,
       super.fileType = 'link',
-      super.isUserBook});
+      super.isUserBook})
+      : super(id: id);
 
   /// Returns the publication date of the book.
   ///
@@ -278,6 +281,7 @@ abstract class FileBook extends Book {
   final String path;
 
   FileBook({
+    super.id,
     required super.title,
     required this.path,
     super.category,
@@ -305,7 +309,8 @@ abstract class FileBook extends Book {
 ///is required
 class PdfBook extends FileBook {
   PdfBook(
-      {required super.title,
+      {super.id,
+      required super.title,
       super.category,
       required super.path,
       super.topics,
@@ -358,7 +363,8 @@ class PdfBook extends FileBook {
 /// Represents a DOCX format book.
 class DocxBook extends FileBook {
   DocxBook(
-      {required super.title,
+      {super.id,
+      required super.title,
       super.category,
       required super.path,
       super.topics,

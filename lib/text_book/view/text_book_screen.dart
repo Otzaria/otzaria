@@ -144,94 +144,28 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         return;
       }
 
-      // חיפוש הספר - נחפש גם לפי שם קצר
-      final searchResults = dataProvider.searchBooks(bookTitle);
+      debugPrint('=== Shamor Zachor Progress (NEW - using ID) ===');
+      debugPrint('Book title: "$bookTitle"');
+      debugPrint('Book ID: ${state.book.id}');
 
-      // זיהוי קטגוריה לפי נתיב הספר
-      String searchName = bookTitle;
-      String? detectedCategory;
-
-      try {
-        // קבלת נתיב הספר
-        final location = await BookLocator.locateBook(bookTitle);
-        final bookPath = location?.filePath;
-
-        if (bookPath != null) {
-          debugPrint('Book path: $bookPath');
-
-          // זיהוי קטגוריה לפי הנתיב
-          if (bookPath.contains('תלמוד בבלי')) {
-            detectedCategory = 'תלמוד בבלי';
-          } else if (bookPath.contains('תנך') || bookPath.contains('תנ"ך')) {
-            detectedCategory = 'תנ"ך';
-          } else if (bookPath.contains('משנה')) {
-            detectedCategory = 'משנה';
-          } else if (bookPath.contains('הלכה')) {
-            detectedCategory = 'הלכה';
-          } else if (bookPath.contains('ירושלמי')) {
-            detectedCategory = 'תלמוד ירושלמי';
-          } else if (bookPath.contains('רמב"ם') || bookPath.contains('רמבם')) {
-            detectedCategory = 'רמב"ם';
-          }
-
-          debugPrint('Detected category from path: $detectedCategory');
-        }
-      } catch (e) {
-        debugPrint('Error getting book path: $e');
+      // בדיקה אם יש ID לספר
+      if (state.book.id == null) {
+        UiSnack.showError('הספר לא נמצא במסד הנתונים');
+        return;
       }
 
-      // הכנת שם החיפוש
-      searchName = bookTitle;
-      if (bookTitle.contains(' - ')) {
-        final parts = bookTitle.split(' - ');
-        searchName = parts.last.trim();
-        debugPrint('Extracted book name from title: $searchName');
+      final bookId = state.book.id!;
+
+      // חיפוש הספר לפי ID ב-shamor zachor
+      final result = dataProvider.getBookById(bookId);
+
+      if (result == null) {
+        UiSnack.showError('הספר לא נמצא בשמור וזכור');
+        return;
       }
 
-      // חיפוש הספר המתאים לפי הקטגוריה המזוהה
-      BookSearchResult? bookResult;
-
-      if (detectedCategory != null) {
-        // חיפוש בקטגוריה הספציפית שזוהתה מהנתיב
-        try {
-          bookResult = searchResults.firstWhere(
-            (result) =>
-                (result.bookName == searchName ||
-                    result.bookName.contains(searchName)) &&
-                result.topLevelCategoryName == detectedCategory,
-          );
-          debugPrint(
-              'Found in detected category "$detectedCategory": ${bookResult.bookName}');
-        } catch (e) {
-          debugPrint(
-              'Not found in detected category "$detectedCategory", trying general search');
-          bookResult = null;
-        }
-      }
-
-      // אם לא מצאנו בקטגוריה הספציפית, נחפש רגיל
-      if (bookResult == null) {
-        try {
-          bookResult = searchResults.firstWhere(
-            (result) =>
-                result.bookName == bookTitle ||
-                result.bookName == searchName ||
-                result.bookName.contains(searchName) ||
-                bookTitle.contains(result.bookName),
-          );
-          debugPrint(
-              'Found in general search: ${bookResult.bookName} in ${bookResult.topLevelCategoryName}');
-        } catch (e) {
-          throw Exception('ספר לא נמצא');
-        }
-      }
-
-      final categoryName = bookResult.topLevelCategoryName;
-      final bookName = bookResult.bookName;
-      final bookDetails = bookResult.bookDetails;
-
-      debugPrint('Selected book: $bookName in category: $categoryName');
-      debugPrint('Book content type: ${bookDetails.contentType}');
+      final (bookDetails, bookName, topLevelCategoryKey) = result;
+      debugPrint('Book found: $bookName (ID: $bookId)');
 
       // קבלת הפרק הנוכחי
       final currentIndex =
@@ -351,9 +285,9 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       debugPrint(
           'Target item: ${targetItem.pageNumber}${targetItem.amudKey}, absoluteIndex: ${targetItem.absoluteIndex}');
 
-      // בדיקת מצב העמודות עבור הפרק הספציפי
-      final itemProgress = progressProvider.getProgressForItem(
-          categoryName, bookName, targetItem.absoluteIndex);
+      // בדיקת מצב העמודות עבור הפרק הספציפי - משתמשים ב-ID!
+      final itemProgress = progressProvider.getProgressForItemById(
+          bookId, targetItem.absoluteIndex);
 
       // מציאת העמודה הראשונה שלא מסומנת
       String? columnToMark;
@@ -371,10 +305,9 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         return;
       }
 
-      // סימון הפרק הספציפי
-      await progressProvider.updateProgress(
-        categoryName,
-        bookName,
+      // סימון הפרק הספציפי - משתמשים ב-ID!
+      await progressProvider.updateProgressById(
+        bookId,
         targetItem.absoluteIndex,
         columnToMark,
         true,

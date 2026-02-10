@@ -118,6 +118,7 @@ class _ShamorZachorWidgetState extends State<ShamorZachorWidget>
             topLevelCategoryKey: args['topLevelCategoryKey'] as String,
             categoryName: args['categoryName'] as String,
             bookName: args['bookName'] as String,
+            bookId: args['bookId'] as int?, // העברת ה-ID
           ),
           settings: settings,
         );

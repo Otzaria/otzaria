@@ -5,18 +5,21 @@ import 'package:provider/provider.dart';
 import 'package:logging/logging.dart';
 
 import '../models/book_model.dart';
+import '../models/progress_model.dart';
 
 import '../providers/shamor_zachor_data_provider.dart';
 import '../providers/shamor_zachor_progress_provider.dart';
 import '../widgets/hebrew_utils.dart';
 import '../widgets/completion_animation_overlay.dart';
 import '../widgets/error_boundary.dart';
+import 'package:otzaria/core/scaffold_messenger.dart';
 
 /// Screen for displaying and managing progress for a specific book
 class BookDetailScreen extends StatefulWidget {
   final String topLevelCategoryKey;
   final String categoryName;
   final String bookName;
+  final int? bookId; // NEW: Book ID from DB
   final BookDetails?
       bookDetails; // Optional: if provided, use it instead of fetching
   final VoidCallback? onBack;
@@ -26,6 +29,7 @@ class BookDetailScreen extends StatefulWidget {
     required this.topLevelCategoryKey,
     required this.categoryName,
     required this.bookName,
+    this.bookId, // NEW
     this.bookDetails,
     this.onBack,
   });
@@ -116,6 +120,48 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     return result ?? false;
   }
 
+  // Helper functions to use ID if available, otherwise fall back to category+name
+  PageProgress _getProgress(
+      ShamorZachorProgressProvider provider, int absoluteIndex) {
+    if (widget.bookId != null) {
+      return provider.getProgressForItemById(widget.bookId!, absoluteIndex);
+    }
+    // אם אין ID, זה אומר שהספר לא מגיע מה-DB
+    // במקרה כזה, נחזיר התקדמות ריקה
+    _logger.warning(
+        'bookId is null for book ${widget.bookName}, returning empty progress');
+    return PageProgress();
+  }
+
+  Future<void> _updateProgress(
+    ShamorZachorProgressProvider provider,
+    int absoluteIndex,
+    String columnName,
+    bool value,
+    BookDetails bookDetails,
+  ) async {
+    // Debug log
+    _logger.info(
+        '_updateProgress called: bookId=${widget.bookId}, bookName=${widget.bookName}, absoluteIndex=$absoluteIndex');
+
+    if (widget.bookId != null) {
+      await provider.updateProgressById(
+        widget.bookId!,
+        absoluteIndex,
+        columnName,
+        value,
+        bookDetails,
+      );
+    } else {
+      // אם אין ID, זה אומר שהספר לא מגיע מה-DB
+      // במקרה כזה, אנחנו לא יכולים לשמור התקדמות
+      _logger.severe(
+          'CRITICAL: bookId is null for book ${widget.bookName}! This should not happen for DB books.');
+      UiSnack.showError('שגיאה: לא ניתן לשמור התקדמות לספר זה (חסר מזהה)');
+      return;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -154,9 +200,8 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                 int completedChecks = 0;
 
                 for (final item in learnableItems) {
-                  final progress = progressProvider.getProgressForItem(
-                    widget.topLevelCategoryKey,
-                    widget.bookName,
+                  final progress = _getProgress(
+                    progressProvider,
                     item.absoluteIndex,
                   );
                   totalChecks += 4; // 4 עמודות לכל פריט
@@ -331,9 +376,16 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     ShamorZachorProgressProvider progressProvider,
   ) {
     final theme = Theme.of(context);
-    final columnSelectionStates = progressProvider.getColumnSelectionStates(
-      widget.topLevelCategoryKey,
-      widget.bookName,
+
+    // אם אין bookId, נחזיר כותרת ריקה
+    if (widget.bookId == null) {
+      _logger.warning(
+          'bookId is null in _buildHeader for book ${widget.bookName}');
+      return const SizedBox.shrink();
+    }
+
+    final columnSelectionStates = progressProvider.getColumnSelectionStatesById(
+      widget.bookId!,
       bookDetails,
     );
 
@@ -372,13 +424,23 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                           final bool selectAction = newValue == true;
                           final confirmed = await _showWarningDialog();
                           if (confirmed && mounted) {
-                            await progressProvider.toggleSelectAllForColumn(
-                              widget.topLevelCategoryKey,
-                              widget.bookName,
-                              bookDetails,
-                              columnId,
-                              selectAction,
-                            );
+                            if (widget.bookId != null) {
+                              await progressProvider
+                                  .toggleSelectAllForColumnById(
+                                widget.bookId!,
+                                bookDetails,
+                                columnId,
+                                selectAction,
+                              );
+                            } else {
+                              await progressProvider.toggleSelectAllForColumn(
+                                widget.topLevelCategoryKey,
+                                widget.bookName,
+                                bookDetails,
+                                columnId,
+                                selectAction,
+                              );
+                            }
                           }
                         },
                         tristate: true,
@@ -432,9 +494,8 @@ class _BookDetailScreenState extends State<BookDetailScreen>
             rowLabel = HebrewUtils.intToGematria(item.pageNumber);
           }
 
-          final pageProgress = progressProvider.getProgressForItem(
-            widget.topLevelCategoryKey,
-            widget.bookName,
+          final pageProgress = _getProgress(
+            progressProvider,
             absoluteIndex,
           );
 
@@ -492,10 +553,8 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                               child: Checkbox(
                                 visualDensity: VisualDensity.compact,
                                 value: pageProgress.getProperty(columnName),
-                                onChanged: (val) =>
-                                    progressProvider.updateProgress(
-                                  widget.topLevelCategoryKey,
-                                  widget.bookName,
+                                onChanged: (val) => _updateProgress(
+                                  progressProvider,
                                   absoluteIndex,
                                   columnName,
                                   val ?? false,
@@ -578,9 +637,8 @@ class _BookDetailScreenState extends State<BookDetailScreen>
 
       final learnable = bookDetails.learnableItems
           .firstWhere((item) => item.absoluteIndex == leafIndices.first);
-      final pageProgress = progressProvider.getProgressForItem(
-        widget.topLevelCategoryKey,
-        widget.bookName,
+      final pageProgress = _getProgress(
+        progressProvider,
         leafIndices.first,
       );
 
@@ -622,9 +680,8 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                         child: Checkbox(
                           visualDensity: VisualDensity.compact,
                           value: pageProgress.getProperty(columnName),
-                          onChanged: (val) => progressProvider.updateProgress(
-                            widget.topLevelCategoryKey,
-                            widget.bookName,
+                          onChanged: (val) => _updateProgress(
+                            progressProvider,
                             learnable.absoluteIndex,
                             columnName,
                             val ?? false,
@@ -706,9 +763,26 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                     child: Row(
                       children: _columnData.map((col) {
                         final columnId = col['id']!;
-                        final state = progressProvider.getSectionColumnState(
-                          widget.topLevelCategoryKey,
-                          widget.bookName,
+
+                        // אם אין bookId, נחזיר checkbox ריק
+                        if (widget.bookId == null) {
+                          return Expanded(
+                            child: SizedBox(
+                              height: 24,
+                              child: Center(
+                                child: Checkbox(
+                                  value: false,
+                                  tristate: true,
+                                  onChanged: null, // disabled
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+
+                        final state =
+                            progressProvider.getSectionColumnStateById(
+                          widget.bookId!,
                           bookDetails,
                           section.id,
                           columnId,
@@ -720,15 +794,29 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                               child: Checkbox(
                                 value: state,
                                 tristate: true,
-                                onChanged: (value) =>
-                                    progressProvider.toggleSectionColumn(
-                                  widget.topLevelCategoryKey,
-                                  widget.bookName,
-                                  bookDetails,
-                                  section.id,
-                                  columnId,
-                                  value == true,
-                                ),
+                                onChanged: (value) async {
+                                  // toggleSectionColumn uses the old method internally
+                                  // We need to update all items in the section manually
+                                  if (widget.bookId != null) {
+                                    await progressProvider
+                                        .toggleSectionColumnById(
+                                      widget.bookId!,
+                                      bookDetails,
+                                      section.id,
+                                      columnId,
+                                      value == true,
+                                    );
+                                  } else {
+                                    await progressProvider.toggleSectionColumn(
+                                      widget.topLevelCategoryKey,
+                                      widget.bookName,
+                                      bookDetails,
+                                      section.id,
+                                      columnId,
+                                      value == true,
+                                    );
+                                  }
+                                },
                               ),
                             ),
                           ),

@@ -126,6 +126,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
         final topics = _buildTopics(dbBook, categoryPath);
 
         final book = TextBook(
+          id: dbBook.id,
           title: dbBook.title,
           author: dbBook.authors.isNotEmpty ? dbBook.authors.first.name : null,
           heShortDesc: dbBook.heShortDesc,
@@ -670,6 +671,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
 
     if (dbBook.filePath != null && dbBook.fileType == 'pdf') {
       return PdfBook(
+          id: dbBook.id,
           title: dbBook.title,
           category: category,
           path: dbBook.filePath!,
@@ -691,6 +693,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
 
     if (dbBook.filePath != null && dbBook.fileType == 'docx') {
       return DocxBook(
+          id: dbBook.id,
           title: dbBook.title,
           category: category,
           path: dbBook.filePath!,
@@ -711,6 +714,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
     }
 
     return TextBook(
+        id: dbBook.id,
         title: dbBook.title,
         category: category,
         author: dbBook.authors.isNotEmpty

@@ -105,7 +105,8 @@ class ShamorZachorDataProvider with ChangeNotifier {
 
       for (var rootCat in rootCategories) {
         final builtCat = await _buildRecursiveCategory(
-            rootCat, categoryMap, booksByCatId, repository, null);
+            rootCat, categoryMap, booksByCatId, repository, null,
+            parentPath: []);
 
         if (builtCat != null) {
           resultData[builtCat.name] = builtCat;
@@ -129,8 +130,9 @@ class ShamorZachorDataProvider with ChangeNotifier {
     Map<int, db_models.Category> allCatsMap,
     Map<int, List<db_models.Book>> booksByCatId,
     SeforimRepository repository,
-    String? inheritedContentType,
-  ) async {
+    String? inheritedContentType, {
+    List<String> parentPath = const [],
+  }) async {
     // Determine content type for this category
     // If inherited, use it. If "Bavli/Yerushalmi", force "daf".
     String myContentType = inheritedContentType ?? 'text'; // Default
@@ -142,15 +144,17 @@ class ShamorZachorDataProvider with ChangeNotifier {
       myContentType = 'text'; // Chapters
     }
 
+    // Build the full category path for this category
+    final currentPath = [...parentPath, currentCat.title];
+
     // 1. Get Direct Books
     final directBooks = booksByCatId[currentCat.id] ?? [];
     final Map<String, BookDetails> validBooks = {};
 
     for (var dbBook in directBooks) {
-      // Convert DB Book to BookDetails
-      // We need to fetch TOC (parts/sections) to populate `parts`
-      final bookDetails =
-          await _convertDbBookToDetails(dbBook, repository, myContentType);
+      // Convert DB Book to BookDetails with the full category path
+      final bookDetails = await _convertDbBookToDetails(
+          dbBook, repository, myContentType, currentPath);
       validBooks[dbBook.title] = bookDetails;
     }
 
@@ -164,7 +168,8 @@ class ShamorZachorDataProvider with ChangeNotifier {
 
     for (var child in childCats) {
       final sub = await _buildRecursiveCategory(
-          child, allCatsMap, booksByCatId, repository, myContentType);
+          child, allCatsMap, booksByCatId, repository, myContentType,
+          parentPath: currentPath);
       if (sub != null) {
         validSubCats.add(sub);
       }
@@ -191,8 +196,11 @@ class ShamorZachorDataProvider with ChangeNotifier {
     );
   }
 
-  Future<BookDetails> _convertDbBookToDetails(db_models.Book dbBook,
-      SeforimRepository repository, String contentType) async {
+  Future<BookDetails> _convertDbBookToDetails(
+      db_models.Book dbBook,
+      SeforimRepository repository,
+      String contentType,
+      List<String> categoryPath) async {
     // Load TOC sections for the book
     final sections = await getTocForBook(dbBook.id);
 
@@ -211,16 +219,24 @@ class ShamorZachorDataProvider with ChangeNotifier {
       endPage: endPage,
     ));
 
+    // Use the first category in the path as the main category for progress tracking
+    // This is the top-level category from the DB (e.g., "תלמוד בבלי", "תנ"ך")
+    final categoryPathString =
+        categoryPath.isNotEmpty ? categoryPath.first : '';
+
+    _logger.fine(
+        'Converting book "${dbBook.title}" with categoryPath: $categoryPath -> using: "$categoryPathString"');
+
     return BookDetails(
       contentType: dbBook.fileType == 'pdf'
           ? 'pdf'
           : (dbBook.fileType == 'docx' ? 'docx' : contentType),
       parts: parts,
       isCustom: dbBook.isPersonal,
-      id: dbBook.id.toString(),
+      id: dbBook.id, // העברת ה-ID כ-int ישירות
       originalPageCount: dbBook.totalLines,
       sections: sections.isNotEmpty ? sections : null,
-      // categoryPath will be set later when we know the full category hierarchy
+      categoryPath: categoryPathString,
     );
   }
 
@@ -341,6 +357,54 @@ class ShamorZachorDataProvider with ChangeNotifier {
     for (final topCategory in _allBookData.values) {
       final book = topCategory.getAllBooksRecursive()[bookName];
       if (book != null) return book;
+    }
+
+    return null;
+  }
+
+  /// Get book details by ID
+  /// Returns a tuple of (BookDetails, bookName, topLevelCategoryKey) or null if not found
+  (BookDetails, String, String)? getBookById(int bookId) {
+    // Search through all categories for the book with matching ID
+    for (final entry in _allBookData.entries) {
+      final topLevelName = entry.key;
+      final category = entry.value;
+
+      // Search recursively in this category
+      final result = _findBookByIdRecursive(category, bookId, topLevelName);
+      if (result != null) {
+        return result;
+      }
+    }
+
+    return null;
+  }
+
+  /// Helper function to search for book by ID recursively
+  (BookDetails, String, String)? _findBookByIdRecursive(
+    BookCategory category,
+    int bookId,
+    String topLevelName,
+  ) {
+    // Check direct books in this category
+    for (final entry in category.books.entries) {
+      final bookName = entry.key;
+      final bookDetails = entry.value;
+
+      if (bookDetails.id == bookId) {
+        return (bookDetails, bookName, topLevelName);
+      }
+    }
+
+    // Check subcategories
+    if (category.subcategories != null) {
+      for (final subCategory in category.subcategories!) {
+        final result =
+            _findBookByIdRecursive(subCategory, bookId, topLevelName);
+        if (result != null) {
+          return result;
+        }
+      }
     }
 
     return null;

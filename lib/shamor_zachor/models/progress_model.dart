@@ -123,10 +123,18 @@ class PageProgress {
 
 /// Type definitions for complex progress data structures
 
-/// Full progress map: Category -> Book -> Page/Item -> Progress
+/// NEW: Progress map by book ID: BookId -> ItemIndex -> Progress
+typedef ProgressMapById = Map<int, Map<String, PageProgress>>;
+
+/// OLD (deprecated): Full progress map: Category -> Book -> Page/Item -> Progress
+/// This will be removed in a future version
 typedef FullProgressMap = Map<String, Map<String, Map<String, PageProgress>>>;
 
-/// Completion dates map: Category -> Book -> Completion Date (Hebrew)
+/// NEW: Completion dates by book ID: BookId -> Completion Date (Hebrew)
+typedef CompletionDatesByIdMap = Map<int, String>;
+
+/// OLD (deprecated): Completion dates map: Category -> Book -> Completion Date (Hebrew)
+/// This will be removed in a future version
 typedef CompletionDatesMap = Map<String, Map<String, String>>;
 
 /// Book progress summary for display purposes

@@ -245,7 +245,7 @@ class BookPart {
 class BookDetails {
   final String contentType;
   final bool isCustom;
-  final String? id;
+  final int? id; // Book ID from database
   final List<BookPart> parts;
   final num? originalPageCount;
   final List<BookSection>? sections;
@@ -269,7 +269,7 @@ class BookDetails {
     Map<String, dynamic> json, {
     required String contentType,
     bool isCustom = false,
-    String? id,
+    int? id, // Changed from String? to int?
     String? categoryPath,
   }) {
     List<BookPart> parts = [];

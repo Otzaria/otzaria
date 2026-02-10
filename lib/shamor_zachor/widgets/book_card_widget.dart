@@ -81,25 +81,51 @@ class _BookCardWidgetState extends State<BookCardWidget> {
 
     try {
       final pp = _progressProvider!;
-      final newLearnProgress = pp
-          .getLearnProgressPercentage(
-            widget.topLevelCategoryKey,
-            widget.bookName,
-            widget.bookDetails,
-          )
-          .clamp(0.0, 1.0);
 
-      final newIsCompleted = pp.isBookCompleted(
-        widget.topLevelCategoryKey,
-        widget.bookName,
-        widget.bookDetails,
-      );
+      // השתמש בפונקציות מבוססות ID אם יש ID, אחרת חזור לשיטה הישנה
+      final double newLearnProgress;
+      final bool newIsCompleted;
+      final int newCompletedCycles;
 
-      final newCompletedCycles = pp.getNumberOfCompletedCycles(
-        widget.topLevelCategoryKey,
-        widget.bookName,
-        widget.bookDetails,
-      );
+      if (widget.bookDetails.id != null) {
+        newLearnProgress = pp
+            .getLearnProgressPercentageById(
+              widget.bookDetails.id!,
+              widget.bookDetails,
+            )
+            .clamp(0.0, 1.0);
+
+        newIsCompleted = pp.isBookCompletedById(
+          widget.bookDetails.id!,
+          widget.bookDetails,
+        );
+
+        newCompletedCycles = pp.getNumberOfCompletedCyclesById(
+          widget.bookDetails.id!,
+          widget.bookDetails,
+        );
+      } else {
+        // Fallback לשיטה הישנה
+        newLearnProgress = pp
+            .getLearnProgressPercentage(
+              widget.topLevelCategoryKey,
+              widget.bookName,
+              widget.bookDetails,
+            )
+            .clamp(0.0, 1.0);
+
+        newIsCompleted = pp.isBookCompleted(
+          widget.topLevelCategoryKey,
+          widget.bookName,
+          widget.bookDetails,
+        );
+
+        newCompletedCycles = pp.getNumberOfCompletedCycles(
+          widget.topLevelCategoryKey,
+          widget.bookName,
+          widget.bookDetails,
+        );
+      }
 
       if (newLearnProgress != _learnProgress ||
           newIsCompleted != _isCompleted ||
@@ -324,11 +350,20 @@ class _BookCardWidgetState extends State<BookCardWidget> {
       int completed = 0;
       int total = 0;
       for (final item in widget.bookDetails.learnableItems) {
-        final progress = _progressProvider!.getProgressForItem(
-          widget.topLevelCategoryKey,
-          widget.bookName,
-          item.absoluteIndex,
-        );
+        // השתמש בפונקציות מבוססות ID אם יש ID
+        final PageProgress progress;
+        if (widget.bookDetails.id != null) {
+          progress = _progressProvider!.getProgressForItemById(
+            widget.bookDetails.id!,
+            item.absoluteIndex,
+          );
+        } else {
+          progress = _progressProvider!.getProgressForItem(
+            widget.topLevelCategoryKey,
+            widget.bookName,
+            item.absoluteIndex,
+          );
+        }
         total++;
         if (progress.getProperty(cycle)) completed++;
       }

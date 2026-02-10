@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:logging/logging.dart';
 import '../providers/shamor_zachor_data_provider.dart';
 import '../providers/shamor_zachor_progress_provider.dart';
 import '../models/book_model.dart';
@@ -25,6 +26,8 @@ class CategoryBooksGrid extends StatefulWidget {
 }
 
 class _CategoryBooksGridState extends State<CategoryBooksGrid> {
+  static final Logger _logger = Logger('CategoryBooksGrid');
+
   // Using simplified filter enum/string from user request
   // User wanted "Like it was before" -> "Segmented Button".
   String _selectedFilter = 'all'; // all, in_progress, completed
@@ -97,6 +100,10 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
           child:
               Consumer2<ShamorZachorDataProvider, ShamorZachorProgressProvider>(
             builder: (context, dataProvider, progressProvider, child) {
+              // Debug log
+              _logger.fine(
+                  'CategoryBooksGrid builder called for category: ${widget.categoryName}');
+
               if (widget.categoryName == 'custom_books_virtual') {
                 // Handling custom books - Flat list
                 final custom = dataProvider.getCustomBooks();
@@ -276,10 +283,13 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
         final details = book['details'] as BookDetails;
         final category = book['category'] as String;
 
-        final progressData =
-            progressProvider.getProgressForBook(category, name);
-        final completionDate =
-            progressProvider.getCompletionDateSync(category, name);
+        // השתמש ב-ID אם קיים, אחרת חזור לשיטה הישנה
+        final progressData = details.id != null
+            ? progressProvider.getProgressForBookById(details.id!)
+            : progressProvider.getProgressForBook(category, name);
+        final completionDate = details.id != null
+            ? progressProvider.getCompletionDateSyncById(details.id!)
+            : progressProvider.getCompletionDateSync(category, name);
         final categoryPath = book['categoryPath'] as String?;
 
         return BookCardWidget(
@@ -307,11 +317,16 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
         parentPath != null ? '$parentPath/${category.name}' : category.name;
 
     category.books.forEach((name, details) {
+      // Use the actual category from BookDetails if available, otherwise use topLevelName
+      final actualCategory =
+          details.categoryPath?.split('/').first ?? topLevelName;
+
       books.add({
         'name': name,
         'details': details,
-        'category': topLevelName,
-        'categoryPath': currentPath, // נתיב מלא של הקטגוריות
+        'category': actualCategory, // שימוש בקטגוריה האמיתית
+        'categoryPath':
+            details.categoryPath ?? currentPath, // נתיב מלא של הקטגוריות
       });
     });
 

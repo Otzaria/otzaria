@@ -41,6 +41,11 @@ class ShamorZachorProgressProvider with ChangeNotifier {
   final ProgressService _progressService;
   FullProgressMap _fullProgress = {};
   CompletionDatesMap _completionDates = {};
+
+  // NEW: Progress data by book ID
+  ProgressMapById _progressById = {};
+  CompletionDatesByIdMap _completionDatesById = {};
+
   final Map<String, BookProgressSummary> _progressSummaryCache = {};
   bool _isLoading = false;
   ShamorZachorError? _error;
@@ -101,10 +106,16 @@ class ShamorZachorProgressProvider with ChangeNotifier {
     notifyListeners();
 
     try {
+      // Load old format (for backward compatibility)
       _fullProgress = await _progressService.loadFullProgressData();
       _completionDates = await _progressService.loadCompletionDates();
+
+      // Load new format (by ID)
+      _progressById = await _progressService.loadProgressDataById();
+      _completionDatesById = await _progressService.loadCompletionDatesById();
+
       _logger.info(
-          'Successfully loaded progress for ${_fullProgress.length} categories');
+          'Successfully loaded progress: ${_fullProgress.length} categories (old), ${_progressById.length} books (new)');
     } catch (e, stackTrace) {
       if (e is ShamorZachorError) {
         _error = e;
@@ -128,6 +139,14 @@ class ShamorZachorProgressProvider with ChangeNotifier {
   Map<String, PageProgress> getProgressForBook(
       String categoryName, String bookName) {
     return _fullProgress[categoryName]?[bookName] ?? {};
+  }
+
+  /// Get progress data for a specific book by ID
+  Map<String, PageProgress> getProgressForBookById(int bookId) {
+    final progress = _progressById[bookId] ?? {};
+    _logger.info(
+        'getProgressForBookById($bookId): returning ${progress.length} items. _progressById has ${_progressById.length} books total. Keys: ${_progressById.keys.toList()}');
+    return progress;
   }
 
   /// Get progress for a specific item
@@ -415,6 +434,11 @@ class ShamorZachorProgressProvider with ChangeNotifier {
   /// Get completion date for a book (synchronous)
   String? getCompletionDateSync(String categoryName, String bookName) {
     return _completionDates[categoryName]?[bookName];
+  }
+
+  /// Get completion date for a book by ID (synchronous)
+  String? getCompletionDateSyncById(int bookId) {
+    return _completionDatesById[bookId];
   }
 
   /// Clear all progress for a specific book
@@ -952,6 +976,330 @@ class ShamorZachorProgressProvider with ChangeNotifier {
   void clearError() {
     _error = null;
     notifyListeners();
+  }
+
+  // ============================================================================
+  // NEW: Functions that work with book ID
+  // ============================================================================
+
+  /// Get progress for a specific item by book ID
+  PageProgress getProgressForItemById(int bookId, int absoluteIndex) {
+    return _progressById[bookId]?[absoluteIndex.toString()] ?? PageProgress();
+  }
+
+  /// Update progress for a single item by book ID
+  Future<void> updateProgressById(
+    int bookId,
+    int absoluteIndex,
+    String columnName,
+    bool value,
+    BookDetails bookDetails,
+  ) async {
+    try {
+      _logger.info(
+          'updateProgressById called: bookId=$bookId, absoluteIndex=$absoluteIndex, columnName=$columnName, value=$value');
+
+      final itemIndexKey = absoluteIndex.toString();
+
+      // בדיקה: אם מנסים לסמן חזרה, צריך שהלימוד הקודם יהיה מסומן
+      if (value) {
+        final currentProgress = getProgressForItemById(bookId, absoluteIndex);
+
+        // אם מנסים לסמן review1, צריך שlearn יהיה מסומן
+        if (columnName == 'review1' && !currentProgress.learn) {
+          UiSnack.show('יש לסמן תחילה את הלימוד הראשוני');
+          return;
+        }
+        // אם מנסים לסמן review2, צריך שlearn ו-review1 יהיו מסומנים
+        else if (columnName == 'review2' &&
+            (!currentProgress.learn || !currentProgress.review1)) {
+          if (!currentProgress.learn) {
+            UiSnack.show('יש לסמן תחילה את הלימוד הראשוני');
+          } else {
+            UiSnack.show('יש לסמן תחילה את החזרה הראשונה');
+          }
+          return;
+        }
+        // אם מנסים לסמן review3, צריך שכל המחזורים הקודמים יהיו מסומנים
+        else if (columnName == 'review3' &&
+            (!currentProgress.learn ||
+                !currentProgress.review1 ||
+                !currentProgress.review2)) {
+          if (!currentProgress.learn) {
+            UiSnack.show('יש לסמן תחילה את הלימוד הראשוני');
+          } else if (!currentProgress.review1) {
+            UiSnack.show('יש לסמן תחילה את החזרה הראשונה');
+          } else {
+            UiSnack.show('יש לסמן תחילה את החזרה השנייה');
+          }
+          return;
+        }
+      }
+
+      // Update local state
+      _progressById.putIfAbsent(bookId, () => {});
+      _progressById[bookId]!.putIfAbsent(itemIndexKey, () => PageProgress());
+
+      final pageProgress = _progressById[bookId]![itemIndexKey]!;
+      pageProgress.setProperty(columnName, value);
+
+      // Clean up empty entries
+      if (pageProgress.isEmpty) {
+        _progressById[bookId]!.remove(itemIndexKey);
+        if (_progressById[bookId]!.isEmpty) {
+          _progressById.remove(bookId);
+        }
+      }
+
+      _logger.info('Saving progress to storage...');
+      // Save to storage
+      await _progressService.saveProgressDataById(_progressById);
+      _logger.info('Progress saved successfully');
+
+      // Handle completion events
+      if (value && columnName == learnColumn) {
+        final isComplete = _isBookCompletedById(bookId, bookDetails);
+        if (isComplete) {
+          final hebrewDate = _getHebrewDate();
+          await _progressService.saveCompletionDateById(bookId, hebrewDate);
+          _completionDatesById =
+              await _progressService.loadCompletionDatesById();
+        }
+      }
+
+      notifyListeners();
+      _logger.info('updateProgressById completed successfully');
+    } catch (e, stackTrace) {
+      _logger.severe('Error in updateProgressById: $e', e, stackTrace);
+      _error = ShamorZachorError.fromException(
+        e,
+        stackTrace: stackTrace,
+        customMessage: 'Failed to update progress by ID',
+      );
+      _logger.severe(
+          'Error updating progress by ID: ${_error!.message}', e, stackTrace);
+      notifyListeners();
+    }
+  }
+
+  /// Check if a book is completed by ID
+  bool _isBookCompletedById(int bookId, BookDetails bookDetails) {
+    final bookProgress = _progressById[bookId];
+    if (bookProgress == null || bookProgress.isEmpty) return false;
+
+    for (final item in bookDetails.learnableItems) {
+      final progress = bookProgress[item.absoluteIndex.toString()];
+      if (progress == null || !progress.learn) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Get column selection states by book ID (all/none/partial)
+  Map<String, bool?> getColumnSelectionStatesById(
+    int bookId,
+    BookDetails? bookDetails,
+  ) {
+    final columnStates = <String, bool?>{
+      learnColumn: null,
+      review1Column: null,
+      review2Column: null,
+      review3Column: null,
+    };
+
+    if (bookDetails == null) return columnStates;
+
+    final bookProgress = _progressById[bookId];
+    final totalItems = bookDetails.totalLearnableItems;
+
+    if (totalItems == 0) {
+      columnStates.updateAll((key, value) => false);
+      return columnStates;
+    }
+
+    for (final currentColumnName in allColumnNames) {
+      int itemsChecked = 0;
+      if (bookProgress != null) {
+        for (final item in bookDetails.learnableItems) {
+          final itemProgress = bookProgress[item.absoluteIndex.toString()];
+          if (itemProgress?.getProperty(currentColumnName) ?? false) {
+            itemsChecked++;
+          }
+        }
+      }
+
+      if (itemsChecked == 0) {
+        columnStates[currentColumnName] = false;
+      } else if (itemsChecked == totalItems) {
+        columnStates[currentColumnName] = true;
+      } else {
+        columnStates[currentColumnName] = null; // Partial selection
+      }
+    }
+
+    return columnStates;
+  }
+
+  /// Toggle select all for a column by book ID
+  Future<void> toggleSelectAllForColumnById(
+    int bookId,
+    BookDetails bookDetails,
+    String columnName,
+    bool selectAll,
+  ) async {
+    try {
+      _progressById[bookId] ??= {};
+      final bookProgress = _progressById[bookId]!;
+
+      for (final item in bookDetails.learnableItems) {
+        final key = item.absoluteIndex.toString();
+        bookProgress[key] ??= PageProgress();
+        bookProgress[key]!.setProperty(columnName, selectAll);
+      }
+
+      await _progressService.saveProgressDataById(_progressById);
+      notifyListeners();
+    } catch (e, stackTrace) {
+      _logger.severe(
+          'Error toggling select all for column by ID', e, stackTrace);
+      _error = ShamorZachorError(
+        type: ShamorZachorErrorType.unknown,
+        message: 'Failed to toggle select all for column',
+        originalError: e,
+        stackTrace: stackTrace,
+      );
+      notifyListeners();
+    }
+  }
+
+  /// Get section column state by book ID (all/none/partial)
+  bool? getSectionColumnStateById(
+    int bookId,
+    BookDetails bookDetails,
+    String sectionId,
+    String columnName,
+  ) {
+    final leafIndices = bookDetails.sectionLeafIndexMap[sectionId];
+    if (leafIndices == null || leafIndices.isEmpty) return false;
+
+    final bookProgress = _progressById[bookId];
+    if (bookProgress == null) return false;
+
+    int checkedCount = 0;
+    for (final index in leafIndices) {
+      final progress = bookProgress[index.toString()];
+      if (progress?.getProperty(columnName) ?? false) {
+        checkedCount++;
+      }
+    }
+
+    if (checkedCount == 0) return false;
+    if (checkedCount == leafIndices.length) return true;
+    return null; // Partial
+  }
+
+  /// Toggle section column by book ID
+  Future<void> toggleSectionColumnById(
+    int bookId,
+    BookDetails bookDetails,
+    String sectionId,
+    String columnName,
+    bool selectAll,
+  ) async {
+    try {
+      final leafIndices = bookDetails.sectionLeafIndexMap[sectionId];
+      if (leafIndices == null || leafIndices.isEmpty) return;
+
+      _progressById[bookId] ??= {};
+      final bookProgress = _progressById[bookId]!;
+
+      for (final index in leafIndices) {
+        final key = index.toString();
+        bookProgress[key] ??= PageProgress();
+        bookProgress[key]!.setProperty(columnName, selectAll);
+      }
+
+      await _progressService.saveProgressDataById(_progressById);
+      notifyListeners();
+    } catch (e, stackTrace) {
+      _logger.severe('Error toggling section column by ID', e, stackTrace);
+      _error = ShamorZachorError(
+        type: ShamorZachorErrorType.unknown,
+        message: 'Failed to toggle section column',
+        originalError: e,
+        stackTrace: stackTrace,
+      );
+      notifyListeners();
+    }
+  }
+
+  /// Get learn progress percentage by book ID
+  double getLearnProgressPercentageById(int bookId, BookDetails bookDetails) {
+    final bookProgress = _progressById[bookId];
+    final totalTargetItems = bookDetails.totalLearnableItems;
+    if (totalTargetItems == 0 || bookProgress == null) return 0.0;
+
+    final learnedPagesCount =
+        ProgressService.getCompletedPagesCount(bookProgress);
+    return learnedPagesCount / totalTargetItems;
+  }
+
+  /// Get review progress percentage by book ID
+  double getReviewProgressPercentageById(
+    int bookId,
+    BookDetails bookDetails,
+    int reviewNumber,
+  ) {
+    final bookProgress = _progressById[bookId];
+    final totalTargetItems = bookDetails.totalLearnableItems;
+    if (totalTargetItems == 0 || bookProgress == null) return 0.0;
+
+    final reviewPagesCount = ProgressService.getReviewCompletedPagesCount(
+      bookProgress,
+      reviewNumber,
+    );
+    return reviewPagesCount / totalTargetItems;
+  }
+
+  /// Check if book is completed by ID
+  bool isBookCompletedById(int bookId, BookDetails bookDetails) {
+    final bookProgress = _progressById[bookId];
+    if (bookProgress == null) return false;
+
+    final totalTargetItems = bookDetails.totalLearnableItems;
+    if (totalTargetItems == 0) return false;
+
+    final learnedItemsCount =
+        ProgressService.getCompletedPagesCount(bookProgress);
+    return learnedItemsCount >= totalTargetItems;
+  }
+
+  /// Get number of completed cycles by book ID
+  int getNumberOfCompletedCyclesById(int bookId, BookDetails bookDetails) {
+    final bookProgress = _progressById[bookId];
+    final totalTargetItems = bookDetails.totalLearnableItems;
+    if (totalTargetItems == 0 || bookProgress == null) return 0;
+
+    int cycles = 0;
+
+    if (ProgressService.getCompletedPagesCount(bookProgress) >=
+        totalTargetItems) {
+      cycles++;
+    }
+    for (int i = 1; i <= 3; i++) {
+      if (ProgressService.getReviewCompletedPagesCount(bookProgress, i) >=
+          totalTargetItems) {
+        cycles++;
+      }
+    }
+
+    return cycles;
+  }
+
+  /// Get Hebrew date string
+  String _getHebrewDate() {
+    return DateTime.now().toIso8601String();
   }
 
   @override
