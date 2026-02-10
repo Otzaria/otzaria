@@ -1998,49 +1998,22 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
       debugPrint('Adding book to tracking - Path: $bookPath');
 
-      // 2. Detect category and content type from path
-      String categoryName = 'כללי';
-      String contentType = 'פרק'; // Default
-
-      if (bookPath.contains('תלמוד בבלי')) {
-        categoryName = 'תלמוד בבלי';
-        contentType = 'דף';
-      } else if (bookPath.contains('תנך') || bookPath.contains('תנ"ך')) {
-        categoryName = 'תנ"ך';
-        contentType = 'פרק';
-      } else if (bookPath.contains('משנה') && !bookPath.contains('תורה')) {
-        categoryName = 'משנה';
-        contentType = 'משנה';
-      } else if (bookPath.contains('ירושלמי')) {
-        categoryName = 'תלמוד ירושלמי';
-        contentType = 'דף';
-      } else if (bookPath.contains('רמב"ם') || bookPath.contains('רמבם')) {
-        categoryName = 'רמב"ם';
-        contentType = 'הלכה';
-      } else if (bookPath.contains('הלכה')) {
-        categoryName = 'הלכה';
-        contentType = 'הלכה';
-      }
-
-      // 3. Use the actual book title as-is (don't modify it)
+      // 2. Use the actual book title as-is (don't modify it)
       // The title should match exactly what's in the DB
       String cleanBookName = bookTitle;
 
-      // 4. Show loading indicator
+      // 3. Show loading indicator
       UiSnack.show('מוסיף ספר למעקב...');
 
-      // 5. Add book via provider
+      // 4. Add book via provider (only needs book name)
       await dataProvider.addCustomBook(
         bookName: cleanBookName,
-        categoryName: categoryName,
-        bookPath: bookPath,
-        contentType: contentType,
       );
 
-      // 6. Success message
+      // 5. Success message
       UiSnack.show('הספר "$cleanBookName" נוסף למעקב בהצלחה!');
 
-      // 7. Update UI to reflect the change
+      // 6. Update UI to reflect the change
       setState(() {});
     } catch (e, stackTrace) {
       debugPrint('Error adding book to Shamor Zachor: $e');

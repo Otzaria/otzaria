@@ -445,11 +445,7 @@ class ShamorZachorDataProvider with ChangeNotifier {
   /// Add a book to Shamor Zachor tracking
   /// This saves the book ID to a tracked books list in SharedPreferences
   /// WITHOUT modifying the books database
-  Future<void> addCustomBook(
-      {required String bookName,
-      required String categoryName,
-      required String bookPath,
-      required String contentType}) async {
+  Future<void> addCustomBook({required String bookName}) async {
     final repository = _sqliteDataProvider?.repository;
     if (repository == null) {
       _logger.warning("Repository not initialized");
