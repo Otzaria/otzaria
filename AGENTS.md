@@ -231,7 +231,7 @@ try {
 - **Before every commit, run only the relevant tests for your changes**
 - Run `flutter analyze` to check for static errors
 - Run specific tests related to the code you modified
-- Run `dart format .` to format code
+- Run `dart format <file_path>` to format only the files you modified (NOT `dart format .` on entire project)
 - Fix every error or warning before continuing
 - **Add or update tests for code you change, even if not requested**
 
@@ -253,11 +253,14 @@ flutter test --name "test name pattern"
 # Run all tests (only if you made broad changes)
 flutter test
 
-# Check code format
-dart format --set-exit-if-changed .
+# Check code format for specific files you modified
+dart format --set-exit-if-changed lib/path/to/modified_file.dart
 
-# Auto-fix format
-dart format .
+# Auto-fix format for specific files you modified
+dart format lib/path/to/modified_file.dart
+
+# Format multiple specific files
+dart format lib/file1.dart lib/file2.dart lib/file3.dart
 
 # Check dependencies
 flutter pub outdated
@@ -363,7 +366,7 @@ Examples:
 ### Before Submitting PR
 1. **Run `flutter analyze` - must have no errors or warnings**
 2. **Run relevant tests for your changes - all must pass**
-3. **Run `dart format .` - code must be formatted**
+3. **Run `dart format <file_path>` on all files you modified - code must be formatted**
 4. **Check that code works on all relevant platforms**
 5. **Ensure you added/updated tests for your changes**
 6. **Write clear description of what you changed and why**
@@ -371,7 +374,7 @@ Examples:
 ### Checklist Before Commit
 - [ ] `flutter analyze` passes without errors
 - [ ] Relevant tests pass without errors (run `flutter test test/path/to/relevant/`)
-- [ ] `dart format .` was run
+- [ ] `dart format <file_path>` was run on all modified files
 - [ ] I added/updated tests
 - [ ] I added documentation to new functions
 - [ ] I checked that code works in practice
@@ -446,7 +449,7 @@ flutter upgrade
 3. **Execute step by step** - Write clean and documented code, check each step before continuing
 4. **Check** - Run `flutter analyze` and fix every error or warning
 5. **Test** - Run relevant tests for your changes and ensure everything works
-6. **Format** - Run `dart format .`
+6. **Format** - Run `dart format <file_path>` on each file you modified
 7. **Document** - Add documentation and comments in Hebrew
 8. **Test in practice** - Run the application and ensure changes work
 9. **Review** - Go over the code and ensure it meets all standards
