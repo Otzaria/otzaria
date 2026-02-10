@@ -84,7 +84,10 @@ class _ShamorZachorWidgetState extends State<ShamorZachorWidget>
             create: (_) => ShamorZachorDataProvider(),
           ),
           ChangeNotifierProvider(
-            create: (_) => ShamorZachorProgressProvider(),
+            create: (context) {
+              final dataProvider = context.read<ShamorZachorDataProvider>();
+              return ShamorZachorProgressProvider(dataProvider: dataProvider);
+            },
           ),
         ],
         child: navigator,

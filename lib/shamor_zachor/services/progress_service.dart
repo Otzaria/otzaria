@@ -633,6 +633,156 @@ class ProgressService {
     }
   }
 
+  /// Migrate old progress data (category+name based) to new format (ID based)
+  /// This is a one-time migration that runs automatically on first load
+  Future<bool> migrateOldProgressToNewFormat({
+    required Future<int?> Function(String categoryName, String bookName)
+        findBookIdByName,
+  }) async {
+    try {
+      final prefs = await _getPrefs();
+
+      // Check if migration already completed
+      final migrationCompleted =
+          prefs.getBool('${_keyPrefix}migration_completed') ?? false;
+      if (migrationCompleted) {
+        _logger.fine('Migration already completed, skipping');
+        return true;
+      }
+
+      _logger.info('Starting migration from old to new progress format...');
+
+      // Load old format data
+      final oldProgress = await loadFullProgressData();
+      final oldCompletionDates = await loadCompletionDates();
+
+      if (oldProgress.isEmpty && oldCompletionDates.isEmpty) {
+        _logger.info('No old data to migrate');
+        await prefs.setBool('${_keyPrefix}migration_completed', true);
+        return true;
+      }
+
+      // Load existing new format data (in case of partial migration)
+      final newProgress = await loadProgressDataById();
+      final newCompletionDates = await loadCompletionDatesById();
+
+      int migratedBooks = 0;
+      int failedBooks = 0;
+      final List<String> failedBooksList = [];
+
+      // Migrate progress data
+      for (final categoryEntry in oldProgress.entries) {
+        final categoryName = categoryEntry.key;
+        final booksMap = categoryEntry.value;
+
+        for (final bookEntry in booksMap.entries) {
+          final bookName = bookEntry.key;
+          final progressData = bookEntry.value;
+
+          try {
+            // Find book ID in database
+            final bookId = await findBookIdByName(categoryName, bookName);
+
+            if (bookId == null) {
+              _logger.warning(
+                  'Could not find book ID for: $categoryName / $bookName');
+              failedBooks++;
+              failedBooksList.add('$categoryName / $bookName');
+              continue;
+            }
+
+            // Check if already migrated
+            if (newProgress.containsKey(bookId) &&
+                newProgress[bookId]!.isNotEmpty) {
+              _logger.fine('Book $bookName (ID: $bookId) already migrated');
+              continue;
+            }
+
+            // Migrate progress data
+            newProgress[bookId] = progressData;
+            migratedBooks++;
+
+            _logger.fine(
+                'Migrated progress for: $bookName (ID: $bookId) - ${progressData.length} items');
+          } catch (e) {
+            _logger.warning('Failed to migrate book: $bookName', e);
+            failedBooks++;
+            failedBooksList.add('$categoryName / $bookName');
+          }
+        }
+      }
+
+      // Migrate completion dates
+      for (final categoryEntry in oldCompletionDates.entries) {
+        final categoryName = categoryEntry.key;
+        final booksMap = categoryEntry.value;
+
+        for (final bookEntry in booksMap.entries) {
+          final bookName = bookEntry.key;
+          final completionDate = bookEntry.value;
+
+          try {
+            final bookId = await findBookIdByName(categoryName, bookName);
+
+            if (bookId == null) {
+              continue; // Already logged in progress migration
+            }
+
+            // Check if already migrated
+            if (newCompletionDates.containsKey(bookId)) {
+              continue;
+            }
+
+            // Migrate completion date
+            newCompletionDates[bookId] = completionDate;
+
+            _logger
+                .fine('Migrated completion date for: $bookName (ID: $bookId)');
+          } catch (e) {
+            _logger.warning(
+                'Failed to migrate completion date for: $bookName', e);
+          }
+        }
+      }
+
+      // Save migrated data
+      await saveProgressDataById(newProgress);
+      await prefs.setString('${_keyPrefix}completion_dates_by_id',
+          json.encode(newCompletionDates));
+
+      // Mark migration as completed
+      await prefs.setBool('${_keyPrefix}migration_completed', true);
+
+      _logger.info(
+          'Migration completed: $migratedBooks books migrated, $failedBooks failed');
+
+      if (failedBooksList.isNotEmpty) {
+        _logger
+            .warning('Failed to migrate books: ${failedBooksList.join(", ")}');
+      }
+
+      return true;
+    } catch (e, stackTrace) {
+      _logger.severe('Migration failed', e, stackTrace);
+      throw ShamorZachorError.fromException(
+        e,
+        stackTrace: stackTrace,
+        customMessage: 'Failed to migrate progress data',
+      );
+    }
+  }
+
+  /// Reset migration flag (for testing purposes)
+  Future<void> resetMigrationFlag() async {
+    try {
+      final prefs = await _getPrefs();
+      await prefs.remove('${_keyPrefix}migration_completed');
+      _logger.info('Migration flag reset');
+    } catch (e) {
+      _logger.warning('Failed to reset migration flag', e);
+    }
+  }
+
   /// Dispose resources
   void dispose() {
     _saveTimer?.cancel();

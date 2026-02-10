@@ -201,7 +201,11 @@ void main() async {
               create: (context) => ShamorZachorDataProvider(),
             ),
             ChangeNotifierProvider<ShamorZachorProgressProvider>(
-              create: (context) => ShamorZachorProgressProvider(),
+              lazy: true, // Create only when needed
+              create: (context) {
+                final dataProvider = context.read<ShamorZachorDataProvider>();
+                return ShamorZachorProgressProvider(dataProvider: dataProvider);
+              },
             ),
           ],
           child: const App(),

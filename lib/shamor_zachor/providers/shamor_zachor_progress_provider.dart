@@ -94,8 +94,14 @@ class ShamorZachorProgressProvider with ChangeNotifier {
     _progressSummaryCache.clear();
   }
 
-  ShamorZachorProgressProvider({ProgressService? progressService})
-      : _progressService = progressService ?? ProgressService() {
+  // Reference to data provider for migration
+  final dynamic _dataProvider;
+
+  ShamorZachorProgressProvider({
+    ProgressService? progressService,
+    dynamic dataProvider,
+  })  : _progressService = progressService ?? ProgressService(),
+        _dataProvider = dataProvider {
     _loadInitialProgress();
   }
 
@@ -116,6 +122,11 @@ class ShamorZachorProgressProvider with ChangeNotifier {
 
       _logger.info(
           'Successfully loaded progress: ${_fullProgress.length} categories (old), ${_progressById.length} books (new)');
+
+      // Run migration if needed (only if we have a data provider)
+      if (_dataProvider != null) {
+        await _runMigrationIfNeeded();
+      }
     } catch (e, stackTrace) {
       if (e is ShamorZachorError) {
         _error = e;
@@ -133,6 +144,53 @@ class ShamorZachorProgressProvider with ChangeNotifier {
     _clearSummaryCache();
     _isLoading = false;
     notifyListeners();
+  }
+
+  /// Run migration from old to new format if needed
+  Future<void> _runMigrationIfNeeded() async {
+    try {
+      _logger.info('Checking if migration is needed...');
+
+      final migrated = await _progressService.migrateOldProgressToNewFormat(
+        findBookIdByName: (categoryName, bookName) async {
+          // Try to find the book in the data provider
+          try {
+            // First try direct lookup
+            final bookDetails =
+                _dataProvider.getBookDetails(categoryName, bookName);
+            if (bookDetails?.id != null) {
+              return bookDetails!.id;
+            }
+
+            // If not found, search in all categories
+            for (final topCategory in _dataProvider.allBookData.values) {
+              final allBooks = topCategory.getAllBooksRecursive();
+              final book = allBooks[bookName];
+              if (book?.id != null) {
+                return book!.id;
+              }
+            }
+
+            return null;
+          } catch (e) {
+            _logger.warning(
+                'Error finding book ID for $categoryName/$bookName: $e');
+            return null;
+          }
+        },
+      );
+
+      if (migrated) {
+        _logger.info('Migration completed successfully, reloading data...');
+        // Reload new format data after migration
+        _progressById = await _progressService.loadProgressDataById();
+        _completionDatesById = await _progressService.loadCompletionDatesById();
+        _logger.info('Reloaded ${_progressById.length} books after migration');
+      }
+    } catch (e) {
+      _logger.warning('Migration failed, continuing with old format: $e');
+      // Don't throw - allow the app to continue with old format
+    }
   }
 
   /// Get progress data for a specific book
