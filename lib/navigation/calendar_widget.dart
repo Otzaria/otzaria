@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_spinbox/flutter_spinbox.dart';
+import 'package:flutter/services.dart';
 import 'package:kosher_dart/kosher_dart.dart';
 import 'calendar_cubit.dart';
 import 'package:otzaria/daf_yomi/daf_yomi_helper.dart';
@@ -16,9 +18,114 @@ import 'package:otzaria/widgets/rtl_text_field.dart';
 import 'package:otzaria/printing/printing_screen.dart';
 import 'calendar_print_helper.dart' as print_helper;
 
-// הפכנו את הווידג'ט ל-Stateless כי הוא כבר לא מנהל מצב בעצמו.
-class CalendarWidget extends StatelessWidget {
+// הפכנו את הווידג'ט ל-Stateful כדי לתמוך בניווט עם מקשי חיצים
+class CalendarWidget extends StatefulWidget {
   const CalendarWidget({super.key});
+
+  @override
+  State<CalendarWidget> createState() => _CalendarWidgetState();
+}
+
+class _CalendarWidgetState extends State<CalendarWidget> {
+  late final FocusNode _keyboardFocusNode;
+  Timer? _keyRepeatTimer;
+  LogicalKeyboardKey? _currentPressedKey;
+
+  @override
+  void initState() {
+    super.initState();
+    _keyboardFocusNode = FocusNode(
+      skipTraversal: false,
+      canRequestFocus: true,
+    );
+
+    // בקש פוקוס אוטומטי כשהווידג'ט נטען
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _keyboardFocusNode.requestFocus();
+    });
+
+    // האזן לשינויים בפוקוס ותמיד החזר אותו
+    _keyboardFocusNode.addListener(_onFocusChange);
+  }
+
+  void _onFocusChange() {
+    // אם הפוקוס אבד, החזר אותו
+    if (!_keyboardFocusNode.hasFocus) {
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted) {
+          _keyboardFocusNode.requestFocus();
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _keyRepeatTimer?.cancel();
+    _keyboardFocusNode.removeListener(_onFocusChange);
+    _keyboardFocusNode.dispose();
+    super.dispose();
+  }
+
+  /// מטפל באירועי מקלדת ומנווט בלוח השנה
+  void _handleCalendarKeyEvent(KeyEvent event) {
+    final cubit = context.read<CalendarCubit>();
+
+    if (event is KeyDownEvent) {
+      // בדוק אם זה אירוע חדש או חזרה
+      final isNewPress = _currentPressedKey != event.logicalKey;
+
+      if (isNewPress) {
+        // לחיצה ראשונה - בצע פעולה מיד
+        _executeNavigationAction(event.logicalKey, cubit);
+
+        // שמור את המקש הנוכחי
+        _currentPressedKey = event.logicalKey;
+
+        // התחל טיימר ללחיצה ארוכה (חזרה אוטומטית) אחרי השהייה
+        _keyRepeatTimer?.cancel();
+        _keyRepeatTimer = Timer(const Duration(milliseconds: 400), () {
+          // אחרי השהייה ראשונית, התחל חזרה מהירה
+          _keyRepeatTimer =
+              Timer.periodic(const Duration(milliseconds: 80), (timer) {
+            if (_currentPressedKey != null && mounted) {
+              _executeNavigationAction(_currentPressedKey!, cubit);
+            } else {
+              timer.cancel();
+            }
+          });
+        });
+      }
+    } else if (event is KeyUpEvent) {
+      // כשמשחררים את המקש, עצור את החזרה האוטומטית
+      if (event.logicalKey == _currentPressedKey) {
+        _keyRepeatTimer?.cancel();
+        _keyRepeatTimer = null;
+        _currentPressedKey = null;
+      }
+    } else if (event is KeyRepeatEvent) {
+      // התעלם מאירועי חזרה אוטומטיים של המערכת
+      // אנחנו מטפלים בזה בעצמנו
+      return;
+    }
+  }
+
+  /// מבצע את פעולת הניווט בהתאם למקש
+  void _executeNavigationAction(LogicalKeyboardKey key, CalendarCubit cubit) {
+    if (key == LogicalKeyboardKey.arrowRight) {
+      // חץ ימינה - יום קודם (RTL)
+      cubit.navigateToPreviousDay();
+    } else if (key == LogicalKeyboardKey.arrowLeft) {
+      // חץ שמאלה - יום הבא (RTL)
+      cubit.navigateToNextDay();
+    } else if (key == LogicalKeyboardKey.arrowUp) {
+      // חץ למעלה - שבוע קודם
+      cubit.navigateToPreviousWeek();
+    } else if (key == LogicalKeyboardKey.arrowDown) {
+      // חץ למטה - שבוע הבא
+      cubit.navigateToNextWeek();
+    }
+  }
 
   Future<_ZmanAlertDialogResult?> _showZmanAlertDialog(
     BuildContext context, {
@@ -69,17 +176,28 @@ class CalendarWidget extends StatelessWidget {
     // BlocBuilder מאזין לשינויים ב-Cubit ובונה מחדש את הממשק בכל פעם שהמצב משתנה
     return BlocBuilder<CalendarCubit, CalendarState>(
       builder: (context, state) {
-        return Scaffold(
-          // אין צורך ב-AppBar כאן אם הוא מגיע ממסך האב
-          body: LayoutBuilder(
-            builder: (context, constraints) {
-              final isWideScreen = constraints.maxWidth > 800;
-              if (isWideScreen) {
-                return _buildWideScreenLayout(context, state);
-              } else {
-                return _buildNarrowScreenLayout(context, state);
-              }
+        return KeyboardListener(
+          focusNode: _keyboardFocusNode,
+          autofocus: true,
+          onKeyEvent: _handleCalendarKeyEvent,
+          child: GestureDetector(
+            // לחיצה על הלוח תחזיר את הפוקוס
+            onTap: () {
+              _keyboardFocusNode.requestFocus();
             },
+            child: Scaffold(
+              // אין צורך ב-AppBar כאן אם הוא מגיע ממסך האב
+              body: LayoutBuilder(
+                builder: (context, constraints) {
+                  final isWideScreen = constraints.maxWidth > 800;
+                  if (isWideScreen) {
+                    return _buildWideScreenLayout(context, state);
+                  } else {
+                    return _buildNarrowScreenLayout(context, state);
+                  }
+                },
+              ),
+            ),
           ),
         );
       },
