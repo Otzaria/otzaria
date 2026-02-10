@@ -12,11 +12,13 @@ class ShamorZachorSidebar extends StatefulWidget {
   final Function(
           String categoryName, BookCategory category, String topLevelName)
       onCategorySelected;
+  final Function(String searchQuery)? onSearchChanged;
   final String? selectedCategoryName;
 
   const ShamorZachorSidebar({
     super.key,
     required this.onCategorySelected,
+    this.onSearchChanged,
     this.selectedCategoryName,
   });
 
@@ -39,6 +41,8 @@ class _ShamorZachorSidebarState extends State<ShamorZachorSidebar> {
     setState(() {
       _searchQuery = value;
     });
+    // Notify parent about search query change
+    widget.onSearchChanged?.call(value);
   }
 
   void _toggleCategory(String categoryPath) {
@@ -73,10 +77,7 @@ class _ShamorZachorSidebarState extends State<ShamorZachorSidebar> {
                   );
                 }
 
-                if (_searchQuery.length >= 2) {
-                  return Center(child: Text("חיפוש יסנן קטגוריות בקרוב"));
-                }
-
+                // Always show category tree, search results will be shown in main area
                 return _buildCategoryTree(dataProvider);
               },
             ),

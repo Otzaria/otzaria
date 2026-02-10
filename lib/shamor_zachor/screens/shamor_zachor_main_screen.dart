@@ -29,6 +29,7 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
   BookCategory? _selectedCategoryObject;
   String? _selectedBookName;
   BookDetails? _selectedBookDetails;
+  String _searchQuery = ''; // Search query from sidebar
 
   @override
   bool get wantKeepAlive => true;
@@ -70,6 +71,22 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
 
       _selectedBookName = null;
       _selectedBookDetails = null;
+      _searchQuery = ''; // Clear search when selecting a category
+    });
+    _notifyTitleChange();
+  }
+
+  void _onSearchChanged(String query) {
+    setState(() {
+      _searchQuery = query;
+      // Clear selection when searching
+      if (query.length >= 2) {
+        _selectedCategoryName = null;
+        _selectedCategoryObject = null;
+        _selectedTopLevelName = null;
+        _selectedBookName = null;
+        _selectedBookDetails = null;
+      }
     });
     _notifyTitleChange();
   }
@@ -169,6 +186,7 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
                     width: sidebarWidth,
                     child: ShamorZachorSidebar(
                       onCategorySelected: _onCategorySelected,
+                      onSearchChanged: _onSearchChanged,
                       selectedCategoryName:
                           currentTopLevelName == 'all_books_virtual'
                               ? 'all_books_virtual'
@@ -212,12 +230,14 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
                               );
                             },
                           )
-                        : CategoryBooksGrid(
-                            categoryName: currentCategoryName,
-                            category: currentCategoryObject,
-                            topLevelName: currentTopLevelName,
-                            onBookSelected: _navigateToBook,
-                          ),
+                        : _searchQuery.length >= 2
+                            ? _buildSearchResults(dataProvider)
+                            : CategoryBooksGrid(
+                                categoryName: currentCategoryName,
+                                category: currentCategoryObject,
+                                topLevelName: currentTopLevelName,
+                                onBookSelected: _navigateToBook,
+                              ),
                   ),
                 ],
               ),
@@ -225,6 +245,29 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
           },
         ),
       ),
+    );
+  }
+
+  Widget _buildSearchResults(ShamorZachorDataProvider dataProvider) {
+    final results = dataProvider.searchBooks(_searchQuery);
+
+    // Create a virtual category with search results
+    final searchCategory = BookCategory(
+      name: 'תוצאות חיפוש: "$_searchQuery"',
+      books: {for (var r in results) r.bookName: r.bookDetails},
+      subcategories: null,
+      isCustom: false,
+      sourceFile: 'search',
+      schemaVersion: 1,
+      contentType: 'text',
+      defaultStartPage: 1,
+    );
+
+    return CategoryBooksGrid(
+      categoryName: 'תוצאות חיפוש',
+      category: searchCategory,
+      topLevelName: 'search_results',
+      onBookSelected: _navigateToBook,
     );
   }
 }
