@@ -745,9 +745,9 @@ class CalendarCubit extends Cubit<CalendarState> {
     ));
   }
 
-  /// ניווט ליום הבא (לשימוש עם מקשי חיצים)
-  void navigateToNextDay() {
-    final newDate = state.selectedGregorianDate.add(const Duration(days: 1));
+  /// פונקציה פנימית לניווט לפי משך זמן
+  void _navigateByDuration(Duration duration) {
+    final newDate = state.selectedGregorianDate.add(duration);
     final newJewishDate = JewishDate.fromDateTime(newDate);
     final newTimes = _calculateDailyTimes(newDate, state.selectedCity);
 
@@ -759,53 +759,19 @@ class CalendarCubit extends Cubit<CalendarState> {
       currentJewishDate: newJewishDate,
     ));
   }
+
+  /// ניווט ליום הבא (לשימוש עם מקשי חיצים)
+  void navigateToNextDay() => _navigateByDuration(const Duration(days: 1));
 
   /// ניווט ליום הקודם (לשימוש עם מקשי חיצים)
-  void navigateToPreviousDay() {
-    final newDate =
-        state.selectedGregorianDate.subtract(const Duration(days: 1));
-    final newJewishDate = JewishDate.fromDateTime(newDate);
-    final newTimes = _calculateDailyTimes(newDate, state.selectedCity);
-
-    emit(state.copyWith(
-      selectedGregorianDate: newDate,
-      selectedJewishDate: newJewishDate,
-      dailyTimes: newTimes,
-      currentGregorianDate: newDate,
-      currentJewishDate: newJewishDate,
-    ));
-  }
+  void navigateToPreviousDay() => _navigateByDuration(const Duration(days: -1));
 
   /// ניווט לשבוע הבא (לשימוש עם מקשי חיצים)
-  void navigateToNextWeek() {
-    final newDate = state.selectedGregorianDate.add(const Duration(days: 7));
-    final newJewishDate = JewishDate.fromDateTime(newDate);
-    final newTimes = _calculateDailyTimes(newDate, state.selectedCity);
-
-    emit(state.copyWith(
-      selectedGregorianDate: newDate,
-      selectedJewishDate: newJewishDate,
-      dailyTimes: newTimes,
-      currentGregorianDate: newDate,
-      currentJewishDate: newJewishDate,
-    ));
-  }
+  void navigateToNextWeek() => _navigateByDuration(const Duration(days: 7));
 
   /// ניווט לשבוע הקודם (לשימוש עם מקשי חיצים)
-  void navigateToPreviousWeek() {
-    final newDate =
-        state.selectedGregorianDate.subtract(const Duration(days: 7));
-    final newJewishDate = JewishDate.fromDateTime(newDate);
-    final newTimes = _calculateDailyTimes(newDate, state.selectedCity);
-
-    emit(state.copyWith(
-      selectedGregorianDate: newDate,
-      selectedJewishDate: newJewishDate,
-      dailyTimes: newTimes,
-      currentGregorianDate: newDate,
-      currentJewishDate: newJewishDate,
-    ));
-  }
+  void navigateToPreviousWeek() =>
+      _navigateByDuration(const Duration(days: -7));
 
   void setEventSearchQuery(String query) {
     emit(state.copyWith(eventSearchQuery: query));

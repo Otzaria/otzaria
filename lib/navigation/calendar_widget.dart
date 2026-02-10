@@ -43,26 +43,11 @@ class _CalendarWidgetState extends State<CalendarWidget> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _keyboardFocusNode.requestFocus();
     });
-
-    // האזן לשינויים בפוקוס ותמיד החזר אותו
-    _keyboardFocusNode.addListener(_onFocusChange);
-  }
-
-  void _onFocusChange() {
-    // אם הפוקוס אבד, החזר אותו
-    if (!_keyboardFocusNode.hasFocus) {
-      Future.delayed(const Duration(milliseconds: 100), () {
-        if (mounted) {
-          _keyboardFocusNode.requestFocus();
-        }
-      });
-    }
   }
 
   @override
   void dispose() {
     _keyRepeatTimer?.cancel();
-    _keyboardFocusNode.removeListener(_onFocusChange);
     _keyboardFocusNode.dispose();
     super.dispose();
   }
