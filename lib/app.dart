@@ -52,6 +52,7 @@ class App extends StatelessWidget {
         final lightColorScheme =
             _createColorScheme(state.seedColor, Brightness.light);
         return MaterialApp(
+          navigatorKey: navigatorKey,
           scaffoldMessengerKey: scaffoldMessengerKey,
           localizationsDelegates: const [
             GlobalCupertinoLocalizations.delegate,
