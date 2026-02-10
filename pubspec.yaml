@@ -177,8 +177,8 @@ flutter:
     - assets/ca/
     - assets/icon/logo_nedarim.png
     - assets/icon/memorial_candle.svg
-    - assets/icon/שמור וזכור.png
-    - assets/icon/זכור ושמור.png
+    - assets/icon/שמור וזכור מקור.png
+    - assets/icon/שמור וזכור שחור ריק.png
     - assets/icon/shamor_zachor_with_v.png
     - assets/icon/iconnew.png
     - lib/migration/dao/sqflite/

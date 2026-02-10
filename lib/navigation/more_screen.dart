@@ -35,7 +35,7 @@ class _MoreScreenState extends State<MoreScreen>
     const _TabInfo(
       label: 'שמור וזכור',
       icon: null,
-      imageIcon: 'assets/icon/זכור ושמור.png',
+      imageIcon: 'assets/icon/שמור וזכור שחור ריק.png',
     ),
     const _TabInfo(
       label: 'מדות ושיעורים',
