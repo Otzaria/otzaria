@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/migration/dao/repository/seforim_repository.dart';
 import 'package:otzaria/migration/core/models/category.dart' as db_models;
@@ -8,8 +10,6 @@ import 'package:otzaria/migration/core/models/toc_entry.dart' as db_models;
 
 import '../models/book_model.dart';
 import '../models/error_model.dart';
-import '../services/data_loader_service.dart';
-import '../services/dynamic_data_loader_service.dart';
 
 /// Provider for managing book data in Shamor Zachor
 /// This provider is scoped locally within the ShamorZachorWidget
@@ -30,26 +30,20 @@ class ShamorZachorDataProvider with ChangeNotifier {
   // OPTIMIZATION 3: Cache for TOC data - loaded on demand only
   final Map<int, List<BookSection>> _tocCache = {};
 
+  // Tracked books list - stored in SharedPreferences
+  static const String _trackedBooksKey = 'sz:tracked_books';
+  Set<int> _trackedBookIds = {};
+
   // Getters
   Map<String, BookCategory> get allBookData => _allBookData;
   bool get isLoading => _isLoading;
   ShamorZachorError? get error => _error;
   bool get hasData => _allBookData.isNotEmpty;
 
-  /// Constructor accepting SqliteDataProvider (or generic DataProvider)
-  /// We keep the old constructor signatures for compatibility but ignore them logic-wise if we are strictly DB now.
-  /// However, for migration safety, we can accept the sqlite provider.
+  /// Constructor accepting SqliteDataProvider
   ShamorZachorDataProvider({
-    DataLoaderService? dataLoaderService,
-    DynamicDataLoaderService? dynamicDataLoaderService,
     SqliteDataProvider? sqliteDataProvider,
   }) : _sqliteDataProvider = sqliteDataProvider ?? SqliteDataProvider.instance {
-    _loadInitialData();
-  }
-
-  // Named constructor for dynamic - kept for compatibility but redirecting to DB approach if possible
-  ShamorZachorDataProvider.dynamic(DynamicDataLoaderService dynamicService)
-      : _sqliteDataProvider = SqliteDataProvider.instance {
     _loadInitialData();
   }
 
@@ -75,12 +69,15 @@ class ShamorZachorDataProvider with ChangeNotifier {
 
       final repository = _sqliteDataProvider!.repository!;
 
+      // Load tracked books list from SharedPreferences
+      await _loadTrackedBooksList();
+
       // OPTIMIZATION 1 & 2: Use existing getAllBooks() query with in-memory filter
-      // instead of separate getBaseBooks() and getPersonalBooks() queries.
-      // This reuses the same query that the main library uses.
+      // Show baseBooks OR books that are in the tracked list
       final allBooks = await repository.database.bookDao.getAllBooks();
-      final relevantBooks =
-          allBooks.where((book) => book.isBaseBook || book.isPersonal).toList();
+      final relevantBooks = allBooks
+          .where((book) => book.isBaseBook || _trackedBookIds.contains(book.id))
+          .toList();
 
       // OPTIMIZATION 2: Reuse categories from SqliteDataProvider cache if available
       // This avoids duplicate category queries
@@ -232,7 +229,7 @@ class ShamorZachorDataProvider with ChangeNotifier {
           ? 'pdf'
           : (dbBook.fileType == 'docx' ? 'docx' : contentType),
       parts: parts,
-      isCustom: dbBook.isPersonal,
+      isCustom: !dbBook.isBaseBook, // isCustom means "not a base book"
       id: dbBook.id, // העברת ה-ID כ-int ישירות
       originalPageCount: dbBook.totalLines,
       sections: sections.isNotEmpty ? sections : null,
@@ -445,29 +442,22 @@ class ShamorZachorDataProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // Custom books methods - DB handles "Personal" books separately?
-  // Current plan is 'selectBaseBooks'. If user wants personal books, we might need another query.
-  // User asked only for "isBaseBook".
-  // But for "addCustomBook", we might need to support it via DB insertion if intended.
-  // For now, let's keep stub or remove if legacy.
-
+  /// Add a book to Shamor Zachor tracking
+  /// This saves the book ID to a tracked books list in SharedPreferences
+  /// WITHOUT modifying the books database
   Future<void> addCustomBook(
       {required String bookName,
       required String categoryName,
       required String bookPath,
       required String contentType}) async {
-    // NOTE: This method should NOT write to the DB!
-    // The book should already exist in seforim.db
-    // We only need to verify it exists and can be tracked
-
     final repository = _sqliteDataProvider?.repository;
     if (repository == null) {
       _logger.warning("Repository not initialized");
-      throw Exception('Database not initialized');
+      throw Exception('מסד הנתונים לא מאותחל');
     }
 
     try {
-      // Check if book exists in DB
+      // 1. Check if book exists in DB
       final existing = await repository.getBookByTitle(bookName);
       if (existing == null) {
         _logger.warning("Book '$bookName' not found in database");
@@ -475,51 +465,69 @@ class ShamorZachorDataProvider with ChangeNotifier {
             'הספר "$bookName" לא נמצא במסד הנתונים. יש להוסיף אותו תחילה לספרייה.');
       }
 
-      // Book exists - no need to modify DB
-      // The tracking is handled by SharedPreferences in the progress system
-      // Just reload data to ensure it's available
-      _logger.info("Book '$bookName' verified in database, ready for tracking");
+      // 2. Add book ID to tracked books list (in SharedPreferences)
+      await _addToTrackedBooksList(existing.id);
+      _logger.info(
+          "Book '$bookName' (ID: ${existing.id}) added to Shamor Zachor tracking");
 
-      // No need to reload all data - book already exists
-      // await loadAllData();
+      // 3. Reload data to show the book in Shamor Zachor
+      await loadAllData();
     } catch (e) {
-      _logger.warning("Failed to verify book for tracking", e);
+      _logger.warning("Failed to add book to Shamor Zachor tracking", e);
       rethrow;
     }
   }
 
+  /// Remove a book from Shamor Zachor tracking
+  /// This removes the book ID from the tracked books list in SharedPreferences
+  /// WITHOUT modifying the books database
   Future<void> removeCustomBook(
       {required String categoryName, required String bookName}) async {
     final repository = _sqliteDataProvider?.repository;
-    if (repository == null) return;
+    if (repository == null) {
+      _logger.warning("Repository not initialized");
+      return;
+    }
 
     try {
       final existing = await repository.getBookByTitle(bookName);
-      if (existing != null) {
-        if (existing.isBaseBook) {
-          // Only unmark personal
-          final updated = existing.copyWith(isPersonal: false);
-          await repository.insertBook(updated);
-        } else {
-          // If it's purely personal, we could delete it, or just unmark.
-          // For data safety, let's unmark.
-          final updated = existing.copyWith(isPersonal: false);
-          await repository.insertBook(updated);
-          // Or repository.deleteBook(existing.id)?
-        }
-        await loadAllData();
+      if (existing == null) {
+        _logger.warning("Book '$bookName' not found in database");
+        return;
       }
+
+      // Only allow removing books that are not base books
+      if (existing.isBaseBook) {
+        _logger
+            .warning("Cannot remove base book '$bookName' from Shamor Zachor");
+        throw Exception('לא ניתן להסיר ספר בסיס מ"שמור וזכור"');
+      }
+
+      // Remove book ID from tracked books list
+      await _removeFromTrackedBooksList(existing.id);
+      _logger.info(
+          "Book '$bookName' (ID: ${existing.id}) removed from Shamor Zachor tracking");
+
+      // Reload data to remove the book from Shamor Zachor
+      await loadAllData();
     } catch (e) {
-      _logger.warning("Failed to remove custom book", e);
+      _logger.warning("Failed to remove book from Shamor Zachor tracking", e);
+      rethrow;
     }
   }
 
+  /// Get all custom (personal) books that are not base books
+  /// These are books that were added by the user to Shamor Zachor
   List<Map<String, dynamic>> getCustomBooks() {
     final results = <Map<String, dynamic>>[];
 
     void scan(BookCategory cat, String topLevel) {
       cat.books.forEach((name, details) {
-        if (details.isCustom) {
+        // Check if book is in tracked list and is not a base book
+        if (details.id != null &&
+            _trackedBookIds.contains(details.id) &&
+            details.isCustom) {
+          // isCustom means "not a base book"
           results.add({
             'categoryName': cat.name,
             'bookName': name,
@@ -551,6 +559,50 @@ class ShamorZachorDataProvider with ChangeNotifier {
   void clearTocCache() {
     _tocCache.clear();
     _logger.fine('Cleared TOC cache');
+  }
+
+  /// Load tracked books list from SharedPreferences
+  Future<void> _loadTrackedBooksList() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonString = prefs.getString(_trackedBooksKey);
+
+      if (jsonString == null || jsonString.isEmpty) {
+        _trackedBookIds = {};
+        return;
+      }
+
+      final List<dynamic> decoded = jsonDecode(jsonString);
+      _trackedBookIds = decoded.map((e) => e as int).toSet();
+      _logger.fine('Loaded ${_trackedBookIds.length} tracked books');
+    } catch (e) {
+      _logger.warning('Failed to load tracked books list', e);
+      _trackedBookIds = {};
+    }
+  }
+
+  /// Save tracked books list to SharedPreferences
+  Future<void> _saveTrackedBooksList() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonString = jsonEncode(_trackedBookIds.toList());
+      await prefs.setString(_trackedBooksKey, jsonString);
+      _logger.fine('Saved ${_trackedBookIds.length} tracked books');
+    } catch (e) {
+      _logger.warning('Failed to save tracked books list', e);
+    }
+  }
+
+  /// Add a book ID to the tracked books list
+  Future<void> _addToTrackedBooksList(int bookId) async {
+    _trackedBookIds.add(bookId);
+    await _saveTrackedBooksList();
+  }
+
+  /// Remove a book ID from the tracked books list
+  Future<void> _removeFromTrackedBooksList(int bookId) async {
+    _trackedBookIds.remove(bookId);
+    await _saveTrackedBooksList();
   }
 
   @override

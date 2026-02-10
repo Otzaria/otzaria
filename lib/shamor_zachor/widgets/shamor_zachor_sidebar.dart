@@ -126,8 +126,6 @@ class _ShamorZachorSidebarState extends State<ShamorZachorSidebar> {
     // Use natural order from DataProvider (already sorted by orderIndex from DB)
     final sortedKeys = allCategories.keys.toList();
 
-    final customBooks = dataProvider.getCustomBooks();
-
     // Create 'All Books' as a parent node wrapper
     final allBooksCategory = BookCategory(
         name: 'כל הספרים',
@@ -146,13 +144,6 @@ class _ShamorZachorSidebarState extends State<ShamorZachorSidebar> {
 
     return ListView(
       children: [
-        if (customBooks.isNotEmpty)
-          _buildVirtualCategory(
-            title: 'ספרים אישיים',
-            path: 'custom_books_virtual',
-            level: 0,
-          ),
-
         // All Books Root Node
         Column(
             mainAxisSize: MainAxisSize.min,
@@ -219,38 +210,6 @@ class _ShamorZachorSidebarState extends State<ShamorZachorSidebar> {
         ),
         if (isExpanded) ...childrenWidgets,
       ],
-    );
-  }
-
-  Widget _buildVirtualCategory({
-    required String title,
-    required String path,
-    required int level,
-    BookCategory? overrideCategory,
-  }) {
-    final dummyCategory = overrideCategory ??
-        BookCategory(
-            name: title,
-            books: {},
-            subcategories: [],
-            isCustom: true,
-            sourceFile: 'virtual',
-            schemaVersion: 1,
-            contentType: 'text',
-            defaultStartPage: 1);
-
-    final isSelected = widget.selectedCategoryName == path ||
-        widget.selectedCategoryName == title;
-
-    return NavigationTreeTile.category(
-      title: title,
-      level: level,
-      isSelected: isSelected,
-      isExpanded: false,
-      hasChildren: false,
-      onTap: () {
-        widget.onCategorySelected(title, dummyCategory, path);
-      },
     );
   }
 }

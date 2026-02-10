@@ -104,25 +104,6 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
               _logger.fine(
                   'CategoryBooksGrid builder called for category: ${widget.categoryName}');
 
-              if (widget.categoryName == 'custom_books_virtual') {
-                // Handling custom books - Flat list
-                final custom = dataProvider.getCustomBooks();
-                final allBooks = custom
-                    .map((b) => {
-                          'name': b['bookName'],
-                          'details': b['bookDetails'],
-                          'category': b['topLevelCategoryKey']
-                        })
-                    .toList();
-
-                final filteredBooks = _filterBooks(allBooks, progressProvider);
-                if (filteredBooks.isEmpty) {
-                  return _buildEmptyState();
-                }
-                return _buildBooksGrid(filteredBooks, progressProvider,
-                    shrinkWrap: false);
-              }
-
               if (widget.category != null) {
                 final effectiveTopLevelName =
                     widget.topLevelName ?? widget.category!.name;
@@ -247,10 +228,20 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
       final details = book['details'] as BookDetails;
       final category = book['category'] as String;
 
-      final isCompleted =
-          progressProvider.isBookCompleted(category, name, details);
-      final isInProgress =
-          progressProvider.isBookConsideredInProgress(category, name, details);
+      // Use ID-based functions if available, otherwise fall back to name-based
+      final bool isCompleted;
+      final bool isInProgress;
+
+      if (details.id != null) {
+        isCompleted =
+            progressProvider.isBookCompletedById(details.id!, details);
+        isInProgress = progressProvider.isBookConsideredInProgressById(
+            details.id!, details);
+      } else {
+        isCompleted = progressProvider.isBookCompleted(category, name, details);
+        isInProgress = progressProvider.isBookConsideredInProgress(
+            category, name, details);
+      }
 
       if (_selectedFilter == 'in_progress') {
         return isInProgress && !isCompleted;

@@ -1275,6 +1275,26 @@ class ShamorZachorProgressProvider with ChangeNotifier {
     return learnedItemsCount >= totalTargetItems;
   }
 
+  /// Check if book is considered in progress by ID
+  bool isBookConsideredInProgressById(int bookId, BookDetails bookDetails) {
+    final bookProgress = _progressById[bookId];
+    if (bookProgress == null || bookProgress.isEmpty) {
+      return false;
+    }
+
+    final learnProgress = getLearnProgressPercentageById(bookId, bookDetails);
+    if (learnProgress > 0 && learnProgress < 1.0) return true;
+
+    // Check review progress
+    for (int i = 1; i <= 3; i++) {
+      final reviewProgress =
+          getReviewProgressPercentageById(bookId, bookDetails, i);
+      if (reviewProgress > 0 && reviewProgress < 1.0) return true;
+    }
+
+    return false;
+  }
+
   /// Get number of completed cycles by book ID
   int getNumberOfCompletedCyclesById(int bookId, BookDetails bookDetails) {
     final bookProgress = _progressById[bookId];

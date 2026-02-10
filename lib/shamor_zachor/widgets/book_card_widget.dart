@@ -14,7 +14,6 @@ class BookCardWidget extends StatefulWidget {
   final String bookName;
   final BookDetails bookDetails;
   final Map<String, PageProgress> bookProgressData;
-  final bool isFromTrackingScreen;
   final String? completionDate;
   final bool isInCompletedListContext;
   final VoidCallback? onDelete;
@@ -27,7 +26,6 @@ class BookCardWidget extends StatefulWidget {
     required this.bookName,
     required this.bookDetails,
     required this.bookProgressData,
-    this.isFromTrackingScreen = false,
     this.completionDate,
     this.isInCompletedListContext = false,
     this.onDelete,
