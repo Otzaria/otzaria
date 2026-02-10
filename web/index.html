@@ -42,13 +42,12 @@
 <body>
   <script>
     window.addEventListener('load', function(ev) {
-      // Download main.dart.js
+      // הורדת הקובץ הראשי ללא Service Worker
       _flutter.loader.loadEntrypoint({
-        serviceWorker: {
-          serviceWorkerVersion: serviceWorkerVersion,
-        },
         onEntrypointLoaded: function(engineInitializer) {
-          engineInitializer.initializeEngine().then(function(appRunner) {
+          engineInitializer.initializeEngine({
+            renderer: "html" // הכרחי לנטפרי
+          }).then(function(appRunner) {
             appRunner.runApp();
           });
         }
