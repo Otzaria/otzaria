@@ -50,6 +50,7 @@ class App extends StatelessWidget {
       builder: (context, settingsState) {
         final state = settingsState;
         return MaterialApp(
+          navigatorKey: navigatorKey,
           scaffoldMessengerKey: scaffoldMessengerKey,
           localizationsDelegates: const [
             GlobalCupertinoLocalizations.delegate,
