@@ -745,6 +745,68 @@ class CalendarCubit extends Cubit<CalendarState> {
     ));
   }
 
+  /// ניווט ליום הבא (לשימוש עם מקשי חיצים)
+  void navigateToNextDay() {
+    final newDate = state.selectedGregorianDate.add(const Duration(days: 1));
+    final newJewishDate = JewishDate.fromDateTime(newDate);
+    final newTimes = _calculateDailyTimes(newDate, state.selectedCity);
+
+    emit(state.copyWith(
+      selectedGregorianDate: newDate,
+      selectedJewishDate: newJewishDate,
+      dailyTimes: newTimes,
+      currentGregorianDate: newDate,
+      currentJewishDate: newJewishDate,
+    ));
+  }
+
+  /// ניווט ליום הקודם (לשימוש עם מקשי חיצים)
+  void navigateToPreviousDay() {
+    final newDate =
+        state.selectedGregorianDate.subtract(const Duration(days: 1));
+    final newJewishDate = JewishDate.fromDateTime(newDate);
+    final newTimes = _calculateDailyTimes(newDate, state.selectedCity);
+
+    emit(state.copyWith(
+      selectedGregorianDate: newDate,
+      selectedJewishDate: newJewishDate,
+      dailyTimes: newTimes,
+      currentGregorianDate: newDate,
+      currentJewishDate: newJewishDate,
+    ));
+  }
+
+  /// ניווט לשבוע הבא (לשימוש עם מקשי חיצים)
+  void navigateToNextWeek() {
+    final newDate = state.selectedGregorianDate.add(const Duration(days: 7));
+    final newJewishDate = JewishDate.fromDateTime(newDate);
+    final newTimes = _calculateDailyTimes(newDate, state.selectedCity);
+
+    emit(state.copyWith(
+      selectedGregorianDate: newDate,
+      selectedJewishDate: newJewishDate,
+      dailyTimes: newTimes,
+      currentGregorianDate: newDate,
+      currentJewishDate: newJewishDate,
+    ));
+  }
+
+  /// ניווט לשבוע הקודם (לשימוש עם מקשי חיצים)
+  void navigateToPreviousWeek() {
+    final newDate =
+        state.selectedGregorianDate.subtract(const Duration(days: 7));
+    final newJewishDate = JewishDate.fromDateTime(newDate);
+    final newTimes = _calculateDailyTimes(newDate, state.selectedCity);
+
+    emit(state.copyWith(
+      selectedGregorianDate: newDate,
+      selectedJewishDate: newJewishDate,
+      dailyTimes: newTimes,
+      currentGregorianDate: newDate,
+      currentJewishDate: newJewishDate,
+    ));
+  }
+
   void setEventSearchQuery(String query) {
     emit(state.copyWith(eventSearchQuery: query));
   }
