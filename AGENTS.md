@@ -1,198 +1,179 @@
-# AI Agent Guidelines for Working with Otzaria Project
+# AI Agent Guidelines for Otzaria
 
-## Communication Guidelines
+## CRITICAL: Communication Language
+**ALWAYS respond in Hebrew (עברית)!** This includes:
+- All answers and explanations
+- Your thinking process
+- Error messages and debugging info
+- Only code/comments can be in English when appropriate
 
-**IMPORTANT: Always respond in Hebrew. Display your thinking process in Hebrew as well.**
+## Mandatory Workflow
+1. **Plan** - Create detailed action plan before execution
+2. **Execute** - Step by step until completion
+3. **Validate** - Run `flutter analyze` after EVERY change
+4. **Fix ALL errors before proceeding to next step**
+5. **Never skip validation - errors compound quickly!**
 
-Even though this document is in English for reference, when working on this project:
-- Write all responses to users in Hebrew
-- Show your reasoning and thought process in Hebrew
-- Use Hebrew for explanations and summaries
-- Only code comments and technical documentation may be in English when appropriate
+## Architecture
 
-## General Principles
+### Design Patterns
+- **BLoC Pattern** - State management (every feature needs: bloc/event/state)
+- **Repository Pattern** - Separates data access from business logic
+- **Provider** - For dependency injection across the app
 
-### Execution Planning
-1. **Plan a detailed action plan before starting execution**
-2. **Execute the plan step by step until completion**
-3. **After each action, run `flutter analyze` to check for errors and warnings**
-4. **If there are errors, fix them before continuing**
-5. **Do not move to the next step before the current step works without errors**
+### Feature Structure (MUST follow)
+```
+lib/feature_name/
+├── bloc/
+│   ├── feature_bloc.dart      # Business logic
+│   ├── feature_event.dart     # User actions/events
+│   └── feature_state.dart     # UI states
+├── models/
+│   └── feature_model.dart     # Data models
+├── repository/
+│   └── feature_repository.dart # Data layer
+└── view/
+    ├── feature_screen.dart    # Main screen
+    └── widgets/               # Feature-specific widgets
+```
 
-### Development Environment Tips
-- Use `flutter pub get` after every change to `pubspec.yaml`
-- Run `flutter clean` if there are strange build issues
-- Use `flutter pub outdated` to check for outdated dependencies
-- Check the package name in `pubspec.yaml` - the name is `otzaria`
-- Use `dart fix --apply` for automatic fixing of common issues
+### Key Code Locations
+```
+lib/
+├── data/repository/
+│   └── books_repository.dart          # Central books management
+├── models/
+│   ├── books.dart                     # Book model (title, path, etc)
+│   └── app_model.dart                 # Main app state
+├── widgets/
+│   ├── rtl_text_field.dart           # RTL text input (USE THIS!)
+│   └── [other shared widgets]
+├── core/
+│   └── scaffold_messenger.dart        # UiSnack for messages
+├── search/
+│   ├── bloc/                          # Search state management
+│   └── search_repository.dart         # Search engine
+├── settings/
+│   ├── settings_repository.dart       # App settings
+│   └── bloc/
+├── bookmarks/repository/              # Bookmarks system
+├── history/                           # Reading history
+├── personal_notes/                    # User notes feature
+├── pdf_book/                          # PDF viewer screens
+├── text_book/                         # Text viewer screens
+└── utils/
+    └── open_book.dart                 # Book opening logic
+```
 
-### Architecture
-- The project uses **BLoC pattern** for state management
-- The project uses **Repository pattern** to separate business logic from data sources
-- Each feature should be organized in its own folder with the following structure:
-  ```
-  feature_name/
-  ├── bloc/
-  │   ├── feature_bloc.dart
-  │   ├── feature_event.dart
-  │   └── feature_state.dart
-  ├── models/
-  ├── repository/
-  └── view/
-  ```
 
-## Mandatory UI Components
+## MANDATORY UI Components
 
-### Icons
-**MUST use icons only from the `fluentui_system_icons` library**
-
+### 1. Icons - ONLY from `fluentui_system_icons`
 ```dart
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
-// Usage examples:
+// Examples:
 Icon(FluentIcons.search_24_regular)
 Icon(FluentIcons.book_24_filled)
 Icon(FluentIcons.settings_24_regular)
-Icon(FluentIcons.copy_24_regular)
-Icon(FluentIcons.delete_24_regular)
 ```
+**Never use:**
+- Material Icons
+- Cupertino Icons
+- Custom icon fonts
+- Random icon packages
 
-### User Messages
-**Every user message MUST be through `UiSnack` from `lib/core/scaffold_messenger.dart`**
-
+### 2. User Messages - ONLY via `UiSnack`
 ```dart
 import 'package:otzaria/core/scaffold_messenger.dart';
 
-// Regular message
-UiSnack.show('הפעולה בוצעה בהצלחה');
-
-// Error message
-UiSnack.showError('אירעה שגיאה');
-
-// Message with custom color
-UiSnack.showSuccess('הנתונים נשמרו', backgroundColor: Colors.green);
-
-// Message with action
-UiSnack.showWithAction(
-  message: 'הקובץ נמחק',
-  actionLabel: 'בטל',
-  onAction: () {
-    // Code to undo action
-  },
-);
-
-// Using predefined messages
-UiSnack.show(UiSnack.textCopied);
-UiSnack.show(UiSnack.savedSuccessfully);
+UiSnack.show('הפעולה בוצעה');              // Success
+UiSnack.showError('שגיאה בביצוע');         // Error
+UiSnack.show(UiSnack.textCopied);          // Pre-defined message
 ```
+**Never use:**
+- `ScaffoldMessenger.of(context).showSnackBar()`
+- Custom snackbar widgets
+- Toast packages
+- Alert dialogs for simple messages
 
-### Text Input Fields
-**Every text input field MUST use `RtlTextField` from `lib/widgets/rtl_text_field.dart`**
-
+### 3. Text Input - ONLY `RtlTextField`
 ```dart
 import 'package:otzaria/widgets/rtl_text_field.dart';
 
 RtlTextField(
   controller: _controller,
-  decoration: InputDecoration(
-    labelText: 'חיפוש',
-    hintText: 'הקלד טקסט לחיפוש',
-  ),
-  onChanged: (value) {
-    // Handle change
-  },
-  onSubmitted: (value) {
-    // Handle submission
-  },
+  decoration: InputDecoration(labelText: 'חיפוש'),
+  onSubmitted: (value) => _handleSearch(),
   autofocus: true,
 )
 ```
+**NEVER use regular `TextField`** - it breaks RTL support!
 
-**Do NOT use Flutter's regular `TextField`!** Always use `RtlTextField` to properly support RTL.
+## Code Guidelines
 
-## Common Functions and Services
-
-### Book Management
+### RTL Support (Critical!)
+Every Hebrew text MUST have:
 ```dart
-// lib/data/repository/books_repository.dart - Access to books repository
-// lib/models/books.dart - Book model
-// lib/utils/open_book.dart - Opening a book
+Text(
+  'טקסט עברי',
+  textDirection: TextDirection.rtl,  // REQUIRED!
+)
 ```
+- Use `RtlTextField` for all text inputs
+- Test UI with Hebrew text before committing
+- All forms, dialogs, and lists must support RTL
 
-### Search
+### BLoC Pattern Implementation
 ```dart
-// lib/search/search_repository.dart - Search engine
-// lib/search/bloc/ - BLoC for search state management
-```
-
-### Settings
-```dart
-// lib/settings/settings_repository.dart - Access to settings
-// lib/settings/settings_bloc.dart - BLoC for settings management
-```
-
-### Bookmarks and History
-```dart
-// lib/bookmarks/repository/bookmarks_repository.dart - Bookmarks management
-// lib/history/history_repository.dart - History management
-```
-
-### Personal Notes
-```dart
-// lib/personal_notes/personal_notes_system.dart - Personal notes system
-// lib/personal_notes/repository/ - Repository for notes
-```
-
-### PDF
-```dart
-// lib/pdf_book/pdf_book_screen.dart - PDF view
-// lib/pdf_book/bloc/ - BLoC for PDF management
-```
-
-### Text
-```dart
-// lib/text_book/text_book_repository.dart - Repository for text books
-// lib/text_book/bloc/ - BLoC for text books management
-```
-
-## Code Rules
-
-### RTL (Right-to-Left)
-- **All Hebrew texts must have `textDirection: TextDirection.rtl`**
-- Use `RtlTextField` instead of `TextField`
-- Check that the interface looks correct in Hebrew
-
-### Bloc Pattern
-```dart
-// Event
-abstract class FeatureEvent extends Equatable {
+// 1. Events - User actions
+sealed class FeatureEvent extends Equatable {
   const FeatureEvent();
-  
-  @override
-  List<Object?> get props => [];
 }
 
-// State
-abstract class FeatureState extends Equatable {
+class LoadDataEvent extends FeatureEvent {
+  const LoadDataEvent();
+  @override
+  List<Object> get props => [];
+}
+
+// 2. States - UI states
+sealed class FeatureState extends Equatable {
   const FeatureState();
-  
-  @override
-  List<Object?> get props => [];
 }
 
-// Bloc
+class LoadingState extends FeatureState {
+  @override
+  List<Object> get props => [];
+}
+
+class LoadedState extends FeatureState {
+  final Data data;
+  const LoadedState(this.data);
+  @override
+  List<Object> get props => [data];
+}
+
+// 3. Bloc - Logic
 class FeatureBloc extends Bloc<FeatureEvent, FeatureState> {
   final FeatureRepository repository;
   
-  FeatureBloc({required this.repository}) : super(FeatureInitial()) {
-    on<FeatureEventName>(_onEventName);
+  FeatureBloc({required this.repository}) : super(InitialState()) {
+    on<LoadDataEvent>(_onLoadData);
   }
   
-  Future<void> _onEventName(
-    FeatureEventName event,
+  Future<void> _onLoadData(
+    LoadDataEvent event,
     Emitter<FeatureState> emit,
   ) async {
-    // Logic
+    emit(LoadingState());
+    try {
+      final data = await repository.fetchData();
+      emit(LoadedState(data));
+    } catch (e) {
+      emit(ErrorState(e.toString()));
+      UiSnack.showError('שגיאה: ${e.toString()}');
+    }
   }
 }
 ```
@@ -200,16 +181,16 @@ class FeatureBloc extends Bloc<FeatureEvent, FeatureState> {
 ### Repository Pattern
 ```dart
 class FeatureRepository {
-  final DataProvider dataProvider;
+  final DataSource dataSource;  // Could be API, DB, file system
   
-  FeatureRepository({required this.dataProvider});
+  FeatureRepository({required this.dataSource});
   
-  Future<Result> fetchData() async {
+  Future<List<Item>> getItems() async {
     try {
-      // Logic
-      return result;
+      final rawData = await dataSource.fetch();
+      return rawData.map((e) => Item.fromJson(e)).toList();
     } catch (e) {
-      throw Exception('Error: $e');
+      throw RepositoryException('Failed to get items: $e');
     }
   }
 }
@@ -218,272 +199,123 @@ class FeatureRepository {
 ### Error Handling
 ```dart
 try {
-  // Code that might throw an error
-} catch (e) {
+  await riskyOperation();
+} catch (e, stackTrace) {
+  // Log for debugging
+  print('Error: $e\n$stackTrace');
+  
+  // Show user-friendly message
   UiSnack.showError('אירעה שגיאה: ${e.toString()}');
-  // Additional error handling
+  
+  // Update state if needed
+  emit(ErrorState(e.toString()));
 }
 ```
 
-## Testing
-
-### Testing Instructions
-- **Before every commit, run only the relevant tests for your changes**
-- Run `flutter analyze` to check for static errors
-- Run specific tests related to the code you modified
-- Run `dart format <file_path>` to format only the files you modified (NOT `dart format .` on entire project)
-- Fix every error or warning before continuing
-- **Add or update tests for code you change, even if not requested**
-
-### Running Tests
-```bash
-# Check for errors and warnings - mandatory before commit
-flutter analyze
-
-# Run only relevant tests for your changes (RECOMMENDED)
-# Example: If you changed search functionality
-flutter test test/search/
-
-# Run specific test file
-flutter test test/path/to/test_file.dart
-
-# Run test with specific name pattern
-flutter test --name "test name pattern"
-
-# Run all tests (only if you made broad changes)
-flutter test
-
-# Check code format for specific files you modified
-dart format --set-exit-if-changed lib/path/to/modified_file.dart
-
-# Auto-fix format for specific files you modified
-dart format lib/path/to/modified_file.dart
-
-# Format multiple specific files
-dart format lib/file1.dart lib/file2.dart lib/file3.dart
-
-# Check dependencies
-flutter pub outdated
-
-# Clean and rebuild (if there are issues)
-flutter clean && flutter pub get
+### Documentation (Hebrew for public APIs)
+```dart
+/// מחזירה רשימת ספרים לפי קטגוריה
+/// 
+/// [category] - שם הקטגוריה
+/// מחזירה [Future<List<Book>>] - רשימת ספרים או שגיאה
+/// זורקת [RepositoryException] אם הנתונים לא נמצאו
+Future<List<Book>> getBooksByCategory(String category) async {
+  // Implementation
+}
 ```
 
-### How to Identify Relevant Tests
-1. **Direct changes**: If you modified `lib/search/search_bloc.dart`, run `flutter test test/search/`
-2. **Feature changes**: If you changed bookmarks feature, run all bookmark tests
-3. **Shared utilities**: If you modified shared code (like `RtlTextField`), run tests that use it
-4. **Breaking changes**: If you changed interfaces or contracts, run all affected tests
-5. **New features**: Run tests for the new feature and any integration tests
+## Testing Strategy
+
+### Before Every Commit (MANDATORY)
+```bash
+flutter analyze              # Must pass with ZERO errors/warnings
+flutter test test/feature/   # Run ONLY tests related to your changes
+dart format lib/file.dart    # Format ONLY files you modified
+```
+
+### When to Run Which Tests
+| Change Type | Tests to Run |
+|-------------|--------------|
+| Modified `lib/search/` | `flutter test test/search/` |
+| Modified shared widget | All tests using that widget |
+| New feature | All tests for that feature |
+| Changed interface/contract | All affected integration tests |
+| Modified core logic | Full test suite |
 
 ### Writing Tests
-- Write tests for Bloc using `bloc_test`
-- Write tests for Repository
-- Use `mockito` for mocking
-- Every new feature should include tests
-- Update existing tests if you changed behavior
-
-## Code Conventions
-
-### File Names
-- Dart files: `snake_case.dart`
-- Model files: `model_name.dart`
-- Bloc files: `feature_bloc.dart`, `feature_event.dart`, `feature_state.dart`
-
-### Variable Names
-- Variables: `camelCase`
-- Constants: `UPPER_SNAKE_CASE`
-- Classes: `PascalCase`
-
-### Documentation
-- Add documentation to every public function
-- Use Hebrew for documentation
-- Add usage examples when needed
-
+- **Bloc**: Use `bloc_test` package
+- **Repository**: Mock dependencies with `mockito`
+- **Always add/update tests** for code you change
+- Example:
 ```dart
-/// Returns list of books by category
-///
-/// [category] - Category name
-/// Returns [List<Book>] - List of books
-Future<List<Book>> getBooksByCategory(String category) async {
-  // Code
+blocTest<SearchBloc, SearchState>(
+  'emits SearchLoaded when search succeeds',
+  build: () => SearchBloc(repository: mockRepository),
+  act: (bloc) => bloc.add(SearchRequested('query')),
+  expect: () => [SearchLoading(), SearchLoaded(results)],
+);
+```
+
+## Essential Commands
+```bash
+flutter pub get              # Install dependencies
+flutter pub outdated         # Check for updates
+dart fix --apply            # Auto-fix common issues
+flutter clean && flutter pub get  # Nuclear option for build issues
+```
+
+## Platform Support
+**Supported:** Windows, Linux, Android, iOS, macOS
+
+Use platform checks when needed:
+```dart
+import 'dart:io';
+
+if (Platform.isAndroid || Platform.isIOS) {
+  // Mobile-specific code
+} else {
+  // Desktop-specific code
 }
 ```
 
-## Dependencies
-
-### Main Dependencies
-- `flutter_bloc` - State management
-- `equatable` - Object comparison
-- `isar` - Local database
-- `pdfrx` - PDF viewer
-- `fluentui_system_icons` - Icons
-- `provider` - Dependency injection
-- `path_provider` - Access to system folders
-
-### Adding New Dependency
-1. Add to `pubspec.yaml`
-2. Run `flutter pub get`
-3. Ensure dependency is compatible with Flutter 3.x
-
-## Platforms
-
-The project supports:
-- Windows
-- Linux
-- Android
-- iOS
-- macOS
-
-**Note:** Written code must work on all platforms. Use `Platform.isAndroid`, `Platform.isWindows`, etc. when needed.
-
-## Accessibility
-
-- Ensure all buttons have `Semantics` or `Tooltip`
-- Use appropriate font sizes
-- Ensure good color contrast
-- Support screen readers
-
-## Performance
-
-- Use `const` constructors when possible
-- Use `ListView.builder` instead of `ListView` for long lists
-- Use `FutureBuilder` or `StreamBuilder` for async loading
-- Avoid unnecessary `setState`
-
-## Pull Request Instructions
-
-### Title Format
-```
-[<feature_name>] <Change description>
-```
-
-Examples:
-- `[search] Add search with nikud`
-- `[pdf] Fix zoom bug`
-- `[ui] Improve RTL display`
-
-### Before Submitting PR
-1. **Run `flutter analyze` - must have no errors or warnings**
-2. **Run relevant tests for your changes - all must pass**
-3. **Run `dart format <file_path>` on all files you modified - code must be formatted**
-4. **Check that code works on all relevant platforms**
-5. **Ensure you added/updated tests for your changes**
-6. **Write clear description of what you changed and why**
-
-### Checklist Before Commit
-- [ ] `flutter analyze` passes without errors
-- [ ] Relevant tests pass without errors (run `flutter test test/path/to/relevant/`)
-- [ ] `dart format <file_path>` was run on all modified files
-- [ ] I added/updated tests
-- [ ] I added documentation to new functions
-- [ ] I checked that code works in practice
-- [ ] Code supports RTL
-- [ ] I used `RtlTextField` not `TextField`
-- [ ] I used `fluentui_system_icons` for icons
-- [ ] I used `UiSnack` for messages
-
-## Useful Commands
-
-### Dependency Management
-```bash
-# Install dependencies
-flutter pub get
-
-# Update dependencies
-flutter pub upgrade
-
-# Check outdated dependencies
-flutter pub outdated
-
-# Add new dependency
-flutter pub add <package_name>
-
-# Remove dependency
-flutter pub remove <package_name>
-```
-
-### Build and Run
-```bash
-# Run in debug mode
-flutter run
-
-# Run on specific device
-flutter run -d <device_id>
-
-# List available devices
-flutter devices
-
-# Build for Windows
-flutter build windows
-
-# Build for Android
-flutter build apk
-
-# Build for Linux
-flutter build linux
-```
-
-### Cleanup and Maintenance
-```bash
-# Clean build cache
-flutter clean
-
-# Clean and rebuild
-flutter clean && flutter pub get
-
-# Auto-fix common issues
-dart fix --apply
-
-# Check Flutter health
-flutter doctor
-
-# Update Flutter
-flutter upgrade
-```
-
-## Workflow Summary
-
-1. **Understand the requirement** - Read and understand what needs to be done
-2. **Plan** - Write detailed action plan with clear steps
-3. **Execute step by step** - Write clean and documented code, check each step before continuing
-4. **Check** - Run `flutter analyze` and fix every error or warning
-5. **Test** - Run relevant tests for your changes and ensure everything works
-6. **Format** - Run `dart format <file_path>` on each file you modified
-7. **Document** - Add documentation and comments in Hebrew
-8. **Test in practice** - Run the application and ensure changes work
-9. **Review** - Go over the code and ensure it meets all standards
-
----
+## Pre-Commit Checklist
+- [ ] `flutter analyze` passes (zero errors/warnings)
+- [ ] Relevant tests pass
+- [ ] Formatted modified files with `dart format`
+- [ ] Added/updated tests for changes
+- [ ] Documented new public functions (in Hebrew)
+- [ ] RTL support verified for Hebrew UI
+- [ ] Used `RtlTextField` (not `TextField`)
+- [ ] Used `fluentui_system_icons` for icons
+- [ ] Used `UiSnack` for messages
+- [ ] Works on all target platforms
 
 ## Golden Rules
 
-1. **Do not move to next step if there are errors in current step**
-2. **Always run `flutter analyze` after changes**
-3. **Use only `RtlTextField`, never regular `TextField`**
-4. **Use only icons from `fluentui_system_icons`**
-5. **Every user message through `UiSnack` only**
-6. **Every Hebrew text with `textDirection: TextDirection.rtl`**
-7. **Add tests for all new code**
-8. **Document every public function in Hebrew**
-9. **Code must work on all platforms (Windows, Linux, Android, iOS, macOS)**
-10. **Before commit: analyze + relevant tests + format = mandatory!**
+### Non-Negotiable Requirements
+1. **No progression with errors** - Fix ALL analyzer errors before next step
+2. **Run `flutter analyze` after EVERY file change** - Don't accumulate errors
+3. **RTL text fields** - Use `RtlTextField` exclusively, never `TextField`
+4. **Icons** - Only `fluentui_system_icons`, no exceptions
+5. **User messages** - Only through `UiSnack`, never direct SnackBar
+6. **Hebrew text** - Always include `textDirection: TextDirection.rtl`
+7. **Test coverage** - Add/update tests for every code change
+8. **Documentation** - Document all public APIs in Hebrew
+9. **Cross-platform** - Code must work on all supported platforms
+10. **Pre-commit trinity** - `analyze` + `test` + `format` = mandatory
+
+### Common Mistakes to Avoid
+- Using `TextField` instead of `RtlTextField`
+- Using Material/Cupertino icons instead of FluentUI
+- Showing messages without `UiSnack`
+- Forgetting `textDirection: TextDirection.rtl` on Hebrew text
+- Skipping `flutter analyze` before committing
+- Running full test suite instead of relevant tests
+- Formatting entire project instead of modified files
+- Moving to next feature while current code has warnings
+- Not testing on multiple platforms
+- Hardcoding platform-specific paths
 
 ---
 
-## REMEMBER: Communication Language
-
-**Always respond in Hebrew (עברית) when working on this project!**
-
-This includes:
-- All responses to users
-- Explanations of your work
-- Your thought process
-- Summaries and conclusions
-- Error messages and debugging information
-
-Only technical code and this reference document are in English.
-
----
-
-**Remember:** Good code is code that's easy to read, maintain, and extend. Write code as if the next programmer who reads it is a violent psychopath who knows where you live. 😊
+**זכור: תמיד ענה בעברית!**
