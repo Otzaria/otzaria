@@ -8,10 +8,11 @@ import 'package:flutter/scheduler.dart';
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 /// מפתח גלובלי ל-ScaffoldMessenger - נשמר לתאימות לאחור
-final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
+    GlobalKey<ScaffoldMessengerState>();
 
 /// מערכת התראות מודרנית בהשראת Windows 11
-/// 
+///
 /// שימוש:
 /// ```dart
 /// UiSnack.show('ההודעה נשלחה בהצלחה');
@@ -42,11 +43,15 @@ class UiSnack {
   }
 
   /// הודעת שגיאה
-  static void showError(String message, {Duration? duration, Color? backgroundColor}) {
+  static void showError(String message,
+      {Duration? duration, Color? backgroundColor}) {
+    final context = navigatorKey.currentContext;
     _showOverlay(
       message: message,
       icon: Icons.error_outline_rounded,
-      iconColor: const Color(0xFFFF6B6B),
+      iconColor: context != null
+          ? Theme.of(context).colorScheme.error
+          : const Color(0xFFFF6B6B),
       duration: duration ?? const Duration(seconds: 5),
       backgroundColor: backgroundColor,
       enableHaptic: true,
@@ -54,11 +59,15 @@ class UiSnack {
   }
 
   /// הודעת הצלחה
-  static void showSuccess(String message, {Duration? duration, Color? backgroundColor}) {
+  static void showSuccess(String message,
+      {Duration? duration, Color? backgroundColor}) {
+    final context = navigatorKey.currentContext;
     _showOverlay(
       message: message,
       icon: Icons.check_circle_outline_rounded,
-      iconColor: const Color(0xFF6CCB5F),
+      iconColor: context != null
+          ? Theme.of(context).colorScheme.primary
+          : const Color(0xFF6CCB5F),
       duration: duration ?? const Duration(seconds: 4),
       backgroundColor: backgroundColor,
       enableHaptic: true,
@@ -66,21 +75,21 @@ class UiSnack {
   }
 
   /// הודעה צפה (תאימות לאחור)
-  static void showFloating(String message, {Duration? duration, Color? backgroundColor}) {
-    show(
-      message, 
-      duration: duration ?? const Duration(seconds: 4), 
-      backgroundColor: backgroundColor
-    );
+  static void showFloating(String message,
+      {Duration? duration, Color? backgroundColor}) {
+    show(message,
+        duration: duration ?? const Duration(seconds: 4),
+        backgroundColor: backgroundColor);
   }
 
   /// הודעה עם משך זמן מותאם (תאימות לאחור)
-  static void showWithDuration(String message, {Duration? duration, Color? backgroundColor}) {
-     show(
-       message,
-       duration: duration ?? const Duration(seconds: 2),
-       backgroundColor: backgroundColor,
-     );
+  static void showWithDuration(String message,
+      {Duration? duration, Color? backgroundColor}) {
+    show(
+      message,
+      duration: duration ?? const Duration(seconds: 2),
+      backgroundColor: backgroundColor,
+    );
   }
 
   /// הודעה עם כפתור פעולה
@@ -132,7 +141,8 @@ class UiSnack {
     // קבלת Context - עם בדיקת זמינות
     final context = navigatorKey.currentContext;
     if (context == null) {
-      debugPrint('⚠️ UiSnack: navigatorKey.currentContext is null - Did you attach navigatorKey to MaterialApp?');
+      debugPrint(
+          '⚠️ UiSnack: navigatorKey.currentContext is null - Did you attach navigatorKey to MaterialApp?');
       return;
     }
 
@@ -140,7 +150,7 @@ class UiSnack {
     void tryShowOverlay() {
       // נסיון שליפה ראשון: דרך ה-NavigatorState (הכי אמין ל-root navigator)
       OverlayState? overlay = navigatorKey.currentState?.overlay;
-      
+
       // נסיון שני: דרך ה-Context (חיפוש כלפי מעלה)
       if (overlay == null && context.mounted) {
         overlay = Overlay.maybeOf(context, rootOverlay: true);
@@ -148,14 +158,14 @@ class UiSnack {
 
       if (overlay == null) {
         debugPrint('⚠️ UiSnack: Overlay not ready yet, scheduling retry...');
-        
+
         // נסיון נוסף אחרי frame נוסף
         WidgetsBinding.instance.addPostFrameCallback((_) {
           OverlayState? retryOverlay = navigatorKey.currentState?.overlay;
           if (retryOverlay == null && context.mounted) {
             retryOverlay = Overlay.maybeOf(context, rootOverlay: true);
           }
-          
+
           if (retryOverlay == null) {
             debugPrint('❌ UiSnack: Failed to find Overlay after retry');
             return;
@@ -288,7 +298,6 @@ class _Win11ToastState extends State<_Win11Toast>
   late AnimationController _controller;
   late Animation<double> _scaleAnim;
   late Animation<double> _fadeAnim;
-  late Animation<Offset> _slideAnim;
   Timer? _autoCloseTimer;
 
   @override
@@ -313,10 +322,6 @@ class _Win11ToastState extends State<_Win11Toast>
     _fadeAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOut),
     );
-    _slideAnim = Tween<Offset>(
-      begin: const Offset(0, 0.8),
-      end: Offset.zero,
-    ).animate(curve);
 
     // התחלת אנימציה
     _controller.forward();
@@ -344,13 +349,14 @@ class _Win11ToastState extends State<_Win11Toast>
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
-    
+
     // צבעים בסגנון Windows 11 Acrylic (מותאם לנושא)
     final bgColor = widget.backgroundColor ??
         colorScheme.surfaceContainerHighest.withValues(alpha: 1);
 
     final textColor = colorScheme.onSurface;
-    final borderColor = colorScheme.onSurface.withValues(alpha: isDark ? 0.2 : 0.15);
+    final borderColor =
+        colorScheme.onSurface.withValues(alpha: isDark ? 0.2 : 0.15);
 
     return Positioned(
       bottom: 64,
@@ -415,8 +421,8 @@ class _Win11ToastState extends State<_Win11Toast>
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: widget.icon == null 
-                            ? MainAxisAlignment.center 
+                        mainAxisAlignment: widget.icon == null
+                            ? MainAxisAlignment.center
                             : MainAxisAlignment.start,
                         children: [
                           if (widget.icon != null) ...[
@@ -442,10 +448,9 @@ class _Win11ToastState extends State<_Win11Toast>
                                 fontWeight: FontWeight.w600,
                                 letterSpacing: 0.2,
                                 height: 1.4,
-                                fontFamily: 'Segoe UI',
                               ),
-                              textAlign: widget.icon == null 
-                                  ? TextAlign.center 
+                              textAlign: widget.icon == null
+                                  ? TextAlign.center
                                   : TextAlign.start,
                               textDirection: TextDirection.rtl,
                               maxLines: 3,
