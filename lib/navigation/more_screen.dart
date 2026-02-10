@@ -33,7 +33,7 @@ class _MoreScreenState extends State<MoreScreen> with TickerProviderStateMixin, 
     const _TabInfo(
       label: 'זכור ושמור',
       icon: null,
-      imageIcon: 'assets/icon/זכור ושמור.png',
+      imageIcon: 'assets/icon/שמור וזכור שחור ריק.png',
     ),
     const _TabInfo(
       label: 'מדות ושיעורים',
