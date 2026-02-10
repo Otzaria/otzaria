@@ -57,7 +57,6 @@ import 'package:otzaria/shamor_zachor/services/shamor_zachor_service_factory.dar
 import 'package:otzaria/shamor_zachor/services/dynamic_data_loader_service.dart';
 import 'package:otzaria/utils/toc_parser.dart';
 import 'package:otzaria/settings/backup_service.dart';
-import 'package:otzaria/services/sources_books_service.dart';
 import 'package:otzaria/data/cache/books_cache.dart';
 import 'package:otzaria/data/cache/acronyms_cache.dart';
 import 'package:pdfrx/pdfrx.dart';
@@ -321,16 +320,6 @@ Future<void> initialize() async {
     // Continue without backup if it fails
   }
 
-  // Load SourcesBooks.csv data into memory
-  try {
-    await SourcesBooksService().loadSourcesBooks();
-  } catch (e) {
-    if (kDebugMode) {
-      debugPrint('Failed to load SourcesBooks.csv: $e');
-    }
-    // Continue without sources data if it fails
-  }
-
   // Initialize Notification Service
   try {
     await NotificationService().init();
@@ -383,9 +372,6 @@ Future<void> loadCerts() async {
 /// Clean up resources when the app is closing
 void cleanup() {
   _appWindowListener?.dispose();
-
-  // Clear SourcesBooks data from memory
-  SourcesBooksService().clearData();
 
   // Clear shared book/acronym caches
   BooksCache.instance.clear();

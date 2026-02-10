@@ -8,11 +8,9 @@ import 'package:otzaria/core/scaffold_messenger.dart';
 import 'package:otzaria/settings/settings_repository.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/models/phone_report_data.dart';
-import 'package:otzaria/models/books.dart';
-import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/services/data_collection_service.dart';
 import 'package:otzaria/services/phone_report_service.dart';
-import 'package:otzaria/services/sources_books_service.dart';
+import 'package:otzaria/services/book_details_service.dart';
 import 'package:otzaria/widgets/phone_report_tab.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
@@ -65,7 +63,6 @@ class ErrorReportHelper {
   static const String _reportSeparator = '==============================';
   static const String _reportSeparator2 = '------------------------------';
   static const String _fallbackMail = 'otzaria.200@gmail.com';
-  static const String _bookNotFoundText = 'לא ניתן למצוא את הספר';
 
   /// Build 4+4 words context around a selection range within fullText
   static String buildContextAroundSelection(
@@ -242,115 +239,6 @@ class ErrorReportHelper {
       searchFrom = found + pattern.length;
     }
     return indices;
-  }
-
-  /// מעשיר שם/נתיב קובץ על בסיס נתוני הספר מה-state כאשר SourcesBooks חסר.
-  /// לא משנה את "תיקיית המקור".
-  static Map<String, String> enrichBookDetailsFromStateBook({
-    required Map<String, String> baseDetails,
-    required Book stateBook,
-  }) {
-    final details = Map<String, String>.from(baseDetails);
-
-    final hasMissingFileName = _isMissingBookDetail(details['שם הקובץ']);
-    final hasMissingFilePath = _isMissingBookDetail(details['נתיב הקובץ']);
-    if (!hasMissingFileName && !hasMissingFilePath) {
-      return details;
-    }
-
-    final inferredFileName = _inferFileName(stateBook);
-    final inferredFilePath = _inferFilePath(stateBook, inferredFileName);
-
-    if (hasMissingFileName && inferredFileName != null) {
-      details['שם הקובץ'] = inferredFileName;
-    }
-    if (hasMissingFilePath && inferredFilePath != null) {
-      details['נתיב הקובץ'] = inferredFilePath;
-    }
-
-    return details;
-  }
-
-  static bool _isMissingBookDetail(String? value) {
-    if (value == null) return true;
-    final normalized = value.trim();
-    return normalized.isEmpty || normalized == _bookNotFoundText;
-  }
-
-  static String? _inferFileName(Book book) {
-    final bookFilePath = book.filePath?.trim();
-    if (bookFilePath != null && bookFilePath.isNotEmpty) {
-      final normalized = bookFilePath.replaceAll('\\', '/');
-      final slashIndex = normalized.lastIndexOf('/');
-      if (slashIndex >= 0 && slashIndex < normalized.length - 1) {
-        return normalized.substring(slashIndex + 1);
-      }
-      return normalized;
-    }
-
-    final title = book.title.trim();
-    if (title.isEmpty) return null;
-
-    final fileType = (book.fileType ?? 'txt').trim();
-    if (fileType.isEmpty) return title;
-
-    final suffix = '.$fileType';
-    if (title.toLowerCase().endsWith(suffix.toLowerCase())) {
-      return title;
-    }
-    return '$title$suffix';
-  }
-
-  static String? _inferFilePath(Book book, String? inferredFileName) {
-    final bookFilePath = book.filePath?.trim();
-    if (bookFilePath != null && bookFilePath.isNotEmpty) {
-      return bookFilePath;
-    }
-
-    if (inferredFileName == null || inferredFileName.isEmpty) {
-      return null;
-    }
-
-    final normalizedCategoryPath = _normalizeCategoryPath(book.categoryPath);
-    if (normalizedCategoryPath == null || normalizedCategoryPath.isEmpty) {
-      return inferredFileName;
-    }
-
-    return 'אוצריא/$normalizedCategoryPath/$inferredFileName';
-  }
-
-  static String? _normalizeCategoryPath(String? rawCategoryPath) {
-    if (rawCategoryPath == null) return null;
-    final trimmed = rawCategoryPath.trim();
-    if (trimmed.isEmpty) return null;
-
-    final slashNormalized = trimmed
-        .replaceAll('\\', '/')
-        .replaceAll(', ', '/')
-        .replaceAll(',', '/');
-    final parts = slashNormalized
-        .split('/')
-        .map((part) => part.trim())
-        .where((part) => part.isNotEmpty)
-        .toList();
-
-    if (parts.isEmpty) return null;
-    return parts.join('/');
-  }
-
-  /// מעשיר "תיקיית המקור" מה-DB (טבלת source) כאשר SourcesBooks לא מספק מידע אמין.
-  static Future<Map<String, String>> enrichBookSourceFromDatabase({
-    required Map<String, String> baseDetails,
-    required Book stateBook,
-  }) async {
-    final details = Map<String, String>.from(baseDetails);
-    final dbSource =
-        await SqliteDataProvider.instance.getBookSourceNameFromDb(stateBook.title);
-
-    if (dbSource != null && dbSource.trim().isNotEmpty && dbSource != 'null') {
-      details['תיקיית המקור'] = dbSource;
-    }
-    return details;
   }
 
   /// Build email body for error report
@@ -769,14 +657,7 @@ $detailsSection
           currentLineNumber,
           state.book.tableOfContents,
         );
-        final enrichedBookDetails = enrichBookDetailsFromStateBook(
-          baseDetails: SourcesBooksService().getBookDetails(bookTitle),
-          stateBook: state.book,
-        );
-        final bookDetails = await enrichBookSourceFromDatabase(
-          baseDetails: enrichedBookDetails,
-          stateBook: state.book,
-        );
+        final bookDetails = await BookDetailsService().getBookDetails(state.book);
 
         // ביצוע הפעולה שנבחרה
         if (result.action == ErrorReportAction.sendEmail ||
@@ -1049,7 +930,7 @@ class _RegularReportTabState extends State<RegularReportTab> {
   Future<bool> _isPhoneReportDisabled() async {
     try {
       final bookDetails =
-          SourcesBooksService().getBookDetails(widget.state.book.title);
+          await BookDetailsService().getBookDetails(widget.state.book);
       final sourceFolder = bookDetails['תיקיית המקור'];
 
       if (sourceFolder != null) {

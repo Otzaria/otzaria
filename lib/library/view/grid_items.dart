@@ -4,7 +4,7 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/widgets/data_source_indicator.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
-import 'package:otzaria/services/sources_books_service.dart';
+import 'package:otzaria/services/book_details_service.dart';
 import 'package:otzaria/text_book/view/book_source_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:math';
@@ -654,7 +654,7 @@ Widget _buildBookSourceSection(Book book) {
 /// קבלת מידע על מקור הספר
 Future<Map<String, dynamic>> _getBookSourceInfo(Book book) async {
   try {
-    final bookDetails = SourcesBooksService().getBookDetails(book.title);
+    final bookDetails = await BookDetailsService().getBookDetails(book);
     final bookSource = bookDetails['תיקיית המקור'] ?? 'לא נמצא מקור';
     final displayInfo = getSourceDisplayInfo(bookSource);
 

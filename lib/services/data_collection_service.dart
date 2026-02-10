@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'dart:convert';
-import 'package:csv/csv.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
@@ -11,8 +10,6 @@ import 'package:otzaria/settings/settings_repository.dart';
 class DataCollectionService {
   static String get _libraryVersionPath =>
       'אוצריא${Platform.pathSeparator}אודות התוכנה${Platform.pathSeparator}גירסת ספריה.txt';
-  static String get _sourceBooksPath =>
-      'אוצריא${Platform.pathSeparator}אודות התוכנה${Platform.pathSeparator}SourcesBooks.csv';
 
   /// Read library version from the database or file
   /// Returns "unknown" if not found or cannot be read
@@ -63,78 +60,21 @@ class DataCollectionService {
     }
   }
 
-  /// Find book ID by matching the book title in database or CSV
+  /// Find book ID by matching the book title in database
   /// Returns the book ID if found, null if not found or error
-  Future<int?> findBookIdInCsv(String bookTitle) async {
+  Future<int?> findBookIdInDb(String bookTitle) async {
     try {
-      // Try reading from database first
       final dbProvider = SqliteDataProvider.instance;
-      if (await dbProvider.databaseExists() && dbProvider.isInitialized) {
-        try {
-          final repository = dbProvider.repository;
-          if (repository != null) {
-            final book = await repository.getBookByTitle(bookTitle);
-            if (book != null) {
-              debugPrint('Book ID from DB: ${book.id} for $bookTitle');
-              return book.id;
-            }
-          }
-        } catch (e) {
-          debugPrint('Error reading book ID from DB: $e');
-          // Fall through to CSV reading
-        }
+      await dbProvider.initialize();
+      final repository = dbProvider.repository;
+      if (repository == null) return null;
+      final book = await repository.getBookByTitle(bookTitle);
+      if (book != null) {
+        debugPrint('Book ID from DB: ${book.id} for $bookTitle');
+        return book.id;
       }
 
-      // Fallback to CSV reading
-      final libraryPath = Settings.getValue(SettingsRepository.keyLibraryPath);
-      if (libraryPath == null || libraryPath.isEmpty) {
-        debugPrint('Library path not set');
-        return null;
-      }
-
-      final csvFile =
-          File('$libraryPath${Platform.pathSeparator}$_sourceBooksPath');
-
-      if (!await csvFile.exists()) {
-        debugPrint('SourcesBooks.csv file not found: ${csvFile.path}');
-        return null;
-      }
-
-      final inputStream = csvFile.openRead();
-      final converter = const CsvToListConverter();
-
-      int lineNumber = 0;
-      bool isFirstLine = true;
-
-      await for (final line in inputStream
-          .transform(utf8.decoder)
-          .transform(const LineSplitter())) {
-        lineNumber++;
-
-        // Skip header line
-        if (isFirstLine) {
-          isFirstLine = false;
-          continue;
-        }
-
-        try {
-          final row = converter.convert(line).first;
-
-          if (row.isNotEmpty) {
-            final fileNameRaw = row[0].toString();
-            final fileName = fileNameRaw.replaceAll('.txt', '');
-
-            if (fileName == bookTitle) {
-              return lineNumber; // Return 1-based line number
-            }
-          }
-        } catch (e) {
-          debugPrint('Error parsing CSV line $lineNumber: $line, Error: $e');
-          continue;
-        }
-      }
-
-      debugPrint('Book not found in CSV: $bookTitle');
+      debugPrint('Book not found in DB: $bookTitle');
       return null;
     } catch (e) {
       debugPrint('Error reading book ID: $e');
@@ -200,7 +140,7 @@ class DataCollectionService {
     }
 
     // Check book ID
-    final bookId = await findBookIdInCsv(bookTitle);
+    final bookId = await findBookIdInDb(bookTitle);
     result['bookId'] = bookId;
 
     if (bookId == null) {

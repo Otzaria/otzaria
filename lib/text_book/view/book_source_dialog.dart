@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
-import 'package:otzaria/services/sources_books_service.dart';
+import 'package:otzaria/services/book_details_service.dart';
 import 'package:otzaria/core/scaffold_messenger.dart';
-import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// המרת שם המקור לטקסט מתאים עם קישור
@@ -53,15 +52,8 @@ Future<void> showBookSourceDialog(
   try {
     debugPrint('Opening book source dialog for: "${state.book.title}"');
 
-    // מקור הספר: קודם DB, ואם אין - fallback ל-SourcesBooks.csv
-    final dbSource = await SqliteDataProvider.instance
-        .getBookSourceNameFromDb(state.book.title);
-    final bookDetails = SourcesBooksService().getBookDetails(state.book.title);
-    final csvSource = bookDetails['תיקיית המקור'];
-    final bookSource =
-        (dbSource != null && dbSource.trim().isNotEmpty && dbSource != 'null')
-            ? dbSource
-            : (csvSource ?? 'לא נמצא מקור');
+    final bookDetails = await BookDetailsService().getBookDetails(state.book);
+    final bookSource = bookDetails['תיקיית המקור'] ?? 'לא נמצא מקור';
 
     // קבלת מידע התצוגה עבור המקור
     final sourceInfo = getSourceDisplayInfo(bookSource);
