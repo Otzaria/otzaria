@@ -144,10 +144,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         return;
       }
 
-      debugPrint('=== Shamor Zachor Progress (NEW - using ID) ===');
-      debugPrint('Book title: "$bookTitle"');
-      debugPrint('Book ID: ${state.book.id}');
-
       // בדיקה אם יש ID לספר
       if (state.book.id == null) {
         UiSnack.showError('הספר לא נמצא במסד הנתונים');

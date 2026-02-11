@@ -202,7 +202,7 @@ class ShamorZachorProgressProvider with ChangeNotifier {
   /// Get progress data for a specific book by ID
   Map<String, PageProgress> getProgressForBookById(int bookId) {
     final progress = _progressById[bookId] ?? {};
-    _logger.info(
+    _logger.fine(
         'getProgressForBookById($bookId): returning ${progress.length} items. _progressById has ${_progressById.length} books total. Keys: ${_progressById.keys.toList()}');
     return progress;
   }
