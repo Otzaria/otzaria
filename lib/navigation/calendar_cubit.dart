@@ -9,7 +9,7 @@ import 'package:kosher_dart/kosher_dart.dart';
 import 'package:otzaria/settings/settings_repository.dart';
 import 'package:otzaria/services/notification_service.dart';
 import 'package:otzaria/services/google_calendar_service.dart';
-import 'package:otzaria/shamor_zachor/utils/message_utils.dart';
+import 'package:otzaria/tools/shamor_zachor/utils/message_utils.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 enum CalendarType { hebrew, gregorian, combined }

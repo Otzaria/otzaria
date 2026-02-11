@@ -5,7 +5,7 @@ import 'package:logging/logging.dart';
 import '../providers/shamor_zachor_data_provider.dart';
 import '../providers/shamor_zachor_progress_provider.dart';
 import '../models/book_model.dart';
-import '../widgets/book_card_widget.dart'; // Using the rich card
+import 'book_card_widget.dart'; // Using the rich card
 
 class CategoryBooksGrid extends StatefulWidget {
   final String? categoryName;

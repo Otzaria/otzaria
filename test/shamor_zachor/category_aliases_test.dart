@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/shamor_zachor/utils/category_aliases.dart';
+import 'package:otzaria/tools/shamor_zachor/utils/category_aliases.dart';
 
 void main() {
   group('CategoryAliases', () {

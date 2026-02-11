@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:otzaria/shamor_zachor/services/progress_service.dart';
-import 'package:otzaria/shamor_zachor/models/progress_model.dart';
+import 'package:otzaria/tools/shamor_zachor/services/progress_service.dart';
+import 'package:otzaria/tools/shamor_zachor/models/progress_model.dart';
 import 'dart:convert';
 
 void main() {
