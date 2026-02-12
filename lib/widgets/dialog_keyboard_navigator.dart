@@ -22,7 +22,9 @@ class DialogKeyboardNavigator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Focus(
-      autofocus: textFieldFocusNode == null,
+      autofocus: false,
+      canRequestFocus: false,
+      skipTraversal: true,
       onKeyEvent: (node, event) {
         if (event is! KeyDownEvent) {
           return KeyEventResult.ignored;

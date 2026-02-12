@@ -32,6 +32,19 @@ class _PasswordVerificationDialogState extends State<PasswordVerificationDialog>
   @override
   void initState() {
     super.initState();
+    
+    // האזנה לשינויי פוקוס
+    _textFieldFocusNode.addListener(() {
+      if (!_textFieldFocusNode.hasFocus) {
+        // נסה להחזיר את הפוקוס
+        Future.microtask(() {
+          if (mounted && !_isVerifying) {
+            _textFieldFocusNode.requestFocus();
+          }
+        });
+      }
+    });
+    
     // תן פוקוס לשדה הטקסט אחרי שהדיאלוג נפתח
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _textFieldFocusNode.requestFocus();
@@ -115,6 +128,7 @@ class _PasswordVerificationDialogState extends State<PasswordVerificationDialog>
                 focusNode: _textFieldFocusNode,
                 obscureText: _isObscured,
                 enabled: !_isVerifying,
+                autofocus: true,
                 decoration: InputDecoration(
                   labelText: 'סיסמה',
                   hintText: 'הזן את הסיסמה',
@@ -129,6 +143,10 @@ class _PasswordVerificationDialogState extends State<PasswordVerificationDialog>
                     onPressed: () {
                       setState(() {
                         _isObscured = !_isObscured;
+                      });
+                      // החזר פוקוס לשדה אחרי לחיצה על העין
+                      Future.microtask(() {
+                        _textFieldFocusNode.requestFocus();
                       });
                     },
                   ),
