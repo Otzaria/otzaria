@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria/utils/open_book.dart';
 import 'package:otzaria/core/scaffold_messenger.dart';
@@ -130,8 +131,16 @@ Future<TocEntry?> _findDafInToc(TextBook book, String daf) async {
 }
 
 Future<PdfOutlineNode?> getDafYomiOutline(PdfBook book, String daf) async {
-  final outlines = await PdfDocument.openFile(book.path)
-      .then((value) => value.loadOutline());
+  List<PdfOutlineNode> outlines = const [];
+  try {
+    final pdfBytes = await SqliteDataProvider.instance.getPdfBytesFromDb(book);
+    if (pdfBytes == null || pdfBytes.isEmpty) return null;
+    outlines =
+        await PdfDocument.openData(pdfBytes).then((value) => value.loadOutline());
+  } catch (_) {
+    return null;
+  }
+
   return await findEntryInTree(
     Future.value(outlines),
     daf,
