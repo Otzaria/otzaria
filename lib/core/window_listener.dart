@@ -38,11 +38,9 @@ class AppWindowListener extends WindowListener {
       // Close the window properly
       if (!kIsWeb &&
           (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
-        // Use Future.microtask to avoid blocking the current execution
-        Future.microtask(() async {
-          await WindowPersistence.saveNow();
-          await windowManager.destroy();
-        });
+        // שמירת מצב החלון וסגירה
+        await WindowPersistence.saveNow();
+        await windowManager.destroy();
       }
     } catch (e) {
       if (kDebugMode) {
