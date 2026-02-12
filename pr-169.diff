@@ -1,0 +1,3384 @@
+diff --git a/docs/protected_mode_reset_settings.md b/docs/protected_mode_reset_settings.md
+new file mode 100644
+index 000000000..31044b5ce
+--- /dev/null
++++ b/docs/protected_mode_reset_settings.md
+@@ -0,0 +1,121 @@
++# הגנה על איפוס הגדרות במצב מוגן
++
++## סקירה כללית
++
++החל מעדכון זה, פעולת "איפוס הגדרות" בהגדרות המתקדמות מוגנת בסיסמה כאשר המצב המוגן מופעל.
++
++## מטרת השינוי
++
++למנוע איפוס מקרי או לא מורשה של כל הגדרות האפליקציה כאשר המצב המוגן פעיל. זה מוסיף שכבת אבטחה נוספת לפעולה קריטית שמוחקת את כל ההגדרות האישיות.
++
++## שיפורים נוספים
++
++### טיפול בביטול כניסה להגדרות
++כאשר משתמש מנסה להיכנס להגדרות במצב מוגן ולוחץ על "ביטול" בדיאלוג הסיסמה:
++- האפליקציה לא קורסת (תוקן!)
++- המשתמש חוזר למסך הקודם בצורה חלקה
++- אם המשתמש נשאר במסך ההגדרות, מוצגת הודעה ברורה: "הנך במצב מוגן - אין אפשרות להיכנס להגדרות ללא סיסמה"
++
++## איך זה עובד?
++
++### כניסה להגדרות במצב מוגן
++1. כאשר משתמש מנסה להיכנס להגדרות
++2. המערכת בודקת אם המצב המוגן מופעל
++3. אם כן, מוצג דיאלוג לאימות סיסמה
++4. אם המשתמש מזין סיסמה נכונה - נכנס להגדרות
++5. אם המשתמש לוחץ על "ביטול" - חוזר למסך הקודם או רואה הודעה מתאימה
++
++### איפוס הגדרות במצב מוגן
++1. כאשר משתמש לוחץ על "איפוס הגדרות" בהגדרות המתקדמות
++2. המערכת בודקת אם המצב המוגן מופעל
++3. אם כן, מוצג דיאלוג לאימות סיסמה
++4. רק לאחר הזנת סיסמה נכונה, מוצג דיאלוג האישור הרגיל
++5. לאחר אישור, ההגדרות מאופסות
++
++## קבצים שהשתנו
++
++- `lib/settings/tabs/advanced_settings_tab.dart` - הוספת בדיקת סיסמה לפני איפוס הגדרות
++- `lib/settings/protected_settings_wrapper.dart` - תיקון קריסה בביטול + הודעה ברורה למשתמש
++- `RESET_PROTECTED_MODE_README.md` - עדכון התיעוד
++- `docs/protected_mode_reset_settings.md` - מסמך זה
++
++## קוד לדוגמה
++
++### הגנה על איפוס הגדרות
++```dart
++// בדיקה אם במצב מוגן - אם כן, דרוש אימות סיסמה
++if (context.mounted && shouldProtectSettings(context)) {
++  final verified = await verifyPasswordForAction(context);
++  if (!verified || !context.mounted) {
++    return; // המשתמש ביטל או הסיסמה שגויה
++  }
++}
++
++if (!context.mounted) return;
++
++// המשך לדיאלוג האישור הרגיל...
++```
++
++### טיפול בביטול כניסה להגדרות
++```dart
++if (verified == true) {
++  setState(() {
++    _isVerified = true;
++  });
++} else {
++  // המשתמש ביטל - נחזור למסך הקודם בצורה בטוחה
++  WidgetsBinding.instance.addPostFrameCallback((_) {
++    if (mounted) {
++      Navigator.of(context).pop();
++    }
++  });
++}
++```
++
++## פונקציות עזר
++
++השינוי משתמש בפונקציות קיימות מ-`protected_settings_wrapper.dart`:
++
++- `shouldProtectSettings(BuildContext context)` - בודק אם צריך הגנה
++- `verifyPasswordForAction(BuildContext context)` - מציג דיאלוג אימות סיסמה
++
++## התנהגות
++
++### כאשר המצב המוגן מופעל:
++
++#### כניסה להגדרות:
++1. ניסיון כניסה להגדרות → דיאלוג סיסמה
++2. הזנת סיסמה נכונה → כניסה להגדרות
++3. לחיצה על "ביטול" → חזרה למסך הקודם או הצגת הודעה
++
++#### איפוס הגדרות:
++1. לחיצה על "איפוס הגדרות" → דיאלוג סיסמה
++2. הזנת סיסמה נכונה → דיאלוג אישור
++3. אישור → איפוס ההגדרות
++
++### כאשר המצב המוגן כבוי:
++1. כניסה להגדרות → כניסה ישירה
++2. לחיצה על "איפוס הגדרות" → דיאלוג אישור ישירות
++3. אישור → איפוס ההגדרות
++
++## בדיקות
++
++- ✅ `flutter analyze` עובר בהצלחה
++- ✅ אין שגיאות קומפילציה
++- ✅ הקוד עוקב אחר הנחיות הפרויקט
++- ✅ תוקן: האפליקציה לא קורסת בביטול כניסה להגדרות
++- ✅ הוספה: הודעה ברורה למשתמש במצב מוגן
++
++## הערות למפתחים
++
++- השינוי לא משפיע על פעולות איפוס אחרות (כמו איפוס הגדרות פר-ספר)
++- השינוי משתמש בתשתית קיימת של המצב המוגן
++- הקוד כולל בדיקות `context.mounted` למניעת שגיאות
++- שימוש ב-`WidgetsBinding.instance.addPostFrameCallback` למניעת קריסות
++- הודעה ברורה למשתמש כאשר הוא לא מאומת
++
++---
++
++**תאריך**: 2026-02-11
++**עודכן**: 2026-02-11 (תיקון קריסה + הודעה למשתמש)
++**גרסה**: 1.1
+diff --git a/lib/data/models/isar/detected_heading.dart b/lib/data/models/isar/detected_heading.dart
+new file mode 100644
+index 000000000..cd3c1e826
+--- /dev/null
++++ b/lib/data/models/isar/detected_heading.dart
+@@ -0,0 +1,79 @@
++import 'package:otzaria/models/heading.dart';
++
++/// כותרת שזוהתה או נוצרה בספר - לשמירה
++///
++/// הערה: בגרסה זו משתמשים ב-JSON לשמירה במקום Isar
++/// כדי להימנע מבעיות תאימות עם build_runner
++class DetectedHeading {
++  int? id;
++  int bookId;
++  String text;
++  int level;
++  int position;
++  HeadingSource source;
++  DateTime createdAt;
++
++  DetectedHeading({
++    this.id,
++    required this.bookId,
++    required this.text,
++    required this.level,
++    required this.position,
++    required this.source,
++    required this.createdAt,
++  });
++
++  /// ממיר ל-Heading
++  Heading toHeading() {
++    return Heading(
++      id: id,
++      text: text,
++      level: level,
++      position: position,
++      source: source,
++      createdAt: createdAt,
++    );
++  }
++
++  /// יוצר מ-Heading
++  static DetectedHeading fromHeading(Heading heading, int bookId) {
++    return DetectedHeading(
++      id: heading.id,
++      bookId: bookId,
++      text: heading.text,
++      level: heading.level,
++      position: heading.position,
++      source: heading.source,
++      createdAt: heading.createdAt ?? DateTime.now(),
++    );
++  }
++
++  /// ממיר ל-JSON
++  Map<String, dynamic> toJson() {
++    return {
++      'id': id,
++      'bookId': bookId,
++      'text': text,
++      'level': level,
++      'position': position,
++      'source': source.name,
++      'createdAt': createdAt.toIso8601String(),
++    };
++  }
++
++  /// יוצר מ-JSON
++  factory DetectedHeading.fromJson(Map<String, dynamic> json) {
++    return DetectedHeading(
++      id: json['id'] as int?,
++      bookId: json['bookId'] as int,
++      text: json['text'] as String,
++      level: json['level'] as int,
++      position: json['position'] as int,
++      source: HeadingSource.values.firstWhere(
++        (e) => e.name == json['source'],
++        orElse: () => HeadingSource.automatic,
++      ),
++      createdAt: DateTime.parse(json['createdAt'] as String),
++    );
++  }
++}
+diff --git a/lib/main.dart b/lib/main.dart
+index babb5b7da..397b53f65 100644
+--- a/lib/main.dart
++++ b/lib/main.dart
+@@ -135,6 +135,7 @@ void main() async {
+   // No-op: removed verbose debug printing
+ 
+   final historyRepository = HistoryRepository();
++  final settingsRepository = SettingsRepository();
+ 
+   runApp(
+     RestartWidget(
+@@ -143,12 +144,15 @@ void main() async {
+           RepositoryProvider<FocusRepository>(
+             create: (context) => FocusRepository(),
+           ),
++          RepositoryProvider<SettingsRepository>(
++            create: (context) => settingsRepository,
++          ),
+         ],
+         child: MultiBlocProvider(
+           providers: [
+             BlocProvider<SettingsBloc>(
+               create: (context) => SettingsBloc(
+-                repository: SettingsRepository(),
++                repository: settingsRepository,
+               )..add(LoadSettings()),
+             ),
+             BlocProvider<LibraryBloc>(
+diff --git a/lib/models/heading.dart b/lib/models/heading.dart
+new file mode 100644
+index 000000000..5f8d872d4
+--- /dev/null
++++ b/lib/models/heading.dart
+@@ -0,0 +1,94 @@
++import 'package:equatable/equatable.dart';
++
++/// מקור הכותרת
++enum HeadingSource {
++  /// כותרת שהוגדרה ידנית על ידי המשתמש
++  manual,
++
++  /// כותרת שזוהתה אוטומטית מטקסט מודגש
++  automatic,
++
++  /// כותרת ממטא-דאטה של הספר
++  metadata
++}
++
++/// מייצג כותרת בספר
++class Heading extends Equatable {
++  /// טקסט הכותרת
++  final String text;
++
++  /// רמת הכותרת (1-6, כאשר 1 היא הגבוהה ביותר)
++  final int level;
++
++  /// מיקום הכותרת בטקסט (offset)
++  final int position;
++
++  /// מקור הכותרת
++  final HeadingSource source;
++
++  /// מזהה ייחודי (אופציונלי, לשימוש עם מסד נתונים)
++  final int? id;
++
++  /// תאריך יצירה
++  final DateTime? createdAt;
++
++  const Heading({
++    required this.text,
++    required this.level,
++    required this.position,
++    required this.source,
++    this.id,
++    this.createdAt,
++  });
++
++  @override
++  List<Object?> get props => [text, level, position, source, id, createdAt];
++
++  /// יוצר עותק של הכותרת עם שינויים
++  Heading copyWith({
++    String? text,
++    int? level,
++    int? position,
++    HeadingSource? source,
++    int? id,
++    DateTime? createdAt,
++  }) {
++    return Heading(
++      text: text ?? this.text,
++      level: level ?? this.level,
++      position: position ?? this.position,
++      source: source ?? this.source,
++      id: id ?? this.id,
++      createdAt: createdAt ?? this.createdAt,
++    );
++  }
++
++  /// ממיר לJSON
++  Map<String, dynamic> toJson() {
++    return {
++      'text': text,
++      'level': level,
++      'position': position,
++      'source': source.name,
++      'id': id,
++      'createdAt': createdAt?.toIso8601String(),
++    };
++  }
++
++  /// יוצר מ-JSON
++  factory Heading.fromJson(Map<String, dynamic> json) {
++    return Heading(
++      text: json['text'] as String,
++      level: json['level'] as int,
++      position: json['position'] as int,
++      source: HeadingSource.values.firstWhere(
++        (e) => e.name == json['source'],
++        orElse: () => HeadingSource.automatic,
++      ),
++      id: json['id'] as int?,
++      createdAt: json['createdAt'] != null
++          ? DateTime.parse(json['createdAt'] as String)
++          : null,
++    );
++  }
++}
+diff --git a/lib/pdf_book/bloc/pdf_book_bloc.dart b/lib/pdf_book/bloc/pdf_book_bloc.dart
+index f9cab23ab..6c12a5b61 100644
+--- a/lib/pdf_book/bloc/pdf_book_bloc.dart
++++ b/lib/pdf_book/bloc/pdf_book_bloc.dart
+@@ -290,9 +290,13 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
+     GoToNextPage event,
+     Emitter<PdfBookState> emit,
+   ) {
+-    if (!pdfController.isReady) return;
++    if (!pdfController.isReady) {
++      return;
++    }
+     final current = state;
+-    if (current is! PdfBookLoaded) return;
++    if (current is! PdfBookLoaded) {
++      return;
++    }
+ 
+     final nextPage = min(current.currentPageNumber + 1, current.totalPages);
+     pdfController.goToPage(pageNumber: nextPage);
+@@ -302,9 +306,13 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
+     GoToPreviousPage event,
+     Emitter<PdfBookState> emit,
+   ) {
+-    if (!pdfController.isReady) return;
++    if (!pdfController.isReady) {
++      return;
++    }
+     final current = state;
+-    if (current is! PdfBookLoaded) return;
++    if (current is! PdfBookLoaded) {
++      return;
++    }
+ 
+     final prevPage = max(current.currentPageNumber - 1, 1);
+     pdfController.goToPage(pageNumber: prevPage);
+diff --git a/lib/pdf_book/pdf_book_screen.dart b/lib/pdf_book/pdf_book_screen.dart
+index 817c0c92c..fe208dddc 100644
+--- a/lib/pdf_book/pdf_book_screen.dart
++++ b/lib/pdf_book/pdf_book_screen.dart
+@@ -2,6 +2,7 @@ import 'dart:io';
+ import 'dart:math';
+ import 'dart:async';
+ import 'package:flutter/material.dart';
++import 'package:flutter/scheduler.dart';
+ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+ import 'package:flutter/services.dart';
+ import 'package:flutter_bloc/flutter_bloc.dart';
+@@ -45,8 +46,6 @@ import 'package:otzaria/widgets/resizable_drag_handle.dart';
+ import 'pdf_zoom_bar.dart';
+ import 'package:otzaria/settings/per_book_settings.dart';
+ import 'package:otzaria/widgets/commentary_pane_tooltip.dart';
+-import 'package:otzaria/utils/shortcut_helper.dart';
+-import 'package:otzaria/utils/shortcut_validator.dart';
+ import 'package:otzaria/pdf_book/pdf_scrollbar.dart';
+ 
+ class PdfBookScreen extends StatefulWidget {
+@@ -75,6 +74,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
+   int _currentLeftPaneTabIndex = 0;
+   final FocusNode _searchFieldFocusNode = FocusNode();
+   final FocusNode _navigationFieldFocusNode = FocusNode();
++  final FocusNode _pdfViewFocusNode = FocusNode();
+   late final StreamSubscription<SettingsState> _settingsSub;
+ 
+   Future<Uint8List?>? _pdfBytesFuture;
+@@ -91,9 +91,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
+     final String query = controller.text.trim();
+     if (query.isEmpty) return;
+ 
+-    debugPrint(
+-        'DEBUG: Triggering search by simulating user input for "$query"');
+-
+     // שיטה 1: הוספה והסרה מהירה
+     controller.text = '$query '; // הוסף תו זמני
+ 
+@@ -172,10 +169,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
+       ),
+     );
+ 
+-    // textSearcher ייוצר ב-onDocumentChanged כשה-document מוכן
+-
+-    debugPrint('DEBUG: אתחול PDF טאב - דף התחלתי: ${widget.tab.pageNumber}');
+-
+     if ((widget.tab.book.fileType ?? 'pdf').toLowerCase() == 'pdf') {
+       _pdfBytesFuture = _loadPdfBytesFromDb();
+     }
+@@ -199,6 +192,33 @@ class _PdfBookScreenState extends State<PdfBookScreen>
+       vsync: this,
+       initialIndex: _currentLeftPaneTabIndex,
+     );
++
++    // הוספת listener ל-PDF View Focus להחזרה אוטומטית
++    _pdfViewFocusNode.addListener(() {
++      if (!_pdfViewFocusNode.hasFocus) {
++        final currentFocus = FocusManager.instance.primaryFocus;
++
++        // אם הפוקוס עבר ל-Root Focus Scope או null (כלומר אין פוקוס ספציפי),
++        // והחלונית השמאלית סגורה, החזר את הפוקוס ל-PDF
++        if ((currentFocus != _searchFieldFocusNode &&
++                currentFocus != _navigationFieldFocusNode) &&
++            !widget.tab.showLeftPane.value) {
++          // שימוש ב-SchedulerBinding למהירות מקסימלית
++          SchedulerBinding.instance.addPostFrameCallback((_) {
++            if (mounted &&
++                !_pdfViewFocusNode.hasFocus &&
++                !widget.tab.showLeftPane.value) {
++              _pdfViewFocusNode.requestFocus();
++            }
++          });
++        }
++      }
++    });
++
++    // הוספת listeners לשדות טקסט
++    _searchFieldFocusNode.addListener(() {});
++    _navigationFieldFocusNode.addListener(() {});
++
+     if (_currentLeftPaneTabIndex == 1) {
+       _searchFieldFocusNode.requestFocus();
+     } else {
+@@ -211,10 +231,15 @@ class _PdfBookScreenState extends State<PdfBookScreen>
+         setState(() {
+           _currentLeftPaneTabIndex = _leftPaneTabController!.index;
+         });
+-        if (_leftPaneTabController!.index == 1) {
++        if (_leftPaneTabController!.index == 1 &&
++            widget.tab.showLeftPane.value) {
+           _searchFieldFocusNode.requestFocus();
+-        } else if (_leftPaneTabController!.index == 0) {
++        } else if (_leftPaneTabController!.index == 0 &&
++            widget.tab.showLeftPane.value) {
+           _navigationFieldFocusNode.requestFocus();
++        } else if (!widget.tab.showLeftPane.value) {
++          // אם חלונית הצד סגורה, החזר focus ל-PDF
++          _pdfViewFocusNode.requestFocus();
+         }
+       }
+     };
+@@ -227,6 +252,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
+         } else if (_leftPaneTabController!.index == 0) {
+           _navigationFieldFocusNode.requestFocus();
+         }
++      } else {
++        // כשסוגרים את חלונית הצד, החזר focus ל-PDF
++        WidgetsBinding.instance.addPostFrameCallback((_) {
++          if (mounted) {
++            _pdfViewFocusNode.requestFocus();
++          }
++        });
+       }
+     };
+     widget.tab.showLeftPane.addListener(_showLeftPaneListener);
+@@ -336,8 +368,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
+               widget.tab.pdfHeadings!.getLineNumberForHeading(title);
+           if (lineNumber != null) {
+             widget.tab.currentTextLineNumber = lineNumber;
+-            debugPrint(
+-                '✅ Initial currentTextLineNumber set to: $lineNumber for title: "$title"');
+           }
+         }
+ 
+@@ -350,30 +380,79 @@ class _PdfBookScreenState extends State<PdfBookScreen>
+                 widget.tab.searchText.isNotEmpty)) {
+           widget.tab.showLeftPane.value = true;
+         }
++
++        // 5. בקשת focus ל-PDF viewer אחרי שהכל מוכן
++        if (mounted && !widget.tab.showLeftPane.value) {
++          WidgetsBinding.instance.addPostFrameCallback((_) {
++            if (mounted) {
++              _pdfViewFocusNode.requestFocus();
++            }
++          });
++        }
+       },
+     );
+   }
+ 
+   Widget _buildPdfViewerFromFile() {
+-    return PdfViewer.file(
+-      widget.tab.book.path,
+-      initialPageNumber: widget.tab.pageNumber,
+-      passwordProvider: () => passwordDialog(context),
+-      controller: widget.tab.pdfViewerController,
+-      useProgressiveLoading: false,
+-      params: _buildPdfViewerParams(),
++    return KeyboardListener(
++      focusNode: _pdfViewFocusNode,
++      autofocus: true,
++      onKeyEvent: (KeyEvent event) {
++        if (event is KeyDownEvent) {
++          if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
++            _goNextPage();
++          } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
++            _goPreviousPage();
++          }
++        }
++      },
++      child: GestureDetector(
++        behavior: HitTestBehavior.opaque,
++        onTap: () {
++          _pdfViewFocusNode.requestFocus();
++        },
++        child: PdfViewer.file(
++          widget.tab.book.path,
++          initialPageNumber: widget.tab.pageNumber,
++          passwordProvider: () => passwordDialog(context),
++          controller: widget.tab.pdfViewerController,
++          useProgressiveLoading: false,
++          params: _buildPdfViewerParams(),
++        ),
++      ),
+     );
+   }
+ 
+   Widget _buildPdfViewerFromBytes(Uint8List bytes) {
+-    return PdfViewer.data(
+-      bytes,
+-      sourceName: widget.tab.book.title,
+-      controller: widget.tab.pdfViewerController,
+-      params: _buildPdfViewerParams(),
++    return KeyboardListener(
++      focusNode: _pdfViewFocusNode,
++      autofocus: true,
++      onKeyEvent: (KeyEvent event) {
++        if (event is KeyDownEvent) {
++          if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
++            _goNextPage();
++          } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
++            _goPreviousPage();
++          }
++        }
++      },
++      child: GestureDetector(
++        behavior: HitTestBehavior.opaque,
++        onTap: () {
++          _pdfViewFocusNode.requestFocus();
++        },
++        child: PdfViewer.data(
++          bytes,
++          sourceName: widget.tab.book.title,
++          controller: widget.tab.pdfViewerController,
++          params: _buildPdfViewerParams(),
++        ),
++      ),
+     );
+   }
+ 
++  // KeyEventResult _handlePdfViewKeyPress(FocusNode node, KeyEvent event) - REMOVED, using KeyboardListener instead
++
+   /// טעינת הגדרות פר-ספר
+   Future<void> _loadPerBookSettings() async {
+     final settingsBloc = context.read<SettingsBloc>();
+@@ -401,6 +480,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
+     _leftPaneTabController?.dispose();
+     _searchFieldFocusNode.dispose();
+     _navigationFieldFocusNode.dispose();
++    _pdfViewFocusNode.dispose();
+     _settingsSub.cancel();
+     _bloc.close();
+     super.dispose();
+@@ -416,43 +496,29 @@ class _PdfBookScreenState extends State<PdfBookScreen>
+ 
+   Future<void> _loadPdfHeadingsAndLinks() async {
+     try {
+-      debugPrint('=== Loading PDF Headings and Links ===');
+-      debugPrint('Book title: ${widget.tab.book.title}');
+-      debugPrint('Book path: ${widget.tab.book.path}');
+-
+       // טעינת headings מה-DB
+       final headings =
+           await PdfHeadings.loadFromDatabase(widget.tab.book.title);
+       if (headings != null) {
+         widget.tab.pdfHeadings = headings;
+-        debugPrint('✅ Loaded ${headings.headingsMap.length} headings');
+-        debugPrint(
+-            'Sample headings: ${headings.headingsMap.entries.take(3).map((e) => '${e.key}: ${e.value}').join(', ')}');
+       } else {
+         debugPrint('❌ Failed to load headings from DB');
+       }
+ 
+       // טעינת links
+-      debugPrint('📚 Starting to load library...');
+       final library = await DataRepository.instance.library;
+-      debugPrint('✅ Library loaded successfully');
+ 
+       debugPrint(
+           '🔍 Searching for TextBook with title: "${widget.tab.book.title}"');
+       final textBook = library.findBookByTitle(widget.tab.book.title, TextBook);
+-      debugPrint('TextBook found: ${textBook != null}');
+ 
+       if (textBook != null) {
+-        debugPrint('📖 TextBook type: ${textBook.runtimeType}');
+         if (textBook is TextBook) {
+-          debugPrint('🔗 Loading links from TextBook...');
+           final loadedLinks = await textBook.links;
+           widget.tab.links = loadedLinks;
+-          debugPrint('✅ Loaded ${widget.tab.links.length} links');
+ 
+           // הצגת דוגמאות של links
+           if (widget.tab.links.isNotEmpty) {
+-            debugPrint('Sample links:');
+             for (final link in widget.tab.links.take(3)) {
+               debugPrint(
+                   '  - Line ${link.index1}: ${link.heRef} (${link.connectionType})');
+@@ -496,20 +562,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
+     if (token == _lastComputedForPage) {
+       widget.tab.currentTitle.value = title;
+ 
+-      debugPrint('=== Page Changed ===');
+-      debugPrint('Page: $newPage, Title: "$title"');
+-
+       // עדכון מספר השורה בטקסט לפי הכותרת
+       if (widget.tab.pdfHeadings != null && title.isNotEmpty) {
+-        debugPrint(
+-            'Headings available: ${widget.tab.pdfHeadings!.headingsMap.length}');
+         final lineNumber =
+             widget.tab.pdfHeadings!.getLineNumberForHeading(title);
+-        debugPrint('Line number for "$title": $lineNumber');
+ 
+         if (lineNumber != null) {
+           widget.tab.currentTextLineNumber = lineNumber;
+-          debugPrint('✅ Updated currentTextLineNumber to: $lineNumber');
+           if (mounted) {
+             setState(() {});
+           }
+@@ -527,6 +586,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
+   @override
+   Widget build(BuildContext context) {
+     super.build(context);
++
+     return BlocProvider.value(
+       value: _bloc,
+       child: BlocListener<PdfBookBloc, PdfBookState>(
+@@ -559,349 +619,334 @@ class _PdfBookScreenState extends State<PdfBookScreen>
+               _zoomOut,
+           LogicalKeySet(LogicalKeyboardKey.control,
+               LogicalKeyboardKey.numpadSubtract): _zoomOut,
+-          LogicalKeySet(LogicalKeyboardKey.arrowRight): _goNextPage,
+-          LogicalKeySet(LogicalKeyboardKey.arrowLeft): _goPreviousPage,
+-          LogicalKeySet(LogicalKeyboardKey.arrowDown): _goNextPage,
+-          LogicalKeySet(LogicalKeyboardKey.arrowUp): _goPreviousPage,
+-          LogicalKeySet(LogicalKeyboardKey.pageDown): _goNextPage,
+-          LogicalKeySet(LogicalKeyboardKey.pageUp): _goPreviousPage,
+         },
+-        child: Focus(
+-          autofocus: !Platform.isAndroid,
+-          onKeyEvent: (node, event) {
+-            _handleGlobalKeyEvent(event);
+-            return KeyEventResult.ignored;
+-          },
+-          child: Scaffold(
+-            appBar: AppBar(
+-              centerTitle: false,
+-              backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
+-              shape: Border(
+-                bottom: BorderSide(
+-                  color: Theme.of(context).colorScheme.outlineVariant,
+-                  width: 0.3,
+-                ),
++        child: Scaffold(
++          appBar: AppBar(
++            centerTitle: false,
++            backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
++            shape: Border(
++              bottom: BorderSide(
++                color: Theme.of(context).colorScheme.outlineVariant,
++                width: 0.3,
+               ),
+-              elevation: 0,
+-              scrolledUnderElevation: 0,
+-              title: ValueListenableBuilder(
+-                valueListenable: widget.tab.currentTitle,
+-                builder: (context, value, child) {
+-                  String displayTitle = value;
+-                  if (value.isNotEmpty &&
+-                      !value.contains(widget.tab.book.title)) {
+-                    displayTitle = "${widget.tab.book.title}, $value";
++            ),
++            elevation: 0,
++            scrolledUnderElevation: 0,
++            title: ValueListenableBuilder(
++              valueListenable: widget.tab.currentTitle,
++              builder: (context, value, child) {
++                String displayTitle = value;
++                if (value.isNotEmpty &&
++                    !value.contains(widget.tab.book.title)) {
++                  displayTitle = "${widget.tab.book.title}, $value";
++                }
++                return SelectionArea(
++                  child: Text(
++                    displayTitle,
++                    style: const TextStyle(fontSize: 17),
++                    textAlign: TextAlign.end,
++                  ),
++                );
++              },
++            ),
++            leading: IconButton(
++              icon: const Icon(FluentIcons.navigation_24_regular),
++              tooltip: 'חיפוש וניווט',
++              onPressed: () {
++                widget.tab.showLeftPane.value = !widget.tab.showLeftPane.value;
++              },
++            ),
++            actions: _buildPdfActions(context, wideScreen),
++          ),
++          body: Row(
++            children: [
++              _buildLeftPane(),
++              BlocBuilder<PdfBookBloc, PdfBookState>(
++                buildWhen: (prev, curr) {
++                  if (prev is PdfBookLoaded && curr is PdfBookLoaded) {
++                    return prev.sidebarWidth != curr.sidebarWidth ||
++                        prev.showLeftPane != curr.showLeftPane;
+                   }
+-                  return SelectionArea(
+-                    child: Text(
+-                      displayTitle,
+-                      style: const TextStyle(fontSize: 17),
+-                      textAlign: TextAlign.end,
+-                    ),
+-                  );
++                  return true;
+                 },
+-              ),
+-              leading: IconButton(
+-                icon: const Icon(FluentIcons.navigation_24_regular),
+-                tooltip: 'חיפוש וניווט',
+-                onPressed: () {
+-                  widget.tab.showLeftPane.value =
+-                      !widget.tab.showLeftPane.value;
++                builder: (context, state) {
++                  if (state is! PdfBookLoaded) return const SizedBox.shrink();
++                  if (!state.showLeftPane) {
++                    return const SizedBox.shrink();
++                  }
++                  return ResizableDragHandle(
++                    isVertical: true,
++                    hitSize: 4,
++                    onDragDelta: (delta) {
++                      final newWidth =
++                          (state.sidebarWidth - delta).clamp(200.0, 600.0);
++                      _bloc.add(pdf_events.UpdateSidebarWidth(newWidth));
++                    },
++                    onDragEnd: () {
++                      final current = _bloc.state;
++                      if (current is PdfBookLoaded) {
++                        context
++                            .read<SettingsBloc>()
++                            .add(UpdateSidebarWidth(current.sidebarWidth));
++                      }
++                    },
++                  );
+                 },
+               ),
+-              actions: _buildPdfActions(context, wideScreen),
+-            ),
+-            body: Row(
+-              children: [
+-                _buildLeftPane(),
+-                BlocBuilder<PdfBookBloc, PdfBookState>(
+-                  buildWhen: (prev, curr) {
+-                    if (prev is PdfBookLoaded && curr is PdfBookLoaded) {
+-                      return prev.sidebarWidth != curr.sidebarWidth ||
+-                          prev.showLeftPane != curr.showLeftPane;
+-                    }
+-                    return true;
+-                  },
+-                  builder: (context, state) {
+-                    if (state is! PdfBookLoaded) return const SizedBox.shrink();
+-                    if (!state.showLeftPane) {
+-                      return const SizedBox.shrink();
+-                    }
+-                    return ResizableDragHandle(
+-                      isVertical: true,
+-                      hitSize: 4,
+-                      onDragDelta: (delta) {
+-                        final newWidth =
+-                            (state.sidebarWidth - delta).clamp(200.0, 600.0);
+-                        _bloc.add(pdf_events.UpdateSidebarWidth(newWidth));
+-                      },
+-                      onDragEnd: () {
+-                        final current = _bloc.state;
+-                        if (current is PdfBookLoaded) {
+-                          context
+-                              .read<SettingsBloc>()
+-                              .add(UpdateSidebarWidth(current.sidebarWidth));
++              Expanded(
++                child: Stack(
++                  children: [
++                    NotificationListener<UserScrollNotification>(
++                      onNotification: (notification) {
++                        if (!(widget.tab.pinLeftPane.value ||
++                            (Settings.getValue<bool>('key-pin-sidebar') ??
++                                false))) {
++                          Future.microtask(() {
++                            widget.tab.showLeftPane.value = false;
++                            // החזרת focus ל-PDF אחרי גלילה
++                            _pdfViewFocusNode.requestFocus();
++                          });
+                         }
++                        return false;
+                       },
+-                    );
+-                  },
+-                ),
+-                Expanded(
+-                  child: Stack(
+-                    children: [
+-                      NotificationListener<UserScrollNotification>(
+-                        onNotification: (notification) {
+-                          if (!(widget.tab.pinLeftPane.value ||
+-                              (Settings.getValue<bool>('key-pin-sidebar') ??
+-                                  false))) {
++                      child: Listener(
++                        onPointerSignal: (event) {
++                          if (event is PointerScrollEvent &&
++                              !(widget.tab.pinLeftPane.value ||
++                                  (Settings.getValue<bool>('key-pin-sidebar') ??
++                                      false))) {
++                            widget.tab.showLeftPane.value = false;
++                            // החזרת focus ל-PDF אחרי גלילה
+                             Future.microtask(() {
+-                              widget.tab.showLeftPane.value = false;
++                              _pdfViewFocusNode.requestFocus();
+                             });
+                           }
+-                          return false;
+                         },
+-                        child: Listener(
+-                          onPointerSignal: (event) {
+-                            if (event is PointerScrollEvent &&
+-                                !(widget.tab.pinLeftPane.value ||
+-                                    (Settings.getValue<bool>(
+-                                            'key-pin-sidebar') ??
+-                                        false))) {
+-                              widget.tab.showLeftPane.value = false;
+-                            }
+-                          },
+-                          child: ColorFiltered(
+-                            colorFilter: ColorFilter.mode(
+-                              Colors.white,
+-                              Provider.of<SettingsBloc>(context, listen: true)
+-                                      .state
+-                                      .isDarkMode
+-                                  ? BlendMode.difference
+-                                  : BlendMode.dst,
+-                            ),
+-                            child: Stack(
+-                              children: [
+-                                _pdfBytesFuture == null
+-                                    ? _buildPdfViewerFromFile()
+-                                    : FutureBuilder<Uint8List?>(
+-                                        future: _pdfBytesFuture,
+-                                        builder: (context, snapshot) {
+-                                          if (snapshot.connectionState ==
+-                                              ConnectionState.waiting) {
+-                                            return const Center(
+-                                              child:
+-                                                  CircularProgressIndicator(),
+-                                            );
+-                                          }
+-
+-                                          if (snapshot.hasData &&
+-                                              snapshot.data != null) {
+-                                            return _buildPdfViewerFromBytes(
+-                                                snapshot.data!);
+-                                          }
+-
+-                                          return _buildPdfViewerFromFile();
+-                                        },
++                        child: ColorFiltered(
++                          colorFilter: ColorFilter.mode(
++                            Colors.white,
++                            Provider.of<SettingsBloc>(context, listen: true)
++                                    .state
++                                    .isDarkMode
++                                ? BlendMode.difference
++                                : BlendMode.dst,
++                          ),
++                          child: Stack(
++                            children: [
++                              _pdfBytesFuture == null
++                                  ? _buildPdfViewerFromFile()
++                                  : FutureBuilder<Uint8List?>(
++                                      future: _pdfBytesFuture,
++                                      builder: (context, snapshot) {
++                                        if (snapshot.connectionState ==
++                                            ConnectionState.waiting) {
++                                          return const Center(
++                                            child: CircularProgressIndicator(),
++                                          );
++                                        }
++
++                                        if (snapshot.hasData &&
++                                            snapshot.data != null) {
++                                          return _buildPdfViewerFromBytes(
++                                              snapshot.data!);
++                                        }
++
++                                        return _buildPdfViewerFromFile();
++                                      },
++                                    ),
++                              // Loading and error indicators
++                              BlocBuilder<PdfBookBloc, PdfBookState>(
++                                buildWhen: (prev, curr) {
++                                  if (prev is PdfBookLoaded &&
++                                      curr is PdfBookLoaded) {
++                                    return prev.isLoading != curr.isLoading ||
++                                        prev.loadSucceeded !=
++                                            curr.loadSucceeded;
++                                  }
++                                  return true;
++                                },
++                                builder: (context, state) {
++                                  if (state is! PdfBookLoaded) {
++                                    return const Positioned.fill(
++                                      child: ColoredBox(
++                                        color: Color(0xFFFFFFFF),
++                                        child: Center(
++                                            child: CircularProgressIndicator()),
+                                       ),
+-                                // Loading and error indicators
+-                                BlocBuilder<PdfBookBloc, PdfBookState>(
+-                                  buildWhen: (prev, curr) {
+-                                    if (prev is PdfBookLoaded &&
+-                                        curr is PdfBookLoaded) {
+-                                      return prev.isLoading != curr.isLoading ||
+-                                          prev.loadSucceeded !=
+-                                              curr.loadSucceeded;
+-                                    }
+-                                    return true;
+-                                  },
+-                                  builder: (context, state) {
+-                                    if (state is! PdfBookLoaded) {
+-                                      return const Positioned.fill(
+-                                        child: ColoredBox(
+-                                          color: Color(0xFFFFFFFF),
+-                                          child: Center(
+-                                              child:
+-                                                  CircularProgressIndicator()),
+-                                        ),
+-                                      );
+-                                    }
+-                                    if (state.isLoading) {
+-                                      return const Positioned.fill(
+-                                        child: ColoredBox(
+-                                          color: Color(0xFFFFFFFF),
+-                                          child: Center(
+-                                              child:
+-                                                  CircularProgressIndicator()),
+-                                        ),
+-                                      );
+-                                    }
+-                                    if (!state.loadSucceeded) {
+-                                      return const Positioned.fill(
++                                    );
++                                  }
++                                  if (state.isLoading) {
++                                    return const Positioned.fill(
++                                      child: ColoredBox(
++                                        color: Color(0xFFFFFFFF),
+                                         child: Center(
+-                                            child: Text('Failed to load PDF')),
+-                                      );
+-                                    }
+-                                    return const SizedBox.shrink();
+-                                  },
+-                                ),
+-                              ],
+-                            ),
++                                            child: CircularProgressIndicator()),
++                                      ),
++                                    );
++                                  }
++                                  if (!state.loadSucceeded) {
++                                    return const Positioned.fill(
++                                      child: Center(
++                                          child: Text('Failed to load PDF')),
++                                    );
++                                  }
++                                  return const SizedBox.shrink();
++                                },
++                              ),
++                            ],
+                           ),
+                         ),
+                       ),
+-                      // טאב צף לפתיחת חלונית המפרשים - עם 3 מצבים והדרכה
+-                      BlocBuilder<PdfBookBloc, PdfBookState>(
+-                        buildWhen: (prev, curr) {
+-                          if (prev is PdfBookLoaded && curr is PdfBookLoaded) {
+-                            return prev.showRightPane != curr.showRightPane ||
+-                                prev.isRightPaneHovering !=
+-                                    curr.isRightPaneHovering;
+-                          }
+-                          return true;
+-                        },
+-                        builder: (context, state) {
+-                          if (state is! PdfBookLoaded) {
+-                            return const SizedBox.shrink();
+-                          }
+-                          // מציג את הכפתור רק כשהחלונית סגורה
+-                          if (state.showRightPane) {
+-                            return const SizedBox.shrink();
+-                          }
++                    ),
++                    // טאב צף לפתיחת חלונית המפרשים - עם 3 מצבים והדרכה
++                    BlocBuilder<PdfBookBloc, PdfBookState>(
++                      buildWhen: (prev, curr) {
++                        if (prev is PdfBookLoaded && curr is PdfBookLoaded) {
++                          return prev.showRightPane != curr.showRightPane ||
++                              prev.isRightPaneHovering !=
++                                  curr.isRightPaneHovering;
++                        }
++                        return true;
++                      },
++                      builder: (context, state) {
++                        if (state is! PdfBookLoaded) {
++                          return const SizedBox.shrink();
++                        }
++                        // מציג את הכפתור רק כשהחלונית סגורה
++                        if (state.showRightPane) {
++                          return const SizedBox.shrink();
++                        }
+ 
+-                          final isHovering = state.isRightPaneHovering;
+-
+-                          return Positioned(
+-                            left: 0, // צמוד לקצה
+-                            top: MediaQuery.of(context).size.height *
+-                                0.10, // למעלה במסך
+-                            child: CommentaryPaneTooltip(
+-                              child: MouseRegion(
+-                                onEnter: (_) => _bloc.add(
+-                                    const pdf_events.SetRightPaneHovering(
+-                                        true)),
+-                                onExit: (_) => _bloc.add(
+-                                    const pdf_events.SetRightPaneHovering(
+-                                        false)),
+-                                child: GestureDetector(
+-                                  onTap: () {
+-                                    _bloc.add(const pdf_events.ToggleRightPane(
+-                                        show: true));
+-                                  },
+-                                  child: AnimatedContainer(
+-                                    duration: const Duration(milliseconds: 200),
+-                                    curve: Curves.easeOut,
+-                                    // מצב 1: סגור - בליטה קטנה, מצב 2: ריחוף - נשלף יותר
+-                                    width: isHovering ? 48 : 20,
+-                                    height: 80,
+-                                    decoration: BoxDecoration(
+-                                      color: Theme.of(context)
+-                                          .colorScheme
+-                                          .surfaceContainerHighest
+-                                          .withValues(
+-                                              alpha: isHovering ? 0.95 : 0.8),
+-                                      borderRadius: const BorderRadius.only(
+-                                        topRight: Radius.circular(40),
+-                                        bottomRight: Radius.circular(40),
+-                                      ),
+-                                      boxShadow: [
+-                                        BoxShadow(
+-                                          color: Colors.black
+-                                              .withValues(alpha: 0.15),
+-                                          blurRadius: isHovering ? 8 : 4,
+-                                          offset: const Offset(2, 0),
+-                                        ),
+-                                      ],
++                        final isHovering = state.isRightPaneHovering;
++
++                        return Positioned(
++                          left: 0, // צמוד לקצה
++                          top: MediaQuery.of(context).size.height *
++                              0.10, // למעלה במסך
++                          child: CommentaryPaneTooltip(
++                            child: MouseRegion(
++                              onEnter: (_) => _bloc.add(
++                                  const pdf_events.SetRightPaneHovering(true)),
++                              onExit: (_) => _bloc.add(
++                                  const pdf_events.SetRightPaneHovering(false)),
++                              child: GestureDetector(
++                                onTap: () {
++                                  _bloc.add(const pdf_events.ToggleRightPane(
++                                      show: true));
++                                },
++                                child: AnimatedContainer(
++                                  duration: const Duration(milliseconds: 200),
++                                  curve: Curves.easeOut,
++                                  // מצב 1: סגור - בליטה קטנה, מצב 2: ריחוף - נשלף יותר
++                                  width: isHovering ? 48 : 20,
++                                  height: 80,
++                                  decoration: BoxDecoration(
++                                    color: Theme.of(context)
++                                        .colorScheme
++                                        .surfaceContainerHighest
++                                        .withValues(
++                                            alpha: isHovering ? 0.95 : 0.8),
++                                    borderRadius: const BorderRadius.only(
++                                      topRight: Radius.circular(40),
++                                      bottomRight: Radius.circular(40),
+                                     ),
+-                                    child: Center(
+-                                      child: AnimatedOpacity(
+-                                        duration:
+-                                            const Duration(milliseconds: 150),
+-                                        opacity: isHovering ? 1.0 : 0.6,
+-                                        child: Icon(
+-                                          FluentIcons.chevron_right_24_regular,
+-                                          size: isHovering ? 24 : 18,
+-                                          color: Theme.of(context)
+-                                              .colorScheme
+-                                              .onSurface,
+-                                        ),
++                                    boxShadow: [
++                                      BoxShadow(
++                                        color: Colors.black
++                                            .withValues(alpha: 0.15),
++                                        blurRadius: isHovering ? 8 : 4,
++                                        offset: const Offset(2, 0),
++                                      ),
++                                    ],
++                                  ),
++                                  child: Center(
++                                    child: AnimatedOpacity(
++                                      duration:
++                                          const Duration(milliseconds: 150),
++                                      opacity: isHovering ? 1.0 : 0.6,
++                                      child: Icon(
++                                        FluentIcons.chevron_right_24_regular,
++                                        size: isHovering ? 24 : 18,
++                                        color: Theme.of(context)
++                                            .colorScheme
++                                            .onSurface,
+                                       ),
+                                     ),
+                                   ),
+                                 ),
+                               ),
+                             ),
+-                          );
+-                        },
+-                      ),
+-                      // סרגל זום
+-                      BlocBuilder<PdfBookBloc, PdfBookState>(
+-                        buildWhen: (prev, curr) {
+-                          if (prev is PdfBookLoaded && curr is PdfBookLoaded) {
+-                            return prev.showZoomBar != curr.showZoomBar;
+-                          }
+-                          return true;
+-                        },
+-                        builder: (context, state) {
+-                          final showZoomBar =
+-                              state is PdfBookLoaded && state.showZoomBar;
+-                          if (!showZoomBar ||
+-                              !widget.tab.pdfViewerController.isReady) {
+-                            return const SizedBox.shrink();
+-                          }
+-                          return Positioned(
+-                            top: 16,
+-                            left: 0,
+-                            right: 0,
+-                            child: Center(
+-                              child: PdfZoomBar(
+-                                currentZoom:
+-                                    widget.tab.pdfViewerController.value.zoom,
+-                                onZoomIn: _zoomIn,
+-                                onZoomOut: _zoomOut,
+-                                onResetZoom: _resetZoom,
+-                              ),
+-                            ),
+-                          );
+-                        },
+-                      ),
+-                    ],
+-                  ),
+-                ),
+-                // Divider לחלונית ימנית
+-                BlocBuilder<PdfBookBloc, PdfBookState>(
+-                  buildWhen: (prev, curr) {
+-                    if (prev is PdfBookLoaded && curr is PdfBookLoaded) {
+-                      return prev.showRightPane != curr.showRightPane ||
+-                          prev.rightPaneWidth != curr.rightPaneWidth;
+-                    }
+-                    return true;
+-                  },
+-                  builder: (context, state) {
+-                    if (state is! PdfBookLoaded) return const SizedBox.shrink();
+-                    if (!state.showRightPane) return const SizedBox.shrink();
+-                    return ResizableDragHandle(
+-                      isVertical: true,
+-                      hitSize: 4,
+-                      onDragDelta: (delta) {
+-                        final newWidth =
+-                            (state.rightPaneWidth + delta).clamp(250.0, 600.0);
+-                        _bloc.add(pdf_events.UpdateRightPaneWidth(newWidth));
++                          ),
++                        );
++                      },
++                    ),
++                    // סרגל זום
++                    BlocBuilder<PdfBookBloc, PdfBookState>(
++                      buildWhen: (prev, curr) {
++                        if (prev is PdfBookLoaded && curr is PdfBookLoaded) {
++                          return prev.showZoomBar != curr.showZoomBar;
++                        }
++                        return true;
+                       },
+-                      onDragEnd: () {
+-                        final current = _bloc.state;
+-                        if (current is PdfBookLoaded) {
+-                          context.read<SettingsBloc>().add(
+-                              UpdateCommentaryPaneWidth(
+-                                  current.rightPaneWidth));
++                      builder: (context, state) {
++                        final showZoomBar =
++                            state is PdfBookLoaded && state.showZoomBar;
++                        if (!showZoomBar ||
++                            !widget.tab.pdfViewerController.isReady) {
++                          return const SizedBox.shrink();
+                         }
++                        return Positioned(
++                          top: 16,
++                          left: 0,
++                          right: 0,
++                          child: Center(
++                            child: PdfZoomBar(
++                              currentZoom:
++                                  widget.tab.pdfViewerController.value.zoom,
++                              onZoomIn: _zoomIn,
++                              onZoomOut: _zoomOut,
++                              onResetZoom: _resetZoom,
++                            ),
++                          ),
++                        );
+                       },
+-                    );
+-                  },
++                    ),
++                  ],
+                 ),
+-                // חלונית ימנית למפרשים
+-                _buildRightPane(),
+-              ],
+-            ),
++              ),
++              // Divider לחלונית ימנית
++              BlocBuilder<PdfBookBloc, PdfBookState>(
++                buildWhen: (prev, curr) {
++                  if (prev is PdfBookLoaded && curr is PdfBookLoaded) {
++                    return prev.showRightPane != curr.showRightPane ||
++                        prev.rightPaneWidth != curr.rightPaneWidth;
++                  }
++                  return true;
++                },
++                builder: (context, state) {
++                  if (state is! PdfBookLoaded) return const SizedBox.shrink();
++                  if (!state.showRightPane) return const SizedBox.shrink();
++                  return ResizableDragHandle(
++                    isVertical: true,
++                    hitSize: 4,
++                    onDragDelta: (delta) {
++                      final newWidth =
++                          (state.rightPaneWidth + delta).clamp(250.0, 600.0);
++                      _bloc.add(pdf_events.UpdateRightPaneWidth(newWidth));
++                    },
++                    onDragEnd: () {
++                      final current = _bloc.state;
++                      if (current is PdfBookLoaded) {
++                        context.read<SettingsBloc>().add(
++                            UpdateCommentaryPaneWidth(current.rightPaneWidth));
++                      }
++                    },
++                  );
++                },
++              ),
++              // חלונית ימנית למפרשים
++              _buildRightPane(),
++            ],
+           ),
+         ),
+       );
+@@ -1082,11 +1127,26 @@ class _PdfBookScreenState extends State<PdfBookScreen>
+   }
+ 
+   void _goNextPage() {
+-    _bloc.add(const pdf_events.GoToNextPage());
++    if (!widget.tab.pdfViewerController.isReady) {
++      return;
++    }
++
++    final currentPage = widget.tab.pdfViewerController.pageNumber ?? 1;
++    final totalPages = widget.tab.pdfViewerController.pageCount;
++    final nextPage = min(currentPage + 1, totalPages);
++
++    widget.tab.pdfViewerController.goToPage(pageNumber: nextPage);
+   }
+ 
+   void _goPreviousPage() {
+-    _bloc.add(const pdf_events.GoToPreviousPage());
++    if (!widget.tab.pdfViewerController.isReady) {
++      return;
++    }
++
++    final currentPage = widget.tab.pdfViewerController.pageNumber ?? 1;
++    final prevPage = max(currentPage - 1, 1);
++
++    widget.tab.pdfViewerController.goToPage(pageNumber: prevPage);
+   }
+ 
+   Future<void> navigateToUrl(Uri url) async {
+@@ -1128,6 +1188,16 @@ class _PdfBookScreenState extends State<PdfBookScreen>
+         );
+       },
+     );
++
++    // החזרת פוקוס ל-PDF אחרי סגירת הדיאלוג
++    if (mounted) {
++      WidgetsBinding.instance.addPostFrameCallback((_) {
++        if (mounted) {
++          _pdfViewFocusNode.requestFocus();
++        }
++      });
++    }
++
+     return result ?? false;
+   }
+ 
+@@ -1557,6 +1627,15 @@ class _PdfBookScreenState extends State<PdfBookScreen>
+         UiSnack.show('שגיאה בהוספת הסימניה');
+       }
+     }
++
++    // החזרת פוקוס ל-PDF אחרי הוספת סימניה
++    if (mounted) {
++      WidgetsBinding.instance.addPostFrameCallback((_) {
++        if (mounted) {
++          _pdfViewFocusNode.requestFocus();
++        }
++      });
++    }
+   }
+ 
+   /// מוצא את הכותרת המתאימה לעמוד מסוים ב-outline
+@@ -1585,7 +1664,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
+     }
+ 
+     searchNodes(outline);
+-    debugPrint('DEBUG: final bestMatch: ${bestMatch?.title}');
+     return bestMatch?.title;
+   }
+ 
+@@ -1657,6 +1735,15 @@ class _PdfBookScreenState extends State<PdfBookScreen>
+       ),
+     );
+ 
++    // החזרת פוקוס ל-PDF אחרי סגירת הדיאלוג
++    if (mounted) {
++      WidgetsBinding.instance.addPostFrameCallback((_) {
++        if (mounted) {
++          _pdfViewFocusNode.requestFocus();
++        }
++      });
++    }
++
+     if (!mounted) return;
+ 
+     if (noteContent == null) {
+@@ -1718,6 +1805,15 @@ class _PdfBookScreenState extends State<PdfBookScreen>
+       bytes: await file.readAsBytes(),
+       filename: fileName,
+     );
++
++    // החזרת פוקוס ל-PDF אחרי סגירת דיאלוג ההדפסה
++    if (mounted) {
++      WidgetsBinding.instance.addPostFrameCallback((_) {
++        if (mounted) {
++          _pdfViewFocusNode.requestFocus();
++        }
++      });
++    }
+   }
+ 
+   Widget _buildTextButton(
+@@ -1793,17 +1889,17 @@ class _PdfBookScreenState extends State<PdfBookScreen>
+     );
+   }
+ 
+-  void _handleGlobalKeyEvent(KeyEvent event) {
+-    if (!mounted) return;
+-    if (event is! KeyDownEvent) return;
+-
+-    final togglePdfShortcut =
+-        Settings.getValue<String>('key-shortcut-toggle-pdf-view') ??
+-            ShortcutValidator
+-                .defaultShortcuts['key-shortcut-toggle-pdf-view'] ??
+-            'ctrl+shift+p';
+-    if (ShortcutHelper.matchesShortcut(event, togglePdfShortcut)) {
+-      _handleTextButtonPress(context);
+-    }
+-  }
++  // void _handleGlobalKeyEvent(KeyEvent event) {
++  //   if (!mounted) return;
++  //   if (event is! KeyDownEvent) return;
++
++  //   final togglePdfShortcut =
++  //       Settings.getValue<String>('key-shortcut-toggle-pdf-view') ??
++  //           ShortcutValidator
++  //               .defaultShortcuts['key-shortcut-toggle-pdf-view'] ??
++  //           'ctrl+shift+p';
++  //   if (ShortcutHelper.matchesShortcut(event, togglePdfShortcut)) {
++  //     _handleTextButtonPress(context);
++  //   }
++  // }
+ }
+diff --git a/lib/pdf_book/pdf_commentary_content.dart b/lib/pdf_book/pdf_commentary_content.dart
+index b91513402..967266a27 100644
+--- a/lib/pdf_book/pdf_commentary_content.dart
++++ b/lib/pdf_book/pdf_commentary_content.dart
+@@ -108,6 +108,7 @@ class _PdfCommentaryContentState extends State<PdfCommentaryContent> {
+                     currentSearchIndex: widget.currentSearchIndex,
+                     fontSize: settingsState.commentatorsFontSize,
+                     fontFamily: settingsState.commentatorsFontFamily,
++                    lineHeight: settingsState.lineHeight,
+                   ),
+                 );
+               },
+diff --git a/lib/personal_notes/widgets/inline_note_editor.dart b/lib/personal_notes/widgets/inline_note_editor.dart
+index 60b457f9f..29a0ea5b3 100644
+--- a/lib/personal_notes/widgets/inline_note_editor.dart
++++ b/lib/personal_notes/widgets/inline_note_editor.dart
+@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
+ 
+ import 'package:otzaria/personal_notes/models/personal_note.dart';
+ import 'package:otzaria/personal_notes/widgets/personal_note_editor.dart';
++import 'package:otzaria/settings/protected_settings_wrapper.dart';
+ 
+ class InlineNoteEditor extends StatefulWidget {
+   final PersonalNote? note;
+@@ -47,7 +48,14 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
+     super.dispose();
+   }
+ 
+-  void _handleSave() {
++  void _handleSave() async {
++    // במצב מוגן, נדרוש סיסמה לפני שמירה
++    if (!await verifyPasswordForAction(context)) {
++      return;
++    }
++
++    if (!mounted) return;
++
+     final result = _controller.buildResult();
+     if (result.contentPlain.trim().isEmpty) {
+       ScaffoldMessenger.of(context).showSnackBar(
+diff --git a/lib/personal_notes/widgets/personal_note_editor_dialog.dart b/lib/personal_notes/widgets/personal_note_editor_dialog.dart
+index 50638a676..38e2253ee 100644
+--- a/lib/personal_notes/widgets/personal_note_editor_dialog.dart
++++ b/lib/personal_notes/widgets/personal_note_editor_dialog.dart
+@@ -4,6 +4,8 @@ import 'package:otzaria/personal_notes/models/personal_note.dart';
+ import 'package:otzaria/personal_notes/services/personal_note_draft_service.dart';
+ import 'package:otzaria/personal_notes/widgets/personal_note_editor.dart';
+ 
++import 'package:otzaria/settings/protected_settings_wrapper.dart';
++
+ class PersonalNoteEditorDialog extends StatefulWidget {
+   final String initialContent;
+   final PersonalNoteContentFormat initialContentFormat;
+@@ -123,7 +125,14 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog> {
+     }
+   }
+ 
+-  void _submit() {
++  void _submit() async {
++    // במצב מוגן, נדרוש סיסמה לפני שמירה
++    if (!await verifyPasswordForAction(context)) {
++      return;
++    }
++
++    if (!mounted) return;
++
+     final result = _editorController.buildResult();
+     if (result.contentPlain.trim().isEmpty) {
+       return;
+diff --git a/lib/services/book_details_service.dart b/lib/services/book_details_service.dart
+index 459b78c40..fe1b0c961 100644
+--- a/lib/services/book_details_service.dart
++++ b/lib/services/book_details_service.dart
+@@ -159,7 +159,9 @@ class BookDetailsService {
+ 
+   bool _isAbsolutePath(String path) {
+     if (path.startsWith('/')) return true;
+-    if (path.length > 2 && path[1] == ':' && path[2] == Platform.pathSeparator) {
++    if (path.length > 2 &&
++        path[1] == ':' &&
++        path[2] == Platform.pathSeparator) {
+       return true;
+     }
+     return false;
+diff --git a/lib/settings/PROTECTED_MODE_README.md b/lib/settings/PROTECTED_MODE_README.md
+new file mode 100644
+index 000000000..93809e01e
+--- /dev/null
++++ b/lib/settings/PROTECTED_MODE_README.md
+@@ -0,0 +1,58 @@
++# מצב מוגן (Protected Mode)
++
++## תיאור
++מצב מוגן מאפשר להגן על ההגדרות של האפליקציה באמצעות סיסמה. כאשר המצב מופעל, המשתמש יידרש להזין סיסמה לפני כניסה למסך ההגדרות.
++
++## קבצים רלוונטיים
++
++### מודלים ו-Repository
++- `settings_repository.dart` - מכיל את הלוגיקה לשמירה ואימות סיסמה (hash)
++- `settings_event.dart` - מכיל את האירועים `UpdateProtectedModeEnabled` ו-`UpdateProtectedModePassword`
++- `settings_state.dart` - מכיל את השדה `protectedModeEnabled`
++- `settings_bloc.dart` - מטפל באירועים של מצב מוגן
++
++### UI Components
++- `password_verification_dialog.dart` - דיאלוגים לאימות והגדרת סיסמה
++  - `PasswordVerificationDialog` - לאימות סיסמה קיימת
++  - `SetPasswordDialog` - להגדרת סיסמה חדשה
++- `protected_mode_settings.dart` - Widget להגדרות מצב מוגן (מופיע בטאב המתקדם)
++- `protected_settings_wrapper.dart` - Wrapper שבודק סיסמה לפני כניסה למסך ההגדרות
++
++### Integration
++- `settings_screen.dart` - עטוף ב-`ProtectedSettingsWrapper`
++- `tabs/advanced_settings_tab.dart` - מכיל את `ProtectedModeSettings`
++
++## איך זה עובד
++
++1. **הגדרת סיסמה**: המשתמש נכנס להגדרות > מתקדם > מצב מוגן ולוחץ על "הגדר סיסמה"
++2. **הפעלת המצב**: לאחר הגדרת הסיסמה, המשתמש יכול להפעיל את המצב המוגן
++3. **הגנה**: כאשר המצב מופעל, כל כניסה למסך ההגדרות תדרוש אימות סיסמה
++4. **אבטחה**: הסיסמה נשמרת כ-SHA256 hash, לא בטקסט פשוט
++
++## שימוש בקוד
++
++### בדיקה האם מצב מוגן פעיל
++```dart
++final repository = context.read<SettingsRepository>();
++final state = context.read<SettingsBloc>().state;
++
++if (state.protectedModeEnabled && repository.hasProtectedModePassword()) {
++  // מצב מוגן פעיל
++}
++```
++
++### אימות סיסמה לפעולה מסוימת
++```dart
++final verified = await verifyPasswordForAction(context);
++if (verified) {
++  // בצע פעולה מוגנת
++}
++```
++
++## הרחבות עתידיות אפשריות
++
++1. הוספת הגנה על פעולות נוספות (לא רק הגדרות)
++2. תמיכה בביומטריה (טביעת אצבע, זיהוי פנים)
++3. נעילה אוטומטית אחרי זמן מסוים
++4. היסטוריית ניסיונות כניסה כושלים
++5. שאלות אבטחה לשחזור סיסמה
+diff --git a/lib/settings/password_verification_dialog.dart b/lib/settings/password_verification_dialog.dart
+new file mode 100644
+index 000000000..9332da6cf
+--- /dev/null
++++ b/lib/settings/password_verification_dialog.dart
+@@ -0,0 +1,311 @@
++import 'package:flutter/material.dart';
++import 'package:fluentui_system_icons/fluentui_system_icons.dart';
++import 'package:otzaria/widgets/rtl_text_field.dart';
++import 'package:otzaria/core/scaffold_messenger.dart';
++
++/// דיאלוג לאימות סיסמה למצב מוגן
++class PasswordVerificationDialog extends StatefulWidget {
++  final Future<bool> Function(String password) onVerify;
++  final String title;
++  final String? hint;
++
++  const PasswordVerificationDialog({
++    super.key,
++    required this.onVerify,
++    this.title = 'הזן סיסמה',
++    this.hint,
++  });
++
++  @override
++  State<PasswordVerificationDialog> createState() =>
++      _PasswordVerificationDialogState();
++}
++
++class _PasswordVerificationDialogState
++    extends State<PasswordVerificationDialog> {
++  final TextEditingController _passwordController = TextEditingController();
++  bool _isObscured = true;
++  bool _isVerifying = false;
++
++  @override
++  void dispose() {
++    _passwordController.dispose();
++    super.dispose();
++  }
++
++  Future<void> _handleVerify() async {
++    if (_passwordController.text.isEmpty) {
++      UiSnack.showError('נא להזין סיסמה');
++      return;
++    }
++
++    setState(() {
++      _isVerifying = true;
++    });
++
++    try {
++      final isValid = await widget.onVerify(_passwordController.text);
++
++      if (!mounted) return;
++
++      if (isValid) {
++        Navigator.of(context).pop(true);
++      } else {
++        UiSnack.showError('סיסמה שגויה');
++        _passwordController.clear();
++      }
++    } finally {
++      if (mounted) {
++        setState(() {
++          _isVerifying = false;
++        });
++      }
++    }
++  }
++
++  @override
++  Widget build(BuildContext context) {
++    return AlertDialog(
++      title: Row(
++        mainAxisAlignment: MainAxisAlignment.end,
++        children: [
++          Text(
++            widget.title,
++            textDirection: TextDirection.rtl,
++            style: const TextStyle(fontSize: 20),
++          ),
++          const SizedBox(width: 8),
++          const Icon(FluentIcons.lock_closed_24_regular),
++        ],
++      ),
++      content: SizedBox(
++        width: 400,
++        child: Column(
++          mainAxisSize: MainAxisSize.min,
++          crossAxisAlignment: CrossAxisAlignment.stretch,
++          children: [
++            if (widget.hint != null) ...[
++              Text(
++                widget.hint!,
++                textDirection: TextDirection.rtl,
++                style: TextStyle(
++                  color: Theme.of(context).colorScheme.onSurfaceVariant,
++                ),
++              ),
++              const SizedBox(height: 16),
++            ],
++            RtlTextField(
++              controller: _passwordController,
++              obscureText: _isObscured,
++              autofocus: true,
++              enabled: !_isVerifying,
++              decoration: InputDecoration(
++                labelText: 'סיסמה',
++                hintText: 'הזן את הסיסמה',
++                border: const OutlineInputBorder(),
++                prefixIcon: const Icon(FluentIcons.key_24_regular),
++                suffixIcon: IconButton(
++                  icon: Icon(
++                    _isObscured
++                        ? FluentIcons.eye_24_regular
++                        : FluentIcons.eye_off_24_regular,
++                  ),
++                  onPressed: () {
++                    setState(() {
++                      _isObscured = !_isObscured;
++                    });
++                  },
++                ),
++              ),
++              onSubmitted: (_) => _handleVerify(),
++            ),
++          ],
++        ),
++      ),
++      actions: [
++        TextButton(
++          onPressed:
++              _isVerifying ? null : () => Navigator.of(context).pop(false),
++          child: const Text('ביטול'),
++        ),
++        FilledButton(
++          onPressed: _isVerifying ? null : _handleVerify,
++          child: _isVerifying
++              ? const SizedBox(
++                  width: 16,
++                  height: 16,
++                  child: CircularProgressIndicator(strokeWidth: 2),
++                )
++              : const Text('אישור'),
++        ),
++      ],
++    );
++  }
++}
++
++/// דיאלוג להגדרת סיסמה חדשה
++class SetPasswordDialog extends StatefulWidget {
++  final Future<void> Function(String password) onSetPassword;
++
++  const SetPasswordDialog({
++    super.key,
++    required this.onSetPassword,
++  });
++
++  @override
++  State<SetPasswordDialog> createState() => _SetPasswordDialogState();
++}
++
++class _SetPasswordDialogState extends State<SetPasswordDialog> {
++  final TextEditingController _passwordController = TextEditingController();
++  final TextEditingController _confirmController = TextEditingController();
++  bool _isObscured1 = true;
++  bool _isObscured2 = true;
++  bool _isSaving = false;
++
++  @override
++  void dispose() {
++    _passwordController.dispose();
++    _confirmController.dispose();
++    super.dispose();
++  }
++
++  Future<void> _handleSave() async {
++    if (_passwordController.text.isEmpty) {
++      UiSnack.showError('נא להזין סיסמה');
++      return;
++    }
++
++    if (_passwordController.text.length < 4) {
++      UiSnack.showError('הסיסמה חייבת להכיל לפחות 4 תווים');
++      return;
++    }
++
++    if (_passwordController.text != _confirmController.text) {
++      UiSnack.showError('הסיסמאות אינן תואמות');
++      return;
++    }
++
++    setState(() {
++      _isSaving = true;
++    });
++
++    try {
++      await widget.onSetPassword(_passwordController.text);
++
++      if (!mounted) return;
++
++      UiSnack.show('הסיסמה נשמרה בהצלחה');
++      Navigator.of(context).pop(true);
++    } catch (e) {
++      if (!mounted) return;
++      UiSnack.showError('שגיאה בשמירת הסיסמה: $e');
++    } finally {
++      if (mounted) {
++        setState(() {
++          _isSaving = false;
++        });
++      }
++    }
++  }
++
++  @override
++  Widget build(BuildContext context) {
++    return AlertDialog(
++      title: const Row(
++        mainAxisAlignment: MainAxisAlignment.end,
++        children: [
++          Text(
++            'הגדרת סיסמה',
++            textDirection: TextDirection.rtl,
++            style: TextStyle(fontSize: 20),
++          ),
++          SizedBox(width: 8),
++          Icon(FluentIcons.lock_closed_24_regular),
++        ],
++      ),
++      content: SizedBox(
++        width: 400,
++        child: Column(
++          mainAxisSize: MainAxisSize.min,
++          crossAxisAlignment: CrossAxisAlignment.stretch,
++          children: [
++            Text(
++              'הגדר סיסמה להגנה על ההגדרות',
++              textDirection: TextDirection.rtl,
++              style: TextStyle(
++                color: Theme.of(context).colorScheme.onSurfaceVariant,
++              ),
++            ),
++            const SizedBox(height: 16),
++            RtlTextField(
++              controller: _passwordController,
++              obscureText: _isObscured1,
++              autofocus: true,
++              enabled: !_isSaving,
++              decoration: InputDecoration(
++                labelText: 'סיסמה חדשה',
++                hintText: 'לפחות 4 תווים',
++                border: const OutlineInputBorder(),
++                prefixIcon: const Icon(FluentIcons.key_24_regular),
++                suffixIcon: IconButton(
++                  icon: Icon(
++                    _isObscured1
++                        ? FluentIcons.eye_24_regular
++                        : FluentIcons.eye_off_24_regular,
++                  ),
++                  onPressed: () {
++                    setState(() {
++                      _isObscured1 = !_isObscured1;
++                    });
++                  },
++                ),
++              ),
++            ),
++            const SizedBox(height: 16),
++            RtlTextField(
++              controller: _confirmController,
++              obscureText: _isObscured2,
++              enabled: !_isSaving,
++              decoration: InputDecoration(
++                labelText: 'אימות סיסמה',
++                hintText: 'הזן שוב את הסיסמה',
++                border: const OutlineInputBorder(),
++                prefixIcon: const Icon(FluentIcons.checkmark_lock_24_regular),
++                suffixIcon: IconButton(
++                  icon: Icon(
++                    _isObscured2
++                        ? FluentIcons.eye_24_regular
++                        : FluentIcons.eye_off_24_regular,
++                  ),
++                  onPressed: () {
++                    setState(() {
++                      _isObscured2 = !_isObscured2;
++                    });
++                  },
++                ),
++              ),
++              onSubmitted: (_) => _handleSave(),
++            ),
++          ],
++        ),
++      ),
++      actions: [
++        TextButton(
++          onPressed: _isSaving ? null : () => Navigator.of(context).pop(false),
++          child: const Text('ביטול'),
++        ),
++        FilledButton(
++          onPressed: _isSaving ? null : _handleSave,
++          child: _isSaving
++              ? const SizedBox(
++                  width: 16,
++                  height: 16,
++                  child: CircularProgressIndicator(strokeWidth: 2),
++                )
++              : const Text('שמור'),
++        ),
++      ],
++    );
++  }
++}
+diff --git a/lib/settings/protected_mode_settings.dart b/lib/settings/protected_mode_settings.dart
+new file mode 100644
+index 000000000..300d554fd
+--- /dev/null
++++ b/lib/settings/protected_mode_settings.dart
+@@ -0,0 +1,180 @@
++import 'package:flutter/material.dart';
++import 'package:flutter_bloc/flutter_bloc.dart';
++import 'package:fluentui_system_icons/fluentui_system_icons.dart';
++import 'package:otzaria/settings/settings_bloc.dart';
++import 'package:otzaria/settings/settings_event.dart';
++import 'package:otzaria/settings/settings_state.dart';
++import 'package:otzaria/settings/settings_repository.dart';
++import 'package:otzaria/settings/password_verification_dialog.dart';
++import 'package:otzaria/core/scaffold_messenger.dart';
++
++/// Widget להגדרות מצב מוגן
++class ProtectedModeSettings extends StatelessWidget {
++  const ProtectedModeSettings({super.key});
++
++  @override
++  Widget build(BuildContext context) {
++    final repository = RepositoryProvider.of<SettingsRepository>(context);
++
++    return BlocBuilder<SettingsBloc, SettingsState>(
++      builder: (context, state) {
++        final hasPassword = repository.hasProtectedModePassword();
++
++        return Card(
++          margin: const EdgeInsets.all(16),
++          child: Padding(
++            padding: const EdgeInsets.all(16),
++            child: Column(
++              crossAxisAlignment: CrossAxisAlignment.start,
++              children: [
++                Row(
++                  children: [
++                    const Icon(
++                      FluentIcons.shield_lock_24_regular,
++                      size: 24,
++                    ),
++                    const SizedBox(width: 12),
++                    Text(
++                      'מצב מוגן',
++                      style: Theme.of(context).textTheme.titleLarge,
++                      textDirection: TextDirection.rtl,
++                    ),
++                  ],
++                ),
++                const SizedBox(height: 8),
++                Text(
++                  'הגן על ההגדרות שלך עם סיסמה. כאשר מצב מוגן מופעל, תידרש להזין סיסמה לפני כניסה להגדרות.\nבנוסף, מצב זה ינעל את האפשרות לערוך הערות אישיות ולערוך טקסטים של ספרים.',
++                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
++                        color: Theme.of(context).colorScheme.onSurfaceVariant,
++                      ),
++                  textDirection: TextDirection.rtl,
++                ),
++                const SizedBox(height: 16),
++                SwitchListTile(
++                  title: const Text(
++                    'הפעל מצב מוגן',
++                    textDirection: TextDirection.rtl,
++                  ),
++                  subtitle: Text(
++                    hasPassword ? 'סיסמה הוגדרה' : 'יש להגדיר סיסמה תחילה',
++                    textDirection: TextDirection.rtl,
++                    style: TextStyle(
++                      color: hasPassword
++                          ? Theme.of(context).colorScheme.primary
++                          : Theme.of(context).colorScheme.error,
++                    ),
++                  ),
++                  value: state.protectedModeEnabled,
++                  onChanged: hasPassword
++                      ? (value) => _handleToggleProtectedMode(
++                            context,
++                            repository,
++                            value,
++                          )
++                      : null,
++                  secondary: Icon(
++                    state.protectedModeEnabled
++                        ? FluentIcons.lock_closed_24_filled
++                        : FluentIcons.lock_open_24_regular,
++                  ),
++                ),
++                const Divider(),
++                ListTile(
++                  leading: const Icon(FluentIcons.key_24_regular),
++                  title: Text(
++                    hasPassword ? 'שנה סיסמה' : 'הגדר סיסמה',
++                    textDirection: TextDirection.rtl,
++                  ),
++                  subtitle: Text(
++                    hasPassword
++                        ? 'לחץ לשינוי הסיסמה הקיימת'
++                        : 'לחץ להגדרת סיסמה חדשה',
++                    textDirection: TextDirection.rtl,
++                  ),
++                  trailing: const Icon(FluentIcons.chevron_left_24_regular),
++                  onTap: () =>
++                      _handleSetPassword(context, repository, hasPassword),
++                ),
++              ],
++            ),
++          ),
++        );
++      },
++    );
++  }
++
++  Future<void> _handleToggleProtectedMode(
++    BuildContext context,
++    SettingsRepository repository,
++    bool newValue,
++  ) async {
++    // אם מנסים לכבות את המצב המוגן, נדרוש אימות סיסמה
++    if (!newValue) {
++      final verified = await showDialog<bool>(
++        context: context,
++        builder: (context) => PasswordVerificationDialog(
++          title: 'אמת סיסמה',
++          hint: 'הזן את הסיסמה כדי להשבית את המצב המוגן',
++          onVerify: (password) async {
++            return repository.verifyProtectedModePassword(password);
++          },
++        ),
++      );
++
++      if (verified != true) return;
++    }
++
++    // מבצעים את השינוי
++    if (context.mounted) {
++      context.read<SettingsBloc>().add(UpdateProtectedModeEnabled(newValue));
++      if (!newValue) {
++        UiSnack.show('המצב המוגן הושבת');
++      }
++    }
++  }
++
++  Future<void> _handleSetPassword(
++    BuildContext context,
++    SettingsRepository repository,
++    bool hasExistingPassword,
++  ) async {
++    // אם יש סיסמה קיימת, נדרוש אימות תחילה
++    if (hasExistingPassword) {
++      final verified = await showDialog<bool>(
++        context: context,
++        builder: (context) => PasswordVerificationDialog(
++          title: 'אמת סיסמה נוכחית',
++          hint: 'הזן את הסיסמה הנוכחית כדי לשנות אותה',
++          onVerify: (password) async {
++            return repository.verifyProtectedModePassword(password);
++          },
++        ),
++      );
++
++      if (verified != true) return;
++    }
++
++    // עכשיו נציג דיאלוג להגדרת סיסמה חדשה
++    if (!context.mounted) return;
++
++    final result = await showDialog<bool>(
++      context: context,
++      builder: (context) => SetPasswordDialog(
++        onSetPassword: (password) async {
++          context
++              .read<SettingsBloc>()
++              .add(UpdateProtectedModePassword(password));
++        },
++      ),
++    );
++
++    if (result == true && context.mounted) {
++      // אם זו סיסמה ראשונה, נפעיל אוטומטית את המצב המוגן
++      if (!hasExistingPassword) {
++        context
++            .read<SettingsBloc>()
++            .add(const UpdateProtectedModeEnabled(true));
++      }
++    }
++  }
++}
+diff --git a/lib/settings/protected_settings_wrapper.dart b/lib/settings/protected_settings_wrapper.dart
+new file mode 100644
+index 000000000..53253573f
+--- /dev/null
++++ b/lib/settings/protected_settings_wrapper.dart
+@@ -0,0 +1,212 @@
++import 'package:flutter/material.dart';
++import 'package:flutter_bloc/flutter_bloc.dart';
++import 'package:otzaria/settings/settings_repository.dart';
++import 'package:otzaria/settings/settings_bloc.dart';
++import 'package:otzaria/settings/settings_state.dart';
++import 'package:otzaria/settings/password_verification_dialog.dart';
++
++/// Wrapper שבודק סיסמה לפני כניסה למסך מוגן
++class ProtectedSettingsWrapper extends StatefulWidget {
++  final Widget child;
++
++  const ProtectedSettingsWrapper({
++    super.key,
++    required this.child,
++  });
++
++  @override
++  State<ProtectedSettingsWrapper> createState() =>
++      _ProtectedSettingsWrapperState();
++}
++
++class _ProtectedSettingsWrapperState extends State<ProtectedSettingsWrapper> {
++  bool _isVerified = false;
++  bool _isChecking = true;
++  bool _dialogShown = false;
++
++  @override
++  void initState() {
++    super.initState();
++    // נשתמש ב-postFrameCallback כדי לוודא שה-context מוכן
++    WidgetsBinding.instance.addPostFrameCallback((_) {
++      if (mounted) {
++        _checkProtection();
++      }
++    });
++  }
++
++  void _checkProtection() {
++    // נבדוק אם מצב מוגן מופעל
++    final state = context.read<SettingsBloc>().state;
++    final repository = context.read<SettingsRepository>();
++
++    if (!state.protectedModeEnabled || !repository.hasProtectedModePassword()) {
++      // אין הגנה - נאפשר גישה ישירה
++      if (mounted) {
++        setState(() {
++          _isVerified = true;
++          _isChecking = false;
++        });
++      }
++    } else {
++      // יש הגנה - נדרוש אימות
++      if (mounted) {
++        setState(() {
++          _isChecking = false;
++        });
++        if (!_dialogShown) {
++          _dialogShown = true;
++          _showPasswordDialog();
++        }
++      }
++    }
++  }
++
++  Future<void> _showPasswordDialog() async {
++    if (!mounted) return;
++
++    final repository = context.read<SettingsRepository>();
++
++    final verified = await showDialog<bool>(
++      context: context,
++      barrierDismissible: false,
++      builder: (dialogContext) => PopScope(
++        canPop: false,
++        child: PasswordVerificationDialog(
++          title: 'הזן סיסמה',
++          hint: 'הנך במצב מוגן.\nהזן את הסיסמה כדי לגשת להגדרות',
++          onVerify: (password) async {
++            return repository.verifyProtectedModePassword(password);
++          },
++        ),
++      ),
++    );
++
++    if (!mounted) return;
++
++    if (verified == true) {
++      setState(() {
++        _isVerified = true;
++      });
++    } else {
++      // המשתמש ביטל - נחזור למסך הקודם בצורה בטוחה
++      // נבדוק אם ה-Navigator יכול לעשות pop
++      if (Navigator.of(context).canPop()) {
++        Navigator.of(context).pop();
++      }
++    }
++  }
++
++  @override
++  Widget build(BuildContext context) {
++    return BlocListener<SettingsBloc, SettingsState>(
++      listenWhen: (previous, current) =>
++          previous.protectedModeEnabled != current.protectedModeEnabled,
++      listener: (context, state) {
++        // אם המצב המוגן הופעל והמשתמש עדיין לא אומת
++        if (state.protectedModeEnabled && !_isVerified) {
++          final repository = context.read<SettingsRepository>();
++          if (repository.hasProtectedModePassword()) {
++            // נאפס את הסטטוס ונבקש אימות מחדש
++            setState(() {
++              _isVerified = false;
++              _isChecking = false;
++              _dialogShown = false;
++            });
++            // נציג את הדיאלוג
++            WidgetsBinding.instance.addPostFrameCallback((_) {
++              if (mounted && !_dialogShown) {
++                _dialogShown = true;
++                _showPasswordDialog();
++              }
++            });
++          }
++        }
++      },
++      child: _buildContent(),
++    );
++  }
++
++  Widget _buildContent() {
++    if (_isChecking) {
++      return const Scaffold(
++        body: Center(
++          child: CircularProgressIndicator(),
++        ),
++      );
++    }
++
++    if (!_isVerified) {
++      return Scaffold(
++        appBar: AppBar(
++          title: const Text(
++            'הגדרות',
++            textDirection: TextDirection.rtl,
++          ),
++          automaticallyImplyLeading: true,
++        ),
++        body: Center(
++          child: Padding(
++            padding: const EdgeInsets.all(24.0),
++            child: Column(
++              mainAxisAlignment: MainAxisAlignment.center,
++              children: [
++                Icon(
++                  Icons.lock_outline,
++                  size: 64,
++                  color: Theme.of(context).colorScheme.primary,
++                ),
++                const SizedBox(height: 24),
++                Text(
++                  'הנך במצב מוגן',
++                  textDirection: TextDirection.rtl,
++                  style: Theme.of(context).textTheme.headlineSmall,
++                ),
++                const SizedBox(height: 12),
++                Text(
++                  'אין אפשרות להיכנס להגדרות ללא סיסמה',
++                  textDirection: TextDirection.rtl,
++                  textAlign: TextAlign.center,
++                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
++                        color: Theme.of(context).colorScheme.onSurfaceVariant,
++                      ),
++                ),
++              ],
++            ),
++          ),
++        ),
++      );
++    }
++
++    return widget.child;
++  }
++}
++
++/// פונקציה עוזרת לבדיקה האם צריך הגנה
++bool shouldProtectSettings(BuildContext context) {
++  final state = context.read<SettingsBloc>().state;
++  final repository = context.read<SettingsRepository>();
++  return state.protectedModeEnabled && repository.hasProtectedModePassword();
++}
++
++/// פונקציה עוזרת לאימות סיסמה
++Future<bool> verifyPasswordForAction(BuildContext context) async {
++  if (!shouldProtectSettings(context)) {
++    return true; // אין הגנה - מאושר
++  }
++
++  final repository = context.read<SettingsRepository>();
++
++  final verified = await showDialog<bool>(
++    context: context,
++    builder: (context) => PasswordVerificationDialog(
++      title: 'אמת סיסמה',
++      hint: 'הנך במצב מוגן.\nהזן את הסיסמה כדי לבצע פעולה זו',
++      onVerify: (password) async {
++        return repository.verifyProtectedModePassword(password);
++      },
++    ),
++  );
++
++  return verified == true;
++}
+diff --git a/lib/settings/settings_bloc.dart b/lib/settings/settings_bloc.dart
+index 598a3d3ce..e78ea9995 100644
+--- a/lib/settings/settings_bloc.dart
++++ b/lib/settings/settings_bloc.dart
+@@ -21,6 +21,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
+     on<UpdateFontFamily>(_onUpdateFontFamily);
+     on<UpdateCommentatorsFontFamily>(_onUpdateCommentatorsFontFamily);
+     on<UpdateCommentatorsFontSize>(_onUpdateCommentatorsFontSize);
++    on<UpdateLineHeight>(_onUpdateLineHeight);
+     on<UpdateShowOtzarHachochma>(_onUpdateShowOtzarHachochma);
+     on<UpdateShowHebrewBooks>(_onUpdateShowHebrewBooks);
+     on<UpdateShowExternalBooks>(_onUpdateShowExternalBooks);
+@@ -49,6 +50,8 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
+     on<UpdateEnableHtmlLinks>(_onUpdateEnableHtmlLinks);
+     on<UpdatePersonalNotesCollapsedByDefault>(
+         _onUpdatePersonalNotesCollapsedByDefault);
++    on<UpdateProtectedModeEnabled>(_onUpdateProtectedModeEnabled);
++    on<UpdateProtectedModePassword>(_onUpdateProtectedModePassword);
+   }
+ 
+   Future<void> _onLoadSettings(
+@@ -72,6 +75,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
+       fontFamily: settings['fontFamily'],
+       commentatorsFontFamily: settings['commentatorsFontFamily'],
+       commentatorsFontSize: settings['commentatorsFontSize'],
++      lineHeight: settings['lineHeight'],
+       showOtzarHachochma: settings['showOtzarHachochma'],
+       showHebrewBooks: settings['showHebrewBooks'],
+       showExternalBooks: settings['showExternalBooks'],
+@@ -100,6 +104,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
+       enableHtmlLinks: settings['enableHtmlLinks'] ?? true,
+       personalNotesCollapsedByDefault:
+           settings['personalNotesCollapsedByDefault'] ?? true,
++      protectedModeEnabled: settings['protectedModeEnabled'] ?? false,
+     ));
+   }
+ 
+@@ -145,6 +150,21 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
+         personalNotesCollapsedByDefault: event.collapsedByDefault));
+   }
+ 
++  Future<void> _onUpdateProtectedModeEnabled(
++    UpdateProtectedModeEnabled event,
++    Emitter<SettingsState> emit,
++  ) async {
++    await _repository.updateProtectedModeEnabled(event.enabled);
++    emit(state.copyWith(protectedModeEnabled: event.enabled));
++  }
++
++  Future<void> _onUpdateProtectedModePassword(
++    UpdateProtectedModePassword event,
++    Emitter<SettingsState> emit,
++  ) async {
++    await _repository.updateProtectedModePassword(event.password);
++  }
++
+   Future<void> _onUpdateDarkMode(
+     UpdateDarkMode event,
+     Emitter<SettingsState> emit,
+@@ -223,6 +243,14 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
+     emit(state.copyWith(commentatorsFontSize: event.commentatorsFontSize));
+   }
+ 
++  Future<void> _onUpdateLineHeight(
++    UpdateLineHeight event,
++    Emitter<SettingsState> emit,
++  ) async {
++    await _repository.updateLineHeight(event.lineHeight);
++    emit(state.copyWith(lineHeight: event.lineHeight));
++  }
++
+   Future<void> _onUpdateShowOtzarHachochma(
+     UpdateShowOtzarHachochma event,
+     Emitter<SettingsState> emit,
+diff --git a/lib/settings/settings_event.dart b/lib/settings/settings_event.dart
+index 9c7b0c24d..cd58a2c71 100644
+--- a/lib/settings/settings_event.dart
++++ b/lib/settings/settings_event.dart
+@@ -91,6 +91,15 @@ class UpdateCommentatorsFontSize extends SettingsEvent {
+   List<Object?> get props => [commentatorsFontSize];
+ }
+ 
++class UpdateLineHeight extends SettingsEvent {
++  final double lineHeight;
++
++  const UpdateLineHeight(this.lineHeight);
++
++  @override
++  List<Object?> get props => [lineHeight];
++}
++
+ class UpdateShowOtzarHachochma extends SettingsEvent {
+   final bool showOtzarHachochma;
+ 
+@@ -325,3 +334,21 @@ class UpdatePersonalNotesCollapsedByDefault extends SettingsEvent {
+   @override
+   List<Object?> get props => [collapsedByDefault];
+ }
++
++class UpdateProtectedModeEnabled extends SettingsEvent {
++  final bool enabled;
++
++  const UpdateProtectedModeEnabled(this.enabled);
++
++  @override
++  List<Object?> get props => [enabled];
++}
++
++class UpdateProtectedModePassword extends SettingsEvent {
++  final String password;
++
++  const UpdateProtectedModePassword(this.password);
++
++  @override
++  List<Object?> get props => [password];
++}
+diff --git a/lib/settings/settings_repository.dart b/lib/settings/settings_repository.dart
+index bec1c6980..82677f758 100644
+--- a/lib/settings/settings_repository.dart
++++ b/lib/settings/settings_repository.dart
+@@ -3,6 +3,8 @@ import 'package:otzaria/constants/fonts.dart';
+ import 'package:otzaria/utils/color_utils.dart';
+ import 'package:otzaria/utils/shortcut_validator.dart';
+ import 'package:otzaria/utils/settings_wrapper.dart';
++import 'package:crypto/crypto.dart';
++import 'dart:convert';
+ 
+ class SettingsRepository {
+   static const String keyDarkMode = 'key-dark-mode';
+@@ -15,6 +17,7 @@ class SettingsRepository {
+   static const String keyCommentatorsFontFamily =
+       'key-commentators-font-family';
+   static const String keyCommentatorsFontSize = 'key-commentators-font-size';
++  static const String keyLineHeight = 'key-line-height';
+   static const String keyShowOtzarHachochma = 'key-show-otzar-hachochma';
+   static const String keyShowHebrewBooks = 'key-show-hebrew-books';
+   static const String keyShowExternalBooks = 'key-show-external-books';
+@@ -49,6 +52,11 @@ class SettingsRepository {
+   static const String keyPersonalNotesCollapsedByDefault =
+       'key-personal-notes-collapsed';
+ 
++  // Protected Mode Settings
++  static const String keyProtectedModeEnabled = 'key-protected-mode-enabled';
++  static const String keyProtectedModePasswordHash =
++      'key-protected-mode-password-hash';
++
+   // Calendar Notification Settings
+   static const String keyCalendarNotificationsEnabled =
+       'key-calendar-notifications-enabled';
+@@ -116,6 +124,10 @@ class SettingsRepository {
+         keyCommentatorsFontSize,
+         defaultValue: 22,
+       ),
++      'lineHeight': _settings.getValue<double>(
++        keyLineHeight,
++        defaultValue: 1.5,
++      ),
+       'showOtzarHachochma': _settings.getValue<bool>(
+         keyShowOtzarHachochma,
+         defaultValue: false,
+@@ -220,6 +232,12 @@ class SettingsRepository {
+         defaultValue: true,
+       ),
+ 
++      // Protected Mode
++      'protectedModeEnabled': _settings.getValue<bool>(
++        keyProtectedModeEnabled,
++        defaultValue: false,
++      ),
++
+       // Calendar Notification Settings
+       'calendarNotificationsEnabled': _settings.getValue<bool>(
+         keyCalendarNotificationsEnabled,
+@@ -313,6 +331,10 @@ class SettingsRepository {
+     await _settings.setValue(keyCommentatorsFontSize, value);
+   }
+ 
++  Future<void> updateLineHeight(double value) async {
++    await _settings.setValue(keyLineHeight, value);
++  }
++
+   Future<void> updateShowOtzarHachochma(bool value) async {
+     await _settings.setValue(keyShowOtzarHachochma, value);
+   }
+@@ -421,6 +443,44 @@ class SettingsRepository {
+     await _settings.setValue(keyPersonalNotesCollapsedByDefault, value);
+   }
+ 
++  // Protected Mode
++  Future<void> updateProtectedModeEnabled(bool value) async {
++    await _settings.setValue(keyProtectedModeEnabled, value);
++  }
++
++  Future<void> updateProtectedModePassword(String password) async {
++    final hash = _hashPassword(password);
++    await _settings.setValue(keyProtectedModePasswordHash, hash);
++  }
++
++  bool verifyProtectedModePassword(String password) {
++    final storedHash = _settings.getValue<String>(
++      keyProtectedModePasswordHash,
++      defaultValue: '',
++    );
++
++    if (storedHash.isEmpty) {
++      return false;
++    }
++
++    final inputHash = _hashPassword(password);
++    return inputHash == storedHash;
++  }
++
++  bool hasProtectedModePassword() {
++    final hash = _settings.getValue<String>(
++      keyProtectedModePasswordHash,
++      defaultValue: '',
++    );
++    return hash.isNotEmpty;
++  }
++
++  String _hashPassword(String password) {
++    final bytes = utf8.encode(password);
++    final hash = sha256.convert(bytes);
++    return hash.toString();
++  }
++
+   // Calendar Notification Settings
+   Future<void> updateCalendarNotificationsEnabled(bool value) async {
+     await _settings.setValue(keyCalendarNotificationsEnabled, value);
+@@ -569,6 +629,7 @@ class SettingsRepository {
+     await _settings.setValue(
+         keyCommentatorsFontFamily, AppFonts.defaultCommentatorsFont);
+     await _settings.setValue(keyCommentatorsFontSize, 22.0);
++    await _settings.setValue(keyLineHeight, 1.5);
+     await _settings.setValue(keyShowOtzarHachochma, false);
+     await _settings.setValue(keyShowHebrewBooks, false);
+     await _settings.setValue(keyShowExternalBooks, false);
+@@ -616,6 +677,9 @@ class SettingsRepository {
+     await _settings.setValue(keyGoogleCalendarSyncFutureDays, 365);
+     await _settings.setValue(keyGoogleCalendarLastSync, 0);
+ 
++    // Protected Mode defaults
++    await _settings.setValue(keyProtectedModeEnabled, false);
++
+     // Mark as initialized
+     await _settings.setValue('settings_initialized', true);
+   }
+diff --git a/lib/settings/settings_screen.dart b/lib/settings/settings_screen.dart
+index 2317303ff..7b80b7b77 100644
+--- a/lib/settings/settings_screen.dart
++++ b/lib/settings/settings_screen.dart
+@@ -1,6 +1,7 @@
+ import 'package:flutter/material.dart';
+ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+ import 'package:otzaria/settings/tabs/settings_tabs.dart';
++import 'package:otzaria/settings/protected_settings_wrapper.dart';
+ 
+ class MySettingsScreen extends StatefulWidget {
+   const MySettingsScreen({super.key});
+@@ -12,7 +13,7 @@ class MySettingsScreen extends StatefulWidget {
+ class _MySettingsScreenState extends State<MySettingsScreen>
+     with AutomaticKeepAliveClientMixin, SingleTickerProviderStateMixin {
+   @override
+-  bool get wantKeepAlive => true;
++  bool get wantKeepAlive => false; // שינוי ל-false כדי שלא ישמור את המצב
+ 
+   late TabController _tabController;
+ 
+@@ -63,42 +64,44 @@ class _MySettingsScreenState extends State<MySettingsScreen>
+   Widget build(BuildContext context) {
+     super.build(context);
+ 
+-    return Scaffold(
+-      appBar: AppBar(
+-        toolbarHeight: 72,
+-        title: TabBar(
+-          controller: _tabController,
+-          isScrollable: true,
+-          tabAlignment: TabAlignment.center,
+-          tabs: _tabs
+-              .map((tab) => SizedBox(
+-                    width: 100,
+-                    child: Tab(
+-                      text: tab.label,
+-                      icon: Icon(tab.icon, size: 20),
+-                    ),
+-                  ))
+-              .toList(),
+-        ),
+-        bottom: PreferredSize(
+-          preferredSize: const Size.fromHeight(1.0),
+-          child: Container(
+-            color: Theme.of(context).dividerColor,
+-            height: 1.0,
++    return ProtectedSettingsWrapper(
++      child: Scaffold(
++        appBar: AppBar(
++          toolbarHeight: 72,
++          title: TabBar(
++            controller: _tabController,
++            isScrollable: true,
++            tabAlignment: TabAlignment.center,
++            tabs: _tabs
++                .map((tab) => SizedBox(
++                      width: 100,
++                      child: Tab(
++                        text: tab.label,
++                        icon: Icon(tab.icon, size: 20),
++                      ),
++                    ))
++                .toList(),
++          ),
++          bottom: PreferredSize(
++            preferredSize: const Size.fromHeight(1.0),
++            child: Container(
++              color: Theme.of(context).dividerColor,
++              height: 1.0,
++            ),
+           ),
+         ),
+-      ),
+-      body: TabBarView(
+-        controller: _tabController,
+-        children: const [
+-          AppearanceSettingsTab(),
+-          ReadingSettingsTab(),
+-          LibrarySettingsTab(),
+-          CalendarSettingsTab(),
+-          GematriaSettingsTab(),
+-          BackupSettingsTab(),
+-          AdvancedSettingsTab(),
+-        ],
++        body: TabBarView(
++          controller: _tabController,
++          children: const [
++            AppearanceSettingsTab(),
++            ReadingSettingsTab(),
++            LibrarySettingsTab(),
++            CalendarSettingsTab(),
++            GematriaSettingsTab(),
++            BackupSettingsTab(),
++            AdvancedSettingsTab(),
++          ],
++        ),
+       ),
+     );
+   }
+diff --git a/lib/settings/settings_state.dart b/lib/settings/settings_state.dart
+index a7b138899..85ed45eff 100644
+--- a/lib/settings/settings_state.dart
++++ b/lib/settings/settings_state.dart
+@@ -11,6 +11,8 @@ class SettingsState extends Equatable {
+   final String fontFamily;
+   final String commentatorsFontFamily;
+   final double commentatorsFontSize;
++  final double
++      lineHeight; // מרווח בין שורות (1.0 = רגיל, 1.5 = מרווח וחצי, וכו')
+   final bool showOtzarHachochma;
+   final bool showHebrewBooks;
+   final bool showExternalBooks;
+@@ -36,6 +38,7 @@ class SettingsState extends Equatable {
+   final bool alignTabsToRight;
+   final bool enableHtmlLinks;
+   final bool personalNotesCollapsedByDefault;
++  final bool protectedModeEnabled;
+ 
+   const SettingsState({
+     required this.isDarkMode,
+@@ -47,6 +50,7 @@ class SettingsState extends Equatable {
+     required this.fontFamily,
+     required this.commentatorsFontFamily,
+     required this.commentatorsFontSize,
++    required this.lineHeight,
+     required this.showOtzarHachochma,
+     required this.showHebrewBooks,
+     required this.showExternalBooks,
+@@ -72,6 +76,7 @@ class SettingsState extends Equatable {
+     required this.alignTabsToRight,
+     required this.enableHtmlLinks,
+     required this.personalNotesCollapsedByDefault,
++    required this.protectedModeEnabled,
+   });
+ 
+   factory SettingsState.initial() {
+@@ -86,6 +91,7 @@ class SettingsState extends Equatable {
+       fontFamily: 'FrankRuhlCLM',
+       commentatorsFontFamily: 'NotoRashiHebrew',
+       commentatorsFontSize: 22,
++      lineHeight: 1.5,
+       showOtzarHachochma: false,
+       showHebrewBooks: false,
+       showExternalBooks: false,
+@@ -111,6 +117,7 @@ class SettingsState extends Equatable {
+       alignTabsToRight: false,
+       enableHtmlLinks: true,
+       personalNotesCollapsedByDefault: true,
++      protectedModeEnabled: false,
+     );
+   }
+ 
+@@ -124,6 +131,7 @@ class SettingsState extends Equatable {
+     String? fontFamily,
+     String? commentatorsFontFamily,
+     double? commentatorsFontSize,
++    double? lineHeight,
+     bool? showOtzarHachochma,
+     bool? showHebrewBooks,
+     bool? showExternalBooks,
+@@ -149,6 +157,7 @@ class SettingsState extends Equatable {
+     bool? alignTabsToRight,
+     bool? enableHtmlLinks,
+     bool? personalNotesCollapsedByDefault,
++    bool? protectedModeEnabled,
+   }) {
+     return SettingsState(
+       isDarkMode: isDarkMode ?? this.isDarkMode,
+@@ -161,6 +170,7 @@ class SettingsState extends Equatable {
+       commentatorsFontFamily:
+           commentatorsFontFamily ?? this.commentatorsFontFamily,
+       commentatorsFontSize: commentatorsFontSize ?? this.commentatorsFontSize,
++      lineHeight: lineHeight ?? this.lineHeight,
+       showOtzarHachochma: showOtzarHachochma ?? this.showOtzarHachochma,
+       showHebrewBooks: showHebrewBooks ?? this.showHebrewBooks,
+       showExternalBooks: showExternalBooks ?? this.showExternalBooks,
+@@ -189,6 +199,7 @@ class SettingsState extends Equatable {
+       enableHtmlLinks: enableHtmlLinks ?? this.enableHtmlLinks,
+       personalNotesCollapsedByDefault: personalNotesCollapsedByDefault ??
+           this.personalNotesCollapsedByDefault,
++      protectedModeEnabled: protectedModeEnabled ?? this.protectedModeEnabled,
+     );
+   }
+ 
+@@ -203,6 +214,7 @@ class SettingsState extends Equatable {
+         fontFamily,
+         commentatorsFontFamily,
+         commentatorsFontSize,
++        lineHeight,
+         showOtzarHachochma,
+         showHebrewBooks,
+         showExternalBooks,
+@@ -228,5 +240,6 @@ class SettingsState extends Equatable {
+         alignTabsToRight,
+         enableHtmlLinks,
+         personalNotesCollapsedByDefault,
++        protectedModeEnabled,
+       ];
+ }
+diff --git a/lib/settings/tabs/advanced_settings_tab.dart b/lib/settings/tabs/advanced_settings_tab.dart
+index 4989e95c0..e5e0e6ac7 100644
+--- a/lib/settings/tabs/advanced_settings_tab.dart
++++ b/lib/settings/tabs/advanced_settings_tab.dart
+@@ -15,6 +15,8 @@ import 'package:otzaria/settings/settings_state.dart';
+ import 'package:otzaria/library/bloc/library_bloc.dart';
+ import 'package:otzaria/widgets/confirmation_dialog.dart';
+ import 'package:otzaria/widgets/shortcut_dropdown_tile.dart';
++import 'package:otzaria/settings/protected_mode_settings.dart';
++import 'package:otzaria/settings/protected_settings_wrapper.dart';
+ 
+ /// טאב הגדרות מתקדמות
+ class AdvancedSettingsTab extends StatefulWidget {
+@@ -94,6 +96,10 @@ class _AdvancedSettingsTabState extends State<AdvancedSettingsTab> {
+ 
+               // איפוס
+               _buildResetSection(context),
++              const SizedBox(height: 16),
++
++              // מצב מוגן
++              const ProtectedModeSettings(),
+             ],
+           ),
+         );
+@@ -474,6 +480,16 @@ class _AdvancedSettingsTabState extends State<AdvancedSettingsTab> {
+               'פעולה זו תמחק את כל ההגדרות ותחזיר את התוכנה למצב ההתחלתי',
+               style: TextStyle(fontSize: 13)),
+           onTap: () async {
++            // בדיקה אם במצב מוגן - אם כן, דרוש אימות סיסמה
++            if (context.mounted && shouldProtectSettings(context)) {
++              final verified = await verifyPasswordForAction(context);
++              if (!verified || !context.mounted) {
++                return; // המשתמש ביטל או הסיסמה שגויה
++              }
++            }
++
++            if (!context.mounted) return;
++
+             final confirmed = await showConfirmationDialog(
+               context: context,
+               title: 'איפוס הגדרות?',
+diff --git a/lib/settings/tabs/reading_settings_tab.dart b/lib/settings/tabs/reading_settings_tab.dart
+index 62fb66852..1d26a69ba 100644
+--- a/lib/settings/tabs/reading_settings_tab.dart
++++ b/lib/settings/tabs/reading_settings_tab.dart
+@@ -164,6 +164,31 @@ class ReadingSettingsTab extends StatelessWidget {
+             ],
+           ),
+         ),
++        Padding(
++          padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 16.0),
++          child: Row(
++            crossAxisAlignment: CrossAxisAlignment.start,
++            children: [
++              // מרווח בין שורות
++              Expanded(
++                child: _FontSizeSlider(
++                  icon: FluentIcons.text_align_distributed_vertical_24_regular,
++                  label: 'מרווח בין שורות',
++                  value: state.lineHeight.clamp(1.0, 3.0),
++                  min: 1.0,
++                  max: 3.0,
++                  divisions: 20,
++                  onChanged: (value) {
++                    context.read<SettingsBloc>().add(UpdateLineHeight(value));
++                  },
++                ),
++              ),
++              const SizedBox(width: 16),
++              // מקום ריק לאיזון
++              const Expanded(child: SizedBox()),
++            ],
++          ),
++        ),
+         const Divider(height: 1),
+         _TextWidthSlider(state: state),
+       ],
+@@ -521,6 +546,7 @@ class _FontSizeSlider extends StatefulWidget {
+   final double value;
+   final double min;
+   final double max;
++  final int? divisions;
+   final ValueChanged<double> onChanged;
+ 
+   const _FontSizeSlider({
+@@ -529,6 +555,7 @@ class _FontSizeSlider extends StatefulWidget {
+     required this.value,
+     required this.min,
+     required this.max,
++    this.divisions,
+     required this.onChanged,
+   });
+ 
+@@ -567,7 +594,9 @@ class _FontSizeSliderState extends State<_FontSizeSlider> {
+                   style: Theme.of(context).textTheme.titleMedium),
+             ),
+             Text(
+-              _currentValue.toStringAsFixed(0),
++              widget.divisions != null
++                  ? _currentValue.toStringAsFixed(1)
++                  : _currentValue.toStringAsFixed(0),
+               style: TextStyle(
+                 color: Theme.of(context).colorScheme.primary,
+                 fontSize: 16,
+@@ -580,8 +609,10 @@ class _FontSizeSliderState extends State<_FontSizeSlider> {
+           value: _currentValue,
+           min: widget.min,
+           max: widget.max,
+-          divisions: (widget.max - widget.min).toInt(),
+-          label: _currentValue.toStringAsFixed(0),
++          divisions: widget.divisions ?? (widget.max - widget.min).toInt(),
++          label: widget.divisions != null
++              ? _currentValue.toStringAsFixed(1)
++              : _currentValue.toStringAsFixed(0),
+           onChanged: (value) {
+             setState(() => _currentValue = value);
+             widget.onChanged(value);
+diff --git a/lib/text_book/editing/widgets/text_section_editor_dialog.dart b/lib/text_book/editing/widgets/text_section_editor_dialog.dart
+index e8f635af9..719e53a07 100644
+--- a/lib/text_book/editing/widgets/text_section_editor_dialog.dart
++++ b/lib/text_book/editing/widgets/text_section_editor_dialog.dart
+@@ -16,6 +16,7 @@ import 'package:otzaria/core/scaffold_messenger.dart';
+ import 'package:otzaria/widgets/dialogs.dart';
+ import 'markdown_toolbar.dart';
+ import 'package:otzaria/widgets/rtl_text_field.dart';
++import 'package:otzaria/settings/protected_settings_wrapper.dart';
+ 
+ /// Full-screen dialog for editing text sections with split-pane interface
+ ///
+@@ -206,7 +207,14 @@ class _TextSectionEditorDialogState extends State<TextSectionEditorDialog> {
+         'שים לב: השינויים נשמרים מקומית בלבד, ובמקרה של עדכון הספרייה, השינויים ימחקו!');
+   }
+ 
+-  void _save() {
++  void _save() async {
++    // במצב מוגן, נדרוש סיסמה לפני שמירה
++    if (!await verifyPasswordForAction(context)) {
++      return;
++    }
++
++    if (!mounted) return;
++
+     context.read<TextBookBloc>().add(SaveEditedSection(
+           index: widget.sectionIndex,
+           sectionId: widget.sectionId,
+diff --git a/lib/text_book/view/combined_view/combined_book_screen.dart b/lib/text_book/view/combined_view/combined_book_screen.dart
+index 7334ed898..a7593861f 100644
+--- a/lib/text_book/view/combined_view/combined_book_screen.dart
++++ b/lib/text_book/view/combined_view/combined_book_screen.dart
+@@ -432,8 +432,8 @@ class _CombinedViewState extends State<CombinedView> {
+           label: const Text('דווח על טעות בספר'),
+           icon: const Icon(FluentIcons.error_circle_24_regular),
+           enabled: selectedText != null && selectedText.trim().isNotEmpty,
+-          onSelected: (_) =>
+-              _openErrorReportDialog(selectedText!, fallbackLineIndex: paragraphIndex),
++          onSelected: (_) => _openErrorReportDialog(selectedText!,
++              fallbackLineIndex: paragraphIndex),
+         ),
+         const ctx.MenuDivider(),
+         // העתקה
+@@ -1146,6 +1146,7 @@ $textWithBreaks
+                             searchMode: state.searchMode,
+                             fontSize: widget.textSize,
+                             fontFamily: settingsState.fontFamily,
++                            lineHeight: settingsState.lineHeight,
+                           ),
+                           onOpenBook: widget.openBookCallback,
+                         );
+diff --git a/lib/text_book/view/combined_view/commentary_content.dart b/lib/text_book/view/combined_view/commentary_content.dart
+index affdbfd4d..33c6d04e9 100644
+--- a/lib/text_book/view/combined_view/commentary_content.dart
++++ b/lib/text_book/view/combined_view/commentary_content.dart
+@@ -109,6 +109,7 @@ class _CommentaryContentState extends State<CommentaryContent> {
+                     currentSearchIndex: widget.currentSearchIndex,
+                     fontSize: settingsState.commentatorsFontSize,
+                     fontFamily: settingsState.commentatorsFontFamily,
++                    lineHeight: settingsState.lineHeight,
+                   ),
+                 );
+               },
+diff --git a/lib/text_book/view/error_report_dialog.dart b/lib/text_book/view/error_report_dialog.dart
+index ac702048f..9e30e3426 100644
+--- a/lib/text_book/view/error_report_dialog.dart
++++ b/lib/text_book/view/error_report_dialog.dart
+@@ -551,7 +551,8 @@ $detailsSection
+           ? _fallbackMail
+           : sourceToEmailMap.entries
+                   .firstWhereOrNull(
+-                    (entry) => normalizedSource.contains(entry.key.toLowerCase()),
++                    (entry) =>
++                        normalizedSource.contains(entry.key.toLowerCase()),
+                   )
+                   ?.value ??
+               _fallbackMail;
+@@ -657,7 +658,8 @@ $detailsSection
+           currentLineNumber,
+           state.book.tableOfContents,
+         );
+-        final bookDetails = await BookDetailsService().getBookDetails(state.book);
++        final bookDetails =
++            await BookDetailsService().getBookDetails(state.book);
+ 
+         // ביצוע הפעולה שנבחרה
+         if (result.action == ErrorReportAction.sendEmail ||
+diff --git a/lib/text_book/view/page_shape/simple_text_viewer.dart b/lib/text_book/view/page_shape/simple_text_viewer.dart
+index 8dc0aa1ce..b2161b659 100644
+--- a/lib/text_book/view/page_shape/simple_text_viewer.dart
++++ b/lib/text_book/view/page_shape/simple_text_viewer.dart
+@@ -1,4 +1,5 @@
+ import 'package:flutter/material.dart';
++import 'package:flutter/services.dart';
+ import 'package:flutter_bloc/flutter_bloc.dart';
+ import 'package:otzaria/settings/settings_bloc.dart';
+ import 'package:otzaria/settings/settings_state.dart';
+@@ -59,6 +60,7 @@ class SimpleTextViewer extends StatefulWidget {
+ class _SimpleTextViewerState extends State<SimpleTextViewer> {
+   late final ItemScrollController _scrollController;
+   late final ItemPositionsListener _positionsListener;
++  late final FocusNode _focusNode;
+   String? _savedSelectedText;
+   int? _savedSelectedIndex;
+ 
+@@ -68,6 +70,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
+     _scrollController = widget.scrollController ?? ItemScrollController();
+     _positionsListener =
+         widget.positionsListener ?? ItemPositionsListener.create();
++    _focusNode = FocusNode();
+ 
+     // גלילה למיקום הנוכחי אחרי בניית הווידג'ט (רק לטקסט המרכזי)
+     if (widget.isMainText) {
+@@ -87,6 +90,12 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
+     }
+   }
+ 
++  @override
++  void dispose() {
++    _focusNode.dispose();
++    super.dispose();
++  }
++
+   /// גלילה למיקום הנוכחי (selectedIndex או visibleIndices)
+   void _scrollToCurrentPosition() {
+     final bloc = context.read<TextBookBloc>();
+@@ -101,6 +110,107 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
+     }
+   }
+ 
++  /// טיפול באירועי מקלדת - חיצים לניווט
++  bool _handleKeyEvent(KeyEvent event) {
++    if (event is! KeyDownEvent) return false;
++    if (!widget.isMainText) return false; // רק בטקסט המרכזי
++
++    final state = context.read<TextBookBloc>().state;
++    if (state is! TextBookLoaded) return false;
++
++    // חיצים למעלה ולמטה
++    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
++      final currentIndex = state.selectedIndex ?? 0;
++      final nextIndex = (currentIndex + 1).clamp(0, widget.content.length - 1);
++      if (nextIndex != currentIndex) {
++        context.read<TextBookBloc>().add(UpdateSelectedIndex(nextIndex));
++        if (_scrollController.isAttached) {
++          _scrollController.scrollTo(
++            index: nextIndex,
++            duration: const Duration(milliseconds: 200),
++            alignment: 0.5,
++          );
++        }
++      }
++      return true;
++    }
++
++    if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
++      final currentIndex = state.selectedIndex ?? 0;
++      final prevIndex = (currentIndex - 1).clamp(0, widget.content.length - 1);
++      if (prevIndex != currentIndex) {
++        context.read<TextBookBloc>().add(UpdateSelectedIndex(prevIndex));
++        if (_scrollController.isAttached) {
++          _scrollController.scrollTo(
++            index: prevIndex,
++            duration: const Duration(milliseconds: 200),
++            alignment: 0.5,
++          );
++        }
++      }
++      return true;
++    }
++
++    // Page Down
++    if (event.logicalKey == LogicalKeyboardKey.pageDown) {
++      final currentIndex = state.selectedIndex ?? 0;
++      final nextIndex = (currentIndex + 10).clamp(0, widget.content.length - 1);
++      context.read<TextBookBloc>().add(UpdateSelectedIndex(nextIndex));
++      if (_scrollController.isAttached) {
++        _scrollController.scrollTo(
++          index: nextIndex,
++          duration: const Duration(milliseconds: 300),
++          alignment: 0.5,
++        );
++      }
++      return true;
++    }
++
++    // Page Up
++    if (event.logicalKey == LogicalKeyboardKey.pageUp) {
++      final currentIndex = state.selectedIndex ?? 0;
++      final prevIndex = (currentIndex - 10).clamp(0, widget.content.length - 1);
++      context.read<TextBookBloc>().add(UpdateSelectedIndex(prevIndex));
++      if (_scrollController.isAttached) {
++        _scrollController.scrollTo(
++          index: prevIndex,
++          duration: const Duration(milliseconds: 300),
++          alignment: 0.5,
++        );
++      }
++      return true;
++    }
++
++    // Home - תחילת הספר
++    if (event.logicalKey == LogicalKeyboardKey.home &&
++        HardwareKeyboard.instance.isControlPressed) {
++      context.read<TextBookBloc>().add(const UpdateSelectedIndex(0));
++      if (_scrollController.isAttached) {
++        _scrollController.scrollTo(
++          index: 0,
++          duration: const Duration(milliseconds: 300),
++        );
++      }
++      return true;
++    }
++
++    // End - סוף הספר
++    if (event.logicalKey == LogicalKeyboardKey.end &&
++        HardwareKeyboard.instance.isControlPressed) {
++      final lastIndex = widget.content.length - 1;
++      context.read<TextBookBloc>().add(UpdateSelectedIndex(lastIndex));
++      if (_scrollController.isAttached) {
++        _scrollController.scrollTo(
++          index: lastIndex,
++          duration: const Duration(milliseconds: 300),
++        );
++      }
++      return true;
++    }
++
++    return false;
++  }
++
+   /// תפריט הקשר - מעתיק מהתצוגה הרגילה
+   ctx.ContextMenu _buildContextMenu(
+       TextBookLoaded state, int index, BuildContext menuContext) {
+@@ -356,75 +466,84 @@ $textWithBreaks
+ 
+   @override
+   Widget build(BuildContext context) {
+-    return Column(
+-      children: [
+-        // כותרת אופציונלית
+-        if (widget.title != null)
+-          Container(
+-            padding: const EdgeInsets.all(12.0),
+-            decoration: BoxDecoration(
+-              color: Theme.of(context).colorScheme.surface.withAlpha(128),
+-              border: Border(
+-                bottom: BorderSide(
+-                  color: Theme.of(context).dividerColor,
+-                  width: 0.5,
++    return KeyboardListener(
++      focusNode: _focusNode,
++      autofocus: widget.isMainText,
++      onKeyEvent: (event) {
++        if (_handleKeyEvent(event)) {
++          // האירוע טופל
++        }
++      },
++      child: Column(
++        children: [
++          // כותרת אופציונלית
++          if (widget.title != null)
++            Container(
++              padding: const EdgeInsets.all(12.0),
++              decoration: BoxDecoration(
++                color: Theme.of(context).colorScheme.surface.withAlpha(128),
++                border: Border(
++                  bottom: BorderSide(
++                    color: Theme.of(context).dividerColor,
++                    width: 0.5,
++                  ),
+                 ),
+               ),
+-            ),
+-            child: Center(
+-              child: Text(
+-                widget.title!,
+-                style: const TextStyle(
+-                  fontWeight: FontWeight.bold,
+-                  fontSize: 14,
++              child: Center(
++                child: Text(
++                  widget.title!,
++                  style: const TextStyle(
++                    fontWeight: FontWeight.bold,
++                    fontSize: 14,
++                  ),
++                  textAlign: TextAlign.center,
+                 ),
+-                textAlign: TextAlign.center,
+               ),
+             ),
+-          ),
+-        // תוכן
+-        Expanded(
+-          child: BlocBuilder<TextBookBloc, TextBookState>(
+-            builder: (context, state) {
+-              if (state is! TextBookLoaded) {
+-                return const Center(child: CircularProgressIndicator());
+-              }
+-
+-              return BlocBuilder<PersonalNotesBloc, PersonalNotesState>(
+-                builder: (context, notesState) {
+-                  final noteMap = <int, List<PersonalNote>>{};
+-                  if (notesState.bookId == state.book.title) {
+-                    for (final note in notesState.locatedNotes) {
+-                      final line = note.lineNumber;
+-                      if (line == null) continue;
+-                      noteMap.putIfAbsent(line, () => []).add(note);
+-                    }
+-                  }
+-
+-                  return SelectionArea(
+-                    onSelectionChanged: (selection) {
+-                      // שמירת הטקסט הנבחר
+-                      if (selection != null) {
+-                        setState(() {
+-                          _savedSelectedText = selection.plainText;
+-                        });
++          // תוכן
++          Expanded(
++            child: BlocBuilder<TextBookBloc, TextBookState>(
++              builder: (context, state) {
++                if (state is! TextBookLoaded) {
++                  return const Center(child: CircularProgressIndicator());
++                }
++
++                return BlocBuilder<PersonalNotesBloc, PersonalNotesState>(
++                  builder: (context, notesState) {
++                    final noteMap = <int, List<PersonalNote>>{};
++                    if (notesState.bookId == state.book.title) {
++                      for (final note in notesState.locatedNotes) {
++                        final line = note.lineNumber;
++                        if (line == null) continue;
++                        noteMap.putIfAbsent(line, () => []).add(note);
+                       }
+-                    },
+-                    child: ScrollablePositionedList.builder(
+-                      itemScrollController: _scrollController,
+-                      itemPositionsListener: _positionsListener,
+-                      itemCount: widget.content.length,
+-                      padding: const EdgeInsets.all(4),
+-                      itemBuilder: (context, index) =>
+-                          _buildLine(index, state, context, noteMap),
+-                    ),
+-                  );
+-                },
+-              );
+-            },
++                    }
++
++                    return SelectionArea(
++                      onSelectionChanged: (selection) {
++                        // שמירת הטקסט הנבחר
++                        if (selection != null) {
++                          setState(() {
++                            _savedSelectedText = selection.plainText;
++                          });
++                        }
++                      },
++                      child: ScrollablePositionedList.builder(
++                        itemScrollController: _scrollController,
++                        itemPositionsListener: _positionsListener,
++                        itemCount: widget.content.length,
++                        padding: const EdgeInsets.all(4),
++                        itemBuilder: (context, index) =>
++                            _buildLine(index, state, context, noteMap),
++                      ),
++                    );
++                  },
++                );
++              },
++            ),
+           ),
+-        ),
+-      ],
++        ],
++      ),
+     );
+   }
+ 
+@@ -520,6 +639,7 @@ $textWithBreaks
+                   searchText: searchText,
+                   fontSize: widget.fontSize,
+                   fontFamily: widget.fontFamily ?? settingsState.fontFamily,
++                  lineHeight: settingsState.lineHeight,
+                 ),
+                 onOpenBook: widget.openBookCallback,
+               );
+diff --git a/lib/text_book/view/selected_line_links_view.dart b/lib/text_book/view/selected_line_links_view.dart
+index 434563ca4..8f4f23c0b 100644
+--- a/lib/text_book/view/selected_line_links_view.dart
++++ b/lib/text_book/view/selected_line_links_view.dart
+@@ -378,6 +378,7 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
+             searchText: searchText,
+             fontSize: settingsState.commentatorsFontSize,
+             fontFamily: settingsState.commentatorsFontFamily,
++            lineHeight: settingsState.lineHeight,
+           ),
+         );
+       },
+diff --git a/reset_protected_mode.bat b/reset_protected_mode.bat
+new file mode 100644
+index 000000000..77be6ca7d
+--- /dev/null
++++ b/reset_protected_mode.bat
+@@ -0,0 +1,14 @@
++@echo off
++echo ========================================
++echo       איפוס מצב מוגן - Otzaria
++echo ========================================
++echo.
++echo מריץ סקריפט איפוס...
++echo.
++
++dart run reset_protected_mode.dart
++
++echo.
++echo ========================================
++echo לחץ על מקש כלשהו לסגירה...
++pause > nul
+diff --git a/reset_protected_mode.dart b/reset_protected_mode.dart
+new file mode 100644
+index 000000000..aefcffd72
+--- /dev/null
++++ b/reset_protected_mode.dart
+@@ -0,0 +1,28 @@
++import 'package:flutter_settings_screens/flutter_settings_screens.dart';
++import 'package:otzaria/data/data_providers/hive_data_provider.dart';
++import 'package:otzaria/settings/settings_repository.dart';
++
++/// סקריפט חירום לאיפוס מצב מוגן
++/// הרץ עם: dart run reset_protected_mode.dart
++void main() async {
++  // ignore: avoid_print
++  print('מאפס מצב מוגן...');
++
++  try {
++    // אתחול Settings
++    await Settings.init(cacheProvider: HiveCache());
++
++    // מאפס את המצב המוגן והסיסמה
++    await Settings.setValue(SettingsRepository.keyProtectedModeEnabled, false);
++    await Settings.setValue(
++        SettingsRepository.keyProtectedModePasswordHash, '');
++
++    // ignore: avoid_print
++    print('✓ המצב המוגן אופס בהצלחה!');
++    // ignore: avoid_print
++    print('עכשיו אפשר לפתוח את האפליקציה ולהגדיר סיסמה חדשה אם רוצים.');
++  } catch (e) {
++    // ignore: avoid_print
++    print('✗ שגיאה באיפוס: $e');
++  }
++}
+diff --git a/test/text_book/view/error_report_dialog_test.dart b/test/text_book/view/error_report_dialog_test.dart
+index fb91dc6c7..dbb6e1151 100644
+--- a/test/text_book/view/error_report_dialog_test.dart
++++ b/test/text_book/view/error_report_dialog_test.dart
+@@ -333,5 +333,4 @@ void main() {
+       expect(result.usedLineFallback, isFalse);
+     });
+   });
+-
+ }
+diff --git a/test/unit/settings/settings_bloc_test.dart b/test/unit/settings/settings_bloc_test.dart
+index 95474fe2f..ccaeab006 100644
+--- a/test/unit/settings/settings_bloc_test.dart
++++ b/test/unit/settings/settings_bloc_test.dart
+@@ -38,6 +38,7 @@ void main() {
+         'fontFamily': 'Rubik',
+         'commentatorsFontFamily': 'NotoRashiHebrew',
+         'commentatorsFontSize': 22.0,
++        'lineHeight': 1.5,
+         'showOtzarHachochma': true,
+         'showHebrewBooks': true,
+         'showExternalBooks': true,
+@@ -86,6 +87,7 @@ void main() {
+                     'NotoRashiHebrew',
+             commentatorsFontSize:
+                 mockSettings['commentatorsFontSize'] as double? ?? 22.0,
++            lineHeight: mockSettings['lineHeight'] as double? ?? 1.5,
+             showOtzarHachochma: mockSettings['showOtzarHachochma'] as bool,
+             showHebrewBooks: mockSettings['showHebrewBooks'] as bool,
+             showExternalBooks: mockSettings['showExternalBooks'] as bool,
+@@ -116,6 +118,8 @@ void main() {
+             personalNotesCollapsedByDefault:
+                 mockSettings['personalNotesCollapsedByDefault'] as bool? ??
+                     true,
++            protectedModeEnabled:
++                mockSettings['protectedModeEnabled'] as bool? ?? false,
+           ),
+         ],
+         verify: (_) {

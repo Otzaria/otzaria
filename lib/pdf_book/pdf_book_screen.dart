@@ -529,17 +529,75 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           }
         }
 
-        // 3. הפעלת החיפוש הראשוני (עכשיו עם מנגנון ניסיונות חוזרים)
+        // 3. התאמת רוחב בברירת מחדל (fit to width)
+        // רק אם אין זום שמור מהגדרות פר-ספר
+        if (!mounted) return;
+        final settingsBloc = context.read<SettingsBloc>();
+        final enablePerBookSettings = settingsBloc.state.enablePerBookSettings;
+
+        if (enablePerBookSettings) {
+          final settings =
+              await PdfBookPerBookSettings.load(widget.tab.book.title);
+          if (settings?.zoom == null) {
+            // אין זום שמור - נתאים לרוחב עם מרווח קטן
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && controller.isReady) {
+                final matrix = controller.calcMatrixFitWidthForPage(
+                  pageNumber: currentPage,
+                );
+                if (matrix != null) {
+                  // מעבר למטריצה המתאימה לרוחב
+                  controller.goTo(matrix);
+                  // הקטנת הזום ב-2% כדי להשאיר מרווח קטן
+                  Future.delayed(const Duration(milliseconds: 50), () {
+                    if (mounted && controller.isReady) {
+                      final currentZoom = controller.value.zoom;
+                      controller.setZoom(
+                        controller.centerPosition,
+                        currentZoom * 0.98,
+                      );
+                    }
+                  });
+                }
+              }
+            });
+          }
+        } else {
+          // הגדרות פר-ספר מבוטלות - תמיד נתאים לרוחב עם מרווח קטן
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && controller.isReady) {
+              final matrix = controller.calcMatrixFitWidthForPage(
+                pageNumber: currentPage,
+              );
+              if (matrix != null) {
+                // מעבר למטריצה המתאימה לרוחב
+                controller.goTo(matrix);
+                // הקטנת הזום ב-2% כדי להשאיר מרווח קטן
+                Future.delayed(const Duration(milliseconds: 50), () {
+                  if (mounted && controller.isReady) {
+                    final currentZoom = controller.value.zoom;
+                    controller.setZoom(
+                      controller.centerPosition,
+                      currentZoom * 0.98,
+                    );
+                  }
+                });
+              }
+            }
+          });
+        }
+
+        // 4. הפעלת החיפוש הראשוני (עכשיו עם מנגנון ניסיונות חוזרים)
         _runInitialSearchIfNeeded();
 
-        // 4. הצגת חלונית הצד אם צריך
+        // 5. הצגת חלונית הצד אם צריך
         if (mounted &&
             (widget.tab.showLeftPane.value ||
                 widget.tab.searchText.isNotEmpty)) {
           widget.tab.showLeftPane.value = true;
         }
 
-        // 5. בקשת focus ל-PDF viewer אחרי שהכל מוכן
+        // 6. בקשת focus ל-PDF viewer אחרי שהכל מוכן
         if (mounted && !widget.tab.showLeftPane.value) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {

@@ -37,6 +37,7 @@ class SimpleTextViewer extends StatefulWidget {
   final String? bookTitle; // שם הספר (למפרשים - לפתיחה בטאב נפרד)
   final Set<int>? highlightedIndices; // אינדקסים להדגשה (למפרשים)
   final VoidCallback? onCommentatorChanged; // callback לרענון אחרי החלפת מפרש
+  final bool useInternalScroll; // האם להשתמש בגלילה פנימית
 
   const SimpleTextViewer({
     super.key,
@@ -51,6 +52,7 @@ class SimpleTextViewer extends StatefulWidget {
     this.bookTitle,
     this.highlightedIndices,
     this.onCommentatorChanged,
+    this.useInternalScroll = true, // ברירת מחדל - עם גלילה פנימית
   });
 
   @override
@@ -76,6 +78,10 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     if (widget.isMainText) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _scrollToCurrentPosition();
+        // בקשת פוקוס לטקסט המרכזי כדי שהחיצים יעבדו
+        if (mounted) {
+          _focusNode.requestFocus();
+        }
       });
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -528,14 +534,23 @@ $textWithBreaks
                           });
                         }
                       },
-                      child: ScrollablePositionedList.builder(
-                        itemScrollController: _scrollController,
-                        itemPositionsListener: _positionsListener,
-                        itemCount: widget.content.length,
-                        padding: const EdgeInsets.all(4),
-                        itemBuilder: (context, index) =>
-                            _buildLine(index, state, context, noteMap),
-                      ),
+                      child: widget.useInternalScroll
+                          ? ScrollablePositionedList.builder(
+                              itemScrollController: _scrollController,
+                              itemPositionsListener: _positionsListener,
+                              itemCount: widget.content.length,
+                              padding: const EdgeInsets.all(4),
+                              itemBuilder: (context, index) =>
+                                  _buildLine(index, state, context, noteMap),
+                            )
+                          : ListView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: widget.content.length,
+                              padding: const EdgeInsets.all(4),
+                              itemBuilder: (context, index) =>
+                                  _buildLine(index, state, context, noteMap),
+                            ),
                     );
                   },
                 );
