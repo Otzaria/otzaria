@@ -96,10 +96,23 @@ class _FindRefDialogState extends State<FindRefDialog> {
     final focusRepository = context.read<FocusRepository>();
 
     return AlertDialog(
-      title: const Text(
-        'איתור מקורות',
-        style: TextStyle(fontWeight: FontWeight.bold),
-        textAlign: TextAlign.center,
+      title: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(
+            icon: const Icon(FluentIcons.dismiss_24_regular),
+            onPressed: () => Navigator.of(context).pop(),
+            tooltip: 'סגור',
+          ),
+          const Expanded(
+            child: Text(
+              'איתור מקורות',
+              style: TextStyle(fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(width: 48), // מאזן את האייקון בצד השני
+        ],
       ),
       content: SizedBox(
         width: 500,
