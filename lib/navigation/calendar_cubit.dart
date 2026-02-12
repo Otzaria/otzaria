@@ -1292,6 +1292,7 @@ class CalendarCubit extends Cubit<CalendarState> {
     required DateTime baseGregorianDate,
     required RecurrenceType recurrenceType,
     int? recurringYears,
+    TimeOfDay? eventTime,
   }) async {
     final baseJewish = JewishDate.fromDateTime(baseGregorianDate);
     final newEvent = CustomEvent(
@@ -1309,6 +1310,7 @@ class CalendarCubit extends Cubit<CalendarState> {
       baseJewishDay: baseJewish.getJewishDayOfMonth(),
       recurrenceType: recurrenceType,
       recurringYears: recurringYears,
+      eventTime: eventTime,
     );
     final updated = List<CustomEvent>.from(state.events)..add(newEvent);
     emit(state.copyWith(events: updated));
@@ -1520,7 +1522,6 @@ class CalendarCubit extends Cubit<CalendarState> {
     final scheduledIds = <int>{};
 
     final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
 
     for (final event in state.events) {
       if (event.recurring) {
@@ -1555,7 +1556,28 @@ class CalendarCubit extends Cubit<CalendarState> {
             );
           }
 
-          if (occurrenceDate.isAfter(today)) {
+          // שילוב השעה אם קיימת
+          final DateTime eventDateTime;
+          if (event.eventTime != null) {
+            eventDateTime = DateTime(
+              occurrenceDate.year,
+              occurrenceDate.month,
+              occurrenceDate.day,
+              event.eventTime!.hour,
+              event.eventTime!.minute,
+            );
+          } else {
+            // אם אין שעה, השתמש בחצות
+            eventDateTime = DateTime(
+              occurrenceDate.year,
+              occurrenceDate.month,
+              occurrenceDate.day,
+              12,
+              0,
+            );
+          }
+
+          if (eventDateTime.isAfter(now)) {
             final id =
                 '${event.id}${occurrenceDate.year}${occurrenceDate.month}${occurrenceDate.day}'
                     .hashCode;
@@ -1564,7 +1586,7 @@ class CalendarCubit extends Cubit<CalendarState> {
               id: id,
               title: event.title,
               body: event.description,
-              eventDate: occurrenceDate,
+              eventDate: eventDateTime,
               reminderMinutes: state.calendarNotificationTime,
               soundEnabled: state.calendarNotificationSound,
             );
@@ -1572,14 +1594,35 @@ class CalendarCubit extends Cubit<CalendarState> {
         }
       } else {
         // Non-recurring event
-        if (event.baseGregorianDate.isAfter(today)) {
+        // שילוב השעה אם קיימת
+        final DateTime eventDateTime;
+        if (event.eventTime != null) {
+          eventDateTime = DateTime(
+            event.baseGregorianDate.year,
+            event.baseGregorianDate.month,
+            event.baseGregorianDate.day,
+            event.eventTime!.hour,
+            event.eventTime!.minute,
+          );
+        } else {
+          // אם אין שעה, השתמש בחצות
+          eventDateTime = DateTime(
+            event.baseGregorianDate.year,
+            event.baseGregorianDate.month,
+            event.baseGregorianDate.day,
+            12,
+            0,
+          );
+        }
+
+        if (eventDateTime.isAfter(now)) {
           final id = event.id.hashCode;
           scheduledIds.add(id);
           await notificationService.scheduleNotification(
             id: id,
             title: event.title,
             body: event.description,
-            eventDate: event.baseGregorianDate,
+            eventDate: eventDateTime,
             reminderMinutes: state.calendarNotificationTime,
             soundEnabled: state.calendarNotificationSound,
           );
@@ -1671,6 +1714,7 @@ class CustomEvent extends Equatable {
   final RecurrenceType recurrenceType;
   final int? recurringYears; // כמה שנים האירוע יחזור
   final String? googleEventId;
+  final TimeOfDay? eventTime; // שעת האירוע (אופציונלי)
 
   bool get recurring => recurrenceType != RecurrenceType.none;
   bool get recurOnHebrew =>
@@ -1689,6 +1733,7 @@ class CustomEvent extends Equatable {
     required this.recurrenceType,
     this.recurringYears,
     this.googleEventId,
+    this.eventTime,
   });
 
   // פונקציה שמאפשרת ליצור עותק של אירוע עם שינויים
@@ -1704,6 +1749,7 @@ class CustomEvent extends Equatable {
     RecurrenceType? recurrenceType,
     int? recurringYears,
     String? googleEventId,
+    TimeOfDay? eventTime,
   }) {
     return CustomEvent(
       id: id ?? this.id,
@@ -1717,6 +1763,7 @@ class CustomEvent extends Equatable {
       recurrenceType: recurrenceType ?? this.recurrenceType,
       recurringYears: recurringYears ?? this.recurringYears,
       googleEventId: googleEventId ?? this.googleEventId,
+      eventTime: eventTime ?? this.eventTime,
     );
   }
 
@@ -1734,6 +1781,9 @@ class CustomEvent extends Equatable {
       'recurrenceType': recurrenceType.index,
       'recurringYears': recurringYears,
       'googleEventId': googleEventId,
+      'eventTime': eventTime != null
+          ? {'hour': eventTime!.hour, 'minute': eventTime!.minute}
+          : null,
     };
   }
 
@@ -1755,6 +1805,15 @@ class CustomEvent extends Equatable {
       }
     }
 
+    TimeOfDay? eventTime;
+    if (json.containsKey('eventTime') && json['eventTime'] != null) {
+      final timeMap = json['eventTime'] as Map<String, dynamic>;
+      eventTime = TimeOfDay(
+        hour: timeMap['hour'] as int,
+        minute: timeMap['minute'] as int,
+      );
+    }
+
     return CustomEvent(
       id: json['id'] as String,
       title: json['title'] as String,
@@ -1768,6 +1827,7 @@ class CustomEvent extends Equatable {
       recurrenceType: type,
       recurringYears: json['recurringYears'] as int?,
       googleEventId: json['googleEventId'] as String?,
+      eventTime: eventTime,
     );
   }
 
@@ -1784,6 +1844,7 @@ class CustomEvent extends Equatable {
         recurrenceType,
         recurringYears,
         googleEventId,
+        eventTime,
       ];
 }
 
