@@ -671,26 +671,47 @@ class _CalendarWidgetState extends State<CalendarWidget> {
     final jewishDate = JewishDate();
 
     if (isFromOtherMonth) {
-      // חשב את החודש האחר - קודם מצא את החודש הנכון
-      int targetYear = state.currentJewishDate.getJewishYear();
-      int targetMonth = state.currentJewishDate.getJewishMonth() + monthOffset;
-
-      // טיפול במעבר שנה
-      if (targetMonth < 1) {
-        targetYear--;
-        final tempDate = JewishDate();
-        tempDate.setJewishDate(targetYear, 1, 1);
-        targetMonth = tempDate.isJewishLeapYear() ? 13 : 12;
-      } else if (targetMonth > 12) {
-        final tempDate = JewishDate();
-        tempDate.setJewishDate(targetYear, 1, 1);
-        if (!tempDate.isJewishLeapYear() || targetMonth > 13) {
-          targetYear++;
-          targetMonth = 1;
+      // התחל מהחודש הנוכחי ביום 1
+      jewishDate.setJewishDate(
+        state.currentJewishDate.getJewishYear(),
+        state.currentJewishDate.getJewishMonth(),
+        1,
+      );
+      
+      // השתמש ב-API של JewishDate כדי לעבור לחודש הקודם/הבא
+      // זה מטפל אוטומטית במעברי שנים ושנים מעוברות
+      if (monthOffset < 0) {
+        // חודש קודם
+        for (int i = 0; i < -monthOffset; i++) {
+          jewishDate.back(); // חזור יום אחד אחורה
+          // עכשיו עבור לתחילת החודש הקודם
+          jewishDate.setJewishDate(
+            jewishDate.getJewishYear(),
+            jewishDate.getJewishMonth(),
+            1,
+          );
+        }
+      } else if (monthOffset > 0) {
+        // חודש הבא
+        for (int i = 0; i < monthOffset; i++) {
+          // עבור לסוף החודש הנוכחי
+          final daysInMonth = jewishDate.getDaysInJewishMonth();
+          jewishDate.setJewishDate(
+            jewishDate.getJewishYear(),
+            jewishDate.getJewishMonth(),
+            daysInMonth,
+          );
+          // קדימה יום אחד (לחודש הבא)
+          jewishDate.forward();
         }
       }
-
-      jewishDate.setJewishDate(targetYear, targetMonth, day);
+      
+      // עכשיו קבע את היום הספציפי
+      jewishDate.setJewishDate(
+        jewishDate.getJewishYear(),
+        jewishDate.getJewishMonth(),
+        day,
+      );
     } else {
       jewishDate.setJewishDate(
         state.currentJewishDate.getJewishYear(),
