@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -53,12 +52,7 @@ class RtlTextField extends StatefulWidget {
 }
 
 class _RtlTextFieldState extends State<RtlTextField> {
-  Timer? _blinkIdleTimer;
-  EditableTextState? _editableTextState;
   late TextEditingController _effectiveController;
-
-  // משך הזמן עד הפסקת הבהוב (כמו ב-Word)
-  static const Duration _blinkIdleTimeout = Duration(seconds: 5);
 
   @override
   void initState() {
@@ -89,65 +83,11 @@ class _RtlTextFieldState extends State<RtlTextField> {
 
   @override
   void dispose() {
-    _blinkIdleTimer?.cancel();
     // נקה controller רק אם יצרנו אותו
     if (widget.controller == null) {
       _effectiveController.dispose();
     }
     super.dispose();
-  }
-
-  /// מאפס את הבהוב הסמן ומציג אותו מיד
-  void _resetCaretBlink() {
-    if (_editableTextState != null && _editableTextState!.mounted) {
-      try {
-        // מציג את הסמן מיד
-        _editableTextState!.renderEditable.showCursor.value = true;
-
-        // מאפס את טיימר ה-idle
-        _blinkIdleTimer?.cancel();
-        _blinkIdleTimer = Timer(_blinkIdleTimeout, () {
-          if (_editableTextState != null && _editableTextState!.mounted) {
-            // עוצר את ההבהוב על ידי שמירת הסמן גלוי קבוע
-            // אין לנו גישה ישירה ל-blink timer, אז נשתמש בגישה אחרת:
-            // נשמור reference ל-ValueNotifier ונעדכן אותו כל הזמן
-            _keepCursorVisible();
-          }
-        });
-      } catch (e) {
-        // אם יש שגיאה, פשוט נמשיך
-      }
-    }
-  }
-
-  /// שומר את הסמן גלוי קבוע (מפסיק הבהוב)
-  void _keepCursorVisible() {
-    if (_editableTextState != null && _editableTextState!.mounted) {
-      final showCursor = _editableTextState!.renderEditable.showCursor;
-
-      // מוסיף listener שמוודא שהסמן תמיד גלוי
-      void keepVisible() {
-        if (showCursor.value == false) {
-          showCursor.value = true;
-        }
-      }
-
-      // מוסיף את ה-listener
-      showCursor.addListener(keepVisible);
-
-      // מוודא שהסמן גלוי עכשיו
-      showCursor.value = true;
-
-      // מסיר את ה-listener אחרי 100ms (כדי לא להשאיר אותו לנצח)
-      // זה מספיק כדי לעצור את ההבהוב הנוכחי
-      Future.delayed(const Duration(milliseconds: 100), () {
-        showCursor.removeListener(keepVisible);
-        // מוודא שהסמן נשאר גלוי
-        if (_editableTextState != null && _editableTextState!.mounted) {
-          showCursor.value = true;
-        }
-      });
-    }
   }
 
   @override
@@ -174,12 +114,6 @@ class _RtlTextFieldState extends State<RtlTextField> {
       textAlign: widget.textAlign,
       inputFormatters: widget.inputFormatters,
       obscureText: widget.obscureText,
-      contextMenuBuilder: (context, editableTextState) {
-        // שמירת reference ל-EditableTextState לצורך reset blink
-        _editableTextState = editableTextState;
-        // השבתת תפריט ההקשר המובנה
-        return const SizedBox.shrink();
-      },
     );
 
     // עטיפה בתיקון חיצים אם RTL
@@ -225,9 +159,6 @@ class _RtlTextFieldState extends State<RtlTextField> {
   }) {
     final text = _effectiveController.text;
     final selection = _effectiveController.selection;
-
-    // מאפס את הבהוב ומציג את הסמן מיד
-    _resetCaretBlink();
 
     // לוגיקה ל-RTL:
     // אינדקס 0 נמצא בצד ימין (תחילת הטקסט). אינדקס מקסימלי בצד שמאל (סוף הטקסט).

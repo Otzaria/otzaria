@@ -1987,34 +1987,41 @@ Map<String, String> _calculateDailyTimes(DateTime date, String city) {
   jewishCalendar.inIsrael = isInIsrael;
 
   final Map<String, String> times = {
-    'alos': _formatTime(zmanimCalendar.getAlosHashachar()!),
+    'alos': _formatTime(zmanimCalendar.getAlosHashachar()!, tzLocation),
     'alos16point1Degrees':
-        _formatTime(zmanimCalendar.getAlos16Point1Degrees()!),
+        _formatTime(zmanimCalendar.getAlos16Point1Degrees()!, tzLocation),
     'alos19point8Degrees':
-        _formatTime(zmanimCalendar.getAlos19Point8Degrees()!),
-    'sunrise': _formatTime(zmanimCalendar.getSunrise()!),
-    'sofZmanShmaMGA': _formatTime(zmanimCalendar.getSofZmanShmaMGA()!),
-    'sofZmanShmaGRA': _formatTime(zmanimCalendar.getSofZmanShmaGRA()!),
-    'sofZmanTfilaMGA': _formatTime(zmanimCalendar.getSofZmanTfilaMGA()!),
-    'sofZmanTfilaGRA': _formatTime(zmanimCalendar.getSofZmanTfilaGRA()!),
-    'chatzos': _formatTime(zmanimCalendar.getChatzos()!),
-    'chatzosLayla': _formatTime(_calculateChatzosLayla(zmanimCalendar)),
-    'minchaGedola': _formatTime(zmanimCalendar.getMinchaGedola()!),
-    'minchaKetana': _formatTime(zmanimCalendar.getMinchaKetana()!),
-    'plagHamincha': _formatTime(zmanimCalendar.getPlagHamincha()!),
-    'sunset': _formatTime(zmanimCalendar.getSunset()!),
-    'sunsetRT': _formatTime(_calculateSunsetRT(zmanimCalendar)),
-    'tzais': _formatTime(zmanimCalendar.getTzais()!),
+        _formatTime(zmanimCalendar.getAlos19Point8Degrees()!, tzLocation),
+    'sunrise': _formatTime(zmanimCalendar.getSunrise()!, tzLocation),
+    'sofZmanShmaMGA':
+        _formatTime(zmanimCalendar.getSofZmanShmaMGA()!, tzLocation),
+    'sofZmanShmaGRA':
+        _formatTime(zmanimCalendar.getSofZmanShmaGRA()!, tzLocation),
+    'sofZmanTfilaMGA':
+        _formatTime(zmanimCalendar.getSofZmanTfilaMGA()!, tzLocation),
+    'sofZmanTfilaGRA':
+        _formatTime(zmanimCalendar.getSofZmanTfilaGRA()!, tzLocation),
+    'chatzos': _formatTime(zmanimCalendar.getChatzos()!, tzLocation),
+    'chatzosLayla':
+        _formatTime(_calculateChatzosLayla(zmanimCalendar), tzLocation),
+    'minchaGedola': _formatTime(zmanimCalendar.getMinchaGedola()!, tzLocation),
+    'minchaKetana': _formatTime(zmanimCalendar.getMinchaKetana()!, tzLocation),
+    'plagHamincha': _formatTime(zmanimCalendar.getPlagHamincha()!, tzLocation),
+    'sunset': _formatTime(zmanimCalendar.getSunset()!, tzLocation),
+    'sunsetRT': _formatTime(_calculateSunsetRT(zmanimCalendar), tzLocation),
+    'tzais': _formatTime(zmanimCalendar.getTzais()!, tzLocation),
   };
 
   // הוספת זמנים מיוחדים לחגים
-  _addSpecialTimes(times, jewishCalendar, zmanimCalendar, city);
+  _addSpecialTimes(times, jewishCalendar, zmanimCalendar, city, tzLocation);
 
   return times;
 }
 
-String _formatTime(DateTime dt) {
-  return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+String _formatTime(DateTime dt, tz.Location tzLocation) {
+  // Convert to the correct timezone before formatting
+  final tzDateTime = tz.TZDateTime.from(dt, tzLocation);
+  return '${tzDateTime.hour.toString().padLeft(2, '0')}:${tzDateTime.minute.toString().padLeft(2, '0')}';
 }
 
 // חישוב חצות לילה - 12 שעות אחרי חצות היום
@@ -2032,34 +2039,38 @@ DateTime _calculateSunsetRT(ComplexZmanimCalendar zmanimCalendar) {
 
 // הוספת זמנים מיוחדים לחגים
 void _addSpecialTimes(Map<String, String> times, JewishCalendar jewishCalendar,
-    ComplexZmanimCalendar zmanimCalendar, String city) {
+    ComplexZmanimCalendar zmanimCalendar, String city, tz.Location tzLocation) {
   // זמנים מיוחדים לערב פסח
   if (jewishCalendar.getYomTovIndex() == JewishCalendar.EREV_PESACH) {
     // סוף זמן אכילת חמץ - מג"א (4 שעות זמניות)
     final sofZmanAchilasChametzMGA =
         zmanimCalendar.getSofZmanAchilasChametzMGA72Minutes();
     if (sofZmanAchilasChametzMGA != null) {
-      times['sofZmanAchilasChametzMGA'] = _formatTime(sofZmanAchilasChametzMGA);
+      times['sofZmanAchilasChametzMGA'] =
+          _formatTime(sofZmanAchilasChametzMGA, tzLocation);
     }
 
     // סוף זמן אכילת חמץ - גר"א (4 שעות זמניות)
     final sofZmanAchilasChametzGRA =
         zmanimCalendar.getSofZmanAchilasChametzGRA();
     if (sofZmanAchilasChametzGRA != null) {
-      times['sofZmanAchilasChametzGRA'] = _formatTime(sofZmanAchilasChametzGRA);
+      times['sofZmanAchilasChametzGRA'] =
+          _formatTime(sofZmanAchilasChametzGRA, tzLocation);
     }
 
     // סוף זמן ביעור חמץ - מג"א (5 שעות זמניות)
     final sofZmanBiurChametzMGA =
         zmanimCalendar.getSofZmanBiurChametzMGA72Minutes();
     if (sofZmanBiurChametzMGA != null) {
-      times['sofZmanBiurChametzMGA'] = _formatTime(sofZmanBiurChametzMGA);
+      times['sofZmanBiurChametzMGA'] =
+          _formatTime(sofZmanBiurChametzMGA, tzLocation);
     }
 
     // סוף זמן ביעור חמץ - גר"א (5 שעות זמניות)
     final sofZmanBiurChametzGRA = zmanimCalendar.getSofZmanBiurChametzGRA();
     if (sofZmanBiurChametzGRA != null) {
-      times['sofZmanBiurChametzGRA'] = _formatTime(sofZmanBiurChametzGRA);
+      times['sofZmanBiurChametzGRA'] =
+          _formatTime(sofZmanBiurChametzGRA, tzLocation);
     }
   }
 
@@ -2068,7 +2079,7 @@ void _addSpecialTimes(Map<String, String> times, JewishCalendar jewishCalendar,
     final candleLightingTime =
         _calculateCandleLightingTime(zmanimCalendar, city);
     if (candleLightingTime != null) {
-      times['candleLighting'] = _formatTime(candleLightingTime);
+      times['candleLighting'] = _formatTime(candleLightingTime, tzLocation);
     }
   }
 
@@ -2078,10 +2089,10 @@ void _addSpecialTimes(Map<String, String> times, JewishCalendar jewishCalendar,
     final shabbosExitTime2 = _calculateShabbosExitTime2(zmanimCalendar);
 
     if (shabbosExitTime1 != null) {
-      times['shabbosExit1'] = _formatTime(shabbosExitTime1);
+      times['shabbosExit1'] = _formatTime(shabbosExitTime1, tzLocation);
     }
     if (shabbosExitTime2 != null) {
-      times['shabbosExit2'] = _formatTime(shabbosExitTime2);
+      times['shabbosExit2'] = _formatTime(shabbosExitTime2, tzLocation);
     }
   }
 
@@ -2089,7 +2100,7 @@ void _addSpecialTimes(Map<String, String> times, JewishCalendar jewishCalendar,
   if (jewishCalendar.getDayOfOmer() != -1) {
     final omerCountingTime = _calculateOmerCountingTime(zmanimCalendar);
     if (omerCountingTime != null) {
-      times['omerCounting'] = _formatTime(omerCountingTime);
+      times['omerCounting'] = _formatTime(omerCountingTime, tzLocation);
     }
   }
 
@@ -2100,10 +2111,10 @@ void _addSpecialTimes(Map<String, String> times, JewishCalendar jewishCalendar,
     final fastEndTime = _calculateFastEndTime(zmanimCalendar);
 
     if (fastStartTime != null) {
-      times['fastStart'] = _formatTime(fastStartTime);
+      times['fastStart'] = _formatTime(fastStartTime, tzLocation);
     }
     if (fastEndTime != null) {
-      times['fastEnd'] = _formatTime(fastEndTime);
+      times['fastEnd'] = _formatTime(fastEndTime, tzLocation);
     }
   }
 
@@ -2115,10 +2126,11 @@ void _addSpecialTimes(Map<String, String> times, JewishCalendar jewishCalendar,
         _calculateKidushLevanaLatest(jewishCalendar, zmanimCalendar);
 
     if (kidushLevanaEarliest != null) {
-      times['kidushLevanaEarliest'] = _formatTime(kidushLevanaEarliest);
+      times['kidushLevanaEarliest'] =
+          _formatTime(kidushLevanaEarliest, tzLocation);
     }
     if (kidushLevanaLatest != null) {
-      times['kidushLevanaLatest'] = _formatTime(kidushLevanaLatest);
+      times['kidushLevanaLatest'] = _formatTime(kidushLevanaLatest, tzLocation);
     }
   }
 
@@ -2130,10 +2142,12 @@ void _addSpecialTimes(Map<String, String> times, JewishCalendar jewishCalendar,
         zmanimCalendar.getSofZmanKidushLevanaBetweenMoldos();
 
     if (tchilasKidushLevana != null) {
-      times['tchilasKidushLevana'] = _formatTime(tchilasKidushLevana);
+      times['tchilasKidushLevana'] =
+          _formatTime(tchilasKidushLevana, tzLocation);
     }
     if (sofZmanKidushLevana != null) {
-      times['sofZmanKidushLevana'] = _formatTime(sofZmanKidushLevana);
+      times['sofZmanKidushLevana'] =
+          _formatTime(sofZmanKidushLevana, tzLocation);
     }
   } catch (e) {
     // Ignore errors in calculating moon times for certain dates
