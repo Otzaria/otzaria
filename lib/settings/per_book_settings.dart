@@ -278,21 +278,36 @@ class TextBookPerBookSettings {
   }
 }
 
+/// מצב תצוגת PDF
+enum PdfLayoutMode {
+  singlePage, // עמוד בודד
+  doublePage, // שני עמודים זה לצד זה
+}
+
 /// הגדרות פר-ספר לספרי PDF
 class PdfBookPerBookSettings {
   final double? zoom;
+  final PdfLayoutMode? layoutMode;
 
   PdfBookPerBookSettings({
     this.zoom,
+    this.layoutMode,
   });
 
   Map<String, dynamic> toJson() => {
         if (zoom != null) 'zoom': zoom,
+        if (layoutMode != null) 'layoutMode': layoutMode!.name,
       };
 
   factory PdfBookPerBookSettings.fromJson(Map<String, dynamic> json) {
     return PdfBookPerBookSettings(
       zoom: json['zoom'] as double?,
+      layoutMode: json['layoutMode'] != null
+          ? PdfLayoutMode.values.firstWhere(
+              (e) => e.name == json['layoutMode'],
+              orElse: () => PdfLayoutMode.singlePage,
+            )
+          : null,
     );
   }
 

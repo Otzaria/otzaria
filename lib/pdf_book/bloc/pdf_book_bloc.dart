@@ -54,6 +54,7 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     on<ZoomIn>(_onZoomIn);
     on<ZoomOut>(_onZoomOut);
     on<ResetZoom>(_onResetZoom);
+    on<ToggleLayoutMode>(_onToggleLayoutMode);
     on<SetShowZoomBar>(_onSetShowZoomBar);
 
     // Left pane events
@@ -414,6 +415,23 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     add(const SavePerBookSettings());
   }
 
+  /// החלפת מצב תצוגה בין עמוד בודד לשני עמודים
+  void _onToggleLayoutMode(
+    ToggleLayoutMode event,
+    Emitter<PdfBookState> emit,
+  ) {
+    final current = state;
+    if (current is! PdfBookLoaded) return;
+    if (!pdfController.isReady) return;
+
+    final newMode = current.layoutMode == PdfLayoutMode.singlePage
+        ? PdfLayoutMode.doublePage
+        : PdfLayoutMode.singlePage;
+
+    emit(current.copyWith(layoutMode: newMode));
+    add(const SavePerBookSettings());
+  }
+
   void _onSetShowZoomBar(
     SetShowZoomBar event,
     Emitter<PdfBookState> emit,
@@ -607,6 +625,7 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
         Settings.getValue<bool>('key-enable-per-book-settings') ?? false;
 
     double? zoomToApply;
+    PdfLayoutMode? layoutModeToApply;
 
     if (enablePerBookSettings) {
       // נסה לטעון הגדרות פר-ספר
@@ -614,11 +633,19 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
       if (settings?.zoom != null) {
         zoomToApply = settings!.zoom;
       }
+      if (settings?.layoutMode != null) {
+        layoutModeToApply = settings!.layoutMode;
+      }
     }
 
     // אם אין הגדרות פר-ספר, נסה לשחזר זום מהסשן (שנשמר ב-tab.savedZoom)
     if (zoomToApply == null && tab.savedZoom != null && tab.savedZoom != 1.0) {
       zoomToApply = tab.savedZoom;
+    }
+
+    // החלת מצב תצוגה
+    if (layoutModeToApply != null) {
+      emit(current.copyWith(layoutMode: layoutModeToApply));
     }
 
     // אם יש זום להחיל, מחילים אותו
@@ -664,6 +691,7 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
 
     final settings = PdfBookPerBookSettings(
       zoom: pdfController.value.zoom,
+      layoutMode: current.layoutMode,
     );
 
     await settings.save(current.book.title);
@@ -678,14 +706,17 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
 
     await PdfBookPerBookSettings.delete(current.book.title);
 
-    // Reset zoom to default
+    // Reset zoom and layout mode to default
     if (pdfController.isReady) {
       pdfController.setZoom(
         pdfController.centerPosition,
         1.0,
       );
       tab.savedZoom = 1.0;
-      emit(current.copyWith(zoom: 1.0));
+      emit(current.copyWith(
+        zoom: 1.0,
+        layoutMode: PdfLayoutMode.singlePage,
+      ));
     }
   }
 

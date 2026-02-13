@@ -6,6 +6,8 @@ class PdfZoomBar extends StatelessWidget {
   final VoidCallback onZoomIn;
   final VoidCallback onZoomOut;
   final VoidCallback onResetZoom;
+  final VoidCallback? onToggleLayoutMode;
+  final bool isDoublePageMode;
 
   const PdfZoomBar({
     super.key,
@@ -13,6 +15,8 @@ class PdfZoomBar extends StatelessWidget {
     required this.onZoomIn,
     required this.onZoomOut,
     required this.onResetZoom,
+    this.onToggleLayoutMode,
+    this.isDoublePageMode = false,
   });
 
   @override
@@ -36,6 +40,30 @@ class PdfZoomBar extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // כפתור החלפת מצב תצוגה
+            if (onToggleLayoutMode != null) ...[
+              IconButton(
+                icon: Icon(
+                  isDoublePageMode
+                      ? FluentIcons.book_24_regular
+                      : FluentIcons.book_open_24_regular,
+                  size: 20,
+                ),
+                onPressed: onToggleLayoutMode,
+                tooltip: isDoublePageMode ? 'עמוד בודד' : 'שני עמודים',
+                padding: const EdgeInsets.all(8),
+                constraints: const BoxConstraints(
+                  minWidth: 36,
+                  minHeight: 36,
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 24,
+                color: isDark ? Colors.grey[700] : Colors.grey[300],
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+              ),
+            ],
             // כפתור איפוס
             TextButton(
               onPressed: onResetZoom,

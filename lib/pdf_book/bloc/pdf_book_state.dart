@@ -4,6 +4,7 @@ import 'package:otzaria/models/pdf_headings.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/settings/per_book_settings.dart';
 
 /// Base class for PDF book states
 sealed class PdfBookState extends Equatable {
@@ -77,6 +78,7 @@ class PdfBookLoaded extends PdfBookState {
   // Zoom
   final double zoom;
   final bool showZoomBar;
+  final PdfLayoutMode layoutMode;
 
   // Panes
   final bool showLeftPane;
@@ -115,6 +117,7 @@ class PdfBookLoaded extends PdfBookState {
     this.currentTitle = '',
     this.zoom = 1.0,
     this.showZoomBar = false,
+    this.layoutMode = PdfLayoutMode.singlePage,
     this.showLeftPane = false,
     this.pinLeftPane = false,
     this.sidebarWidth = 300.0,
@@ -147,6 +150,7 @@ class PdfBookLoaded extends PdfBookState {
     String? currentTitle,
     double? zoom,
     bool? showZoomBar,
+    PdfLayoutMode? layoutMode,
     bool? showLeftPane,
     bool? pinLeftPane,
     double? sidebarWidth,
@@ -184,6 +188,7 @@ class PdfBookLoaded extends PdfBookState {
       currentTitle: currentTitle ?? this.currentTitle,
       zoom: zoom ?? this.zoom,
       showZoomBar: showZoomBar ?? this.showZoomBar,
+      layoutMode: layoutMode ?? this.layoutMode,
       showLeftPane: showLeftPane ?? this.showLeftPane,
       pinLeftPane: pinLeftPane ?? this.pinLeftPane,
       sidebarWidth: sidebarWidth ?? this.sidebarWidth,
@@ -220,6 +225,7 @@ class PdfBookLoaded extends PdfBookState {
         currentTitle,
         zoom,
         showZoomBar,
+        layoutMode,
         showLeftPane,
         pinLeftPane,
         sidebarWidth,

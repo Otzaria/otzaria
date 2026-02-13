@@ -134,6 +134,11 @@ class ResetZoom extends PdfBookEvent {
   const ResetZoom();
 }
 
+/// Toggle layout mode (single/double page)
+class ToggleLayoutMode extends PdfBookEvent {
+  const ToggleLayoutMode();
+}
+
 /// Show or hide the zoom bar
 class SetShowZoomBar extends PdfBookEvent {
   final bool show;
