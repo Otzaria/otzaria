@@ -9,6 +9,7 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/daf_yomi/calendar.dart';
 import 'package:otzaria/core/scaffold_messenger.dart';
+import 'package:otzaria/widgets/rtl_text_field.dart';
 
 class WorkspaceSwitcherDialog extends StatefulWidget {
   const WorkspaceSwitcherDialog({super.key});
@@ -227,7 +228,7 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
                           ? Row(
                               children: [
                                 Expanded(
-                                  child: TextField(
+                                  child: RtlTextField(
                                     controller: editController,
                                     autofocus: true,
                                     decoration: const InputDecoration(
@@ -235,7 +236,6 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
                                       isDense: true,
                                     ),
                                     onSubmitted: (_) => commitRenameAndClose(),
-                                    onTapOutside: (_) => commitRenameAndClose(),
                                   ),
                                 ),
                                 const SizedBox(width: 6),

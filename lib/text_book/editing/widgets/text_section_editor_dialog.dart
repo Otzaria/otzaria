@@ -654,9 +654,6 @@ class _TextSectionEditorDialogState extends State<TextSectionEditorDialog> {
                           hintText: 'התחל לכתוב כאן...',
                           hintTextDirection: TextDirection.rtl,
                         ),
-                        onChanged: (text) {
-                          // ... לוגיקה של onChanged נשארת זהה
-                        },
                       ),
                     ),
                   ),
