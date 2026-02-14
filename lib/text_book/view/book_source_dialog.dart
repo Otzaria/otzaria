@@ -66,9 +66,6 @@ Future<void> showBookSourceDialog(
 
     if (!context.mounted) return;
 
-    // קבלת מידע נוסף מהספר עצמו
-    final book = state.book;
-
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -84,52 +81,11 @@ Future<void> showBookSourceDialog(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // שם הספר
-                _buildInfoSection('שם הספר:', book.title),
-
-                // מחבר
-                if (book.author != null && book.author!.isNotEmpty)
-                  _buildInfoSection('מחבר:', book.author!),
-
-                // תקופה
-                if (book.heEra != null && book.heEra!.isNotEmpty)
-                  _buildInfoSection('תקופה:', book.heEra!),
-
-                // קטגוריות
-                if (book.heCategories != null && book.heCategories!.isNotEmpty)
-                  _buildInfoSection('קטגוריות:', book.heCategories!),
-
-                // תאריך חיבור
-                if (book.compDateStringHe != null &&
-                    book.compDateStringHe!.isNotEmpty)
-                  _buildInfoSection('תאריך חיבור:', book.compDateStringHe!),
-
-                // מקום חיבור
-                if (book.compPlaceStringHe != null &&
-                    book.compPlaceStringHe!.isNotEmpty)
-                  _buildInfoSection('מקום חיבור:', book.compPlaceStringHe!),
-
-                // תאריך פרסום
-                if (book.pubDateStringHe != null &&
-                    book.pubDateStringHe!.isNotEmpty)
-                  _buildInfoSection('תאריך פרסום:', book.pubDateStringHe!),
-
-                // מקום פרסום
-                if (book.pubPlaceStringHe != null &&
-                    book.pubPlaceStringHe!.isNotEmpty)
-                  _buildInfoSection('מקום פרסום:', book.pubPlaceStringHe!),
-
-                // נושאים
-                if (book.topics.isNotEmpty)
-                  _buildInfoSection('נושאים:', book.topics),
-
-                // תיאור קצר
-                if (book.heShortDesc != null && book.heShortDesc!.isNotEmpty)
-                  _buildInfoSection('תיאור:', book.heShortDesc!),
-
-                // תיאור מלא
-                if (book.heDesc != null && book.heDesc!.isNotEmpty)
-                  _buildInfoSection('תיאור מורחב:', book.heDesc!),
+                const Text(
+                  'מושבת זמנית',
+                  textDirection: TextDirection.rtl,
+                  style: TextStyle(fontSize: 14),
+                ),
 
                 const Divider(height: 24),
 
@@ -179,25 +135,4 @@ Future<void> showBookSourceDialog(
       UiSnack.showError('שגיאה בטעינת מידע הספר: ${e.toString()}');
     }
   }
-}
-
-/// בניית סעיף מידע עם כותרת וערך
-Widget _buildInfoSection(String title, String value) {
-  return Padding(
-    padding: const EdgeInsets.only(bottom: 12),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 4),
-        SelectableText(
-          value,
-          style: const TextStyle(fontSize: 14),
-        ),
-      ],
-    ),
-  );
 }
