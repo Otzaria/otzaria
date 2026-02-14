@@ -24,7 +24,7 @@ class HeaderItem extends StatelessWidget {
       padding: const EdgeInsets.all(16.0),
       child: Text(category.title,
           style: TextStyle(
-            fontSize: 50,
+            fontSize: 20,
             color: Theme.of(context).colorScheme.secondary,
           )),
     );
