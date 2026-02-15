@@ -26,7 +26,6 @@ import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/widgets/scrollable_positioned_list_scrollbar.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
 import 'package:otzaria/text_book/view/selection/text_selection_manager.dart';
-import 'package:otzaria/text_book/view/selection/enhanced_gesture_detector.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
 
 class CombinedView extends StatefulWidget {
@@ -79,9 +78,9 @@ class _CombinedViewState extends State<CombinedView> {
 
   // listener לניקוי בחירה - נשמור אותו כדי להסיר אותו ב-dispose
   void _onSelectionModeChanged() {
-    if (!_selectionManager.isInSelectionMode && mounted) {
-      // כשיוצאים ממצב בחירה, קוראים ל-setState כדי לכפות בנייה מחדש
-      // של SelectionArea ולנקות את הבחירה באופן ויזואלי.
+    if (mounted) {
+      // מצב הבחירה משפיע גם על אופן רינדור הטקסט (למשל קישורים inline),
+      // לכן נדרש rebuild גם בכניסה וגם ביציאה ממצב בחירה.
       setState(() {});
     }
   }
@@ -1014,15 +1013,9 @@ $textWithBreaks
           decoration: backgroundColor != null
               ? BoxDecoration(color: backgroundColor)
               : null,
-          child: EnhancedGestureDetector(
+          child: GestureDetector(
             behavior: HitTestBehavior.translucent,
-            onDragSelectionStart: () {
-              // כניסה למצב בחירה בגלל drag
-              if (!_selectionManager.isInSelectionMode) {
-                _selectionManager.setAnchor(index);
-              }
-            },
-            onSingleTap: () {
+            onTap: () {
               _focusNode.requestFocus();
               // מאפס את הטקסט השמור כשלוחצים על הפסקה
               if (mounted) {
@@ -1073,15 +1066,6 @@ $textWithBreaks
               _focusNode.requestFocus();
               _selectionManager.enterDoubleClickMode(index);
             },
-            onShiftClick: () {
-              // Shift+Click → בחירת טווח
-              _focusNode.requestFocus();
-              if (!_selectionManager.hasAnchor()) {
-                // אם אין anchor, קובעים אותו
-                _selectionManager.setAnchor(index);
-              }
-              // SelectionArea יטפל בבחירת הטווח
-            },
             onSecondaryTapDown: (details) {
               // שומר את האינדקס הנוכחי לשימוש בתפריט ההקשר
               if (mounted) {
@@ -1121,8 +1105,13 @@ $textWithBreaks
                                 .toList();
 
                             if (linksForLine.isNotEmpty) {
-                              dataWithLinks =
-                                  addInlineLinksToText(data, linksForLine);
+                              // בתצוגה רגילה נשמור את סימון הקישור בשורה,
+                              // אך ללא <a> קליקבילי כדי לאפשר בחירה חופשית.
+                              dataWithLinks = addInlineLinksToText(
+                                data,
+                                linksForLine,
+                                clickable: false,
+                              );
                             }
                           } catch (e) {
                             // אם יש שגיאה, פשוט נשתמש בטקסט המקורי

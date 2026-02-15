@@ -26,9 +26,11 @@ class _ScrollablePositionedListScrollbarState
   double _thumbPosition = 0.0;
   double _thumbHeight = 0.1; // יחס גובה ברירת מחדל
   bool _isDragging = false;
+  double _dragPointerOffsetInThumb = 0.0;
 
   // להחלקת הקפיצות במיקום
   int _lastFirstIndex = 0;
+  int _lastVisibleItems = 1;
 
   @override
   void initState() {
@@ -63,7 +65,8 @@ class _ScrollablePositionedListScrollbarState
 
     // חישוב גובה הפס ביחס לכמות הפריטים
     // מוסיפים 1 כדי למנוע חילוק ב-0
-    final visibleItems = (maxIndex - minIndex + 1);
+    final visibleItems = (maxIndex - minIndex + 1).clamp(1, widget.itemCount);
+    _lastVisibleItems = visibleItems;
     final proportion = visibleItems / max(widget.itemCount, 1);
 
     // גובה מינימלי בפיקסלים ל"אגודל" הגלילה הוא בדרך כלל סביב 40-50 פיקסלים במסכים רגילים
@@ -78,8 +81,8 @@ class _ScrollablePositionedListScrollbarState
     // אם maxIndex הוא itemCount-1 -> bottom 1.0 (בערך)
 
     final maxScrollableIndex = max(widget.itemCount - visibleItems, 1);
-    final newPosition =
-        (minIndex / maxScrollableIndex).clamp(0.0, 1.0 - newHeight);
+    final scrollProgress = (minIndex / maxScrollableIndex).clamp(0.0, 1.0);
+    final newPosition = scrollProgress * (1.0 - newHeight);
 
     setState(() {
       _thumbHeight = newHeight;
@@ -87,20 +90,52 @@ class _ScrollablePositionedListScrollbarState
     });
   }
 
-  void _onDragUpdate(double delta, double trackHeight) {
+  double _positionToProgress() {
+    final maxThumbPosition = 1.0 - _thumbHeight;
+    if (maxThumbPosition <= 0) return 0.0;
+    return (_thumbPosition / maxThumbPosition).clamp(0.0, 1.0);
+  }
+
+  int _calculateTargetIndexFromThumb() {
+    if (widget.itemCount <= 0) return 0;
+    final visibleItems = _lastVisibleItems.clamp(1, widget.itemCount);
+    final maxScrollableIndex = max(widget.itemCount - visibleItems, 0);
+    if (maxScrollableIndex == 0) return 0;
+    final progress = _positionToProgress();
+    return (progress * maxScrollableIndex).round().clamp(0, maxScrollableIndex);
+  }
+
+  void _jumpToCurrentThumbPosition() {
+    final targetIndex = _calculateTargetIndexFromThumb();
+    if (targetIndex == _lastFirstIndex) return;
+    widget.scrollController.jumpTo(index: targetIndex);
+    _lastFirstIndex = targetIndex;
+  }
+
+  void _updateThumbFromPointer(
+    double pointerY,
+    double trackHeight, {
+    required bool keepAnchor,
+  }) {
+    if (trackHeight <= 0) return;
+    final thumbPixelHeight = trackHeight * _thumbHeight;
+    final maxThumbTop = max(trackHeight - thumbPixelHeight, 0.0);
+
+    double newThumbTop;
+    if (keepAnchor) {
+      newThumbTop = pointerY - _dragPointerOffsetInThumb;
+    } else {
+      newThumbTop = pointerY - (thumbPixelHeight / 2);
+    }
+    newThumbTop = newThumbTop.clamp(0.0, maxThumbTop);
+
+    final newPosition = maxThumbTop <= 0 ? 0.0 : (newThumbTop / maxThumbTop);
     setState(() {
       _isDragging = true;
-      _thumbPosition += delta;
-      _thumbPosition = _thumbPosition.clamp(0.0, 1.0 - _thumbHeight);
+      _thumbPosition = newPosition;
     });
 
-    final int targetIndex = (_thumbPosition * widget.itemCount).round();
-
-    // אופטימיזציה: לא לקפוץ אם השינוי קטן מדי כדי למנוע ריצוד
-    if ((targetIndex - _lastFirstIndex).abs() > widget.itemCount * 0.001) {
-      widget.scrollController.jumpTo(index: targetIndex);
-      _lastFirstIndex = targetIndex;
-    }
+    _jumpToCurrentThumbPosition();
   }
 
   void _onDragEnd() {
@@ -133,28 +168,36 @@ class _ScrollablePositionedListScrollbarState
 
                 return GestureDetector(
                   onVerticalDragStart: (details) {
-                    setState(() {
-                      _isDragging = true;
-                    });
+                    final pointerY = details.localPosition.dy;
+                    final isOnThumb = pointerY >= thumbPixelTop &&
+                        pointerY <= thumbPixelTop + thumbPixelHeight;
+                    _dragPointerOffsetInThumb = isOnThumb
+                        ? (pointerY - thumbPixelTop)
+                        : (thumbPixelHeight / 2);
+                    _updateThumbFromPointer(
+                      pointerY,
+                      trackHeight,
+                      keepAnchor: true,
+                    );
                   },
                   onVerticalDragUpdate: (details) {
-                    _onDragUpdate(details.delta.dy / trackHeight, trackHeight);
+                    _updateThumbFromPointer(
+                      details.localPosition.dy,
+                      trackHeight,
+                      keepAnchor: true,
+                    );
                   },
                   onVerticalDragEnd: (_) => _onDragEnd(),
                   onTapDown: (details) {
-                    // קפיצה לנקודה שנלחצה (אופציונלי, מדמה הקלקה על המסילה)
-                    final clickPosition =
-                        details.localPosition.dy / trackHeight;
-                    double newThumbPos = clickPosition - (_thumbHeight / 2);
-                    newThumbPos = newThumbPos.clamp(0.0, 1.0 - _thumbHeight);
-
+                    _updateThumbFromPointer(
+                      details.localPosition.dy,
+                      trackHeight,
+                      keepAnchor: false,
+                    );
                     setState(() {
-                      _thumbPosition = newThumbPos;
+                      _isDragging = false;
                     });
-
-                    final int targetIndex =
-                        (_thumbPosition * widget.itemCount).round();
-                    widget.scrollController.jumpTo(index: targetIndex);
+                    _updateScrollPosition();
                   },
                   child: Container(
                     color: Colors.transparent, // כדי לתפוס מגע

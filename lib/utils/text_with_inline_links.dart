@@ -10,7 +10,11 @@ import 'package:otzaria/models/links.dart';
 ///
 /// Links are styled to match the theme with underline decoration.
 /// The URL format is: otzaria://inline-link?path={path}&index={index}&ref={ref}
-String addInlineLinksToText(String text, List<Link> linksForLine) {
+String addInlineLinksToText(
+  String text,
+  List<Link> linksForLine, {
+  bool clickable = true,
+}) {
   // Safety check - if text is empty or already has our inline links, return as-is
   if (text.isEmpty || text.contains('otzaria://inline-link')) {
     return text;
@@ -53,14 +57,21 @@ String addInlineLinksToText(String text, List<Link> linksForLine) {
 
     // Add the link
     final linkText = text.substring(start, end);
-    final encodedPath = Uri.encodeComponent(link.path2);
-    final encodedRef = Uri.encodeComponent(link.heRef);
-    final url =
-        'otzaria://inline-link?path=$encodedPath&index=${link.index2}&ref=$encodedRef';
+    if (clickable) {
+      final encodedPath = Uri.encodeComponent(link.path2);
+      final encodedRef = Uri.encodeComponent(link.heRef);
+      final url =
+          'otzaria://inline-link?path=$encodedPath&index=${link.index2}&ref=$encodedRef';
 
-    buffer.write('<a href="$url" style="text-decoration: underline;">');
-    buffer.write(linkText);
-    buffer.write('</a>');
+      buffer.write('<a href="$url" style="text-decoration: underline;">');
+      buffer.write(linkText);
+      buffer.write('</a>');
+    } else {
+      buffer.write(
+          '<span class="inline-link" style="text-decoration: underline;">');
+      buffer.write(linkText);
+      buffer.write('</span>');
+    }
 
     currentPos = end;
   }
