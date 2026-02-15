@@ -26,6 +26,7 @@ import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/widgets/scrollable_positioned_list_scrollbar.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
 import 'package:otzaria/text_book/view/selection/text_selection_manager.dart';
+import 'package:otzaria/text_book/view/selection/enhanced_gesture_detector.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
 
 class CombinedView extends StatefulWidget {
@@ -1013,9 +1014,15 @@ $textWithBreaks
           decoration: backgroundColor != null
               ? BoxDecoration(color: backgroundColor)
               : null,
-          child: GestureDetector(
+          child: EnhancedGestureDetector(
             behavior: HitTestBehavior.translucent,
-            onTap: () {
+            onDragSelectionStart: () {
+              // כניסה למצב בחירה בגלל drag
+              if (!_selectionManager.isInSelectionMode) {
+                _selectionManager.setAnchor(index);
+              }
+            },
+            onSingleTap: () {
               _focusNode.requestFocus();
               // מאפס את הטקסט השמור כשלוחצים על הפסקה
               if (mounted) {
@@ -1065,6 +1072,13 @@ $textWithBreaks
               // להשתמש ב-Shift+Click או Drag.
               _focusNode.requestFocus();
               _selectionManager.enterDoubleClickMode(index);
+            },
+            onShiftClick: () {
+              // Shift+Click → בחירת טווח
+              _focusNode.requestFocus();
+              if (!_selectionManager.hasAnchor()) {
+                _selectionManager.setAnchor(index);
+              }
             },
             onSecondaryTapDown: (details) {
               // שומר את האינדקס הנוכחי לשימוש בתפריט ההקשר
