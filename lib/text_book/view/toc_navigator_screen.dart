@@ -9,6 +9,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/utils/ref_helper.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
+import 'package:otzaria/utils/text_manipulation.dart' as utils;
 
 class TocViewer extends StatefulWidget {
   const TocViewer({
@@ -127,19 +128,81 @@ class _TocViewerState extends State<TocViewer>
 
   Widget _buildFilteredList(List<TocEntry> entries, BuildContext context) {
     List<TocEntry> matchingEntries = [];
+    Set<int> matchingIndices = {}; // לשמור את כל האינדקסים שנמצאו
+    
+    // הסרת ניקוד מטקסט החיפוש
+    final searchQuery = utils.removeVolwels(searchController.text.trim());
 
-    void findMatchingEntries(List<TocEntry> entries) {
-      for (final TocEntry entry in entries) {
-        // דילוג על רמה 1 (כותרת ראשית של הספר) כדי למנוע התאמות שגויות
-        // לאותיות שמופיעות בשם הספר
-        if (entry.level > 1 && entry.text.contains(searchController.text)) {
-          matchingEntries.add(entry);
+    // שלב 1: מצא את כל הכותרות שמתאימות לחיפוש
+    void findMatchingEntries(List<TocEntry> entries, {int depth = 0, bool isFirstEntry = true}) {
+      for (int i = 0; i < entries.length; i++) {
+        final TocEntry entry = entries[i];
+        
+        // דלג רק על הכותרת הראשונה ברמה 0 או 1 (שם הספר עצמו)
+        final bool isBookTitle = (depth == 0 && i == 0) || (entry.level <= 1 && i == 0 && isFirstEntry);
+        
+        if (!isBookTitle) {
+          // הסרת ניקוד מהכותרת והשוואה
+          final entryText = utils.removeVolwels(entry.text);
+          
+          if (entryText.contains(searchQuery)) {
+            matchingIndices.add(entry.index);
+          }
         }
-        findMatchingEntries(entry.children);
+        
+        // תמיד חפש בילדים
+        if (entry.children.isNotEmpty) {
+          findMatchingEntries(entry.children, depth: depth + 1, isFirstEntry: false);
+        }
+      }
+    }
+
+    // שלב 2: אסוף את כל ההורים של הכותרות שנמצאו
+    void collectEntriesWithParents(List<TocEntry> entries, List<TocEntry> parentChain) {
+      for (final entry in entries) {
+        final currentChain = [...parentChain, entry];
+        
+        // אם הכותרת הזו או אחד מהילדים שלה נמצאו בחיפוש
+        bool hasMatchInSubtree = matchingIndices.contains(entry.index);
+        
+        // בדוק אם יש התאמה בילדים
+        bool hasMatchingChild = false;
+        void checkChildren(List<TocEntry> children) {
+          for (final child in children) {
+            if (matchingIndices.contains(child.index)) {
+              hasMatchingChild = true;
+              return;
+            }
+            checkChildren(child.children);
+          }
+        }
+        checkChildren(entry.children);
+        
+        // אם יש התאמה בכותרת הזו או בילדים שלה, הוסף את כל השרשרת
+        if (hasMatchInSubtree || hasMatchingChild) {
+          // הוסף את כל ההורים שעוד לא נוספו
+          for (final parent in currentChain) {
+            if (!matchingEntries.any((e) => e.index == parent.index)) {
+              matchingEntries.add(parent);
+            }
+          }
+        }
+        
+        // המשך לילדים
+        if (entry.children.isNotEmpty) {
+          collectEntriesWithParents(entry.children, currentChain);
+        }
       }
     }
 
     findMatchingEntries(entries);
+    
+    if (matchingIndices.isNotEmpty) {
+      collectEntriesWithParents(entries, []);
+      
+      // מיין לפי אינדקס כדי לשמור על הסדר המקורי
+      matchingEntries.sort((a, b) => a.index.compareTo(b.index));
+    }
 
     return ListView.builder(
         physics: const NeverScrollableScrollPhysics(),
