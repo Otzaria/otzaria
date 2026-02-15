@@ -197,7 +197,7 @@ class _ScrollablePositionedListScrollbarState
                     setState(() {
                       _isDragging = false;
                     });
-                    _updateScrollPosition();
+                    // ה-ItemPositionsListener יעדכן אוטומטית את המיקום
                   },
                   child: Container(
                     color: Colors.transparent, // כדי לתפוס מגע

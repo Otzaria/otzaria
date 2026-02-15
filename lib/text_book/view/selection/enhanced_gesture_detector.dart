@@ -43,6 +43,20 @@ class _EnhancedGestureDetectorState extends State<EnhancedGestureDetector> {
   static const int _doubleTapTimeout = 300;
   static const double _dragThreshold = 2.0;
 
+  /// מאפס את מצב הלחיצה הבסיסי
+  void _resetBasicTapState() {
+    _tapDownPosition = null;
+    _tapDownButtons = null;
+    _pointerMoved = false;
+  }
+
+  /// מאפס את כל מצב הלחיצה כולל ספירת double-tap
+  void _resetFullTapState() {
+    _resetBasicTapState();
+    _tapCount = 0;
+    _lastTapTime = null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Listener(
@@ -78,21 +92,15 @@ class _EnhancedGestureDetectorState extends State<EnhancedGestureDetector> {
       if (distance > _dragThreshold) {
         // A drag has started, notify the parent to handle selection
         widget.onDragSelectionStart?.call();
-        _tapDownPosition = null;
-        _tapDownButtons = null;
-        _pointerMoved = false;
         // איפוס ספירת הלחיצות כדי לבטל single tap שממתין
-        _tapCount = 0;
-        _lastTapTime = null;
+        _resetFullTapState();
       }
     }
   }
 
   void _handlePointerUp(PointerUpEvent event) {
     if (_tapDownButtons == kSecondaryMouseButton) {
-      _tapDownPosition = null;
-      _tapDownButtons = null;
-      _pointerMoved = false;
+      _resetBasicTapState();
       return;
     }
 
@@ -105,17 +113,13 @@ class _EnhancedGestureDetectorState extends State<EnhancedGestureDetector> {
 
     // תנועה כלשהי מצביעה לרוב על כוונת בחירה, לא על tap רגיל.
     if (_pointerMoved) {
-      _tapDownPosition = null;
-      _tapDownButtons = null;
-      _pointerMoved = false;
+      _resetBasicTapState();
       return;
     }
 
     final distance = (event.localPosition - _tapDownPosition!).distance;
     if (distance > _dragThreshold) {
-      _tapDownPosition = null;
-      _tapDownButtons = null;
-      _pointerMoved = false;
+      _resetBasicTapState();
       return;
     }
 
@@ -123,9 +127,7 @@ class _EnhancedGestureDetectorState extends State<EnhancedGestureDetector> {
 
     if (isShiftPressed) {
       widget.onShiftClick?.call();
-      _tapDownPosition = null;
-      _tapDownButtons = null;
-      _pointerMoved = false;
+      _resetBasicTapState();
       return;
     }
 
@@ -134,11 +136,7 @@ class _EnhancedGestureDetectorState extends State<EnhancedGestureDetector> {
       _tapCount++;
       if (_tapCount >= 2) {
         widget.onDoubleTap?.call();
-        _tapCount = 0;
-        _lastTapTime = null;
-        _tapDownPosition = null;
-        _tapDownButtons = null;
-        _pointerMoved = false;
+        _resetFullTapState();
         return;
       }
     } else {
@@ -154,8 +152,6 @@ class _EnhancedGestureDetectorState extends State<EnhancedGestureDetector> {
       }
     });
 
-    _tapDownPosition = null;
-    _tapDownButtons = null;
-    _pointerMoved = false;
+    _resetBasicTapState();
   }
 }
