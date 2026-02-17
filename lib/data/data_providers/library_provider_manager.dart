@@ -258,7 +258,14 @@ class LibraryProviderManager {
     final provider = key != null ? _bookToProvider[key] : null;
 
     if (provider != null) {
-      return await provider.getLinkContent(link);
+      try {
+        final content = await provider.getLinkContent(link);
+        if (content.isNotEmpty && !content.startsWith('שגיאה')) {
+          return content;
+        }
+      } catch (e) {
+        // Continue to fallback
+      }
     }
 
     // Fallback: try each provider

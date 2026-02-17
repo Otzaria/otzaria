@@ -119,8 +119,8 @@ class DatabaseLibraryProvider implements LibraryProvider {
       for (final dbBook in dbBooks) {
         final categoryPath = getPath(dbBook.categoryId);
         _categoryPathToId[categoryPath] = dbBook.categoryId;
-        _cachedKeys.add(
-            _generateKey(dbBook.title, dbBook.categoryId, dbBook.fileType ?? ''));
+        _cachedKeys.add(_generateKey(
+            dbBook.title, dbBook.categoryId, dbBook.fileType ?? ''));
 
         final categoryName =
             dbBook.topics.isNotEmpty ? dbBook.topics.first.name : 'ללא קטגוריה';
@@ -329,17 +329,20 @@ class DatabaseLibraryProvider implements LibraryProvider {
     final repository = _sqliteProvider.repository!;
 
     // קריאת ההגדרות של ספרים חיצוניים
-    final showExternalBooks = Settings.getValue<bool>('key-show-external-books') ?? false;
-    final showOtzarHachochma = Settings.getValue<bool>('key-show-otzar-hachochma') ?? false;
-    final showHebrewBooks = Settings.getValue<bool>('key-show-hebrew-books') ?? false;
+    final showExternalBooks =
+        Settings.getValue<bool>('key-show-external-books') ?? false;
+    final showOtzarHachochma =
+        Settings.getValue<bool>('key-show-otzar-hachochma') ?? false;
+    final showHebrewBooks =
+        Settings.getValue<bool>('key-show-hebrew-books') ?? false;
 
     // OPTIMIZATION 1: Load all books with relations in a single optimized query
     final allDbBooks =
         await repository.database.bookDao.getAllBooksWithRelations(
-          includeExternalBooks: showExternalBooks,
-          includeOtzarHachochma: showOtzarHachochma,
-          includeHebrewBooks: showHebrewBooks,
-        );
+      includeExternalBooks: showExternalBooks,
+      includeOtzarHachochma: showOtzarHachochma,
+      includeHebrewBooks: showHebrewBooks,
+    );
     final booksByCategory = <int, List<db_models.Book>>{};
 
     for (final bookData in allDbBooks) {
@@ -625,8 +628,8 @@ class DatabaseLibraryProvider implements LibraryProvider {
       category.books.add(book);
 
       // Cache the book key for provider mapping
-      final key = _generateKey(
-          book.title, dbCategory.id, book.fileType ?? 'txt');
+      final key =
+          _generateKey(book.title, dbCategory.id, book.fileType ?? 'txt');
       _cachedKeys.add(key);
       if (book.categoryPath != null) {
         _categoryPathToId[book.categoryPath!] = dbCategory.id;
@@ -860,6 +863,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
         }
 
         final lines = bookText.split('\n');
+
         if (link.index2 < 1 || link.index2 > lines.length) {
           return 'שגיאה: אינדקס מחוץ לטווח';
         }

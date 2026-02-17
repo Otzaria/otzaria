@@ -749,7 +749,6 @@ class FileSystemLibraryProvider implements LibraryProvider {
         onTimeout: () => 'שגיאה: פג זמן קריאת הקובץ',
       );
     } catch (e) {
-      debugPrint('⚠️ Error loading link content: $e');
       return 'שגיאה בטעינת תוכן המפרש: $e';
     }
   }

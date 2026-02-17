@@ -487,7 +487,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                     _itemKeys.removeWhere(
                         (key, value) => !currentLinkKeys.contains(key));
                     for (final key in currentLinkKeys) {
-                      _itemKeys[key] = GlobalKey();
+                      _itemKeys.putIfAbsent(key, () => GlobalKey());
                     }
 
                     // מקבץ את הקישורים לקבוצות רצופות
