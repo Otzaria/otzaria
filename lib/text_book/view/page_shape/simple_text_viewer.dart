@@ -807,7 +807,6 @@ $textWithBreaks
     }
 
     // צריך למצוא באיזה טור המפרש הנוכחי מוצג ולהחליף אותו
-    // נשתמש ב-PageShapeSettingsManager לעדכון ההגדרות
     final config = PageShapeSettingsManager.loadConfiguration(
       state.book.title,
       heCategories: state.book.heCategories,
@@ -818,28 +817,41 @@ $textWithBreaks
     // מציאת הטור שבו המפרש הנוכחי מוצג
     String? columnToUpdate;
     for (final entry in config.entries) {
-      if (entry.value == widget.bookTitle ||
-          (entry.value != null && newCommentator.startsWith(entry.value!)) ||
-          (entry.value != null && entry.value!.startsWith(widget.bookTitle!))) {
+      if (entry.value == null) continue;
+
+      // בדיקה אם המפרש הנוכחי תואם לערך בהגדרה
+      final configValue = entry.value!;
+      final currentTitle = widget.bookTitle!;
+
+      if (configValue == currentTitle ||
+          currentTitle.startsWith(configValue) ||
+          currentTitle.contains(configValue) ||
+          configValue.startsWith(currentTitle) ||
+          configValue.contains(currentTitle)) {
         columnToUpdate = entry.key;
         break;
       }
     }
 
-    if (columnToUpdate == null) return;
+    if (columnToUpdate == null) {
+      debugPrint(
+          '⚠️ PageShape: Could not find column for commentator "${widget.bookTitle}"');
+      return;
+    }
 
     // עדכון ההגדרה
     final updatedConfig = Map<String, String?>.from(config);
     updatedConfig[columnToUpdate] = newCommentator;
 
-    final hasBookSettings =
-        PageShapeSettingsManager.hasBookSpecificSettings(state.book.title);
+    // בדיקה אם יש הגדרה ספציפית לספר (לא רק הדגל, אלא הגדרה ממשית)
+    final hasActualBookConfig =
+        PageShapeSettingsManager.loadConfiguration(state.book.title) != null;
 
-    // אם יש הגדרות ספציפיות לספר, שומרים לספר (saveToCategory = null)
-    // אחרת, שומרים לקטגוריה (אם יש קטגוריה ולא ריקה)
-    final categoryToSave = (!hasBookSettings &&
+    // אם יש הגדרה ספציפית לספר - שומרים לספר
+    // אחרת - שומרים לקטגוריה (אם יש)
+    final categoryToSave = !hasActualBookConfig &&
             state.book.heCategories != null &&
-            state.book.heCategories!.isNotEmpty)
+            state.book.heCategories!.isNotEmpty
         ? state.book.heCategories
         : null;
 
