@@ -284,16 +284,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   }
 
   Future<Uint8List?> _loadPdfBytesFromDb() async {
-    debugPrint('📚 Loading PDF from DB: ${widget.tab.book.title}');
     final provider = SqliteDataProvider.instance;
-    final bytes = await provider.getPdfBytesFromDb(widget.tab.book);
-    if (bytes == null) {
-      debugPrint('❌ Failed to load PDF from DB: ${widget.tab.book.title}');
-    } else {
-      debugPrint(
-          '✅ Loaded PDF from DB: ${widget.tab.book.title}, size: ${bytes.length} bytes');
-    }
-    return bytes;
+    return provider.getPdfBytesFromDb(widget.tab.book);
   }
 
   Text _buildRtlMenuText(String text) =>
@@ -510,6 +502,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         }
       },
       onViewerReady: (document, controller) async {
+        debugPrint(
+            '🎯 onViewerReady called! Document has ${document.pages.length} pages');
         // 0. יצירת textSearcher רק אחרי שה-controller מוכן
         if (!mounted) return;
         textSearcher = PdfTextSearcher(pdfController)
@@ -526,10 +520,16 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           totalPages: document.pages.length,
         ));
 
+        // 1.5. קפיצה לעמוד הנכון אם צריך
+        if (widget.tab.pageNumber > 1 && controller.isReady) {
+          debugPrint('📖 Jumping to page ${widget.tab.pageNumber}');
+          controller.goToPage(pageNumber: widget.tab.pageNumber);
+        }
+
         // 2. עדכון הכותרת הנוכחית
         final currentPage = widget.tab.pdfViewerController.isReady
             ? (widget.tab.pdfViewerController.pageNumber ?? 1)
-            : 1;
+            : widget.tab.pageNumber;
         final title = await refFromPageNumber(
             currentPage, widget.tab.outline.value, widget.tab.book.title);
         widget.tab.currentTitle.value = title;

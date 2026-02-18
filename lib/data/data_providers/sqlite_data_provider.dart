@@ -237,9 +237,6 @@ class SqliteDataProvider {
   /// Returns null if not found or DB not initialized.
   Future<Uint8List?> getPdfBytesFromDb(PdfBook book) async {
     debugPrint('🔍 getPdfBytesFromDb: Searching for book: ${book.title}');
-    debugPrint('🔍 Book filePath: ${book.filePath}');
-    debugPrint('🔍 Book path: ${book.path}');
-
     if (!_isInitialized) {
       await initialize();
     }
@@ -251,43 +248,23 @@ class SqliteDataProvider {
     try {
       migration.Book? dbBook;
       final filePath = book.filePath ?? book.path;
-      debugPrint('🔍 Using filePath for search: $filePath');
 
       if (filePath.isNotEmpty) {
-        debugPrint('🔍 Searching by filePath and fileType=pdf...');
         dbBook =
             await _repository.getExternalBookByFilePathAndType(filePath, 'pdf');
-        if (dbBook != null) {
-          debugPrint(
-              '✅ Found PDF book by filePath: ${dbBook.title} (id: ${dbBook.id})');
-        } else {
-          debugPrint('❌ Not found by filePath with fileType=pdf');
-        }
       }
 
-      if (dbBook == null) {
-        debugPrint('🔍 Searching by title with fileType=pdf...');
-        dbBook = await _repository.getBookByTitleAndFileType(book.title, 'pdf');
-        if (dbBook != null) {
-          debugPrint(
-              '✅ Found PDF book by title: ${dbBook.title} (id: ${dbBook.id})');
-        } else {
-          debugPrint('❌ Not found by title with fileType=pdf');
-        }
-      }
+      dbBook ??= await _repository.getBookByTitleAndFileType(book.title, 'pdf');
 
       if (dbBook == null) {
         debugPrint('❌ PDF not found in DB: ${book.title}');
         return null;
       }
 
-      debugPrint('🔍 Getting file content for book id: ${dbBook.id}');
       final bytes = await _repository.getBookFileContent(dbBook.id);
 
       if (bytes == null) {
         debugPrint('❌ No file content for: ${book.title}');
-      } else {
-        debugPrint('✅ Got file content: ${bytes.length} bytes');
       }
 
       return bytes;
