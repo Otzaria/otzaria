@@ -86,7 +86,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
   // מעקב אחרי מקשים לחוצים למניעת repeat
   final Set<LogicalKeyboardKey> _pressedKeys = {};
-  
+
   // גלילה רציפה
   Timer? _scrollTimer;
   LogicalKeyboardKey? _currentScrollKey;
@@ -183,9 +183,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       ),
     );
 
-    if ((widget.tab.book.fileType ?? 'pdf').toLowerCase() == 'pdf') {
-      _pdfBytesFuture = _loadPdfBytesFromDb();
-    }
+    // טעינת PDF bytes מה-DB
+    _pdfBytesFuture = _loadPdfBytesFromDb();
 
     // הגדרת ערכים התחלתיים מ-Settings
     final settingsBloc = context.read<SettingsBloc>();
@@ -285,8 +284,16 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   }
 
   Future<Uint8List?> _loadPdfBytesFromDb() async {
+    debugPrint('📚 Loading PDF from DB: ${widget.tab.book.title}');
     final provider = SqliteDataProvider.instance;
-    return provider.getPdfBytesFromDb(widget.tab.book);
+    final bytes = await provider.getPdfBytesFromDb(widget.tab.book);
+    if (bytes == null) {
+      debugPrint('❌ Failed to load PDF from DB: ${widget.tab.book.title}');
+    } else {
+      debugPrint(
+          '✅ Loaded PDF from DB: ${widget.tab.book.title}, size: ${bytes.length} bytes');
+    }
+    return bytes;
   }
 
   Text _buildRtlMenuText(String text) =>
@@ -597,51 +604,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     );
   }
 
-  Widget _buildPdfViewerFromFile() {
-    return KeyboardListener(
-      focusNode: _pdfViewFocusNode,
-      autofocus: true,
-      onKeyEvent: (KeyEvent event) {
-        if (event is KeyDownEvent) {
-          // התעלמות מאירועי repeat - רק לחיצה ראשונה
-          if (_pressedKeys.contains(event.logicalKey)) return;
-          _pressedKeys.add(event.logicalKey);
-          
-          if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-            _goNextPage();
-          } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
-            _goPreviousPage();
-          } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-            _startContinuousScroll(LogicalKeyboardKey.arrowUp);
-          } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-            _startContinuousScroll(LogicalKeyboardKey.arrowDown);
-          }
-        } else if (event is KeyUpEvent) {
-          _pressedKeys.remove(event.logicalKey);
-          
-          if (event.logicalKey == LogicalKeyboardKey.arrowUp ||
-              event.logicalKey == LogicalKeyboardKey.arrowDown) {
-            _stopContinuousScroll();
-          }
-        }
-      },
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () {
-          _pdfViewFocusNode.requestFocus();
-        },
-        child: PdfViewer.file(
-          widget.tab.book.path,
-          initialPageNumber: widget.tab.pageNumber,
-          passwordProvider: () => passwordDialog(context),
-          controller: widget.tab.pdfViewerController,
-          useProgressiveLoading: false,
-          params: _buildPdfViewerParams(),
-        ),
-      ),
-    );
-  }
-
   Widget _buildPdfViewerFromBytes(Uint8List bytes) {
     return KeyboardListener(
       focusNode: _pdfViewFocusNode,
@@ -651,7 +613,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           // התעלמות מאירועי repeat - רק לחיצה ראשונה
           if (_pressedKeys.contains(event.logicalKey)) return;
           _pressedKeys.add(event.logicalKey);
-          
+
           if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
             _goNextPage();
           } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
@@ -663,7 +625,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           }
         } else if (event is KeyUpEvent) {
           _pressedKeys.remove(event.logicalKey);
-          
+
           if (event.logicalKey == LogicalKeyboardKey.arrowUp ||
               event.logicalKey == LogicalKeyboardKey.arrowDown) {
             _stopContinuousScroll();
@@ -679,6 +641,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           bytes,
           sourceName: widget.tab.book.title,
           controller: widget.tab.pdfViewerController,
+          passwordProvider: () => passwordDialog(context),
           params: _buildPdfViewerParams(),
         ),
       ),
@@ -940,12 +903,15 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                           if (event is PointerScrollEvent) {
                             // טיפול בגלילת עכבר
                             if (widget.tab.pdfViewerController.isReady) {
-                              final currentMatrix = widget.tab.pdfViewerController.value;
-                              final currentTranslation = currentMatrix.getTranslation();
-                              
+                              final currentMatrix =
+                                  widget.tab.pdfViewerController.value;
+                              final currentTranslation =
+                                  currentMatrix.getTranslation();
+
                               // גלילה אנכית - event.scrollDelta.dy חיובי = גלילה למטה
-                              final newY = currentTranslation.y - event.scrollDelta.dy;
-                              
+                              final newY =
+                                  currentTranslation.y - event.scrollDelta.dy;
+
                               widget.tab.pdfViewerController.goTo(
                                 currentMatrix.clone()
                                   ..setTranslationRaw(
@@ -955,10 +921,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                                   ),
                               );
                             }
-                            
+
                             // הסתרת חלונית צד אם לא נעולה
                             if (!(widget.tab.pinLeftPane.value ||
-                                (Settings.getValue<bool>('key-pin-sidebar') ?? false))) {
+                                (Settings.getValue<bool>('key-pin-sidebar') ??
+                                    false))) {
                               widget.tab.showLeftPane.value = false;
                               // החזרת focus ל-PDF אחרי גלילה
                               Future.microtask(() {
@@ -978,27 +945,70 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                           ),
                           child: Stack(
                             children: [
-                              _pdfBytesFuture == null
-                                  ? _buildPdfViewerFromFile()
-                                  : FutureBuilder<Uint8List?>(
-                                      future: _pdfBytesFuture,
-                                      builder: (context, snapshot) {
-                                        if (snapshot.connectionState ==
-                                            ConnectionState.waiting) {
-                                          return const Center(
-                                            child: CircularProgressIndicator(),
-                                          );
-                                        }
+                              FutureBuilder<Uint8List?>(
+                                future: _pdfBytesFuture,
+                                builder: (context, snapshot) {
+                                  if (snapshot.connectionState ==
+                                      ConnectionState.waiting) {
+                                    return const Center(
+                                      child: CircularProgressIndicator(),
+                                    );
+                                  }
 
-                                        if (snapshot.hasData &&
-                                            snapshot.data != null) {
-                                          return _buildPdfViewerFromBytes(
-                                              snapshot.data!);
-                                        }
+                                  if (snapshot.hasError) {
+                                    return Center(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(
+                                            FluentIcons.error_circle_24_regular,
+                                            size: 64,
+                                            color: Colors.red,
+                                          ),
+                                          const SizedBox(height: 16),
+                                          Text(
+                                            'שגיאה בטעינת הספר: ${snapshot.error}',
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              color: Colors.red,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }
 
-                                        return _buildPdfViewerFromFile();
-                                      },
-                                    ),
+                                  if (!snapshot.hasData ||
+                                      snapshot.data == null) {
+                                    return const Center(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            FluentIcons
+                                                .document_error_24_regular,
+                                            size: 64,
+                                            color: Colors.grey,
+                                          ),
+                                          SizedBox(height: 16),
+                                          Text(
+                                            'לא ניתן לטעון את הספר',
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }
+
+                                  return _buildPdfViewerFromBytes(
+                                      snapshot.data!);
+                                },
+                              ),
                               // Loading and error indicators
                               BlocBuilder<PdfBookBloc, PdfBookState>(
                                 buildWhen: (prev, curr) {
@@ -1400,7 +1410,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     if (_scrollTimer != null) return;
 
     _currentScrollKey = key;
-    
+
     // גלילה ראשונה מיידית
     if (key == LogicalKeyboardKey.arrowUp) {
       _scrollUpSimple();
@@ -1438,11 +1448,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
     final currentMatrix = widget.tab.pdfViewerController.value;
     final currentTranslation = currentMatrix.getTranslation();
-    
+
     // כמות גלילה זהה לגלילת עכבר (100 פיקסלים)
     const double scrollAmount = 100.0;
     final newY = currentTranslation.y + scrollAmount;
-    
+
     widget.tab.pdfViewerController.goTo(
       currentMatrix.clone()
         ..setTranslationRaw(
@@ -1461,11 +1471,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
     final currentMatrix = widget.tab.pdfViewerController.value;
     final currentTranslation = currentMatrix.getTranslation();
-    
+
     // כמות גלילה זהה לגלילת עכבר (100 פיקסלים)
     const double scrollAmount = 100.0;
     final newY = currentTranslation.y - scrollAmount;
-    
+
     widget.tab.pdfViewerController.goTo(
       currentMatrix.clone()
         ..setTranslationRaw(

@@ -611,6 +611,25 @@ class SeforimRepository {
     );
   }
 
+  /// מחזיר ספר לפי כותרת וסוג קובץ.
+  Future<Book?> getBookByTitleAndFileType(String title, String fileType) async {
+    final bookData =
+        await _database.bookDao.getBookByTitleAndFileType(title, fileType);
+    if (bookData == null) return null;
+
+    final authors = await _getBookAuthors(bookData.id);
+    final topics = await _getBookTopics(bookData.id);
+    final pubPlaces = await _getBookPubPlaces(bookData.id);
+    final pubDates = await _getBookPubDates(bookData.id);
+
+    return bookData.copyWith(
+      authors: authors,
+      topics: topics,
+      pubPlaces: pubPlaces,
+      pubDates: pubDates,
+    );
+  }
+
   // Get a topic by name, returns null if not found
   Future<Topic?> getTopicByName(String name) async {
     return await _database.topicDao.getTopicByName(name);
@@ -953,6 +972,12 @@ class SeforimRepository {
   /// Gets an external book by its file path.
   Future<Book?> getExternalBookByFilePath(String filePath) async {
     return await _database.bookDao.getBookByFilePath(filePath);
+  }
+
+  /// Gets an external book by its file path and file type.
+  Future<Book?> getExternalBookByFilePathAndType(
+      String filePath, String fileType) async {
+    return await _database.bookDao.getBookByFilePathAndType(filePath, fileType);
   }
 
   /// Gets a book by its external library ID.
@@ -2117,17 +2142,19 @@ class SeforimRepository {
     _logger.fine('Getting all books with optimized query');
 
     // קריאת ההגדרות של ספרים חיצוניים
-    final showExternalBooks = Settings.getValue<bool>('key-show-external-books') ?? false;
-    final showOtzarHachochma = Settings.getValue<bool>('key-show-otzar-hachochma') ?? false;
-    final showHebrewBooks = Settings.getValue<bool>('key-show-hebrew-books') ?? false;
+    final showExternalBooks =
+        Settings.getValue<bool>('key-show-external-books') ?? false;
+    final showOtzarHachochma =
+        Settings.getValue<bool>('key-show-otzar-hachochma') ?? false;
+    final showHebrewBooks =
+        Settings.getValue<bool>('key-show-hebrew-books') ?? false;
 
     // Use the optimized query that loads all relations in a single batch
-    final booksWithRelations =
-        await _database.bookDao.getAllBooksWithRelations(
-          includeExternalBooks: showExternalBooks,
-          includeOtzarHachochma: showOtzarHachochma,
-          includeHebrewBooks: showHebrewBooks,
-        );
+    final booksWithRelations = await _database.bookDao.getAllBooksWithRelations(
+      includeExternalBooks: showExternalBooks,
+      includeOtzarHachochma: showOtzarHachochma,
+      includeHebrewBooks: showHebrewBooks,
+    );
     _logger.fine('Found ${booksWithRelations.length} books');
 
     // Convert to Book objects

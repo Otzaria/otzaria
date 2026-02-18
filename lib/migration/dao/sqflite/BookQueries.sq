@@ -48,6 +48,9 @@ SELECT * FROM book WHERE title = ? AND categoryId = ? LIMIT 1;
 selectByTitleCategoryAndFileType:
 SELECT * FROM book WHERE title = ? AND categoryId = ? AND fileType = ? LIMIT 1;
 
+selectByTitleAndFileType:
+SELECT * FROM book WHERE title = ? AND fileType = ? LIMIT 1;
+
 selectByTitleLike:
 SELECT * FROM book WHERE title LIKE ? LIMIT 1;
 
@@ -98,6 +101,10 @@ SELECT * FROM book WHERE isPersonal = 1 ORDER BY orderIndex, title;
 -- Select external book by file path
 selectByFilePath:
 SELECT * FROM book WHERE filePath = ? LIMIT 1;
+
+-- Select external book by file path and file type
+selectByFilePathAndType:
+SELECT * FROM book WHERE filePath = ? AND fileType = ? LIMIT 1;
 
 -- Select by external library ID
 selectByExternalLibraryId:

@@ -29,7 +29,7 @@ class BookDao {
 
   /// Gets all books with their relations (authors, topics, pubPlaces, pubDates) in a single optimized query.
   /// This is much faster than calling getAllBooks() and then loading relations separately.
-  /// 
+  ///
   /// Parameters:
   /// - [includeExternalBooks]: if true, includes all external catalog books. If false, only local books.
   /// - [includeOtzarHachochma]: if true, includes Otzar Hachochma books (oh:*).
@@ -187,6 +187,15 @@ class BookDao {
     final result = await db.rawQuery(
         _queries['selectByTitleCategoryAndFileType']!,
         [title, categoryId, fileType]);
+    if (result.isEmpty) return null;
+    return Book.fromJson(result.first);
+  }
+
+  /// Gets a book by its title and file type.
+  Future<Book?> getBookByTitleAndFileType(String title, String fileType) async {
+    final db = await database;
+    final result = await db
+        .rawQuery(_queries['selectByTitleAndFileType']!, [title, fileType]);
     if (result.isEmpty) return null;
     return Book.fromJson(result.first);
   }
@@ -373,6 +382,16 @@ class BookDao {
   Future<Book?> getBookByFilePath(String filePath) async {
     final db = await database;
     final result = await db.rawQuery(_queries['selectByFilePath']!, [filePath]);
+    if (result.isEmpty) return null;
+    return Book.fromJson(result.first);
+  }
+
+  /// Gets an external book by its file path and file type.
+  Future<Book?> getBookByFilePathAndType(
+      String filePath, String fileType) async {
+    final db = await database;
+    final result = await db
+        .rawQuery(_queries['selectByFilePathAndType']!, [filePath, fileType]);
     if (result.isEmpty) return null;
     return Book.fromJson(result.first);
   }

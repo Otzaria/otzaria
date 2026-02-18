@@ -40,7 +40,8 @@ class SqliteDataProvider {
 
     // If initialization already started, await the same future
     if (_initializationFuture != null) {
-      debugPrint('SQLite database initialization already in progress; awaiting existing future.');
+      debugPrint(
+          'SQLite database initialization already in progress; awaiting existing future.');
       return _initializationFuture!;
     }
 
@@ -235,26 +236,64 @@ class SqliteDataProvider {
   /// Retrieves PDF bytes from the database (book_file) for a given PDF book.
   /// Returns null if not found or DB not initialized.
   Future<Uint8List?> getPdfBytesFromDb(PdfBook book) async {
+    debugPrint('🔍 getPdfBytesFromDb: Searching for book: ${book.title}');
+    debugPrint('🔍 Book filePath: ${book.filePath}');
+    debugPrint('🔍 Book path: ${book.path}');
+
     if (!_isInitialized) {
       await initialize();
     }
-    if (!_isInitialized) return null;
+    if (!_isInitialized) {
+      debugPrint('❌ DB not initialized');
+      return null;
+    }
 
     try {
       migration.Book? dbBook;
       final filePath = book.filePath ?? book.path;
+      debugPrint('🔍 Using filePath for search: $filePath');
 
       if (filePath.isNotEmpty) {
-        dbBook = await _repository.getExternalBookByFilePath(filePath);
+        debugPrint('🔍 Searching by filePath and fileType=pdf...');
+        dbBook =
+            await _repository.getExternalBookByFilePathAndType(filePath, 'pdf');
+        if (dbBook != null) {
+          debugPrint(
+              '✅ Found PDF book by filePath: ${dbBook.title} (id: ${dbBook.id})');
+        } else {
+          debugPrint('❌ Not found by filePath with fileType=pdf');
+        }
       }
 
-      dbBook ??= await _repository.getBookByTitle(book.title);
+      if (dbBook == null) {
+        debugPrint('🔍 Searching by title with fileType=pdf...');
+        dbBook = await _repository.getBookByTitleAndFileType(book.title, 'pdf');
+        if (dbBook != null) {
+          debugPrint(
+              '✅ Found PDF book by title: ${dbBook.title} (id: ${dbBook.id})');
+        } else {
+          debugPrint('❌ Not found by title with fileType=pdf');
+        }
+      }
 
-      if (dbBook == null) return null;
+      if (dbBook == null) {
+        debugPrint('❌ PDF not found in DB: ${book.title}');
+        return null;
+      }
 
-      return await _repository.getBookFileContent(dbBook.id);
-    } catch (e) {
-      debugPrint('Error getting PDF bytes from database: $e');
+      debugPrint('🔍 Getting file content for book id: ${dbBook.id}');
+      final bytes = await _repository.getBookFileContent(dbBook.id);
+
+      if (bytes == null) {
+        debugPrint('❌ No file content for: ${book.title}');
+      } else {
+        debugPrint('✅ Got file content: ${bytes.length} bytes');
+      }
+
+      return bytes;
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error loading PDF from DB: ${book.title} - $e');
+      debugPrint('Stack trace: $stackTrace');
       return null;
     }
   }

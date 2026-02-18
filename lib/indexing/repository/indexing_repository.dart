@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
+import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/utils/text_manipulation.dart';
@@ -93,8 +94,27 @@ class IndexingRepository {
         } else if (book is PdfBook) {
           if (!_tantivyDataProvider.booksDone
               .contains("${book.title}pdfBook")) {
-            if (_tantivyDataProvider.booksDone.contains(
-                sha1.convert(await File(book.path).readAsBytes()).toString())) {
+            // Try to get file hash for deduplication
+            String? fileHash;
+            try {
+              // Try to load from database first
+              final pdfBytes =
+                  await SqliteDataProvider.instance.getPdfBytesFromDb(book);
+              if (pdfBytes != null && pdfBytes.isNotEmpty) {
+                fileHash = sha1.convert(pdfBytes).toString();
+              } else {
+                // Fallback to file if exists
+                final file = File(book.path);
+                if (await file.exists()) {
+                  fileHash = sha1.convert(await file.readAsBytes()).toString();
+                }
+              }
+            } catch (e) {
+              debugPrint('⚠️ Could not compute hash for ${book.title}: $e');
+            }
+
+            if (fileHash != null &&
+                _tantivyDataProvider.booksDone.contains(fileHash)) {
               _tantivyDataProvider.booksDone.add("${book.title}pdfBook");
             } else {
               await _indexPdfBook(book);
@@ -245,8 +265,31 @@ class IndexingRepository {
 
     debugPrint('📚 PDF indexing started: "${book.title}" (${book.path})');
 
-    // Extract text from each page
-    final document = await PdfDocument.openFile(book.path);
+    // Try to load PDF from database first, then fall back to file
+    PdfDocument? document;
+    try {
+      final pdfBytes =
+          await SqliteDataProvider.instance.getPdfBytesFromDb(book);
+      if (pdfBytes != null && pdfBytes.isNotEmpty) {
+        debugPrint('📚 Loading PDF from database for: ${book.title}');
+        document = await PdfDocument.openData(pdfBytes);
+      }
+    } catch (e) {
+      debugPrint('⚠️ Failed to load PDF from database: $e');
+    }
+
+    // Fallback to file if database load failed
+    if (document == null) {
+      final file = File(book.path);
+      if (await file.exists()) {
+        debugPrint('📚 Loading PDF from file: ${book.path}');
+        document = await PdfDocument.openFile(book.path);
+      } else {
+        debugPrint('❌ PDF not found in database or file system: ${book.path}');
+        return;
+      }
+    }
+
     final pages = document.pages;
     final outline = await document.loadOutline();
     final title = book.title;

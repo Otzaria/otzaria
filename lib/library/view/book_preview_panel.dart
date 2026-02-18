@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -12,6 +13,7 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria/widgets/password_dialog.dart';
 import 'package:otzaria/pdf_book/pdf_scrollbar.dart';
+import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 
 /// פאנל תצוגה מקדימה של ספר בספרייה
 /// מציג את תוכן הספר בלי כרטיסיות, בדומה לחלון העיון
@@ -35,6 +37,8 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
   TextBookTab? _currentTextTab;
   PdfViewerController? _pdfController;
   double _fontSize = 18.0; // ברירת מחדל לגודל פונט
+  Future<Uint8List?>? _pdfBytesFuture;
+  Uint8List? _cachedPdfBytes; // שמירת ה-bytes כדי למנוע טעינה מחדש
 
   @override
   void didUpdateWidget(BookPreviewPanel oldWidget) {
@@ -66,14 +70,15 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
   void _disposeCurrentTab() {
     _currentTextTab?.dispose();
     _currentTextTab = null;
-    _pdfController =
-        null; // לא צריך dispose כי PdfViewerController לא מממש את זה
+    _pdfController = null;
+    _cachedPdfBytes = null; // ניקוי ה-cache
   }
 
   void _createNewTab() {
     if (widget.book == null) return;
 
     if (widget.book is TextBook) {
+      debugPrint('📖 Preview: Creating TextBook tab for ${widget.book!.title}');
       setState(() {
         _currentTextTab = TextBookTab(
           book: widget.book as TextBook,
@@ -84,9 +89,14 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
         );
       });
     } else if (widget.book is PdfBook) {
+      debugPrint('📄 Preview: Creating PdfBook tab for ${widget.book!.title}');
       setState(() {
         _pdfController = PdfViewerController();
+        _cachedPdfBytes = null; // איפוס ה-cache
+        _pdfBytesFuture = SqliteDataProvider.instance
+            .getPdfBytesFromDb(widget.book as PdfBook);
       });
+      debugPrint('📄 Preview: Started loading PDF bytes from DB');
     }
   }
 
@@ -169,134 +179,107 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
 
     // תצוגת ספר PDF
     if (widget.book is PdfBook) {
-      if (_pdfController == null) {
+      debugPrint('📄 Preview: Building PDF view for ${widget.book!.title}');
+      debugPrint(
+          '📄 Preview: _cachedPdfBytes is ${_cachedPdfBytes != null ? "available (${_cachedPdfBytes!.length} bytes)" : "null"}');
+      debugPrint(
+          '📄 Preview: _pdfController is ${_pdfController != null ? "available" : "null"}');
+      debugPrint(
+          '📄 Preview: _pdfBytesFuture is ${_pdfBytesFuture != null ? "available" : "null"}');
+
+      // אם יש bytes שמורים, השתמש בהם ישירות
+      if (_cachedPdfBytes != null && _pdfController != null) {
+        debugPrint('✅ Preview: Using cached PDF bytes');
+        return _buildPdfViewer(_cachedPdfBytes!);
+      }
+
+      // אחרת, טען מה-Future
+      if (_pdfController == null || _pdfBytesFuture == null) {
+        debugPrint('⏳ Preview: Waiting for PDF controller or future');
         return const Center(child: CircularProgressIndicator());
       }
 
-      return Stack(
-        children: [
-          // תוכן ה-PDF
-          PdfViewer.file(
-            (widget.book as PdfBook).path,
-            initialPageNumber: 1,
-            passwordProvider: () => passwordDialog(context),
-            controller: _pdfController!,
-            params: PdfViewerParams(
-              backgroundColor: Theme.of(context).colorScheme.surface,
-              maxScale: 10,
-              onViewerReady: (document, controller) {
-                // אין צורך לשמור את העמוד הנוכחי כאן
-                // נקרא אותו ישירות מה-controller כשנצטרך
-              },
-              viewerOverlayBuilder: (context, size, handleLinkTap) => [
-                // פס גלילה אנכי עם track מלא
-                PdfScrollbar(
-                  controller: _pdfController!,
-                  orientation: ScrollbarOrientation.right,
-                  trackThickness: 16.0,
-                  thumbMinSize: 50.0,
-                ),
-                // פס גלילה אופקי דינמי
-                PdfHorizontalScrollbar(
-                  controller: _pdfController!,
-                  trackThickness: 10.0,
-                ),
-              ],
-            ),
-          ),
-          // כפתורים צפים
-          Positioned(
-            top: 8,
-            left: 8,
-            child: Container(
-              decoration: BoxDecoration(
-                color: Theme.of(context)
-                    .colorScheme
-                    .surface
-                    .withValues(alpha: 0.95),
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.2),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
+      debugPrint('🔄 Preview: Building FutureBuilder for PDF');
+      return FutureBuilder<Uint8List?>(
+        future: _pdfBytesFuture,
+        builder: (context, snapshot) {
+          debugPrint(
+              '📊 Preview: FutureBuilder state: ${snapshot.connectionState}');
+
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            debugPrint('⏳ Preview: Still waiting for PDF bytes');
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            debugPrint('❌ Preview: Error loading PDF: ${snapshot.error}');
+            return Center(
+              child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // כפתור הגדלה
-                  IconButton(
-                    icon: const Icon(FluentIcons.zoom_in_24_regular, size: 20),
-                    tooltip: 'הגדל את גודל הטקסט',
-                    onPressed: () => _pdfController?.zoomUp(),
-                    padding: const EdgeInsets.all(8),
-                    constraints: const BoxConstraints(
-                      minWidth: 36,
-                      minHeight: 36,
+                  Icon(
+                    FluentIcons.error_circle_24_regular,
+                    size: 64,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'שגיאה בטעינת הספר',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Theme.of(context).colorScheme.error,
                     ),
                   ),
-                  // כפתור הקטנה
-                  IconButton(
-                    icon: const Icon(FluentIcons.zoom_out_24_regular, size: 20),
-                    tooltip: 'הקטן את גודל הטקסט',
-                    onPressed: () => _pdfController?.zoomDown(),
-                    padding: const EdgeInsets.all(8),
-                    constraints: const BoxConstraints(
-                      minWidth: 36,
-                      minHeight: 36,
-                    ),
-                  ),
-                  // קו מפריד
-                  Container(
-                    width: 1,
-                    height: 24,
-                    color: Theme.of(context).dividerColor,
-                  ),
-                  // כפתור פתיחה בעיון
-                  IconButton(
-                    icon: const Icon(FluentIcons.open_24_regular, size: 20),
-                    tooltip: 'פתח בעיון (או לחץ פעמיים על הספר)',
-                    onPressed: () {
-                      // שליחת העמוד הנוכחי ב-PDF
-                      int currentPage = 1;
-                      if (_pdfController != null && _pdfController!.isReady) {
-                        currentPage = _pdfController!.pageNumber ?? 1;
-                      }
-                      widget.onOpenInReader?.call(currentPage);
-                    },
-                    padding: const EdgeInsets.all(8),
-                    constraints: const BoxConstraints(
-                      minWidth: 36,
-                      minHeight: 36,
-                    ),
-                  ),
-                  // קו מפריד
-                  if (widget.onClose != null)
-                    Container(
-                      width: 1,
-                      height: 24,
-                      color: Theme.of(context).dividerColor,
-                    ),
-                  // כפתור סגירה
-                  if (widget.onClose != null)
-                    IconButton(
-                      icon:
-                          const Icon(FluentIcons.dismiss_24_regular, size: 20),
-                      tooltip: 'הסתר תצוגה מקדימה',
-                      onPressed: widget.onClose,
-                      padding: const EdgeInsets.all(8),
-                      constraints: const BoxConstraints(
-                        minWidth: 36,
-                        minHeight: 36,
-                      ),
-                    ),
                 ],
               ),
-            ),
-          ),
-        ],
+            );
+          }
+
+          if (!snapshot.hasData || snapshot.data == null) {
+            debugPrint('❌ Preview: No PDF data received');
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    FluentIcons.document_error_24_regular,
+                    size: 64,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .secondary
+                        .withValues(alpha: 0.3),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'לא ניתן לטעון את הספר',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.6),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          // שמירת ה-bytes ב-cache
+          debugPrint(
+              '💾 Preview: Received PDF bytes: ${snapshot.data!.length} bytes');
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && _cachedPdfBytes == null) {
+              debugPrint('💾 Preview: Caching PDF bytes');
+              setState(() {
+                _cachedPdfBytes = snapshot.data;
+              });
+            }
+          });
+
+          debugPrint('✅ Preview: Building PDF viewer');
+          return _buildPdfViewer(snapshot.data!);
+        },
       );
     }
 
@@ -429,6 +412,138 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                   onPressed: () {
                     // שליחת האינדקס הנוכחי של הספר (אם יש)
                     widget.onOpenInReader?.call(_currentTextTab?.index ?? 0);
+                  },
+                  padding: const EdgeInsets.all(8),
+                  constraints: const BoxConstraints(
+                    minWidth: 36,
+                    minHeight: 36,
+                  ),
+                ),
+                // קו מפריד
+                if (widget.onClose != null)
+                  Container(
+                    width: 1,
+                    height: 24,
+                    color: Theme.of(context).dividerColor,
+                  ),
+                // כפתור סגירה
+                if (widget.onClose != null)
+                  IconButton(
+                    icon: const Icon(FluentIcons.dismiss_24_regular, size: 20),
+                    tooltip: 'הסתר תצוגה מקדימה',
+                    onPressed: widget.onClose,
+                    padding: const EdgeInsets.all(8),
+                    constraints: const BoxConstraints(
+                      minWidth: 36,
+                      minHeight: 36,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// בניית PDF viewer עם ה-bytes
+  Widget _buildPdfViewer(Uint8List bytes) {
+    debugPrint('🎨 Preview: Building PDF viewer widget');
+    return Stack(
+      children: [
+        // תוכן ה-PDF - עם key ייחודי למניעת rebuild
+        PdfViewer.data(
+          bytes,
+          key: ValueKey(
+              'pdf_${widget.book!.title}'), // key ייחודי למניעת rebuild
+          sourceName: (widget.book as PdfBook).title,
+          initialPageNumber: 1,
+          passwordProvider: () => passwordDialog(context),
+          controller: _pdfController!,
+          params: PdfViewerParams(
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            maxScale: 10,
+            pageAnchor: PdfPageAnchor.top,
+            margin: 4, // מרווח קטן יותר בין דפים
+            onViewerReady: (document, controller) {
+              debugPrint(
+                  '✅ Preview: PDF viewer ready with ${document.pages.length} pages');
+            },
+            viewerOverlayBuilder: (context, size, handleLinkTap) => [
+              // פס גלילה אנכי עם track מלא
+              PdfScrollbar(
+                controller: _pdfController!,
+                orientation: ScrollbarOrientation.right,
+                trackThickness: 16.0,
+                thumbMinSize: 50.0,
+              ),
+              // פס גלילה אופקי דינמי
+              PdfHorizontalScrollbar(
+                controller: _pdfController!,
+                trackThickness: 10.0,
+              ),
+            ],
+          ),
+        ),
+        // כפתורים צפים
+        Positioned(
+          top: 8,
+          left: 8,
+          child: Container(
+            decoration: BoxDecoration(
+              color:
+                  Theme.of(context).colorScheme.surface.withValues(alpha: 0.95),
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.2),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // כפתור הגדלה
+                IconButton(
+                  icon: const Icon(FluentIcons.zoom_in_24_regular, size: 20),
+                  tooltip: 'הגדל את גודל הטקסט',
+                  onPressed: () => _pdfController?.zoomUp(),
+                  padding: const EdgeInsets.all(8),
+                  constraints: const BoxConstraints(
+                    minWidth: 36,
+                    minHeight: 36,
+                  ),
+                ),
+                // כפתור הקטנה
+                IconButton(
+                  icon: const Icon(FluentIcons.zoom_out_24_regular, size: 20),
+                  tooltip: 'הקטן את גודל הטקסט',
+                  onPressed: () => _pdfController?.zoomDown(),
+                  padding: const EdgeInsets.all(8),
+                  constraints: const BoxConstraints(
+                    minWidth: 36,
+                    minHeight: 36,
+                  ),
+                ),
+                // קו מפריד
+                Container(
+                  width: 1,
+                  height: 24,
+                  color: Theme.of(context).dividerColor,
+                ),
+                // כפתור פתיחה בעיון
+                IconButton(
+                  icon: const Icon(FluentIcons.open_24_regular, size: 20),
+                  tooltip: 'פתח בעיון (או לחץ פעמיים על הספר)',
+                  onPressed: () {
+                    // שליחת העמוד הנוכחי ב-PDF
+                    int currentPage = 1;
+                    if (_pdfController != null && _pdfController!.isReady) {
+                      currentPage = _pdfController!.pageNumber ?? 1;
+                    }
+                    widget.onOpenInReader?.call(currentPage);
                   },
                   padding: const EdgeInsets.all(8),
                   constraints: const BoxConstraints(
