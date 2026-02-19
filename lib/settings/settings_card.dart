@@ -65,19 +65,18 @@ class SettingsCard extends StatelessWidget {
 
   /// הוספת קו מפריד בין כל שני פריטים
   List<Widget> _buildChildrenWithDividers() {
-    List<Widget> items = [];
-    for (var i = 0; i < children.length; i++) {
-      items.add(children[i]);
-      if (i < children.length - 1) {
-        items.add(
-          const Divider(
-            height: 1,
-            indent: 16,
-            endIndent: 16,
-          ),
-        );
-      }
+    if (children.isEmpty) {
+      return [];
     }
-    return items;
+    return List.generate(children.length * 2 - 1, (i) {
+      if (i.isEven) {
+        return children[i ~/ 2];
+      }
+      return const Divider(
+        height: 1,
+        indent: 16,
+        endIndent: 16,
+      );
+    });
   }
 }
