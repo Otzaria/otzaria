@@ -361,25 +361,55 @@ class _CustomTitleBarState extends State<CustomTitleBar>
         return Row(
           children: [
             if (leftSpacerWidth > 0) SizedBox(width: leftSpacerWidth),
-            // אזור הטאבים
+            // אזור הטאבים המעודכן
             Expanded(
-              child: DragToMoveArea(
-                child: ScrollableTabBarWithArrows(
-                  controller: _tabController!,
-                  tabAlignment: settingsState.alignTabsToRight
-                      ? TabAlignment.start
-                      : TabAlignment.center,
-                  hideArrowsWhenNotScrollable: settingsState.alignTabsToRight,
-                  onOverflowChanged: (overflow) {
-                    if (mounted && _tabsOverflow != overflow) {
-                      setState(() => _tabsOverflow = overflow);
-                    }
-                  },
-                  tabs: state.tabs
-                      .map((tab) =>
-                          _buildTab(context, tab, state, settingsState))
-                      .toList(),
-                ),
+              child: DragTarget<OpenedTab>(
+                onWillAcceptWithDetails: (details) => state.tabs.length > 1,
+                onAcceptWithDetails: (details) {
+                  // מקבלים את רוחב המסך הכולל ואת מיקום העכבר בעת העזיבה
+                  final screenWidth = MediaQuery.of(context).size.width;
+                  final dropPosition = details.offset.dx;
+                  final isLeftHalf = dropPosition < (screenWidth / 2);
+                  
+                  // בודקים אם כיוון האפליקציה הוא מימין לשמאל (RTL) - אוצריא בעברית
+                  final isRtl = Directionality.of(context) == TextDirection.rtl;
+                  
+                  // חישוב האינדקס החדש
+                  int newIndex;
+                  if (isRtl) {
+                    newIndex = isLeftHalf ? state.tabs.length - 1 : 0;
+                  } else {
+                    newIndex = isLeftHalf ? 0 : state.tabs.length - 1;
+                  }
+
+                  final draggedTab = details.data;
+                  final currentIndex = state.tabs.indexOf(draggedTab);
+                  
+                  // מבצעים את ההעברה רק אם הטאב באמת שינה מיקום
+                  if (currentIndex != -1 && currentIndex != newIndex) {
+                    context.read<TabsBloc>().add(MoveTab(draggedTab, newIndex));
+                  }
+                },
+                builder: (context, candidateData, rejectedData) {
+                  return DragToMoveArea(
+                    child: ScrollableTabBarWithArrows(
+                      controller: _tabController!,
+                      tabAlignment: settingsState.alignTabsToRight
+                          ? TabAlignment.start
+                          : TabAlignment.center,
+                      hideArrowsWhenNotScrollable: settingsState.alignTabsToRight,
+                      onOverflowChanged: (overflow) {
+                        if (mounted && _tabsOverflow != overflow) {
+                          setState(() => _tabsOverflow = overflow);
+                        }
+                      },
+                      tabs: state.tabs
+                          .map((tab) =>
+                              _buildTab(context, tab, state, settingsState))
+                          .toList(),
+                    ),
+                  );
+                },
               ),
             ),
 
@@ -463,6 +493,136 @@ class _CustomTitleBarState extends State<CustomTitleBar>
     final isSelected = index == state.currentTabIndex;
     final closeTabShortcut =
         Settings.getValue<String>('key-shortcut-close-tab') ?? 'ctrl+w';
+    
+    // מזהים את כיוון השפה כדי לדעת מאיזה צד לפתוח את הרווח
+    final isRtl = Directionality.of(context) == TextDirection.rtl;
+
+    bool isTabActive(int tabIndex) {
+      return tabIndex == state.currentTabIndex;
+    }
+
+    // פונקציה פנימית לבניית המראה של הטאב כדי למנוע כפילות קוד באנימציות
+    Widget buildTabAppearance() {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if ((index == 0 && !isTabActive(0)) ||
+              (index > 0 && !isTabActive(index) && !isTabActive(index - 1)))
+            Container(
+              width: 1,
+              height: 24,
+              margin: const EdgeInsets.only(top: 6, bottom: 6),
+              color: Colors.grey.shade400,
+            ),
+          Container(
+            constraints: const BoxConstraints(maxHeight: 32),
+            padding: EdgeInsets.only(
+                left: 6,
+                right: (index == 0 && settingsState.alignTabsToRight) ? 0 : 6,
+                top: 0,
+                bottom: 0),
+            child: CustomPaint(
+              painter: isSelected
+                  ? _TabBackgroundPainter(
+                      Theme.of(context).colorScheme.surfaceContainer)
+                  : null,
+              child: Tab(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                  child: DefaultTextStyle(
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
+                      fontWeight:
+                          isSelected ? FontWeight.w600 : FontWeight.normal,
+                      fontSize: 14,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (tab.isPinned)
+                          const Padding(
+                            padding: EdgeInsets.only(left: 4.0),
+                            child: Icon(
+                              FluentIcons.pin_24_filled,
+                              size: 14,
+                            ),
+                          ),
+                        if (tab is CombinedTab)
+                          Tooltip(
+                            message: tab.title,
+                            child: Row(
+                              children: [
+                                const Padding(
+                                  padding: EdgeInsets.all(8.0),
+                                  child: Icon(
+                                      FluentIcons.panel_left_text_24_regular,
+                                      size: 16),
+                                ),
+                                Text(truncate(tab.title, 20)),
+                              ],
+                            ),
+                          )
+                        else if (tab is SearchingTab)
+                          ValueListenableBuilder(
+                            valueListenable: tab.queryController,
+                            builder: (context, value, child) => Tooltip(
+                              message: tab.title,
+                              child: Text(
+                                truncate(tab.title, 25),
+                              ),
+                            ),
+                          )
+                        else if (tab is PdfBookTab)
+                          Tooltip(
+                            message: tab.title,
+                            child: Row(
+                              children: [
+                                const Padding(
+                                  padding: EdgeInsets.all(8.0),
+                                  child: Icon(
+                                      FluentIcons.document_pdf_24_regular,
+                                      size: 16),
+                                ),
+                                Text(truncate(tab.title, 12)),
+                              ],
+                            ),
+                          )
+                        else
+                          Tooltip(
+                              message: tab.title,
+                              child: Text(truncate(tab.title, 12))),
+                        Tooltip(
+                          preferBelow: false,
+                          message: closeTabShortcut.toUpperCase(),
+                          child: IconButton(
+                            constraints: const BoxConstraints(
+                              minWidth: 25,
+                              minHeight: 25,
+                              maxWidth: 25,
+                              maxHeight: 25,
+                            ),
+                            onPressed: () => closeTab(tab, context),
+                            icon: const Icon(FluentIcons.dismiss_24_regular,
+                                size: 10),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (index == state.tabs.length - 1 && !isTabActive(index))
+            Container(
+              width: 1,
+              height: 24,
+              margin: const EdgeInsets.only(top: 6, bottom: 6),
+              color: Colors.grey.shade400,
+            ),
+        ],
+      );
+    }
 
     return Listener(
       onPointerDown: (PointerDownEvent event) {
@@ -472,6 +632,7 @@ class _CustomTitleBarState extends State<CustomTitleBar>
       },
       child: ContextMenuRegion(
         contextMenu: ContextMenu(
+          // ... תפריט ההקשר נשאר בדיוק כפי שהיה ...
           maxHeight: 400,
           entries: <ContextMenuEntry>[
             MenuItem(
@@ -542,26 +703,29 @@ class _CustomTitleBarState extends State<CustomTitleBar>
         child: Draggable<OpenedTab>(
           axis: Axis.horizontal,
           data: tab,
-          childWhenDragging: const SizedBox.shrink(),
-          feedback: Container(
-            decoration: const BoxDecoration(
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(10),
-                topRight: Radius.circular(10),
-              ),
-              color: Colors.white,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 10, 20, 15),
-              child: Text(
-                tab.title,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  decoration: TextDecoration.none,
-                  color: Theme.of(context).primaryColor,
+          // כאן מתבצעת אנימציית הסגירה החלקה במקום "היעלמות" פתאומית
+          childWhenDragging: TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: 1.0, end: 0.0),
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+            builder: (context, value, child) {
+              return Align(
+                alignment: isRtl ? Alignment.centerRight : Alignment.centerLeft,
+                widthFactor: value,
+                child: Opacity(
+                  opacity: value.clamp(0.0, 1.0),
+                  child: child,
                 ),
-              ),
+              );
+            },
+            child: buildTabAppearance(),
+          ),
+          // עטיפה ב-Material כדי למנוע את הקווים הצהובים בטקסט בזמן גרירה
+          feedback: Material(
+            color: Colors.transparent,
+            child: Opacity(
+              opacity: 0.85,
+              child: buildTabAppearance(),
             ),
           ),
           child: DragTarget<OpenedTab>(
@@ -571,136 +735,18 @@ class _CustomTitleBarState extends State<CustomTitleBar>
               context.read<TabsBloc>().add(MoveTab(draggedTab.data, newIndex));
             },
             builder: (context, candidateData, rejectedData) {
-              bool isTabActive(int tabIndex) {
-                return tabIndex == state.currentTabIndex;
-              }
+              // בודקים אם יש טאב אחר שמרחף מעלינו כרגע
+              final isHovered = candidateData.isNotEmpty && candidateData.first != tab;
 
-              return Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if ((index == 0 && !isTabActive(0)) ||
-                      (index > 0 &&
-                          !isTabActive(index) &&
-                          !isTabActive(index - 1)))
-                    Container(
-                      width: 1,
-                      height: 24,
-                      margin: const EdgeInsets.only(top: 6, bottom: 6),
-                      color: Colors.grey.shade400,
-                    ),
-                  Container(
-                    constraints: const BoxConstraints(maxHeight: 32),
-                    padding: EdgeInsets.only(
-                        left: 6,
-                        right: (index == 0 && settingsState.alignTabsToRight)
-                            ? 0
-                            : 6,
-                        top: 0,
-                        bottom: 0),
-                    child: CustomPaint(
-                      painter: isSelected
-                          ? _TabBackgroundPainter(
-                              Theme.of(context).colorScheme.surfaceContainer)
-                          : null,
-                      child: Tab(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                          child: DefaultTextStyle(
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.onSurface,
-                              fontWeight: isSelected
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
-                              fontSize: 14,
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (tab.isPinned)
-                                  const Padding(
-                                    padding: EdgeInsets.only(left: 4.0),
-                                    child: Icon(
-                                      FluentIcons.pin_24_filled,
-                                      size: 14,
-                                    ),
-                                  ),
-                                if (tab is CombinedTab)
-                                  Tooltip(
-                                    message: tab.title,
-                                    child: Row(
-                                      children: [
-                                        const Padding(
-                                          padding: EdgeInsets.all(8.0),
-                                          child: Icon(
-                                              FluentIcons
-                                                  .panel_left_text_24_regular,
-                                              size: 16),
-                                        ),
-                                        Text(truncate(tab.title, 20)),
-                                      ],
-                                    ),
-                                  )
-                                else if (tab is SearchingTab)
-                                  ValueListenableBuilder(
-                                    valueListenable: tab.queryController,
-                                    builder: (context, value, child) => Tooltip(
-                                      message: tab.title,
-                                      child: Text(
-                                        truncate(tab.title, 25),
-                                      ),
-                                    ),
-                                  )
-                                else if (tab is PdfBookTab)
-                                  Tooltip(
-                                    message: tab.title,
-                                    child: Row(
-                                      children: [
-                                        const Padding(
-                                          padding: EdgeInsets.all(8.0),
-                                          child: Icon(
-                                              FluentIcons
-                                                  .document_pdf_24_regular,
-                                              size: 16),
-                                        ),
-                                        Text(truncate(tab.title, 12)),
-                                      ],
-                                    ),
-                                  )
-                                else
-                                  Tooltip(
-                                      message: tab.title,
-                                      child: Text(truncate(tab.title, 12))),
-                                Tooltip(
-                                  preferBelow: false,
-                                  message: closeTabShortcut.toUpperCase(),
-                                  child: IconButton(
-                                    constraints: const BoxConstraints(
-                                      minWidth: 25,
-                                      minHeight: 25,
-                                      maxWidth: 25,
-                                      maxHeight: 25,
-                                    ),
-                                    onPressed: () => closeTab(tab, context),
-                                    icon: const Icon(
-                                        FluentIcons.dismiss_24_regular,
-                                        size: 10),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (index == state.tabs.length - 1 && !isTabActive(index))
-                    Container(
-                      width: 1,
-                      height: 24,
-                      margin: const EdgeInsets.only(top: 6, bottom: 6),
-                      color: Colors.grey.shade400,
-                    ),
-                ],
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOutCubic,
+                // פותחים רווח באמצעות שוליים כדי לדמות תזוזה של הטאבים הצידה
+                margin: EdgeInsets.only(
+                  right: isHovered && isRtl ? 120.0 : 0.0,
+                  left: isHovered && !isRtl ? 120.0 : 0.0,
+                ),
+                child: buildTabAppearance(),
               );
             },
           ),
