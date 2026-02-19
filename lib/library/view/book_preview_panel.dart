@@ -1,4 +1,4 @@
-import 'dart:typed_data';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -11,6 +11,7 @@ import 'package:otzaria/settings/settings_bloc.dart';
 import 'package:otzaria/settings/settings_state.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:pdfrx/pdfrx.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:otzaria/widgets/password_dialog.dart';
 import 'package:otzaria/pdf_book/pdf_scrollbar.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
@@ -37,8 +38,8 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
   TextBookTab? _currentTextTab;
   PdfViewerController? _pdfController;
   double _fontSize = 18.0; // ברירת מחדל לגודל פונט
-  Future<Uint8List?>? _pdfBytesFuture;
-  Uint8List? _cachedPdfBytes; // שמירת ה-bytes כדי למנוע טעינה מחדש
+  Future<String?>? _pdfPathFuture;
+  String? _cachedPdfPath; // שמירת נתיב הקובץ כדי למנוע טעינה מחדש
 
   @override
   void didUpdateWidget(BookPreviewPanel oldWidget) {
@@ -71,7 +72,28 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
     _currentTextTab?.dispose();
     _currentTextTab = null;
     _pdfController = null;
-    _cachedPdfBytes = null; // ניקוי ה-cache
+    
+    // מחיקת הקובץ הזמני
+    if (_cachedPdfPath != null) {
+      final file = File(_cachedPdfPath!);
+      if (file.existsSync()) {
+        file.delete().catchError((e) {
+          debugPrint('Error deleting preview PDF: $e');
+          return file;
+        });
+      }
+    }
+    _cachedPdfPath = null;
+  }
+
+  Future<String?> _loadPreviewPdfFile(PdfBook book) async {
+    final bytes = await SqliteDataProvider.instance.getPdfBytesFromDb(book);
+    if (bytes == null) return null;
+    
+    final tempDir = await getTemporaryDirectory();
+    final file = File('${tempDir.path}/preview_${book.title.hashCode}_${DateTime.now().millisecondsSinceEpoch}.pdf');
+    await file.writeAsBytes(bytes);
+    return file.path;
   }
 
   void _createNewTab() {
@@ -92,9 +114,8 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
       debugPrint('📄 Preview: Creating PdfBook tab for ${widget.book!.title}');
       setState(() {
         _pdfController = PdfViewerController();
-        _cachedPdfBytes = null; // איפוס ה-cache
-        _pdfBytesFuture = SqliteDataProvider.instance
-            .getPdfBytesFromDb(widget.book as PdfBook);
+        _cachedPdfPath = null;
+        _pdfPathFuture = _loadPreviewPdfFile(widget.book as PdfBook);
       });
       debugPrint('📄 Preview: Started loading PDF bytes from DB');
     }
@@ -181,33 +202,33 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
     if (widget.book is PdfBook) {
       debugPrint('📄 Preview: Building PDF view for ${widget.book!.title}');
       debugPrint(
-          '📄 Preview: _cachedPdfBytes is ${_cachedPdfBytes != null ? "available (${_cachedPdfBytes!.length} bytes)" : "null"}');
+          '📄 Preview: _cachedPdfPath is ${_cachedPdfPath != null ? "available ($_cachedPdfPath)" : "null"}');
       debugPrint(
           '📄 Preview: _pdfController is ${_pdfController != null ? "available" : "null"}');
       debugPrint(
-          '📄 Preview: _pdfBytesFuture is ${_pdfBytesFuture != null ? "available" : "null"}');
+          '📄 Preview: _pdfPathFuture is ${_pdfPathFuture != null ? "available" : "null"}');
 
-      // אם יש bytes שמורים, השתמש בהם ישירות
-      if (_cachedPdfBytes != null && _pdfController != null) {
-        debugPrint('✅ Preview: Using cached PDF bytes');
-        return _buildPdfViewer(_cachedPdfBytes!);
+      // אם יש נתיב שמור, השתמש בו ישירות
+      if (_cachedPdfPath != null && _pdfController != null) {
+        debugPrint('✅ Preview: Using cached PDF file path');
+        return _buildPdfViewer(_cachedPdfPath!);
       }
 
       // אחרת, טען מה-Future
-      if (_pdfController == null || _pdfBytesFuture == null) {
+      if (_pdfController == null || _pdfPathFuture == null) {
         debugPrint('⏳ Preview: Waiting for PDF controller or future');
         return const Center(child: CircularProgressIndicator());
       }
 
       debugPrint('🔄 Preview: Building FutureBuilder for PDF');
-      return FutureBuilder<Uint8List?>(
-        future: _pdfBytesFuture,
+      return FutureBuilder<String?>(
+        future: _pdfPathFuture,
         builder: (context, snapshot) {
           debugPrint(
               '📊 Preview: FutureBuilder state: ${snapshot.connectionState}');
 
           if (snapshot.connectionState == ConnectionState.waiting) {
-            debugPrint('⏳ Preview: Still waiting for PDF bytes');
+            debugPrint('⏳ Preview: Still waiting for PDF file');
             return const Center(child: CircularProgressIndicator());
           }
 
@@ -236,7 +257,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
           }
 
           if (!snapshot.hasData || snapshot.data == null) {
-            debugPrint('❌ Preview: No PDF data received');
+            debugPrint('❌ Preview: No PDF file received');
             return Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -265,14 +286,14 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
             );
           }
 
-          // שמירת ה-bytes ב-cache
+          // שמירת הנתיב ב-cache
           debugPrint(
-              '💾 Preview: Received PDF bytes: ${snapshot.data!.length} bytes');
+              '💾 Preview: Received PDF file path: ${snapshot.data}');
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted && _cachedPdfBytes == null) {
-              debugPrint('💾 Preview: Caching PDF bytes');
+            if (mounted && _cachedPdfPath == null) {
+              debugPrint('💾 Preview: Caching PDF file path');
               setState(() {
-                _cachedPdfBytes = snapshot.data;
+                _cachedPdfPath = snapshot.data;
               });
             }
           });
@@ -446,23 +467,24 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
     );
   }
 
-  /// בניית PDF viewer עם ה-bytes
-  Widget _buildPdfViewer(Uint8List bytes) {
+  /// בניית PDF viewer דרך נתיב הקובץ
+  Widget _buildPdfViewer(String filePath) {
     debugPrint('🎨 Preview: Building PDF viewer widget');
     return Stack(
       children: [
         // תוכן ה-PDF - עם key ייחודי למניעת rebuild
-        PdfViewer.data(
-          bytes,
+        PdfViewer.file(
+          filePath,
           key: ValueKey(
               'pdf_${widget.book!.title}'), // key ייחודי למניעת rebuild
-          sourceName: (widget.book as PdfBook).title,
           initialPageNumber: 1,
           passwordProvider: () => passwordDialog(context),
           controller: _pdfController!,
           params: PdfViewerParams(
             backgroundColor: Theme.of(context).colorScheme.surface,
             maxScale: 10,
+            horizontalCacheExtent: 0, // רק דפים נראים
+            verticalCacheExtent: 1, // רק דף אחד למעלה/למטה
             pageAnchor: PdfPageAnchor.top,
             margin: 4, // מרווח קטן יותר בין דפים
             onViewerReady: (document, controller) {

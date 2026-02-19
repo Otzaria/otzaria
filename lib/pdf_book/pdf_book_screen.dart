@@ -34,6 +34,7 @@ import 'package:otzaria/utils/open_book.dart';
 import 'package:otzaria/utils/ref_helper.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:provider/provider.dart';
+import 'package:path_provider/path_provider.dart';
 import 'pdf_search_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'pdf_outlines_screen.dart';
@@ -91,7 +92,14 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   Timer? _scrollTimer;
   LogicalKeyboardKey? _currentScrollKey;
 
-  Future<Uint8List?>? _pdfBytesFuture;
+  // Throttling לגלילה - מניעת עומס בגלילה מהירה
+  Timer? _scrollThrottleTimer;
+  double _pendingScrollDeltaY = 0.0;
+  static const Duration _scrollThrottleDuration =
+      Duration(milliseconds: 100); // המתנה של 100ms אחרי סיום גלילה
+
+  Future<String?>? _pdfPathFuture;
+  String? _tempFilePath;
 
   // Local UI state that syncs with Bloc
   int _rightPaneInitialTabIndex = 0;
@@ -183,8 +191,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       ),
     );
 
-    // טעינת PDF bytes מה-DB
-    _pdfBytesFuture = _loadPdfBytesFromDb();
+    // טעינת PDF bytes מה-DB ושמירה לקובץ זמני
+    _pdfPathFuture = _loadPdfFileFromDb();
 
     // הגדרת ערכים התחלתיים מ-Settings
     final settingsBloc = context.read<SettingsBloc>();
@@ -283,9 +291,25 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     _loadPerBookSettings();
   }
 
-  Future<Uint8List?> _loadPdfBytesFromDb() async {
-    final provider = SqliteDataProvider.instance;
-    return provider.getPdfBytesFromDb(widget.tab.book);
+  Future<String?> _loadPdfFileFromDb() async {
+    try {
+      final provider = SqliteDataProvider.instance;
+      final bytes = await provider.getPdfBytesFromDb(widget.tab.book);
+      
+      if (bytes == null) return null;
+
+      final tempDir = await getTemporaryDirectory();
+      final fileName = 'pdf_${widget.tab.book.title.hashCode}_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final file = File('${tempDir.path}/$fileName');
+      
+      await file.writeAsBytes(bytes);
+      
+      _tempFilePath = file.path;
+      return file.path;
+    } catch (e, stackTrace) {
+      debugPrint('Error loading PDF to file: $e\n$stackTrace');
+      return null;
+    }
   }
 
   Text _buildRtlMenuText(String text) =>
@@ -442,8 +466,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       backgroundColor:
           Colors.white, // תמיד לבן - ה-ColorFilter יהפוך לשחור במצב כהה
       maxScale: 10,
-      horizontalCacheExtent: 1,
-      verticalCacheExtent: 1,
+      horizontalCacheExtent: 0, // רק דפים נראים
+      verticalCacheExtent: 1, // רק דף אחד למעלה/למטה
+      pageAnchor: PdfPageAnchor.top, // עיגון לראש הדף
       onInteractionStart: (_) {
         if (!(widget.tab.pinLeftPane.value ||
             (Settings.getValue<bool>('key-pin-sidebar') ?? false))) {
@@ -604,7 +629,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     );
   }
 
-  Widget _buildPdfViewerFromBytes(Uint8List bytes) {
+  Widget _buildPdfViewerFromFile(String filePath) {
     return KeyboardListener(
       focusNode: _pdfViewFocusNode,
       autofocus: true,
@@ -637,9 +662,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         onTap: () {
           _pdfViewFocusNode.requestFocus();
         },
-        child: PdfViewer.data(
-          bytes,
-          sourceName: widget.tab.book.title,
+        child: PdfViewer.file(
+          filePath,
           controller: widget.tab.pdfViewerController,
           passwordProvider: () => passwordDialog(context),
           params: _buildPdfViewerParams(),
@@ -647,8 +671,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       ),
     );
   }
-
-  // KeyEventResult _handlePdfViewKeyPress(FocusNode node, KeyEvent event) - REMOVED, using KeyboardListener instead
 
   /// טעינת הגדרות פר-ספר
   Future<void> _loadPerBookSettings() async {
@@ -670,6 +692,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   @override
   void dispose() {
     _stopContinuousScroll();
+    _scrollThrottleTimer?.cancel(); // ניקוי throttle timer
     textSearcher?.removeListener(_onTextSearcherUpdated);
     widget.tab.pdfViewerController.removeListener(_onPdfViewerControllerUpdate);
     // הסרת listeners למניעת דליפות זיכרון
@@ -681,6 +704,17 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     _pdfViewFocusNode.dispose();
     _settingsSub.cancel();
     _bloc.close();
+    
+    if (_tempFilePath != null) {
+      final file = File(_tempFilePath!);
+      if (file.existsSync()) {
+        file.delete().catchError((e) {
+          debugPrint('Error deleting temp PDF: $e');
+          return file;
+        });
+      }
+    }
+    
     super.dispose();
   }
 
@@ -901,26 +935,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                       child: Listener(
                         onPointerSignal: (event) {
                           if (event is PointerScrollEvent) {
-                            // טיפול בגלילת עכבר
-                            if (widget.tab.pdfViewerController.isReady) {
-                              final currentMatrix =
-                                  widget.tab.pdfViewerController.value;
-                              final currentTranslation =
-                                  currentMatrix.getTranslation();
-
-                              // גלילה אנכית - event.scrollDelta.dy חיובי = גלילה למטה
-                              final newY =
-                                  currentTranslation.y - event.scrollDelta.dy;
-
-                              widget.tab.pdfViewerController.goTo(
-                                currentMatrix.clone()
-                                  ..setTranslationRaw(
-                                    currentTranslation.x,
-                                    newY,
-                                    currentTranslation.z,
-                                  ),
-                              );
-                            }
+                            // טיפול בגלילת עכבר עם throttling
+                            _handleThrottledScroll(event.scrollDelta.dy);
 
                             // הסתרת חלונית צד אם לא נעולה
                             if (!(widget.tab.pinLeftPane.value ||
@@ -945,8 +961,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                           ),
                           child: Stack(
                             children: [
-                              FutureBuilder<Uint8List?>(
-                                future: _pdfBytesFuture,
+                              FutureBuilder<String?>(
+                                future: _pdfPathFuture,
                                 builder: (context, snapshot) {
                                   if (snapshot.connectionState ==
                                       ConnectionState.waiting) {
@@ -1005,7 +1021,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                                     );
                                   }
 
-                                  return _buildPdfViewerFromBytes(
+                                  return _buildPdfViewerFromFile(
                                       snapshot.data!);
                                 },
                               ),
@@ -1402,6 +1418,41 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     final prevPage = max(currentPage - 1, 1);
 
     widget.tab.pdfViewerController.goToPage(pageNumber: prevPage);
+  }
+
+  /// טיפול בגלילה עם debouncing למניעת עומס
+  /// במקום לבצע goTo על כל אירוע, ממתינים עד שהמשתמש מפסיק לגלול
+  void _handleThrottledScroll(double deltaY) {
+    if (!widget.tab.pdfViewerController.isReady) return;
+
+    // צבירת הדלתא
+    _pendingScrollDeltaY += deltaY;
+
+    // ביטול timer קודם אם קיים
+    _scrollThrottleTimer?.cancel();
+
+    // יצירת timer חדש שיבוצע רק אחרי שהמשתמש מפסיק לגלול
+    _scrollThrottleTimer = Timer(_scrollThrottleDuration, () {
+      if (!mounted || !widget.tab.pdfViewerController.isReady) return;
+
+      final currentMatrix = widget.tab.pdfViewerController.value;
+      final currentTranslation = currentMatrix.getTranslation();
+
+      // גלילה אנכית - deltaY חיובי = גלילה למטה
+      final newY = currentTranslation.y - _pendingScrollDeltaY;
+
+      widget.tab.pdfViewerController.goTo(
+        currentMatrix.clone()
+          ..setTranslationRaw(
+            currentTranslation.x,
+            newY,
+            currentTranslation.z,
+          ),
+      );
+
+      // איפוס הדלתא הצבורה
+      _pendingScrollDeltaY = 0.0;
+    });
   }
 
   /// התחלת גלילה רציפה
