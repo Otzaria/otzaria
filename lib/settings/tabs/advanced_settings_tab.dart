@@ -17,6 +17,7 @@ import 'package:otzaria/widgets/confirmation_dialog.dart';
 import 'package:otzaria/widgets/shortcut_dropdown_tile.dart';
 import 'package:otzaria/settings/protected_mode_settings.dart';
 import 'package:otzaria/settings/protected_settings_wrapper.dart';
+import 'package:otzaria/settings/settings_card.dart';
 
 /// טאב הגדרות מתקדמות
 class AdvancedSettingsTab extends StatefulWidget {
@@ -108,8 +109,7 @@ class _AdvancedSettingsTabState extends State<AdvancedSettingsTab> {
   }
 
   Widget _buildShortcutsSection(BuildContext context) {
-    return _buildSectionCard(
-      context: context,
+    return SettingsCard(
       title: 'קיצורי מקשים',
       children: [
         ListTile(
@@ -266,8 +266,7 @@ class _AdvancedSettingsTabState extends State<AdvancedSettingsTab> {
   }
 
   Widget _buildSearchSection(BuildContext context, SettingsState state) {
-    return _buildSectionCard(
-      context: context,
+    return SettingsCard(
       title: 'חיפוש ואינדקס',
       children: [
         SwitchListTile(
@@ -367,8 +366,7 @@ class _AdvancedSettingsTabState extends State<AdvancedSettingsTab> {
     final primaryColor = Theme.of(context).colorScheme.primary;
     final cardColor = Theme.of(context).cardColor;
 
-    return _buildSectionCard(
-      context: context,
+    return SettingsCard(
       title: 'סינכרון ורשת',
       children: [
         // TEMPORARILY DISABLED - Sync settings hidden
@@ -469,8 +467,7 @@ class _AdvancedSettingsTabState extends State<AdvancedSettingsTab> {
   }
 
   Widget _buildResetSection(BuildContext context) {
-    return _buildSectionCard(
-      context: context,
+    return SettingsCard(
       title: 'איפוס',
       children: [
         ListTile(
@@ -525,41 +522,6 @@ class _AdvancedSettingsTabState extends State<AdvancedSettingsTab> {
           },
         ),
       ],
-    );
-  }
-
-  Widget _buildSectionCard({
-    required BuildContext context,
-    required String title,
-    required List<Widget> children,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            padding:
-                const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(11)),
-            ),
-            child: Text(
-              title,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-          ),
-          ...children,
-        ],
-      ),
     );
   }
 }

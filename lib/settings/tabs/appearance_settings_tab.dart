@@ -7,6 +7,7 @@ import 'package:window_manager/window_manager.dart';
 import 'package:otzaria/settings/settings_bloc.dart';
 import 'package:otzaria/settings/settings_event.dart';
 import 'package:otzaria/settings/settings_state.dart';
+import 'package:otzaria/settings/settings_card.dart';
 
 /// טאב הגדרות עיצוב
 class AppearanceSettingsTab extends StatelessWidget {
@@ -23,8 +24,7 @@ class AppearanceSettingsTab extends StatelessWidget {
             children: [
               // מסך מלא (רק בדסקטופ)
               if (!(Platform.isAndroid || Platform.isIOS))
-                _buildSectionCard(
-                  context: context,
+                SettingsCard(
                   title: 'תצוגה',
                   children: [
                     ListTile(
@@ -52,8 +52,7 @@ class AppearanceSettingsTab extends StatelessWidget {
                 const SizedBox(height: 16),
 
               // מצב כהה וצבע בסיס
-              _buildSectionCard(
-                context: context,
+              SettingsCard(
                 title: 'ערכת נושא',
                 children: [
                   SwitchListTile(
@@ -117,8 +116,7 @@ class AppearanceSettingsTab extends StatelessWidget {
               const SizedBox(height: 16),
 
               // הסתרת שמות קודש
-              _buildSectionCard(
-                context: context,
+              SettingsCard(
                 title: 'שמות קודש',
                 children: [
                   SwitchListTile(
@@ -143,43 +141,6 @@ class AppearanceSettingsTab extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-
-  Widget _buildSectionCard({
-    required BuildContext context,
-    required List<Widget> children,
-    String? title,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (title != null)
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(11)),
-              ),
-              child: Text(
-                title,
-                style:
-                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-            ),
-          ...children,
-        ],
-      ),
     );
   }
 }

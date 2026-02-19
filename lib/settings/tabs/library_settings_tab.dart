@@ -14,6 +14,7 @@ import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/settings/custom_folders/custom_folders_tile.dart';
 import 'package:otzaria/widgets/zip_extraction_progress_dialog.dart';
+import 'package:otzaria/settings/settings_card.dart';
 
 /// טאב הגדרות ספרייה
 class LibrarySettingsTab extends StatelessWidget {
@@ -73,8 +74,7 @@ class LibrarySettingsTab extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // הגדרות ספרים חיצוניים
-              _buildSectionCard(
-                context: context,
+              SettingsCard(
                 title: 'ספרים חיצוניים',
                 children: [
                   SwitchListTile(
@@ -138,8 +138,7 @@ class LibrarySettingsTab extends StatelessWidget {
               // מיקום ספריות (רק בדסקטופ)
               if (!(Platform.isAndroid || Platform.isIOS)) ...[
                 const SizedBox(height: 16),
-                _buildSectionCard(
-                  context: context,
+                SettingsCard(
                   title: 'מיקום ספריות',
                   children: [
                     ListTile(
@@ -197,8 +196,7 @@ class LibrarySettingsTab extends StatelessWidget {
               // תיקיות מותאמות אישית (רק בדסקטופ)
               if (!(Platform.isAndroid || Platform.isIOS)) ...[
                 const SizedBox(height: 16),
-                _buildSectionCard(
-                  context: context,
+                SettingsCard(
                   title: 'תיקיות מותאמות אישית',
                   children: const [
                     CustomFoldersTile(),
@@ -209,41 +207,6 @@ class LibrarySettingsTab extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-
-  Widget _buildSectionCard({
-    required BuildContext context,
-    required String title,
-    required List<Widget> children,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            padding:
-                const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(11)),
-            ),
-            child: Text(
-              title,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-          ),
-          ...children,
-        ],
-      ),
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/settings/settings_card.dart';
 
 /// טאב הגדרות גימטריה
 class GematriaSettingsTab extends StatefulWidget {
@@ -48,8 +49,7 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // הגדרות חיפוש
-          _buildSectionCard(
-            context: context,
+          SettingsCard(
             title: 'הגדרות חיפוש',
             children: [
               ListTile(
@@ -111,8 +111,7 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
           const SizedBox(height: 16),
 
           // שיטת חישוב
-          _buildSectionCard(
-            context: context,
+          SettingsCard(
             title: 'שיטת חישוב גימטריה',
             children: [
               CheckboxListTile(
@@ -167,41 +166,6 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
               ),
             ],
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSectionCard({
-    required BuildContext context,
-    required String title,
-    required List<Widget> children,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            padding:
-                const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(11)),
-            ),
-            child: Text(
-              title,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-          ),
-          ...children,
         ],
       ),
     );

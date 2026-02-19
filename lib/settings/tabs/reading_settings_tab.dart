@@ -7,6 +7,7 @@ import 'package:otzaria/settings/settings_bloc.dart';
 import 'package:otzaria/settings/settings_event.dart';
 import 'package:otzaria/settings/settings_state.dart';
 import 'package:otzaria/settings/per_book_settings.dart';
+import 'package:otzaria/settings/settings_card.dart';
 
 /// טאב הגדרות תצוגת ספרים
 /// ניתן להשתמש בו גם כתוכן בתוך דיאלוג וגם כטאב במסך הגדרות
@@ -50,44 +51,8 @@ class ReadingSettingsTab extends StatelessWidget {
     );
   }
 
-  Widget _buildSectionCard({
-    required BuildContext context,
-    required String title,
-    required List<Widget> children,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            padding:
-                const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(11)),
-            ),
-            child: Text(
-              title,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-          ),
-          ...children,
-        ],
-      ),
-    );
-  }
-
   Widget _buildFontSection(BuildContext context, SettingsState state) {
-    return _buildSectionCard(
-      context: context,
+    return SettingsCard(
       title: 'הגדרות גופן ועיצוב',
       children: [
         Padding(
@@ -196,8 +161,7 @@ class ReadingSettingsTab extends StatelessWidget {
   }
 
   Widget _buildNikudSection(BuildContext context, SettingsState state) {
-    return _buildSectionCard(
-      context: context,
+    return SettingsCard(
       title: 'הסרת ניקוד וטעמים',
       children: [
         SwitchListTile(
@@ -247,8 +211,7 @@ class ReadingSettingsTab extends StatelessWidget {
   }
 
   Widget _buildTabsSection(BuildContext context, SettingsState state) {
-    return _buildSectionCard(
-      context: context,
+    return SettingsCard(
       title: 'הגדרות טאבים',
       children: [
         SwitchListTile(
@@ -269,8 +232,7 @@ class ReadingSettingsTab extends StatelessWidget {
   }
 
   Widget _buildSidebarSection(BuildContext context, SettingsState state) {
-    return _buildSectionCard(
-      context: context,
+    return SettingsCard(
       title: 'התנהגות סרגל צד',
       children: [
         SwitchListTile(
@@ -355,8 +317,7 @@ class ReadingSettingsTab extends StatelessWidget {
   }
 
   Widget _buildCopySection(BuildContext context, SettingsState state) {
-    return _buildSectionCard(
-      context: context,
+    return SettingsCard(
       title: 'הגדרות העתקה',
       children: [
         Padding(
@@ -461,8 +422,7 @@ class ReadingSettingsTab extends StatelessWidget {
   }
 
   Widget _buildPerBookSection(BuildContext context, SettingsState state) {
-    return _buildSectionCard(
-      context: context,
+    return SettingsCard(
       title: 'הגדרות פר-ספר',
       children: [
         SwitchListTile(
@@ -499,8 +459,7 @@ class ReadingSettingsTab extends StatelessWidget {
   }
 
   Widget _buildEditorSection(BuildContext context) {
-    return _buildSectionCard(
-      context: context,
+    return SettingsCard(
       title: 'הגדרות עורך טקסטים',
       children: [
         _EditorSettings(),

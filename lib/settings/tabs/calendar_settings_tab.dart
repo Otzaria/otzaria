@@ -5,6 +5,7 @@ import 'package:otzaria/navigation/calendar_cubit.dart';
 import 'package:otzaria/settings/settings_repository.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
 import 'package:otzaria/widgets/dialogs.dart';
+import 'package:otzaria/settings/settings_card.dart';
 
 /// טאב הגדרות לוח שנה
 class CalendarSettingsTab extends StatefulWidget {
@@ -66,8 +67,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // סוג לוח
-                _buildSectionCard(
-                  context: context,
+                SettingsCard(
                   title: 'סוג לוח',
                   children: [
                     RadioGroup<CalendarType>(
@@ -103,8 +103,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                 const SizedBox(height: 16),
 
                 // בחירת עיר
-                _buildSectionCard(
-                  context: context,
+                SettingsCard(
                   title: 'עיר',
                   children: [
                     ListTile(
@@ -158,8 +157,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                 const SizedBox(height: 16),
 
                 // התראות
-                _buildSectionCard(
-                  context: context,
+                SettingsCard(
                   title: 'התראות',
                   children: [
                     SwitchListTile(
@@ -213,8 +211,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
 
                 const SizedBox(height: 16),
 
-                _buildSectionCard(
-                  context: context,
+                SettingsCard(
                   title: 'Google Calendar',
                   children: [
                     SwitchListTile(
@@ -397,41 +394,6 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
             ),
           );
         },
-      ),
-    );
-  }
-
-  Widget _buildSectionCard({
-    required BuildContext context,
-    required String title,
-    required List<Widget> children,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            padding:
-                const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(11)),
-            ),
-            child: Text(
-              title,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-          ),
-          ...children,
-        ],
       ),
     );
   }
