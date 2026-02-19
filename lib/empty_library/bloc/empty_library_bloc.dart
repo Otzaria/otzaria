@@ -64,7 +64,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     } else {
       emit(EmptyLibraryError(
         errorMessage: 'הקובץ ${DatabaseConstants.databaseFileName} לא נמצא.\n'
-            'יש לבחור את התיקייה המכילה את תיקיית "${DatabaseConstants.otzariaFolderName}" עם הקובץ ${DatabaseConstants.databaseFileName},\n'
+            'יש לבחור את התיקייה המכילה את הקובץ ${DatabaseConstants.databaseFileName} או את תיקיית "${DatabaseConstants.otzariaFolderName}" עם הקובץ ${DatabaseConstants.databaseFileName},\n'
             'או לבחור ישירות את תיקיית "${DatabaseConstants.otzariaFolderName}".',
         selectedPath: selectedDirectory,
       ));
