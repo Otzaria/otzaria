@@ -210,25 +210,15 @@ Don't forget to give the project a star! Thanks again!
 
 **SSL Certificate Error on Filtered Networks (NetFree, etc.)**
 
-If you encounter an SSL certificate error when building on Windows with a filtered network:
+If you encounter an SSL certificate error when building for Windows (e.g., `status_code: 60`, `CERT_TRUST_REVOCATION_STATUS_UNKNOWN`), it is likely due to network filtering.
 
-```
-status_code: 60
-status_string: "SSL peer certificate or SSH remote key was not OK"
-CERT_TRUST_REVOCATION_STATUS_UNKNOWN
-```
+For a detailed step-by-step solution, please refer to the **[NetFree Wiki - Flutter Setup Guide](https://netfree.link/wiki/%D7%94%D7%AA%D7%A7%D7%A0%D7%AA_%D7%AA%D7%A2%D7%95%D7%93%D7%94_%D7%A2%D7%91%D7%95%D7%A8_%D7%A1%D7%91%D7%99%D7%91%D7%AA_Flutter#windows)**.
 
-Run this command before building:
-
+**Quick Fix (PowerShell):**
+If you need a quick workaround before building, run:
 ```powershell
 $env:CMAKE_TLS_VERIFY="0"
-flutter clean
 flutter build windows
-```
-
-After successful build, you can restore the setting:
-```powershell
-Remove-Item Env:\CMAKE_TLS_VERIFY -ErrorAction SilentlyContinue
 ```
 
 <p align="right">(<a href="#readme-top">&#8679;</a>)</p>
