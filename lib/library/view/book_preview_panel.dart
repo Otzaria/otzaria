@@ -12,6 +12,7 @@ import 'package:otzaria/settings/settings_state.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:uuid/uuid.dart'; // הוספת הייבוא של UUID
 import 'package:otzaria/widgets/password_dialog.dart';
 import 'package:otzaria/pdf_book/pdf_scrollbar.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
@@ -72,16 +73,20 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
     _currentTextTab?.dispose();
     _currentTextTab = null;
     _pdfController = null;
-    
-    // מחיקת הקובץ הזמני
+
+    // ניקוי הקובץ הזמני בשיטת שגר-ושכח אסינכרונית לחלוטין
     if (_cachedPdfPath != null) {
-      final file = File(_cachedPdfPath!);
-      if (file.existsSync()) {
-        file.delete().catchError((e) {
+      final String pathToDelete = _cachedPdfPath!;
+      () async {
+        try {
+          final file = File(pathToDelete);
+          if (await file.exists()) {
+            await file.delete();
+          }
+        } catch (e) {
           debugPrint('Error deleting preview PDF: $e');
-          return file;
-        });
-      }
+        }
+      }();
     }
     _cachedPdfPath = null;
   }
@@ -89,9 +94,12 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
   Future<String?> _loadPreviewPdfFile(PdfBook book) async {
     final bytes = await SqliteDataProvider.instance.getPdfBytesFromDb(book);
     if (bytes == null) return null;
-    
+
     final tempDir = await getTemporaryDirectory();
-    final file = File('${tempDir.path}/preview_${book.title.hashCode}_${DateTime.now().millisecondsSinceEpoch}.pdf');
+    // שימוש ב-UUID ליצירת שם קובץ מובטח וייחודי
+    final fileName = 'preview_${book.title.hashCode}_${const Uuid().v4()}.pdf';
+    final file = File('${tempDir.path}/$fileName');
+
     await file.writeAsBytes(bytes);
     return file.path;
   }
@@ -201,12 +209,6 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
     // תצוגת ספר PDF
     if (widget.book is PdfBook) {
       debugPrint('📄 Preview: Building PDF view for ${widget.book!.title}');
-      debugPrint(
-          '📄 Preview: _cachedPdfPath is ${_cachedPdfPath != null ? "available ($_cachedPdfPath)" : "null"}');
-      debugPrint(
-          '📄 Preview: _pdfController is ${_pdfController != null ? "available" : "null"}');
-      debugPrint(
-          '📄 Preview: _pdfPathFuture is ${_pdfPathFuture != null ? "available" : "null"}');
 
       // אם יש נתיב שמור, השתמש בו ישירות
       if (_cachedPdfPath != null && _pdfController != null) {
@@ -224,9 +226,6 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
       return FutureBuilder<String?>(
         future: _pdfPathFuture,
         builder: (context, snapshot) {
-          debugPrint(
-              '📊 Preview: FutureBuilder state: ${snapshot.connectionState}');
-
           if (snapshot.connectionState == ConnectionState.waiting) {
             debugPrint('⏳ Preview: Still waiting for PDF file');
             return const Center(child: CircularProgressIndicator());
@@ -287,18 +286,14 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
           }
 
           // שמירת הנתיב ב-cache
-          debugPrint(
-              '💾 Preview: Received PDF file path: ${snapshot.data}');
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted && _cachedPdfPath == null) {
-              debugPrint('💾 Preview: Caching PDF file path');
               setState(() {
                 _cachedPdfPath = snapshot.data;
               });
             }
           });
 
-          debugPrint('✅ Preview: Building PDF viewer');
           return _buildPdfViewer(snapshot.data!);
         },
       );
@@ -362,7 +357,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
             },
           ),
         ),
-        // כפתורים צפים בפינה השמאלית העליונה (משטח אחד)
+        // כפתורים צפים בפינה השמאלית העליונה
         Positioned(
           top: 8,
           left: 8,
@@ -382,7 +377,6 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // כפתור הגדלת טקסט
                 IconButton(
                   icon: const Icon(FluentIcons.zoom_in_24_regular, size: 20),
                   tooltip: 'הגדל טקסט',
@@ -390,7 +384,6 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                     setState(() {
                       _fontSize = (_fontSize + 2).clamp(10.0, 50.0);
                     });
-                    // עדכון הטאב
                     _currentTextTab!.bloc.add(
                       UpdateFontSize(_fontSize),
                     );
@@ -401,7 +394,6 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                     minHeight: 36,
                   ),
                 ),
-                // כפתור הקטנת טקסט
                 IconButton(
                   icon: const Icon(FluentIcons.zoom_out_24_regular, size: 20),
                   tooltip: 'הקטן את גודל הטקסט',
@@ -409,7 +401,6 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                     setState(() {
                       _fontSize = (_fontSize - 2).clamp(10.0, 50.0);
                     });
-                    // עדכון הטאב
                     _currentTextTab!.bloc.add(
                       UpdateFontSize(_fontSize),
                     );
@@ -420,18 +411,15 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                     minHeight: 36,
                   ),
                 ),
-                // קו מפריד
                 Container(
                   width: 1,
                   height: 24,
                   color: Theme.of(context).dividerColor,
                 ),
-                // כפתור פתיחה בעיון
                 IconButton(
                   icon: const Icon(FluentIcons.open_24_regular, size: 20),
                   tooltip: 'פתח בעיון (או לחץ פעמיים על הספר)',
                   onPressed: () {
-                    // שליחת האינדקס הנוכחי של הספר (אם יש)
                     widget.onOpenInReader?.call(_currentTextTab?.index ?? 0);
                   },
                   padding: const EdgeInsets.all(8),
@@ -440,14 +428,12 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                     minHeight: 36,
                   ),
                 ),
-                // קו מפריד
                 if (widget.onClose != null)
                   Container(
                     width: 1,
                     height: 24,
                     color: Theme.of(context).dividerColor,
                   ),
-                // כפתור סגירה
                 if (widget.onClose != null)
                   IconButton(
                     icon: const Icon(FluentIcons.dismiss_24_regular, size: 20),
@@ -469,37 +455,31 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
 
   /// בניית PDF viewer דרך נתיב הקובץ
   Widget _buildPdfViewer(String filePath) {
-    debugPrint('🎨 Preview: Building PDF viewer widget');
     return Stack(
       children: [
-        // תוכן ה-PDF - עם key ייחודי למניעת rebuild
         PdfViewer.file(
           filePath,
-          key: ValueKey(
-              'pdf_${widget.book!.title}'), // key ייחודי למניעת rebuild
+          key: ValueKey('pdf_${widget.book!.title}'),
           initialPageNumber: 1,
           passwordProvider: () => passwordDialog(context),
           controller: _pdfController!,
           params: PdfViewerParams(
             backgroundColor: Theme.of(context).colorScheme.surface,
             maxScale: 10,
-            horizontalCacheExtent: 0, // רק דפים נראים
-            verticalCacheExtent: 1, // רק דף אחד למעלה/למטה
+            horizontalCacheExtent: 0,
+            verticalCacheExtent: 1,
             pageAnchor: PdfPageAnchor.top,
-            margin: 4, // מרווח קטן יותר בין דפים
+            margin: 4,
             onViewerReady: (document, controller) {
-              debugPrint(
-                  '✅ Preview: PDF viewer ready with ${document.pages.length} pages');
+              debugPrint('✅ Preview: PDF viewer ready');
             },
             viewerOverlayBuilder: (context, size, handleLinkTap) => [
-              // פס גלילה אנכי עם track מלא
               PdfScrollbar(
                 controller: _pdfController!,
                 orientation: ScrollbarOrientation.right,
                 trackThickness: 16.0,
                 thumbMinSize: 50.0,
               ),
-              // פס גלילה אופקי דינמי
               PdfHorizontalScrollbar(
                 controller: _pdfController!,
                 trackThickness: 10.0,
@@ -507,7 +487,6 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
             ],
           ),
         ),
-        // כפתורים צפים
         Positioned(
           top: 8,
           left: 8,
@@ -527,7 +506,6 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // כפתור הגדלה
                 IconButton(
                   icon: const Icon(FluentIcons.zoom_in_24_regular, size: 20),
                   tooltip: 'הגדל את גודל הטקסט',
@@ -538,7 +516,6 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                     minHeight: 36,
                   ),
                 ),
-                // כפתור הקטנה
                 IconButton(
                   icon: const Icon(FluentIcons.zoom_out_24_regular, size: 20),
                   tooltip: 'הקטן את גודל הטקסט',
@@ -549,18 +526,15 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                     minHeight: 36,
                   ),
                 ),
-                // קו מפריד
                 Container(
                   width: 1,
                   height: 24,
                   color: Theme.of(context).dividerColor,
                 ),
-                // כפתור פתיחה בעיון
                 IconButton(
                   icon: const Icon(FluentIcons.open_24_regular, size: 20),
                   tooltip: 'פתח בעיון (או לחץ פעמיים על הספר)',
                   onPressed: () {
-                    // שליחת העמוד הנוכחי ב-PDF
                     int currentPage = 1;
                     if (_pdfController != null && _pdfController!.isReady) {
                       currentPage = _pdfController!.pageNumber ?? 1;
@@ -573,14 +547,12 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                     minHeight: 36,
                   ),
                 ),
-                // קו מפריד
                 if (widget.onClose != null)
                   Container(
                     width: 1,
                     height: 24,
                     color: Theme.of(context).dividerColor,
                   ),
-                // כפתור סגירה
                 if (widget.onClose != null)
                   IconButton(
                     icon: const Icon(FluentIcons.dismiss_24_regular, size: 20),
@@ -600,7 +572,6 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
     );
   }
 
-  /// בניית skeleton loading - שורות אפורות סטטיות
   Widget _buildSkeletonLoading() {
     final baseColor = Theme.of(context).colorScheme.surfaceContainerHighest;
 
@@ -610,7 +581,6 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // כותרת רמה 1 (כמו "פרק א")
             Align(
               alignment: Alignment.centerRight,
               child: Padding(
@@ -618,7 +588,6 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                 child: _SkeletonLine(width: 0.25, height: 36, color: baseColor),
               ),
             ),
-            // כותרת רמה 2 (כמו "משנה א")
             Align(
               alignment: Alignment.centerRight,
               child: Padding(
@@ -626,10 +595,8 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                 child: _SkeletonLine(width: 0.2, height: 28, color: baseColor),
               ),
             ),
-            // פסקה ראשונה
             ..._buildParagraph([0.95, 0.92, 0.88, 0.94, 0.85], baseColor),
             const SizedBox(height: 24),
-            // כותרת רמה 2
             Align(
               alignment: Alignment.centerRight,
               child: Padding(
@@ -637,10 +604,8 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                 child: _SkeletonLine(width: 0.18, height: 28, color: baseColor),
               ),
             ),
-            // פסקה שנייה
             ..._buildParagraph([0.93, 0.89, 0.96, 0.87, 0.91, 0.82], baseColor),
             const SizedBox(height: 24),
-            // כותרת רמה 2
             Align(
               alignment: Alignment.centerRight,
               child: Padding(
@@ -648,7 +613,6 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                 child: _SkeletonLine(width: 0.22, height: 28, color: baseColor),
               ),
             ),
-            // פסקה שלישית
             ..._buildParagraph([0.94, 0.88, 0.92, 0.86], baseColor),
           ],
         ),
@@ -656,7 +620,6 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
     );
   }
 
-  /// בניית פסקה עם שורות באורכים משתנים
   List<Widget> _buildParagraph(List<double> widths, Color color) {
     return widths
         .map((width) => Align(
@@ -670,7 +633,6 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
   }
 }
 
-/// Widget של שורה סטטית (ללא אנימציה)
 class _SkeletonLine extends StatelessWidget {
   final double width;
   final double height;

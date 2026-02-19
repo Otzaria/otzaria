@@ -48,6 +48,7 @@ environment:
 # the latest version available on pub.dev. To see which dependencies have newer
 # versions available, run `flutter pub outdated`.
 dependencies:
+  uuid: ^4.3.3
   flutter:
     sdk: flutter
   flutter_bloc: ^9.1.1
