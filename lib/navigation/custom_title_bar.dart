@@ -367,9 +367,9 @@ class _CustomTitleBarState extends State<CustomTitleBar>
                 onWillAcceptWithDetails: (details) => state.tabs.length > 1,
                 onAcceptWithDetails: (details) {
                   // מקבלים את רוחב המסך הכולל ואת מיקום העכבר בעת העזיבה
-                  final screenWidth = MediaQuery.of(context).size.width;
-                  final dropPosition = details.offset.dx;
-                  final isLeftHalf = dropPosition < (screenWidth / 2);
+                  final RenderBox renderBox = context.findRenderObject() as RenderBox;
+                  final localOffset = renderBox.globalToLocal(details.offset);
+                  final isLeftHalf = localOffset.dx < (renderBox.size.width / 2);
                   
                   // בודקים אם כיוון האפליקציה הוא מימין לשמאל (RTL) - אוצריא בעברית
                   final isRtl = Directionality.of(context) == TextDirection.rtl;
