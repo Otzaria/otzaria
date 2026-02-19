@@ -49,7 +49,7 @@ class SettingsCard extends StatelessWidget {
         Card(
           elevation: 0,
           margin: EdgeInsets.zero,
-          color: Colors.white,
+          color: theme.colorScheme.surface,
           shape: RoundedRectangleBorder(
             side: BorderSide(
                 color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
