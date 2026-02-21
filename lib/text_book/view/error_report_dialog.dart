@@ -389,12 +389,29 @@ $detailsSection
 
     if (action == ErrorReportAction.sendEmail) {
       final String? sourceFolder = bookDetails['תיקיית המקור'];
-      final emailAddress = sourceFolder?.contains('sefaria') == true ||
-              sourceFolder?.contains('sefariaToOtzaria') == true
-          ? 'corrections@sefaria.org'
-          : sourceFolder?.contains('wiki_jewish_books') == true
-              ? 'WikiJewishBooks@gmail.com'
-              : _fallbackMail;
+      
+      // קביעת כתובות המייל לפי מקור הספר
+      String emailAddress;
+      if (sourceFolder?.contains('sefaria') == true ||
+          sourceFolder?.contains('sefariaToOtzaria') == true) {
+        emailAddress = 'corrections@sefaria.org';
+      } else if (sourceFolder?.contains('wiki_jewish_books') == true) {
+        emailAddress = 'WikiJewishBooks@gmail.com';
+      } else if (sourceFolder?.contains('wikiSource') == true) {
+        // שליחה גם לאוצריא וגם ל-wikiSource
+        emailAddress = '$_fallbackMail,novartza@gmail.com';
+      } else if (sourceFolder?.contains('Pninim') == true) {
+        // שליחה גם לאוצריא וגם ל-Pninim
+        emailAddress = '$_fallbackMail,contact@pninim.org';
+      } else if (sourceFolder?.contains('Tashma') == true) {
+        // שליחה גם לאוצריא וגם ל-Tashma
+        emailAddress = '$_fallbackMail,jewishoffice@gmail.com';
+      } else if (sourceFolder?.contains('Ben-Yehuda') == true) {
+        // שליחה גם לאוצריא וגם ל-Ben-Yehuda
+        emailAddress = '$_fallbackMail,editor@benyehuda.org';
+      } else {
+        emailAddress = _fallbackMail;
+      }
 
       final emailUri = Uri(
         scheme: 'mailto',
