@@ -480,7 +480,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                     showDialog(
                                       context: context,
                                       builder: (context) =>
-                                          const AboutDialogWidget(),
+                                          const AboutScreen(),
                                     );
                                   } else {
                                     context.read<NavigationBloc>().add(
@@ -647,7 +647,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
               } else if (index == Screen.about.index) {
                 showDialog(
                   context: context,
-                  builder: (context) => const AboutDialogWidget(),
+                  builder: (context) => const AboutScreen(),
                 );
               } else {
                 context.read<NavigationBloc>().add(
