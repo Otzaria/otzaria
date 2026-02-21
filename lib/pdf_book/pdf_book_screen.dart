@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
+import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
+import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart' as pdf_events;
 import 'package:otzaria/core/scaffold_messenger.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/models/books.dart';
@@ -617,6 +619,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                                         (document, controller) async {
                                       // 0. יצירת textSearcher רק אחרי שה-controller מוכן
                                       if (!mounted) return;
+                                      final pdfBloc = context.read<PdfBookBloc>();
                                       textSearcher = PdfTextSearcher(
                                           pdfController)
                                         ..addListener(_onTextSearcherUpdated);
@@ -627,7 +630,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                                           await document.loadOutline();
 
                                       // 1.1. שליחת אירוע DocumentReady ל-Bloc
-                                      _bloc.add(pdf_events.DocumentReady(
+                                      if (!mounted) return;
+                                      pdfBloc.add(pdf_events.DocumentReady(
                                         documentRef: controller.documentRef,
                                         outline: widget.tab.outline.value,
                                         totalPages: document.pages.length,

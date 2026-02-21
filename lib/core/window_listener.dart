@@ -38,9 +38,11 @@ class AppWindowListener extends WindowListener {
       // Close the window properly
       if (!kIsWeb &&
           (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
-        // שמירת מצב החלון וסגירה
-        await WindowPersistence.saveNow();
-        await windowManager.destroy();
+        // שמירת מצב החלון וסגירה (Future.microtask מכיוון ש-onWindowClose אינה async)
+        Future.microtask(() async {
+          await WindowPersistence.saveNow();
+          await windowManager.destroy();
+        });
       }
     } catch (e) {
       if (kDebugMode) {

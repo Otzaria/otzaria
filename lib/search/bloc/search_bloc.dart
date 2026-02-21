@@ -118,9 +118,6 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     if (book.category?.path != null && book.category!.path.isNotEmpty) {
       return book.category!.path;
     }
-    if (book.categoryPath != null && book.categoryPath!.isNotEmpty) {
-      return book.categoryPath;
-    }
     if (book.topics.isNotEmpty) {
       final topicsPath = BookFacet.topicsToPath(book.topics);
       return topicsPath.isEmpty ? null : topicsPath;

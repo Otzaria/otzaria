@@ -112,9 +112,6 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
     if (book.category?.path != null && book.category!.path.isNotEmpty) {
       return book.category!.path;
     }
-    if (book.categoryPath != null && book.categoryPath!.isNotEmpty) {
-      return book.categoryPath;
-    }
     if (book.topics.isNotEmpty) {
       final topicsPath = BookFacet.topicsToPath(book.topics);
       return topicsPath.isEmpty ? null : topicsPath;

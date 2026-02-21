@@ -711,7 +711,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     if (index == 1) {
       // אם מבקשים אינדקס 1, זה יכול להיות חיפוש או כותרות
       // נבדוק אם יש כותרות חלופיות - אם כן, חיפוש הוא באינדקס 2
-      targetIndex = _hasAltTitles ? 2 : 1;
+      targetIndex = (widget.tab.book.extraTitles?.isNotEmpty ?? false) ? 2 : 1;
     }
 
     // וידוא שהאינדקס תקף לפני הגדרה
