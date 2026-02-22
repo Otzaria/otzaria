@@ -1,0 +1,31 @@
+name: Build Windows App
+
+on:
+  workflow_dispatch: # מאפשר להפעיל את הבנייה בלחיצת כפתור
+
+jobs:
+  build:
+    runs-on: windows-latest # זה הקסם - אנחנו מבקשים מחשב ווינדוס!
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Enable Windows Support
+        run: flutter config --enable-windows-desktop
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Build Windows Exe
+        run: flutter build windows --release
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-app
+          path: build/windows/x64/runner/Release/*
