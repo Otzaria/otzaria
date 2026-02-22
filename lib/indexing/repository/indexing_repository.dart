@@ -89,7 +89,16 @@ class IndexingRepository {
         return;
       }
 
+      final bookType = book is TextBook
+          ? 'TextBook'
+          : book is PdfBook
+              ? 'PdfBook'
+              : 'ExternalLibraryBook';
+
       try {
+        // רישום התחלת אינדוקס הספר
+        await IndexingLogger.instance.logBookStart(book.title, bookType);
+
         // Check if this book has already been indexed
         if (book is TextBook) {
           if (!_tantivyDataProvider.booksDone
@@ -97,10 +106,17 @@ class IndexingRepository {
             if (_tantivyDataProvider.booksDone.contains(
                 sha1.convert(utf8.encode((await book.text))).toString())) {
               _tantivyDataProvider.booksDone.add("${book.title}textBook");
+              await IndexingLogger.instance.logInfo(
+                'ספר ${book.title} כבר אוינדקס (hash match) - מדלג',
+              );
             } else {
               await _indexTextBook(book);
               _tantivyDataProvider.booksDone.add("${book.title}textBook");
             }
+          } else {
+            await IndexingLogger.instance.logInfo(
+              'ספר ${book.title} כבר אוינדקס - מדלג',
+            );
           }
         } else if (book is PdfBook) {
           if (!_tantivyDataProvider.booksDone
@@ -130,10 +146,17 @@ class IndexingRepository {
             if (fileHash != null &&
                 _tantivyDataProvider.booksDone.contains(fileHash)) {
               _tantivyDataProvider.booksDone.add("${book.title}pdfBook");
+              await IndexingLogger.instance.logInfo(
+                'ספר PDF ${book.title} כבר אוינדקס (hash match) - מדלג',
+              );
             } else {
               await _indexPdfBook(book);
               _tantivyDataProvider.booksDone.add("${book.title}pdfBook");
             }
+          } else {
+            await IndexingLogger.instance.logInfo(
+              'ספר PDF ${book.title} כבר אוינדקס - מדלג',
+            );
           }
         } else if (book is ExternalLibraryBook) {
           if (!_tantivyDataProvider.booksDone
@@ -141,22 +164,36 @@ class IndexingRepository {
             final idHash = sha1.convert(utf8.encode(book.link)).toString();
             if (_tantivyDataProvider.booksDone.contains(idHash)) {
               _tantivyDataProvider.booksDone.add("${book.title}externalBook");
+              await IndexingLogger.instance.logInfo(
+                'ספר חיצוני ${book.title} כבר אוינדקס (hash match) - מדלג',
+              );
             } else {
               await _indexExternalLibraryBook(book);
               _tantivyDataProvider.booksDone.add("${book.title}externalBook");
             }
+          } else {
+            await IndexingLogger.instance.logInfo(
+              'ספר חיצוני ${book.title} כבר אוינדקס - מדלג',
+            );
           }
         }
+
+        // רישום סיום מוצלח של הספר
+        await IndexingLogger.instance.logBookComplete(book.title, bookType);
+
         processedBooks++;
         // Report progress
         onProgress(processedBooks, totalBooks);
+
+        // רישום התקדמות כל 10 ספרים
+        if (processedBooks % 10 == 0) {
+          await IndexingLogger.instance.logProgress(
+            processedBooks,
+            totalBooks,
+          );
+        }
       } catch (e, stackTrace) {
         // רישום השגיאה ללוג
-        final bookType = book is TextBook
-            ? 'TextBook'
-            : book is PdfBook
-                ? 'PdfBook'
-                : 'ExternalLibraryBook';
         await IndexingLogger.instance.logBookError(
           book.title,
           bookType,
@@ -187,23 +224,44 @@ class IndexingRepository {
 
   /// Indexes a text-based book by processing its content and adding it to the search index.
   Future<void> _indexTextBook(TextBook book) async {
+    await IndexingLogger.instance.logInfo(
+      'TextBook ${book.title}: מתחיל עיבוד - טוען טקסט',
+    );
+
     final index = await _tantivyDataProvider.engine;
     var text = await book.text;
     final title = book.title;
     final topics = "/${book.topics.replaceAll(', ', '/')}";
 
     final texts = text.split('\n');
+    final totalLines = texts.length;
+
+    await IndexingLogger.instance.logInfo(
+      'TextBook ${book.title}: נטען טקסט - $totalLines שורות',
+    );
+
     List<String> reference = [];
+    int linesProcessed = 0;
 
     // Index each line separately
     for (int i = 0; i < texts.length; i++) {
       if (!_tantivyDataProvider.isIndexing.value) {
+        await IndexingLogger.instance.logWarning(
+          'TextBook ${book.title}: תהליך בוטל אחרי $linesProcessed שורות',
+        );
         return;
       }
 
       // Yield control periodically to prevent blocking
       if (i % 100 == 0) {
         await Future.delayed(Duration.zero);
+      }
+
+      // רישום התקדמות כל 1000 שורות
+      if (i > 0 && i % 1000 == 0) {
+        await IndexingLogger.instance.logInfo(
+          'TextBook ${book.title}: עובד שורה $i/$totalLines',
+        );
       }
 
       String line = texts[i];
@@ -247,10 +305,19 @@ class IndexingRepository {
             isPdf: false,
             filePath: '');
       }
+      linesProcessed++;
     }
+
+    await IndexingLogger.instance.logInfo(
+      'TextBook ${book.title}: מבצע commit לאינדקס',
+    );
 
     await index.commit();
     saveIndexedBooks();
+
+    await IndexingLogger.instance.logInfo(
+      'TextBook ${book.title}: הושלם בהצלחה - $linesProcessed שורות אוינדקסו',
+    );
   }
 
   /// Indexes an external library book (e.g., Otzar) by indexing its metadata
@@ -293,19 +360,33 @@ class IndexingRepository {
   Future<void> _indexPdfBook(PdfBook book) async {
     final index = await _tantivyDataProvider.engine;
 
+    await IndexingLogger.instance.logInfo(
+      'PdfBook ${book.title}: מתחיל עיבוד PDF',
+    );
+
     debugPrint('📚 PDF indexing started: "${book.title}" (${book.path})');
 
     // Try to load PDF from database first, then fall back to file
     PdfDocument? document;
     try {
+      await IndexingLogger.instance.logInfo(
+        'PdfBook ${book.title}: מנסה לטעון מ-DB',
+      );
+
       final pdfBytes =
           await SqliteDataProvider.instance.getPdfBytesFromDb(book);
       if (pdfBytes != null && pdfBytes.isNotEmpty) {
         debugPrint('📚 Loading PDF from database for: ${book.title}');
+        await IndexingLogger.instance.logInfo(
+          'PdfBook ${book.title}: נטען מ-DB (${(pdfBytes.length / 1024 / 1024).toStringAsFixed(2)} MB)',
+        );
         document = await PdfDocument.openData(pdfBytes);
       }
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('⚠️ Failed to load PDF from database: $e');
+      await IndexingLogger.instance.logWarning(
+        'PdfBook ${book.title}: נכשל טעינה מ-DB: $e\n$st',
+      );
     }
 
     // Fallback to file if database load failed
@@ -313,9 +394,15 @@ class IndexingRepository {
       final file = File(book.path);
       if (await file.exists()) {
         debugPrint('📚 Loading PDF from file: ${book.path}');
+        await IndexingLogger.instance.logInfo(
+          'PdfBook ${book.title}: טוען מקובץ: ${book.path}',
+        );
         document = await PdfDocument.openFile(book.path);
       } else {
         debugPrint('❌ PDF not found in database or file system: ${book.path}');
+        await IndexingLogger.instance.logWarning(
+          'PdfBook ${book.title}: קובץ לא נמצא ב-DB או במערכת הקבצים',
+        );
         return;
       }
     }
@@ -325,65 +412,101 @@ class IndexingRepository {
     final title = book.title;
     final topics = "/${book.topics.replaceAll(', ', '/')}";
 
+    await IndexingLogger.instance.logInfo(
+      'PdfBook ${book.title}: נטען בהצלחה - ${pages.length} עמודים, ${outline.length} פריטי outline',
+    );
+
     debugPrint(
         '📚 PDF outline items: ${outline.length}, pages: ${pages.length}');
 
     // Process each page
     var addedAnyInBook = false;
+    int totalLinesAdded = 0;
+
     for (int i = 0; i < pages.length; i++) {
       if (!_tantivyDataProvider.isIndexing.value) {
+        await IndexingLogger.instance.logWarning(
+          'PdfBook ${book.title}: תהליך בוטל בעמוד ${i + 1}/${pages.length}',
+        );
         return;
       }
 
-      final pageText = await pages[i].loadText();
-      final rawLines = pageText?.fullText.split('\n') ?? const <String>[];
-
-      final bookmark = await refFromPageNumber(i + 1, outline, title);
-      final ref = bookmark.isNotEmpty
-          ? '$title, $bookmark, עמוד ${i + 1}'
-          : '$title, עמוד ${i + 1}';
-
-      var addedAny = false;
-      for (int j = 0; j < rawLines.length; j++) {
-        if (!_tantivyDataProvider.isIndexing.value) {
-          return;
-        }
-
-        // Yield control periodically to prevent blocking
-        if (j % 50 == 0) {
-          await Future.delayed(Duration.zero);
-        }
-
-        final normalized = _normalizePdfTextForIndexing(rawLines[j]);
-        if (_isProbablyGarbagePdfText(normalized)) {
-          continue;
-        }
-
-        index.addDocument(
-          id: BigInt.from(DateTime.now().microsecondsSinceEpoch),
-          title: title,
-          reference: ref,
-          topics: '$topics/$title',
-          text: normalized,
-          segment: BigInt.from(i),
-          isPdf: true,
-          filePath: book.path,
+      // רישום התקדמות כל 10 עמודים
+      if (i > 0 && i % 10 == 0) {
+        await IndexingLogger.instance.logInfo(
+          'PdfBook ${book.title}: עובד עמוד ${i + 1}/${pages.length} ($totalLinesAdded שורות עד כה)',
         );
-        addedAny = true;
-        addedAnyInBook = true;
       }
 
-      if (!addedAny && kDebugMode) {
-        debugPrint(
-          '⚠️ PDF page ${i + 1}: skipped (no usable extracted text) file: ${book.path}',
+      try {
+        final pageText = await pages[i].loadText();
+        final rawLines = pageText?.fullText.split('\n') ?? const <String>[];
+
+        final bookmark = await refFromPageNumber(i + 1, outline, title);
+        final ref = bookmark.isNotEmpty
+            ? '$title, $bookmark, עמוד ${i + 1}'
+            : '$title, עמוד ${i + 1}';
+
+        var addedAny = false;
+        for (int j = 0; j < rawLines.length; j++) {
+          if (!_tantivyDataProvider.isIndexing.value) {
+            return;
+          }
+
+          // Yield control periodically to prevent blocking
+          if (j % 50 == 0) {
+            await Future.delayed(Duration.zero);
+          }
+
+          final normalized = _normalizePdfTextForIndexing(rawLines[j]);
+          if (_isProbablyGarbagePdfText(normalized)) {
+            continue;
+          }
+
+          index.addDocument(
+            id: BigInt.from(DateTime.now().microsecondsSinceEpoch),
+            title: title,
+            reference: ref,
+            topics: '$topics/$title',
+            text: normalized,
+            segment: BigInt.from(i),
+            isPdf: true,
+            filePath: book.path,
+          );
+          addedAny = true;
+          addedAnyInBook = true;
+          totalLinesAdded++;
+        }
+
+        if (!addedAny && kDebugMode) {
+          debugPrint(
+            '⚠️ PDF page ${i + 1}: skipped (no usable extracted text) file: ${book.path}',
+          );
+        }
+      } catch (e, stackTrace) {
+        await IndexingLogger.instance.logBookError(
+          '$title - עמוד ${i + 1}',
+          'PdfBook',
+          'שגיאה בעיבוד עמוד: $e',
+          stackTrace,
         );
+        // המשך לעמוד הבא
+        continue;
       }
     }
+
+    await IndexingLogger.instance.logInfo(
+      'PdfBook ${book.title}: סיים עיבוד עמודים - $totalLinesAdded שורות נוספו',
+    );
 
     // Fallback: some PDFs have no usable text layer, but ship alongside a
     // plain-text OCR dump. If the PDF extraction produced nothing usable,
     // try indexing a sidecar .txt so the book is still searchable.
     if (!addedAnyInBook) {
+      await IndexingLogger.instance.logWarning(
+        'PdfBook ${book.title}: לא נמצא טקסט שימושי ב-PDF - מחפש קובץ sidecar',
+      );
+
       final candidates = <String>{
         '${book.path}.txt',
         p.setExtension(book.path, '.txt'),
@@ -394,6 +517,9 @@ class IndexingRepository {
         final f = File(candidate);
         if (await f.exists()) {
           sidecar = f;
+          await IndexingLogger.instance.logInfo(
+            'PdfBook ${book.title}: נמצא קובץ sidecar: $candidate',
+          );
           break;
         }
       }
@@ -402,6 +528,10 @@ class IndexingRepository {
         final ocrText = await sidecar.readAsString();
         final pagesText =
             ocrText.contains('\f') ? ocrText.split('\f') : <String>[ocrText];
+
+        await IndexingLogger.instance.logInfo(
+          'PdfBook ${book.title}: מעבד קובץ sidecar - ${pagesText.length} עמודים',
+        );
 
         for (int pageIndex = 0; pageIndex < pagesText.length; pageIndex++) {
           if (!_tantivyDataProvider.isIndexing.value) {
@@ -439,6 +569,7 @@ class IndexingRepository {
               filePath: book.path,
             );
             addedAnyInBook = true;
+            totalLinesAdded++;
           }
         }
 
@@ -447,11 +578,46 @@ class IndexingRepository {
             'ℹ️ Indexed PDF from sidecar text: ${sidecar.path} (pdf: ${book.path})',
           );
         }
+        await IndexingLogger.instance.logInfo(
+          'PdfBook ${book.title}: הושלם אינדוקס מקובץ sidecar - $totalLinesAdded שורות',
+        );
+      } else {
+        await IndexingLogger.instance.logWarning(
+          'PdfBook ${book.title}: לא נמצא קובץ sidecar - הספר לא יהיה ניתן לחיפוש',
+        );
       }
     }
 
-    await index.commit();
-    saveIndexedBooks();
+    await IndexingLogger.instance.logInfo(
+      'PdfBook ${book.title}: מבצע commit לאינדקס',
+    );
+
+    try {
+      await index.commit();
+      await IndexingLogger.instance.logInfo(
+        'PdfBook ${book.title}: commit הושלם בהצלחה',
+      );
+    } catch (e, stackTrace) {
+      await IndexingLogger.instance.logBookError(
+        book.title,
+        'PdfBook - Commit',
+        'שגיאה בביצוע commit: $e',
+        stackTrace,
+      );
+      rethrow;
+    }
+
+    try {
+      saveIndexedBooks();
+    } catch (e, _) {
+      await IndexingLogger.instance.logWarning(
+        'PdfBook ${book.title}: שגיאה בשמירת רשימת ספרים: $e',
+      );
+    }
+
+    await IndexingLogger.instance.logInfo(
+      'PdfBook ${book.title}: הושלם בהצלחה - סה"כ $totalLinesAdded שורות אוינדקסו',
+    );
   }
 
   /// Cancels the ongoing indexing process.

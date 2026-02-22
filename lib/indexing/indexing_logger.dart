@@ -34,6 +34,30 @@ class IndexingLogger {
     }
   }
 
+  /// רישום התחלת אינדוקס ספר ספציפי
+  Future<void> logBookStart(String bookTitle, String bookType) async {
+    await _writeLog(
+      'INFO',
+      'מתחיל אינדוקס: $bookTitle (סוג: $bookType)',
+    );
+  }
+
+  /// רישום סיום מוצלח של אינדוקס ספר
+  Future<void> logBookComplete(String bookTitle, String bookType) async {
+    await _writeLog(
+      'INFO',
+      'הושלם אינדוקס: $bookTitle (סוג: $bookType)',
+    );
+  }
+
+  /// רישום התקדמות כללית
+  Future<void> logProgress(int processed, int total) async {
+    await _writeLog(
+      'INFO',
+      'התקדמות: $processed/$total ספרים (${((processed / total) * 100).toStringAsFixed(1)}%)',
+    );
+  }
+
   /// רישום התחלת תהליך אינדקס
   Future<void> logIndexingStart(int totalBooks) async {
     await _writeLog(
