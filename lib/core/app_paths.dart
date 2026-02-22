@@ -44,6 +44,11 @@ class AppPaths {
     return p.join(await getLibraryPath(), 'index');
   }
 
+  /// Gets the indexing log file path (library_path/indexing_log.txt)
+  static Future<String> getIndexingLogPath() async {
+    return p.join(await getLibraryPath(), 'indexing_log.txt');
+  }
+
   /// Gets the manifest file path (library_path/files_manifest.json)
   static Future<String> getManifestPath() async {
     return p.join(await getLibraryPath(), 'files_manifest.json');

@@ -5,6 +5,7 @@ import 'package:hive/hive.dart';
 import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/indexing/indexing_logger.dart';
 
 /// A singleton class that manages search functionality using Tantivy search engine.
 ///
@@ -108,6 +109,12 @@ class TantivyDataProvider {
     } catch (e) {
       debugPrint('❌ Failed to initialize search engine: $e');
 
+      // רישום שגיאה קריטית ללוג
+      IndexingLogger.instance.logGeneralError(
+        'Failed to initialize search engine: $e',
+        StackTrace.current,
+      );
+
       // Cleanup sentinel since it was a soft error
       if (sentinelFile != null && sentinelFile.existsSync()) {
         try {
@@ -123,6 +130,10 @@ class TantivyDataProvider {
         return SearchEngine(path: tempDir.path);
       } catch (e2) {
         debugPrint('❌ CRITICAL: Failed to create temp index: $e2');
+        IndexingLogger.instance.logGeneralError(
+          'CRITICAL: Failed to create temp index: $e2',
+          StackTrace.current,
+        );
         rethrow;
       }
     }
@@ -147,10 +158,17 @@ class TantivyDataProvider {
   Future<void> _handleSchemaError() async {
     try {
       String indexPath = await AppPaths.getIndexPath();
+      await IndexingLogger.instance.logWarning(
+        'Schema error detected - resetting index at: $indexPath',
+      );
       await resetIndex(indexPath);
       await reopenIndex();
     } catch (e) {
       debugPrint('❌ Error handling schema error: $e');
+      await IndexingLogger.instance.logGeneralError(
+        'Error handling schema error: $e',
+        StackTrace.current,
+      );
     }
   }
 

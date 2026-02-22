@@ -10,6 +10,7 @@ import 'package:otzaria/utils/text_manipulation.dart';
 import 'package:path/path.dart' as p;
 import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria/utils/ref_helper.dart';
+import 'package:otzaria/indexing/indexing_logger.dart';
 
 class IndexingRepository {
   final TantivyDataProvider _tantivyDataProvider;
@@ -62,6 +63,9 @@ class IndexingRepository {
     Library library,
     void Function(int processed, int total) onProgress,
   ) async {
+    // אתחול logger ורישום התחלת תהליך
+    await IndexingLogger.instance.initialize();
+
     _tantivyDataProvider.isIndexing.value = true;
     final allBooks = library.getAllBooks();
 
@@ -72,9 +76,16 @@ class IndexingRepository {
     final totalBooks = booksToIndex.length;
     int processedBooks = 0;
 
+    // רישום התחלת תהליך האינדקס
+    await IndexingLogger.instance.logIndexingStart(totalBooks);
+
     for (Book book in booksToIndex) {
       // Check if indexing was cancelled
       if (!_tantivyDataProvider.isIndexing.value) {
+        await IndexingLogger.instance.logIndexingCancelled(
+          processedBooks,
+          totalBooks,
+        );
         return;
       }
 
@@ -111,6 +122,9 @@ class IndexingRepository {
               }
             } catch (e) {
               debugPrint('⚠️ Could not compute hash for ${book.title}: $e');
+              await IndexingLogger.instance.logWarning(
+                'לא ניתן לחשב hash עבור ${book.title}: $e',
+              );
             }
 
             if (fileHash != null &&
@@ -136,7 +150,20 @@ class IndexingRepository {
         processedBooks++;
         // Report progress
         onProgress(processedBooks, totalBooks);
-      } catch (e) {
+      } catch (e, stackTrace) {
+        // רישום השגיאה ללוג
+        final bookType = book is TextBook
+            ? 'TextBook'
+            : book is PdfBook
+                ? 'PdfBook'
+                : 'ExternalLibraryBook';
+        await IndexingLogger.instance.logBookError(
+          book.title,
+          bookType,
+          e.toString(),
+          stackTrace,
+        );
+
         // Use async error handling to prevent event loop blocking
         await Future.microtask(() {
           debugPrint('Error adding ${book.title} to index: $e');
@@ -150,6 +177,9 @@ class IndexingRepository {
 
       await Future.delayed(Duration.zero);
     }
+
+    // רישום סיום מוצלח
+    await IndexingLogger.instance.logIndexingComplete(processedBooks);
 
     // Reset indexing flag after completion
     _tantivyDataProvider.isIndexing.value = false;
