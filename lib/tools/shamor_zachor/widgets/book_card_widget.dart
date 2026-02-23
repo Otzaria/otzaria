@@ -218,44 +218,6 @@ class _BookCardWidgetState extends State<BookCardWidget> {
                 _buildCyclesProgressInfo(context),
                 const SizedBox(height: 12),
                 // Additional info
-                Row(
-                  children: [
-                    Icon(
-                      widget.bookDetails.isDafType
-                          ? FluentIcons.book_24_regular
-                          : FluentIcons.document_24_regular,
-                      size: 16,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(alpha: 0.6),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${widget.bookDetails.totalLearnableItems} כותרות',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurface
-                                .withValues(alpha: 0.6),
-                          ),
-                    ),
-                    const Spacer(),
-                    if (_completedCycles > 0) ...[
-                      Icon(FluentIcons.arrow_repeat_all_24_regular,
-                          size: 16,
-                          color: Theme.of(context).colorScheme.primary),
-                      const SizedBox(width: 4),
-                      Text(
-                        '$_completedCycles מחזורים',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).colorScheme.primary,
-                              fontWeight: FontWeight.w500,
-                            ),
-                      ),
-                    ],
-                  ],
-                ),
               ],
             ),
           ),

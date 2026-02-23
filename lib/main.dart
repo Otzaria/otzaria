@@ -91,6 +91,14 @@ void main() async {
       return; // Silently ignore these errors
     }
 
+    // Skip HardwareKeyboard assertion error - happens when window loses focus while
+    // a key is held down; fixed by clearState() in onWindowFocus but filter as fallback
+    if (errorString.contains('!_pressedKeys.containsKey(event.physicalKey)') ||
+        errorString.contains(
+            'A KeyDownEvent is dispatched, but the state shows that the physical key is already pressed')) {
+      return; // Silently ignore - handled by HardwareKeyboard.instance.clearState() on focus
+    }
+
     // Log all other errors normally
     if (kDebugMode) {
       FlutterError.dumpErrorToConsole(details);
@@ -108,6 +116,13 @@ void main() async {
         (errorString.contains('Failed to update ui::AXTree') ||
             errorString.contains('accessibility_bridge.cc'))) {
       return true; // Silently ignore these errors
+    }
+
+    // Skip HardwareKeyboard assertion error - handled by clearState() on window focus
+    if (errorString.contains('!_pressedKeys.containsKey(event.physicalKey)') ||
+        errorString.contains(
+            'A KeyDownEvent is dispatched, but the state shows that the physical key is already pressed')) {
+      return true; // Silently ignore
     }
 
     // Log all other errors normally
@@ -145,15 +160,18 @@ void main() async {
                 exception.contains('accessibility_bridge.cc'))) {
           return null; // Don't send to Sentry
         }
+        // Filter HardwareKeyboard assertion - handled by clearState() on window focus
+        if (exception
+                .contains('!_pressedKeys.containsKey(event.physicalKey)') ||
+            exception.contains(
+                'A KeyDownEvent is dispatched, but the state shows that the physical key is already pressed')) {
+          return null; // Don't send to Sentry
+        }
         return event;
       };
     },
     appRunner: () async {
       SentryWidgetsFlutterBinding.ensureInitialized();
-
-      // pdfrx warning suppression: this only hides the debug-time warning message.
-      // It does not change the actual asset bundling (see pdfrx remove_wasm_modules).
-      pdfrxFlutterInitialize(dismissPdfiumWasmWarnings: true);
 
       // Check for single instance - skip on Apple platforms (macOS/iOS) due to sandbox restrictions
       if (!Platform.isMacOS && !Platform.isIOS) {

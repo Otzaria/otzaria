@@ -91,3 +91,7 @@ macos/Flutter/GeneratedPluginRegistrant.swift
 isolate.pdf
 
 sentry.properties
+.sentry-native/*
+linux/flutter/generated_plugin_registrant.cc
+linux/flutter/generated_plugins.cmake
+macos/Flutter/GeneratedPluginRegistrant.swift

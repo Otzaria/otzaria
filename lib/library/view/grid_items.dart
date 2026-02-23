@@ -8,6 +8,7 @@ import 'package:otzaria/services/book_details_service.dart';
 import 'package:otzaria/text_book/view/book_source_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:math';
+import 'package:otzaria/core/scaffold_messenger.dart';
 import 'package:otzaria/data/book_locator.dart';
 
 class HeaderItem extends StatelessWidget {
@@ -673,7 +674,8 @@ void _showDeleteBookDialog(
     BuildContext context, Book book, VoidCallback? onBookDeleted) {
   showDialog(
     context: context,
-    builder: (BuildContext context) {
+    // שימוש ב-dialogContext נפרד כדי לא להסתיר את ה-context החיצוני
+    builder: (BuildContext dialogContext) {
       return AlertDialog(
         title: const Text(
           'מחיקת ספר',
@@ -685,13 +687,14 @@ void _showDeleteBookDialog(
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => Navigator.of(dialogContext).pop(),
             child: const Text('ביטול'),
           ),
           TextButton(
             onPressed: () async {
-              Navigator.of(context).pop();
-              await _deleteBook(context, book);
+              Navigator.of(dialogContext).pop();
+              // שימוש ב-context החיצוני (לא context הדיאלוג שכבר הוסר)
+              await _deleteBook(book);
               onBookDeleted?.call();
             },
             style: TextButton.styleFrom(
@@ -706,7 +709,7 @@ void _showDeleteBookDialog(
 }
 
 /// מחיקת ספר - מ-DB או מהקובץ
-Future<void> _deleteBook(BuildContext context, Book book) async {
+Future<void> _deleteBook(Book book) async {
   try {
     // שימוש ב-BookLocator למחיקת הספר
     final success = await BookLocator.deleteBook(
@@ -718,22 +721,8 @@ Future<void> _deleteBook(BuildContext context, Book book) async {
       throw Exception('המחיקה נכשלה');
     }
 
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('הספר "${book.title}" נמחק בהצלחה'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    }
+    UiSnack.show('הספר "${book.title}" נמחק בהצלחה');
   } catch (e) {
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('שגיאה במחיקת הספר: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
+    UiSnack.showError('שגיאה במחיקת הספר: $e');
   }
 }

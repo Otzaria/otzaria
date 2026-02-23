@@ -1,15 +1,77 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
+import 'package:otzaria/tabs/models/pdf_tab.dart';
 
 class TabsBloc extends Bloc<TabsEvent, TabsState> {
   final TabsRepository _repository;
+  int _pdfWorkerStopRequestId = 0;
+  bool _isStoppingPdfWorker = false;
+
+  bool _containsPdfTab(OpenedTab tab) {
+    if (tab is PdfBookTab) {
+      return true;
+    }
+    if (tab is CombinedTab) {
+      return _containsPdfTab(tab.rightTab) || _containsPdfTab(tab.leftTab);
+    }
+    return false;
+  }
+
+  bool _hasAnyPdfTabs(List<OpenedTab> tabs) {
+    return tabs.any(_containsPdfTab);
+  }
+
+  void _maybeStopPdfWorker({
+    required List<OpenedTab> previousTabs,
+    required List<OpenedTab> nextTabs,
+  }) {
+    final hadPdfTabs = _hasAnyPdfTabs(previousTabs);
+    final hasPdfTabsNow = _hasAnyPdfTabs(nextTabs);
+
+    if (hadPdfTabs && !hasPdfTabsNow) {
+      _requestStopPdfWorker();
+    }
+  }
+
+  void _requestStopPdfWorker() {
+    _pdfWorkerStopRequestId++;
+    final requestId = _pdfWorkerStopRequestId;
+    unawaited(_stopPdfWorkerIfStillUnused(requestId));
+  }
+
+  Future<void> _stopPdfWorkerIfStillUnused(int requestId) async {
+    // Give widgets time to dispose their PdfViewer resources after tab removal.
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+
+    if (requestId != _pdfWorkerStopRequestId) {
+      return;
+    }
+    if (_hasAnyPdfTabs(state.tabs)) {
+      return;
+    }
+    if (_isStoppingPdfWorker) {
+      return;
+    }
+
+    _isStoppingPdfWorker = true;
+    try {
+      await PdfrxEntryFunctions.instance.stopBackgroundWorker();
+      debugPrint('DEBUG: Pdfrx background worker stopped (no PDF tabs left)');
+    } catch (e) {
+      debugPrint('DEBUG: Failed to stop Pdfrx background worker: $e');
+    } finally {
+      _isStoppingPdfWorker = false;
+    }
+  }
 
   TabsBloc({
     required TabsRepository repository,
@@ -62,10 +124,14 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
   void _onReplaceAllTabs(ReplaceAllTabs event, Emitter<TabsState> emit) {
     debugPrint('DEBUG: החלפת כל הטאבים - ${event.tabs.length} טאבים חדשים');
 
+    final previousTabs = List<OpenedTab>.from(state.tabs);
+
     // ניקוי משאבים של כל הטאבים הקיימים
     for (final tab in state.tabs) {
       tab.dispose();
     }
+
+    _maybeStopPdfWorker(previousTabs: previousTabs, nextTabs: event.tabs);
 
     _repository.saveTabs(event.tabs, event.currentTabIndex, null);
 
@@ -115,12 +181,15 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
   }
 
   void _onRemoveTab(RemoveTab event, Emitter<TabsState> emit) async {
+    final previousTabs = List<OpenedTab>.from(state.tabs);
     final removedTabIndex = state.tabs.indexOf(event.tab);
 
     // ניקוי משאבים של הטאב שנסגר
     event.tab.dispose();
 
     final newTabs = List<OpenedTab>.from(state.tabs)..remove(event.tab);
+
+    _maybeStopPdfWorker(previousTabs: previousTabs, nextTabs: newTabs);
 
     // בדיקה אם הטאב שנסגר היה חלק ממצב side-by-side
     SideBySideMode? newSideBySideMode = state.sideBySideMode;
@@ -187,6 +256,8 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
   }
 
   void _onCloseAllTabs(CloseAllTabs event, Emitter<TabsState> emit) {
+    final previousTabs = List<OpenedTab>.from(state.tabs);
+
     // שמירת טאבים מוצמדים בלבד
     final pinnedTabs = state.tabs.where((tab) => tab.isPinned).toList();
 
@@ -199,6 +270,9 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
 
     // אם יש טאבים מוצמדים, נשאיר אותם
     final newIndex = pinnedTabs.isNotEmpty ? 0 : 0;
+
+    _maybeStopPdfWorker(previousTabs: previousTabs, nextTabs: pinnedTabs);
+
     // ביטול מצב side-by-side כי סגרנו טאבים
     _repository.saveTabs(pinnedTabs, newIndex, null);
     emit(state.copyWith(
@@ -209,6 +283,8 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
   }
 
   void _onCloseOtherTabs(CloseOtherTabs event, Emitter<TabsState> emit) {
+    final previousTabs = List<OpenedTab>.from(state.tabs);
+
     // ניקוי משאבים של כל הטאבים מלבד זה שנשאר
     for (final tab in state.tabs) {
       if (tab != event.keepTab) {
@@ -217,6 +293,9 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     }
 
     final newTabs = [event.keepTab];
+
+    _maybeStopPdfWorker(previousTabs: previousTabs, nextTabs: newTabs);
+
     // ביטול מצב side-by-side כי נשאר רק טאב אחד
     _repository.saveTabs(newTabs, 0, null);
     emit(state.copyWith(

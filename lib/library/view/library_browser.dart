@@ -682,7 +682,10 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               },
               onBookDeleted: () {
                 // רענון הספרייה לאחר מחיקת ספר
-                context.read<LibraryBloc>().add(RefreshLibrary());
+                // בדיקה שה-context עדיין בתוקף לאחר מחיקה אסינכרונית
+                if (context.mounted) {
+                  context.read<LibraryBloc>().add(RefreshLibrary());
+                }
               },
             ),
           ),

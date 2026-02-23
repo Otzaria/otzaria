@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
 import '../migration/dao/daos/database.dart';
 import 'package:otzaria/core/window_persistence.dart';
@@ -65,6 +66,11 @@ class AppWindowListener extends WindowListener {
     if (kDebugMode) {
       //print('Window focused');
     }
+    // איפוס מצב המקלדת בעת קבלת פוקוס, למנוע AssertionError ב-HardwareKeyboard
+    // כאשר המשתמש מחזיק מקש, מחליף חלון, ומשחרר - Flutter לא מקבל KeyUpEvent
+    // ובעת חזרה לחלון, מקש ה-KeyDown הבא גורם ל-assertion failure
+    // ignore: invalid_use_of_visible_for_testing_member
+    HardwareKeyboard.instance.clearState();
   }
 
   @override
