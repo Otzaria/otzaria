@@ -1448,6 +1448,12 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         onPressed: _zoomIn,
       ),
       ActionButtonData(
+        widget: _buildZoomPercentageDisplay(),
+        icon: FluentIcons.text_font_size_24_regular,
+        tooltip: 'אחוז זום',
+        onPressed: null,
+      ),
+      ActionButtonData(
         widget: IconButton(
           icon: const Icon(FluentIcons.zoom_out_24_regular),
           tooltip: 'הקטן את גודל הטקסט',
@@ -1945,6 +1951,17 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     }
   }
 
+  Widget _buildZoomPercentageDisplay() {
+    return _ZoomPercentageDisplay(
+      controller: widget.tab.pdfViewerController,
+      bloc: _bloc,
+      onZoomChanged: (newZoom) {
+        widget.tab.savedZoom = newZoom;
+        _bloc.add(pdf_events.SavePerBookSettings());
+      },
+    );
+  }
+
   Widget _buildTextButton(
       BuildContext context, PdfBook book, PdfViewerController controller) {
     return FutureBuilder(
@@ -2014,6 +2031,131 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           );
         },
       ),
+    );
+  }
+}
+
+class _ZoomPercentageDisplay extends StatefulWidget {
+  final PdfViewerController controller;
+  final PdfBookBloc bloc;
+  final Function(double) onZoomChanged;
+
+  const _ZoomPercentageDisplay({
+    required this.controller,
+    required this.bloc,
+    required this.onZoomChanged,
+  });
+
+  @override
+  State<_ZoomPercentageDisplay> createState() => _ZoomPercentageDisplayState();
+}
+
+class _ZoomPercentageDisplayState extends State<_ZoomPercentageDisplay> {
+  late TextEditingController _textController;
+  bool _isEditing = false;
+  final FocusNode _focusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _textController = TextEditingController();
+    widget.controller.addListener(_handleZoomChange);
+    _focusNode.addListener(() {
+      if (!_focusNode.hasFocus && _isEditing) {
+        _handleSubmitted(_textController.text);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    _focusNode.dispose();
+    widget.controller.removeListener(_handleZoomChange);
+    super.dispose();
+  }
+
+  void _handleZoomChange() {
+    if (mounted && !_isEditing) {
+      setState(() {});
+    }
+  }
+
+  void _handleSubmitted(String value) {
+    final percentage = int.tryParse(value);
+    if (percentage != null && percentage >= 10 && percentage <= 1000) {
+      final newZoom = percentage / 100.0;
+      widget.controller.setZoom(
+        widget.controller.centerPosition,
+        newZoom,
+      );
+      widget.onZoomChanged(newZoom);
+    }
+    setState(() {
+      _isEditing = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.controller.isReady) {
+      return const SizedBox.shrink();
+    }
+
+    final zoom = widget.controller.value.zoom;
+    final zoomPercentage = (zoom * 100).round();
+
+    return Center(
+      child: _isEditing
+          ? SizedBox(
+              width: 60,
+              child: TextField(
+                controller: _textController,
+                focusNode: _focusNode,
+                keyboardType: TextInputType.number,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w500,
+                      fontSize: 14,
+                    ),
+                decoration: const InputDecoration(
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                  isDense: true,
+                  suffixText: '%',
+                  border: OutlineInputBorder(),
+                ),
+                onSubmitted: _handleSubmitted,
+              ),
+            )
+          : Tooltip(
+              message: 'הזן אחוז זום',
+              child: InkWell(
+                mouseCursor: SystemMouseCursors.click,
+                child: TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _isEditing = true;
+                      _textController.text = zoomPercentage.toString();
+                    });
+                    Future.delayed(const Duration(milliseconds: 50), () {
+                      _focusNode.requestFocus();
+                      _textController.selection = TextSelection(
+                        baseOffset: 0,
+                        extentOffset: _textController.text.length,
+                      );
+                    });
+                  },
+                  child: Text(
+                    '$zoomPercentage%',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 14,
+                        ),
+                  ),
+                ),
+              ),
+            ),
     );
   }
 }
