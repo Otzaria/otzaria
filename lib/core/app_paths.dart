@@ -3,7 +3,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
-import 'package:otzaria/settings/settings_repository.dart';
+import 'package:otzaria/settings/bloc/settings_repository.dart';
 
 /// Utility class for managing application paths.
 /// Centralizes path construction logic to avoid duplication.
@@ -41,12 +41,14 @@ class AppPaths {
 
   /// Gets the search index path (library_path/index)
   static Future<String> getIndexPath() async {
-    return p.join(await getLibraryPath(), 'index');
+    final libraryPath = await getLibraryPath();
+    return p.join(libraryPath, 'index');
   }
 
   /// Gets the manifest file path (library_path/files_manifest.json)
   static Future<String> getManifestPath() async {
-    return p.join(await getLibraryPath(), 'files_manifest.json');
+    final libraryPath = await getLibraryPath();
+    return p.join(libraryPath, 'files_manifest.json');
   }
 
   /// Resolves the notes database path - for cross-platform compatibility
@@ -70,14 +72,10 @@ class AppPaths {
   /// Note: Does NOT create the library path itself - only index directories
   /// The library path should be created by the user or during library download
   static Future<void> createNecessaryDirectories() async {
-    // רק ניצור את תיקיות האינדקס, לא את תיקיית הספרייה עצמה
-    // תיקיית הספרייה תיווצר רק כשמורידים ספרייה או כשהמשתמש בוחר תיקייה קיימת
     final libraryPath = await getLibraryPath();
-    final libraryDir = Directory(libraryPath);
+    final checkDir = Directory(libraryPath);
 
-    // אם תיקיית הספרייה לא קיימת, לא ניצור אותה
-    // רק נוודא שתיקיות האינדקס קיימות אם תיקיית הספרייה קיימת
-    if (await libraryDir.exists()) {
+    if (await checkDir.exists()) {
       final dirs = [
         await getIndexPath(),
       ];

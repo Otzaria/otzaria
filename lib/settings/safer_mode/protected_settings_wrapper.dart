@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:otzaria/settings/settings_repository.dart';
-import 'package:otzaria/settings/settings_bloc.dart';
-import 'package:otzaria/settings/settings_state.dart';
+import 'package:otzaria/settings/bloc/settings_repository.dart';
+import 'package:otzaria/settings/bloc/settings_bloc.dart';
+import 'package:otzaria/settings/bloc/settings_state.dart';
 import 'package:otzaria/settings/password_verification_dialog.dart';
 
 /// Wrapper שבודק סיסמה לפני כניסה למסך מוגן

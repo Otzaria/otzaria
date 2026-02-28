@@ -9,13 +9,15 @@ import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/external_catalog_mapper.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
-import 'package:otzaria/settings/settings_repository.dart';
+import 'package:otzaria/settings/bloc/settings_repository.dart';
 import 'package:otzaria/utils/text_manipulation.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/utils/toc_parser.dart';
 import 'package:otzaria/migration/core/models/book.dart' as db_models;
+import 'package:otzaria/data/constants/database_constants.dart';
+import 'package:path/path.dart' as path;
 
 /// A data provider that manages file system operations for the library.
 ///
@@ -170,18 +172,23 @@ class FileSystemData {
   /// to create a full [Library] object containing all categories and books.
   /// Uses LibraryProviderManager for unified catalog building.
   Future<Library> getLibrary() async {
-    // בדיקה שהתיקייה הראשית קיימת
-    final rootDir = Directory(libraryPath);
-    if (!rootDir.existsSync()) {
-      debugPrint('Library root directory does not exist: $libraryPath');
+    final libraryDir = Directory(libraryPath);
+
+    if (!libraryDir.existsSync()) {
+      debugPrint('Library path does not exist: $libraryPath');
       return Library(categories: []);
     }
 
-    // בדיקה שתיקיית אוצריא קיימת
-    final otzariaPath = '$libraryPath${Platform.pathSeparator}אוצריא';
+    // קבלת שם התיקייה מההגדרות
+    final folderName =
+        Settings.getValue<String>(SettingsRepository.keyLibraryFolderName) ??
+            DatabaseConstants.otzariaFolderName;
+
+    // בדיקה שתיקיית הספרים קיימת
+    final otzariaPath = path.join(libraryPath, folderName);
     final otzariaDir = Directory(otzariaPath);
     if (!otzariaDir.existsSync()) {
-      debugPrint('Otzaria directory does not exist: $otzariaPath');
+      debugPrint('Books directory does not exist: $otzariaPath');
       return Library(categories: []);
     }
 

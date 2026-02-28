@@ -9,6 +9,14 @@ import 'package:otzaria/search/utils/regex_patterns.dart';
 class SearchQueryBuilder {
   SearchQueryBuilder._();
 
+  /// ניקוי שאילתה מתווים מיוחדים שיכולים להפריע לחיפוש
+  /// מסירים: ! ? " : * ( ) [ ] { } ^ $ | \ + . ~ `
+  static String sanitizeQuery(String query) {
+    return query
+        .replaceAll(RegExp(r'[!?":*\(\)\[\]\{\}\^\$\|\\+.~`]'), '')
+        .trim();
+  }
+
   /// מחשב את המרווח המקסימלי מהמרווחים המותאמים אישית
   static int getMaxCustomSpacing(
       Map<String, String> customSpacing, int wordCount) {
@@ -106,8 +114,8 @@ class SearchQueryBuilder {
       Map<String, String>? customSpacing,
       Map<int, List<String>>? alternativeWords,
       Map<String, Map<String, bool>>? searchOptions) {
-    // ניקוי תווים מיוחדים שלא צריכים להיות בחיפוש (כמו גרשיים)
-    final cleanedQuery = query.replaceAll('"', '');
+    // ניקוי תווים מיוחדים שלא צריכים להיות בחיפוש
+    final cleanedQuery = sanitizeQuery(query);
 
     final words = cleanedQuery
         .trim()

@@ -7,7 +7,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:path/path.dart' as p;
-import '../settings/settings_repository.dart';
+import '../settings/bloc/settings_repository.dart';
 import '../services/data_collection_service.dart';
 import '../data/repository/data_repository.dart';
 import 'dart:io';

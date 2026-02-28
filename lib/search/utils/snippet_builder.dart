@@ -31,13 +31,16 @@ class SnippetBuilder {
     required Map<int, List<String>> alternativeWords,
   }) {
     // 1. קבלת הטקסט הנקי מה-HTML
-    final plainText =
+    var plainText =
         html_parser.parse(fullHtml).documentElement?.text.trim() ?? '';
+    
+    // ניקוי תווים מיוחדים מהטקסט המקורי כדי שיתאים לשאילתה המנוקה
+    plainText = plainText.replaceAll(RegExp(r'[!?":*\(\)\[\]\{\}\^\$\|\\+.~`]'), '');
 
     // 2. חילוץ מילות החיפוש כולל מילים חילופיות
     final originalWords = query
         .trim()
-        .replaceAll(RegExp(r'[~"*\(\)]'), ' ')
+        .replaceAll(RegExp(r'[!?":*\(\)\[\]\{\}\^\$\|\\+.~`~]'), ' ')
         .split(RegExp(r'\s+'))
         .where((s) => s.isNotEmpty)
         .toList();

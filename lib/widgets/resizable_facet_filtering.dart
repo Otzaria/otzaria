@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:otzaria/settings/settings_bloc.dart';
-import 'package:otzaria/settings/settings_event.dart';
-import 'package:otzaria/settings/settings_state.dart';
+import 'package:otzaria/settings/bloc/settings_bloc.dart';
+import 'package:otzaria/settings/bloc/settings_event.dart';
+import 'package:otzaria/settings/bloc/settings_state.dart';
 import 'package:otzaria/search/view/full_text_facet_filtering.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/widgets/resizable_drag_handle.dart';

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:otzaria/settings/settings_bloc.dart';
-import 'package:otzaria/settings/settings_state.dart';
+import 'package:otzaria/settings/bloc/settings_bloc.dart';
+import 'package:otzaria/settings/bloc/settings_state.dart';
 import 'package:otzaria/settings/tabs/reading_settings_tab.dart';
 
 /// פונקציה גלובלית להצגת דיאלוג הגדרות תצוגת הספרים

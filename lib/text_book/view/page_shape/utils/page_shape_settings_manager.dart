@@ -17,6 +17,7 @@ class PageShapeSettingsManager {
   static const String _bookHighlightPrefix = 'page_shape_highlight_';
   static const String _bookVisibilityPrefix = 'page_shape_visibility_';
   static const String _useBookSettingsPrefix = 'page_shape_use_book_settings_';
+  static const String _bookViewModePrefix = 'page_shape_view_mode_';
 
   // מפתחות פר-קטגוריה (חדש!)
   static const String _categoryConfigPrefix = 'page_shape_category_';
@@ -346,6 +347,20 @@ class PageShapeSettingsManager {
     }
   }
 
+  // ==================== העדפת תצוגה (page shape view) ====================
+
+  /// שמירת העדפת תצוגה לספר - האם לפתוח בתצוגת צורת הדף
+  static Future<void> saveViewModePreference(
+      String bookTitle, bool showPageShapeView) async {
+    await Settings.setValue<bool>(
+        '$_bookViewModePrefix$bookTitle', showPageShapeView);
+  }
+
+  /// טעינת העדפת תצוגה לספר - מחזיר null אם אין העדפה שמורה
+  static bool? getViewModePreference(String bookTitle) {
+    return Settings.getValue<bool>('$_bookViewModePrefix$bookTitle');
+  }
+
   // ==================== איפוס הגדרות ====================
 
   /// איפוס כל הגדרות פר-ספר (מפרשים + תצוגה)
@@ -369,6 +384,7 @@ class PageShapeSettingsManager {
         '${_bookVisibilityPrefix}right_$bookTitle', null);
     await Settings.setValue<bool?>(
         '${_bookVisibilityPrefix}bottom_$bookTitle', null);
+    await Settings.setValue<bool?>('$_bookViewModePrefix$bookTitle', null);
   }
 
   /// איפוס הגדרות קטגוריה

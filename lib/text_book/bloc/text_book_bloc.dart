@@ -18,6 +18,7 @@ import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/text_book/editing/repository/overrides_repository.dart';
 import 'package:otzaria/text_book/editing/models/section_identifier.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
 import 'package:otzaria/migration/core/models/category.dart' as db;
 
 class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
@@ -344,6 +345,12 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   ) {
     if (state is TextBookLoaded) {
       final currentState = state as TextBookLoaded;
+
+      // שמירת העדפת התצוגה לספר זה
+      PageShapeSettingsManager.saveViewModePreference(
+        currentState.book.title,
+        event.show,
+      );
 
       // מצב צורת הדף נשמר פר-ספר (ב-toJson של הטאב), לא גלובלית
       emit(currentState.copyWith(

@@ -4,21 +4,31 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:otzaria/settings/settings_bloc.dart';
-import 'package:otzaria/settings/settings_event.dart';
-import 'package:otzaria/settings/settings_state.dart';
-import 'package:otzaria/settings/settings_repository.dart';
+import 'package:otzaria/settings/bloc/settings_bloc.dart';
+import 'package:otzaria/settings/bloc/settings_event.dart';
+import 'package:otzaria/settings/bloc/settings_state.dart';
+import 'package:otzaria/settings/bloc/settings_repository.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/settings/custom_folders/custom_folders_tile.dart';
 import 'package:otzaria/widgets/zip_extraction_progress_dialog.dart';
+import 'package:otzaria/widgets/custom_ui_components.dart';
+import 'package:otzaria/settings/settings_card.dart';
+import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
+import 'package:otzaria/indexing/bloc/indexing_event.dart';
+import 'package:otzaria/indexing/bloc/indexing_state.dart';
 
 /// טאב הגדרות ספרייה
-class LibrarySettingsTab extends StatelessWidget {
+class LibrarySettingsTab extends StatefulWidget {
   const LibrarySettingsTab({super.key});
 
+  @override
+  State<LibrarySettingsTab> createState() => _LibrarySettingsTabState();
+}
+
+class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
   Future<void> _showExtractionDialog(BuildContext context, String path,
       {required bool isLibraryPath}) async {
     await ZipExtractionProgressDialog.showAndExtract(
@@ -73,8 +83,7 @@ class LibrarySettingsTab extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // הגדרות ספרים חיצוניים
-              _buildSectionCard(
-                context: context,
+              SettingsCard(
                 title: 'ספרים חיצוניים',
                 children: [
                   SwitchListTile(
@@ -138,33 +147,9 @@ class LibrarySettingsTab extends StatelessWidget {
               // מיקום ספריות (רק בדסקטופ)
               if (!(Platform.isAndroid || Platform.isIOS)) ...[
                 const SizedBox(height: 16),
-                _buildSectionCard(
-                  context: context,
+                SettingsCard(
                   title: 'מיקום ספריות',
                   children: [
-                    ListTile(
-                      leading: const Icon(FluentIcons.folder_24_regular),
-                      title: const Text('מיקום הספרייה',
-                          style: TextStyle(fontSize: 16)),
-                      subtitle: Text(
-                        Settings.getValue<String>(
-                                SettingsRepository.keyLibraryPath) ??
-                            'לא קיים',
-                        style: const TextStyle(fontSize: 13),
-                      ),
-                      trailing:
-                          const Icon(FluentIcons.chevron_right_24_regular),
-                      onTap: () async {
-                        String? path =
-                            await FilePicker.platform.getDirectoryPath();
-                        if (path != null && context.mounted) {
-                          // הצגת דיאלוג חילוץ
-                          _showExtractionDialog(context, path,
-                              isLibraryPath: true);
-                        }
-                      },
-                    ),
-                    const Divider(height: 1),
                     Tooltip(
                       message: 'במידה וקיימים ברשותך ספרים ממאגר זה',
                       child: ListTile(
@@ -177,17 +162,7 @@ class LibrarySettingsTab extends StatelessWidget {
                               'לא קיים',
                           style: const TextStyle(fontSize: 13),
                         ),
-                        trailing:
-                            const Icon(FluentIcons.chevron_right_24_regular),
-                        onTap: () async {
-                          String? path =
-                              await FilePicker.platform.getDirectoryPath();
-                          if (path != null && context.mounted) {
-                            // הצגת דיאלוג חילוץ
-                            _showExtractionDialog(context, path,
-                                isLibraryPath: false);
-                          }
-                        },
+                        trailing: _buildHebrewBooksPathButton(context),
                       ),
                     ),
                   ],
@@ -197,14 +172,17 @@ class LibrarySettingsTab extends StatelessWidget {
               // תיקיות מותאמות אישית (רק בדסקטופ)
               if (!(Platform.isAndroid || Platform.isIOS)) ...[
                 const SizedBox(height: 16),
-                _buildSectionCard(
-                  context: context,
+                SettingsCard(
                   title: 'תיקיות מותאמות אישית',
                   children: const [
                     CustomFoldersTile(),
                   ],
                 ),
               ],
+
+              // חיפוש ואינדקס
+              const SizedBox(height: 16),
+              _buildSearchSection(context, state),
             ],
           ),
         );
@@ -212,38 +190,117 @@ class LibrarySettingsTab extends StatelessWidget {
     );
   }
 
-  Widget _buildSectionCard({
-    required BuildContext context,
-    required String title,
-    required List<Widget> children,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-          width: 1,
+  Widget _buildSearchSection(BuildContext context, SettingsState state) {
+    return SettingsCard(
+      title: 'חיפוש ואינדקס',
+      children: [
+        SwitchListTile(
+          secondary: const Icon(FluentIcons.search_24_regular),
+          title: const Text('חיפוש מהיר באמצעות אינדקס',
+              style: TextStyle(fontSize: 16)),
+          subtitle: Text(
+              state.useFastSearch
+                  ? 'חיפוש מהיר יותר, נדרש ליצור אינדקס'
+                  : 'חיפוש איטי יותר, לא נדרש אינדקס',
+              style: const TextStyle(fontSize: 13)),
+          value: state.useFastSearch,
+          onChanged: (value) {
+            context.read<SettingsBloc>().add(UpdateUseFastSearch(value));
+          },
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            padding:
-                const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(11)),
-            ),
-            child: Text(
-              title,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-          ),
-          ...children,
-        ],
-      ),
+        const Divider(height: 1),
+        SwitchListTile(
+          secondary: const Icon(FluentIcons.arrow_clockwise_24_regular),
+          title: const Text('עדכון אינדקס אוטומטי',
+              style: TextStyle(fontSize: 16)),
+          subtitle: Text(
+              state.autoUpdateIndex
+                  ? 'אינדקס החיפוש יתעדכן אוטומטית'
+                  : 'אינדקס החיפוש לא יתעדכן אוטומטית',
+              style: const TextStyle(fontSize: 13)),
+          value: state.autoUpdateIndex,
+          onChanged: (value) {
+            context.read<SettingsBloc>().add(UpdateAutoUpdateIndex(value));
+          },
+        ),
+        const Divider(height: 1),
+        BlocBuilder<IndexingBloc, IndexingState>(
+          builder: (context, indexingState) {
+            return ListTile(
+              leading: const Icon(FluentIcons.table_24_regular),
+              title: const Text('אינדקס חיפוש', style: TextStyle(fontSize: 16)),
+              subtitle: Text(
+                  indexingState is IndexingInProgress
+                      ? 'התקדמות האינדקס: ${indexingState.booksProcessed}/${indexingState.totalBooks}'
+                      : indexingState is IndexingComplete
+                          ? 'האינדקס מעודכן'
+                          : 'האינדקס לא מעודכן',
+                  style: const TextStyle(fontSize: 13)),
+              hoverColor: Colors.transparent,
+              trailing: indexingState is IndexingInProgress
+                  ? NeutralActionButton(
+                      text: 'עצור',
+                      onPressed: () async {
+                        final result = await showWarningDialog(
+                          context: context,
+                          title: 'עצירת עדכון',
+                          content: 'האם לעצור את תהליך עדכון האינדקס?',
+                        );
+                        if (!context.mounted) return;
+                        if (result == true) {
+                          context.read<IndexingBloc>().add(CancelIndexing());
+                        }
+                      },
+                    )
+                  : indexingState is IndexingComplete
+                      ? NeutralActionButton(
+                          text: 'איפוס',
+                          onPressed: () async {
+                            final result = await showWarningDialog(
+                              context: context,
+                              title: 'איפוס אינדקס',
+                              content:
+                                  'האם למחוק את אינדקס החיפוש? תצטרך לבנות אותו מחדש כדי להשתמש בחיפוש.',
+                            );
+                            if (!context.mounted) return;
+                            if (result == true) {
+                              context.read<IndexingBloc>().add(ClearIndex());
+                            }
+                          },
+                        )
+                      : RecommendedActionButton(
+                          text: 'עדכן',
+                          onPressed: () {
+                            final library =
+                                context.read<LibraryBloc>().state.library;
+                            if (library != null) {
+                              context
+                                  .read<IndexingBloc>()
+                                  .add(StartIndexing(library));
+                            }
+                          },
+                        ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHebrewBooksPathButton(BuildContext context) {
+    final hasPath =
+        Settings.getValue<String>(SettingsRepository.keyHebrewBooksPath) !=
+            null;
+    return RecommendedActionButton(
+      text: hasPath ? 'שנה מיקום' : 'בחר מיקום',
+      icon: FluentIcons.folder_24_regular,
+      onPressed: () async {
+        String? path = await FilePicker.platform.getDirectoryPath();
+        if (path != null && context.mounted) {
+          await _showExtractionDialog(context, path, isLibraryPath: false);
+          if (mounted) setState(() {}); // רענון תצוגה לאחר שינוי נתיב
+        }
+      },
     );
   }
 }

@@ -77,6 +77,7 @@ android/app/.cxx/
 android/app/google-services.json
 build/
 fonts/
+external/
 
 installer/otzaria-0.9.74-windows.exe
 installer/otzaria-0.9.74-windows-full.exe
@@ -91,7 +92,7 @@ macos/Flutter/GeneratedPluginRegistrant.swift
 isolate.pdf
 
 sentry.properties
-.sentry-native/*
+.sentry-native/
 linux/flutter/generated_plugin_registrant.cc
 linux/flutter/generated_plugins.cmake
 macos/Flutter/GeneratedPluginRegistrant.swift

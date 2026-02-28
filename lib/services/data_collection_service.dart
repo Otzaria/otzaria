@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
-import 'package:otzaria/settings/settings_repository.dart';
+import 'package:otzaria/settings/bloc/settings_repository.dart';
 
 /// Service for collecting data required for phone error reporting
 class DataCollectionService {

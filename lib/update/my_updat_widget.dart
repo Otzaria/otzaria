@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
-import 'package:otzaria/settings/settings_repository.dart';
+import 'package:otzaria/settings/bloc/settings_repository.dart';
 import 'package:updat/updat.dart';
 import 'package:updat/updat_window_manager.dart';
 import 'package:http/http.dart' as http;

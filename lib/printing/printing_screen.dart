@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/constants/fonts.dart';
 import 'package:otzaria/models/links.dart';
+import 'package:otzaria/navigation/custom_title_bar.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
 import 'package:otzaria/pdf_book/pdf_page_number_dispaly.dart';
@@ -610,877 +611,911 @@ class _PrintingScreenState extends State<PrintingScreen> {
     final isCustomPdfMode = widget.createPdfOverride != null;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('הדפסה'),
-        centerTitle: true,
-        actions: [
-          OutlinedButton.icon(
-            onPressed: () async {
-              final path = await FilePicker.platform.saveFile(
-                dialogTitle: "שמירת קובץ PDF",
-                fileName: "output.pdf",
-              );
-              if (path != null) {
-                final file = File(path);
-                await file.writeAsBytes(await pdf);
-              }
-            },
-            icon: const Icon(FluentIcons.save_24_regular),
-            label: const Text('שמירה'),
+      body: Column(
+        children: [
+          const CustomTitleBar(),
+          AppBar(
+            primary: false,
+            title: const Text('הדפסה'),
+            centerTitle: true,
+            actions: [
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final path = await FilePicker.platform.saveFile(
+                    dialogTitle: "שמירת קובץ PDF",
+                    fileName: "output.pdf",
+                  );
+                  if (path != null) {
+                    final file = File(path);
+                    await file.writeAsBytes(await pdf);
+                  }
+                },
+                icon: const Icon(FluentIcons.save_24_regular),
+                label: const Text('שמירה'),
+              ),
+              const SizedBox(width: 8),
+              FilledButton.icon(
+                onPressed: () async {
+                  await Printing.layoutPdf(
+                    usePrinterSettings: true,
+                    onLayout: (PdfPageFormat format) async => pdf,
+                    format: format,
+                  );
+                },
+                icon: const Icon(FluentIcons.print_24_regular),
+                label: const Text('הדפסה'),
+              ),
+              const SizedBox(width: 16),
+            ],
           ),
-          const SizedBox(width: 8),
-          FilledButton.icon(
-            onPressed: () async {
-              await Printing.layoutPdf(
-                usePrinterSettings: true,
-                onLayout: (PdfPageFormat format) async => pdf,
-                format: format,
-              );
-            },
-            icon: const Icon(FluentIcons.print_24_regular),
-            label: const Text('הדפסה'),
-          ),
-          const SizedBox(width: 16),
-        ],
-      ),
-      body: FutureBuilder(
-        future: widget.data,
-        builder: (context, snapshot) {
-          if (isCustomPdfMode) {
-            return Row(
-              children: [
-                // פאנל הגדרות בצד
-                Container(
-                  width: 320,
-                  decoration: BoxDecoration(
-                    color: colorScheme.surface,
-                    border: Border(
-                      left: BorderSide(
-                        color: colorScheme.outlineVariant,
-                        width: 1,
-                      ),
-                    ),
-                  ),
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _buildSectionCard(
-                          context: context,
-                          title: 'תצוגה מקדימה',
-                          icon: FluentIcons.eye_24_regular,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildDropdownRow(
-                                context: context,
-                                label: 'מעבר לדף',
-                                child: SizedBox(
-                                  height: 40,
-                                  child: PageNumberDisplay(
-                                      controller: _pdfViewerController),
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              SwitchListTile(
-                                title: const Text('תצוגה מוקטנת של כל הדפים'),
-                                dense: true,
-                                contentPadding: EdgeInsets.zero,
-                                value: _showThumbnails,
-                                onChanged: (value) {
-                                  setState(() {
-                                    _showThumbnails = value;
-                                  });
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        _buildSectionCard(
-                          context: context,
-                          title: 'הגדרות דף',
-                          icon: FluentIcons.options_24_regular,
-                          child: Column(
-                            children: [
-                              _buildDropdownRow(
-                                context: context,
-                                label: 'גודל דף',
-                                child: DropdownButton<PdfPageFormat>(
-                                  value: format,
-                                  isExpanded: true,
-                                  underline: const SizedBox(),
-                                  borderRadius: BorderRadius.circular(8),
-                                  onChanged: (PdfPageFormat? value) {
-                                    if (value == null) return;
-                                    setState(() {
-                                      format = value;
-                                    });
-                                  },
-                                  items: const {
-                                    'A4': PdfPageFormat.a4,
-                                    'Letter': PdfPageFormat.letter,
-                                  }.entries.map((entry) {
-                                    return DropdownMenuItem(
-                                      value: entry.value,
-                                      child: Text(entry.key),
-                                    );
-                                  }).toList(),
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              _buildDropdownRow(
-                                context: context,
-                                label: 'כיוון',
-                                child: DropdownButton<pw.PageOrientation>(
-                                  value: orientation,
-                                  isExpanded: true,
-                                  underline: const SizedBox(),
-                                  borderRadius: BorderRadius.circular(8),
-                                  onChanged: (pw.PageOrientation? value) {
-                                    if (value == null) return;
-                                    orientation = value;
-                                    setState(() {});
-                                  },
-                                  items: const [
-                                    DropdownMenuItem(
-                                      value: pw.PageOrientation.portrait,
-                                      child: Text('לאורך'),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: pw.PageOrientation.landscape,
-                                      child: Text('לרוחב'),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              _buildDropdownRow(
-                                context: context,
-                                label: 'עמודים בגליון',
-                                child: DropdownButton<int>(
-                                  value: _pagesPerSheet,
-                                  isExpanded: true,
-                                  underline: const SizedBox(),
-                                  borderRadius: BorderRadius.circular(8),
-                                  onChanged: (int? value) {
-                                    if (value == null) return;
-                                    setState(() {
-                                      _pagesPerSheet = value;
-                                    });
-                                  },
-                                  items: const [
-                                    DropdownMenuItem(
-                                      value: 1,
-                                      child: Text('1 (רגיל)'),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: 2,
-                                      child: Text('2 (יישור לימין)'),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: 4,
-                                      child: Text('4 (יישור לימין)'),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // תצוגה מקדימה של ה-PDF
-                Expanded(
-                  child: Container(
-                    color: colorScheme.surfaceContainerLow,
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: FutureBuilder(
-                            future: pdf,
-                            builder: (context, snapshot) {
-                              if (snapshot.connectionState ==
-                                      ConnectionState.done &&
-                                  snapshot.hasData) {
-                                return PdfViewer.data(
-                                  snapshot.data!,
-                                  sourceName: 'printing',
-                                  controller: _pdfViewerController,
-                                  params: PdfViewerParams(
-                                    viewerOverlayBuilder:
-                                        (context, size, handleLinkTap) => [
-                                      PdfScrollbar(
-                                        controller: _pdfViewerController,
-                                        orientation: ScrollbarOrientation.right,
-                                        trackThickness: 16.0,
-                                        thumbMinSize: 50.0,
-                                      ),
-                                      PdfHorizontalScrollbar(
-                                        controller: _pdfViewerController,
-                                        trackThickness: 10.0,
-                                      ),
-                                    ],
-                                    onDocumentChanged: (document) {
-                                      if (document == null) {
-                                        _documentRef.value = null;
-                                      }
-                                    },
-                                    onViewerReady: (document, controller) {
-                                      _documentRef.value =
-                                          controller.documentRef;
-                                    },
-                                  ),
-                                );
-                              }
-                              return Center(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    CircularProgressIndicator(
-                                      color: colorScheme.primary,
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      'מכין תצוגה מקדימה...',
-                                      style: TextStyle(
-                                        color: colorScheme.onSurfaceVariant,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                        if (_showThumbnails) ...[
-                          VerticalDivider(
-                            width: 1,
-                            color: colorScheme.outlineVariant,
-                          ),
-                          SizedBox(
-                            width: 260,
-                            child: ValueListenableBuilder<PdfDocumentRef?>(
-                              valueListenable: _documentRef,
-                              builder: (context, documentRef, _) {
-                                return ThumbnailsView(
-                                  documentRef: documentRef,
-                                  controller: _pdfViewerController,
-                                );
-                              },
+          Expanded(
+            child: FutureBuilder(
+              future: widget.data,
+              builder: (context, snapshot) {
+                if (isCustomPdfMode) {
+                  return Row(
+                    children: [
+                      // פאנל הגדרות בצד
+                      Container(
+                        width: 320,
+                        decoration: BoxDecoration(
+                          color: colorScheme.surface,
+                          border: Border(
+                            left: BorderSide(
+                              color: colorScheme.outlineVariant,
+                              width: 1,
                             ),
                           ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            );
-          }
-
-          if (snapshot.connectionState == ConnectionState.done) {
-            final totalLines = snapshot.data!.split('\n').length;
-            return Row(
-              children: [
-                // פאנל הגדרות בצד
-                Container(
-                  width: 320,
-                  decoration: BoxDecoration(
-                    color: colorScheme.surface,
-                    border: Border(
-                      left: BorderSide(
-                        color: colorScheme.outlineVariant,
-                        width: 1,
-                      ),
-                    ),
-                  ),
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // ניווט ותצוגה מקדימה
-                        _buildSectionCard(
-                          context: context,
-                          title: 'תצוגה מקדימה',
-                          icon: FluentIcons.eye_24_regular,
+                        ),
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(16),
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              _buildDropdownRow(
+                              _buildSectionCard(
                                 context: context,
-                                label: 'מעבר לדף',
-                                child: SizedBox(
-                                  height: 40,
-                                  child: PageNumberDisplay(
-                                      controller: _pdfViewerController),
+                                title: 'תצוגה מקדימה',
+                                icon: FluentIcons.eye_24_regular,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _buildDropdownRow(
+                                      context: context,
+                                      label: 'מעבר לדף',
+                                      child: SizedBox(
+                                        height: 40,
+                                        child: PageNumberDisplay(
+                                            controller: _pdfViewerController),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    SwitchListTile(
+                                      title: const Text(
+                                          'תצוגה מוקטנת של כל הדפים'),
+                                      dense: true,
+                                      contentPadding: EdgeInsets.zero,
+                                      value: _showThumbnails,
+                                      onChanged: (value) {
+                                        setState(() {
+                                          _showThumbnails = value;
+                                        });
+                                      },
+                                    ),
+                                  ],
                                 ),
                               ),
                               const SizedBox(height: 12),
-                              SwitchListTile(
-                                title: const Text('תצוגה מוקטנת של כל הדפים'),
-                                dense: true,
-                                contentPadding: EdgeInsets.zero,
-                                value: _showThumbnails,
-                                onChanged: (value) {
-                                  setState(() {
-                                    _showThumbnails = value;
-                                  });
-                                },
+                              _buildSectionCard(
+                                context: context,
+                                title: 'הגדרות דף',
+                                icon: FluentIcons.options_24_regular,
+                                child: Column(
+                                  children: [
+                                    _buildDropdownRow(
+                                      context: context,
+                                      label: 'גודל דף',
+                                      child: DropdownButton<PdfPageFormat>(
+                                        value: format,
+                                        isExpanded: true,
+                                        underline: const SizedBox(),
+                                        borderRadius: BorderRadius.circular(8),
+                                        onChanged: (PdfPageFormat? value) {
+                                          if (value == null) return;
+                                          setState(() {
+                                            format = value;
+                                          });
+                                        },
+                                        items: const {
+                                          'A4': PdfPageFormat.a4,
+                                          'Letter': PdfPageFormat.letter,
+                                        }.entries.map((entry) {
+                                          return DropdownMenuItem(
+                                            value: entry.value,
+                                            child: Text(entry.key),
+                                          );
+                                        }).toList(),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    _buildDropdownRow(
+                                      context: context,
+                                      label: 'כיוון',
+                                      child: DropdownButton<pw.PageOrientation>(
+                                        value: orientation,
+                                        isExpanded: true,
+                                        underline: const SizedBox(),
+                                        borderRadius: BorderRadius.circular(8),
+                                        onChanged: (pw.PageOrientation? value) {
+                                          if (value == null) return;
+                                          orientation = value;
+                                          setState(() {});
+                                        },
+                                        items: const [
+                                          DropdownMenuItem(
+                                            value: pw.PageOrientation.portrait,
+                                            child: Text('לאורך'),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: pw.PageOrientation.landscape,
+                                            child: Text('לרוחב'),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    _buildDropdownRow(
+                                      context: context,
+                                      label: 'עמודים בגליון',
+                                      child: DropdownButton<int>(
+                                        value: _pagesPerSheet,
+                                        isExpanded: true,
+                                        underline: const SizedBox(),
+                                        borderRadius: BorderRadius.circular(8),
+                                        onChanged: (int? value) {
+                                          if (value == null) return;
+                                          setState(() {
+                                            _pagesPerSheet = value;
+                                          });
+                                        },
+                                        items: const [
+                                          DropdownMenuItem(
+                                            value: 1,
+                                            child: Text('1 (רגיל)'),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: 2,
+                                            child: Text('2 (יישור לימין)'),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: 4,
+                                            child: Text('4 (יישור לימין)'),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                              const SizedBox(height: 8),
-                              if (!isCustomPdfMode) ...[
-                                SwitchListTile(
-                                  title: const Text('כלול מפרשים'),
-                                  dense: true,
-                                  contentPadding: EdgeInsets.zero,
-                                  value: _includeCommentaries,
-                                  onChanged: (value) {
-                                    setState(() {
-                                      _includeCommentaries = value;
-                                    });
-                                  },
-                                ),
-                                SwitchListTile(
-                                  title: const Text('כלול הערות אישיות'),
-                                  dense: true,
-                                  contentPadding: EdgeInsets.zero,
-                                  value: _includePersonalNotes,
-                                  onChanged: (value) {
-                                    setState(() {
-                                      _includePersonalNotes = value;
-                                      if (!value) {
-                                        _personalNotesCache = null;
-                                      }
-                                    });
-                                  },
-                                ),
-                              ],
                             ],
                           ),
                         ),
-                        const SizedBox(height: 12),
+                      ),
 
-                        // כותרת טווח הדפסה
-                        _buildSectionCard(
-                          context: context,
-                          title: 'טווח הדפסה',
-                          icon: FluentIcons.document_page_number_24_regular,
-                          child: Column(
+                      // תצוגה מקדימה של ה-PDF
+                      Expanded(
+                        child: Container(
+                          color: colorScheme.surfaceContainerLow,
+                          child: Row(
                             children: [
-                              // תפריט בחירה: שורות/כותרות
-                              if (_flatHeaders.isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 16),
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        child: SegmentedButton<bool>(
-                                          segments: const [
-                                            ButtonSegment<bool>(
-                                              value: true,
-                                              label: Text('כותרות'),
-                                              icon: Icon(
-                                                  FluentIcons
-                                                      .text_bullet_list_24_regular,
-                                                  size: 16),
+                              Expanded(
+                                child: FutureBuilder(
+                                  future: pdf,
+                                  builder: (context, snapshot) {
+                                    if (snapshot.connectionState ==
+                                            ConnectionState.done &&
+                                        snapshot.hasData) {
+                                      return PdfViewer.data(
+                                        snapshot.data!,
+                                        sourceName: 'printing',
+                                        controller: _pdfViewerController,
+                                        params: PdfViewerParams(
+                                          viewerOverlayBuilder:
+                                              (context, size, handleLinkTap) =>
+                                                  [
+                                            PdfScrollbar(
+                                              controller: _pdfViewerController,
+                                              orientation:
+                                                  ScrollbarOrientation.right,
+                                              trackThickness: 16.0,
+                                              thumbMinSize: 50.0,
                                             ),
-                                            ButtonSegment<bool>(
-                                              value: false,
-                                              label: Text('שורות'),
-                                              icon: Icon(
-                                                  FluentIcons
-                                                      .text_number_list_ltr_24_regular,
-                                                  size: 16),
+                                            PdfHorizontalScrollbar(
+                                              controller: _pdfViewerController,
+                                              trackThickness: 10.0,
                                             ),
                                           ],
-                                          selected: {_isHeaderMode},
-                                          onSelectionChanged:
-                                              (Set<bool> newSelection) {
-                                            setState(() {
-                                              _isHeaderMode =
-                                                  newSelection.first;
-                                              if (_isHeaderMode &&
-                                                  _flatHeaders.isNotEmpty) {
-                                                // אתחול ברירת מחדל לכותרת ראשונה
-                                                _startHeaderIndex = 0;
-                                                _endHeaderIndex = min(
-                                                    2, _flatHeaders.length - 1);
-                                                _updateRangeByHeaders();
-                                              }
-                                            });
+                                          onDocumentChanged: (document) {
+                                            if (document == null) {
+                                              _documentRef.value = null;
+                                            }
+                                          },
+                                          onViewerReady:
+                                              (document, controller) {
+                                            _documentRef.value =
+                                                controller.documentRef;
                                           },
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-
-                              // בחירת טווח לפי שורות
-                              if (!_isHeaderMode) ...[
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      'שורה ${startLine + 1}',
-                                      style: TextStyle(
-                                        color: colorScheme.onSurfaceVariant,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                    Text(
-                                      'שורה ${endLine + 1}',
-                                      style: TextStyle(
-                                        color: colorScheme.onSurfaceVariant,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                RangeSlider(
-                                  min: 0.0,
-                                  max: totalLines.toDouble(),
-                                  values: RangeValues(
-                                      startLine.toDouble(), endLine.toDouble()),
-                                  onChanged: (value) {
-                                    startLine = value.start.toInt();
-                                    endLine = value.end.toInt();
-                                    setState(() {});
-                                  },
-                                ),
-                                Text(
-                                  '${endLine - startLine} שורות נבחרו מתוך $totalLines',
-                                  style: TextStyle(
-                                    color: colorScheme.primary,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-
-                              // בחירת טווח לפי כותרות
-                              if (_isHeaderMode && _flatHeaders.isNotEmpty) ...[
-                                _buildDropdownRow(
-                                  context: context,
-                                  label: 'מ-',
-                                  child: DropdownButton<int>(
-                                    value: _startHeaderIndex,
-                                    isExpanded: true,
-                                    underline: const SizedBox(),
-                                    borderRadius: BorderRadius.circular(8),
-                                    onChanged: (int? value) {
-                                      setState(() {
-                                        _startHeaderIndex = value;
-                                        if (_endHeaderIndex != null &&
-                                            value != null &&
-                                            value > _endHeaderIndex!) {
-                                          _endHeaderIndex = value;
-                                        }
-                                        _updateRangeByHeaders();
-                                      });
-                                    },
-                                    items: _flatHeaders
-                                        .asMap()
-                                        .entries
-                                        .map((entry) {
-                                      return DropdownMenuItem<int>(
-                                        value: entry.key,
-                                        child: Text(
-                                          entry.value.fullText,
-                                          overflow: TextOverflow.ellipsis,
-                                          maxLines: 1,
-                                        ),
                                       );
-                                    }).toList(),
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                _buildDropdownRow(
-                                  context: context,
-                                  label: 'עד-',
-                                  child: DropdownButton<int>(
-                                    value: _endHeaderIndex,
-                                    isExpanded: true,
-                                    underline: const SizedBox(),
-                                    borderRadius: BorderRadius.circular(8),
-                                    onChanged: (int? value) {
-                                      setState(() {
-                                        _endHeaderIndex = value;
-                                        if (_startHeaderIndex != null &&
-                                            value != null &&
-                                            value < _startHeaderIndex!) {
-                                          _startHeaderIndex = value;
-                                        }
-                                        _updateRangeByHeaders();
-                                      });
-                                    },
-                                    items: _flatHeaders
-                                        .asMap()
-                                        .entries
-                                        .map((entry) {
-                                      return DropdownMenuItem<int>(
-                                        value: entry.key,
-                                        child: Text(
-                                          entry.value.fullText,
-                                          overflow: TextOverflow.ellipsis,
-                                          maxLines: 1,
-                                        ),
-                                      );
-                                    }).toList(),
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  '${(_endHeaderIndex ?? 0) - (_startHeaderIndex ?? 0) + 1} כותרות נבחרו',
-                                  style: TextStyle(
-                                    color: colorScheme.primary,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-
-                        // הגדרות טקסט
-                        _buildSectionCard(
-                          context: context,
-                          title: 'הגדרות טקסט',
-                          icon: FluentIcons.text_font_24_regular,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildSliderRow(
-                                context: context,
-                                label: 'גודל גופן',
-                                value: fontSize,
-                                min: 10,
-                                max: 50,
-                                displayValue: fontSize.toInt().toString(),
-                                onChanged: (value) {
-                                  setState(() {
-                                    fontSize = value;
-                                  });
-                                },
-                              ),
-                              const SizedBox(height: 16),
-                              Row(
-                                children: [
-                                  SizedBox(
-                                    width: 80,
-                                    child: Text(
-                                      'גופן',
-                                      style: TextStyle(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .onSurfaceVariant,
-                                        fontSize: 13,
+                                    }
+                                    return Center(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          CircularProgressIndicator(
+                                            color: colorScheme.primary,
+                                          ),
+                                          const SizedBox(height: 16),
+                                          Text(
+                                            'מכין תצוגה מקדימה...',
+                                            style: TextStyle(
+                                              color:
+                                                  colorScheme.onSurfaceVariant,
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: InkWell(
-                                      onTap: () async {
-                                        final fontItems = fontNames.entries
-                                            .map((entry) =>
-                                                SelectionItem<String>(
-                                                  label: entry.value,
-                                                  value: entry.key,
-                                                  searchValue:
-                                                      '${entry.value} ${entry.key}',
-                                                ))
-                                            .toList();
-
-                                        final result =
-                                            await showSelectionDialog<String>(
-                                          context: context,
-                                          title: 'בחירת גופן להדפסה',
-                                          items: fontItems,
-                                          initialValue: fontName,
-                                          searchHint: 'חיפוש גופן',
-                                        );
-                                        if (result != null) {
-                                          setState(() {
-                                            fontName = result;
-                                          });
-                                        }
-                                      },
-                                      child: InputDecorator(
-                                        decoration: InputDecoration(
-                                          contentPadding:
-                                              const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 8,
-                                          ),
-                                          border: OutlineInputBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(8),
-                                          ),
-                                          suffixIcon: const Icon(FluentIcons
-                                              .chevron_down_24_regular),
-                                        ),
-                                        child: Text(
-                                          fontNames[fontName] ?? fontName,
-                                          style: TextStyle(
-                                            fontFamily: fontName,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              // הגדרות ניקוד וטעמים
-                              SwitchListTile(
-                                title: const Text('הדפסה עם ניקוד'),
-                                dense: true,
-                                contentPadding: EdgeInsets.zero,
-                                value: !_removeNikud,
-                                onChanged: (value) {
-                                  setState(() {
-                                    _removeNikud = !value;
-                                  });
-                                },
-                              ),
-                              SwitchListTile(
-                                title: const Text('הדפסה עם טעמים'),
-                                dense: true,
-                                contentPadding: EdgeInsets.zero,
-                                value: !_removeTaamim,
-                                onChanged: (value) {
-                                  setState(() {
-                                    _removeTaamim = !value;
-                                  });
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-
-                        // הגדרות עמוד
-                        _buildSectionCard(
-                          context: context,
-                          title: 'הגדרות עמוד',
-                          icon: FluentIcons.document_24_regular,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildSliderRow(
-                                context: context,
-                                label: 'שוליים',
-                                value: pageMargin,
-                                min: 10,
-                                max: 100,
-                                displayValue: '${pageMargin.toInt()} px',
-                                onChanged: (value) {
-                                  setState(() {
-                                    pageMargin = value;
-                                  });
-                                },
-                              ),
-                              const SizedBox(height: 16),
-                              _buildDropdownRow(
-                                context: context,
-                                label: 'גודל עמוד',
-                                child: DropdownButton<PdfPageFormat>(
-                                  value: format,
-                                  isExpanded: true,
-                                  underline: const SizedBox(),
-                                  borderRadius: BorderRadius.circular(8),
-                                  onChanged: (PdfPageFormat? value) {
-                                    format = value!;
-                                    setState(() {});
-                                  },
-                                  items: formats.entries
-                                      .map<DropdownMenuItem<PdfPageFormat>>(
-                                          (entry) {
-                                    return DropdownMenuItem<PdfPageFormat>(
-                                      value: entry.key,
-                                      child: Text(entry.value),
                                     );
-                                  }).toList(),
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              _buildDropdownRow(
-                                context: context,
-                                label: 'כיוון',
-                                child: DropdownButton<pw.PageOrientation>(
-                                  value: orientation,
-                                  isExpanded: true,
-                                  underline: const SizedBox(),
-                                  borderRadius: BorderRadius.circular(8),
-                                  onChanged: (pw.PageOrientation? value) {
-                                    orientation = value!;
-                                    setState(() {});
                                   },
-                                  items: const [
-                                    DropdownMenuItem(
-                                      value: pw.PageOrientation.portrait,
-                                      child: Text('לאורך'),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: pw.PageOrientation.landscape,
-                                      child: Text('לרוחב'),
-                                    ),
-                                  ],
                                 ),
                               ),
-                              const SizedBox(height: 12),
-                              _buildDropdownRow(
-                                context: context,
-                                label: 'עמודים בגליון',
-                                child: DropdownButton<int>(
-                                  value: _pagesPerSheet,
-                                  isExpanded: true,
-                                  underline: const SizedBox(),
-                                  borderRadius: BorderRadius.circular(8),
-                                  onChanged: (int? value) {
-                                    if (value == null) return;
-                                    setState(() {
-                                      _pagesPerSheet = value;
-                                    });
-                                  },
-                                  items: const [
-                                    DropdownMenuItem(
-                                      value: 1,
-                                      child: Text('1 (רגיל)'),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: 2,
-                                      child: Text('2 (יישור לימין)'),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: 4,
-                                      child: Text('4 (יישור לימין)'),
-                                    ),
-                                  ],
+                              if (_showThumbnails) ...[
+                                VerticalDivider(
+                                  width: 1,
+                                  color: colorScheme.outlineVariant,
                                 ),
-                              ),
+                                SizedBox(
+                                  width: 260,
+                                  child:
+                                      ValueListenableBuilder<PdfDocumentRef?>(
+                                    valueListenable: _documentRef,
+                                    builder: (context, documentRef, _) {
+                                      return ThumbnailsView(
+                                        documentRef: documentRef,
+                                        controller: _pdfViewerController,
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                ),
+                      ),
+                    ],
+                  );
+                }
 
-                // תצוגה מקדימה של ה-PDF
-                Expanded(
-                  child: Container(
-                    color: colorScheme.surfaceContainerLow,
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: FutureBuilder(
-                            future: pdf,
-                            builder: (context, snapshot) {
-                              if (snapshot.connectionState ==
-                                      ConnectionState.done &&
-                                  snapshot.hasData) {
-                                return PdfViewer.data(
-                                  snapshot.data!,
-                                  sourceName: 'printing',
-                                  controller: _pdfViewerController,
-                                  params: PdfViewerParams(
-                                    viewerOverlayBuilder:
-                                        (context, size, handleLinkTap) => [
-                                      PdfScrollbar(
-                                        controller: _pdfViewerController,
-                                        orientation: ScrollbarOrientation.right,
-                                        trackThickness: 16.0,
-                                        thumbMinSize: 50.0,
-                                      ),
-                                      PdfHorizontalScrollbar(
-                                        controller: _pdfViewerController,
-                                        trackThickness: 10.0,
-                                      ),
-                                    ],
-                                    onDocumentChanged: (document) {
-                                      if (document == null) {
-                                        _documentRef.value = null;
-                                      }
-                                    },
-                                    onViewerReady: (document, controller) {
-                                      _documentRef.value =
-                                          controller.documentRef;
-                                    },
-                                  ),
-                                );
-                              }
-                              return Center(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    CircularProgressIndicator(
-                                      color: colorScheme.primary,
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      'מכין תצוגה מקדימה...',
-                                      style: TextStyle(
-                                        color: colorScheme.onSurfaceVariant,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                        if (_showThumbnails) ...[
-                          VerticalDivider(
-                            width: 1,
-                            color: colorScheme.outlineVariant,
-                          ),
-                          SizedBox(
-                            width: 260,
-                            child: ValueListenableBuilder<PdfDocumentRef?>(
-                              valueListenable: _documentRef,
-                              builder: (context, documentRef, _) {
-                                return ThumbnailsView(
-                                  documentRef: documentRef,
-                                  controller: _pdfViewerController,
-                                );
-                              },
+                if (snapshot.connectionState == ConnectionState.done) {
+                  final totalLines = snapshot.data!.split('\n').length;
+                  return Row(
+                    children: [
+                      // פאנל הגדרות בצד
+                      Container(
+                        width: 320,
+                        decoration: BoxDecoration(
+                          color: colorScheme.surface,
+                          border: Border(
+                            left: BorderSide(
+                              color: colorScheme.outlineVariant,
+                              width: 1,
                             ),
                           ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            );
-          }
+                        ),
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // ניווט ותצוגה מקדימה
+                              _buildSectionCard(
+                                context: context,
+                                title: 'תצוגה מקדימה',
+                                icon: FluentIcons.eye_24_regular,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _buildDropdownRow(
+                                      context: context,
+                                      label: 'מעבר לדף',
+                                      child: SizedBox(
+                                        height: 40,
+                                        child: PageNumberDisplay(
+                                            controller: _pdfViewerController),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    SwitchListTile(
+                                      title: const Text(
+                                          'תצוגה מוקטנת של כל הדפים'),
+                                      dense: true,
+                                      contentPadding: EdgeInsets.zero,
+                                      value: _showThumbnails,
+                                      onChanged: (value) {
+                                        setState(() {
+                                          _showThumbnails = value;
+                                        });
+                                      },
+                                    ),
+                                    const SizedBox(height: 8),
+                                    if (!isCustomPdfMode) ...[
+                                      SwitchListTile(
+                                        title: const Text('כלול מפרשים'),
+                                        dense: true,
+                                        contentPadding: EdgeInsets.zero,
+                                        value: _includeCommentaries,
+                                        onChanged: (value) {
+                                          setState(() {
+                                            _includeCommentaries = value;
+                                          });
+                                        },
+                                      ),
+                                      SwitchListTile(
+                                        title: const Text('כלול הערות אישיות'),
+                                        dense: true,
+                                        contentPadding: EdgeInsets.zero,
+                                        value: _includePersonalNotes,
+                                        onChanged: (value) {
+                                          setState(() {
+                                            _includePersonalNotes = value;
+                                            if (!value) {
+                                              _personalNotesCache = null;
+                                            }
+                                          });
+                                        },
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 12),
 
-          return Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(color: colorScheme.primary),
-                const SizedBox(height: 16),
-                Text(
-                  'טוען נתונים...',
-                  style: TextStyle(color: colorScheme.onSurfaceVariant),
-                ),
-              ],
+                              // כותרת טווח הדפסה
+                              _buildSectionCard(
+                                context: context,
+                                title: 'טווח הדפסה',
+                                icon:
+                                    FluentIcons.document_page_number_24_regular,
+                                child: Column(
+                                  children: [
+                                    // תפריט בחירה: שורות/כותרות
+                                    if (_flatHeaders.isNotEmpty)
+                                      Padding(
+                                        padding:
+                                            const EdgeInsets.only(bottom: 16),
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: SegmentedButton<bool>(
+                                                segments: const [
+                                                  ButtonSegment<bool>(
+                                                    value: true,
+                                                    label: Text('כותרות'),
+                                                    icon: Icon(
+                                                        FluentIcons
+                                                            .text_bullet_list_24_regular,
+                                                        size: 16),
+                                                  ),
+                                                  ButtonSegment<bool>(
+                                                    value: false,
+                                                    label: Text('שורות'),
+                                                    icon: Icon(
+                                                        FluentIcons
+                                                            .text_number_list_ltr_24_regular,
+                                                        size: 16),
+                                                  ),
+                                                ],
+                                                selected: {_isHeaderMode},
+                                                onSelectionChanged:
+                                                    (Set<bool> newSelection) {
+                                                  setState(() {
+                                                    _isHeaderMode =
+                                                        newSelection.first;
+                                                    if (_isHeaderMode &&
+                                                        _flatHeaders
+                                                            .isNotEmpty) {
+                                                      // אתחול ברירת מחדל לכותרת ראשונה
+                                                      _startHeaderIndex = 0;
+                                                      _endHeaderIndex = min(
+                                                          2,
+                                                          _flatHeaders.length -
+                                                              1);
+                                                      _updateRangeByHeaders();
+                                                    }
+                                                  });
+                                                },
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+
+                                    // בחירת טווח לפי שורות
+                                    if (!_isHeaderMode) ...[
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Text(
+                                            'שורה ${startLine + 1}',
+                                            style: TextStyle(
+                                              color:
+                                                  colorScheme.onSurfaceVariant,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                          Text(
+                                            'שורה ${endLine + 1}',
+                                            style: TextStyle(
+                                              color:
+                                                  colorScheme.onSurfaceVariant,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      RangeSlider(
+                                        min: 0.0,
+                                        max: totalLines.toDouble(),
+                                        values: RangeValues(
+                                            startLine.toDouble(),
+                                            endLine.toDouble()),
+                                        onChanged: (value) {
+                                          startLine = value.start.toInt();
+                                          endLine = value.end.toInt();
+                                          setState(() {});
+                                        },
+                                      ),
+                                      Text(
+                                        '${endLine - startLine} שורות נבחרו מתוך $totalLines',
+                                        style: TextStyle(
+                                          color: colorScheme.primary,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+
+                                    // בחירת טווח לפי כותרות
+                                    if (_isHeaderMode &&
+                                        _flatHeaders.isNotEmpty) ...[
+                                      _buildDropdownRow(
+                                        context: context,
+                                        label: 'מ-',
+                                        child: DropdownButton<int>(
+                                          value: _startHeaderIndex,
+                                          isExpanded: true,
+                                          underline: const SizedBox(),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          onChanged: (int? value) {
+                                            setState(() {
+                                              _startHeaderIndex = value;
+                                              if (_endHeaderIndex != null &&
+                                                  value != null &&
+                                                  value > _endHeaderIndex!) {
+                                                _endHeaderIndex = value;
+                                              }
+                                              _updateRangeByHeaders();
+                                            });
+                                          },
+                                          items: _flatHeaders
+                                              .asMap()
+                                              .entries
+                                              .map((entry) {
+                                            return DropdownMenuItem<int>(
+                                              value: entry.key,
+                                              child: Text(
+                                                entry.value.fullText,
+                                                overflow: TextOverflow.ellipsis,
+                                                maxLines: 1,
+                                              ),
+                                            );
+                                          }).toList(),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      _buildDropdownRow(
+                                        context: context,
+                                        label: 'עד-',
+                                        child: DropdownButton<int>(
+                                          value: _endHeaderIndex,
+                                          isExpanded: true,
+                                          underline: const SizedBox(),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          onChanged: (int? value) {
+                                            setState(() {
+                                              _endHeaderIndex = value;
+                                              if (_startHeaderIndex != null &&
+                                                  value != null &&
+                                                  value < _startHeaderIndex!) {
+                                                _startHeaderIndex = value;
+                                              }
+                                              _updateRangeByHeaders();
+                                            });
+                                          },
+                                          items: _flatHeaders
+                                              .asMap()
+                                              .entries
+                                              .map((entry) {
+                                            return DropdownMenuItem<int>(
+                                              value: entry.key,
+                                              child: Text(
+                                                entry.value.fullText,
+                                                overflow: TextOverflow.ellipsis,
+                                                maxLines: 1,
+                                              ),
+                                            );
+                                          }).toList(),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        '${(_endHeaderIndex ?? 0) - (_startHeaderIndex ?? 0) + 1} כותרות נבחרו',
+                                        style: TextStyle(
+                                          color: colorScheme.primary,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+
+                              // הגדרות טקסט
+                              _buildSectionCard(
+                                context: context,
+                                title: 'הגדרות טקסט',
+                                icon: FluentIcons.text_font_24_regular,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _buildSliderRow(
+                                      context: context,
+                                      label: 'גודל גופן',
+                                      value: fontSize,
+                                      min: 10,
+                                      max: 50,
+                                      displayValue: fontSize.toInt().toString(),
+                                      onChanged: (value) {
+                                        setState(() {
+                                          fontSize = value;
+                                        });
+                                      },
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Row(
+                                      children: [
+                                        SizedBox(
+                                          width: 80,
+                                          child: Text(
+                                            'גופן',
+                                            style: TextStyle(
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .onSurfaceVariant,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: InkWell(
+                                            onTap: () async {
+                                              final fontItems = fontNames
+                                                  .entries
+                                                  .map((entry) =>
+                                                      SelectionItem<String>(
+                                                        label: entry.value,
+                                                        value: entry.key,
+                                                        searchValue:
+                                                            '${entry.value} ${entry.key}',
+                                                      ))
+                                                  .toList();
+
+                                              final result =
+                                                  await showSelectionDialog<
+                                                      String>(
+                                                context: context,
+                                                title: 'בחירת גופן להדפסה',
+                                                items: fontItems,
+                                                initialValue: fontName,
+                                                searchHint: 'חיפוש גופן',
+                                              );
+                                              if (result != null) {
+                                                setState(() {
+                                                  fontName = result;
+                                                });
+                                              }
+                                            },
+                                            child: InputDecorator(
+                                              decoration: InputDecoration(
+                                                contentPadding:
+                                                    const EdgeInsets.symmetric(
+                                                  horizontal: 12,
+                                                  vertical: 8,
+                                                ),
+                                                border: OutlineInputBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                                suffixIcon: const Icon(FluentIcons
+                                                    .chevron_down_24_regular),
+                                              ),
+                                              child: Text(
+                                                fontNames[fontName] ?? fontName,
+                                                style: TextStyle(
+                                                  fontFamily: fontName,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    // הגדרות ניקוד וטעמים
+                                    SwitchListTile(
+                                      title: const Text('הדפסה עם ניקוד'),
+                                      dense: true,
+                                      contentPadding: EdgeInsets.zero,
+                                      value: !_removeNikud,
+                                      onChanged: (value) {
+                                        setState(() {
+                                          _removeNikud = !value;
+                                        });
+                                      },
+                                    ),
+                                    SwitchListTile(
+                                      title: const Text('הדפסה עם טעמים'),
+                                      dense: true,
+                                      contentPadding: EdgeInsets.zero,
+                                      value: !_removeTaamim,
+                                      onChanged: (value) {
+                                        setState(() {
+                                          _removeTaamim = !value;
+                                        });
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+
+                              // הגדרות עמוד
+                              _buildSectionCard(
+                                context: context,
+                                title: 'הגדרות עמוד',
+                                icon: FluentIcons.document_24_regular,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _buildSliderRow(
+                                      context: context,
+                                      label: 'שוליים',
+                                      value: pageMargin,
+                                      min: 10,
+                                      max: 100,
+                                      displayValue: '${pageMargin.toInt()} px',
+                                      onChanged: (value) {
+                                        setState(() {
+                                          pageMargin = value;
+                                        });
+                                      },
+                                    ),
+                                    const SizedBox(height: 16),
+                                    _buildDropdownRow(
+                                      context: context,
+                                      label: 'גודל עמוד',
+                                      child: DropdownButton<PdfPageFormat>(
+                                        value: format,
+                                        isExpanded: true,
+                                        underline: const SizedBox(),
+                                        borderRadius: BorderRadius.circular(8),
+                                        onChanged: (PdfPageFormat? value) {
+                                          format = value!;
+                                          setState(() {});
+                                        },
+                                        items: formats.entries.map<
+                                            DropdownMenuItem<
+                                                PdfPageFormat>>((entry) {
+                                          return DropdownMenuItem<
+                                              PdfPageFormat>(
+                                            value: entry.key,
+                                            child: Text(entry.value),
+                                          );
+                                        }).toList(),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    _buildDropdownRow(
+                                      context: context,
+                                      label: 'כיוון',
+                                      child: DropdownButton<pw.PageOrientation>(
+                                        value: orientation,
+                                        isExpanded: true,
+                                        underline: const SizedBox(),
+                                        borderRadius: BorderRadius.circular(8),
+                                        onChanged: (pw.PageOrientation? value) {
+                                          orientation = value!;
+                                          setState(() {});
+                                        },
+                                        items: const [
+                                          DropdownMenuItem(
+                                            value: pw.PageOrientation.portrait,
+                                            child: Text('לאורך'),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: pw.PageOrientation.landscape,
+                                            child: Text('לרוחב'),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    _buildDropdownRow(
+                                      context: context,
+                                      label: 'עמודים בגליון',
+                                      child: DropdownButton<int>(
+                                        value: _pagesPerSheet,
+                                        isExpanded: true,
+                                        underline: const SizedBox(),
+                                        borderRadius: BorderRadius.circular(8),
+                                        onChanged: (int? value) {
+                                          if (value == null) return;
+                                          setState(() {
+                                            _pagesPerSheet = value;
+                                          });
+                                        },
+                                        items: const [
+                                          DropdownMenuItem(
+                                            value: 1,
+                                            child: Text('1 (רגיל)'),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: 2,
+                                            child: Text('2 (יישור לימין)'),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: 4,
+                                            child: Text('4 (יישור לימין)'),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      // תצוגה מקדימה של ה-PDF
+                      Expanded(
+                        child: Container(
+                          color: colorScheme.surfaceContainerLow,
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: FutureBuilder(
+                                  future: pdf,
+                                  builder: (context, snapshot) {
+                                    if (snapshot.connectionState ==
+                                            ConnectionState.done &&
+                                        snapshot.hasData) {
+                                      return PdfViewer.data(
+                                        snapshot.data!,
+                                        sourceName: 'printing',
+                                        controller: _pdfViewerController,
+                                        params: PdfViewerParams(
+                                          viewerOverlayBuilder:
+                                              (context, size, handleLinkTap) =>
+                                                  [
+                                            PdfScrollbar(
+                                              controller: _pdfViewerController,
+                                              orientation:
+                                                  ScrollbarOrientation.right,
+                                              trackThickness: 16.0,
+                                              thumbMinSize: 50.0,
+                                            ),
+                                            PdfHorizontalScrollbar(
+                                              controller: _pdfViewerController,
+                                              trackThickness: 10.0,
+                                            ),
+                                          ],
+                                          onDocumentChanged: (document) {
+                                            if (document == null) {
+                                              _documentRef.value = null;
+                                            }
+                                          },
+                                          onViewerReady:
+                                              (document, controller) {
+                                            _documentRef.value =
+                                                controller.documentRef;
+                                          },
+                                        ),
+                                      );
+                                    }
+                                    return Center(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          CircularProgressIndicator(
+                                            color: colorScheme.primary,
+                                          ),
+                                          const SizedBox(height: 16),
+                                          Text(
+                                            'מכין תצוגה מקדימה...',
+                                            style: TextStyle(
+                                              color:
+                                                  colorScheme.onSurfaceVariant,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                              if (_showThumbnails) ...[
+                                VerticalDivider(
+                                  width: 1,
+                                  color: colorScheme.outlineVariant,
+                                ),
+                                SizedBox(
+                                  width: 260,
+                                  child:
+                                      ValueListenableBuilder<PdfDocumentRef?>(
+                                    valueListenable: _documentRef,
+                                    builder: (context, documentRef, _) {
+                                      return ThumbnailsView(
+                                        documentRef: documentRef,
+                                        controller: _pdfViewerController,
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                }
+
+                return Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(color: colorScheme.primary),
+                      const SizedBox(height: 16),
+                      Text(
+                        'טוען נתונים...',
+                        style: TextStyle(color: colorScheme.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }

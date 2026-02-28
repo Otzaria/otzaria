@@ -6,8 +6,9 @@ import 'package:file_picker/file_picker.dart';
 import 'dart:io';
 
 import 'package:otzaria/settings/custom_folders/custom_folder.dart';
-import 'package:otzaria/settings/settings_repository.dart';
+import 'package:otzaria/settings/bloc/settings_repository.dart';
 import 'package:otzaria/widgets/confirmation_dialog.dart';
+import 'package:otzaria/widgets/custom_ui_components.dart';
 import 'package:otzaria/migration/sync/file_sync_service.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
@@ -425,13 +426,14 @@ class _CustomFoldersTileState extends State<CustomFoldersTile> {
                 : '${_folders.length} תיקיות',
             style: Theme.of(context).textTheme.bodySmall,
           ),
+          hoverColor: Colors.transparent,
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              IconButton(
-                icon: const Icon(FluentIcons.add_24_regular),
+              RecommendedActionButton(
+                text: 'הוסף תיקייה',
+                icon: FluentIcons.folder_add_24_regular,
                 onPressed: _addFolder,
-                tooltip: 'הוסף תיקייה',
               ),
               if (_folders.isNotEmpty)
                 IconButton(
@@ -449,7 +451,6 @@ class _CustomFoldersTileState extends State<CustomFoldersTile> {
                 ),
             ],
           ),
-          onTap: _addFolder,
         ),
         if (_isExpanded && _folders.isNotEmpty)
           Container(

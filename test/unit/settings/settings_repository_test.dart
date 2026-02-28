@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
-import 'package:otzaria/settings/settings_repository.dart';
+import 'package:otzaria/settings/bloc/settings_repository.dart';
 import 'package:otzaria/utils/color_utils.dart';
 import '../../unit/mocks/mock_settings_wrapper.mocks.dart';
 

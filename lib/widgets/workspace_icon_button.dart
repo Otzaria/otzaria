@@ -6,7 +6,7 @@ import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/workspaces/bloc/workspace_state.dart';
 import 'package:otzaria/workspaces/bloc/workspace_event.dart';
 import 'dart:async';
-import 'package:otzaria/settings/settings_bloc.dart';
+import 'package:otzaria/settings/bloc/settings_bloc.dart';
 
 class WorkspaceIconButton extends StatefulWidget {
   final VoidCallback onPressed;

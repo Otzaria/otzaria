@@ -1,4 +1,5 @@
 /// This is the main entry point for the Otzaria application.
+///
 /// The application is a Flutter-based digital library system that supports
 /// RTL (Right-to-Left) languages, particularly Hebrew.
 /// It includes features for dark mode, customizable themes, and local storage management.
@@ -28,9 +29,9 @@ import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/navigation_repository.dart';
-import 'package:otzaria/settings/settings_bloc.dart';
-import 'package:otzaria/settings/settings_event.dart';
-import 'package:otzaria/settings/settings_repository.dart';
+import 'package:otzaria/settings/bloc/settings_bloc.dart';
+import 'package:otzaria/settings/bloc/settings_event.dart';
+import 'package:otzaria/settings/bloc/settings_repository.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/tab.dart';

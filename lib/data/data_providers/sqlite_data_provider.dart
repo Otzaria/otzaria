@@ -76,6 +76,14 @@ class SqliteDataProvider {
   /// Checks if the database is initialized and ready
   bool get isInitialized => _isInitialized;
 
+  /// Closes the database connection to free resources
+  Future<void> dispose() async {
+    if (_isInitialized) {
+      await _repository.database.close();
+      _isInitialized = false;
+    }
+  }
+
   /// Checks if a book exists in the database
   Future<bool> isBookInDatabase(String title,
       [int? categoryId, String? fileType]) async {

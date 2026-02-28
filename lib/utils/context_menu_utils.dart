@@ -10,7 +10,7 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:otzaria/utils/copy_utils.dart';
-import 'package:otzaria/settings/settings_bloc.dart';
+import 'package:otzaria/settings/bloc/settings_bloc.dart';
 
 /// פונקציות עזר לתפריטי הקשר במפרשים
 class ContextMenuUtils {

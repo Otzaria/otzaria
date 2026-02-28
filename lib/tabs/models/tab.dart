@@ -56,7 +56,8 @@ abstract class OpenedTab {
       {String searchText = '',
       List<String>? commentators,
       bool openLeftPane = false,
-      bool isPinned = false}) {
+      bool isPinned = false,
+      bool? showPageShapeView}) {
     if (book is PdfBook) {
       return PdfBookTab(
         book: book,
@@ -98,6 +99,7 @@ abstract class OpenedTab {
         commentators: commentators,
         openLeftPane: openLeftPane,
         isPinned: isPinned,
+        showPageShapeView: showPageShapeView,
       );
     } else if (book is TextBook) {
       return TextBookTab(
@@ -107,6 +109,7 @@ abstract class OpenedTab {
         commentators: commentators,
         openLeftPane: openLeftPane,
         isPinned: isPinned,
+        showPageShapeView: showPageShapeView,
       );
     }
     throw UnsupportedError("Unsupported book type: ${book.runtimeType}");

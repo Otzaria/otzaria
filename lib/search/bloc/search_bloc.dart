@@ -8,6 +8,7 @@ import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/search_repository.dart';
+import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:flutter/foundation.dart';
 import 'package:search_engine/search_engine.dart';
@@ -65,7 +66,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
 
     try {
       final totalResults = await TantivyDataProvider.instance.countTexts(
-        event.query.replaceAll('"', '\\"'),
+        SearchQueryBuilder.sanitizeQuery(event.query),
         booksToSearch,
         state.currentFacets,
         fuzzy: state.fuzzy,
@@ -82,7 +83,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       }
 
       final results = await _repository.searchTexts(
-        event.query.replaceAll('"', '\\"'),
+        SearchQueryBuilder.sanitizeQuery(event.query),
         state.currentFacets,
         state.numResults,
         fuzzy: state.fuzzy,
@@ -130,7 +131,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     // זה הרבה יותר מהיר מ-6876 ספירות נפרדות!
     const int kFacetAggregationLimit = 50000;
     final largeResults = await _repository.searchTexts(
-      query.replaceAll('"', '\\"'),
+      SearchQueryBuilder.sanitizeQuery(query),
       state.currentFacets,
       kFacetAggregationLimit, // limit גדול כדי לקבל את רוב/כל התוצאות
       fuzzy: state.fuzzy,
@@ -330,7 +331,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     debugPrint(
         '🔢 Books to search: ${state.booksToSearch.map((e) => e.title).toList()}');
     final result = await TantivyDataProvider.instance.countTexts(
-      state.searchQuery.replaceAll('"', '\\"'),
+      SearchQueryBuilder.sanitizeQuery(state.searchQuery),
       state.booksToSearch.map((e) => e.title).toList(),
       [facet],
       fuzzy: state.fuzzy,
@@ -370,7 +371,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     if (missingFacets.isNotEmpty) {
       final missingResults =
           await TantivyDataProvider.instance.countTextsForMultipleFacets(
-        state.searchQuery.replaceAll('"', '\\"'),
+        SearchQueryBuilder.sanitizeQuery(state.searchQuery),
         state.booksToSearch.map((e) => e.title).toList(),
         missingFacets,
         fuzzy: state.fuzzy,
@@ -481,7 +482,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       // מבקשים את כל התוצאות עד עכשיו + עוד numResults תוצאות
       final newLimit = state.results.length + state.numResults;
       final allResults = await _repository.searchTexts(
-        state.searchQuery.replaceAll('"', '\\"'),
+        SearchQueryBuilder.sanitizeQuery(state.searchQuery),
         state.currentFacets,
         newLimit,
         fuzzy: state.fuzzy,

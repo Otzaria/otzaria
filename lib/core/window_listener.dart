@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
 import '../migration/dao/daos/database.dart';
 import 'package:otzaria/core/window_persistence.dart';
+import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 /// Callback type for fullscreen state changes
 typedef FullscreenCallback = void Function(bool isFullscreen);
@@ -34,29 +36,24 @@ class AppWindowListener extends WindowListener {
       print('Window close requested');
     }
 
-    // מנגנון סגירה כפויה: אם האפליקציה לא נסגרת תוך 5 שניות, נסגור אותה בכוח
-    Future.delayed(const Duration(seconds: 5), () {
-      if (kDebugMode) {
-        print('Force exiting: Shutdown took too long');
-      }
-      exit(0);
-    });
-
     try {
-      // ביצוע פעולות הניקוי הקיימות
+      // ביצוע פעולות הניקוי
       await MyDatabase().close();
+      await SqliteDataProvider.instance.dispose();
+      await Sentry.close();
 
       if (!kIsWeb &&
           (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
         // שמירת מצב החלון
         await WindowPersistence.saveNow();
-        // ניסיון סגירה רגיל דרך ה-WindowManager
+        // סגירה רגילה דרך ה-WindowManager
         await windowManager.destroy();
       }
     } catch (e) {
       if (kDebugMode) {
         print('Error during window close: $e');
       }
+      // נשמור על exit(0) רק למקרה חירום של קריסה בתהליך הסגירה
       exit(0);
     }
   }

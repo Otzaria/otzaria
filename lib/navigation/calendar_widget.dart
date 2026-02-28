@@ -1,22 +1,22 @@
 import 'dart:async';
+import 'dart:io';
+import 'calendar_cubit.dart';
 import 'package:flutter/material.dart';
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_spinbox/flutter_spinbox.dart';
-import 'package:flutter/services.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:kosher_dart/kosher_dart.dart';
-import 'calendar_cubit.dart';
 import 'package:otzaria/daf_yomi/daf_yomi_helper.dart';
 import 'package:otzaria/core/scaffold_messenger.dart';
 import 'package:otzaria/settings/calendar_settings_dialog.dart';
-import 'package:otzaria/settings/settings_repository.dart';
+import 'package:otzaria/settings/bloc/settings_repository.dart';
 import 'package:otzaria/widgets/dialogs.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:flutter_settings_screens/flutter_settings_screens.dart';
-import 'dart:io';
 import 'package:otzaria/widgets/rtl_text_field.dart';
 import 'package:otzaria/printing/printing_screen.dart';
 import 'calendar_print_helper.dart' as print_helper;
+import 'package:url_launcher/url_launcher.dart';
 
 // הפכנו את הווידג'ט ל-Stateful כדי לתמוך בניווט עם מקשי חיצים
 class CalendarWidget extends StatefulWidget {

@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/search/utils/regex_patterns.dart';
 import 'package:otzaria/data/book_locator.dart';
-import 'package:otzaria/settings/settings_repository.dart';
+import 'package:otzaria/settings/bloc/settings_repository.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 
 String stripHtmlIfNeeded(String text) {
@@ -84,7 +84,7 @@ String highLight(
   // 1. חילוץ מילות החיפוש כולל מילים חילופיות
   final originalWords = searchQuery
       .trim()
-      .replaceAll(RegExp(r'[~"*\(\)]'), ' ')
+      .replaceAll(RegExp(r'[!?":*\(\)\[\]\{\}\^\$\|\\+.~`]'), ' ')
       .split(RegExp(r'\s+'))
       .where((s) => s.isNotEmpty)
       .toList();
@@ -210,9 +210,17 @@ const String _defaultCategory = 'מפרשים נוספים';
 
 int countMatches(String text, String searchQuery) {
   if (searchQuery.isEmpty) return 0;
+
+  // ניקוי תווים מיוחדים מהשאילתה
+  final cleanedQuery = searchQuery
+      .replaceAll(RegExp(r'[!?":*\(\)\[\]\{\}\^\$\|\\+.~`]'), '')
+      .trim();
+
+  if (cleanedQuery.isEmpty) return 0;
+
   // אותו רג'קס כמו ב-highLight
   final RegExp regex = RegExp(
-    RegExp.escape(searchQuery),
+    RegExp.escape(cleanedQuery),
     caseSensitive: false,
   );
   return regex.allMatches(text).length;

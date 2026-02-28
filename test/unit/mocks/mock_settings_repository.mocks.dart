@@ -7,7 +7,7 @@ import 'dart:async' as _i3;
 import 'dart:ui' as _i4;
 
 import 'package:mockito/mockito.dart' as _i1;
-import 'package:otzaria/settings/settings_repository.dart' as _i2;
+import 'package:otzaria/settings/bloc/settings_repository.dart' as _i2;
 
 // ignore_for_file: type=lint
 // ignore_for_file: avoid_redundant_argument_values

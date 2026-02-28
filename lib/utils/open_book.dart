@@ -11,6 +11,7 @@ import "package:flutter_bloc/flutter_bloc.dart";
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:collection/collection.dart';
+import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
 
 void openBook(BuildContext context, Book book, int index, String searchQuery,
     {bool ignoreHistory = false}) {
@@ -42,6 +43,10 @@ void openBook(BuildContext context, Book book, int index, String searchQuery,
       (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
           (Settings.getValue<bool>('key-default-sidebar-open') ?? false);
 
+  // טעינת העדפת התצוגה השמורה לספר זה
+  final bool? savedViewMode =
+      PageShapeSettingsManager.getViewModePreference(book.title);
+
   debugPrint('DEBUG: יצירת טאב עם אינדקס: $initialIndex');
   final tab = OpenedTab.fromBook(
     book,
@@ -49,6 +54,7 @@ void openBook(BuildContext context, Book book, int index, String searchQuery,
     searchText: searchQuery,
     commentators: initialCommentators,
     openLeftPane: shouldOpenLeftPane,
+    showPageShapeView: savedViewMode, // העברת העדפת התצוגה השמורה
   );
   context.read<TabsBloc>().add(AddTab(tab));
 

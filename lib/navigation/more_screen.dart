@@ -8,7 +8,6 @@ import 'package:otzaria/tools/shamor_zachor/shamor_zachor.dart';
 import 'calendar_widget.dart';
 import 'calendar_cubit.dart';
 import 'package:otzaria/personal_notes/view/personal_notes_screen.dart';
-import 'package:otzaria/settings/settings_repository.dart';
 
 class MoreScreen extends StatefulWidget {
   const MoreScreen({super.key});
@@ -20,8 +19,6 @@ class MoreScreen extends StatefulWidget {
 class _MoreScreenState extends State<MoreScreen>
     with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   late final TabController _tabController;
-  late final CalendarCubit _calendarCubit;
-  late final SettingsRepository _settingsRepository;
   final GlobalKey<GematriaSearchScreenState> _gematriaKey =
       GlobalKey<GematriaSearchScreenState>();
   late final List<Widget> _pages;
@@ -58,8 +55,6 @@ class _MoreScreenState extends State<MoreScreen>
   @override
   void initState() {
     super.initState();
-    _settingsRepository = SettingsRepository();
-    _calendarCubit = CalendarCubit(settingsRepository: _settingsRepository);
 
     _tabController = TabController(length: _tabs.length, vsync: this);
 
@@ -84,9 +79,8 @@ class _MoreScreenState extends State<MoreScreen>
 
     // יצירת הדפים פעם אחת ב-initState
     _pages = [
-      BlocProvider.value(
-        value: _calendarCubit,
-        child: const CalendarWidget(),
+      BlocBuilder<CalendarCubit, CalendarState>(
+        builder: (context, _) => const CalendarWidget(),
       ),
       ShamorZachorWidget(
         onTitleChanged: (_) {},
@@ -107,7 +101,6 @@ class _MoreScreenState extends State<MoreScreen>
 
   @override
   void dispose() {
-    _calendarCubit.close();
     _tabController.dispose();
     super.dispose();
   }

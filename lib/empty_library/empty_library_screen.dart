@@ -7,7 +7,6 @@ import 'package:otzaria/empty_library/bloc/empty_library_bloc.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_event.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_state.dart';
 import 'package:otzaria/core/scaffold_messenger.dart';
-import 'package:path/path.dart' as path;
 import 'package:file_picker/file_picker.dart';
 
 class EmptyLibraryScreen extends StatelessWidget {
@@ -288,14 +287,16 @@ class _EmptyLibraryViewState extends State<_EmptyLibraryView> {
         ),
         const SizedBox(height: 24),
         const Text(
-          'לא נמצאה ספרייה',
+          'לא נמצא קובץ מסד נתונים',
           style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           textAlign: TextAlign.center,
+          textDirection: TextDirection.rtl,
         ),
         const SizedBox(height: 16),
         const Text(
-          'יש לבחור תיקייה המכילה את קובץ מסד הנתונים\nניתן לבחור תיקייה עם קובץ ZIP דחוס - הוא יחולץ אוטומטית',
+          'יש לבחור קובץ מסד נתונים (seforim.db) או קובץ ZIP דחוס',
           style: TextStyle(fontSize: 16, color: Colors.grey),
+          textDirection: TextDirection.rtl,
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 32),
@@ -317,9 +318,9 @@ class _EmptyLibraryViewState extends State<_EmptyLibraryView> {
             ),
           ),
         ElevatedButton.icon(
-          onPressed: state.isLoading ? null : () => _pickDirectory(context),
+          onPressed: state.isLoading ? null : () => _pickFile(context),
           icon: const Icon(FluentIcons.folder_open_24_regular),
-          label: const Text('בחר תיקייה קיימת'),
+          label: const Text('בחר קובץ'),
         ),
         const SizedBox(height: 16),
         OutlinedButton.icon(
@@ -346,37 +347,19 @@ class _EmptyLibraryViewState extends State<_EmptyLibraryView> {
     );
   }
 
-  Future<void> _pickDirectory(BuildContext context) async {
-    // קבלת תיקיית ההתקנה
-    final executablePath = Platform.resolvedExecutable;
-    final installDir = path.dirname(executablePath);
-
-    final selectedPath = await FilePicker.platform.getDirectoryPath(
-      dialogTitle: 'בחר תיקיית ספרייה (ניתן לבחור קובץ ZIP דחוס)',
-      initialDirectory: installDir,
+  Future<void> _pickFile(BuildContext context) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['db', 'zip'],
+      dialogTitle: 'בחר קובץ מסד נתונים (seforim.db) או קובץ ZIP',
     );
 
-    if (selectedPath == null || !context.mounted) return;
+    if (result == null || result.files.isEmpty || !context.mounted) return;
 
-    // בדיקה אם יש קובץ ZIP בתיקייה
-    final directory = Directory(selectedPath);
-    final zipFiles = await directory
-        .list()
-        .where((entity) =>
-            entity is File && entity.path.toLowerCase().endsWith('.zip'))
-        .cast<File>()
-        .toList();
+    final selectedFile = result.files.first.path;
+    if (selectedFile == null) return;
 
-    if (!context.mounted) return;
-
-    if (zipFiles.isEmpty) {
-      // אין ZIP, פשוט נבדוק את התיקייה
-      BlocProvider.of<EmptyLibraryBloc>(context)
-          .add(PickDirectoryRequested(path: selectedPath));
-    } else {
-      // יש ZIP - נעביר ל-BLoC לטיפול (הוא יטפל במקרה של קבצים מרובים)
-      BlocProvider.of<EmptyLibraryBloc>(context)
-          .add(PickDirectoryWithZipRequested(path: selectedPath));
-    }
+    BlocProvider.of<EmptyLibraryBloc>(context)
+        .add(PickDatabaseFileRequested(filePath: selectedFile));
   }
 }

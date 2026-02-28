@@ -110,6 +110,155 @@ RtlTextField(
 ```
 **NEVER use regular `TextField`** - it breaks RTL support!
 
+### 4. Dialogs - ONLY from `custom_ui_components`
+```dart
+import 'package:otzaria/widgets/custom_ui_components.dart';
+
+// דיאלוג עם כפתור אחד (אישור בלבד)
+showSingleActionDialog(
+  context: context,
+  title: 'כותרת',
+  content: 'תוכן הדיאלוג',
+  confirmText: 'אישור',
+);
+
+// דיאלוג עם שני כפתורים (ביטול ואישור)
+showTwoActionsDialog(
+  context: context,
+  title: 'כותרת',
+  content: 'תוכן הדיאלוג',
+  cancelText: 'ביטול',
+  confirmText: 'אישור',
+);
+
+// דיאלוג אזהרה (המשתמש צריך לבטל באופן אידיאלי)
+showWarningDialog(
+  context: context,
+  title: 'אזהרה',
+  content: 'פעולה זו היא סופית',
+  subtitle: 'שים לב שלא ניתן לבטל פעולה זו',  // טקסט באדום
+  cancelText: 'ביטול',
+  confirmText: 'המשך',
+);
+```
+
+**Dialog Styling Rules (CRITICAL):**
+- **SingleActionDialog**: כפתור אחד - FilledButton (primary/onPrimary)
+- **TwoActionsDialog**: 
+  - Cancel = FilledButton.tonal (surfaceContainerHighest/onSurface)
+  - Confirm = FilledButton (primary/onPrimary)
+- **WarningDialog**: 
+  - Cancel = FilledButton (primary/onPrimary) - מומלץ
+  - Confirm = TextButton (transparent background, error text color) - מסוכן
+  - Subtitle = error color (red)
+
+**Never use:**
+- `showDialog` with custom `AlertDialog` directly
+- Material `SimpleDialog`
+- Custom dialog widgets without the standard styling
+- Hardcoded colors (Colors.red, Colors.blue, etc.)
+
+### 5. Action Buttons - ONLY from `custom_ui_components`
+```dart
+import 'package:otzaria/widgets/custom_ui_components.dart';
+
+// כפתור לפעולה מומלצת (Primary style)
+RecommendedActionButton(
+  text: 'שנה מיקום',
+  onPressed: () => _changeLocation(),
+  isLoading: false,  // אופציונלי - להצגת אינדיקטור טעינה
+);
+
+// כפתור לפעולה ניטרלית/לא מומלצת (Tonal style)
+NeutralActionButton(
+  text: 'איפוס',
+  onPressed: () => _resetSettings(),
+  isLoading: false,  // אופציונלי - להצגת אינדיקטור טעינה
+);
+```
+
+**Button Styling Rules (CRITICAL):**
+- **RecommendedActionButton**: FilledButton (primary background, onPrimary text)
+- **NeutralActionButton**: FilledButton.tonal (surfaceContainerHighest background, onSurface text)
+- **NEVER use hardcoded colors** - always use `Theme.of(context).colorScheme`
+
+**When to use which button:**
+- `RecommendedActionButton` - פעולות מומלצות (שינוי הגדרות, בחירת מיקום, עדכון, הוספה)
+- `NeutralActionButton` - פעולות ניטרליות או מסוכנות (איפוס, מחיקה, הסרה, עצירה)
+
+**Never use:**
+- `ElevatedButton`, `TextButton`, `OutlinedButton` directly
+- Custom button widgets without the standard styling
+- Material `IconButton` for primary actions
+- Hardcoded colors
+
+### 6. Settings Cards - ONLY `SettingsCard`
+```dart
+import 'package:otzaria/settings/settings_card.dart';
+
+SettingsCard(
+  title: 'כותרת הקטגוריה',
+  subtitle: 'תיאור אופציונלי',  // אופציונלי
+  children: [
+    ListTile(...),
+    // Divider מתווסף אוטומטית בין פריטים
+    SwitchListTile(...),
+  ],
+);
+```
+
+**Card Styling Rules:**
+- Title: titleMedium, bold, primary color
+- Subtitle: bodySmall, onSurfaceVariant color (optional)
+- Card: surface color, rounded corners (20), subtle border
+- Dividers: Automatic between children, surfaceContainerHighest color, thickness 1.5
+
+**Hover Effects:**
+- Remove hover from ListTile rows containing action buttons: `hoverColor: Colors.transparent`
+- Hover should ONLY appear on the action buttons themselves
+- This prevents double-hover effect and improves UX
+
+### 7. Segmented Settings - ONLY `SegmentedSettingsTile`
+```dart
+import 'package:otzaria/widgets/custom_ui_components.dart';
+
+// הגדרה עם 2-4 אפשרויות
+SegmentedSettingsTile<String>(
+  icon: FluentIcons.text_font_info_24_regular,
+  title: 'הצגת הניקוד',
+  subtitle: 'הניקוד יוצג בכל הספרים',
+  options: const [
+    SegmentOption(value: 'always', label: 'הצג תמיד'),
+    SegmentOption(value: 'tanach_only', label: 'הצג בתנ"ך'),
+    SegmentOption(value: 'never', label: 'אל תציג'),
+  ],
+  currentValue: nikudDisplayMode,
+  onChanged: (value) {
+    // עדכון ה-BLoC
+  },
+);
+```
+
+**When to use SegmentedSettingsTile:**
+- הגדרות עם 2-4 אפשרויות בודדות
+- כאשר המשתמש צריך לבחור אפשרות אחת מתוך מספר אפשרויות
+- חלופה מודרנית ל-RadioButton או SwitchListTile מרובים
+
+**Styling:**
+- Selected: primary color with 20% opacity background
+- Unselected: card color background
+- Rounded corners (8)
+- Fits in single row within SettingsCard
+
+**Title can be:**
+- String - טקסט רגיל
+- Widget - לעיצוב מתקדם (למשל RichText עם צבעים)
+
+**Never use:**
+- RadioButton groups for 2-4 options
+- Multiple SwitchListTile for mutually exclusive options
+- Custom segmented button implementations
+
 ## Code Guidelines
 
 ### RTL Support (Critical!)
@@ -298,16 +447,25 @@ if (Platform.isAndroid || Platform.isIOS) {
 3. **RTL text fields** - Use `RtlTextField` exclusively, never `TextField`
 4. **Icons** - Only `fluentui_system_icons`, no exceptions
 5. **User messages** - Only through `UiSnack`, never direct SnackBar
-6. **Hebrew text** - Always include `textDirection: TextDirection.rtl`
-7. **Test coverage** - Add/update tests for every code change
-8. **Documentation** - Document all public APIs in Hebrew
-9. **Cross-platform** - Code must work on all supported platforms
-10. **Pre-commit trinity** - `analyze` + `test` + `format` = mandatory
+6. **Dialogs** - Only through `custom_ui_components` (SingleActionDialog, TwoActionsDialog, WarningDialog)
+7. **Action buttons** - Only `RecommendedActionButton` or `NeutralActionButton` from `custom_ui_components`
+8. **Settings cards** - Only `SettingsCard` from `settings_card.dart`
+9. **Color theming** - NEVER use hardcoded colors (Colors.red, Colors.blue, etc.), ALWAYS use `Theme.of(context).colorScheme`
+10. **Hover effects** - Remove from ListTile rows with buttons (`hoverColor: Colors.transparent`)
+11. **Hebrew text** - Always include `textDirection: TextDirection.rtl`
+12. **Test coverage** - Add/update tests for every code change
+13. **Documentation** - Document all public APIs in Hebrew
+14. **Cross-platform** - Code must work on all supported platforms
+15. **Pre-commit trinity** - `analyze` + `test` + `format` = mandatory
 
 ### Common Mistakes to Avoid
 - Using `TextField` instead of `RtlTextField`
 - Using Material/Cupertino icons instead of FluentUI
 - Showing messages without `UiSnack`
+- Using custom dialogs instead of `custom_ui_components` dialogs
+- Using `ElevatedButton`/`TextButton` instead of `RecommendedActionButton`/`NeutralActionButton`
+- Using hardcoded colors instead of `Theme.of(context).colorScheme`
+- Not removing hover effects from ListTile rows with action buttons
 - Forgetting `textDirection: TextDirection.rtl` on Hebrew text
 - Skipping `flutter analyze` before committing
 - Running full test suite instead of relevant tests

@@ -9,8 +9,8 @@ import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
-import 'package:otzaria/settings/settings_bloc.dart';
-import 'package:otzaria/settings/settings_state.dart';
+import 'package:otzaria/settings/bloc/settings_bloc.dart';
+import 'package:otzaria/settings/bloc/settings_state.dart';
 import 'package:otzaria/widgets/scrollable_tab_bar.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
@@ -476,6 +476,31 @@ class _CustomTitleBarState extends State<CustomTitleBar>
     );
   }
 
+  /// בונה אייקון הצמדה inline עם hover state מהטאב
+  Widget _buildPinIconInline(
+      BuildContext context, OpenedTab tab, bool isHovered) {
+    // אם הטאב לא מוצמד ואין hover, לא מציגים כלום
+    if (!tab.isPinned && !isHovered) {
+      return const SizedBox.shrink();
+    }
+
+    return GestureDetector(
+      onTap: () => context.read<TabsBloc>().add(TogglePinTab(tab)),
+      child: Padding(
+        padding: const EdgeInsets.only(left: 4.0),
+        child: Tooltip(
+          message: tab.isPinned ? 'בטל הצמדה' : 'הצמד כרטיסיה',
+          child: Icon(
+            tab.isPinned
+                ? FluentIcons.pin_24_filled
+                : FluentIcons.pin_24_regular,
+            size: 14,
+          ),
+        ),
+      ),
+    );
+  }
+
   void closeTab(OpenedTab tab, BuildContext context) {
     context.read<HistoryBloc>().add(AddHistory(tab));
     context.read<TabsBloc>().add(RemoveTab(tab));
@@ -505,8 +530,11 @@ class _CustomTitleBarState extends State<CustomTitleBar>
       return tabIndex == state.currentTabIndex;
     }
 
+    // State לניהול hover על הטאב
+    bool isTabHovered = false;
+
     // פונקציה פנימית לבניית המראה של הטאב כדי למנוע כפילות קוד באנימציות
-    Widget buildTabAppearance() {
+    Widget buildTabAppearance(StateSetter? setState) {
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -543,14 +571,7 @@ class _CustomTitleBarState extends State<CustomTitleBar>
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (tab.isPinned)
-                          const Padding(
-                            padding: EdgeInsets.only(left: 4.0),
-                            child: Icon(
-                              FluentIcons.pin_24_filled,
-                              size: 14,
-                            ),
-                          ),
+                        _buildPinIconInline(context, tab, isTabHovered),
                         if (tab is CombinedTab)
                           Tooltip(
                             message: tab.title,
@@ -741,14 +762,14 @@ class _CustomTitleBarState extends State<CustomTitleBar>
                 ),
               );
             },
-            child: buildTabAppearance(),
+            child: buildTabAppearance(null),
           ),
           // עטיפה ב-Material כדי למנוע את הקווים הצהובים בטקסט בזמן גרירה
           feedback: Material(
             color: Colors.transparent,
             child: Opacity(
               opacity: 0.85,
-              child: buildTabAppearance(),
+              child: buildTabAppearance(null),
             ),
           ),
           child: DragTarget<OpenedTab>(
@@ -762,15 +783,23 @@ class _CustomTitleBarState extends State<CustomTitleBar>
               final isHovered =
                   candidateData.isNotEmpty && candidateData.first != tab;
 
-              return AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                curve: Curves.easeOutCubic,
-                // פותחים רווח באמצעות שוליים כדי לדמות תזוזה של הטאבים הצידה
-                margin: EdgeInsets.only(
-                  right: isHovered && isRtl ? 120.0 : 0.0,
-                  left: isHovered && !isRtl ? 120.0 : 0.0,
-                ),
-                child: buildTabAppearance(),
+              return StatefulBuilder(
+                builder: (context, setState) {
+                  return MouseRegion(
+                    onEnter: (_) => setState(() => isTabHovered = true),
+                    onExit: (_) => setState(() => isTabHovered = false),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 250),
+                      curve: Curves.easeOutCubic,
+                      // פותחים רווח באמצעות שוליים כדי לדמות תזוזה של הטאבים הצידה
+                      margin: EdgeInsets.only(
+                        right: isHovered && isRtl ? 120.0 : 0.0,
+                        left: isHovered && !isRtl ? 120.0 : 0.0,
+                      ),
+                      child: buildTabAppearance(setState),
+                    ),
+                  );
+                },
               );
             },
           ),

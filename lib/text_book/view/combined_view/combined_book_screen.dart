@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_context_menu/flutter_context_menu.dart' as ctx;
-import 'package:otzaria/settings/settings_bloc.dart';
-import 'package:otzaria/settings/settings_state.dart';
+import 'package:otzaria/settings/bloc/settings_bloc.dart';
+import 'package:otzaria/settings/bloc/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
