@@ -6,7 +6,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
-import 'package:otzaria/settings/panels/gematria_settings_panel.dart';
+import 'package:otzaria/settings/dialogs/gematria_settings_dialog.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:otzaria/core/scaffold_messenger.dart';
 import 'package:otzaria/tools/gematria/gematria_search.dart';
