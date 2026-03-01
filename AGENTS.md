@@ -14,6 +14,54 @@
 4. **Fix ALL errors before proceeding to next step**
 5. **Never skip validation - errors compound quickly!**
 
+## Bug Fix Workflow (MANDATORY)
+
+**Primary rule: Investigate first, ask only if you truly must.**
+
+Before writing any fix, perform the following steps **on your own** without asking the user:
+
+1. **Understand the symptom** - What did the user report? If critical details are missing that are needed to *execute* the fix (not to analyze) - ask everything **in a single message**.
+2. **Investigate git** - Run `git log --oneline -20` and check commits that touched relevant code.
+3. **Read the code** - Read the code before proposing any fix. Don't assume, know.
+4. **Identify the root cause** - If found, explain to the user what caused the bug before fixing it.
+
+### Decision Tree
+
+```
+User reports bug
+       │
+       ▼
+  Investigate first:
+  git log + read code
+       │
+       ▼
+ Root cause found?
+   ┌───┴───┐
+  YES      NO
+   │           │
+   ▼           ▼
+Apply MINIMAL  Ask user ONE message
+fix & explain  with ALL missing info
+               then investigate again
+```
+
+### Fix Philosophy - CRITICAL
+
+**Bug fix ≠ adding code!**
+
+- **FIRST** - try to **remove** or **revert** code that caused the bug
+- **SECOND** - try to **change** existing logic minimally
+- **LAST RESORT** - add new code, only if truly necessary
+- Adding more code to work around a bug = introducing future bugs
+
+### Red Flags - Stop and Ask
+
+If you find yourself about to:
+- Add a `try/catch` to silence an error → find out *why* the error occurs first
+- Add a null check that "shouldn't be needed" → find out *why* it's null
+- Add a workaround flag/boolean → reconsider the root cause
+- Write more than ~15 lines to fix a single bug → something is wrong, reassess
+
 ## Architecture
 
 ### Design Patterns
@@ -148,8 +196,8 @@ showWarningDialog(
   - Cancel = FilledButton.tonal (surfaceContainerHighest/onSurface)
   - Confirm = FilledButton (primary/onPrimary)
 - **WarningDialog**: 
-  - Cancel = FilledButton (primary/onPrimary) - מומלץ
-  - Confirm = TextButton (transparent background, error text color) - מסוכן
+  - Cancel = FilledButton (primary/onPrimary) - recommended (safe choice)
+  - Confirm = TextButton (transparent background, error text color) - dangerous
   - Subtitle = error color (red)
 
 **Never use:**
@@ -183,8 +231,8 @@ NeutralActionButton(
 - **NEVER use hardcoded colors** - always use `Theme.of(context).colorScheme`
 
 **When to use which button:**
-- `RecommendedActionButton` - פעולות מומלצות (שינוי הגדרות, בחירת מיקום, עדכון, הוספה)
-- `NeutralActionButton` - פעולות ניטרליות או מסוכנות (איפוס, מחיקה, הסרה, עצירה)
+- `RecommendedActionButton` - recommended actions (change settings, choose location, update, add)
+- `NeutralActionButton` - neutral or dangerous actions (reset, delete, remove, stop)
 
 **Never use:**
 - `ElevatedButton`, `TextButton`, `OutlinedButton` directly
@@ -240,9 +288,9 @@ SegmentedSettingsTile<String>(
 ```
 
 **When to use SegmentedSettingsTile:**
-- הגדרות עם 2-4 אפשרויות בודדות
-- כאשר המשתמש צריך לבחור אפשרות אחת מתוך מספר אפשרויות
-- חלופה מודרנית ל-RadioButton או SwitchListTile מרובים
+- Settings with 2-4 mutually exclusive options
+- When the user needs to pick exactly one value from a small set
+- Modern alternative to a RadioButton group or multiple SwitchListTiles
 
 **Styling:**
 - Selected: primary color with 20% opacity background
@@ -251,8 +299,8 @@ SegmentedSettingsTile<String>(
 - Fits in single row within SettingsCard
 
 **Title can be:**
-- String - טקסט רגיל
-- Widget - לעיצוב מתקדם (למשל RichText עם צבעים)
+- String - plain text
+- Widget - for advanced styling (e.g. RichText with mixed colors)
 
 **Never use:**
 - RadioButton groups for 2-4 options
@@ -289,6 +337,11 @@ class LoadDataEvent extends FeatureEvent {
 // 2. States - UI states
 sealed class FeatureState extends Equatable {
   const FeatureState();
+}
+
+class InitialState extends FeatureState {
+  @override
+  List<Object> get props => [];
 }
 
 class LoadingState extends FeatureState {
@@ -351,7 +404,7 @@ try {
   await riskyOperation();
 } catch (e, stackTrace) {
   // Log for debugging
-  print('Error: $e\n$stackTrace');
+  debugPrint('Error: $e\n$stackTrace');
   
   // Show user-friendly message
   UiSnack.showError('אירעה שגיאה: ${e.toString()}');
@@ -427,18 +480,6 @@ if (Platform.isAndroid || Platform.isIOS) {
 }
 ```
 
-## Pre-Commit Checklist
-- [ ] `flutter analyze` passes (zero errors/warnings)
-- [ ] Relevant tests pass
-- [ ] Formatted modified files with `dart format`
-- [ ] Added/updated tests for changes
-- [ ] Documented new public functions (in Hebrew)
-- [ ] RTL support verified for Hebrew UI
-- [ ] Used `RtlTextField` (not `TextField`)
-- [ ] Used `fluentui_system_icons` for icons
-- [ ] Used `UiSnack` for messages
-- [ ] Works on all target platforms
-
 ## Golden Rules
 
 ### Non-Negotiable Requirements
@@ -459,6 +500,11 @@ if (Platform.isAndroid || Platform.isIOS) {
 15. **Pre-commit trinity** - `analyze` + `test` + `format` = mandatory
 
 ### Common Mistakes to Avoid
+- Fixing a bug by adding code instead of finding and removing the root cause
+- Patching around a null/error with defensive code without understanding why it occurs
+- Asking the user questions that could be answered by reading the code or git history
+- Asking multiple separate questions instead of batching all open questions into one message
+- Writing a large diff to fix what should be a small bug
 - Using `TextField` instead of `RtlTextField`
 - Using Material/Cupertino icons instead of FluentUI
 - Showing messages without `UiSnack`

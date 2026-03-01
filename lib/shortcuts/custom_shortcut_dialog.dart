@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
-import 'package:otzaria/utils/shortcut_helper.dart';
+import 'package:otzaria/shortcuts/shortcut_helper.dart';
 
 /// דיאלוג לקליטת קיצור מקשים מותאם אישית
 class CustomShortcutDialog extends StatefulWidget {

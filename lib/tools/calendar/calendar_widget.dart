@@ -10,7 +10,7 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:kosher_dart/kosher_dart.dart';
 import 'package:otzaria/daf_yomi/daf_yomi_helper.dart';
 import 'package:otzaria/core/scaffold_messenger.dart';
-import 'package:otzaria/settings/calendar_settings_dialog.dart';
+import 'package:otzaria/tools/calendar/calendar_settings_dialog.dart';
 import 'package:otzaria/settings/bloc/settings_repository.dart';
 import 'package:otzaria/widgets/dialogs.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';

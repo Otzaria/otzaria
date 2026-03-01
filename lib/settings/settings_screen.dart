@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:otzaria/navigation/calendar_cubit.dart';
+import 'package:otzaria/tools/calendar/calendar_cubit.dart';
 import 'package:otzaria/settings/tabs/settings_tabs.dart';
 import 'package:otzaria/settings/safer_mode/protected_settings_wrapper.dart';
 

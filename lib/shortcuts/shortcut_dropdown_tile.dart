@@ -3,8 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/settings/bloc/settings_bloc.dart';
 import 'package:otzaria/settings/bloc/settings_event.dart';
-import 'package:otzaria/utils/shortcut_validator.dart';
-import 'package:otzaria/widgets/custom_shortcut_dialog.dart';
+import 'package:otzaria/shortcuts/shortcut_validator.dart';
+import 'package:otzaria/shortcuts/custom_shortcut_dialog.dart';
 
 /// Custom DropDownSettingsTile that filters out shortcuts already in use
 class ShortcutDropDownTile extends StatefulWidget {

@@ -5,8 +5,8 @@ import 'package:otzaria/tools/measurement_converter/measurement_converter_screen
 import 'package:otzaria/tools/gematria/gematria_search_screen.dart';
 import 'package:otzaria/tools/dictionary/dictionary_screen.dart';
 import 'package:otzaria/tools/shamor_zachor/shamor_zachor.dart';
-import 'calendar_widget.dart';
-import 'calendar_cubit.dart';
+import 'package:otzaria/tools/calendar/calendar_widget.dart';
+import 'package:otzaria/tools/calendar/calendar_cubit.dart';
 import 'package:otzaria/personal_notes/view/personal_notes_screen.dart';
 
 class MoreScreen extends StatefulWidget {

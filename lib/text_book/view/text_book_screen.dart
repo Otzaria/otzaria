@@ -39,8 +39,8 @@ import 'package:otzaria/text_book/editing/widgets/text_section_editor_dialog.dar
 import 'package:otzaria/text_book/view/book_source_dialog.dart';
 import 'package:otzaria/text_book/editing/helpers/editor_settings_helper.dart';
 import 'package:otzaria/personal_notes/personal_notes_system.dart';
-import 'package:otzaria/utils/shortcut_helper.dart';
-import 'package:otzaria/utils/shortcut_validator.dart';
+import 'package:otzaria/shortcuts/shortcut_helper.dart';
+import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/utils/fullscreen_helper.dart';
 
 import 'package:otzaria/widgets/responsive_action_bar.dart';

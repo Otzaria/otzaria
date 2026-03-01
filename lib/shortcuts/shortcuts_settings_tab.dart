@@ -4,7 +4,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/bloc/settings_bloc.dart';
 import 'package:otzaria/settings/bloc/settings_event.dart';
-import 'package:otzaria/widgets/shortcut_dropdown_tile.dart';
+import 'package:otzaria/shortcuts/shortcut_dropdown_tile.dart';
 import 'package:otzaria/widgets/custom_ui_components.dart';
 import 'package:otzaria/core/scaffold_messenger.dart';
 

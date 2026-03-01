@@ -17,7 +17,7 @@ import 'package:otzaria/workspaces/view/workspace_switcher_dialog.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/bloc/settings_bloc.dart';
 import 'package:otzaria/settings/bloc/settings_state.dart';
-import 'package:otzaria/utils/shortcut_helper.dart';
+import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/utils/fullscreen_helper.dart';
 
 class KeyboardShortcuts extends StatefulWidget {

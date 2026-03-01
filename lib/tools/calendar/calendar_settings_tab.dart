@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:otzaria/navigation/calendar_cubit.dart';
+import 'package:otzaria/tools/calendar/calendar_cubit.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
 import 'package:otzaria/widgets/dialogs.dart';
 import 'package:otzaria/settings/settings_card.dart';
@@ -50,17 +50,15 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                     ],
                     currentValue: state.calendarType,
                     onChanged: (value) {
-                      context
-                          .read<CalendarCubit>()
-                          .changeCalendarType(value);
+                      context.read<CalendarCubit>().changeCalendarType(value);
                     },
                   ),
                   const Divider(height: 1),
                   // עיר
                   ListTile(
                     leading: const Icon(FluentIcons.location_24_regular),
-                    title: const Text('עיר נבחרת',
-                        style: TextStyle(fontSize: 16)),
+                    title:
+                        const Text('עיר נבחרת', style: TextStyle(fontSize: 16)),
                     subtitle: Text(state.selectedCity,
                         style: const TextStyle(fontSize: 13)),
                     trailing: ElevatedButton(
@@ -124,8 +122,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                   if (state.calendarNotificationsEnabled) ...[
                     const Divider(height: 1),
                     Padding(
-                      padding:
-                          const EdgeInsets.only(right: 16.0, left: 16.0),
+                      padding: const EdgeInsets.only(right: 16.0, left: 16.0),
                       child: SwitchListTile(
                         title: const Text('השמע צליל בהתראה',
                             style: TextStyle(fontSize: 16)),
@@ -147,11 +144,9 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                         initialValue: state.calendarNotificationTime,
                         items: const [
                           DropdownMenuItem(value: 60, child: Text('שעה')),
-                          DropdownMenuItem(
-                              value: 720, child: Text('12 שעות')),
+                          DropdownMenuItem(value: 720, child: Text('12 שעות')),
                           DropdownMenuItem(value: 1440, child: Text('יום')),
-                          DropdownMenuItem(
-                              value: 2880, child: Text('יומיים')),
+                          DropdownMenuItem(value: 2880, child: Text('יומיים')),
                         ],
                         onChanged: (value) {
                           if (value != null) {
@@ -168,8 +163,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
 
                   // ── לוח שנה גוגל ──
                   SwitchListTile(
-                    secondary:
-                        const Icon(FluentIcons.arrow_sync_24_regular),
+                    secondary: const Icon(FluentIcons.arrow_sync_24_regular),
                     title: const Text('לוח שנה של Google',
                         style: TextStyle(fontSize: 16)),
                     subtitle: const Text('סנכרון אירועים עם Google Calendar',
@@ -194,49 +188,46 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                             SizedBox(
                               width: double.infinity,
                               child: FilledButton.icon(
-                                onPressed:
-                                    state.googleCalendarSyncInProgress
-                                        ? null
-                                        : () async {
-                                            final cubit = context
-                                                .read<CalendarCubit>();
-                                            final success = await cubit
-                                                .connectGoogleCalendar();
-                                            if (!context.mounted) return;
-                                            if (success) {
-                                              final calendars = await cubit
-                                                  .getAvailableCalendars();
-                                              if (!context.mounted) return;
-                                              final selected =
-                                                  await showMultiSelectionDialog<
-                                                      String>(
-                                                context: context,
-                                                title: 'בחר לוחות שנה',
-                                                items: calendars
-                                                    .map((cal) =>
-                                                        MultiSelectionItem<
-                                                            String>(
-                                                          label: cal.name,
-                                                          value: cal.id,
-                                                          subtitle: cal.isPrimary
-                                                              ? 'לוח שנה ראשי'
-                                                              : null,
-                                                        ))
-                                                    .toList(),
-                                                initialSelectedValues: state
-                                                    .googleCalendarSelectedIds,
-                                                searchHint: 'חפש לוח שנה...',
-                                                emptyMessage:
-                                                    'לא נמצאו לוחות שנה',
-                                              );
-                                              if (selected != null &&
-                                                  selected.isNotEmpty) {
-                                                cubit
-                                                    .updateGoogleCalendarSelectedIds(
-                                                        selected);
-                                              }
-                                            }
-                                          },
+                                onPressed: state.googleCalendarSyncInProgress
+                                    ? null
+                                    : () async {
+                                        final cubit =
+                                            context.read<CalendarCubit>();
+                                        final success =
+                                            await cubit.connectGoogleCalendar();
+                                        if (!context.mounted) return;
+                                        if (success) {
+                                          final calendars = await cubit
+                                              .getAvailableCalendars();
+                                          if (!context.mounted) return;
+                                          final selected =
+                                              await showMultiSelectionDialog<
+                                                  String>(
+                                            context: context,
+                                            title: 'בחר לוחות שנה',
+                                            items: calendars
+                                                .map((cal) =>
+                                                    MultiSelectionItem<String>(
+                                                      label: cal.name,
+                                                      value: cal.id,
+                                                      subtitle: cal.isPrimary
+                                                          ? 'לוח שנה ראשי'
+                                                          : null,
+                                                    ))
+                                                .toList(),
+                                            initialSelectedValues:
+                                                state.googleCalendarSelectedIds,
+                                            searchHint: 'חפש לוח שנה...',
+                                            emptyMessage: 'לא נמצאו לוחות שנה',
+                                          );
+                                          if (selected != null &&
+                                              selected.isNotEmpty) {
+                                            cubit
+                                                .updateGoogleCalendarSelectedIds(
+                                                    selected);
+                                          }
+                                        }
+                                      },
                                 icon: state.googleCalendarSyncInProgress
                                     ? const SizedBox(
                                         width: 14,
@@ -356,8 +347,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                                 state.googleCalendarSyncError!,
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color:
-                                      Theme.of(context).colorScheme.error,
+                                  color: Theme.of(context).colorScheme.error,
                                 ),
                               ),
                             ),
@@ -416,8 +406,7 @@ class _CitySearchWidgetState extends State<_CitySearchWidget> {
         _filteredCities = {};
         cityCoordinates.forEach((country, cities) {
           final matchingCities = Map.fromEntries(cities.entries.where(
-              (cityEntry) =>
-                  cityEntry.key.toLowerCase().contains(query)));
+              (cityEntry) => cityEntry.key.toLowerCase().contains(query)));
           if (matchingCities.isNotEmpty) {
             _filteredCities[country] = matchingCities;
           }
@@ -432,8 +421,7 @@ class _CitySearchWidgetState extends State<_CitySearchWidget> {
     _filteredCities.forEach((country, cities) {
       items.add(
         Padding(
-          padding: const EdgeInsets.symmetric(
-              vertical: 8.0, horizontal: 16.0),
+          padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
           child: Text(
             country,
             style: const TextStyle(

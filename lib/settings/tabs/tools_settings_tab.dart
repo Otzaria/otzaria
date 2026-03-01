@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:otzaria/navigation/calendar_cubit.dart';
-import 'package:otzaria/settings/tabs/calendar_settings_tab.dart';
+import 'package:otzaria/tools/calendar/calendar_cubit.dart';
+import 'package:otzaria/tools/calendar/calendar_settings_tab.dart';
 import 'package:otzaria/settings/tabs/gematria_settings_tab.dart';
 import 'package:otzaria/settings/tabs/editor_settings_tab.dart';
 
