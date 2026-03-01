@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/tools/calendar/ulits/calendar_cubit.dart';
-import 'package:otzaria/settings/panels/calendar_settings_tab.dart';
+import 'package:otzaria/settings/panels/calendar_settings_panel.dart';
 
 /// פונקציה גלובלית להצגת דיאלוג הגדרות לוח שנה
 /// ניתן לקרוא לה מכל מקום באפליקציה
