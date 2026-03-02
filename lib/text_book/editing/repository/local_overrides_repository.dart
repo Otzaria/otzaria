@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
-import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:otzaria/settings/settings_exports.dart';
 
 import 'overrides_repository.dart';
 import '../models/text_override.dart';

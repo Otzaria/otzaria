@@ -4,8 +4,7 @@ import 'package:googleapis_auth/auth_io.dart' as auth_io;
 import 'package:googleapis_auth/googleapis_auth.dart' as auth;
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
-
-import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:otzaria/settings/settings_exports.dart';
 import 'google_calendar_credentials.dart';
 
 class GoogleCalendarApiClient {

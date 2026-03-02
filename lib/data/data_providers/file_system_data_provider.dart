@@ -8,7 +8,6 @@ import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/data/data_providers/file_system_library_provider.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
-import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/utils/text_manipulation.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/library/models/library.dart';
@@ -16,6 +15,7 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/utils/toc_parser.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/external_catalog/repository/external_catalog_repository.dart';
+import 'package:otzaria/settings/settings_exports.dart';
 import 'package:path/path.dart' as path;
 
 /// A data provider that manages file system operations for the library.

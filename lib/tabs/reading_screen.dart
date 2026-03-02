@@ -17,9 +17,8 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/search/view/full_text_search_screen.dart';
 import 'package:otzaria/text_book/view/text_book_screen.dart';
-import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/widgets/resizable_drag_handle.dart';
+import 'package:otzaria/settings/settings_exports.dart';
 
 class ReadingScreen extends StatefulWidget {
   const ReadingScreen({super.key});

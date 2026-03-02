@@ -5,8 +5,8 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/workspaces/bloc/workspace_state.dart';
 import 'package:otzaria/workspaces/bloc/workspace_event.dart';
+import 'package:otzaria/settings/settings_exports.dart';
 import 'dart:async';
-import 'package:otzaria/settings/engine/settings_bloc.dart';
 
 class WorkspaceIconButton extends StatefulWidget {
   final VoidCallback onPressed;

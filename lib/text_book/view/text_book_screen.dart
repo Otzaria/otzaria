@@ -11,10 +11,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
 import 'package:otzaria/core/focus_repository.dart';
-import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart'
-    hide UpdateFontSize;
-import 'package:otzaria/settings/engine/settings_state.dart';
+import 'package:otzaria/settings/settings_exports.dart' hide UpdateFontSize;
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';

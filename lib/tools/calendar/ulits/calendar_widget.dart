@@ -10,11 +10,10 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:kosher_dart/kosher_dart.dart';
 import 'package:otzaria/daf_yomi/daf_yomi_helper.dart';
 import 'package:otzaria/core/scaffold_messenger.dart';
-import 'package:otzaria/settings/dialogs/calendar_settings_dialog.dart';
-import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/widgets/dialogs.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
 import 'package:otzaria/printing/printing_screen.dart';
+import 'package:otzaria/settings/settings_exports.dart';
 import 'calendar_print_helper.dart' as print_helper;
 import 'package:url_launcher/url_launcher.dart';
 

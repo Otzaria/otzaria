@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
-import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:updat/updat.dart';
 import 'package:updat/updat_window_manager.dart';
 import 'package:http/http.dart' as http;
@@ -10,6 +9,7 @@ import 'dart:convert';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'hebrew_updat_widgets.dart';
 import 'linux_installer.dart';
+import 'package:otzaria/settings/settings_exports.dart';
 
 /// סוג ההתקנה המוגדר בזמן build (אופציונלי)
 /// להגדרה: --dart-define=INSTALL_KIND=msix/exe/zip

@@ -8,9 +8,7 @@ import 'package:otzaria/search/bloc/search_state.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/utils/snippet_builder.dart';
-
-import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
+import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';

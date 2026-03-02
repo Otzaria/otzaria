@@ -8,7 +8,7 @@ import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
-import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/utils/zip_extractor_service.dart';
 
 class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {

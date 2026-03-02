@@ -3,7 +3,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
-import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:otzaria/settings/settings_exports.dart';
 
 /// Utility class for managing application paths.
 /// Centralizes path construction logic to avoid duplication.

@@ -15,15 +15,11 @@ import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
-import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/widgets/scrollable_tab_bar.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/history/history_dialog.dart';
 import 'package:otzaria/bookmarks/bookmarks_dialog.dart';
 import 'package:otzaria/workspaces/view/workspace_switcher_dialog.dart';
-import 'package:otzaria/settings/dialogs/reading_settings_dialog.dart';
-import 'package:otzaria/settings/dialogs/library_settings_dialog.dart';
 import 'package:otzaria/utils/fullscreen_helper.dart';
 import 'package:otzaria/utils/text_manipulation.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
@@ -33,6 +29,7 @@ import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/workspaces/bloc/workspace_event.dart';
 import 'package:otzaria/core/scaffold_messenger.dart';
+import 'package:otzaria/settings/settings_exports.dart';
 
 class CustomTitleBar extends StatefulWidget {
   const CustomTitleBar({super.key});

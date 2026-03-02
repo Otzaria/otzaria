@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/search/view/full_text_facet_filtering.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/widgets/resizable_drag_handle.dart';
+import 'package:otzaria/settings/settings_exports.dart';
 
 /// Widget שמאפשר שינוי גודל של אזור סינון התוצאות
 /// ושומר את הגודל בהגדרות המשתמש

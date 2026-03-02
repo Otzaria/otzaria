@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
-import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:updat/updat.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:otzaria/settings/settings_exports.dart';
 
 /// רכיב לחיצה (chip) בעברית - דומה ל-flatChip המקורי
 Widget hebrewFlatChip({

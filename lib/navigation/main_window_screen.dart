@@ -10,9 +10,6 @@ import 'package:otzaria/indexing/bloc/indexing_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
-import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/empty_library/empty_library_screen.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_bloc.dart';
@@ -20,7 +17,6 @@ import 'package:otzaria/find_ref/find_ref_dialog.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/library/view/library_browser.dart';
 import 'package:otzaria/tabs/reading_screen.dart';
-import 'package:otzaria/settings/settings_screen.dart';
 import 'package:otzaria/tools/more_screen.dart';
 import 'package:otzaria/navigation/about_dialog.dart';
 import 'package:otzaria/shortcuts/keyboard_shortcuts.dart';
@@ -42,6 +38,7 @@ import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/workspaces/bloc/workspace_state.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
+import 'package:otzaria/settings/settings_exports.dart';
 
 class MainWindowScreen extends StatefulWidget {
   const MainWindowScreen({super.key});

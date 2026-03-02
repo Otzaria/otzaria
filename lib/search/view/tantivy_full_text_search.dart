@@ -13,8 +13,8 @@ import 'package:otzaria/search/view/full_text_settings_widgets.dart';
 import 'package:otzaria/search/view/tantivy_search_results.dart';
 import 'package:otzaria/search/view/full_text_facet_filtering.dart';
 import 'package:otzaria/search/view/search_edit_panel.dart';
+import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/widgets/resizable_facet_filtering.dart';
-import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/widgets/indexing_warning.dart';
 import 'package:otzaria/widgets/thin_divider.dart';
 
