@@ -12,7 +12,6 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:path/path.dart' as p;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
-import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/services/safer_mode/password_verification_dialog.dart';
 import 'package:otzaria/settings/services/safer_mode/protected_settings_wrapper.dart';
 import 'package:otzaria/settings/services/backup_service.dart';
