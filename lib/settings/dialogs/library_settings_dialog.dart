@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/external_catalog/view/external_catalog_settings_helper.dart';
-import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
-import 'package:otzaria/settings/engine/settings_state.dart';
+import 'package:otzaria/settings/engine/settings_engine_exports.dart';
 import 'package:otzaria/widgets/dialogs.dart';
 
 /// פונקציה גלובלית להצגת דיאלוג הגדרות ספרייה
