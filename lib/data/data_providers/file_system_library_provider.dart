@@ -12,7 +12,7 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/utils/docx_to_otzaria.dart';
 import 'package:otzaria/utils/text_manipulation.dart';
 import 'package:otzaria/utils/toc_parser.dart';
-import 'package:otzaria/settings/custom_folders/custom_folder.dart';
+import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 
 /// Library provider that loads books from the file system.

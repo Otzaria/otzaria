@@ -5,7 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
 
-import 'package:otzaria/settings/custom_folders/custom_folder.dart';
+import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/widgets/confirmation_dialog.dart';
 import 'package:otzaria/widgets/custom_ui_components.dart';

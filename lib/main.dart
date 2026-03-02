@@ -54,7 +54,7 @@ import 'package:otzaria/core/window_listener.dart';
 import 'package:otzaria/core/window_persistence.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_data_provider.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_progress_provider.dart';
-import 'package:otzaria/settings/backup_service.dart';
+import 'package:otzaria/settings/services/backup_service.dart';
 import 'package:otzaria/data/cache/books_cache.dart';
 import 'package:otzaria/data/cache/acronyms_cache.dart';
 import 'package:pdfrx/pdfrx.dart';

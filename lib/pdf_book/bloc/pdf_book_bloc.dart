@@ -10,7 +10,7 @@ import 'package:otzaria/models/pdf_headings.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
-import 'package:otzaria/settings/per_book_settings.dart';
+import 'package:otzaria/settings/services/per_book_settings.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/utils/ref_helper.dart';
 import 'package:pdfrx/pdfrx.dart';

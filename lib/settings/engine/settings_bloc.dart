@@ -3,7 +3,7 @@ import 'package:otzaria/theme/fonts.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
-import 'package:otzaria/settings/per_book_settings.dart';
+import 'package:otzaria/settings/services/per_book_settings.dart';
 
 class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   final SettingsRepository _repository;

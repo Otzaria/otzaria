@@ -5,7 +5,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
-import 'package:otzaria/settings/password_verification_dialog.dart';
+import 'package:otzaria/settings/services/safer_mode/password_verification_dialog.dart';
 
 /// Wrapper שבודק סיסמה לפני כניסה למסך מוגן
 class ProtectedSettingsWrapper extends StatefulWidget {

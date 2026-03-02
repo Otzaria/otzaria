@@ -45,7 +45,7 @@ import 'package:flutter/gestures.dart';
 import 'package:otzaria/widgets/responsive_action_bar.dart';
 import 'package:otzaria/widgets/resizable_drag_handle.dart';
 import 'pdf_zoom_bar.dart';
-import 'package:otzaria/settings/per_book_settings.dart';
+import 'package:otzaria/settings/services/per_book_settings.dart';
 import 'package:otzaria/widgets/commentary_pane_tooltip.dart';
 import 'package:otzaria/pdf_book/pdf_scrollbar.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;

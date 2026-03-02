@@ -12,7 +12,7 @@ import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
-import 'package:otzaria/settings/custom_folders/custom_folders_tile.dart';
+import 'package:otzaria/settings/services/custom_folders/custom_folders_tile.dart';
 import 'package:otzaria/widgets/zip_extraction_progress_dialog.dart';
 import 'package:otzaria/widgets/custom_ui_components.dart';
 import 'package:otzaria/settings/settings_card.dart';

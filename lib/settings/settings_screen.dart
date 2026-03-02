@@ -3,7 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/tools/calendar/ulits/calendar_cubit.dart';
 import 'package:otzaria/settings/tabs/settings_tabs.dart';
-import 'package:otzaria/settings/safer_mode/protected_settings_wrapper.dart';
+import 'package:otzaria/settings/services/safer_mode/protected_settings_wrapper.dart';
 
 /// רוחב מקסימלי לתוכן ההגדרות — מרכוז על מסכים רחבים
 const double kSettingsContentMaxWidth = 860.0;

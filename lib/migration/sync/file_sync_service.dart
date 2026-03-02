@@ -10,7 +10,7 @@ import 'package:path/path.dart' as path;
 import '../core/models/book.dart';
 import '../core/models/category.dart';
 import '../dao/repository/seforim_repository.dart';
-import '../../settings/custom_folders/custom_folder.dart';
+import '../../settings/services/custom_folders/custom_folder.dart';
 import '../../settings/engine/settings_repository.dart';
 import '../generator/generator.dart';
 import '../shared/link_processor.dart';
