@@ -31,7 +31,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
     (
       label: 'כתב',
       icon: FluentIcons.book_24_regular,
-      pageBuilder: () => const ReadingSettingsTab(),
+      pageBuilder: () => const TextSettingsTab(),
     ),
     (
       label: 'ספריה',
@@ -56,7 +56,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
     (
       label: 'אוצריא',
       icon: FluentIcons.settings_24_regular,
-      pageBuilder: () => const AdvancedSettingsTab(),
+      pageBuilder: () => const SystemSettingsTab(),
     ),
     (
       label: 'חכמי לב',

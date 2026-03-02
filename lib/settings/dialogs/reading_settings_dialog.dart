@@ -20,7 +20,7 @@ void showReadingSettingsDialog(BuildContext context) {
           content: SizedBox(
             width: 650,
             height: MediaQuery.of(context).size.height * 0.7,
-            child: const ReadingSettingsTab(isDialog: true),
+            child: const TextSettingsTab(isDialog: true),
           ),
           actions: [
             TextButton(

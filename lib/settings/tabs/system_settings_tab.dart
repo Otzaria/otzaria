@@ -29,14 +29,14 @@ import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/widgets/custom_ui_components.dart';
 
 /// טאב "אוצריא" — גרסאות, נתיב ספרייה, גיבוי, מצב סייפר, איפוס.
-class AdvancedSettingsTab extends StatefulWidget {
-  const AdvancedSettingsTab({super.key});
+class SystemSettingsTab extends StatefulWidget {
+  const SystemSettingsTab({super.key});
 
   @override
-  State<AdvancedSettingsTab> createState() => _AdvancedSettingsTabState();
+  State<SystemSettingsTab> createState() => _SystemSettingsTabState();
 }
 
-class _AdvancedSettingsTabState extends State<AdvancedSettingsTab> {
+class _SystemSettingsTabState extends State<SystemSettingsTab> {
   final GlobalKey _networkModeTileKey = GlobalKey();
 
   // ── מפתחות גיבוי ──────────────────────────────────────────────────────────

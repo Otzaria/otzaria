@@ -11,11 +11,11 @@ import 'package:otzaria/widgets/custom_ui_components.dart';
 
 /// טאב הגדרות תצוגת ספרים
 /// ניתן להשתמש בו גם כתוכן בתוך דיאלוג וגם כטאב במסך הגדרות
-class ReadingSettingsTab extends StatelessWidget {
+class TextSettingsTab extends StatelessWidget {
   /// האם להציג כדיאלוג (עם כפתור סגירה) או כטאב (ללא)
   final bool isDialog;
 
-  const ReadingSettingsTab({super.key, this.isDialog = false});
+  const TextSettingsTab({super.key, this.isDialog = false});
 
   @override
   Widget build(BuildContext context) {
