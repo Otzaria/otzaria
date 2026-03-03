@@ -42,7 +42,7 @@ class CustomTitleBar extends StatefulWidget {
 }
 
 const double _kAppBarControlsWidth = 125.0;
-const double _kAppBarControlsWidthRightAligned = 105.0;
+const double _kAppBarControlsWidthRightAligned = 125.0;
 const int _kActionButtonsCount = 1; // settings בלבד
 const double _kActionButtonWidth = 56.0;
 const double _kWindowCaptionButtonsWidth = 138.0;
@@ -50,8 +50,9 @@ const double _kWindowCaptionButtonWidth = 46.0;
 
 /// סגנון משותף לכפתורי האייקון בשורת הכותרת
 final ButtonStyle _kIconButtonStyle = IconButton.styleFrom(
-  minimumSize: const Size(32, 32),
+  minimumSize: const Size(28, 28),
   padding: EdgeInsets.zero,
+  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
   shape: RoundedRectangleBorder(
     borderRadius: BorderRadius.circular(8),
   ),
@@ -217,7 +218,7 @@ class _CustomTitleBarState extends State<CustomTitleBar>
           ? _kAppBarControlsWidthRightAligned
           : _kAppBarControlsWidth,
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           IconButton(
             icon: const Icon(FluentIcons.history_24_regular, size: 18),
