@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:otzaria/widgets/mixins/dialog_navigation_mixin.dart';
 
 /// דיאלוג עם פעולה אחת (כפתור אישור בלבד)
@@ -308,7 +309,9 @@ Future<bool?> showWarningDialog({
     );
 
 /// Widget להגדרה עם SegmentedButton
-class SegmentedSettingsTile<T> extends StatelessWidget {
+/// תומך בפריסה אדפטיבית, ניווט מקלדת, ותצוגה משופרת במצב כהה
+/// תיקון באג קפיצה: showSelectedIcon=false + fixedSize — הגבולות החיצוניים קבועים
+class SegmentedSettingsTile<T> extends StatefulWidget {
   final dynamic title;
   final String? subtitle;
   final IconData? icon;
@@ -327,68 +330,197 @@ class SegmentedSettingsTile<T> extends StatelessWidget {
   });
 
   @override
+  State<SegmentedSettingsTile<T>> createState() =>
+      _SegmentedSettingsTileState<T>();
+}
+
+class _SegmentedSettingsTileState<T> extends State<SegmentedSettingsTile<T>> {
+  final FocusNode _focusNode = FocusNode();
+  int _focusedIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusedIndex =
+        widget.options.indexWhere((o) => o.value == widget.currentValue);
+    if (_focusedIndex == -1) _focusedIndex = 0;
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final segmentedButton = SegmentedButton<T>(
-      style: ButtonStyle(
-        shape: WidgetStateProperty.all(
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-        backgroundColor: WidgetStateProperty.resolveWith<Color?>(
-          (states) => states.contains(WidgetState.selected)
-              ? colorScheme.primary.withValues(alpha: 0.2)
-              // [תיקון מצב כהה] cardColor עלול להיות בהיר בדארק מוד
-              : colorScheme.surfaceContainerLow,
-        ),
-      ),
-      segments: options
-          .map((o) => ButtonSegment<T>(
-                value: o.value,
-                label: Text(o.label, style: const TextStyle(fontSize: 14)),
-                icon: o.icon != null ? Icon(o.icon) : null,
-              ))
-          .toList(),
-      selected: {currentValue},
-      onSelectionChanged: (s) => onChanged(s.first),
-    );
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (icon != null) ...[
-                Padding(
-                  padding: const EdgeInsetsDirectional.only(end: 12, top: 2),
-                  child: Icon(icon),
-                ),
-              ],
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final hasIcons = widget.options.any((o) => o.icon != null);
+        final maxLabelLength = widget.options
+            .map((o) => o.label.length)
+            .reduce((a, b) => a > b ? a : b);
+        final estimatedButtonWidth =
+            (hasIcons ? 80.0 : 60.0) + (maxLabelLength * 8.0);
+        final totalButtonsWidth = estimatedButtonWidth * widget.options.length;
+        final hasHorizontalSpace =
+            constraints.maxWidth > (totalButtonsWidth + 200);
+
+        if (!hasHorizontalSpace) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
                   children: [
-                    title is String
-                        ? Text(title as String,
-                            style: const TextStyle(fontSize: 16))
-                        : title as Widget,
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 4),
-                      Text(subtitle!, style: const TextStyle(fontSize: 13)),
+                    if (widget.icon != null) ...[
+                      Icon(widget.icon, size: 24),
+                      const SizedBox(width: 12),
                     ],
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          widget.title is String
+                              ? Text(widget.title as String,
+                                  style: const TextStyle(fontSize: 16))
+                              : widget.title as Widget,
+                          if (widget.subtitle != null) ...[
+                            const SizedBox(height: 4),
+                            Text(widget.subtitle!,
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    color: colorScheme.onSurfaceVariant)),
+                          ],
+                        ],
+                      ),
+                    ),
                   ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: _buildSegmentedButton(colorScheme, isDark),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return ListTile(
+          leading: widget.icon != null ? Icon(widget.icon) : null,
+          title: widget.title is String
+              ? Text(widget.title as String,
+                  style: const TextStyle(fontSize: 16))
+              : widget.title as Widget,
+          subtitle: widget.subtitle != null
+              ? Text(widget.subtitle!, style: const TextStyle(fontSize: 13))
+              : null,
+          trailing: _buildSegmentedButton(colorScheme, isDark),
+        );
+      },
+    );
+  }
+
+  Widget _buildSegmentedButton(ColorScheme colorScheme, bool isDark) {
+    final hasIcons = widget.options.any((o) => o.icon != null);
+
+    // ── תיקון קפיצה: מחשבים רוחב קבוע מראש ——————————————————————————————
+    // כל כפתור מקבל רוחב זהה, הסימן V (selectedIcon) מוסתר כדי שלא ידחוף
+    final maxLabelLen = widget.options
+        .map((o) => o.label.length)
+        .reduce((a, b) => a > b ? a : b);
+    final buttonWidth = (hasIcons ? 80.0 : 60.0) + (maxLabelLen * 8.0);
+    final totalWidth = buttonWidth * widget.options.length;
+
+    return Focus(
+      focusNode: _focusNode,
+      onKeyEvent: (node, event) {
+        if (event is! KeyDownEvent) return KeyEventResult.ignored;
+        if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+          setState(() {
+            _focusedIndex = (_focusedIndex + 1) % widget.options.length;
+          });
+          return KeyEventResult.handled;
+        }
+        if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+          setState(() {
+            _focusedIndex = (_focusedIndex - 1 + widget.options.length) %
+                widget.options.length;
+          });
+          return KeyEventResult.handled;
+        }
+        if (event.logicalKey == LogicalKeyboardKey.enter ||
+            event.logicalKey == LogicalKeyboardKey.space) {
+          widget.onChanged(widget.options[_focusedIndex].value);
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      // SizedBox קבוע — מונע שינוי רוחב בעת בחירה
+      child: SizedBox(
+        width: totalWidth.clamp(180.0, 400.0),
+        child: SegmentedButton<T>(
+          // showSelectedIcon=false → לא מופיע V שמגדיל את הכפתור
+          showSelectedIcon: false,
+          style: ButtonStyle(
+            minimumSize: WidgetStateProperty.all(const Size(0, 40)),
+            maximumSize:
+                WidgetStateProperty.all(const Size(double.infinity, 40)),
+            shape: WidgetStateProperty.all(
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            backgroundColor: WidgetStateProperty.resolveWith<Color?>(
+              (states) {
+                if (states.contains(WidgetState.selected)) {
+                  return isDark
+                      ? colorScheme.primaryContainer
+                      : colorScheme.primary.withValues(alpha: 0.2);
+                }
+                return colorScheme.surface;
+              },
+            ),
+            foregroundColor: WidgetStateProperty.resolveWith<Color?>(
+              (states) {
+                if (states.contains(WidgetState.selected)) {
+                  return isDark
+                      ? colorScheme.onPrimaryContainer
+                      : colorScheme.primary;
+                }
+                return colorScheme.onSurface;
+              },
+            ),
+            side: WidgetStateProperty.resolveWith<BorderSide?>(
+              (states) {
+                if (states.contains(WidgetState.selected) && isDark) {
+                  return BorderSide(color: colorScheme.primary, width: 2);
+                }
+                return null;
+              },
+            ),
           ),
-          const SizedBox(height: 10),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: segmentedButton,
-          ),
-        ],
+          segments: widget.options
+              .map((o) => ButtonSegment<T>(
+                    value: o.value,
+                    label: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child:
+                          Text(o.label, style: const TextStyle(fontSize: 14)),
+                    ),
+                    icon: hasIcons
+                        ? (o.icon != null
+                            ? Icon(o.icon, size: 18)
+                            : const SizedBox(width: 18, height: 18))
+                        : null,
+                  ))
+              .toList(),
+          selected: {widget.currentValue},
+          onSelectionChanged: (s) => widget.onChanged(s.first),
+        ),
       ),
     );
   }
@@ -400,4 +532,128 @@ class SegmentOption<T> {
   final IconData? icon;
 
   const SegmentOption({required this.value, required this.label, this.icon});
+}
+
+/// Material 3 Switch מותאם אישית
+/// תיקון מצב כהה: צבעי track ו-thumb מוגדרים בצורה ברורה גם בריחוף, מבלי להסתיר את העיגול במצב פעיל
+class CustomSwitch extends StatelessWidget {
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+  final bool autofocus;
+  final FocusNode? focusNode;
+
+  const CustomSwitch({
+    super.key,
+    required this.value,
+    required this.onChanged,
+    this.autofocus = false,
+    this.focusNode,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Switch(
+      value: value,
+      onChanged: onChanged,
+      autofocus: autofocus,
+      focusNode: focusNode,
+      thumbColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.disabled)) {
+          return colorScheme.onSurface.withValues(alpha: 0.38);
+        }
+        if (states.contains(WidgetState.selected)) {
+          // במצב מופעל: תמיד נרצה צבע בולט (בד"כ לבן במצב כהה) שיושב על הרקע
+          return colorScheme.onPrimary;
+        }
+        // לא נבחר
+        if (states.contains(WidgetState.hovered)) {
+          return isDark
+              ? colorScheme.onSurfaceVariant
+              : colorScheme.onSurfaceVariant;
+        }
+        return colorScheme.outline;
+      }),
+      trackColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.disabled)) {
+          return colorScheme.surfaceContainerHighest.withValues(alpha: 0.12);
+        }
+        if (states.contains(WidgetState.selected)) {
+          return colorScheme.primary;
+        }
+        // לא נבחר
+        return colorScheme.surfaceContainerHighest;
+      }),
+      trackOutlineColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return Colors.transparent;
+        }
+        return colorScheme.outline;
+      }),
+      overlayColor: WidgetStateProperty.resolveWith((states) {
+        // ── התיקון לבעיית הריחוף במצב כהה כשהמתג דלוק ──
+        if (states.contains(WidgetState.selected)) {
+          if (states.contains(WidgetState.hovered)) {
+            // שימוש בלבן שקוף כדי לייצר הילה עדינה שלא בולעת את ה-Thumb הלבן
+            return isDark
+                ? Colors.white.withValues(alpha: 0.1)
+                : colorScheme.primary.withValues(alpha: 0.1);
+          }
+          if (states.contains(WidgetState.focused) ||
+              states.contains(WidgetState.pressed)) {
+            return isDark
+                ? Colors.white.withValues(alpha: 0.15)
+                : colorScheme.primary.withValues(alpha: 0.12);
+          }
+        }
+
+        // ── ריחוף כשהמתג כבוי ──
+        if (states.contains(WidgetState.hovered) ||
+            states.contains(WidgetState.focused) ||
+            states.contains(WidgetState.pressed)) {
+          return colorScheme.onSurface.withValues(alpha: 0.12);
+        }
+        return Colors.transparent;
+      }),
+    );
+  }
+}
+
+/// SwitchSettingsTile — עכשיו משתמש ב-CustomSwitch כ-trailing בתוך ListTile
+/// זה מבטיח עיצוב M3 עקבי (כולל תיקון ריחוף במצב כהה)
+/// תוקן לפי הערת ג'מיני: שימוש ב-ListTile + CustomSwitch במקום SwitchListTile
+class SwitchSettingsTile extends StatelessWidget {
+  final Widget? leading;
+  final Widget title;
+  final Widget? subtitle;
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+  final bool enabled;
+
+  const SwitchSettingsTile({
+    super.key,
+    this.leading,
+    required this.title,
+    this.subtitle,
+    required this.value,
+    required this.onChanged,
+    this.enabled = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: leading,
+      title: title,
+      subtitle: subtitle,
+      enabled: enabled,
+      trailing: CustomSwitch(
+        value: value,
+        onChanged: enabled ? onChanged : null,
+      ),
+      onTap: enabled && onChanged != null ? () => onChanged!(!value) : null,
+    );
+  }
 }
