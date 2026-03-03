@@ -10,6 +10,7 @@ import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
+import 'package:otzaria/settings/panels/library_settings_panel.dart';
 import 'package:otzaria/settings/services/custom_folders/custom_folders_tile.dart';
 import 'package:otzaria/widgets/zip_extraction_progress_dialog.dart';
 import 'package:otzaria/widgets/custom_ui_components.dart';
@@ -17,7 +18,6 @@ import 'package:otzaria/settings/settings_card.dart';
 import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
 import 'package:otzaria/indexing/bloc/indexing_event.dart';
 import 'package:otzaria/indexing/bloc/indexing_state.dart';
-import 'package:otzaria/external_catalog/view/external_catalog_settings_helper.dart';
 
 /// טאב הגדרות ספרייה
 class LibrarySettingsTab extends StatefulWidget {
@@ -81,65 +81,8 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // הגדרות ספרים חיצוניים
-              SettingsCard(
-                title: 'ספרים חיצוניים',
-                children: [
-                  SwitchSettingsTile(
-                    leading: const Icon(FluentIcons.globe_24_regular),
-                    title: const Text('האם להציג ספרים מאתרים חיצוניים?',
-                        style: TextStyle(fontSize: 16)),
-                    subtitle: Text(
-                        state.showExternalBooks
-                            ? 'יוצגו גם ספרים מאתרים חיצוניים'
-                            : 'יוצגו רק ספרים מספריית אוצריא',
-                        style: const TextStyle(fontSize: 13)),
-                    value: state.showExternalBooks,
-                    onChanged: (value) async {
-                      await ExternalCatalogSettingsHelper.updateExternalBooks(
-                        context,
-                        value,
-                      );
-                    },
-                  ),
-                  if (state.showExternalBooks) ...[
-                    Padding(
-                      padding: const EdgeInsets.only(right: 32.0),
-                      child: CheckboxListTile(
-                        title: const Text('הצג ספרים מאוצר החכמה',
-                            style: TextStyle(fontSize: 16)),
-                        value: state.showOtzarHachochma,
-                        onChanged: (value) async {
-                          if (value != null) {
-                            await ExternalCatalogSettingsHelper
-                                .updateOtzarBooks(
-                              context,
-                              value,
-                            );
-                          }
-                        },
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(right: 32.0),
-                      child: CheckboxListTile(
-                        title: const Text('הצג ספרים מהיברובוקס',
-                            style: TextStyle(fontSize: 16)),
-                        value: state.showHebrewBooks,
-                        onChanged: (value) async {
-                          if (value != null) {
-                            await ExternalCatalogSettingsHelper
-                                .updateHebrewBooks(
-                              context,
-                              value,
-                            );
-                          }
-                        },
-                      ),
-                    ),
-                  ],
-                ],
-              ),
+              // 1. הפאנל המשותף (תצוגה + ספרים חיצוניים)
+              const LibraryBasicSettingsPanel(),
 
               // מיקום ספריות (רק בדסקטופ)
               if (!(Platform.isAndroid || Platform.isIOS)) ...[
