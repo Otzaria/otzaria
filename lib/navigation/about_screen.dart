@@ -515,8 +515,10 @@ class _AboutScreenState extends State<AboutScreen> {
   }
 
   Widget _buildDonationMemorialCard(String name) {
-    return _buildGenericMemorialCard(name, 'לחץ כאן',
-        onTap: () => _openLocalHtmlFile('donate.html'));
+    return _buildGenericMemorialCard(name, 'לחץ כאן', onTap: () async {
+      final uri = Uri.parse('http://nedar.im/ezOd');
+      if (await canLaunchUrl(uri)) await launchUrl(uri);
+    });
   }
 
   Widget _buildGenericMemorialCard(String name, String description,
@@ -772,11 +774,8 @@ class _AboutScreenState extends State<AboutScreen> {
                   children: [
                     ElevatedButton.icon(
                       onPressed: () async {
-                        const url = 'https://nedar.im/ejco';
-                        final uri = Uri.parse(url);
-                        if (await canLaunchUrl(uri)) {
-                          await launchUrl(uri);
-                        }
+                        final uri = Uri.parse('http://nedar.im/ezOd');
+                        if (await canLaunchUrl(uri)) await launchUrl(uri);
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.grey[600],
@@ -796,7 +795,10 @@ class _AboutScreenState extends State<AboutScreen> {
                     ),
                     const SizedBox(height: 8),
                     ElevatedButton.icon(
-                      onPressed: () => _openLocalHtmlFile('donate.html'),
+                      onPressed: () async {
+                        final uri = Uri.parse('http://nedar.im/ezOd');
+                        if (await canLaunchUrl(uri)) await launchUrl(uri);
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.grey[600],
                         foregroundColor: Colors.white,
@@ -841,7 +843,10 @@ class _AboutScreenState extends State<AboutScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: () => _openLocalHtmlFile('donate.html'),
+                      onPressed: () async {
+                        final uri = Uri.parse('http://nedar.im/ezOd');
+                        if (await canLaunchUrl(uri)) await launchUrl(uri);
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.grey[600],
                         foregroundColor: Colors.white,

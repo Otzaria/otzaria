@@ -353,7 +353,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     if (libraryPath == null || libraryPath.isEmpty) return;
     final htmlFile = File(p.join(libraryPath, 'donate.html'));
     if (!await htmlFile.exists()) {
-      final uri = Uri.parse('https://nedar.im/ejco');
+      final uri = Uri.parse('http://nedar.im/ezOd');
       if (await canLaunchUrl(uri)) await launchUrl(uri);
       return;
     }
