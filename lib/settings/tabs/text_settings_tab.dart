@@ -183,16 +183,6 @@ class TextSettingsTab extends StatelessWidget {
     return SettingsCard(
       title: 'טעמים ונקודות',
       children: [
-        SwitchSettingsTile(
-          title: const Text('הצגת טעמי המקרא', style: TextStyle(fontSize: 16)),
-          subtitle: Text(
-              state.showTeamim ? 'המקרא יוצג עם טעמים' : 'המקרא יוצג ללא טעמים',
-              style: const TextStyle(fontSize: 13)),
-          value: state.showTeamim,
-          onChanged: (value) {
-            context.read<SettingsBloc>().add(UpdateShowTeamim(value));
-          },
-        ),
         SegmentedSettingsTile<String>(
           icon: FluentIcons.text_font_info_24_regular,
           title: 'הצגת הניקוד',
@@ -227,6 +217,16 @@ class TextSettingsTab extends StatelessWidget {
                     .add(const UpdateRemoveNikudFromTanach(true));
                 break;
             }
+          },
+        ),
+        SwitchSettingsTile(
+          title: const Text('הצגת טעמי המקרא', style: TextStyle(fontSize: 16)),
+          subtitle: Text(
+              state.showTeamim ? 'המקרא יוצג עם טעמים' : 'המקרא יוצג ללא טעמים',
+              style: const TextStyle(fontSize: 13)),
+          value: state.showTeamim,
+          onChanged: (value) {
+            context.read<SettingsBloc>().add(UpdateShowTeamim(value));
           },
         ),
       ],
