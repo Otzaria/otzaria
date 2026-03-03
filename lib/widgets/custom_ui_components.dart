@@ -337,7 +337,8 @@ class SegmentedSettingsTile<T> extends StatelessWidget {
         backgroundColor: WidgetStateProperty.resolveWith<Color?>(
           (states) => states.contains(WidgetState.selected)
               ? colorScheme.primary.withValues(alpha: 0.2)
-              : Theme.of(context).cardColor,
+              // [תיקון מצב כהה] cardColor עלול להיות בהיר בדארק מוד
+              : colorScheme.surfaceContainerLow,
         ),
       ),
       segments: options

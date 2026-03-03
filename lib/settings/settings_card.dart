@@ -16,6 +16,12 @@ class SettingsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    // [תיקון מצב כהה] בכהה: surfaceContainer (אפור כהה מעט בולט מהרקע השחור)
+    //                 בבהיר: surface (לבן — ברירת המחדל הישנה)
+    final cardColor =
+        isDark ? theme.colorScheme.surfaceContainer : theme.colorScheme.surface;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -55,15 +61,15 @@ class SettingsCard extends StatelessWidget {
             ],
           ),
         ),
-        // הכרטיס הלבן המכיל את ההגדרות
+        // הכרטיס המכיל את ההגדרות
         Card(
           elevation: 0,
           margin: EdgeInsets.zero,
-          color: theme.colorScheme.surface,
+          color: cardColor,
           clipBehavior: Clip.antiAlias,
-          shape: RoundedRectangleBorder(
+          shape: const RoundedRectangleBorder(
             side: BorderSide.none,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.all(Radius.circular(20)),
           ),
           child: Column(
             children: _buildChildrenWithDividers(context),
@@ -73,7 +79,6 @@ class SettingsCard extends StatelessWidget {
     );
   }
 
-  /// הוספת קו מפריד בין כל שני פריטים
   List<Widget> _buildChildrenWithDividers(BuildContext context) {
     return [
       for (int i = 0; i < children.length; i++) ...[
