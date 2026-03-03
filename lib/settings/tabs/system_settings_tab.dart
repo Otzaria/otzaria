@@ -24,6 +24,7 @@ import 'package:otzaria/widgets/zip_extraction_progress_dialog.dart';
 import 'package:otzaria/services/data_collection_service.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/widgets/custom_ui_components.dart';
+import 'package:otzaria/settings/settings_card.dart';
 
 /// טאב "אוצריא" — גרסאות, נתיב ספרייה, גיבוי, מצב סייפר, איפוס.
 class SystemSettingsTab extends StatefulWidget {
@@ -98,32 +99,30 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
   Widget build(BuildContext context) {
     return BlocBuilder<SettingsBloc, SettingsState>(
       builder: (context, state) {
-        return ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
-          children: [
-            // 1. גרסאות + נתיב ספרייה
-            _buildVersionAndPathSection(context, state),
-            const SizedBox(height: 16),
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // 1. גרסאות + נתיב ספרייה
+              _buildVersionAndPathSection(context, state),
 
-            // 2. עדכוני מערכת (רשת + עדכון מפתחים)
-            _buildSystemUpdatesSection(context, state),
-            const SizedBox(height: 16),
+              // 2. עדכוני מערכת (רשת + עדכון מפתחים)
+              _buildSystemUpdatesSection(context, state),
 
-            // 3. תורמים (כרטיסי זיכרון)
-            _buildMemorialSection(context),
-            const SizedBox(height: 16),
+              // 3. תורמים (כרטיסי זיכרון)
+              _buildMemorialSection(context),
 
-            // 4. גיבוי (מקטע אחד מאוחד)
-            _buildBackupSection(context),
-            const SizedBox(height: 16),
+              // 4. גיבוי (מקטע אחד מאוחד)
+              _buildBackupSection(context),
 
-            // 5. מצב סייפר (expandable)
-            _buildCypherModeSection(context, state),
-            const SizedBox(height: 16),
+              // 5. מצב סייפר (expandable)
+              _buildCypherModeSection(context, state),
 
-            // 6. איפוס
-            _buildResetSection(context),
-          ],
+              // 6. איפוס
+              _buildResetSection(context),
+            ],
+          ),
         );
       },
     );
@@ -137,7 +136,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     final primaryColor = Theme.of(context).colorScheme.primary;
     final cardColor = Theme.of(context).cardColor;
 
-    return _SectionCard(
+    return SettingsCard(
       title: 'עדכוני מערכת',
       children: [
         KeyedSubtree(
@@ -243,7 +242,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
 
   Widget _buildVersionAndPathSection(
       BuildContext context, SettingsState state) {
-    return _SectionCard(
+    return SettingsCard(
       title: 'מערכת אוצריא',
       children: [
         ListTile(
@@ -334,7 +333,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
   // ════════════════════════════════════════════════════════════════════════════
 
   Widget _buildMemorialSection(BuildContext context) {
-    return _SectionCard(
+    return SettingsCard(
       title: 'תורמים',
       children: [
         Padding(
@@ -371,7 +370,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     final autoFrequency =
         Settings.getValue<String>(_keyAutoBackupFrequency) ?? 'none';
 
-    return _SectionCard(
+    return SettingsCard(
       title: 'גיבוי ושחזור',
       children: [
         // שורה 1: מצב גיבוי
@@ -601,7 +600,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     final repository = RepositoryProvider.of<SettingsRepository>(context);
     final hasPassword = repository.hasProtectedModePassword();
 
-    return _SectionCard(
+    return SettingsCard(
       title: 'מצב מוגן',
       children: [
         // שורה ראשית — לחיצה פותחת/סוגרת
@@ -743,7 +742,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
   // ════════════════════════════════════════════════════════════════════════════
 
   Widget _buildResetSection(BuildContext context) {
-    return _SectionCard(
+    return SettingsCard(
       title: 'איפוס',
       children: [
         ListTile(
@@ -1006,61 +1005,6 @@ class _BackupOptionTile extends StatelessWidget {
         onChanged();
       },
     );
-  }
-}
-
-// ── _SectionCard ──────────────────────────────────────────────────────────────
-
-class _SectionCard extends StatelessWidget {
-  final String title;
-  final List<Widget> children;
-
-  const _SectionCard({required this.title, required this.children});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(right: 4, left: 4, bottom: 8, top: 4),
-          child: Text(
-            title,
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: theme.colorScheme.primary,
-              letterSpacing: 0.3,
-            ),
-          ),
-        ),
-        Card(
-          elevation: 0,
-          margin: EdgeInsets.zero,
-          color: theme.colorScheme.surface,
-          shape: RoundedRectangleBorder(
-            side: BorderSide(
-              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-            ),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(children: _addDividers(children)),
-        ),
-      ],
-    );
-  }
-
-  List<Widget> _addDividers(List<Widget> items) {
-    if (items.length <= 1) return items;
-    final result = <Widget>[];
-    for (var i = 0; i < items.length; i++) {
-      result.add(items[i]);
-      if (i < items.length - 1) {
-        result.add(const Divider(height: 1, indent: 0, endIndent: 0));
-      }
-    }
-    return result;
   }
 }
 
