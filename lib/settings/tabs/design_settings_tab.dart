@@ -191,7 +191,6 @@ class DesignSettingsTab extends StatelessWidget {
                       }
                     },
                   ),
-                  const Divider(height: 1),
                   SwitchListTile(
                     title: const Text('הערות אישיות מקופלות כברירת מחדל',
                         style: TextStyle(fontSize: 16)),
@@ -207,7 +206,6 @@ class DesignSettingsTab extends StatelessWidget {
                           .add(UpdatePersonalNotesCollapsedByDefault(value));
                     },
                   ),
-                  const Divider(height: 1),
                   StatefulBuilder(
                     builder: (context, setState) {
                       final splitedView =

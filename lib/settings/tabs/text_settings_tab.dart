@@ -148,7 +148,6 @@ class TextSettingsTab extends StatelessWidget {
             ],
           ),
         ),
-        const Divider(height: 1),
         _TextWidthSlider(state: state),
       ],
     );
@@ -168,7 +167,6 @@ class TextSettingsTab extends StatelessWidget {
             context.read<SettingsBloc>().add(UpdateShowTeamim(value));
           },
         ),
-        const Divider(height: 1),
         SwitchListTile(
           title: const Text('הסרת ניקוד כברירת מחדל',
               style: TextStyle(fontSize: 16)),

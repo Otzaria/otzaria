@@ -102,7 +102,6 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
                     },
                   ),
                   if (state.showExternalBooks) ...[
-                    const Divider(height: 1),
                     Padding(
                       padding: const EdgeInsets.only(right: 32.0),
                       child: CheckboxListTile(
@@ -205,7 +204,6 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
             context.read<SettingsBloc>().add(UpdateUseFastSearch(value));
           },
         ),
-        const Divider(height: 1),
         SwitchListTile(
           secondary: const Icon(FluentIcons.arrow_clockwise_24_regular),
           title: const Text('עדכון אינדקס אוטומטי',
@@ -220,7 +218,6 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
             context.read<SettingsBloc>().add(UpdateAutoUpdateIndex(value));
           },
         ),
-        const Divider(height: 1),
         BlocBuilder<IndexingBloc, IndexingState>(
           builder: (context, indexingState) {
             return ListTile(

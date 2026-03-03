@@ -73,7 +73,6 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
                   },
                 ),
               ),
-              const Divider(height: 1),
               CheckboxListTile(
                 title: const Text('סינון תוצאות כפולות',
                     style: TextStyle(fontSize: 16)),
@@ -84,7 +83,6 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
                       'key-gematria-filter-duplicates', filterDuplicates);
                 },
               ),
-              const Divider(height: 1),
               CheckboxListTile(
                 title: const Text('חיפוש פסוק שלם בלבד',
                     style: TextStyle(fontSize: 16)),
@@ -95,7 +93,6 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
                       'key-gematria-whole-verse-only', wholeVerseOnly);
                 },
               ),
-              const Divider(height: 1),
               CheckboxListTile(
                 title: const Text('חיפוש בתורה בלבד',
                     style: TextStyle(fontSize: 16)),
@@ -133,7 +130,6 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
                       'key-gematria-use-small', useSmallGematria);
                 },
               ),
-              const Divider(height: 1),
               CheckboxListTile(
                 title: const Text('אותיות סופיות שונות',
                     style: TextStyle(fontSize: 16)),
@@ -152,7 +148,6 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
                       'key-gematria-use-final-letters', useFinalLetters);
                 },
               ),
-              const Divider(height: 1),
               CheckboxListTile(
                 title: const Text('עם הכולל', style: TextStyle(fontSize: 16)),
                 subtitle: const Text('הוספת מספר האותיות לסכום',

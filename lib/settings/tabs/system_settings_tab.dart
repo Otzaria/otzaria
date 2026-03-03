@@ -256,7 +256,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
             onPressed: () => _showChangelogDialog(context),
           ),
         ),
-        const Divider(height: 1),
         ListTile(
           leading: const Icon(FluentIcons.library_24_regular),
           title: const Text('גרסת ספרייה', style: TextStyle(fontSize: 16)),
@@ -268,7 +267,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
             onPressed: () => _showLibraryChangelogDialog(context),
           ),
         ),
-        const Divider(height: 1),
         ListTile(
           leading: const Icon(FluentIcons.book_24_regular),
           title: const Text('מספר ספרים', style: TextStyle(fontSize: 16)),
@@ -278,7 +276,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
           ),
         ),
         if (!(Platform.isAndroid || Platform.isIOS)) ...[
-          const Divider(height: 1),
           ListTile(
             leading: const Icon(FluentIcons.folder_24_regular),
             title: const Text('מיקום ספריית אוצריא',
@@ -406,7 +403,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
 
         // בחר מה לגבות (רק במצב מותאם אישית)
         if (_selectedBackupMode == _BackupMode.custom) ...[
-          const Divider(height: 1),
           _BackupOptionTile(
             icon: FluentIcons.settings_24_regular,
             title: 'הגדרות',
@@ -414,7 +410,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
             settingKey: _keyBackupSettings,
             onChanged: () => setState(() {}),
           ),
-          const Divider(height: 1),
           _BackupOptionTile(
             icon: FluentIcons.bookmark_24_regular,
             title: 'סימניות',
@@ -422,7 +417,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
             settingKey: _keyBackupBookmarks,
             onChanged: () => setState(() {}),
           ),
-          const Divider(height: 1),
           _BackupOptionTile(
             icon: FluentIcons.history_24_regular,
             title: 'היסטוריה',
@@ -430,7 +424,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
             settingKey: _keyBackupHistory,
             onChanged: () => setState(() {}),
           ),
-          const Divider(height: 1),
           _BackupOptionTile(
             icon: FluentIcons.note_24_regular,
             title: 'הערות אישיות',
@@ -438,7 +431,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
             settingKey: _keyBackupNotes,
             onChanged: () => setState(() {}),
           ),
-          const Divider(height: 1),
           _BackupOptionTile(
             icon: FluentIcons.grid_24_regular,
             title: 'שולחנות עבודה',
@@ -446,7 +438,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
             settingKey: _keyBackupWorkspaces,
             onChanged: () => setState(() {}),
           ),
-          const Divider(height: 1),
           _BackupOptionTile(
             icon: FluentIcons.book_24_regular,
             title: 'שמור וזכור',
@@ -455,8 +446,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
             onChanged: () => setState(() {}),
           ),
         ],
-
-        const Divider(height: 1),
 
         // שורה 2: גיבוי אוטומטי
         ListTile(
@@ -485,8 +474,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
             },
           ),
         ),
-
-        const Divider(height: 1),
 
         // שורה 3: כפתורי צור/שחזר
         Padding(
@@ -630,7 +617,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
           child: _isCypherExpanded
               ? Column(
                   children: [
-                    const Divider(height: 1),
                     // הפעלת מצב מוגן
                     SwitchListTile(
                       secondary: Icon(
@@ -657,7 +643,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                               context, repository, value)
                           : null,
                     ),
-                    const Divider(height: 1),
                     // הגדרת/שינוי סיסמה
                     ListTile(
                       leading: const Icon(FluentIcons.key_24_regular),

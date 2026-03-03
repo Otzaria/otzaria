@@ -53,7 +53,6 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                       context.read<CalendarCubit>().changeCalendarType(value);
                     },
                   ),
-                  const Divider(height: 1),
                   // עיר
                   ListTile(
                     leading: const Icon(FluentIcons.location_24_regular),
@@ -120,7 +119,6 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                     },
                   ),
                   if (state.calendarNotificationsEnabled) ...[
-                    const Divider(height: 1),
                     Padding(
                       padding: const EdgeInsets.only(right: 16.0, left: 16.0),
                       child: SwitchListTile(
@@ -159,8 +157,6 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                     ),
                   ],
 
-                  const Divider(height: 1),
-
                   // ── לוח שנה גוגל ──
                   SwitchListTile(
                     secondary: const Icon(FluentIcons.arrow_sync_24_regular),
@@ -177,7 +173,6 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                   ),
 
                   if (state.googleCalendarEnabled) ...[
-                    const Divider(height: 1),
                     Padding(
                       padding: const EdgeInsets.all(16.0),
                       child: Column(
