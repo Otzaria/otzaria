@@ -36,54 +36,43 @@ class _EditorSettingsTabState extends State<EditorSettingsTab> {
           SettingsCard(
             title: 'עורך הספרים',
             children: [
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildSlider(
-                      icon: FluentIcons.timer_24_regular,
-                      label: 'זמן עיכוב במילישניות',
-                      value: previewDebounce,
-                      min: 50,
-                      max: 300,
-                      divisions: 5,
-                      onChanged: (value) {
-                        setState(() => previewDebounce = value);
-                        Settings.setValue<double>(
-                            'key-editor-preview-debounce', value);
-                      },
-                    ),
-                    const Divider(),
-                    _buildSlider(
-                      icon: FluentIcons.delete_dismiss_24_regular,
-                      label: 'ניקוי טיוטות ישנות (ימים)',
-                      value: cleanupDays,
-                      min: 7,
-                      max: 90,
-                      divisions: 12,
-                      onChanged: (value) {
-                        setState(() => cleanupDays = value);
-                        Settings.setValue<double>(
-                            'key-editor-draft-cleanup-days', value);
-                      },
-                    ),
-                    const Divider(),
-                    _buildSlider(
-                      icon: FluentIcons.database_24_regular,
-                      label: 'מכסת טיוטות (MB)',
-                      value: draftsQuota,
-                      min: 50,
-                      max: 100,
-                      divisions: 5,
-                      onChanged: (value) {
-                        setState(() => draftsQuota = value);
-                        Settings.setValue<double>(
-                            'key-editor-drafts-quota', value);
-                      },
-                    ),
-                  ],
-                ),
+              _buildSlider(
+                icon: FluentIcons.timer_24_regular,
+                label: 'זמן עיכוב במילישניות',
+                value: previewDebounce,
+                min: 50,
+                max: 300,
+                divisions: 5,
+                onChanged: (value) {
+                  setState(() => previewDebounce = value);
+                  Settings.setValue<double>(
+                      'key-editor-preview-debounce', value);
+                },
+              ),
+              _buildSlider(
+                icon: FluentIcons.delete_dismiss_24_regular,
+                label: 'ניקוי טיוטות ישנות (ימים)',
+                value: cleanupDays,
+                min: 7,
+                max: 90,
+                divisions: 12,
+                onChanged: (value) {
+                  setState(() => cleanupDays = value);
+                  Settings.setValue<double>(
+                      'key-editor-draft-cleanup-days', value);
+                },
+              ),
+              _buildSlider(
+                icon: FluentIcons.database_24_regular,
+                label: 'מכסת טיוטות (MB)',
+                value: draftsQuota,
+                min: 50,
+                max: 100,
+                divisions: 5,
+                onChanged: (value) {
+                  setState(() => draftsQuota = value);
+                  Settings.setValue<double>('key-editor-drafts-quota', value);
+                },
               ),
             ],
           ),
@@ -101,36 +90,39 @@ class _EditorSettingsTabState extends State<EditorSettingsTab> {
     required int divisions,
     required ValueChanged<double> onChanged,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(icon),
-            const SizedBox(width: 12),
-            Expanded(
-              child:
-                  Text(label, style: Theme.of(context).textTheme.titleMedium),
-            ),
-            Text(
-              '${value.toInt()}',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.primary,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon),
+              const SizedBox(width: 12),
+              Expanded(
+                child:
+                    Text(label, style: Theme.of(context).textTheme.titleMedium),
               ),
-            ),
-          ],
-        ),
-        Slider(
-          value: value,
-          min: min,
-          max: max,
-          divisions: divisions,
-          label: value.toInt().toString(),
-          onChanged: onChanged,
-        ),
-      ],
+              Text(
+                '${value.toInt()}',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          Slider(
+            value: value,
+            min: min,
+            max: max,
+            divisions: divisions,
+            label: value.toInt().toString(),
+            onChanged: onChanged,
+          ),
+        ],
+      ),
     );
   }
 }
