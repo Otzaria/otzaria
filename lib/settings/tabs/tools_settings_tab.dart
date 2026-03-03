@@ -22,8 +22,11 @@ class ToolsSettingsTab extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: const [
           CalendarSettingsTab(),
+          SizedBox(height: 16),
           GematriaSettingsTab(),
+          SizedBox(height: 16),
           EditorSettingsTab(),
+          SizedBox(height: 16),
         ],
       ),
     );

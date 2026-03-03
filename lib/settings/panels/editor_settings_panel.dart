@@ -28,8 +28,9 @@ class _EditorSettingsTabState extends State<EditorSettingsTab> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
+    // [תיקון] הסרת SingleChildScrollView — ToolsSettingsTab גולל את הכל
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

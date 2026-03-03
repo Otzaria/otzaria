@@ -22,8 +22,9 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
   Widget build(BuildContext context) {
     return BlocBuilder<CalendarCubit, CalendarState>(
       builder: (context, state) {
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
+        // [הוסר] SingleChildScrollView — ToolsSettingsTab גולל את כולם
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -419,9 +420,9 @@ class _CitySearchWidgetState extends State<_CitySearchWidget> {
           padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
           child: Text(
             country,
-            style: const TextStyle(
+            style: TextStyle(
               fontWeight: FontWeight.bold,
-              color: Colors.blue,
+              color: Theme.of(context).colorScheme.primary,
               fontSize: 16,
             ),
           ),
