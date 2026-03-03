@@ -1831,6 +1831,14 @@ class SeforimRepository {
   /// @param sql The SQL query to execute
   Future<void> executeRawQuery(String sql) async {
     final db = await _database.database;
+    final normalizedSql = sql.trim().toUpperCase();
+    final isPragma = normalizedSql.startsWith('PRAGMA ');
+
+    if (isPragma && (Platform.isAndroid || Platform.isIOS)) {
+      await db.rawQuery(sql);
+      return;
+    }
+
     await db.execute(sql);
   }
 
@@ -2344,9 +2352,9 @@ class SeforimRepository {
   Future<void> _executeRawQuery(String sql) async {
     final db = await _database.database;
     final normalizedSql = sql.trim().toUpperCase();
-    final isJournalModePragma = normalizedSql.startsWith('PRAGMA JOURNAL_MODE');
+    final isPragma = normalizedSql.startsWith('PRAGMA ');
 
-    if (isJournalModePragma && (Platform.isAndroid || Platform.isIOS)) {
+    if (isPragma && (Platform.isAndroid || Platform.isIOS)) {
       await db.rawQuery(sql);
       return;
     }
