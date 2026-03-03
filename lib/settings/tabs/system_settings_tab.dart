@@ -846,12 +846,15 @@ class _MemorialCardsGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, constraints) {
       final spacing = 12.0;
-      final itemWidth = (constraints.maxWidth - spacing * 2) / 3;
-      const itemHeight = 150.0;
+      final crossAxisCount = constraints.maxWidth < 560 ? 2 : 3;
+      final itemWidth =
+          (constraints.maxWidth - spacing * (crossAxisCount - 1)) /
+              crossAxisCount;
+      final itemHeight = crossAxisCount == 2 ? 158.0 : 150.0;
       final aspectRatio = itemWidth / itemHeight;
 
       return GridView.count(
-        crossAxisCount: 3,
+        crossAxisCount: crossAxisCount,
         crossAxisSpacing: spacing,
         mainAxisSpacing: spacing,
         childAspectRatio: aspectRatio,
