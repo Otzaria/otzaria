@@ -1,9 +1,12 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/tools/calendar/ulits/calendar_cubit.dart';
 import 'package:otzaria/settings/tabs/settings_tabs_exports.dart';
 import 'package:otzaria/settings/services/safer_mode/protected_settings_wrapper.dart';
+import 'package:otzaria/widgets/keyboard_navigator.dart';
+import 'package:otzaria/settings/settings_card.dart';
 
 /// רוחב מקסימלי לתוכן ההגדרות — מרכוז על מסכים רחבים
 const double kSettingsContentMaxWidth = 860.0;
@@ -17,7 +20,23 @@ class MySettingsScreen extends StatefulWidget {
 
 class _MySettingsScreenState extends State<MySettingsScreen> {
   int _selectedIndex = 0;
-  bool _showMobileMenu = true; // true = show menu, false = show content
+  bool _showMobileMenu = true;
+
+  // ── ניווט מקלדת + גלילה ───────────────────────────────────────────────────
+  final _contentFocusNode = FocusNode();
+  final _contentScrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _contentFocusNode.dispose();
+    _contentScrollController.dispose();
+    super.dispose();
+  }
+
+  void _changeTab(int index) {
+    setState(() => _selectedIndex = index);
+    _contentFocusNode.requestFocus();
+  }
 
   // ── הגדרת רשימת הטאבים ────────────────────────────────────────────────────
   late final List<
@@ -41,9 +60,6 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
     (
       label: 'כלים',
       icon: FluentIcons.wrench_24_regular,
-      // תיקון באג: מעבירים את CalendarCubit מה-context הנוכחי לטאב כלים.
-      // בלי זה, שינויים בהגדרות לוח שנה לא נשמרים כשההגדרות נפתחות
-      // כ-route חדש שה-context שלו לא מכיל את CalendarCubit.
       pageBuilder: () => ToolsSettingsTab(
             calendarCubit: context.read<CalendarCubit>(),
           ),
@@ -65,11 +81,22 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
     ),
   ];
 
+  // ── קבוצות למובייל ────────────────────────────────────────────────────────
+  // כל קבוצה: (כותרת, רשימת אינדקסים מ-_tabsData)
+  static const _mobileGroups = [
+    (label: 'תצוגה ותוכן', indices: <int>[0, 1, 2]),
+    (label: 'כלים', indices: <int>[3, 4]),
+    (label: 'מערכת', indices: <int>[5, 6]),
+  ];
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    // צבע רקע אחיד לסרגל הצדדי ולאזור התוכן — ללא קו גבול גלוי ביניהם
-    final bgColor = colorScheme.surfaceContainerHighest.withValues(alpha: 0.28);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // [תיקון] רקע שחור במצב כהה — הכרטיסים בולטים מעל הרקע
+    final bgColor = isDark
+        ? Colors.black
+        : colorScheme.surfaceContainerHighest.withValues(alpha: 0.28);
 
     return ProtectedSettingsWrapper(
       child: Directionality(
@@ -80,166 +107,197 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
 
             // ── מצב מובייל ────────────────────────────────────────────────
             if (isMobile) {
-              // במובייל: אם _showMobileMenu = true, הצג רשימת טאבים
-              // אחרת, הצג את התוכן של הטאב הנבחר
               if (_showMobileMenu) {
-                return Scaffold(
-                  backgroundColor: bgColor,
-                  appBar: AppBar(
+                return KeyboardNavigator(
+                  currentTabIndex: _selectedIndex,
+                  totalTabs: _tabsData.length,
+                  onTabChange: (i) => setState(() => _selectedIndex = i),
+                  onBack: null,
+                  child: Scaffold(
                     backgroundColor: bgColor,
-                    elevation: 0,
-                    title: const Text('הגדרות'),
-                  ),
-                  body: ListView.builder(
-                    padding: const EdgeInsets.all(12),
-                    itemCount: _tabsData.length,
-                    itemBuilder: (context, index) {
-                      return Card(
-                        color: colorScheme.surface,
-                        elevation: 0,
-                        margin: const EdgeInsets.only(bottom: 8),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(
-                            color: colorScheme.outlineVariant
-                                .withValues(alpha: 0.4),
+                    appBar: AppBar(
+                      backgroundColor: bgColor,
+                      elevation: 0,
+                      title: const Text('הגדרות'),
+                    ),
+                    body: ListView(
+                      padding: const EdgeInsets.all(12),
+                      children: [
+                        for (final group in _mobileGroups) ...[
+                          SettingsCard(
+                            title: group.label,
+                            children: [
+                              for (final idx in group.indices)
+                                ListTile(
+                                  leading: Icon(_tabsData[idx].icon,
+                                      color: colorScheme.primary),
+                                  title: Text(_tabsData[idx].label),
+                                  trailing: const Icon(Icons.chevron_left),
+                                  onTap: () {
+                                    setState(() {
+                                      _selectedIndex = idx;
+                                      _showMobileMenu = false;
+                                    });
+                                  },
+                                ),
+                            ],
                           ),
-                        ),
-                        child: ListTile(
-                          leading: Icon(_tabsData[index].icon,
-                              color: colorScheme.primary),
-                          title: Text(_tabsData[index].label),
-                          trailing: const Icon(Icons.chevron_left),
-                          onTap: () {
-                            setState(() {
-                              _selectedIndex = index;
-                              _showMobileMenu = false;
-                            });
-                          },
-                        ),
-                      );
-                    },
+                          const SizedBox(height: 8),
+                        ],
+                      ],
+                    ),
                   ),
                 );
               } else {
-                // הצגת תוכן הטאב הנבחר
-                return Scaffold(
-                  backgroundColor: bgColor,
-                  appBar: AppBar(
+                return KeyboardNavigator(
+                  currentTabIndex: _selectedIndex,
+                  totalTabs: _tabsData.length,
+                  onTabChange: _changeTab,
+                  onBack: () => setState(() => _showMobileMenu = true),
+                  child: Scaffold(
                     backgroundColor: bgColor,
-                    elevation: 0,
-                    title: Text(_tabsData[_selectedIndex].label),
-                    leading: IconButton(
-                      icon: const Icon(Icons.arrow_forward),
-                      onPressed: () {
-                        setState(() {
-                          _showMobileMenu = true;
-                        });
-                      },
+                    appBar: AppBar(
+                      backgroundColor: bgColor,
+                      elevation: 0,
+                      title: Text(_tabsData[_selectedIndex].label),
+                      leading: Tooltip(
+                        message: 'חזור (Backspace)',
+                        child: IconButton(
+                          icon: const Icon(Icons.arrow_forward),
+                          onPressed: () =>
+                              setState(() => _showMobileMenu = true),
+                        ),
+                      ),
                     ),
+                    body: _tabsData[_selectedIndex].pageBuilder(),
                   ),
-                  body: _tabsData[_selectedIndex].pageBuilder(),
                 );
               }
             }
 
-            // ── מצב דסקטופ: sidebar + תוכן ──────────────────────────────
-            return Scaffold(
-              backgroundColor: bgColor,
-              body: Row(
-                children: [
-                  // ── Sidebar ────────────────────────────────────────────
-                  SizedBox(
-                    width: 210,
-                    child: Container(
-                      color: bgColor, // אותו צבע — ללא גבול גלוי
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 28),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.only(
-                                right: 12, left: 12, bottom: 20),
-                            child: Text(
-                              'הגדרות',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .headlineSmall
-                                  ?.copyWith(fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                          Expanded(
-                            child: ListView.builder(
-                              itemCount: _tabsData.length,
-                              itemBuilder: (context, index) {
-                                final isSelected = _selectedIndex == index;
-                                return Padding(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 2),
-                                  child: Material(
-                                    color: isSelected
-                                        ? colorScheme.primary
-                                            .withValues(alpha: 0.14)
-                                        : Colors.transparent,
-                                    borderRadius: BorderRadius.circular(28),
-                                    child: InkWell(
-                                      onTap: () => setState(
-                                          () => _selectedIndex = index),
-                                      borderRadius: BorderRadius.circular(28),
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 14, vertical: 10),
-                                        child: Row(
-                                          children: [
-                                            Icon(
-                                              _tabsData[index].icon,
-                                              size: 20,
-                                              color: isSelected
-                                                  ? colorScheme.primary
-                                                  : colorScheme
-                                                      .onSurfaceVariant,
-                                            ),
-                                            const SizedBox(width: 10),
-                                            Expanded(
-                                              child: Text(
-                                                _tabsData[index].label,
-                                                style: TextStyle(
-                                                  fontSize: 14,
-                                                  fontWeight: isSelected
-                                                      ? FontWeight.bold
-                                                      : FontWeight.normal,
+            // ── מצב דסקטופ: KeyboardNavigator + sidebar + תוכן ──────────
+            return KeyboardNavigator(
+              currentTabIndex: _selectedIndex,
+              totalTabs: _tabsData.length,
+              onTabChange: _changeTab,
+              onBack: null,
+              child: Scaffold(
+                backgroundColor: bgColor,
+                body: Listener(
+                  // [תיקון גלילה] גלגל עכבר מכל מקום (כולל sidebar) גולל את התוכן
+                  onPointerSignal: (event) {
+                    if (event is PointerScrollEvent &&
+                        _contentScrollController.hasClients) {
+                      final newOffset = _contentScrollController.offset +
+                          event.scrollDelta.dy;
+                      _contentScrollController.jumpTo(
+                        newOffset.clamp(
+                          0.0,
+                          _contentScrollController.position.maxScrollExtent,
+                        ),
+                      );
+                    }
+                  },
+                  child: Row(
+                    children: [
+                      // ── Sidebar ──────────────────────────────────────
+                      SizedBox(
+                        width: 210,
+                        child: Container(
+                          color: bgColor,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 28),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                    right: 12, left: 12, bottom: 20),
+                                child: Text(
+                                  'הגדרות',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineSmall
+                                      ?.copyWith(fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              Expanded(
+                                child: ListView.builder(
+                                  itemCount: _tabsData.length,
+                                  itemBuilder: (context, index) {
+                                    final isSelected = _selectedIndex == index;
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 2),
+                                      child: Material(
+                                        color: isSelected
+                                            ? colorScheme.primary
+                                                .withValues(alpha: 0.14)
+                                            : Colors.transparent,
+                                        borderRadius: BorderRadius.circular(28),
+                                        child: InkWell(
+                                          onTap: () => _changeTab(index),
+                                          borderRadius:
+                                              BorderRadius.circular(28),
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 14, vertical: 10),
+                                            child: Row(
+                                              children: [
+                                                Icon(
+                                                  _tabsData[index].icon,
+                                                  size: 20,
                                                   color: isSelected
                                                       ? colorScheme.primary
                                                       : colorScheme
                                                           .onSurfaceVariant,
                                                 ),
-                                              ),
+                                                const SizedBox(width: 10),
+                                                Expanded(
+                                                  child: Text(
+                                                    _tabsData[index].label,
+                                                    style: TextStyle(
+                                                      fontSize: 14,
+                                                      fontWeight: isSelected
+                                                          ? FontWeight.bold
+                                                          : FontWeight.normal,
+                                                      color: isSelected
+                                                          ? colorScheme.primary
+                                                          : colorScheme
+                                                              .onSurfaceVariant,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
                                             ),
-                                          ],
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
-                    ),
-                  ),
 
-                  // ── אזור תוכן ─────────────────────────────────────────
-                  Expanded(
-                    child: _SettingsContentPane(
-                      key: ValueKey(_selectedIndex),
-                      label: _tabsData[_selectedIndex].label,
-                      bgColor: bgColor,
-                      child: _tabsData[_selectedIndex].pageBuilder(),
-                    ),
+                      // ── אזור תוכן ────────────────────────────────────
+                      Expanded(
+                        child: PrimaryScrollController(
+                          controller: _contentScrollController,
+                          child: _SettingsContentPane(
+                            key: ValueKey(_selectedIndex),
+                            label: _tabsData[_selectedIndex].label,
+                            bgColor: bgColor,
+                            focusNode: _contentFocusNode,
+                            child: _tabsData[_selectedIndex].pageBuilder(),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             );
           },
@@ -249,43 +307,64 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
   }
 }
 
-/// אזור התוכן — רקע אחיד עם הסרגל הצדדי, מרכוז ב-[kSettingsContentMaxWidth]
-class _SettingsContentPane extends StatelessWidget {
+// ── _SettingsContentPane ───────────────────────────────────────────────────────
+// [שינוי] StatefulWidget — בקשת focus בכניסה לטאב חדש
+class _SettingsContentPane extends StatefulWidget {
   final String label;
   final Widget child;
   final Color bgColor;
+  final FocusNode focusNode;
 
   const _SettingsContentPane({
     required this.label,
     required this.child,
     required this.bgColor,
+    required this.focusNode,
     super.key,
   });
 
   @override
+  State<_SettingsContentPane> createState() => _SettingsContentPaneState();
+}
+
+class _SettingsContentPaneState extends State<_SettingsContentPane> {
+  @override
+  void initState() {
+    super.initState();
+    // בקשת focus כדי שניווט מקלדת יעבוד מיד
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.focusNode.requestFocus();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
-      color: bgColor,
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: kSettingsContentMaxWidth),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(
-                    top: 28, right: 16, left: 16, bottom: 4),
-                child: Text(
-                  label,
-                  style: Theme.of(context)
-                      .textTheme
-                      .headlineMedium
-                      ?.copyWith(fontWeight: FontWeight.bold),
+    return Focus(
+      focusNode: widget.focusNode,
+      child: Container(
+        color: widget.bgColor,
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints:
+                const BoxConstraints(maxWidth: kSettingsContentMaxWidth),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(
+                      top: 28, right: 16, left: 16, bottom: 4),
+                  child: Text(
+                    widget.label,
+                    style: Theme.of(context)
+                        .textTheme
+                        .headlineMedium
+                        ?.copyWith(fontWeight: FontWeight.bold),
+                  ),
                 ),
-              ),
-              Expanded(child: child),
-            ],
+                Expanded(child: widget.child),
+              ],
+            ),
           ),
         ),
       ),
