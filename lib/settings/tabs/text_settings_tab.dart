@@ -26,8 +26,6 @@ class TextSettingsTab extends StatelessWidget {
             children: [
               _buildFontSection(context, settingsState),
               const SizedBox(height: 16),
-              _buildHolyNamesSection(context, settingsState),
-              const SizedBox(height: 16),
               _buildNikudSection(context, settingsState),
               const SizedBox(height: 16),
               _buildCopySection(context, settingsState),
@@ -183,6 +181,35 @@ class TextSettingsTab extends StatelessWidget {
     return SettingsCard(
       title: 'טעמים ונקודות',
       children: [
+        SegmentedSettingsTile<bool>(
+          icon: FluentIcons.shield_keyhole_24_regular,
+          title: RichText(
+            text: TextSpan(
+              style: TextStyle(
+                fontSize: 16,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+              children: [
+                const TextSpan(
+                  text: 'שבח מגדל עוז ',
+                ),
+                TextSpan(
+                  text: 'שם הגדול',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ],
+            ),
+          ),
+          subtitle: 'בישראל גדול שמו',
+          options: const [
+            SegmentOption(value: false, label: 'זה שמי לעלם'),
+            SegmentOption(value: true, label: 'לא כשאני נכתב'),
+          ],
+          currentValue: state.replaceHolyNames,
+          onChanged: (value) {
+            context.read<SettingsBloc>().add(UpdateReplaceHolyNames(value));
+          },
+        ),
         SegmentedSettingsTile<String>(
           icon: FluentIcons.text_font_info_24_regular,
           title: 'הצגת הניקוד',
@@ -227,41 +254,6 @@ class TextSettingsTab extends StatelessWidget {
           value: state.showTeamim,
           onChanged: (value) {
             context.read<SettingsBloc>().add(UpdateShowTeamim(value));
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildHolyNamesSection(BuildContext context, SettingsState state) {
-    return SettingsCard(
-      title: RichText(
-        text: TextSpan(
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          children: [
-            TextSpan(
-              text: 'שבח מגדל עוז ',
-              style: TextStyle(color: Theme.of(context).colorScheme.primary),
-            ),
-            TextSpan(
-              text: 'שם הגדול',
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-          ],
-        ),
-      ),
-      children: [
-        SegmentedSettingsTile<bool>(
-          icon: FluentIcons.shield_keyhole_24_regular,
-          title: 'בישראל גדול שמו',
-          subtitle: '',
-          options: const [
-            SegmentOption(value: false, label: 'זה שמי לעלם'),
-            SegmentOption(value: true, label: 'לא כשאני נכתב'),
-          ],
-          currentValue: state.replaceHolyNames,
-          onChanged: (value) {
-            context.read<SettingsBloc>().add(UpdateReplaceHolyNames(value));
           },
         ),
       ],
