@@ -19,7 +19,7 @@ void showLibrarySettingsDialog(BuildContext context) {
         child: const SingleChildScrollView(
           child: Padding(
             padding: EdgeInsets.symmetric(vertical: 8.0),
-            child: LibraryBasicSettingsPanel(),
+            child: LibrarySettingsPanel(),
           ),
         ),
       ),

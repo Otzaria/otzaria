@@ -72,42 +72,49 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
     );
   }
 
+  /// פונקציית בניית ווידג'ט מיקום היברובוקס המועברת לפאנל המשותף
+  Widget _buildHebrewBooksLocationWidget(BuildContext context) {
+    final pathStr =
+        Settings.getValue<String>(SettingsRepository.keyHebrewBooksPath);
+    final hasPath = pathStr != null;
+
+    return ListTile(
+      leading: const Icon(FluentIcons.folder_24_regular),
+      title: const Text('מיקום ספרי היברובוקס', style: TextStyle(fontSize: 16)),
+      subtitle: Text(
+        hasPath ? pathStr : 'במידה וקיימים ברשותך ספרים ממאגר זה',
+        style: const TextStyle(fontSize: 13),
+      ),
+      trailing: RecommendedActionButton(
+        text: hasPath ? 'שנה מיקום' : 'בחר מיקום',
+        icon: FluentIcons.folder_24_regular,
+        onPressed: () async {
+          String? path = await FilePicker.platform.getDirectoryPath();
+          if (path != null && context.mounted) {
+            await _showExtractionDialog(context, path, isLibraryPath: false);
+            if (mounted) setState(() {});
+          }
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<SettingsBloc, SettingsState>(
       builder: (context, state) {
+        // בניית כפתור בחירת תיקייה רק בדסקטופ והעברה לפאנל
+        final hebrewPathWidget = !(Platform.isAndroid || Platform.isIOS)
+            ? _buildHebrewBooksLocationWidget(context)
+            : null;
+
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // 1. הפאנל המשותף (תצוגה + ספרים חיצוניים)
-              const LibraryBasicSettingsPanel(),
-
-              // מיקום ספריות (רק בדסקטופ)
-              if (!(Platform.isAndroid || Platform.isIOS)) ...[
-                const SizedBox(height: 16),
-                SettingsCard(
-                  title: 'מיקום ספריות',
-                  children: [
-                    Tooltip(
-                      message: 'במידה וקיימים ברשותך ספרים ממאגר זה',
-                      child: ListTile(
-                        leading: const Icon(FluentIcons.folder_24_regular),
-                        title: const Text('מיקום ספרי היברובוקס',
-                            style: TextStyle(fontSize: 16)),
-                        subtitle: Text(
-                          Settings.getValue<String>(
-                                  SettingsRepository.keyHebrewBooksPath) ??
-                              'לא קיים',
-                          style: const TextStyle(fontSize: 13),
-                        ),
-                        trailing: _buildHebrewBooksPathButton(context),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+              // הפאנל המשותף (תצוגה + ספרים נוספים) - כעת כולל את תיקיית היברובוקס בתוכו!
+              LibrarySettingsPanel(hebrewBooksPathWidget: hebrewPathWidget),
 
               // תיקיות מותאמות אישית (רק בדסקטופ)
               if (!(Platform.isAndroid || Platform.isIOS)) ...[
@@ -222,23 +229,6 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
           },
         ),
       ],
-    );
-  }
-
-  Widget _buildHebrewBooksPathButton(BuildContext context) {
-    final hasPath =
-        Settings.getValue<String>(SettingsRepository.keyHebrewBooksPath) !=
-            null;
-    return RecommendedActionButton(
-      text: hasPath ? 'שנה מיקום' : 'בחר מיקום',
-      icon: FluentIcons.folder_24_regular,
-      onPressed: () async {
-        String? path = await FilePicker.platform.getDirectoryPath();
-        if (path != null && context.mounted) {
-          await _showExtractionDialog(context, path, isLibraryPath: false);
-          if (mounted) setState(() {}); // רענון תצוגה לאחר שינוי נתיב
-        }
-      },
     );
   }
 }

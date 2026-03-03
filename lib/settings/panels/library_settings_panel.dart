@@ -6,10 +6,12 @@ import 'package:otzaria/settings/engine/settings_engine_exports.dart';
 import 'package:otzaria/settings/settings_card.dart';
 import 'package:otzaria/widgets/custom_ui_components.dart';
 
-/// פאנל הגדרות ספרייה בסיסיות (תצוגה וספרים חיצוניים)
-/// משמש גם בתוך הטאב המלא וגם בדיאלוג המהיר
-class LibraryBasicSettingsPanel extends StatelessWidget {
-  const LibraryBasicSettingsPanel({super.key});
+/// פאנל הגדרות תצוגת ספרייה
+class LibrarySettingsPanel extends StatelessWidget {
+  /// ווידג'ט להצגת מיקום ספרי היברובוקס (מועבר מהטאב הראשי כדי לתמוך בבחירת תיקייה)
+  final Widget? hebrewBooksPathWidget;
+
+  const LibrarySettingsPanel({super.key, this.hebrewBooksPathWidget});
 
   @override
   Widget build(BuildContext context) {
@@ -22,36 +24,42 @@ class LibraryBasicSettingsPanel extends StatelessWidget {
             SettingsCard(
               title: 'תצוגת ספרייה',
               children: [
-                SwitchSettingsTile(
-                  leading: const Icon(FluentIcons.list_24_regular),
-                  title: const Text('תצוגת רשימה (עץ מתרחב)',
-                      style: TextStyle(fontSize: 16)),
-                  subtitle: Text(
-                      state.libraryViewMode == 'list'
-                          ? 'מוצגת תצוגת רשימה'
-                          : 'מוצגת תצוגת רשת',
-                      style: const TextStyle(fontSize: 13)),
-                  value: state.libraryViewMode == 'list',
+                SegmentedSettingsTile<String>(
+                  icon: FluentIcons.grid_24_regular,
+                  title: 'סוג תצוגה',
+                  subtitle: state.libraryViewMode == 'list'
+                      ? 'תצוגת רשימה (עץ מתרחב)'
+                      : 'תצוגת רשת',
+                  options: const [
+                    SegmentOption(
+                      value: 'grid',
+                      label: 'רשת',
+                      icon: FluentIcons.grid_24_regular,
+                    ),
+                    SegmentOption(
+                      value: 'list',
+                      label: 'רשימה',
+                      icon: FluentIcons.list_24_regular,
+                    ),
+                  ],
+                  currentValue: state.libraryViewMode,
                   onChanged: (value) {
-                    context.read<SettingsBloc>().add(
-                          UpdateLibraryViewMode(value ? 'list' : 'grid'),
-                        );
+                    context
+                        .read<SettingsBloc>()
+                        .add(UpdateLibraryViewMode(value));
                   },
                 ),
                 SwitchSettingsTile(
                   leading: const Icon(FluentIcons.eye_24_regular),
-                  title: const Text('הצג תצוגה מקדימה',
-                      style: TextStyle(fontSize: 16)),
-                  subtitle: Text(
-                      state.libraryShowPreview
-                          ? 'תצוגה מקדימה מוצגת'
-                          : 'תצוגה מקדימה מוסתרת',
-                      style: const TextStyle(fontSize: 13)),
+                  title: const Text('הצג תצוגה מקדימה'),
+                  subtitle: Text(state.libraryShowPreview
+                      ? 'תצוגה מקדימה מוצגת'
+                      : 'תצוגה מקדימה מוסתרת'),
                   value: state.libraryShowPreview,
                   onChanged: (value) {
-                    context.read<SettingsBloc>().add(
-                          UpdateLibraryShowPreview(value),
-                        );
+                    context
+                        .read<SettingsBloc>()
+                        .add(UpdateLibraryShowPreview(value));
                   },
                 ),
               ],
@@ -59,19 +67,19 @@ class LibraryBasicSettingsPanel extends StatelessWidget {
 
             const SizedBox(height: 16),
 
-            // הגדרות ספרים חיצוניים
+            // ספרים נוספים (משלב מיקום היברובוקס וספרים חיצוניים)
             SettingsCard(
-              title: 'ספרים חיצוניים',
+              title: 'ספרים נוספים',
               children: [
+                // מיקום היברובוקס (יוצג ראשון במידה והועבר לו ווידג'ט - דסקטופ בלבד)
+                if (hebrewBooksPathWidget != null) hebrewBooksPathWidget!,
+
                 SwitchSettingsTile(
                   leading: const Icon(FluentIcons.globe_24_regular),
-                  title: const Text('האם להציג ספרים מאתרים חיצוניים?',
-                      style: TextStyle(fontSize: 16)),
-                  subtitle: Text(
-                      state.showExternalBooks
-                          ? 'יוצגו גם ספרים מאתרים חיצוניים'
-                          : 'יוצגו רק ספרים מספריית אוצריא',
-                      style: const TextStyle(fontSize: 13)),
+                  title: const Text('הצגת ספרים מאתרים חיצוניים'),
+                  subtitle: Text(state.showExternalBooks
+                      ? 'יוצגו גם ספרים מאתרים חיצוניים'
+                      : 'יוצגו רק ספרים מספריית אוצריא'),
                   value: state.showExternalBooks,
                   onChanged: (value) async {
                     await ExternalCatalogSettingsHelper.updateExternalBooks(
@@ -84,8 +92,7 @@ class LibraryBasicSettingsPanel extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.only(right: 32.0),
                     child: CheckboxListTile(
-                      title: const Text('הצג ספרים מאוצר החכמה',
-                          style: TextStyle(fontSize: 16)),
+                      title: const Text('הצג ספרים מאוצר החכמה'),
                       value: state.showOtzarHachochma,
                       onChanged: (value) async {
                         if (value != null) {
@@ -100,8 +107,7 @@ class LibraryBasicSettingsPanel extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.only(right: 32.0),
                     child: CheckboxListTile(
-                      title: const Text('הצג ספרים מהיברובוקס',
-                          style: TextStyle(fontSize: 16)),
+                      title: const Text('הצג ספרים מהיברובוקס'),
                       value: state.showHebrewBooks,
                       onChanged: (value) async {
                         if (value != null) {
