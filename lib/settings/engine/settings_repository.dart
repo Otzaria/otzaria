@@ -209,7 +209,7 @@ class SettingsRepository {
       ),
       'libraryShowPreview': _settings.getValue<bool>(
         keyLibraryShowPreview,
-        defaultValue: true,
+        defaultValue: false,
       ),
       'shortcuts': await getShortcuts(),
       'enablePerBookSettings': _settings.getValue<bool>(
@@ -652,7 +652,7 @@ class SettingsRepository {
     await _settings.setValue(keyCopyHeaderFormat, 'same_line_after_brackets');
     await _settings.setValue(keyIsFullscreen, false);
     await _settings.setValue(keyLibraryViewMode, 'grid');
-    await _settings.setValue(keyLibraryShowPreview, true);
+    await _settings.setValue(keyLibraryShowPreview, false);
     await _settings.setValue(keyEnablePerBookSettings, true);
     await _settings.setValue(keyAlignTabsToRight, false);
     await _settings.setValue(keyPersonalNotesCollapsedByDefault, true);

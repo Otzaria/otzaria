@@ -110,7 +110,7 @@ class SettingsState extends Equatable {
       copyHeaderFormat: 'same_line_after_brackets',
       isFullscreen: false,
       libraryViewMode: 'grid',
-      libraryShowPreview: true,
+      libraryShowPreview: false,
       shortcuts: {},
       enablePerBookSettings: true,
       isOfflineMode: false,

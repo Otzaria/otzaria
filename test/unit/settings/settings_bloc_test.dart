@@ -57,7 +57,7 @@ void main() {
         'copyHeaderFormat': 'same_line_after_brackets',
         'isFullscreen': false,
         'libraryViewMode': 'grid',
-        'libraryShowPreview': true,
+        'libraryShowPreview': false,
         'enablePerBookSettings': true,
         'shortcuts': <String, String>{},
         'isOfflineMode': false,
