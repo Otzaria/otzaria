@@ -133,62 +133,42 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
   // ════════════════════════════════════════════════════════════════════════════
 
   Widget _buildSystemUpdatesSection(BuildContext context, SettingsState state) {
-    final primaryColor = Theme.of(context).colorScheme.primary;
-    final cardColor = Theme.of(context).cardColor;
-
     return SettingsCard(
       title: 'עדכוני מערכת',
       children: [
         KeyedSubtree(
           key: _networkModeTileKey,
-          child: ListTile(
-            leading: const Icon(FluentIcons.globe_24_regular),
-            title:
-                const Text('סינכרון ומצב רשת', style: TextStyle(fontSize: 16)),
-            subtitle: Text(
-              state.isOfflineMode
-                  ? 'התוכנה מנותקת לגמרי מהרשת'
-                  : 'התוכנה יכולה להתחבר לרשת',
-              style: const TextStyle(fontSize: 13),
-            ),
-            trailing: SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment<bool>(
-                  value: false,
-                  label: Text('מקוון'),
-                  icon: Icon(FluentIcons.wifi_1_24_regular),
-                ),
-                ButtonSegment<bool>(
-                  value: true,
-                  label: Text('מנותק'),
-                  icon: Icon(FluentIcons.wifi_off_24_regular),
-                ),
-              ],
-              selected: {state.isOfflineMode},
-              onSelectionChanged: (sel) {
-                context.read<SettingsBloc>().add(UpdateOfflineMode(sel.first));
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (!mounted) return;
-                  final ctx = _networkModeTileKey.currentContext;
-                  if (ctx != null) {
-                    Scrollable.ensureVisible(ctx,
-                        duration: const Duration(milliseconds: 200),
-                        alignment: 0.0);
-                  }
-                });
-              },
-              style: ButtonStyle(
-                shape: WidgetStateProperty.all(
-                  RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
-                ),
-                backgroundColor: WidgetStateProperty.resolveWith<Color?>(
-                  (states) => states.contains(WidgetState.selected)
-                      ? primaryColor.withValues(alpha: 0.2)
-                      : cardColor,
-                ),
+          child: SegmentedSettingsTile<bool>(
+            icon: FluentIcons.globe_24_regular,
+            title: 'סינכרון ומצב רשת',
+            subtitle: state.isOfflineMode
+                ? 'התוכנה מנותקת לגמרי מהרשת'
+                : 'התוכנה יכולה להתחבר לרשת',
+            options: const [
+              SegmentOption<bool>(
+                value: false,
+                label: 'מקוון',
+                icon: FluentIcons.wifi_1_24_regular,
               ),
-            ),
+              SegmentOption<bool>(
+                value: true,
+                label: 'מנותק',
+                icon: FluentIcons.wifi_off_24_regular,
+              ),
+            ],
+            currentValue: state.isOfflineMode,
+            onChanged: (value) {
+              context.read<SettingsBloc>().add(UpdateOfflineMode(value));
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                final ctx = _networkModeTileKey.currentContext;
+                if (ctx != null) {
+                  Scrollable.ensureVisible(ctx,
+                      duration: const Duration(milliseconds: 200),
+                      alignment: 0.0);
+                }
+              });
+            },
           ),
         ),
         if (!(Platform.isAndroid || Platform.isIOS) &&
@@ -362,8 +342,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
   // ════════════════════════════════════════════════════════════════════════════
 
   Widget _buildBackupSection(BuildContext context) {
-    final primaryColor = Theme.of(context).colorScheme.primary;
-    final cardColor = Theme.of(context).cardColor;
     final autoFrequency =
         Settings.getValue<String>(_keyAutoBackupFrequency) ?? 'none';
 
@@ -371,34 +349,21 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
       title: 'גיבוי ושחזור',
       children: [
         // שורה 1: מצב גיבוי
-        ListTile(
-          leading: const Icon(FluentIcons.options_24_regular),
-          title: const Text('מצב גיבוי', style: TextStyle(fontSize: 16)),
-          trailing: SegmentedButton<_BackupMode>(
-            style: ButtonStyle(
-              shape: WidgetStateProperty.all(
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              backgroundColor: WidgetStateProperty.resolveWith<Color?>(
-                (states) => states.contains(WidgetState.selected)
-                    ? primaryColor.withValues(alpha: 0.2)
-                    : cardColor,
-              ),
+        SegmentedSettingsTile<_BackupMode>(
+          icon: FluentIcons.options_24_regular,
+          title: 'מצב גיבוי',
+          options: const [
+            SegmentOption<_BackupMode>(
+              value: _BackupMode.all,
+              label: 'גבה הכל',
             ),
-            segments: const [
-              ButtonSegment<_BackupMode>(
-                value: _BackupMode.all,
-                label: Text('גבה הכל'),
-              ),
-              ButtonSegment<_BackupMode>(
-                value: _BackupMode.custom,
-                label: Text('מותאם אישית'),
-              ),
-            ],
-            selected: {_selectedBackupMode},
-            onSelectionChanged: (sel) =>
-                setState(() => _selectedBackupMode = sel.first),
-          ),
+            SegmentOption<_BackupMode>(
+              value: _BackupMode.custom,
+              label: 'מותאם אישית',
+            ),
+          ],
+          currentValue: _selectedBackupMode,
+          onChanged: (value) => setState(() => _selectedBackupMode = value),
         ),
 
         // בחר מה לגבות (רק במצב מותאם אישית)
@@ -448,31 +413,19 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
         ],
 
         // שורה 2: גיבוי אוטומטי
-        ListTile(
-          leading: const Icon(FluentIcons.calendar_clock_24_regular),
-          title: const Text('גיבוי אוטומטי', style: TextStyle(fontSize: 16)),
-          trailing: SegmentedButton<String>(
-            style: ButtonStyle(
-              shape: WidgetStateProperty.all(
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              backgroundColor: WidgetStateProperty.resolveWith<Color?>(
-                (states) => states.contains(WidgetState.selected)
-                    ? primaryColor.withValues(alpha: 0.2)
-                    : cardColor,
-              ),
-            ),
-            segments: const [
-              ButtonSegment<String>(value: 'none', label: Text('ללא')),
-              ButtonSegment<String>(value: 'weekly', label: Text('שבועי')),
-              ButtonSegment<String>(value: 'monthly', label: Text('חודשי')),
-            ],
-            selected: {autoFrequency},
-            onSelectionChanged: (sel) {
-              Settings.setValue<String>(_keyAutoBackupFrequency, sel.first);
-              setState(() {});
-            },
-          ),
+        SegmentedSettingsTile<String>(
+          icon: FluentIcons.calendar_clock_24_regular,
+          title: 'גיבוי אוטומטי',
+          options: const [
+            SegmentOption<String>(value: 'none', label: 'ללא'),
+            SegmentOption<String>(value: 'weekly', label: 'שבועי'),
+            SegmentOption<String>(value: 'monthly', label: 'חודשי'),
+          ],
+          currentValue: autoFrequency,
+          onChanged: (value) {
+            Settings.setValue<String>(_keyAutoBackupFrequency, value);
+            setState(() {});
+          },
         ),
 
         // שורה 3: כפתורי צור/שחזר
