@@ -154,6 +154,32 @@ class TextSettingsTab extends StatelessWidget {
   }
 
   Widget _buildNikudSection(BuildContext context, SettingsState state) {
+    // קביעת הערך הנוכחי של הניקוד
+    String nikudValue;
+    if (!state.defaultRemoveNikud) {
+      nikudValue = 'show_always';
+    } else if (state.removeNikudFromTanach) {
+      nikudValue = 'hide_all';
+    } else {
+      nikudValue = 'show_tanach_only';
+    }
+
+    // קביעת ה-subtitle בהתאם למצב
+    String nikudSubtitle;
+    switch (nikudValue) {
+      case 'show_always':
+        nikudSubtitle = 'הניקוד יוצג בכל הספרים';
+        break;
+      case 'show_tanach_only':
+        nikudSubtitle = 'הניקוד יוצג בספרי התנ"ך בלבד';
+        break;
+      case 'hide_all':
+        nikudSubtitle = 'הניקוד לא יוצג בכלל';
+        break;
+      default:
+        nikudSubtitle = '';
+    }
+
     return SettingsCard(
       title: 'טעמים ונקודות',
       children: [
@@ -167,37 +193,42 @@ class TextSettingsTab extends StatelessWidget {
             context.read<SettingsBloc>().add(UpdateShowTeamim(value));
           },
         ),
-        SwitchSettingsTile(
-          title: const Text('הסרת ניקוד כברירת מחדל',
-              style: TextStyle(fontSize: 16)),
-          subtitle: Text(
-              state.defaultRemoveNikud
-                  ? 'הניקוד יוסר כברירת מחדל'
-                  : 'הניקוד יוצג כברירת מחדל',
-              style: const TextStyle(fontSize: 13)),
-          value: state.defaultRemoveNikud,
+        SegmentedSettingsTile<String>(
+          icon: FluentIcons.text_font_info_24_regular,
+          title: 'הצגת הניקוד',
+          subtitle: nikudSubtitle,
+          options: const [
+            SegmentOption(value: 'show_always', label: 'הצג תמיד'),
+            SegmentOption(value: 'show_tanach_only', label: 'הצג בתנ"ך'),
+            SegmentOption(value: 'hide_all', label: 'אל תציג'),
+          ],
+          currentValue: nikudValue,
           onChanged: (value) {
-            context.read<SettingsBloc>().add(UpdateDefaultRemoveNikud(value));
+            switch (value) {
+              case 'show_always':
+                context
+                    .read<SettingsBloc>()
+                    .add(const UpdateDefaultRemoveNikud(false));
+                break;
+              case 'show_tanach_only':
+                context
+                    .read<SettingsBloc>()
+                    .add(const UpdateDefaultRemoveNikud(true));
+                context
+                    .read<SettingsBloc>()
+                    .add(const UpdateRemoveNikudFromTanach(false));
+                break;
+              case 'hide_all':
+                context
+                    .read<SettingsBloc>()
+                    .add(const UpdateDefaultRemoveNikud(true));
+                context
+                    .read<SettingsBloc>()
+                    .add(const UpdateRemoveNikudFromTanach(true));
+                break;
+            }
           },
         ),
-        if (state.defaultRemoveNikud)
-          Padding(
-            padding: const EdgeInsets.only(right: 32.0),
-            child: CheckboxListTile(
-              title: const Text('הסרת ניקוד מספרי התנ"ך',
-                  style: TextStyle(fontSize: 16)),
-              subtitle: const Text('גם ספרי התנ"ך יוצגו ללא ניקוד',
-                  style: TextStyle(fontSize: 13)),
-              value: state.removeNikudFromTanach,
-              onChanged: (value) {
-                if (value != null) {
-                  context
-                      .read<SettingsBloc>()
-                      .add(UpdateRemoveNikudFromTanach(value));
-                }
-              },
-            ),
-          ),
       ],
     );
   }
