@@ -108,8 +108,8 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                 title: 'אירועים ותזכורות',
                 children: [
                   // הפעל התראות
-                  SwitchListTile(
-                    secondary: const Icon(FluentIcons.alert_24_regular),
+                  SwitchSettingsTile(
+                    leading: const Icon(FluentIcons.alert_24_regular),
                     title: const Text('הפעל התראות על אירועים',
                         style: TextStyle(fontSize: 16)),
                     value: state.calendarNotificationsEnabled,
@@ -122,7 +122,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                   if (state.calendarNotificationsEnabled) ...[
                     Padding(
                       padding: const EdgeInsets.only(right: 16.0, left: 16.0),
-                      child: SwitchListTile(
+                      child: SwitchSettingsTile(
                         title: const Text('השמע צליל בהתראה',
                             style: TextStyle(fontSize: 16)),
                         value: state.calendarNotificationSound,
@@ -159,8 +159,8 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                   ],
 
                   // ── לוח שנה גוגל ──
-                  SwitchListTile(
-                    secondary: const Icon(FluentIcons.arrow_sync_24_regular),
+                  SwitchSettingsTile(
+                    leading: const Icon(FluentIcons.arrow_sync_24_regular),
                     title: const Text('לוח שנה של Google',
                         style: TextStyle(fontSize: 16)),
                     subtitle: const Text('סנכרון אירועים עם Google Calendar',

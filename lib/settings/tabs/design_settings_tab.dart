@@ -1,7 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:flutter_settings_screens/flutter_settings_screens.dart'
+    hide SwitchSettingsTile;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
@@ -57,8 +58,8 @@ class DesignSettingsTab extends StatelessWidget {
               SettingsCard(
                 title: 'ערכת נושא',
                 children: [
-                  SwitchListTile(
-                    secondary: const Icon(FluentIcons.settings_24_regular),
+                  SwitchSettingsTile(
+                    leading: const Icon(FluentIcons.settings_24_regular),
                     title: const Text('מעקב אחר צבע המערכת',
                         style: TextStyle(fontSize: 16)),
                     subtitle: Text(
@@ -71,13 +72,14 @@ class DesignSettingsTab extends StatelessWidget {
                           .add(UpdateFollowSystemTheme(value));
                     },
                   ),
-                  SwitchListTile(
-                    secondary: const Icon(FluentIcons.weather_moon_24_regular),
+                  SwitchSettingsTile(
+                    leading: const Icon(FluentIcons.weather_moon_24_regular),
                     title:
                         const Text('מצב כהה', style: TextStyle(fontSize: 16)),
                     subtitle: Text(state.isDarkMode ? 'מופעל' : 'לא מופעל',
                         style: const TextStyle(fontSize: 13)),
                     value: state.isDarkMode,
+                    enabled: !state.followSystemTheme,
                     onChanged: state.followSystemTheme
                         ? null
                         : (value) {
@@ -121,8 +123,8 @@ class DesignSettingsTab extends StatelessWidget {
               SettingsCard(
                 title: 'הגדרות טאבים',
                 children: [
-                  SwitchListTile(
-                    secondary: const Icon(FluentIcons.tab_24_regular),
+                  SwitchSettingsTile(
+                    leading: const Icon(FluentIcons.tab_24_regular),
                     title: const Text('יישור טאבים לימין',
                         style: TextStyle(fontSize: 16)),
                     subtitle: Text(
@@ -191,7 +193,7 @@ class DesignSettingsTab extends StatelessWidget {
                       }
                     },
                   ),
-                  SwitchListTile(
+                  SwitchSettingsTile(
                     title: const Text('הערות אישיות מקופלות כברירת מחדל',
                         style: TextStyle(fontSize: 16)),
                     subtitle: Text(
@@ -210,7 +212,7 @@ class DesignSettingsTab extends StatelessWidget {
                     builder: (context, setState) {
                       final splitedView =
                           Settings.getValue<bool>('key-splited-view') ?? false;
-                      return SwitchListTile(
+                      return SwitchSettingsTile(
                         title: const Text('ברירת המחדל להצגת המפרשים',
                             style: TextStyle(fontSize: 16)),
                         subtitle: Text(

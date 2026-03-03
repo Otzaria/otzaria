@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'dart:io';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart'
-    hide SettingsGroup;
+    hide SettingsGroup, SwitchSettingsTile;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:window_manager/window_manager.dart';
@@ -214,8 +214,8 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
               setState(() {});
             },
           ),
-          SwitchListTile(
-            secondary: const Icon(FluentIcons.bug_24_regular),
+          SwitchSettingsTile(
+            leading: const Icon(FluentIcons.bug_24_regular),
             title: const Text('עדכון לגרסאות מפתחים',
                 style: TextStyle(fontSize: 16)),
             subtitle: Text(
@@ -618,8 +618,8 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
               ? Column(
                   children: [
                     // הפעלת מצב מוגן
-                    SwitchListTile(
-                      secondary: Icon(
+                    SwitchSettingsTile(
+                      leading: Icon(
                         state.protectedModeEnabled
                             ? FluentIcons.lock_closed_24_filled
                             : FluentIcons.lock_open_24_regular,
@@ -980,8 +980,8 @@ class _BackupOptionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SwitchListTile(
-      secondary: Icon(icon),
+    return SwitchSettingsTile(
+      leading: Icon(icon),
       title: Text(title, style: const TextStyle(fontSize: 16)),
       subtitle: Text(subtitle, style: const TextStyle(fontSize: 13)),
       value: Settings.getValue<bool>(settingKey) ?? true,

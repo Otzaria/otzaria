@@ -157,7 +157,7 @@ class TextSettingsTab extends StatelessWidget {
     return SettingsCard(
       title: 'טעמים ונקודות',
       children: [
-        SwitchListTile(
+        SwitchSettingsTile(
           title: const Text('הצגת טעמי המקרא', style: TextStyle(fontSize: 16)),
           subtitle: Text(
               state.showTeamim ? 'המקרא יוצג עם טעמים' : 'המקרא יוצג ללא טעמים',
@@ -167,7 +167,7 @@ class TextSettingsTab extends StatelessWidget {
             context.read<SettingsBloc>().add(UpdateShowTeamim(value));
           },
         ),
-        SwitchListTile(
+        SwitchSettingsTile(
           title: const Text('הסרת ניקוד כברירת מחדל',
               style: TextStyle(fontSize: 16)),
           subtitle: Text(
@@ -346,7 +346,7 @@ class TextSettingsTab extends StatelessWidget {
     return SettingsCard(
       title: 'הגדרות לפי ספר',
       children: [
-        SwitchListTile(
+        SwitchSettingsTile(
           title: const Text('שמירת התאמות לכל ספר בנפרד',
               style: TextStyle(fontSize: 16)),
           subtitle: Text(

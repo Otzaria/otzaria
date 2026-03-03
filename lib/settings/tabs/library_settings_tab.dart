@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:flutter_settings_screens/flutter_settings_screens.dart'
+    hide SwitchSettingsTile;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
@@ -84,8 +85,8 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
               SettingsCard(
                 title: 'ספרים חיצוניים',
                 children: [
-                  SwitchListTile(
-                    secondary: const Icon(FluentIcons.globe_24_regular),
+                  SwitchSettingsTile(
+                    leading: const Icon(FluentIcons.globe_24_regular),
                     title: const Text('האם להציג ספרים מאתרים חיצוניים?',
                         style: TextStyle(fontSize: 16)),
                     subtitle: Text(
@@ -190,8 +191,8 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
     return SettingsCard(
       title: 'חיפוש ואינדקס',
       children: [
-        SwitchListTile(
-          secondary: const Icon(FluentIcons.search_24_regular),
+        SwitchSettingsTile(
+          leading: const Icon(FluentIcons.search_24_regular),
           title: const Text('חיפוש מהיר באמצעות אינדקס',
               style: TextStyle(fontSize: 16)),
           subtitle: Text(
@@ -204,8 +205,8 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
             context.read<SettingsBloc>().add(UpdateUseFastSearch(value));
           },
         ),
-        SwitchListTile(
-          secondary: const Icon(FluentIcons.arrow_clockwise_24_regular),
+        SwitchSettingsTile(
+          leading: const Icon(FluentIcons.arrow_clockwise_24_regular),
           title: const Text('עדכון אינדקס אוטומטי',
               style: TextStyle(fontSize: 16)),
           subtitle: Text(
