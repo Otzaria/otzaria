@@ -65,7 +65,7 @@ class LibrarySettingsPanel extends StatelessWidget {
               ],
             ),
 
-            const SizedBox(height: 16),
+            kSettingsCardSpacing,
 
             // ספרים נוספים (משלב מיקום היברובוקס וספרים חיצוניים)
             SettingsCard(

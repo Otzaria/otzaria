@@ -80,10 +80,10 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
 
     return ListTile(
       leading: const Icon(FluentIcons.folder_24_regular),
-      title: const Text('מיקום ספרי היברובוקס', style: TextStyle(fontSize: 16)),
+      title: const Text('מיקום ספרי היברובוקס', style: kSettingsTitleStyle),
       subtitle: Text(
         hasPath ? pathStr : 'במידה וקיימים ברשותך ספרים ממאגר זה',
-        style: const TextStyle(fontSize: 13),
+        style: kSettingsSubtitleStyle,
       ),
       trailing: RecommendedActionButton(
         text: hasPath ? 'שנה מיקום' : 'בחר מיקום',
@@ -118,7 +118,7 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
 
               // תיקיות מותאמות אישית (רק בדסקטופ)
               if (!(Platform.isAndroid || Platform.isIOS)) ...[
-                const SizedBox(height: 16),
+                kSettingsCardSpacing,
                 SettingsCard(
                   title: 'תיקיות מותאמות אישית',
                   children: const [
@@ -128,7 +128,7 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
               ],
 
               // חיפוש ואינדקס
-              const SizedBox(height: 16),
+              kSettingsCardSpacing,
               _buildSearchSection(context, state),
             ],
           ),
@@ -144,12 +144,12 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
         SwitchSettingsTile(
           leading: const Icon(FluentIcons.search_24_regular),
           title: const Text('חיפוש מהיר באמצעות אינדקס',
-              style: TextStyle(fontSize: 16)),
+              style: kSettingsTitleStyle),
           subtitle: Text(
               state.useFastSearch
                   ? 'חיפוש מהיר יותר, נדרש ליצור אינדקס'
                   : 'חיפוש איטי יותר, לא נדרש אינדקס',
-              style: const TextStyle(fontSize: 13)),
+              style: kSettingsSubtitleStyle),
           value: state.useFastSearch,
           onChanged: (value) {
             context.read<SettingsBloc>().add(UpdateUseFastSearch(value));
@@ -157,13 +157,12 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
         ),
         SwitchSettingsTile(
           leading: const Icon(FluentIcons.arrow_clockwise_24_regular),
-          title: const Text('עדכון אינדקס אוטומטי',
-              style: TextStyle(fontSize: 16)),
+          title: const Text('עדכון אינדקס אוטומטי', style: kSettingsTitleStyle),
           subtitle: Text(
               state.autoUpdateIndex
                   ? 'אינדקס החיפוש יתעדכן אוטומטית'
                   : 'אינדקס החיפוש לא יתעדכן אוטומטית',
-              style: const TextStyle(fontSize: 13)),
+              style: kSettingsSubtitleStyle),
           value: state.autoUpdateIndex,
           onChanged: (value) {
             context.read<SettingsBloc>().add(UpdateAutoUpdateIndex(value));
@@ -173,14 +172,14 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
           builder: (context, indexingState) {
             return ListTile(
               leading: const Icon(FluentIcons.table_24_regular),
-              title: const Text('אינדקס חיפוש', style: TextStyle(fontSize: 16)),
+              title: const Text('אינדקס חיפוש', style: kSettingsTitleStyle),
               subtitle: Text(
                   indexingState is IndexingInProgress
                       ? 'התקדמות האינדקס: ${indexingState.booksProcessed}/${indexingState.totalBooks}'
                       : indexingState is IndexingComplete
                           ? 'האינדקס מעודכן'
                           : 'האינדקס לא מעודכן',
-                  style: const TextStyle(fontSize: 13)),
+                  style: kSettingsSubtitleStyle),
               hoverColor: Colors.transparent,
               trailing: indexingState is IndexingInProgress
                   ? NeutralActionButton(

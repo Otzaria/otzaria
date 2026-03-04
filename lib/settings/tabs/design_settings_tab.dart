@@ -34,10 +34,9 @@ class DesignSettingsTab extends StatelessWidget {
                       leading: Icon(state.isFullscreen
                           ? FluentIcons.full_screen_minimize_24_regular
                           : FluentIcons.full_screen_maximize_24_regular),
-                      title:
-                          const Text('מסך מלא', style: TextStyle(fontSize: 16)),
+                      title: const Text('מסך מלא', style: kSettingsTitleStyle),
                       subtitle: const Text('החלף מצב מסך מלא',
-                          style: TextStyle(fontSize: 13)),
+                          style: kSettingsSubtitleStyle),
                       trailing: Switch(
                         value: state.isFullscreen,
                         onChanged: (value) async {
@@ -51,8 +50,7 @@ class DesignSettingsTab extends StatelessWidget {
                   ],
                 ),
 
-              if (!(Platform.isAndroid || Platform.isIOS))
-                const SizedBox(height: 16),
+              if (!(Platform.isAndroid || Platform.isIOS)) kSettingsCardSpacing,
 
               // מצב כהה וצבע בסיס
               SettingsCard(
@@ -61,10 +59,10 @@ class DesignSettingsTab extends StatelessWidget {
                   SwitchSettingsTile(
                     leading: const Icon(FluentIcons.settings_24_regular),
                     title: const Text('מעקב אחר צבע המערכת',
-                        style: TextStyle(fontSize: 16)),
+                        style: kSettingsTitleStyle),
                     subtitle: Text(
                         state.followSystemTheme ? 'מופעל' : 'לא מופעל',
-                        style: const TextStyle(fontSize: 13)),
+                        style: kSettingsSubtitleStyle),
                     value: state.followSystemTheme,
                     onChanged: (value) {
                       context
@@ -74,10 +72,9 @@ class DesignSettingsTab extends StatelessWidget {
                   ),
                   SwitchSettingsTile(
                     leading: const Icon(FluentIcons.weather_moon_24_regular),
-                    title:
-                        const Text('מצב כהה', style: TextStyle(fontSize: 16)),
+                    title: const Text('מצב כהה', style: kSettingsTitleStyle),
                     subtitle: Text(state.isDarkMode ? 'מופעל' : 'לא מופעל',
-                        style: const TextStyle(fontSize: 13)),
+                        style: kSettingsSubtitleStyle),
                     value: state.isDarkMode,
                     enabled: !state.followSystemTheme,
                     onChanged: state.followSystemTheme
@@ -117,7 +114,7 @@ class DesignSettingsTab extends StatelessWidget {
                 ],
               ),
 
-              const SizedBox(height: 16),
+              kSettingsCardSpacing,
 
               // הגדרות טאבים
               SettingsCard(
@@ -126,12 +123,12 @@ class DesignSettingsTab extends StatelessWidget {
                   SwitchSettingsTile(
                     leading: const Icon(FluentIcons.tab_24_regular),
                     title: const Text('יישור טאבים לימין',
-                        style: TextStyle(fontSize: 16)),
+                        style: kSettingsTitleStyle),
                     subtitle: Text(
                         state.alignTabsToRight
                             ? 'הטאבים יוצגו בצד ימין'
                             : 'הטאבים יוצגו במרכז',
-                        style: const TextStyle(fontSize: 13)),
+                        style: kSettingsSubtitleStyle),
                     value: state.alignTabsToRight,
                     onChanged: (value) {
                       context
@@ -142,7 +139,7 @@ class DesignSettingsTab extends StatelessWidget {
                 ],
               ),
 
-              const SizedBox(height: 16),
+              kSettingsCardSpacing,
 
               // התנהגות סרגל צד
               SettingsCard(
@@ -195,12 +192,12 @@ class DesignSettingsTab extends StatelessWidget {
                   ),
                   SwitchSettingsTile(
                     title: const Text('הערות אישיות מקופלות כברירת מחדל',
-                        style: TextStyle(fontSize: 16)),
+                        style: kSettingsTitleStyle),
                     subtitle: Text(
                         state.personalNotesCollapsedByDefault
                             ? 'רשימות ההערות ייפתחו במצב סגור'
                             : 'רשימות ההערות ייפתחו במצב פתוח',
-                        style: const TextStyle(fontSize: 13)),
+                        style: kSettingsSubtitleStyle),
                     value: state.personalNotesCollapsedByDefault,
                     onChanged: (value) {
                       context
@@ -214,12 +211,12 @@ class DesignSettingsTab extends StatelessWidget {
                           Settings.getValue<bool>('key-splited-view') ?? false;
                       return SwitchSettingsTile(
                         title: const Text('ברירת המחדל להצגת המפרשים',
-                            style: TextStyle(fontSize: 16)),
+                            style: kSettingsTitleStyle),
                         subtitle: Text(
                             splitedView
                                 ? 'המפרשים יוצגו לצד הטקסט'
                                 : 'המפרשים יוצגו מתחת הטקסט',
-                            style: const TextStyle(fontSize: 13)),
+                            style: kSettingsSubtitleStyle),
                         value: splitedView,
                         onChanged: (value) {
                           setState(() {

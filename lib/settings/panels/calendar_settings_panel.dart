@@ -57,10 +57,9 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                   // עיר
                   ListTile(
                     leading: const Icon(FluentIcons.location_24_regular),
-                    title:
-                        const Text('עיר נבחרת', style: TextStyle(fontSize: 16)),
-                    subtitle: Text(state.selectedCity,
-                        style: const TextStyle(fontSize: 13)),
+                    title: const Text('עיר נבחרת', style: kSettingsTitleStyle),
+                    subtitle:
+                        Text(state.selectedCity, style: kSettingsSubtitleStyle),
                     trailing: ElevatedButton(
                       onPressed: () {
                         setState(() {
@@ -101,7 +100,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                 ],
               ),
 
-              const SizedBox(height: 16),
+              kSettingsCardSpacing,
 
               // ── אירועים ותזכורות: התראות + Google Calendar ──
               SettingsCard(
@@ -111,7 +110,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                   SwitchSettingsTile(
                     leading: const Icon(FluentIcons.alert_24_regular),
                     title: const Text('הפעל התראות על אירועים',
-                        style: TextStyle(fontSize: 16)),
+                        style: kSettingsTitleStyle),
                     value: state.calendarNotificationsEnabled,
                     onChanged: (value) {
                       context
@@ -124,7 +123,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                       padding: const EdgeInsets.only(right: 16.0, left: 16.0),
                       child: SwitchSettingsTile(
                         title: const Text('השמע צליל בהתראה',
-                            style: TextStyle(fontSize: 16)),
+                            style: kSettingsTitleStyle),
                         value: state.calendarNotificationSound,
                         onChanged: (value) {
                           context
@@ -162,9 +161,9 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                   SwitchSettingsTile(
                     leading: const Icon(FluentIcons.arrow_sync_24_regular),
                     title: const Text('לוח שנה של Google',
-                        style: TextStyle(fontSize: 16)),
+                        style: kSettingsTitleStyle),
                     subtitle: const Text('סנכרון אירועים עם Google Calendar',
-                        style: TextStyle(fontSize: 13)),
+                        style: kSettingsSubtitleStyle),
                     value: state.googleCalendarEnabled,
                     onChanged: (value) {
                       context
@@ -443,7 +442,7 @@ class _CitySearchWidgetState extends State<_CitySearchWidget> {
 
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).dividerColor),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
