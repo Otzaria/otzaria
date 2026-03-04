@@ -2,6 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/widgets/mixins/dialog_navigation_mixin.dart';
 
+// ── קבועי סגנון גלובליים ─────────────────────────────────────────────────────
+/// סגנון כותרת בשורת הגדרה (16sp, ירשה צבע מהתמה)
+const kSettingsTitleStyle = TextStyle(fontSize: 16);
+
+/// סגנון תת-כותרת בשורת הגדרה (13sp, ירשה צבע מהתמה)
+const kSettingsSubtitleStyle = TextStyle(fontSize: 13);
+
+/// רווח אנכי סטנדרטי בין כרטיסי הגדרות
+const kSettingsCardSpacing = SizedBox(height: 16);
+
+// ── דיאלוגים ─────────────────────────────────────────────────────────────────
+
 /// דיאלוג עם פעולה אחת (כפתור אישור בלבד)
 class SingleActionDialog extends StatefulWidget {
   final dynamic title;
@@ -165,8 +177,9 @@ class _WarningDialogState extends State<WarningDialog>
   }
 }
 
+// ── כפתורים ───────────────────────────────────────────────────────────────────
+
 /// כפתור פעולה מומלצת (Primary)
-/// רקע: primary | טקסט: onPrimary
 class RecommendedActionButton extends StatelessWidget {
   final String text;
   final VoidCallback onPressed;
@@ -214,7 +227,6 @@ class RecommendedActionButton extends StatelessWidget {
 }
 
 /// כפתור פעולה ניטרלית (Tonal)
-/// רקע: secondaryContainer | טקסט: onSecondaryContainer
 class NeutralActionButton extends StatelessWidget {
   final String text;
   final VoidCallback onPressed;
@@ -261,7 +273,8 @@ class NeutralActionButton extends StatelessWidget {
   }
 }
 
-/// פונקציות עזר
+// ── פונקציות עזר לדיאלוגים ────────────────────────────────────────────────────
+
 Future<bool?> showSingleActionDialog({
   required BuildContext context,
   required String title,
@@ -308,9 +321,13 @@ Future<bool?> showWarningDialog({
           confirmText: confirmText),
     );
 
-/// Widget להגדרה עם SegmentedButton
-/// תומך בפריסה אדפטיבית, ניווט מקלדת, ותצוגה משופרת במצב כהה
-/// תיקון באג קפיצה: showSelectedIcon=false + fixedSize — הגבולות החיצוניים קבועים
+// ── SegmentedSettingsTile ─────────────────────────────────────────────────────
+
+/// Widget להגדרה עם SegmentedButton.
+/// - מציג ✓ על האפשרות הנבחרת
+/// - הגבולות החיצוניים של הווידג'ט קבועים (SizedBox עם רוחב מחושב מראש)
+/// - הגבולות הפנימיים בין הקטעים יכולים לנוע בעת בחירה
+/// - תומך בפריסה אדפטיבית (צר/רחב) וניווט מקלדת
 class SegmentedSettingsTile<T> extends StatefulWidget {
   final dynamic title;
   final String? subtitle;
@@ -357,17 +374,20 @@ class _SegmentedSettingsTileState<T> extends State<SegmentedSettingsTile<T>> {
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    // חישוב רוחב פעם אחת — מועבר ל-_buildSegmentedButton
+    final hasIcons = widget.options.any((o) => o.icon != null);
+    final maxLabelLen = widget.options
+        .map((o) => o.label.length)
+        .reduce((a, b) => a > b ? a : b);
+
     return LayoutBuilder(
       builder: (context, constraints) {
-        final hasIcons = widget.options.any((o) => o.icon != null);
-        final maxLabelLength = widget.options
-            .map((o) => o.label.length)
-            .reduce((a, b) => a > b ? a : b);
-        final estimatedButtonWidth =
-            (hasIcons ? 80.0 : 60.0) + (maxLabelLength * 8.0);
-        final totalButtonsWidth = estimatedButtonWidth * widget.options.length;
-        final hasHorizontalSpace =
-            constraints.maxWidth > (totalButtonsWidth + 200);
+        // הערכת רוחב הכפתור הבסיסי + 24px לסמן ✓ על הפריט הנבחר
+        final buttonWidth = (hasIcons ? 80.0 : 60.0) + (maxLabelLen * 8.0);
+        // +24 לסמן ✓ (נמצא רק על קטע אחד בו-זמנית, מסגרת חיצונית גדולה מספיק)
+        final totalWidth =
+            (buttonWidth * widget.options.length + 24.0).clamp(180.0, 400.0);
+        final hasHorizontalSpace = constraints.maxWidth > (totalWidth + 200);
 
         if (!hasHorizontalSpace) {
           return Padding(
@@ -387,7 +407,7 @@ class _SegmentedSettingsTileState<T> extends State<SegmentedSettingsTile<T>> {
                         children: [
                           widget.title is String
                               ? Text(widget.title as String,
-                                  style: const TextStyle(fontSize: 16))
+                                  style: kSettingsTitleStyle)
                               : widget.title as Widget,
                           if (widget.subtitle != null) ...[
                             const SizedBox(height: 4),
@@ -404,7 +424,8 @@ class _SegmentedSettingsTileState<T> extends State<SegmentedSettingsTile<T>> {
                 const SizedBox(height: 12),
                 Align(
                   alignment: Alignment.centerRight,
-                  child: _buildSegmentedButton(colorScheme, isDark),
+                  child: _buildSegmentedButton(
+                      colorScheme, isDark, hasIcons, maxLabelLen, totalWidth),
                 ),
               ],
             ),
@@ -414,29 +435,29 @@ class _SegmentedSettingsTileState<T> extends State<SegmentedSettingsTile<T>> {
         return ListTile(
           leading: widget.icon != null ? Icon(widget.icon) : null,
           title: widget.title is String
-              ? Text(widget.title as String,
-                  style: const TextStyle(fontSize: 16))
+              ? Text(widget.title as String, style: kSettingsTitleStyle)
               : widget.title as Widget,
           subtitle: widget.subtitle != null
-              ? Text(widget.subtitle!, style: const TextStyle(fontSize: 13))
+              ? Text(widget.subtitle!, style: kSettingsSubtitleStyle)
               : null,
-          trailing: _buildSegmentedButton(colorScheme, isDark),
+          trailing: _buildSegmentedButton(
+              colorScheme, isDark, hasIcons, maxLabelLen, totalWidth),
         );
       },
     );
   }
 
-  Widget _buildSegmentedButton(ColorScheme colorScheme, bool isDark) {
-    final hasIcons = widget.options.any((o) => o.icon != null);
-
-    // ── תיקון קפיצה: מחשבים רוחב קבוע מראש ——————————————————————————————
-    // כל כפתור מקבל רוחב זהה, הסימן V (selectedIcon) מוסתר כדי שלא ידחוף
-    final maxLabelLen = widget.options
-        .map((o) => o.label.length)
-        .reduce((a, b) => a > b ? a : b);
-    final buttonWidth = (hasIcons ? 80.0 : 60.0) + (maxLabelLen * 8.0);
-    final totalWidth = buttonWidth * widget.options.length;
-
+  /// בונה את SegmentedButton עם:
+  /// - ✓ על האפשרות הנבחרת (showSelectedIcon: true)
+  /// - SizedBox קבוע — מגבולות חיצוניים לא זזים בעת בחירה
+  /// - הגבולות הפנימיים בין הקטעים עשויים לנוע מעט
+  Widget _buildSegmentedButton(
+    ColorScheme colorScheme,
+    bool isDark,
+    bool hasIcons,
+    int maxLabelLen,
+    double totalWidth,
+  ) {
     return Focus(
       focusNode: _focusNode,
       onKeyEvent: (node, event) {
@@ -461,12 +482,14 @@ class _SegmentedSettingsTileState<T> extends State<SegmentedSettingsTile<T>> {
         }
         return KeyEventResult.ignored;
       },
-      // SizedBox קבוע — מונע שינוי רוחב בעת בחירה
+      // SizedBox קבוע — מגבולות חיצוניים לא זזים בעת בחירה
       child: SizedBox(
-        width: totalWidth.clamp(180.0, 400.0),
+        width: totalWidth,
         child: SegmentedButton<T>(
-          // showSelectedIcon=false → לא מופיע V שמגדיל את הכפתור
-          showSelectedIcon: false,
+          // showSelectedIcon: true — מציג ✓ על האפשרות הנבחרת
+          // הגבולות החיצוניים קבועים; הפנימיים עשויים לנוע מעט
+          showSelectedIcon: true,
+          selectedIcon: const Icon(Icons.check, size: 16),
           style: ButtonStyle(
             minimumSize: WidgetStateProperty.all(const Size(0, 40)),
             maximumSize:
@@ -508,8 +531,7 @@ class _SegmentedSettingsTileState<T> extends State<SegmentedSettingsTile<T>> {
                     value: o.value,
                     label: FittedBox(
                       fit: BoxFit.scaleDown,
-                      child:
-                          Text(o.label, style: const TextStyle(fontSize: 14)),
+                      child: Text(o.label, style: kSettingsTitleStyle),
                     ),
                     icon: hasIcons
                         ? (o.icon != null
@@ -534,8 +556,10 @@ class SegmentOption<T> {
   const SegmentOption({required this.value, required this.label, this.icon});
 }
 
+// ── CustomSwitch ───────────────────────────────────────────────────────────────
+
 /// Material 3 Switch מותאם אישית
-/// תיקון מצב כהה: צבעי track ו-thumb מוגדרים בצורה ברורה גם בריחוף, מבלי להסתיר את העיגול במצב פעיל
+/// תיקון מצב כהה: צבעי track ו-thumb מוגדרים בצורה ברורה גם בריחוף
 class CustomSwitch extends StatelessWidget {
   final bool value;
   final ValueChanged<bool>? onChanged;
@@ -565,14 +589,10 @@ class CustomSwitch extends StatelessWidget {
           return colorScheme.onSurface.withValues(alpha: 0.38);
         }
         if (states.contains(WidgetState.selected)) {
-          // במצב מופעל: תמיד נרצה צבע בולט (בד"כ לבן במצב כהה) שיושב על הרקע
           return colorScheme.onPrimary;
         }
-        // לא נבחר
         if (states.contains(WidgetState.hovered)) {
-          return isDark
-              ? colorScheme.onSurfaceVariant
-              : colorScheme.onSurfaceVariant;
+          return colorScheme.onSurfaceVariant;
         }
         return colorScheme.outline;
       }),
@@ -583,7 +603,6 @@ class CustomSwitch extends StatelessWidget {
         if (states.contains(WidgetState.selected)) {
           return colorScheme.primary;
         }
-        // לא נבחר
         return colorScheme.surfaceContainerHighest;
       }),
       trackOutlineColor: WidgetStateProperty.resolveWith((states) {
@@ -593,10 +612,8 @@ class CustomSwitch extends StatelessWidget {
         return colorScheme.outline;
       }),
       overlayColor: WidgetStateProperty.resolveWith((states) {
-        // ── התיקון לבעיית הריחוף במצב כהה כשהמתג דלוק ──
         if (states.contains(WidgetState.selected)) {
           if (states.contains(WidgetState.hovered)) {
-            // שימוש בלבן שקוף כדי לייצר הילה עדינה שלא בולעת את ה-Thumb הלבן
             return isDark
                 ? Colors.white.withValues(alpha: 0.1)
                 : colorScheme.primary.withValues(alpha: 0.1);
@@ -608,8 +625,6 @@ class CustomSwitch extends StatelessWidget {
                 : colorScheme.primary.withValues(alpha: 0.12);
           }
         }
-
-        // ── ריחוף כשהמתג כבוי ──
         if (states.contains(WidgetState.hovered) ||
             states.contains(WidgetState.focused) ||
             states.contains(WidgetState.pressed)) {
@@ -621,9 +636,10 @@ class CustomSwitch extends StatelessWidget {
   }
 }
 
-/// SwitchSettingsTile — עכשיו משתמש ב-CustomSwitch כ-trailing בתוך ListTile
-/// זה מבטיח עיצוב M3 עקבי (כולל תיקון ריחוף במצב כהה)
-/// תוקן לפי הערת ג'מיני: שימוש ב-ListTile + CustomSwitch במקום SwitchListTile
+// ── SwitchSettingsTile ────────────────────────────────────────────────────────
+
+/// SwitchSettingsTile — ListTile + CustomSwitch
+/// עיצוב M3 עקבי, תיקון ריחוף במצב כהה
 class SwitchSettingsTile extends StatelessWidget {
   final Widget? leading;
   final Widget title;
