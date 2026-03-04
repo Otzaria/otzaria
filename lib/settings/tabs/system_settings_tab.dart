@@ -348,7 +348,23 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     return SettingsCard(
       title: 'גיבוי ושחזור',
       children: [
-        // שורה 1: מצב גיבוי
+        // שורה 1: גיבוי אוטומטי
+        SegmentedSettingsTile<String>(
+          icon: FluentIcons.calendar_clock_24_regular,
+          title: 'גיבוי אוטומטי',
+          options: const [
+            SegmentOption<String>(value: 'none', label: 'ללא'),
+            SegmentOption<String>(value: 'weekly', label: 'שבועי'),
+            SegmentOption<String>(value: 'monthly', label: 'חודשי'),
+          ],
+          currentValue: autoFrequency,
+          onChanged: (value) {
+            Settings.setValue<String>(_keyAutoBackupFrequency, value);
+            setState(() {});
+          },
+        ),
+
+        // שורה 2: מצב גיבוי
         SegmentedSettingsTile<_BackupMode>(
           icon: FluentIcons.options_24_regular,
           title: 'מצב גיבוי',
@@ -411,22 +427,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
             onChanged: () => setState(() {}),
           ),
         ],
-
-        // שורה 2: גיבוי אוטומטי
-        SegmentedSettingsTile<String>(
-          icon: FluentIcons.calendar_clock_24_regular,
-          title: 'גיבוי אוטומטי',
-          options: const [
-            SegmentOption<String>(value: 'none', label: 'ללא'),
-            SegmentOption<String>(value: 'weekly', label: 'שבועי'),
-            SegmentOption<String>(value: 'monthly', label: 'חודשי'),
-          ],
-          currentValue: autoFrequency,
-          onChanged: (value) {
-            Settings.setValue<String>(_keyAutoBackupFrequency, value);
-            setState(() {});
-          },
-        ),
 
         // שורה 3: כפתורי צור/שחזר
         Padding(
