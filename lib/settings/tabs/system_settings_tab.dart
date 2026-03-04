@@ -383,7 +383,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     if (filePath == null) return;
     if (!mounted) return;
 
-    // שימוש ב-showWarningDialog מ-custom_ui_components
     final confirmed = await showWarningDialog(
       context: context,
       title: 'שחזור מגיבוי?',
@@ -544,7 +543,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
           child: _isBackupExpanded
               ? Column(
                   children: [
-                    // מצב גיבוי
                     SegmentedSettingsTile<_BackupMode>(
                       icon: FluentIcons.options_24_regular,
                       title: 'מצב גיבוי',
@@ -640,7 +638,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
         ),
 
         // ── מצב סייפר ──
-        // שורה ראשית — לחיצה פותחת/סוגרת
         ListTile(
           leading: Icon(
             state.protectedModeEnabled
@@ -667,7 +664,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
           child: _isCypherExpanded
               ? Column(
                   children: [
-                    // הפעלת מצב מוגן
                     SwitchSettingsTile(
                       leading: Icon(
                         state.protectedModeEnabled
@@ -832,7 +828,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  כרטיסי זיכרון
+//  כרטיסי זיכרון — עיצוב נקי ורספונסיבי למסכים, תואם M3
 // ══════════════════════════════════════════════════════════════════════════════
 
 class _MemorialCardsGrid extends StatelessWidget {
@@ -842,27 +838,37 @@ class _MemorialCardsGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, constraints) {
-      final spacing = 12.0;
-      final itemWidth = (constraints.maxWidth - spacing * 2) / 3;
-      const itemHeight = 150.0;
-      final aspectRatio = itemWidth / itemHeight;
-
-      return GridView.count(
-        crossAxisCount: 3,
-        crossAxisSpacing: spacing,
-        mainAxisSpacing: spacing,
-        childAspectRatio: aspectRatio,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        children: [
-          _MemorialCard(
-            name: "לע\"נ ר' משה בן יהודה ראה ז\"ל",
-            description: 'סכום משמעותי לפיתוח התוכנה',
-          ),
-          // 2 כרטיסי תרומה עם כפתור נדרים+
-          _DonationMemorialCard(onTap: onDonationTap),
-          _DonationMemorialCard(onTap: onDonationTap),
-        ],
+      if (constraints.maxWidth < 600) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _MemorialCard(
+              name: "לע\"נ ר' משה בן יהודה ראה ז\"ל",
+              description: 'סכום משמעותי לפיתוח התוכנה',
+            ),
+            const SizedBox(height: 12),
+            _DonationMemorialCard(onTap: onDonationTap),
+            const SizedBox(height: 12),
+            _DonationMemorialCard(onTap: onDonationTap),
+          ],
+        );
+      }
+      return IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: _MemorialCard(
+                name: "לע\"נ ר' משה בן יהודה ראה ז\"ל",
+                description: 'סכום משמעותי לפיתוח התוכנה',
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: _DonationMemorialCard(onTap: onDonationTap)),
+            const SizedBox(width: 12),
+            Expanded(child: _DonationMemorialCard(onTap: onDonationTap)),
+          ],
+        ),
       );
     });
   }
@@ -871,22 +877,18 @@ class _MemorialCardsGrid extends StatelessWidget {
 class _MemorialCard extends StatelessWidget {
   final String name;
   final String description;
-
   const _MemorialCard({required this.name, required this.description});
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Card(
       elevation: 0,
-      color: Colors.white,
+      color: colorScheme.surfaceContainerHigh,
       shape: RoundedRectangleBorder(
         side: BorderSide(
-          color: Theme.of(context)
-              .colorScheme
-              .outlineVariant
-              .withValues(alpha: 0.5),
-        ),
-        borderRadius: BorderRadius.circular(12),
+            color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Padding(
         padding: const EdgeInsets.all(10),
@@ -894,16 +896,19 @@ class _MemorialCard extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.local_fire_department,
-                color: Colors.orange[700], size: 24),
+                color: colorScheme.primary, size: 24),
             const SizedBox(height: 6),
             Text(name,
                 textAlign: TextAlign.center,
-                style:
-                    const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface)),
             const SizedBox(height: 4),
             Text(description,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+                style: TextStyle(
+                    fontSize: 11, color: colorScheme.onSurfaceVariant)),
           ],
         ),
       ),
@@ -917,17 +922,14 @@ class _DonationMemorialCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Card(
       elevation: 0,
-      color: Colors.white,
+      color: colorScheme.surfaceContainerHigh,
       shape: RoundedRectangleBorder(
         side: BorderSide(
-          color: Theme.of(context)
-              .colorScheme
-              .outlineVariant
-              .withValues(alpha: 0.5),
-        ),
-        borderRadius: BorderRadius.circular(12),
+            color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Padding(
         padding: const EdgeInsets.all(10),
@@ -935,15 +937,17 @@ class _DonationMemorialCard extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.local_fire_department,
-                color: Colors.orange[300], size: 24),
+                color: colorScheme.primary.withValues(alpha: 0.6), size: 24),
             const SizedBox(height: 6),
-            const Text(
+            Text(
               'מקום זה יכול להיות מונצח לע"נ יקירך',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface),
             ),
             const SizedBox(height: 8),
-            // כפתור נדרים+
             RecommendedActionButton(
               icon: FluentIcons.payment_24_regular,
               text: 'נדרים+',
