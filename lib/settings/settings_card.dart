@@ -1,5 +1,17 @@
 import 'package:flutter/material.dart';
 
+/// Divider זהה לסגנון הפנימי של SettingsCard — לשימוש בתוכן מורחב (AnimatedSize וכד')
+///
+/// שימוש:
+///   settingsCardDivider(context)
+Divider settingsCardDivider(BuildContext context) => Divider(
+      height: 1,
+      thickness: 1.5,
+      indent: 0,
+      endIndent: 0,
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+    );
+
 /// כרטיס הגדרות מעוצב בסגנון Material 3 / Google Account
 class SettingsCard extends StatelessWidget {
   final dynamic title; // יכול להיות String או Widget
@@ -18,8 +30,8 @@ class SettingsCard extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    // [תיקון מצב כהה] בכהה: surfaceContainer (אפור כהה מעט בולט מהרקע השחור)
-    //                 בבהיר: surface (לבן — ברירת המחדל הישנה)
+    // בכהה: surfaceContainer (אפור כהה מעט בולט מהרקע השחור)
+    // בבהיר: surface (לבן)
     final cardColor =
         isDark ? theme.colorScheme.surfaceContainer : theme.colorScheme.surface;
 
