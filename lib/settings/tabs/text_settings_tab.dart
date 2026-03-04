@@ -47,106 +47,213 @@ class TextSettingsTab extends StatelessWidget {
     return SettingsCard(
       title: 'הגדרות גופן ועיצוב',
       children: [
-        Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // גודל גופן הספר
-              Expanded(
-                child: _FontSizeSlider(
-                  icon: FluentIcons.text_font_size_24_regular,
-                  label: 'גודל גופן הספר',
-                  value: state.fontSize.clamp(15, 60),
-                  min: 15,
-                  max: 60,
-                  onChanged: (value) {
-                    context.read<SettingsBloc>().add(UpdateFontSize(value));
-                  },
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final isNarrow = constraints.maxWidth < 600;
+            final colorScheme = Theme.of(context).colorScheme;
+            final divider = Divider(
+              height: 1,
+              thickness: 1.5,
+              color: colorScheme.surfaceContainerHighest,
+            );
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // שורה 1: גודל גופן הספר + גופן טקסט
+                if (isNarrow) ...[
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: _FontSizeSlider(
+                      icon: FluentIcons.text_font_size_24_regular,
+                      label: 'גודל גופן הספר',
+                      value: state.fontSize.clamp(15, 60),
+                      min: 15,
+                      max: 60,
+                      onChanged: (value) {
+                        context.read<SettingsBloc>().add(UpdateFontSize(value));
+                      },
+                    ),
+                  ),
+                  divider,
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: _FontDropdown(
+                      icon: FluentIcons.text_font_24_regular,
+                      label: 'גופן טקסט',
+                      value: state.fontFamily,
+                      onChanged: (value) {
+                        if (value != null) {
+                          context
+                              .read<SettingsBloc>()
+                              .add(UpdateFontFamily(value));
+                        }
+                      },
+                    ),
+                  ),
+                ] else
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: _FontSizeSlider(
+                            icon: FluentIcons.text_font_size_24_regular,
+                            label: 'גודל גופן הספר',
+                            value: state.fontSize.clamp(15, 60),
+                            min: 15,
+                            max: 60,
+                            onChanged: (value) {
+                              context
+                                  .read<SettingsBloc>()
+                                  .add(UpdateFontSize(value));
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _FontDropdown(
+                            icon: FluentIcons.text_font_24_regular,
+                            label: 'גופן טקסט',
+                            value: state.fontFamily,
+                            onChanged: (value) {
+                              if (value != null) {
+                                context
+                                    .read<SettingsBloc>()
+                                    .add(UpdateFontFamily(value));
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                divider,
+
+                // שורה 2: גודל גופן מפרשים + גופן מפרשים
+                if (isNarrow) ...[
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: _FontSizeSlider(
+                      icon: FluentIcons.text_font_size_24_regular,
+                      label: 'גודל גופן מפרשים',
+                      value: state.commentatorsFontSize.clamp(10, 40),
+                      min: 10,
+                      max: 40,
+                      onChanged: (value) {
+                        context
+                            .read<SettingsBloc>()
+                            .add(UpdateCommentatorsFontSize(value));
+                      },
+                    ),
+                  ),
+                  divider,
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: _FontDropdown(
+                      icon: FluentIcons.book_24_regular,
+                      label: 'גופן מפרשים',
+                      value: state.commentatorsFontFamily,
+                      onChanged: (value) {
+                        if (value != null) {
+                          context
+                              .read<SettingsBloc>()
+                              .add(UpdateCommentatorsFontFamily(value));
+                        }
+                      },
+                    ),
+                  ),
+                ] else
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: _FontSizeSlider(
+                            icon: FluentIcons.text_font_size_24_regular,
+                            label: 'גודל גופן מפרשים',
+                            value: state.commentatorsFontSize.clamp(10, 40),
+                            min: 10,
+                            max: 40,
+                            onChanged: (value) {
+                              context
+                                  .read<SettingsBloc>()
+                                  .add(UpdateCommentatorsFontSize(value));
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _FontDropdown(
+                            icon: FluentIcons.book_24_regular,
+                            label: 'גופן מפרשים',
+                            value: state.commentatorsFontFamily,
+                            onChanged: (value) {
+                              if (value != null) {
+                                context
+                                    .read<SettingsBloc>()
+                                    .add(UpdateCommentatorsFontFamily(value));
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                divider,
+
+                // שורה 3: מרווח בין שורות (תמיד חצי רוחב)
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: isNarrow
+                      ? _FontSizeSlider(
+                          icon: FluentIcons
+                              .text_align_distributed_vertical_24_regular,
+                          label: 'מרווח בין שורות',
+                          value: state.lineHeight.clamp(1.0, 3.0),
+                          min: 1.0,
+                          max: 3.0,
+                          divisions: 20,
+                          onChanged: (value) {
+                            context
+                                .read<SettingsBloc>()
+                                .add(UpdateLineHeight(value));
+                          },
+                        )
+                      : Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: _FontSizeSlider(
+                                icon: FluentIcons
+                                    .text_align_distributed_vertical_24_regular,
+                                label: 'מרווח בין שורות',
+                                value: state.lineHeight.clamp(1.0, 3.0),
+                                min: 1.0,
+                                max: 3.0,
+                                divisions: 20,
+                                onChanged: (value) {
+                                  context
+                                      .read<SettingsBloc>()
+                                      .add(UpdateLineHeight(value));
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            const Expanded(child: SizedBox()),
+                          ],
+                        ),
                 ),
-              ),
-              const SizedBox(width: 16),
-              // גופן טקסט
-              Expanded(
-                child: _FontDropdown(
-                  icon: FluentIcons.text_font_24_regular,
-                  label: 'גופן טקסט',
-                  value: state.fontFamily,
-                  onChanged: (value) {
-                    if (value != null) {
-                      context.read<SettingsBloc>().add(UpdateFontFamily(value));
-                    }
-                  },
-                ),
-              ),
-            ],
-          ),
+                divider,
+                _TextWidthSlider(state: state),
+              ],
+            );
+          },
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 16.0),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // גודל גופן מפרשים
-              Expanded(
-                child: _FontSizeSlider(
-                  icon: FluentIcons.text_font_size_24_regular,
-                  label: 'גודל גופן מפרשים',
-                  value: state.commentatorsFontSize.clamp(10, 40),
-                  min: 10,
-                  max: 40,
-                  onChanged: (value) {
-                    context
-                        .read<SettingsBloc>()
-                        .add(UpdateCommentatorsFontSize(value));
-                  },
-                ),
-              ),
-              const SizedBox(width: 16),
-              // גופן מפרשים
-              Expanded(
-                child: _FontDropdown(
-                  icon: FluentIcons.book_24_regular,
-                  label: 'גופן מפרשים',
-                  value: state.commentatorsFontFamily,
-                  onChanged: (value) {
-                    if (value != null) {
-                      context
-                          .read<SettingsBloc>()
-                          .add(UpdateCommentatorsFontFamily(value));
-                    }
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 16.0),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // מרווח בין שורות
-              Expanded(
-                child: _FontSizeSlider(
-                  icon: FluentIcons.text_align_distributed_vertical_24_regular,
-                  label: 'מרווח בין שורות',
-                  value: state.lineHeight.clamp(1.0, 3.0),
-                  min: 1.0,
-                  max: 3.0,
-                  divisions: 20,
-                  onChanged: (value) {
-                    context.read<SettingsBloc>().add(UpdateLineHeight(value));
-                  },
-                ),
-              ),
-              const SizedBox(width: 16),
-              // מקום ריק לאיזון
-              const Expanded(child: SizedBox()),
-            ],
-          ),
-        ),
-        _TextWidthSlider(state: state),
       ],
     );
   }
@@ -264,102 +371,226 @@ class TextSettingsTab extends StatelessWidget {
     return SettingsCard(
       title: 'הגדרות העתקה',
       children: [
-        Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    const Icon(FluentIcons.copy_24_regular),
-                    const SizedBox(width: 8),
-                    Text('העתקה עם כותרות',
-                        style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        initialValue: state.copyWithHeaders,
-                        decoration: InputDecoration(
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 8),
-                          border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8)),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final isNarrow = constraints.maxWidth < 600;
+            final colorScheme = Theme.of(context).colorScheme;
+            final divider = Divider(
+              height: 1,
+              thickness: 1.5,
+              color: colorScheme.surfaceContainerHighest,
+            );
+
+            if (isNarrow) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // העתקה עם כותרות
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(FluentIcons.copy_24_regular),
+                            const SizedBox(width: 8),
+                            Text('העתקה עם כותרות',
+                                style: Theme.of(context).textTheme.titleMedium),
+                          ],
                         ),
-                        isExpanded: true,
-                        items: const [
-                          DropdownMenuItem(value: 'none', child: Text('ללא')),
-                          DropdownMenuItem(
-                              value: 'book_name', child: Text('שם הספר בלבד')),
-                          DropdownMenuItem(
-                              value: 'book_and_path',
-                              child: Text('שם הספר+נתיב')),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          initialValue: state.copyWithHeaders,
+                          decoration: InputDecoration(
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8)),
+                          ),
+                          isExpanded: true,
+                          items: const [
+                            DropdownMenuItem(value: 'none', child: Text('ללא')),
+                            DropdownMenuItem(
+                                value: 'book_name',
+                                child: Text('שם הספר בלבד')),
+                            DropdownMenuItem(
+                                value: 'book_and_path',
+                                child: Text('שם הספר+נתיב')),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) {
+                              context
+                                  .read<SettingsBloc>()
+                                  .add(UpdateCopyWithHeaders(value));
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  divider,
+                  // עיצוב העתקה
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(FluentIcons.text_align_right_24_regular),
+                            const SizedBox(width: 8),
+                            Text('עיצוב העתקה',
+                                style: Theme.of(context).textTheme.titleMedium),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          initialValue: state.copyHeaderFormat,
+                          decoration: InputDecoration(
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8)),
+                          ),
+                          isExpanded: true,
+                          items: const [
+                            DropdownMenuItem(
+                                value: 'same_line_after_brackets',
+                                child: Text('אותה שורה אחרי (עם סוגריים)')),
+                            DropdownMenuItem(
+                                value: 'same_line_after_no_brackets',
+                                child: Text('אותה שורה אחרי (בלי סוגריים)')),
+                            DropdownMenuItem(
+                                value: 'same_line_before_brackets',
+                                child: Text('אותה שורה לפני (עם סוגריים)')),
+                            DropdownMenuItem(
+                                value: 'same_line_before_no_brackets',
+                                child: Text('אותה שורה לפני (בלי סוגריים)')),
+                            DropdownMenuItem(
+                                value: 'separate_line_after',
+                                child: Text('פסקה נפרדת אחרי')),
+                            DropdownMenuItem(
+                                value: 'separate_line_before',
+                                child: Text('פסקה נפרדת לפני')),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) {
+                              context
+                                  .read<SettingsBloc>()
+                                  .add(UpdateCopyHeaderFormat(value));
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            } else {
+              return Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Row(
+                        children: [
+                          const Icon(FluentIcons.copy_24_regular),
+                          const SizedBox(width: 8),
+                          Text('העתקה עם כותרות',
+                              style: Theme.of(context).textTheme.titleMedium),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              initialValue: state.copyWithHeaders,
+                              decoration: InputDecoration(
+                                contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 8),
+                                border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8)),
+                              ),
+                              isExpanded: true,
+                              items: const [
+                                DropdownMenuItem(
+                                    value: 'none', child: Text('ללא')),
+                                DropdownMenuItem(
+                                    value: 'book_name',
+                                    child: Text('שם הספר בלבד')),
+                                DropdownMenuItem(
+                                    value: 'book_and_path',
+                                    child: Text('שם הספר+נתיב')),
+                              ],
+                              onChanged: (value) {
+                                if (value != null) {
+                                  context
+                                      .read<SettingsBloc>()
+                                      .add(UpdateCopyWithHeaders(value));
+                                }
+                              },
+                            ),
+                          ),
                         ],
-                        onChanged: (value) {
-                          if (value != null) {
-                            context
-                                .read<SettingsBloc>()
-                                .add(UpdateCopyWithHeaders(value));
-                          }
-                        },
+                      ),
+                    ),
+                    const SizedBox(width: 24),
+                    Expanded(
+                      child: Row(
+                        children: [
+                          const Icon(FluentIcons.text_align_right_24_regular),
+                          const SizedBox(width: 8),
+                          Text('עיצוב העתקה',
+                              style: Theme.of(context).textTheme.titleMedium),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              initialValue: state.copyHeaderFormat,
+                              decoration: InputDecoration(
+                                contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 8),
+                                border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8)),
+                              ),
+                              isExpanded: true,
+                              items: const [
+                                DropdownMenuItem(
+                                    value: 'same_line_after_brackets',
+                                    child: Text('אותה שורה אחרי (עם סוגריים)')),
+                                DropdownMenuItem(
+                                    value: 'same_line_after_no_brackets',
+                                    child:
+                                        Text('אותה שורה אחרי (בלי סוגריים)')),
+                                DropdownMenuItem(
+                                    value: 'same_line_before_brackets',
+                                    child: Text('אותה שורה לפני (עם סוגריים)')),
+                                DropdownMenuItem(
+                                    value: 'same_line_before_no_brackets',
+                                    child:
+                                        Text('אותה שורה לפני (בלי סוגריים)')),
+                                DropdownMenuItem(
+                                    value: 'separate_line_after',
+                                    child: Text('פסקה נפרדת אחרי')),
+                                DropdownMenuItem(
+                                    value: 'separate_line_before',
+                                    child: Text('פסקה נפרדת לפני')),
+                              ],
+                              onChanged: (value) {
+                                if (value != null) {
+                                  context
+                                      .read<SettingsBloc>()
+                                      .add(UpdateCopyHeaderFormat(value));
+                                }
+                              },
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(width: 24),
-              Expanded(
-                child: Row(
-                  children: [
-                    const Icon(FluentIcons.text_align_right_24_regular),
-                    const SizedBox(width: 8),
-                    Text('עיצוב העתקה',
-                        style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        initialValue: state.copyHeaderFormat,
-                        decoration: InputDecoration(
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 8),
-                          border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8)),
-                        ),
-                        isExpanded: true,
-                        items: const [
-                          DropdownMenuItem(
-                              value: 'same_line_after_brackets',
-                              child: Text('אותה שורה אחרי (עם סוגריים)')),
-                          DropdownMenuItem(
-                              value: 'same_line_after_no_brackets',
-                              child: Text('אותה שורה אחרי (בלי סוגריים)')),
-                          DropdownMenuItem(
-                              value: 'same_line_before_brackets',
-                              child: Text('אותה שורה לפני (עם סוגריים)')),
-                          DropdownMenuItem(
-                              value: 'same_line_before_no_brackets',
-                              child: Text('אותה שורה לפני (בלי סוגריים)')),
-                          DropdownMenuItem(
-                              value: 'separate_line_after',
-                              child: Text('פסקה נפרדת אחרי')),
-                          DropdownMenuItem(
-                              value: 'separate_line_before',
-                              child: Text('פסקה נפרדת לפני')),
-                        ],
-                        onChanged: (value) {
-                          if (value != null) {
-                            context
-                                .read<SettingsBloc>()
-                                .add(UpdateCopyHeaderFormat(value));
-                          }
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+              );
+            }
+          },
         ),
       ],
     );
