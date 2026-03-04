@@ -43,7 +43,6 @@ class CustomTitleBar extends StatefulWidget {
 
 const double _kAppBarControlsWidth = 125.0;
 const double _kAppBarControlsWidthRightAligned = 125.0;
-const int _kActionButtonsCount = 1; // settings בלבד
 const double _kActionButtonWidth = 56.0;
 const double _kWindowCaptionButtonsWidth = 138.0;
 const double _kWindowCaptionButtonWidth = 46.0;
@@ -218,7 +217,7 @@ class _CustomTitleBarState extends State<CustomTitleBar>
           ? _kAppBarControlsWidthRightAligned
           : _kAppBarControlsWidth,
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        mainAxisAlignment: MainAxisAlignment.start,
         children: [
           IconButton(
             icon: const Icon(FluentIcons.history_24_regular, size: 18),
@@ -226,12 +225,14 @@ class _CustomTitleBarState extends State<CustomTitleBar>
             onPressed: () => _showHistoryDialog(context),
             style: _kIconButtonStyle,
           ),
+          const SizedBox(width: 4),
           IconButton(
             icon: const Icon(FluentIcons.bookmark_24_regular, size: 18),
             tooltip: 'הצג סימניות (${bookmarksShortcut.toUpperCase()})',
             onPressed: () => _showBookmarksDialog(context),
             style: _kIconButtonStyle,
           ),
+          const SizedBox(width: 4),
           IconButton(
             icon: const Icon(FluentIcons.add_square_24_regular, size: 18),
             tooltip: 'החלף שולחן עבודה (${workspaceShortcut.toUpperCase()})',
@@ -249,13 +250,13 @@ class _CustomTitleBarState extends State<CustomTitleBar>
         navState.currentScreen == Screen.search) {
       return _buildReadingTabs(context, settingsState);
     } else if (navState.currentScreen == Screen.library) {
-      return _buildLibraryTitle(context);
+      return _buildLibraryTitle(context, settingsState);
     } else {
-      return _buildStandardTitle(context, navState);
+      return _buildStandardTitle(context, navState, settingsState);
     }
   }
 
-  Widget _buildLibraryTitle(BuildContext context) {
+  Widget _buildLibraryTitle(BuildContext context, SettingsState settingsState) {
     return BlocBuilder<LibraryBloc, LibraryState>(
       buildWhen: (previous, current) =>
           previous.currentCategory != current.currentCategory,
@@ -279,14 +280,22 @@ class _CustomTitleBarState extends State<CustomTitleBar>
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4.0),
-              child: IconButton(
-                icon: const Icon(FluentIcons.settings_24_regular, size: 18),
-                tooltip: 'הגדרות ספרייה',
-                onPressed: () => showLibrarySettingsDialog(context),
-                style: _kIconButtonStyle.copyWith(
-                  foregroundColor: WidgetStatePropertyAll(
-                      Theme.of(context).colorScheme.onSurfaceVariant),
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                textDirection: TextDirection.ltr,
+                children: [
+                  if (!kIsWeb && Platform.isAndroid)
+                    _buildAndroidFullscreenButton(context, settingsState),
+                  IconButton(
+                    icon: const Icon(FluentIcons.settings_24_regular, size: 18),
+                    tooltip: 'הגדרות ספרייה',
+                    onPressed: () => showLibrarySettingsDialog(context),
+                    style: _kIconButtonStyle.copyWith(
+                      foregroundColor: WidgetStatePropertyAll(
+                          Theme.of(context).colorScheme.onSurfaceVariant),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -295,7 +304,8 @@ class _CustomTitleBarState extends State<CustomTitleBar>
     );
   }
 
-  Widget _buildStandardTitle(BuildContext context, NavigationState navState) {
+  Widget _buildStandardTitle(BuildContext context, NavigationState navState,
+      SettingsState settingsState) {
     String title = 'אוצריא';
     switch (navState.currentScreen) {
       case Screen.find:
@@ -311,17 +321,54 @@ class _CustomTitleBarState extends State<CustomTitleBar>
         break;
     }
 
-    return DragToMoveArea(
-      child: Center(
-        child: Text(
-          title,
-          style: Theme.of(context).textTheme.titleMedium,
+    return Row(
+      children: [
+        Expanded(
+          child: DragToMoveArea(
+            child: Center(
+              child: Text(
+                title,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+          ),
+        ),
+        if (!kIsWeb && Platform.isAndroid)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4.0),
+            child: _buildAndroidFullscreenButton(context, settingsState),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildAndroidFullscreenButton(
+      BuildContext context, SettingsState settingsState) {
+    return IconButton(
+      icon: Icon(
+        settingsState.isFullscreen
+            ? FluentIcons.full_screen_minimize_24_regular
+            : FluentIcons.full_screen_maximize_24_regular,
+        size: 18,
+      ),
+      tooltip: settingsState.isFullscreen ? 'צא ממסך מלא' : 'מסך מלא',
+      onPressed: () async {
+        final newFullscreenState = !settingsState.isFullscreen;
+        await FullscreenHelper.toggleFullscreen(
+          context,
+          newFullscreenState,
+        );
+      },
+      style: _kIconButtonStyle.copyWith(
+        foregroundColor: WidgetStatePropertyAll(
+          Theme.of(context).colorScheme.onSurfaceVariant,
         ),
       ),
     );
   }
 
   Widget _buildReadingTabs(BuildContext context, SettingsState settingsState) {
+    final showAndroidFullscreenButton = !kIsWeb && Platform.isAndroid;
     return BlocBuilder<TabsBloc, TabsState>(
       builder: (context, state) {
         if (!state.hasOpenTabs) {
@@ -342,13 +389,20 @@ class _CustomTitleBarState extends State<CustomTitleBar>
         double rightSpacerWidth = 0;
 
         if (!settingsState.alignTabsToRight) {
+          final showAndroidFullscreenButton = !kIsWeb && Platform.isAndroid;
           bool showWindowControls = !kIsWeb &&
               (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
+          final int readingActionButtonsCount =
+              1 + (showAndroidFullscreenButton ? 1 : 0);
           double windowControlsWidth = showWindowControls
               ? _kWindowCaptionButtonsWidth + _kWindowCaptionButtonWidth
               : 0.0;
-          double actionButtonsWidth = _kAppBarControlsWidth;
-          double extraButtonsWidth = _kActionButtonsCount * _kActionButtonWidth;
+          double actionButtonsWidth = (settingsState.alignTabsToRight
+                  ? _kAppBarControlsWidthRightAligned
+                  : _kAppBarControlsWidth) +
+              (showAndroidFullscreenButton ? _kActionButtonWidth : 0);
+          double extraButtonsWidth =
+              readingActionButtonsCount * _kActionButtonWidth;
 
           double totalLeft = actionButtonsWidth;
           double totalRight = extraButtonsWidth + windowControlsWidth;
@@ -357,6 +411,12 @@ class _CustomTitleBarState extends State<CustomTitleBar>
             leftSpacerWidth = totalRight - totalLeft;
           } else {
             rightSpacerWidth = totalLeft - totalRight;
+          }
+
+          // באנדרואיד אנחנו רוצים את כפתורי ההגדרות/מסך מלא צמודים לשמאל
+          // בלי spacer נוסף בצד שמאל.
+          if (showAndroidFullscreenButton) {
+            rightSpacerWidth = 0;
           }
         }
 
@@ -418,17 +478,48 @@ class _CustomTitleBarState extends State<CustomTitleBar>
               ),
             ),
 
-            // כפתורים נוספים (הגדרות)
+            // כפתורים נוספים (הגדרות/מסך מלא באנדרואיד)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4.0),
-              child: IconButton(
-                icon: const Icon(FluentIcons.settings_24_regular, size: 18),
-                tooltip: 'הגדרות תצוגת הספרים',
-                onPressed: () => showReadingSettingsDialog(context),
-                style: _kIconButtonStyle.copyWith(
-                  foregroundColor: WidgetStatePropertyAll(
-                      Theme.of(context).colorScheme.onSurfaceVariant),
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                textDirection: TextDirection.ltr,
+                children: [
+                  if (showAndroidFullscreenButton)
+                    IconButton(
+                      icon: Icon(
+                        settingsState.isFullscreen
+                            ? FluentIcons.full_screen_minimize_24_regular
+                            : FluentIcons.full_screen_maximize_24_regular,
+                        size: 18,
+                      ),
+                      tooltip: settingsState.isFullscreen
+                          ? 'צא ממסך מלא'
+                          : 'מסך מלא',
+                      onPressed: () async {
+                        final newFullscreenState = !settingsState.isFullscreen;
+                        await FullscreenHelper.toggleFullscreen(
+                          context,
+                          newFullscreenState,
+                        );
+                      },
+                      style: _kIconButtonStyle.copyWith(
+                        foregroundColor: WidgetStatePropertyAll(
+                          Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  IconButton(
+                    icon: const Icon(FluentIcons.settings_24_regular, size: 18),
+                    tooltip: 'הגדרות תצוגת הספרים',
+                    onPressed: () => showReadingSettingsDialog(context),
+                    style: _kIconButtonStyle.copyWith(
+                      foregroundColor: WidgetStatePropertyAll(
+                        Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             if (rightSpacerWidth > 0) SizedBox(width: rightSpacerWidth),
