@@ -196,13 +196,13 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
           ),
           SwitchSettingsTile(
             leading: const Icon(FluentIcons.bug_24_regular),
-            title: const Text('עדכון לגרסאות מפתחים',
-                style: TextStyle(fontSize: 16)),
+            title:
+                const Text('עדכון לגרסאות מפתחים', style: kSettingsTitleStyle),
             subtitle: Text(
               Settings.getValue<bool>(SettingsRepository.keyDevChannel) ?? false
                   ? 'קבלת עדכונים על גרסאות בדיקה — ייתכנו באגים'
                   : 'קבלת עדכונים על גרסאות יציבות בלבד',
-              style: const TextStyle(fontSize: 13),
+              style: kSettingsSubtitleStyle,
             ),
             value: Settings.getValue<bool>(SettingsRepository.keyDevChannel) ??
                 false,
@@ -227,9 +227,9 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
       children: [
         ListTile(
           leading: const Icon(FluentIcons.info_24_regular),
-          title: const Text('גרסת תוכנה', style: TextStyle(fontSize: 16)),
-          subtitle: Text(_appVersion ?? 'טוען...',
-              style: const TextStyle(fontSize: 13)),
+          title: const Text('גרסת תוכנה', style: kSettingsTitleStyle),
+          subtitle:
+              Text(_appVersion ?? 'טוען...', style: kSettingsSubtitleStyle),
           trailing: TextButton.icon(
             icon: const Icon(FluentIcons.history_24_regular, size: 16),
             label: const Text('יומן שינויים'),
@@ -238,9 +238,9 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
         ),
         ListTile(
           leading: const Icon(FluentIcons.library_24_regular),
-          title: const Text('גרסת ספרייה', style: TextStyle(fontSize: 16)),
-          subtitle: Text(_libraryVersion ?? 'טוען...',
-              style: const TextStyle(fontSize: 13)),
+          title: const Text('גרסת ספרייה', style: kSettingsTitleStyle),
+          subtitle:
+              Text(_libraryVersion ?? 'טוען...', style: kSettingsSubtitleStyle),
           trailing: TextButton.icon(
             icon: const Icon(FluentIcons.history_24_regular, size: 16),
             label: const Text('יומן שינויים'),
@@ -249,21 +249,21 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
         ),
         ListTile(
           leading: const Icon(FluentIcons.book_24_regular),
-          title: const Text('מספר ספרים', style: TextStyle(fontSize: 16)),
+          title: const Text('מספר ספרים', style: kSettingsTitleStyle),
           subtitle: Text(
             _bookCount != null ? '${_bookCount!} ספרים' : 'טוען...',
-            style: const TextStyle(fontSize: 13),
+            style: kSettingsSubtitleStyle,
           ),
         ),
         if (!(Platform.isAndroid || Platform.isIOS)) ...[
           ListTile(
             leading: const Icon(FluentIcons.folder_24_regular),
-            title: const Text('מיקום ספריית אוצריא',
-                style: TextStyle(fontSize: 16)),
+            title:
+                const Text('מיקום ספריית אוצריא', style: kSettingsTitleStyle),
             subtitle: Text(
               Settings.getValue<String>(SettingsRepository.keyLibraryPath) ??
                   'לא נבחר',
-              style: const TextStyle(fontSize: 12),
+              style: kSettingsSubtitleStyle,
             ),
             trailing: NeutralActionButton(
               icon: FluentIcons.folder_open_24_regular,
@@ -647,8 +647,8 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                 ? Theme.of(context).colorScheme.primary
                 : null,
           ),
-          title: const Text('מצב סייפר', style: TextStyle(fontSize: 16)),
-          subtitle: const Text('נעילת הגדרות', style: TextStyle(fontSize: 13)),
+          title: const Text('מצב סייפר', style: kSettingsTitleStyle),
+          subtitle: const Text('נעילת הגדרות', style: kSettingsSubtitleStyle),
           trailing: Icon(
             _isCypherExpanded
                 ? FluentIcons.chevron_up_24_regular
@@ -672,7 +672,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                       ),
                       title: const Text('הפעל מצב סייפר',
                           textDirection: TextDirection.rtl,
-                          style: TextStyle(fontSize: 16)),
+                          style: kSettingsTitleStyle),
                       subtitle: Text(
                         hasPassword ? 'סיסמה הוגדרה' : 'יש להגדיר סיסמה תחילה',
                         textDirection: TextDirection.rtl,
@@ -696,7 +696,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                       title: const Text(
                         'סיסמה',
                         textDirection: TextDirection.rtl,
-                        style: TextStyle(fontSize: 16),
+                        style: kSettingsTitleStyle,
                       ),
                       trailing: RecommendedActionButton(
                         icon: FluentIcons.key_24_regular,
@@ -724,9 +724,9 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
         ListTile(
           hoverColor: Colors.transparent,
           leading: const Icon(FluentIcons.arrow_reset_24_regular),
-          title: const Text('איפוס הגדרות', style: TextStyle(fontSize: 16)),
+          title: const Text('איפוס הגדרות', style: kSettingsTitleStyle),
           subtitle: const Text('מחיקת כל ההגדרות וחזרה למצב ההתחלתי',
-              style: TextStyle(fontSize: 13)),
+              style: kSettingsSubtitleStyle),
           trailing: NeutralActionButton(
             icon: FluentIcons.arrow_reset_24_regular,
             text: 'אפס הגדרות',
@@ -981,8 +981,8 @@ class _BackupOptionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return SwitchSettingsTile(
       leading: Icon(icon),
-      title: Text(title, style: const TextStyle(fontSize: 16)),
-      subtitle: Text(subtitle, style: const TextStyle(fontSize: 13)),
+      title: Text(title, style: kSettingsTitleStyle),
+      subtitle: Text(subtitle, style: kSettingsSubtitleStyle),
       value: Settings.getValue<bool>(settingKey) ?? true,
       onChanged: (value) {
         Settings.setValue<bool>(settingKey, value);
