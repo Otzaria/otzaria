@@ -116,13 +116,10 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
               // 3. תורמים (כרטיסי זיכרון)
               _buildMemorialSection(context),
 
-              // 4. גיבוי (מקטע אחד מאוחד)
-              _buildBackupSection(context),
+              // 4. מתקדם (גיבוי + מצב סייפר)
+              _buildAdvancedSection(context, state),
 
-              // 5. מצב סייפר (expandable)
-              _buildCypherModeSection(context, state),
-
-              // 6. איפוס
+              // 5. איפוס
               _buildResetSection(context),
             ],
           ),
@@ -340,189 +337,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     if (await canLaunchUrl(uri)) await launchUrl(uri);
   }
 
-  // ════════════════════════════════════════════════════════════════════════════
-  //  4. גיבוי — מקטע אחד מאוחד
-  // ════════════════════════════════════════════════════════════════════════════
-
-  Widget _buildBackupSection(BuildContext context) {
-    final autoFrequency =
-        Settings.getValue<String>(_keyAutoBackupFrequency) ?? 'none';
-
-    return SettingsCard(
-      title: 'גיבוי ושחזור',
-      children: [
-        // שורה ראשית — גיבוי אוטומטי (תמיד גלויה) + לחיצה פותחת/סוגרת
-        InkWell(
-          onTap: () => setState(() => _isBackupExpanded = !_isBackupExpanded),
-          child: Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Row(
-              children: [
-                const Icon(FluentIcons.calendar_clock_24_regular),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'גיבוי אוטומטי',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-                // SegmentedButton לבחירת תדירות
-                SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment<String>(
-                      value: 'none',
-                      label: Text('ללא'),
-                    ),
-                    ButtonSegment<String>(
-                      value: 'weekly',
-                      label: Text('שבועי'),
-                    ),
-                    ButtonSegment<String>(
-                      value: 'monthly',
-                      label: Text('חודשי'),
-                    ),
-                  ],
-                  selected: {autoFrequency},
-                  onSelectionChanged: (Set<String> newSelection) {
-                    Settings.setValue<String>(
-                        _keyAutoBackupFrequency, newSelection.first);
-                    setState(() {});
-                  },
-                  style: ButtonStyle(
-                    visualDensity: VisualDensity.compact,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Icon(
-                  _isBackupExpanded
-                      ? FluentIcons.chevron_up_24_regular
-                      : FluentIcons.chevron_down_24_regular,
-                ),
-              ],
-            ),
-          ),
-        ),
-
-        // תוכן מורחב — אנימציה
-        AnimatedSize(
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeInOut,
-          child: _isBackupExpanded
-              ? Column(
-                  children: [
-                    Divider(
-                      height: 1,
-                      thickness: 1.5,
-                      color:
-                          Theme.of(context).colorScheme.surfaceContainerHighest,
-                    ),
-
-                    // מצב גיבוי
-                    SegmentedSettingsTile<_BackupMode>(
-                      icon: FluentIcons.options_24_regular,
-                      title: 'מצב גיבוי',
-                      options: const [
-                        SegmentOption<_BackupMode>(
-                          value: _BackupMode.all,
-                          label: 'גבה הכל',
-                        ),
-                        SegmentOption<_BackupMode>(
-                          value: _BackupMode.custom,
-                          label: 'מותאם אישית',
-                        ),
-                      ],
-                      currentValue: _selectedBackupMode,
-                      onChanged: (value) =>
-                          setState(() => _selectedBackupMode = value),
-                    ),
-
-                    // בחר מה לגבות (רק במצב מותאם אישית)
-                    if (_selectedBackupMode == _BackupMode.custom) ...[
-                      _BackupOptionTile(
-                        icon: FluentIcons.settings_24_regular,
-                        title: 'הגדרות',
-                        subtitle: 'כולל את כלל הגדרות התוכנה',
-                        settingKey: _keyBackupSettings,
-                        onChanged: () => setState(() {}),
-                      ),
-                      _BackupOptionTile(
-                        icon: FluentIcons.bookmark_24_regular,
-                        title: 'סימניות',
-                        subtitle: 'כל הסימניות שנשמרו',
-                        settingKey: _keyBackupBookmarks,
-                        onChanged: () => setState(() {}),
-                      ),
-                      _BackupOptionTile(
-                        icon: FluentIcons.history_24_regular,
-                        title: 'היסטוריה',
-                        subtitle: 'היסטוריית הלימוד',
-                        settingKey: _keyBackupHistory,
-                        onChanged: () => setState(() {}),
-                      ),
-                      _BackupOptionTile(
-                        icon: FluentIcons.note_24_regular,
-                        title: 'הערות אישיות',
-                        subtitle: 'כל ההערות האישיות שלך',
-                        settingKey: _keyBackupNotes,
-                        onChanged: () => setState(() {}),
-                      ),
-                      _BackupOptionTile(
-                        icon: FluentIcons.grid_24_regular,
-                        title: 'שולחנות עבודה',
-                        subtitle: 'כל שולחנות העבודה',
-                        settingKey: _keyBackupWorkspaces,
-                        onChanged: () => setState(() {}),
-                      ),
-                      _BackupOptionTile(
-                        icon: FluentIcons.book_24_regular,
-                        title: 'שמור וזכור',
-                        subtitle: 'ספרים ומעקב לימוד',
-                        settingKey: _keyBackupShamorZachor,
-                        onChanged: () => setState(() {}),
-                      ),
-                    ],
-
-                    Divider(
-                      height: 1,
-                      thickness: 1.5,
-                      color:
-                          Theme.of(context).colorScheme.surfaceContainerHighest,
-                    ),
-
-                    // כפתורי צור/שחזר
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: _createBackup,
-                              icon: const Icon(
-                                  FluentIcons.arrow_upload_24_regular),
-                              label: const Text('צור גיבוי עכשיו'),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: _restoreBackup,
-                              icon: const Icon(
-                                  FluentIcons.arrow_download_24_regular),
-                              label: const Text('שחזר מגיבוי'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                )
-              : const SizedBox.shrink(),
-        ),
-      ],
-    );
-  }
-
   Future<void> _createBackup() async {
     try {
       final backupPath = await BackupService.createBackup(
@@ -600,101 +414,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     }
   }
 
-  // ════════════════════════════════════════════════════════════════════════════
-  //  5. מצב סייפר (expandable)
-  // ════════════════════════════════════════════════════════════════════════════
-
-  Widget _buildCypherModeSection(BuildContext context, SettingsState state) {
-    final repository = RepositoryProvider.of<SettingsRepository>(context);
-    final hasPassword = repository.hasProtectedModePassword();
-
-    return SettingsCard(
-      title: 'מצב מוגן',
-      children: [
-        // שורה ראשית — לחיצה פותחת/סוגרת
-        ListTile(
-          leading: Icon(
-            state.protectedModeEnabled
-                ? FluentIcons.shield_lock_24_filled
-                : FluentIcons.shield_lock_24_regular,
-            color: state.protectedModeEnabled
-                ? Theme.of(context).colorScheme.primary
-                : null,
-          ),
-          title: const Text('מצב סייפר', style: TextStyle(fontSize: 16)),
-          subtitle: const Text('נעילת הגדרות', style: TextStyle(fontSize: 13)),
-          trailing: Icon(
-            _isCypherExpanded
-                ? FluentIcons.chevron_up_24_regular
-                : FluentIcons.chevron_down_24_regular,
-          ),
-          onTap: () => setState(() => _isCypherExpanded = !_isCypherExpanded),
-        ),
-
-        // תוכן מורחב — אנימציה
-        AnimatedSize(
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeInOut,
-          child: _isCypherExpanded
-              ? Column(
-                  children: [
-                    // הפעלת מצב מוגן
-                    SwitchSettingsTile(
-                      leading: Icon(
-                        state.protectedModeEnabled
-                            ? FluentIcons.lock_closed_24_filled
-                            : FluentIcons.lock_open_24_regular,
-                      ),
-                      title: const Text('הפעל מצב סייפר',
-                          textDirection: TextDirection.rtl,
-                          style: TextStyle(fontSize: 16)),
-                      subtitle: Text(
-                        hasPassword ? 'סיסמה הוגדרה' : 'יש להגדיר סיסמה תחילה',
-                        textDirection: TextDirection.rtl,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: hasPassword
-                              ? Theme.of(context).colorScheme.primary
-                              : Theme.of(context).colorScheme.error,
-                        ),
-                      ),
-                      value: state.protectedModeEnabled,
-                      onChanged: hasPassword
-                          ? (value) => _handleToggleProtectedMode(
-                              context, repository, value)
-                          : null,
-                    ),
-
-                    Divider(
-                      height: 1,
-                      thickness: 1.5,
-                      color:
-                          Theme.of(context).colorScheme.surfaceContainerHighest,
-                    ),
-
-                    // הגדרת/שינוי סיסמה
-                    ListTile(
-                      leading: const Icon(FluentIcons.key_24_regular),
-                      title: const Text(
-                        'סיסמה',
-                        textDirection: TextDirection.rtl,
-                        style: TextStyle(fontSize: 16),
-                      ),
-                      trailing: RecommendedActionButton(
-                        icon: FluentIcons.key_24_regular,
-                        text: hasPassword ? 'שנה סיסמה' : 'בחר סיסמה',
-                        onPressed: () => _handleSetPassword(
-                            context, repository, hasPassword),
-                      ),
-                    ),
-                  ],
-                )
-              : const SizedBox.shrink(),
-        ),
-      ],
-    );
-  }
-
   Future<void> _handleToggleProtectedMode(
     BuildContext context,
     SettingsRepository repository,
@@ -749,6 +468,253 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     if (result == true && context.mounted && !hasExistingPassword) {
       context.read<SettingsBloc>().add(const UpdateProtectedModeEnabled(true));
     }
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  //  4. מתקדם (גיבוי + מצב סייפר)
+  // ════════════════════════════════════════════════════════════════════════════
+
+  Widget _buildAdvancedSection(BuildContext context, SettingsState state) {
+    final autoFrequency =
+        Settings.getValue<String>(_keyAutoBackupFrequency) ?? 'none';
+    final repository = RepositoryProvider.of<SettingsRepository>(context);
+    final hasPassword = repository.hasProtectedModePassword();
+
+    return SettingsCard(
+      title: 'מתקדם',
+      children: [
+        // ── גיבוי אוטומטי ──
+        // שורה ראשית — לחיצה פותחת/סוגרת
+        InkWell(
+          onTap: () => setState(() => _isBackupExpanded = !_isBackupExpanded),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              children: [
+                const Icon(FluentIcons.calendar_clock_24_regular),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'גיבוי אוטומטי',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                // SegmentedButton לבחירת תדירות
+                SegmentedButton<String>(
+                  showSelectedIcon: false,
+                  style: ButtonStyle(
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  segments: const [
+                    ButtonSegment<String>(
+                      value: 'none',
+                      label: Text('ללא'),
+                    ),
+                    ButtonSegment<String>(
+                      value: 'weekly',
+                      label: Text('שבועי'),
+                    ),
+                    ButtonSegment<String>(
+                      value: 'monthly',
+                      label: Text('חודשי'),
+                    ),
+                  ],
+                  selected: {autoFrequency},
+                  onSelectionChanged: (Set<String> newSelection) {
+                    Settings.setValue<String>(
+                        _keyAutoBackupFrequency, newSelection.first);
+                    setState(() {});
+                  },
+                ),
+                const SizedBox(width: 12),
+                Icon(
+                  _isBackupExpanded
+                      ? FluentIcons.chevron_up_24_regular
+                      : FluentIcons.chevron_down_24_regular,
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // תוכן מורחב של גיבוי — אנימציה
+        AnimatedSize(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeInOut,
+          child: _isBackupExpanded
+              ? Column(
+                  children: [
+                    // מצב גיבוי
+                    SegmentedSettingsTile<_BackupMode>(
+                      icon: FluentIcons.options_24_regular,
+                      title: 'מצב גיבוי',
+                      options: const [
+                        SegmentOption<_BackupMode>(
+                          value: _BackupMode.all,
+                          label: 'גבה הכל',
+                        ),
+                        SegmentOption<_BackupMode>(
+                          value: _BackupMode.custom,
+                          label: 'מותאם אישית',
+                        ),
+                      ],
+                      currentValue: _selectedBackupMode,
+                      onChanged: (value) =>
+                          setState(() => _selectedBackupMode = value),
+                    ),
+
+                    // בחר מה לגבות (רק במצב מותאם אישית)
+                    if (_selectedBackupMode == _BackupMode.custom) ...[
+                      _BackupOptionTile(
+                        icon: FluentIcons.settings_24_regular,
+                        title: 'הגדרות',
+                        subtitle: 'כולל את כלל הגדרות התוכנה',
+                        settingKey: _keyBackupSettings,
+                        onChanged: () => setState(() {}),
+                      ),
+                      _BackupOptionTile(
+                        icon: FluentIcons.bookmark_24_regular,
+                        title: 'סימניות',
+                        subtitle: 'כל הסימניות שנשמרו',
+                        settingKey: _keyBackupBookmarks,
+                        onChanged: () => setState(() {}),
+                      ),
+                      _BackupOptionTile(
+                        icon: FluentIcons.history_24_regular,
+                        title: 'היסטוריה',
+                        subtitle: 'היסטוריית הלימוד',
+                        settingKey: _keyBackupHistory,
+                        onChanged: () => setState(() {}),
+                      ),
+                      _BackupOptionTile(
+                        icon: FluentIcons.note_24_regular,
+                        title: 'הערות אישיות',
+                        subtitle: 'כל ההערות האישיות שלך',
+                        settingKey: _keyBackupNotes,
+                        onChanged: () => setState(() {}),
+                      ),
+                      _BackupOptionTile(
+                        icon: FluentIcons.grid_24_regular,
+                        title: 'שולחנות עבודה',
+                        subtitle: 'כל שולחנות העבודה',
+                        settingKey: _keyBackupWorkspaces,
+                        onChanged: () => setState(() {}),
+                      ),
+                      _BackupOptionTile(
+                        icon: FluentIcons.book_24_regular,
+                        title: 'שמור וזכור',
+                        subtitle: 'ספרים ומעקב לימוד',
+                        settingKey: _keyBackupShamorZachor,
+                        onChanged: () => setState(() {}),
+                      ),
+                    ],
+
+                    // כפתורי צור/שחזר
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: _createBackup,
+                              icon: const Icon(
+                                  FluentIcons.arrow_upload_24_regular),
+                              label: const Text('צור גיבוי עכשיו'),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: _restoreBackup,
+                              icon: const Icon(
+                                  FluentIcons.arrow_download_24_regular),
+                              label: const Text('שחזר מגיבוי'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                )
+              : const SizedBox.shrink(),
+        ),
+
+        // ── מצב סייפר ──
+        // שורה ראשית — לחיצה פותחת/סוגרת
+        ListTile(
+          leading: Icon(
+            state.protectedModeEnabled
+                ? FluentIcons.shield_lock_24_filled
+                : FluentIcons.shield_lock_24_regular,
+            color: state.protectedModeEnabled
+                ? Theme.of(context).colorScheme.primary
+                : null,
+          ),
+          title: const Text('מצב סייפר', style: TextStyle(fontSize: 16)),
+          subtitle: const Text('נעילת הגדרות', style: TextStyle(fontSize: 13)),
+          trailing: Icon(
+            _isCypherExpanded
+                ? FluentIcons.chevron_up_24_regular
+                : FluentIcons.chevron_down_24_regular,
+          ),
+          onTap: () => setState(() => _isCypherExpanded = !_isCypherExpanded),
+        ),
+
+        // תוכן מורחב של סייפר — אנימציה
+        AnimatedSize(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeInOut,
+          child: _isCypherExpanded
+              ? Column(
+                  children: [
+                    // הפעלת מצב מוגן
+                    SwitchSettingsTile(
+                      leading: Icon(
+                        state.protectedModeEnabled
+                            ? FluentIcons.lock_closed_24_filled
+                            : FluentIcons.lock_open_24_regular,
+                      ),
+                      title: const Text('הפעל מצב סייפר',
+                          textDirection: TextDirection.rtl,
+                          style: TextStyle(fontSize: 16)),
+                      subtitle: Text(
+                        hasPassword ? 'סיסמה הוגדרה' : 'יש להגדיר סיסמה תחילה',
+                        textDirection: TextDirection.rtl,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: hasPassword
+                              ? Theme.of(context).colorScheme.primary
+                              : Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                      value: state.protectedModeEnabled,
+                      onChanged: hasPassword
+                          ? (value) => _handleToggleProtectedMode(
+                              context, repository, value)
+                          : null,
+                    ),
+
+                    // הגדרת/שינוי סיסמה
+                    ListTile(
+                      leading: const Icon(FluentIcons.key_24_regular),
+                      title: const Text(
+                        'סיסמה',
+                        textDirection: TextDirection.rtl,
+                        style: TextStyle(fontSize: 16),
+                      ),
+                      trailing: RecommendedActionButton(
+                        icon: FluentIcons.key_24_regular,
+                        text: hasPassword ? 'שנה סיסמה' : 'בחר סיסמה',
+                        onPressed: () => _handleSetPassword(
+                            context, repository, hasPassword),
+                      ),
+                    ),
+                  ],
+                )
+              : const SizedBox.shrink(),
+        ),
+      ],
+    );
   }
 
   // ════════════════════════════════════════════════════════════════════════════
