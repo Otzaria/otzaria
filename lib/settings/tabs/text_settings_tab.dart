@@ -25,19 +25,16 @@ class TextSettingsTab extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _buildFontSection(context, settingsState),
-              const SizedBox(height: 16),
+              kSettingsCardSpacing,
               _buildNikudSection(context, settingsState),
-              const SizedBox(height: 16),
+              kSettingsCardSpacing,
               _buildCopySection(context, settingsState),
-              const SizedBox(height: 16),
+              kSettingsCardSpacing,
               _buildPerBookSection(context, settingsState),
             ],
           ),
         );
 
-        if (isDialog) {
-          return content;
-        }
         return content;
       },
     );
@@ -286,7 +283,7 @@ class TextSettingsTab extends StatelessWidget {
     }
 
     return SettingsCard(
-      title: 'טעמים ונקודות',
+      title: 'כתרי אותיות',
       children: [
         SegmentedSettingsTile<bool>(
           icon: FluentIcons.shield_keyhole_24_regular,
@@ -298,19 +295,15 @@ class TextSettingsTab extends StatelessWidget {
               ),
               children: [
                 const TextSpan(
-                  text: 'שבח מגדל עוז ',
-                ),
-                TextSpan(
-                  text: 'שם הגדול',
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                  text: 'הצגת שמו הגדול',
                 ),
               ],
             ),
           ),
-          subtitle: 'בישראל גדול שמו',
+          subtitle: 'זֶה־שְּׁמִ֣י לְעֹלָ֔ם וְזֶ֥ה זִכְרִ֖י לְדֹ֥ר דֹּֽר',
           options: const [
-            SegmentOption(value: false, label: 'זה שמי לעלם'),
-            SegmentOption(value: true, label: 'לא כשאני נכתב'),
+            SegmentOption(value: false, label: 'בכתיבתו'),
+            SegmentOption(value: true, label: 'שלא בכתיבתו'),
           ],
           currentValue: state.replaceHolyNames,
           onChanged: (value) {
@@ -354,10 +347,10 @@ class TextSettingsTab extends StatelessWidget {
           },
         ),
         SwitchSettingsTile(
-          title: const Text('הצגת טעמי המקרא', style: TextStyle(fontSize: 16)),
+          title: const Text('הצגת טעמי המקרא', style: kSettingsTitleStyle),
           subtitle: Text(
               state.showTeamim ? 'המקרא יוצג עם טעמים' : 'המקרא יוצג ללא טעמים',
-              style: const TextStyle(fontSize: 13)),
+              style: kSettingsSubtitleStyle),
           value: state.showTeamim,
           onChanged: (value) {
             context.read<SettingsBloc>().add(UpdateShowTeamim(value));
@@ -602,12 +595,12 @@ class TextSettingsTab extends StatelessWidget {
       children: [
         SwitchSettingsTile(
           title: const Text('שמירת התאמות לכל ספר בנפרד',
-              style: TextStyle(fontSize: 16)),
+              style: kSettingsTitleStyle),
           subtitle: Text(
               state.enablePerBookSettings
                   ? 'שינויים בסרגל הלחצנים יישמרו לכל ספר בנפרד'
                   : 'כל הספרים ישתמשו בהגדרות הכלליות',
-              style: const TextStyle(fontSize: 13)),
+              style: kSettingsSubtitleStyle),
           value: state.enablePerBookSettings,
           onChanged: (value) {
             context
@@ -829,7 +822,7 @@ class _TextWidthSliderState extends State<_TextWidthSlider> {
       children: [
         ListTile(
           leading: const Icon(FluentIcons.text_align_justify_24_regular),
-          title: const Text('רוחב הטקסט', style: TextStyle(fontSize: 16)),
+          title: const Text('רוחב השוליים', style: kSettingsTitleStyle),
           subtitle: Text(
             currentLevel == 0
                 ? 'הטקסט ימלא את כל הרוחב הזמין'
