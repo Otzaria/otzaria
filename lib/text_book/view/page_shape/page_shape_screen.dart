@@ -589,8 +589,6 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
       ItemPositionsListener.create();
   List<Link> _relevantLinks = [];
   int? _lastSyncedIndex; // האינדקס האחרון שסונכרן
-  int? _lastObservedSelectedIndex; // הבחירה האחרונה שנצפתה
-  bool _preferSelectedIndexNextSync = false; // סנכרון חד-פעמי אחרי בחירה ידנית
   StreamSubscription<TextBookState>? _blocSubscription;
   Set<int> _highlightedIndices = {}; // אינדקסים להדגשה
   bool _highlightEnabled = false;
@@ -654,7 +652,6 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
     // סנכרון ראשוני עם ה-state הנוכחי
     final currentState = context.read<TextBookBloc>().state;
     if (currentState is TextBookLoaded && mounted) {
-      _lastObservedSelectedIndex = currentState.selectedIndex;
       // נדחה מעט כדי לוודא שה-ScrollController מוכן
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -667,10 +664,6 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
       if (state is TextBookLoaded && mounted) {
         // עדכון קישורים רלוונטיים כשנטענים קישורים חדשים ב-Bloc
         _refreshRelevantLinks(state);
-        if (state.selectedIndex != _lastObservedSelectedIndex) {
-          _preferSelectedIndexNextSync = state.selectedIndex != null;
-          _lastObservedSelectedIndex = state.selectedIndex;
-        }
         _syncWithMainText(state);
         _updateHighlights(state);
       }
@@ -857,7 +850,6 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
         _content = lines;
         _isLoading = false;
         _lastSyncedIndex = null; // איפוס לסנכרון ראשוני
-        _preferSelectedIndexNextSync = false;
       });
 
       // סנכרון ראשוני - נדחה מעט כדי לוודא שה-ScrollController מוכן
@@ -908,22 +900,12 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
       return;
     }
 
-    // קביעת האינדקס הנוכחי בטקסט הראשי:
-    // בחירה ידנית חדשה (selectedIndex) מקבלת קדימות חד-פעמית,
-    // וביתר הזמן נצמדים ל-visibleIndices כדי לשמור על גלילה חלקה.
-    final useSelectedIndex =
-        _preferSelectedIndexNextSync && state.selectedIndex != null;
+    final currentMainIndex = state.pageShapeAnchorIndex ??
+        (state.visibleIndices.isNotEmpty
+            ? state.visibleIndices.first
+            : state.selectedIndex);
 
-    int currentMainIndex;
-    if (useSelectedIndex) {
-      currentMainIndex = state.selectedIndex!;
-      _preferSelectedIndexNextSync = false;
-    } else if (state.visibleIndices.isNotEmpty) {
-      currentMainIndex = state.visibleIndices.first;
-    } else if (state.selectedIndex != null) {
-      // fallback למקרה שאין visibleIndices
-      currentMainIndex = state.selectedIndex!;
-    } else {
+    if (currentMainIndex == null) {
       return; // אין מידע על מיקום נוכחי
     }
 

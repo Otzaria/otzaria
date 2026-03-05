@@ -49,6 +49,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     on<ToggleNikud>(_onToggleNikud);
     on<UpdateVisibleIndecies>(_onUpdateVisibleIndecies);
     on<UpdateSelectedIndex>(_onUpdateSelectedIndex);
+    on<SelectAndScrollToIndex>(_onSelectAndScrollToIndex);
     on<HighlightLine>(_onHighlightLine);
     on<ClearHighlightedLine>(_onClearHighlightedLine);
     on<TogglePinLeftPane>(_onTogglePinLeftPane);
@@ -249,6 +250,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         selectedTextEnd: state is TextBookLoaded
             ? (state as TextBookLoaded).selectedTextEnd
             : null,
+        pageShapeAnchorIndex:
+            visibleIndices.isNotEmpty ? visibleIndices.first : null,
+        pageShapePreferSelectedNextSync: false,
       ));
 
       // ── שלב 5: טעינות ברקע - לא חוסמות את ה-UI ──
@@ -447,11 +451,21 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         selectedIndex: index,
       );
 
+      final shouldUseSelected =
+          currentState.pageShapePreferSelectedNextSync && index != null;
+      final pageShapeAnchorIndex = shouldUseSelected
+          ? index
+          : (event.visibleIndecies.isNotEmpty
+              ? event.visibleIndecies.first
+              : index);
+
       emit(currentState.copyWith(
         visibleIndices: event.visibleIndecies,
         currentTitle: newTitle,
         selectedIndex: index,
         visibleLinks: visibleLinks,
+        pageShapeAnchorIndex: pageShapeAnchorIndex,
+        pageShapePreferSelectedNextSync: false,
       ));
     }
   }
@@ -469,18 +483,60 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     UpdateSelectedIndex event,
     Emitter<TextBookState> emit,
   ) {
-    if (state is TextBookLoaded) {
-      final currentState = state as TextBookLoaded;
-      final visibleLinks = _getVisibleLinks(
-        links: currentState.links,
-        visibleIndices: currentState.visibleIndices,
-        selectedIndex: event.index,
+    if (state is! TextBookLoaded) return;
+    final currentState = state as TextBookLoaded;
+    _emitSelectedIndex(
+      currentState,
+      emit,
+      event.index,
+      preferForPageShape: true,
+    );
+  }
+
+  void _onSelectAndScrollToIndex(
+    SelectAndScrollToIndex event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is! TextBookLoaded) return;
+    final currentState = state as TextBookLoaded;
+    if (currentState.content.isEmpty) return;
+
+    final boundedIndex = event.index.clamp(0, currentState.content.length - 1);
+
+    _emitSelectedIndex(
+      currentState,
+      emit,
+      boundedIndex,
+      preferForPageShape: true,
+    );
+
+    if (scrollController.isAttached) {
+      scrollController.scrollTo(
+        index: boundedIndex,
+        duration: Duration(milliseconds: event.durationMs),
+        alignment: event.alignment,
       );
-      emit(currentState.copyWith(
-        selectedIndex: event.index,
-        visibleLinks: visibleLinks,
-      ));
     }
+  }
+
+  void _emitSelectedIndex(
+    TextBookLoaded currentState,
+    Emitter<TextBookState> emit,
+    int? index, {
+    required bool preferForPageShape,
+  }) {
+    final visibleLinks = _getVisibleLinks(
+      links: currentState.links,
+      visibleIndices: currentState.visibleIndices,
+      selectedIndex: index,
+    );
+
+    emit(currentState.copyWith(
+      selectedIndex: index,
+      visibleLinks: visibleLinks,
+      pageShapeAnchorIndex: index ?? currentState.pageShapeAnchorIndex,
+      pageShapePreferSelectedNextSync: preferForPageShape && index != null,
+    ));
   }
 
   void _onHighlightLine(

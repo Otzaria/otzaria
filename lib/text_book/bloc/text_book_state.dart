@@ -101,6 +101,8 @@ class TextBookLoaded extends TextBookState {
   final int? selectedTextStart;
   final int? selectedTextEnd;
   final int? highlightedLine;
+  final int? pageShapeAnchorIndex;
+  final bool pageShapePreferSelectedNextSync;
 
   // Editor state
   final bool isEditorOpen;
@@ -144,6 +146,8 @@ class TextBookLoaded extends TextBookState {
     this.selectedTextStart,
     this.selectedTextEnd,
     this.highlightedLine,
+    this.pageShapeAnchorIndex,
+    this.pageShapePreferSelectedNextSync = false,
     this.isEditorOpen = false,
     this.editorIndex,
     this.editorSectionId,
@@ -183,6 +187,8 @@ class TextBookLoaded extends TextBookState {
       selectedTextStart: null,
       selectedTextEnd: null,
       highlightedLine: null,
+      pageShapeAnchorIndex: index,
+      pageShapePreferSelectedNextSync: false,
       isEditorOpen: false,
       editorIndex: null,
       editorSectionId: null,
@@ -222,6 +228,8 @@ class TextBookLoaded extends TextBookState {
     int? selectedTextStart,
     int? selectedTextEnd,
     int? highlightedLine,
+    int? pageShapeAnchorIndex,
+    bool? pageShapePreferSelectedNextSync,
     bool clearHighlight = false,
     bool? isEditorOpen,
     int? editorIndex,
@@ -262,6 +270,9 @@ class TextBookLoaded extends TextBookState {
       selectedTextEnd: selectedTextEnd ?? this.selectedTextEnd,
       highlightedLine:
           clearHighlight ? null : (highlightedLine ?? this.highlightedLine),
+      pageShapeAnchorIndex: pageShapeAnchorIndex ?? this.pageShapeAnchorIndex,
+      pageShapePreferSelectedNextSync: pageShapePreferSelectedNextSync ??
+          this.pageShapePreferSelectedNextSync,
       isEditorOpen: isEditorOpen ?? this.isEditorOpen,
       editorIndex: editorIndex ?? this.editorIndex,
       editorSectionId: editorSectionId ?? this.editorSectionId,
@@ -296,6 +307,8 @@ class TextBookLoaded extends TextBookState {
         selectedTextStart,
         selectedTextEnd,
         highlightedLine,
+        pageShapeAnchorIndex,
+        pageShapePreferSelectedNextSync,
         isEditorOpen,
         editorIndex,
         editorSectionId,

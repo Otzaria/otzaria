@@ -117,6 +117,21 @@ class UpdateSelectedIndex extends TextBookEvent {
   List<Object?> get props => [index];
 }
 
+class SelectAndScrollToIndex extends TextBookEvent {
+  final int index;
+  final int durationMs;
+  final double? alignment;
+
+  const SelectAndScrollToIndex(
+    this.index, {
+    this.durationMs = 300,
+    this.alignment,
+  });
+
+  @override
+  List<Object?> get props => [index, durationMs, alignment];
+}
+
 class HighlightLine extends TextBookEvent {
   final int lineIndex;
 

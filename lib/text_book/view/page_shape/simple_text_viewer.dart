@@ -107,14 +107,26 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   void _scrollToCurrentPosition() {
     final bloc = context.read<TextBookBloc>();
     final state = bloc.state;
-    if (state is TextBookLoaded && _scrollController.isAttached) {
-      final targetIndex = state.selectedIndex ??
-          (state.visibleIndices.isNotEmpty ? state.visibleIndices.first : null);
+    if (state is! TextBookLoaded) return;
 
-      if (targetIndex != null && targetIndex < widget.content.length) {
-        _scrollController.jumpTo(index: targetIndex);
-      }
-    }
+    final targetIndex = state.selectedIndex ??
+        (state.visibleIndices.isNotEmpty ? state.visibleIndices.first : null);
+    if (targetIndex == null || targetIndex >= widget.content.length) return;
+
+    bloc.add(SelectAndScrollToIndex(
+      targetIndex,
+      durationMs: 1,
+    ));
+  }
+
+  void _selectAndScrollTo(int index, {int durationMs = 300, double? alignment}) {
+    context.read<TextBookBloc>().add(
+          SelectAndScrollToIndex(
+            index,
+            durationMs: durationMs,
+            alignment: alignment,
+          ),
+        );
   }
 
   /// טיפול באירועי מקלדת - חיצים לניווט
@@ -130,14 +142,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       final currentIndex = state.selectedIndex ?? 0;
       final nextIndex = (currentIndex + 1).clamp(0, widget.content.length - 1);
       if (nextIndex != currentIndex) {
-        context.read<TextBookBloc>().add(UpdateSelectedIndex(nextIndex));
-        if (_scrollController.isAttached) {
-          _scrollController.scrollTo(
-            index: nextIndex,
-            duration: const Duration(milliseconds: 200),
-            alignment: 0.5,
-          );
-        }
+        _selectAndScrollTo(nextIndex, durationMs: 200, alignment: 0.5);
       }
       return true;
     }
@@ -146,14 +151,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       final currentIndex = state.selectedIndex ?? 0;
       final prevIndex = (currentIndex - 1).clamp(0, widget.content.length - 1);
       if (prevIndex != currentIndex) {
-        context.read<TextBookBloc>().add(UpdateSelectedIndex(prevIndex));
-        if (_scrollController.isAttached) {
-          _scrollController.scrollTo(
-            index: prevIndex,
-            duration: const Duration(milliseconds: 200),
-            alignment: 0.5,
-          );
-        }
+        _selectAndScrollTo(prevIndex, durationMs: 200, alignment: 0.5);
       }
       return true;
     }
@@ -162,14 +160,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     if (event.logicalKey == LogicalKeyboardKey.pageDown) {
       final currentIndex = state.selectedIndex ?? 0;
       final nextIndex = (currentIndex + 10).clamp(0, widget.content.length - 1);
-      context.read<TextBookBloc>().add(UpdateSelectedIndex(nextIndex));
-      if (_scrollController.isAttached) {
-        _scrollController.scrollTo(
-          index: nextIndex,
-          duration: const Duration(milliseconds: 300),
-          alignment: 0.5,
-        );
-      }
+      _selectAndScrollTo(nextIndex, alignment: 0.5);
       return true;
     }
 
@@ -177,27 +168,14 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     if (event.logicalKey == LogicalKeyboardKey.pageUp) {
       final currentIndex = state.selectedIndex ?? 0;
       final prevIndex = (currentIndex - 10).clamp(0, widget.content.length - 1);
-      context.read<TextBookBloc>().add(UpdateSelectedIndex(prevIndex));
-      if (_scrollController.isAttached) {
-        _scrollController.scrollTo(
-          index: prevIndex,
-          duration: const Duration(milliseconds: 300),
-          alignment: 0.5,
-        );
-      }
+      _selectAndScrollTo(prevIndex, alignment: 0.5);
       return true;
     }
 
     // Home - תחילת הספר
     if (event.logicalKey == LogicalKeyboardKey.home &&
         HardwareKeyboard.instance.isControlPressed) {
-      context.read<TextBookBloc>().add(const UpdateSelectedIndex(0));
-      if (_scrollController.isAttached) {
-        _scrollController.scrollTo(
-          index: 0,
-          duration: const Duration(milliseconds: 300),
-        );
-      }
+      _selectAndScrollTo(0);
       return true;
     }
 
@@ -205,13 +183,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     if (event.logicalKey == LogicalKeyboardKey.end &&
         HardwareKeyboard.instance.isControlPressed) {
       final lastIndex = widget.content.length - 1;
-      context.read<TextBookBloc>().add(UpdateSelectedIndex(lastIndex));
-      if (_scrollController.isAttached) {
-        _scrollController.scrollTo(
-          index: lastIndex,
-          duration: const Duration(milliseconds: 300),
-        );
-      }
+      _selectAndScrollTo(lastIndex);
       return true;
     }
 
