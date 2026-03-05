@@ -6,6 +6,7 @@ import 'package:otzaria/widgets/rtl_text_field.dart';
 import 'package:otzaria/widgets/dialogs.dart';
 import 'package:otzaria/settings/settings_card.dart';
 import 'package:otzaria/widgets/custom_ui_components.dart';
+import 'package:otzaria/theme/app_theme.dart';
 
 /// טאב הגדרות לוח שנה
 class CalendarSettingsTab extends StatefulWidget {
@@ -327,7 +328,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                               child: Text(
                                 'סנכרון אחרון: ${state.googleCalendarLastSync}',
                                 style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: AppTokens.fontSM,
                                   color: Theme.of(context)
                                       .colorScheme
                                       .onSurfaceVariant,
@@ -341,7 +342,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                               child: Text(
                                 state.googleCalendarSyncError!,
                                 style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: AppTokens.fontSM,
                                   color: Theme.of(context).colorScheme.error,
                                 ),
                               ),
@@ -422,7 +423,7 @@ class _CitySearchWidgetState extends State<_CitySearchWidget> {
             style: TextStyle(
               fontWeight: FontWeight.bold,
               color: Theme.of(context).colorScheme.primary,
-              fontSize: 16,
+              fontSize: AppTokens.fontLG,
             ),
           ),
         ),
@@ -443,7 +444,7 @@ class _CitySearchWidgetState extends State<_CitySearchWidget> {
     return Container(
       decoration: BoxDecoration(
         border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppTokens.radiusSM),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,

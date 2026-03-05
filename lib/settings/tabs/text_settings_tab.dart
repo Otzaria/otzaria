@@ -5,6 +5,7 @@ import 'package:otzaria/theme/fonts.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/settings/settings_card.dart';
+import 'package:otzaria/theme/layout_tokens.dart';
 import 'package:otzaria/widgets/custom_ui_components.dart';
 
 /// טאב הגדרות תצוגת ספרים
@@ -46,7 +47,7 @@ class TextSettingsTab extends StatelessWidget {
       children: [
         LayoutBuilder(
           builder: (context, constraints) {
-            final isNarrow = constraints.maxWidth < 600;
+            final isNarrow = constraints.maxWidth < LayoutBreakpoints.compact;
             final colorScheme = Theme.of(context).colorScheme;
             final divider = Divider(
               height: 1,
@@ -366,7 +367,7 @@ class TextSettingsTab extends StatelessWidget {
       children: [
         LayoutBuilder(
           builder: (context, constraints) {
-            final isNarrow = constraints.maxWidth < 600;
+            final isNarrow = constraints.maxWidth < LayoutBreakpoints.compact;
             final colorScheme = Theme.of(context).colorScheme;
             final divider = Divider(
               height: 1,

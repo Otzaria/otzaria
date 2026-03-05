@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/theme/app_theme.dart';
 
 /// Divider זהה לסגנון הפנימי של SettingsCard — לשימוש בתוכן מורחב (AnimatedSize וכד')
 ///
@@ -81,7 +82,7 @@ class SettingsCard extends StatelessWidget {
           clipBehavior: Clip.antiAlias,
           shape: const RoundedRectangleBorder(
             side: BorderSide.none,
-            borderRadius: BorderRadius.all(Radius.circular(20)),
+            borderRadius: BorderRadius.all(Radius.circular(AppTokens.radiusXL)),
           ),
           child: Column(
             children: _buildChildrenWithDividers(context),

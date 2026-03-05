@@ -7,6 +7,7 @@ import 'package:otzaria/settings/tabs/settings_tabs_exports.dart';
 import 'package:otzaria/settings/services/safer_mode/protected_settings_wrapper.dart';
 import 'package:otzaria/widgets/keyboard_navigator.dart';
 import 'package:otzaria/settings/settings_card.dart';
+import 'package:otzaria/theme/layout_tokens.dart';
 
 /// רוחב מקסימלי לתוכן ההגדרות — מרכוז על מסכים רחבים
 const double kSettingsContentMaxWidth = 860.0;
@@ -103,7 +104,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
         textDirection: TextDirection.rtl,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final isMobile = constraints.maxWidth < 600;
+            final isMobile = constraints.maxWidth < LayoutBreakpoints.compact;
 
             // ── מצב מובייל ────────────────────────────────────────────────
             if (isMobile) {

@@ -25,6 +25,8 @@ import 'package:otzaria/services/data_collection_service.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/widgets/custom_ui_components.dart';
 import 'package:otzaria/settings/settings_card.dart';
+import 'package:otzaria/theme/app_theme.dart';
+import 'package:otzaria/theme/layout_tokens.dart';
 
 /// טאב "אוצריא" — גרסאות, נתיב ספרייה, גיבוי, מצב סייפר, איפוס.
 class SystemSettingsTab extends StatefulWidget {
@@ -538,7 +540,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
 
         // תוכן מורחב של גיבוי — אנימציה
         AnimatedSize(
-          duration: const Duration(milliseconds: 250),
+          duration: AppTokens.animNormal,
           curve: Curves.easeInOut,
           child: _isBackupExpanded
               ? Column(
@@ -659,7 +661,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
 
         // תוכן מורחב של סייפר — אנימציה
         AnimatedSize(
-          duration: const Duration(milliseconds: 250),
+          duration: AppTokens.animNormal,
           curve: Curves.easeInOut,
           child: _isCypherExpanded
               ? Column(
@@ -838,7 +840,7 @@ class _MemorialCardsGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, constraints) {
-      if (constraints.maxWidth < 600) {
+      if (constraints.maxWidth < LayoutBreakpoints.compact) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
