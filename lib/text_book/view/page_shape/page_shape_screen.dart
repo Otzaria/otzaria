@@ -589,6 +589,8 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
       ItemPositionsListener.create();
   List<Link> _relevantLinks = [];
   int? _lastSyncedIndex; // האינדקס האחרון שסונכרן
+  int? _lastObservedSelectedIndex; // הבחירה האחרונה שנצפתה
+  bool _preferSelectedIndexNextSync = false; // סנכרון חד-פעמי אחרי בחירה ידנית
   StreamSubscription<TextBookState>? _blocSubscription;
   Set<int> _highlightedIndices = {}; // אינדקסים להדגשה
   bool _highlightEnabled = false;
@@ -652,6 +654,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
     // סנכרון ראשוני עם ה-state הנוכחי
     final currentState = context.read<TextBookBloc>().state;
     if (currentState is TextBookLoaded && mounted) {
+      _lastObservedSelectedIndex = currentState.selectedIndex;
       // נדחה מעט כדי לוודא שה-ScrollController מוכן
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -662,10 +665,29 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
 
     _blocSubscription = context.read<TextBookBloc>().stream.listen((state) {
       if (state is TextBookLoaded && mounted) {
+        // עדכון קישורים רלוונטיים כשנטענים קישורים חדשים ב-Bloc
+        _refreshRelevantLinks(state);
+        if (state.selectedIndex != _lastObservedSelectedIndex) {
+          _preferSelectedIndexNextSync = state.selectedIndex != null;
+          _lastObservedSelectedIndex = state.selectedIndex;
+        }
         _syncWithMainText(state);
         _updateHighlights(state);
       }
     });
+  }
+
+  /// עדכון קישורים רלוונטיים מה-state (נקרא בכל שינוי state)
+  void _refreshRelevantLinks(TextBookLoaded state) {
+    if (state.links.length == _relevantLinks.length &&
+        _relevantLinks.isNotEmpty) {
+      return; // הקישורים לא השתנו
+    }
+    _relevantLinks = state.links.where((link) {
+      final linkTitle = utils.getTitleFromPath(link.path2);
+      return linkTitle == widget.commentatorName &&
+          LinkTypes.isCommentaryOrTargum(link.connectionType);
+    }).toList();
   }
 
   void _updateHighlights(TextBookLoaded state) {
@@ -724,12 +746,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
       if (!mounted) return;
 
       if (state is TextBookLoaded) {
-        // סינון קישורים לפי שם המפרש ולפי סוג הקישור (COMMENTARY/TARGUM)
-        _relevantLinks = state.links.where((link) {
-          final linkTitle = utils.getTitleFromPath(link.path2);
-          return linkTitle == widget.commentatorName &&
-              LinkTypes.isCommentaryOrTargum(link.connectionType);
-        }).toList();
+        _refreshRelevantLinks(state);
       }
 
       // מציאת הספר המלא של המפרש עם categoryId
@@ -840,6 +857,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
         _content = lines;
         _isLoading = false;
         _lastSyncedIndex = null; // איפוס לסנכרון ראשוני
+        _preferSelectedIndexNextSync = false;
       });
 
       // סנכרון ראשוני - נדחה מעט כדי לוודא שה-ScrollController מוכן
@@ -890,12 +908,20 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
       return;
     }
 
-    // קביעת האינדקס הנוכחי בטקסט הראשי
-    // נעדיף את visibleIndices כי זה המיקום האמיתי בגלילה
+    // קביעת האינדקס הנוכחי בטקסט הראשי:
+    // בחירה ידנית חדשה (selectedIndex) מקבלת קדימות חד-פעמית,
+    // וביתר הזמן נצמדים ל-visibleIndices כדי לשמור על גלילה חלקה.
+    final useSelectedIndex =
+        _preferSelectedIndexNextSync && state.selectedIndex != null;
+
     int currentMainIndex;
-    if (state.visibleIndices.isNotEmpty) {
+    if (useSelectedIndex) {
+      currentMainIndex = state.selectedIndex!;
+      _preferSelectedIndexNextSync = false;
+    } else if (state.visibleIndices.isNotEmpty) {
       currentMainIndex = state.visibleIndices.first;
     } else if (state.selectedIndex != null) {
+      // fallback למקרה שאין visibleIndices
       currentMainIndex = state.selectedIndex!;
     } else {
       return; // אין מידע על מיקום נוכחי
@@ -963,15 +989,6 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
     return TextBookStateBuilder(
       loadingWidget: const SizedBox(),
       builder: (context, state) {
-        // ניסיון סנכרון נוסף כשה-widget נבנה (במקרה שהסנכרון הראשוני נכשל)
-        if (_lastSyncedIndex == null && _scrollController.isAttached) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              _syncWithMainText(state);
-            }
-          });
-        }
-
         return BlocBuilder<SettingsBloc, SettingsState>(
           builder: (context, settingsState) {
             // מפרשים תחתונים משתמשים בגופן מההגדרות, עליונים בגופן הרגיל
