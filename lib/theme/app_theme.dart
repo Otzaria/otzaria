@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 class AppTokens {
   // ── Spacing ————————————————————————————————
   static const double spaceXS = 4;
@@ -27,4 +29,15 @@ class AppTokens {
   static const Duration animFast = Duration(milliseconds: 150);
   static const Duration animNormal = Duration(milliseconds: 250);
   static const Duration animSlow = Duration(milliseconds: 400);
+}
+
+/// סגנונות טקסט מובנים לשימוש עקבי בכל האפליקציה
+class AppTextStyles {
+  AppTextStyles._();
+
+  /// כותרת שורת הגדרה (16sp) — לשימוש ב-ListTile title בכל מסכי ההגדרות
+  static const TextStyle settingTitle = TextStyle(fontSize: AppTokens.fontLG);
+
+  /// תת-כותרת שורת הגדרה (13sp) — לשימוש ב-ListTile subtitle
+  static const TextStyle settingSubtitle = TextStyle(fontSize: 13);
 }

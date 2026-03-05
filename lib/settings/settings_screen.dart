@@ -7,10 +7,11 @@ import 'package:otzaria/settings/tabs/settings_tabs_exports.dart';
 import 'package:otzaria/settings/services/safer_mode/protected_settings_wrapper.dart';
 import 'package:otzaria/widgets/keyboard_navigator.dart';
 import 'package:otzaria/settings/settings_card.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/layout_tokens.dart';
 
 /// רוחב מקסימלי לתוכן ההגדרות — מרכוז על מסכים רחבים
-const double kSettingsContentMaxWidth = 860.0;
+// kSettingsContentMaxWidth הוסר — משתמשים ב-LayoutConstraints.panelContentMaxWidth מ-layout_tokens.dart
 
 class MySettingsScreen extends StatefulWidget {
   const MySettingsScreen({super.key});
@@ -93,11 +94,8 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    // [תיקון] רקע שחור במצב כהה — הכרטיסים בולטים מעל הרקע
-    final bgColor = isDark
-        ? Colors.black
-        : colorScheme.surfaceContainerHighest.withValues(alpha: 0.28);
+    // panelBackground מוגדר ב-AppSurfaces ומשמש גם ספריה, כלים, והגדרות
+    final bgColor = AppSurfaces.panelBackground(context);
 
     return ProtectedSettingsWrapper(
       child: Directionality(
@@ -347,8 +345,8 @@ class _SettingsContentPaneState extends State<_SettingsContentPane> {
         child: Align(
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
-            constraints:
-                const BoxConstraints(maxWidth: kSettingsContentMaxWidth),
+            constraints: const BoxConstraints(
+                maxWidth: LayoutConstraints.panelContentMaxWidth),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
