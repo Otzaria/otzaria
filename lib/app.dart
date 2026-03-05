@@ -1,19 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/theme/app_colors.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:otzaria/navigation/main_window_screen.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 
-/// קבועי צבעים לעיצוב האפליקציה
-class AppColors {
-  static const Color darkScaffold = Color(0xFF242424);
-  static const Color darkCard = Color(0xFF333333);
-  static const Color darkAppBar = Color(0xFF2A2A2A);
-  static const Color darkOnSurface = Color(0xFFE0E0E0);
-  static const Color darkOutline = Color(0xFF4A4A4A);
-  static const Color dialogBarrier = Color(0x22000000);
-}
+// AppColors הועבר ל-lib/theme/app_colors.dart
 
 class App extends StatelessWidget {
   const App({super.key});

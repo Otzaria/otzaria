@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/widgets/mixins/dialog_navigation_mixin.dart';
+import 'package:otzaria/theme/app_theme.dart';
 
 // ── קבועי סגנון גלובליים ─────────────────────────────────────────────────────
-/// סגנון כותרת בשורת הגדרה (16sp, ירשה צבע מהתמה)
-const kSettingsTitleStyle = TextStyle(fontSize: 16);
+/// סגנון כותרת בשורת הגדרה — alias ל-[AppTextStyles.settingTitle]
+/// @deprecated השתמש ב-AppTextStyles.settingTitle ישירות
+const kSettingsTitleStyle = AppTextStyles.settingTitle;
 
-/// סגנון תת-כותרת בשורת הגדרה (13sp, ירשה צבע מהתמה)
-const kSettingsSubtitleStyle = TextStyle(fontSize: 13);
+/// סגנון תת-כותרת בשורת הגדרה — alias ל-[AppTextStyles.settingSubtitle]
+/// @deprecated השתמש ב-AppTextStyles.settingSubtitle ישירות
+const kSettingsSubtitleStyle = AppTextStyles.settingSubtitle;
 
 /// רווח אנכי סטנדרטי בין כרטיסי הגדרות
 const kSettingsCardSpacing = SizedBox(height: 16);
