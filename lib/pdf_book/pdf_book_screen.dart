@@ -2107,8 +2107,16 @@ class _ZoomPercentageDisplayState extends State<_ZoomPercentageDisplay> {
 
     return Center(
       child: _isEditing
-          ? SizedBox(
+          ? Container(
               width: 60,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF9ECDF),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+                  width: 1,
+                ),
+              ),
               child: TextField(
                 controller: _textController,
                 focusNode: _focusNode,
@@ -2123,7 +2131,7 @@ class _ZoomPercentageDisplayState extends State<_ZoomPercentageDisplay> {
                       EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                   isDense: true,
                   suffixText: '%',
-                  border: OutlineInputBorder(),
+                  border: InputBorder.none,
                 ),
                 onSubmitted: _handleSubmitted,
               ),
