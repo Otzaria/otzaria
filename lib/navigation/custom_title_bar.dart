@@ -476,22 +476,21 @@ class _CustomTitleBarState extends State<CustomTitleBar>
   /// בונה אייקון הצמדה inline עם hover state מהטאב
   Widget _buildPinIconInline(
       BuildContext context, OpenedTab tab, bool isHovered) {
-    // אם הטאב לא מוצמד ואין hover, לא מציגים כלום
-    if (!tab.isPinned && !isHovered) {
-      return const SizedBox.shrink();
-    }
-
     return GestureDetector(
       onTap: () => context.read<TabsBloc>().add(TogglePinTab(tab)),
       child: Padding(
-        padding: const EdgeInsets.only(left: 4.0),
+        padding: const EdgeInsets.only(right: 1.0),
         child: Tooltip(
           message: tab.isPinned ? 'בטל הצמדה' : 'הצמד כרטיסיה',
-          child: Icon(
-            tab.isPinned
-                ? FluentIcons.pin_24_filled
-                : FluentIcons.pin_24_regular,
-            size: 14,
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 150),
+            opacity: (tab.isPinned || isHovered) ? 1.0 : 0.0,
+            child: Icon(
+              tab.isPinned
+                  ? FluentIcons.pin_24_filled
+                  : FluentIcons.pin_24_regular,
+              size: 14,
+            ),
           ),
         ),
       ),
