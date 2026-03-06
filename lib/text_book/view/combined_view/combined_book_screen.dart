@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'package:flutter/services.dart';
@@ -26,7 +27,6 @@ import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/widgets/scrollable_positioned_list_scrollbar.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
 import 'package:otzaria/text_book/view/selection/text_selection_manager.dart';
-import 'package:otzaria/text_book/view/selection/enhanced_gesture_detector.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
 
 class CombinedView extends StatefulWidget {
@@ -65,6 +65,9 @@ class _CombinedViewState extends State<CombinedView> {
       ValueNotifier<String?>(null);
   // שמירת האינדקס של השורה שממנה הטקסט הודגש
   final ValueNotifier<int?> _savedSelectedIndex = ValueNotifier<int?>(null);
+
+  // Timer לדחיית ניקוי בחירה - מאפשר ל-SelectionArea להתייצב
+  Timer? _selectionClearTimer;
 
   // שמירת reference ל-BLoC לשימוש ב-listeners
   late final TextBookBloc _textBookBloc;
@@ -181,6 +184,7 @@ class _CombinedViewState extends State<CombinedView> {
 
   @override
   void dispose() {
+    _selectionClearTimer?.cancel();
     _previewScrollController?.dispose();
     widget.tab.positionsListener.itemPositions.removeListener(_onScroll);
     widget.tab.positionsListener.itemPositions.removeListener(_updateTabIndex);
@@ -603,9 +607,6 @@ $textWithBreaks
     // משתמש בטקסט השמור שנבחר לפני פתיחת התפריט
     final plainText = _savedSelectedText.value;
 
-    debugPrint('_copyFormattedText called with: "$plainText"');
-    debugPrint('_currentSelectedIndex: ${_currentSelectedIndex.value}');
-
     if (plainText == null || plainText.trim().isEmpty) {
       UiSnack.show('אנא בחר טקסט להעתקה');
       return;
@@ -755,74 +756,93 @@ $textWithBreaks
               key: _selectionAreaKey,
               // SelectionArea אחד לכל הרשימה - מאפשר בחירה רציפה בין פסקאות
               contextMenuBuilder: (context, selectableRegionState) {
+                debugPrint('🟢 SelectionArea.contextMenuBuilder called');
                 return const SizedBox.shrink();
               },
               onSelectionChanged: (selection) {
+                // מבטל Timer קודם אם קיים
+                _selectionClearTimer?.cancel();
+                
                 final plain = selection?.plainText;
-                if (plain == null || plain.trim().isEmpty) {
-                  // אם הבחירה נוקתה, יוצאים ממצב בחירה
-                  _selectionManager.exitSelectionMode();
-                  _savedSelectedText.value = null;
-                  _savedSelectedIndex.value = null;
-                  _currentSelectedIndex.value = null;
-                  widget.onSelectedTextChanged?.call(null);
-                  return;
-                }
-
-                // כניסה למצב בחירה כשיש טקסט נבחר
-                if (!_selectionManager.isInSelectionMode) {
-                  // שימוש באינדקס הראשון הנראה במקום 0
-                  final positions =
-                      widget.tab.positionsListener.itemPositions.value;
-                  final firstVisibleIndex =
-                      positions.isNotEmpty ? positions.first.index : 0;
-                  _selectionManager.setAnchor(firstVisibleIndex);
-                }
-
-                // חשוב: כדי ש-Ctrl+C יעבוד מיד אחרי סימון טקסט עם העכבר
-                // נוודא שהפוקוס נמצא על אזור הקריאה.
-                _focusNode.requestFocus();
-
-                // מחשב את מספר השורה המדויק של הטקסט המודגש
-                // משתמש באותה לוגיקה כמו בדיווח שגיאות
-                final state = _textBookBloc.state;
-                int? foundIndex;
-                var fixedPlain = plain;
-
-                if (state is TextBookLoaded) {
-                  // מקבל את השורה הראשונה הנראית
-                  final baseIndex = state.visibleIndices.isNotEmpty
-                      ? state.visibleIndices.first
-                      : 0;
-
-                  // בונה את הטקסט הנראה
-                  final visibleText = state.visibleIndices
-                      .map((idx) =>
-                          widget.data[idx].replaceAll(RegExp(r'<[^>]*>'), ''))
-                      .join('\n');
-
-                  fixedPlain =
-                      _restoreNewlinesFromVisibleText(plain, visibleText);
-
-                  // מוצא את המיקום של הטקסט המודגש
-                  final selectionStart = visibleText.indexOf(fixedPlain);
-
-                  if (selectionStart >= 0) {
-                    // סופר כמה שורות יש לפני הטקסט המודגש
-                    final before = visibleText.substring(0, selectionStart);
-                    final offset = '\n'.allMatches(before).length;
-                    foundIndex = baseIndex + offset;
+                
+                // אם יש טקסט נבחר, שומרים אותו מיד
+                if (plain != null && plain.trim().isNotEmpty) {
+                  
+                  // כניסה למצב בחירה כשיש טקסט נבחר
+                  if (!_selectionManager.isInSelectionMode) {
+                    // שימוש באינדקס הראשון הנראה במקום 0
+                    final positions =
+                        widget.tab.positionsListener.itemPositions.value;
+                    final firstVisibleIndex =
+                        positions.isNotEmpty ? positions.first.index : 0;
+                    _selectionManager.setAnchor(firstVisibleIndex);
                   }
 
-                  // fallback: אם לא הצלחנו לחשב אינדקס, נשתמש בשורה שנבחרה (אם קיימת)
-                  foundIndex ??= state.selectedIndex;
-                }
+                  // חשוב: כדי ש-Ctrl+C יעבוד מיד אחרי סימון טקסט עם העכבר
+                  // נוודא שהפוקוס נמצא על אזור הקריאה.
+                  _focusNode.requestFocus();
 
-                if (mounted) {
-                  _savedSelectedText.value = fixedPlain;
-                  _savedSelectedIndex.value = foundIndex;
-                  _currentSelectedIndex.value = foundIndex;
-                  widget.onSelectedTextChanged?.call(fixedPlain);
+                  // מחשב את מספר השורה המדויק של הטקסט המודגש
+                  // משתמש באותה לוגיקה כמו בדיווח שגיאות
+                  final state = _textBookBloc.state;
+                  int? foundIndex;
+                  var fixedPlain = plain;
+
+                  if (state is TextBookLoaded) {
+                    // מקבל את השורה הראשונה הנראית
+                    final baseIndex = state.visibleIndices.isNotEmpty
+                        ? state.visibleIndices.first
+                        : 0;
+
+                    // בונה את הטקסט הנראה
+                    final visibleText = state.visibleIndices
+                        .map((idx) =>
+                            widget.data[idx].replaceAll(RegExp(r'<[^>]*>'), ''))
+                        .join('\n');
+
+                    fixedPlain =
+                        _restoreNewlinesFromVisibleText(plain, visibleText);
+
+                    // מוצא את המיקום של הטקסט המודגש
+                    final selectionStart = visibleText.indexOf(fixedPlain);
+
+                    if (selectionStart >= 0) {
+                      // סופר כמה שורות יש לפני הטקסט המודגש
+                      final before = visibleText.substring(0, selectionStart);
+                      final offset = '\n'.allMatches(before).length;
+                      foundIndex = baseIndex + offset;
+                    }
+
+                    // fallback: אם לא הצלחנו לחשב אינדקס, נשתמש בשורה שנבחרה (אם קיימת)
+                    foundIndex ??= state.selectedIndex;
+                  }
+
+                  if (mounted) {
+                    _savedSelectedText.value = fixedPlain;
+                    _savedSelectedIndex.value = foundIndex;
+                    _currentSelectedIndex.value = foundIndex;
+                    widget.onSelectedTextChanged?.call(fixedPlain);
+                  }
+                }
+                // אם הטקסט ריק - מתזמנים ניקוי בחירה אחרי 100ms
+                // זה נותן ל-SelectionArea זמן להתייצב ולא מנקה בחירה תקינה
+                else {
+                  debugPrint('🟢 Empty selection, scheduling clear in 100ms');
+                  _selectionClearTimer = Timer(const Duration(milliseconds: 100), () {
+                    // בודק שוב אם באמת אין בחירה
+                    if (mounted && 
+                        (selection?.plainText == null || 
+                         selection!.plainText.trim().isEmpty)) {
+                      debugPrint('🟢 Timer expired, clearing selection');
+                      // רק עכשיו מנקים את הבחירה
+                      _savedSelectedText.value = null;
+                      _savedSelectedIndex.value = null;
+                      _currentSelectedIndex.value = null;
+                      widget.onSelectedTextChanged?.call(null);
+                    } else {
+                      debugPrint('🟢 Timer expired but selection exists, keeping it');
+                    }
+                  });
                 }
               },
               child: Directionality(
@@ -1015,78 +1035,72 @@ $textWithBreaks
           decoration: backgroundColor != null
               ? BoxDecoration(color: backgroundColor)
               : null,
-          child: EnhancedGestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onDragSelectionStart: () {
-              // כניסה למצב בחירה בגלל drag
-              if (!_selectionManager.isInSelectionMode) {
-                _selectionManager.setAnchor(index);
-              }
-            },
-            onSingleTap: () {
-              _focusNode.requestFocus();
-              // מאפס את הטקסט השמור כשלוחצים על הפסקה
-              if (mounted) {
-                _savedSelectedText.value = null;
-                _savedSelectedIndex.value = null;
-                _currentSelectedIndex.value = null;
-                widget.onSelectedTextChanged?.call(null);
-              }
-              // פשוט מעדכן את selectedIndex - זה יגרום לבנייה מחדש
-              if (isSelected) {
-                _textBookBloc.add(const UpdateSelectedIndex(null));
-              } else {
-                _textBookBloc.add(UpdateSelectedIndex(index));
+          child: Listener(
+            // Listener לא חוסם בחירת טקסט, בניגוד ל-GestureDetector
+            onPointerDown: (event) {
+              // רק לחיצה שמאלית
+              if (event.buttons == 1) {
+                debugPrint('🔵 Listener.onPointerDown called for index $index');
 
-                // גלילה אוטומטית כך שהקטע יהיה בראש העמוד
-                // רק אם יש מפרשים להצגה ואנחנו במצב ExpansionTiles
-                if (widget.showCommentaryAsExpansionTiles &&
-                    _hasCommentaries(state, index)) {
-                  // מחכים שה-UI יתעדכן עם פתיחת המפרש, ואז קופצים למיקום
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    Future.delayed(const Duration(milliseconds: 300), () {
-                      if (mounted && widget.tab.scrollController.isAttached) {
-                        // גלילה חכמה: נגלול כך שהטקסט הבא (index + 1) יהיה בתחתית
-                        // המפרשים תופסים עד 75% מהבלוק
-                        // נרצה שהטקסט הבא יהיה ב-90% מהבלוק (כלומר 10% מלמטה)
-                        // כך נוודא שרואים: 15% טקסט למעלה, 75% מפרשים, 10% טקסט למטה
-                        final nextIndex =
-                            (index + 1).clamp(0, widget.data.length - 1);
-                        widget.tab.scrollController.scrollTo(
-                          index: nextIndex,
-                          alignment:
-                              0.9, // הטקסט הבא יהיה ב-90% מלמעלה (כלומר 10% מלמטה)
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeInOut,
-                        );
-                      }
+                // אם יש טקסט נבחר, לא מנקים אותו ולא מבצעים פעולה
+                if (_savedSelectedText.value != null &&
+                    _savedSelectedText.value!.trim().isNotEmpty) {
+                  return;
+                }
+
+                _focusNode.requestFocus();
+                // מאפס את הטקסט השמור כשלוחצים על הפסקה
+                if (mounted) {
+                  _savedSelectedText.value = null;
+                  _savedSelectedIndex.value = null;
+                  _currentSelectedIndex.value = null;
+                  widget.onSelectedTextChanged?.call(null);
+                }
+                // פשוט מעדכן את selectedIndex - זה יגרום לבנייה מחדש
+                if (isSelected) {
+                  _textBookBloc.add(const UpdateSelectedIndex(null));
+                } else {
+                  _textBookBloc.add(UpdateSelectedIndex(index));
+
+                  // גלילה אוטומטית כך שהקטע יהיה בראש העמוד
+                  // רק אם יש מפרשים להצגה ואנחנו במצב ExpansionTiles
+                  if (widget.showCommentaryAsExpansionTiles &&
+                      _hasCommentaries(state, index)) {
+                    // מחכים שה-UI יתעדכן עם פתיחת המפרש, ואז קופצים למיקום
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      Future.delayed(const Duration(milliseconds: 300), () {
+                        if (mounted && widget.tab.scrollController.isAttached) {
+                          // גלילה חכמה: נגלול כך שהטקסט הבא (index + 1) יהיה בתחתית
+                          // המפרשים תופסים עד 75% מהבלוק
+                          // נרצה שהטקסט הבא יהיה ב-90% מהבלוק (כלומר 10% מלמטה)
+                          // כך נוודא שרואים: 15% טקסט למעלה, 75% מפרשים, 10% טקסט למטה
+                          final nextIndex =
+                              (index + 1).clamp(0, widget.data.length - 1);
+                          widget.tab.scrollController.scrollTo(
+                            index: nextIndex,
+                            alignment:
+                                0.9, // הטקסט הבא יהיה ב-90% מלמעלה (כלומר 10% מלמטה)
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeInOut,
+                          );
+                        }
+                      });
                     });
-                  });
+                  }
                 }
               }
-            },
-            onDoubleTap: () {
-              // Double-click → בחירת פסקה שלמה
-              // הערה: SelectionArea של Flutter לא תומך בבחירה פרוגרמטית,
-              // לכן הפיצ'ר הזה לא מומש במלואו. SelectionArea יבצע את פעולת
-              // ברירת המחדל שלו (בחירת מילה). לבחירת פסקה, המשתמש יכול
-              // להשתמש ב-Shift+Click או Drag.
-              _focusNode.requestFocus();
-              _selectionManager.enterDoubleClickMode(index);
-            },
-            onShiftClick: () {
-              // Shift+Click → בחירת טווח
-              _focusNode.requestFocus();
-              if (!_selectionManager.hasAnchor()) {
-                // אם אין anchor, קובעים אותו
-                _selectionManager.setAnchor(index);
-              }
-              // SelectionArea יטפל בבחירת הטווח
-            },
-            onSecondaryTapDown: (details) {
-              // שומר את האינדקס הנוכחי לשימוש בתפריט ההקשר
-              if (mounted) {
-                _currentSelectedIndex.value = index;
+              // לחיצה ימנית - שומר את האינדקס
+              else if (event.buttons == 2) {
+                debugPrint('🔵 Listener.onPointerDown (right click) for index $index');
+                if (mounted) {
+                  // אם יש טקסט נבחר, נשתמש באינדקס שלו
+                  // אחרת נשתמש באינדקס הנוכחי
+                  if (_savedSelectedIndex.value != null) {
+                    _currentSelectedIndex.value = _savedSelectedIndex.value;
+                  } else {
+                    _currentSelectedIndex.value = index;
+                  }
+                }
               }
             },
             child: ValueListenableBuilder<String?>(

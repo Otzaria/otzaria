@@ -2146,12 +2146,14 @@ class _ZoomPercentageDisplayState extends State<_ZoomPercentageDisplay> {
                       _isEditing = true;
                       _textController.text = zoomPercentage.toString();
                     });
-                    Future.delayed(const Duration(milliseconds: 50), () {
-                      _focusNode.requestFocus();
-                      _textController.selection = TextSelection(
-                        baseOffset: 0,
-                        extentOffset: _textController.text.length,
-                      );
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) {
+                        _focusNode.requestFocus();
+                        _textController.selection = TextSelection(
+                          baseOffset: 0,
+                          extentOffset: _textController.text.length,
+                        );
+                      }
                     });
                   },
                   child: Text(
