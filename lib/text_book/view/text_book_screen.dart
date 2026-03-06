@@ -1217,20 +1217,14 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         },
       ),
 
-      // 3) Nikud Button
+      // 3) Nikud/Punctuation Menu Button
       ActionButtonData(
         widget: _buildNikudButton(context, state),
-        icon: state.removeNikud
+        icon: state.removeNikud || state.removePunctuation
             ? FluentIcons.text_font_24_regular
             : FluentIcons.text_font_info_24_regular,
-        tooltip: state.removeNikud ? 'הצג ניקוד' : 'הסתר ניקוד',
-        onPressed: () async {
-          final newValue = !state.removeNikud;
-          context.read<TextBookBloc>().add(ToggleNikud(newValue));
-          // שמירה עם הערך החדש
-          await _savePerBookSettingsDirectly(context, state,
-              removeNikud: newValue);
-        },
+        tooltip: 'אפשרויות טקסט',
+        onPressed: null, // PopupMenuButton מטפל בלחיצה בעצמו
       ),
 
       // 4) Search Button
@@ -1662,18 +1656,63 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   }
 
   Widget _buildNikudButton(BuildContext context, TextBookLoaded state) {
-    return IconButton(
-      onPressed: () async {
-        final newValue = !state.removeNikud;
-        context.read<TextBookBloc>().add(ToggleNikud(newValue));
-        // שמירה עם הערך החדש
-        await _savePerBookSettingsDirectly(context, state,
-            removeNikud: newValue);
-      },
-      icon: Icon(state.removeNikud
+    return PopupMenuButton<String>(
+      icon: Icon(state.removeNikud || state.removePunctuation
           ? FluentIcons.text_font_24_regular
           : FluentIcons.text_font_info_24_regular),
-      tooltip: state.removeNikud ? 'הצג ניקוד' : 'הסתר ניקוד',
+      tooltip: 'אפשרויות טקסט',
+      position: PopupMenuPosition.under,
+      onSelected: (value) async {
+        if (value == 'nikud') {
+          final newValue = !state.removeNikud;
+          context.read<TextBookBloc>().add(ToggleNikud(newValue));
+          await _savePerBookSettingsDirectly(context, state,
+              removeNikud: newValue);
+        } else if (value == 'punctuation') {
+          final newValue = !state.removePunctuation;
+          context.read<TextBookBloc>().add(TogglePunctuation(newValue));
+        }
+      },
+      itemBuilder: (context) {
+        final primaryColor = Theme.of(context).colorScheme.primary;
+
+        PopupMenuItem<String> buildItem({
+          required String value,
+          required String text,
+          required bool isSelected,
+        }) {
+          final style = isSelected ? TextStyle(color: primaryColor) : null;
+          return PopupMenuItem<String>(
+            value: value,
+            child: Row(
+              children: [
+                Icon(
+                  isSelected
+                      ? FluentIcons.checkbox_checked_24_regular
+                      : FluentIcons.checkbox_unchecked_24_regular,
+                  size: 20,
+                  color: isSelected ? primaryColor : null,
+                ),
+                const SizedBox(width: 12),
+                Text(text, style: style),
+              ],
+            ),
+          );
+        }
+
+        return [
+          buildItem(
+            value: 'nikud',
+            text: 'הסרת ניקוד',
+            isSelected: state.removeNikud,
+          ),
+          buildItem(
+            value: 'punctuation',
+            text: 'הסרת סימני פיסוק',
+            isSelected: state.removePunctuation,
+          ),
+        ];
+      },
     );
   }
 

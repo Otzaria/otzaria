@@ -10,6 +10,9 @@ class RenderSettings {
   /// האם להסיר ניקוד מהטקסט
   final bool removeNikud;
 
+  /// האם להסיר סימני פיסוק מהטקסט
+  final bool removePunctuation;
+
   /// האם להסיר טעמים מהטקסט
   final bool removeTeamim;
 
@@ -54,6 +57,7 @@ class RenderSettings {
 
   const RenderSettings({
     this.removeNikud = false,
+    this.removePunctuation = false,
     this.removeTeamim = true,
     this.replaceHolyNames = false,
     this.searchText = '',
@@ -73,6 +77,7 @@ class RenderSettings {
   /// יוצר עותק עם שינויים
   RenderSettings copyWith({
     bool? removeNikud,
+    bool? removePunctuation,
     bool? removeTeamim,
     bool? replaceHolyNames,
     String? searchText,
@@ -90,6 +95,7 @@ class RenderSettings {
   }) {
     return RenderSettings(
       removeNikud: removeNikud ?? this.removeNikud,
+      removePunctuation: removePunctuation ?? this.removePunctuation,
       removeTeamim: removeTeamim ?? this.removeTeamim,
       replaceHolyNames: replaceHolyNames ?? this.replaceHolyNames,
       searchText: searchText ?? this.searchText,
@@ -112,6 +118,7 @@ class RenderSettings {
     if (identical(this, other)) return true;
     if (other is! RenderSettings) return false;
     return removeNikud == other.removeNikud &&
+        removePunctuation == other.removePunctuation &&
         removeTeamim == other.removeTeamim &&
         replaceHolyNames == other.replaceHolyNames &&
         searchText == other.searchText &&
@@ -129,6 +136,7 @@ class RenderSettings {
   int get hashCode {
     return Object.hash(
       removeNikud,
+      removePunctuation,
       removeTeamim,
       replaceHolyNames,
       searchText,

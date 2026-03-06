@@ -99,6 +99,15 @@ class ToggleNikud extends TextBookEvent {
   List<Object?> get props => [remove];
 }
 
+class TogglePunctuation extends TextBookEvent {
+  final bool remove;
+
+  const TogglePunctuation(this.remove);
+
+  @override
+  List<Object?> get props => [remove];
+}
+
 class UpdateVisibleIndecies extends TextBookEvent {
   final List<int> visibleIndecies;
 

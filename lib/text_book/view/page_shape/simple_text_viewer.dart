@@ -651,6 +651,7 @@ $textWithBreaks
                 widgetKey: ValueKey('html_simple_text_$index'),
                 settings: RenderSettings(
                   removeNikud: state.removeNikud,
+                  removePunctuation: state.removePunctuation,
                   removeTeamim: !settingsState.showTeamim,
                   replaceHolyNames: settingsState.replaceHolyNames,
                   searchText: searchText,

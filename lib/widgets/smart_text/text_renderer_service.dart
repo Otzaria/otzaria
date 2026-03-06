@@ -30,6 +30,11 @@ class TextRendererService {
       processed = utils.removeVolwels(processed);
     }
 
+    // 2b. הסרת סימני פיסוק (אם נדרש)
+    if (settings.removePunctuation) {
+      processed = utils.removePunctuation(processed);
+    }
+
     // 3. החלפת שמות קדושים (אם נדרש)
     if (settings.replaceHolyNames) {
       processed = utils.replaceHolyNames(processed);

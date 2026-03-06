@@ -47,6 +47,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     on<TogglePageShapeView>(_onTogglePageShapeView);
     on<UpdateCommentators>(_onUpdateCommentators);
     on<ToggleNikud>(_onToggleNikud);
+    on<TogglePunctuation>(_onTogglePunctuation);
     on<UpdateVisibleIndecies>(_onUpdateVisibleIndecies);
     on<UpdateSelectedIndex>(_onUpdateSelectedIndex);
     on<HighlightLine>(_onHighlightLine);
@@ -398,6 +399,19 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       final currentState = state as TextBookLoaded;
       emit(currentState.copyWith(
         removeNikud: event.remove,
+        selectedIndex: currentState.selectedIndex,
+      ));
+    }
+  }
+
+  void _onTogglePunctuation(
+    TogglePunctuation event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is TextBookLoaded) {
+      final currentState = state as TextBookLoaded;
+      emit(currentState.copyWith(
+        removePunctuation: event.remove,
         selectedIndex: currentState.selectedIndex,
       ));
     }

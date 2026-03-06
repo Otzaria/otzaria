@@ -88,6 +88,7 @@ class TextBookLoaded extends TextBookState {
   final List<Link> visibleLinks;
   final List<TocEntry> tableOfContents;
   final bool removeNikud;
+  final bool removePunctuation;
   final List<int> visibleIndices;
   final int? selectedIndex;
   final bool pinLeftPane;
@@ -129,6 +130,7 @@ class TextBookLoaded extends TextBookState {
     this.visibleLinks = const [],
     required this.tableOfContents,
     required this.removeNikud,
+    this.removePunctuation = false,
     required this.visibleIndices,
     this.selectedIndex,
     required this.pinLeftPane,
@@ -174,6 +176,7 @@ class TextBookLoaded extends TextBookState {
       visibleLinks: const [],
       tableOfContents: const [],
       removeNikud: false,
+      removePunctuation: false,
       pinLeftPane: Settings.getValue<bool>('key-pin-sidebar') ?? false,
       searchText: '',
       scrollController: ItemScrollController(),
@@ -207,6 +210,7 @@ class TextBookLoaded extends TextBookState {
     List<Link>? visibleLinks,
     List<TocEntry>? tableOfContents,
     bool? removeNikud,
+    bool? removePunctuation,
     int? selectedIndex,
     List<int>? visibleIndices,
     bool? pinLeftPane,
@@ -246,6 +250,7 @@ class TextBookLoaded extends TextBookState {
       visibleLinks: visibleLinks ?? this.visibleLinks,
       tableOfContents: tableOfContents ?? this.tableOfContents,
       removeNikud: removeNikud ?? this.removeNikud,
+      removePunctuation: removePunctuation ?? this.removePunctuation,
       visibleIndices: visibleIndices ?? this.visibleIndices,
       selectedIndex: selectedIndex,
       pinLeftPane: pinLeftPane ?? this.pinLeftPane,
@@ -287,6 +292,7 @@ class TextBookLoaded extends TextBookState {
         visibleLinks.length,
         tableOfContents.length,
         removeNikud,
+        removePunctuation,
         visibleIndices,
         selectedIndex,
         pinLeftPane,

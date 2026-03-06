@@ -19,6 +19,119 @@ String removeVolwels(String s) {
   return s.replaceAll(SearchRegexPatterns.vowelsAndCantillation, '');
 }
 
+/// הסרת סימני פיסוק מטקסט
+/// מסיר !:;.,?-— חוץ מ . או : בסוף הקטע
+/// מסיר " ״ ״ כשזה לא באמצע מילה
+/// מסיר מעבר שורה אם אין . או : בסוף השורה המקורית
+String removePunctuation(String text) {
+  if (text.isEmpty) return text;
+
+  // מחלקים לשורות כדי לטפל בכל שורה בנפרד
+  final lines = text.split('\n');
+  final processedLines = <String>[];
+  final originalEndsWithAllowed = <bool>[]; // שומרים אם השורה המקורית מסתיימת ב . או :
+
+  for (final line in lines) {
+    if (line.trim().isEmpty) {
+      processedLines.add(line);
+      originalEndsWithAllowed.add(true); // שורה ריקה - נשמור את מעבר השורה
+      continue;
+    }
+
+    // בודקים אם השורה המקורית מסתיימת ב . או : (לפני הסרת סימנים)
+    final endsWithAllowed = RegExp(r'[.:](\s*)$').hasMatch(line);
+    originalEndsWithAllowed.add(endsWithAllowed);
+
+    String processed = line;
+
+    // מוצאים את הסימן האחרון בשורה (רק . או :)
+    final lastAllowedPunctuationMatch = RegExp(r'[.:](\s*)$').firstMatch(processed);
+    final lastAllowedPunctuationIndex = lastAllowedPunctuationMatch?.start;
+
+    // מסירים את כל הסימנים חוץ מ . או : בסוף
+    final chars = processed.split('');
+    final result = StringBuffer();
+
+    for (int i = 0; i < chars.length; i++) {
+      final char = chars[i];
+      // אם זה סימן פיסוק שצריך להסיר
+      if (RegExp(r'[!:;.,?\-—]').hasMatch(char)) {
+        // שומרים רק אם זה . או : בסוף השורה
+        if (lastAllowedPunctuationIndex != null && 
+            i >= lastAllowedPunctuationIndex &&
+            (char == '.' || char == ':')) {
+          result.write(char);
+        }
+        // אחרת מדלגים
+      } else {
+        result.write(char);
+      }
+    }
+
+    processed = result.toString();
+
+    // הסרת " ״ ״ כשזה לא באמצע מילה
+    // מילה = רצף של אותיות עבריות או לועזיות
+    processed = processed.replaceAllMapped(
+      RegExp(r'[""״]'),
+      (match) {
+        final index = match.start;
+        // בודקים אם יש אות לפני ואחרי
+        final hasBefore = index > 0 &&
+            RegExp(r'[א-תa-zA-Z]').hasMatch(processed[index - 1]);
+        final hasAfter = index < processed.length - 1 &&
+            RegExp(r'[א-תa-zA-Z]').hasMatch(processed[index + 1]);
+
+        // אם יש אות גם לפני וגם אחרי - זה באמצע מילה, שומרים
+        if (hasBefore && hasAfter) {
+          return match.group(0)!;
+        }
+        // אחרת מסירים
+        return '';
+      },
+    );
+
+    processedLines.add(processed);
+  }
+
+  // מחברים את השורות בחזרה
+  // אם שורה לא הסתיימה ב . או : במקור, נחבר אותה לשורה הבאה עם רווח
+  final finalResult = StringBuffer();
+  
+  for (int i = 0; i < processedLines.length; i++) {
+    final line = processedLines[i];
+    final shouldKeepNewline = originalEndsWithAllowed[i];
+    
+    // אם זו שורה ריקה, נוסיף אותה כמו שהיא
+    if (line.trim().isEmpty) {
+      if (finalResult.isNotEmpty) {
+        finalResult.write('\n');
+      }
+      finalResult.write(line);
+      if (i < processedLines.length - 1) {
+        finalResult.write('\n');
+      }
+      continue;
+    }
+    
+    // מוסיפים רווח לפני השורה אם צריך (אלא אם זו השורה הראשונה או אחרי שורה ריקה)
+    final resultStr = finalResult.toString();
+    if (resultStr.isNotEmpty && !resultStr.endsWith('\n') && !resultStr.endsWith(' ')) {
+      finalResult.write(' '); // רווח במקום מעבר שורה
+    }
+    
+    // מוסיפים את השורה
+    finalResult.write(line);
+    
+    // אם השורה המקורית הסתיימה ב . או :, נוסיף מעבר שורה
+    if (shouldKeepNewline && i < processedLines.length - 1) {
+      finalResult.write('\n');
+    }
+  }
+
+  return finalResult.toString();
+}
+
 /// בדיקה אם טקסט מכיל ניקוד או טעמים
 bool hasNikud(String text) {
   return SearchRegexPatterns.vowelsAndCantillation.hasMatch(text);
