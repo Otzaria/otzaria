@@ -239,17 +239,20 @@ class TextBookPerBookSettings {
   final double? fontSize;
   final bool? commentatorsBelow; // true = מתחת, false = בצד
   final bool? removeNikud;
+  final bool? removePunctuation;
 
   TextBookPerBookSettings({
     this.fontSize,
     this.commentatorsBelow,
     this.removeNikud,
+    this.removePunctuation,
   });
 
   Map<String, dynamic> toJson() => {
         if (fontSize != null) 'fontSize': fontSize,
         if (commentatorsBelow != null) 'commentatorsBelow': commentatorsBelow,
         if (removeNikud != null) 'removeNikud': removeNikud,
+        if (removePunctuation != null) 'removePunctuation': removePunctuation,
       };
 
   factory TextBookPerBookSettings.fromJson(Map<String, dynamic> json) {
@@ -257,6 +260,7 @@ class TextBookPerBookSettings {
       fontSize: json['fontSize'] as double?,
       commentatorsBelow: json['commentatorsBelow'] as bool?,
       removeNikud: json['removeNikud'] as bool?,
+      removePunctuation: json['removePunctuation'] as bool?,
     );
   }
 

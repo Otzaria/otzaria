@@ -600,6 +600,10 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           debugPrint('🔧 Applying removeNikud: ${settings.removeNikud}');
           textBookBloc.add(ToggleNikud(settings.removeNikud!));
         }
+        if (settings.removePunctuation != null) {
+          debugPrint('🔧 Applying removePunctuation: ${settings.removePunctuation}');
+          textBookBloc.add(TogglePunctuation(settings.removePunctuation!));
+        }
         break;
       }
     }
@@ -1671,6 +1675,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         } else if (value == 'punctuation') {
           final newValue = !state.removePunctuation;
           context.read<TextBookBloc>().add(TogglePunctuation(newValue));
+          await _savePerBookSettingsDirectly(context, state,
+              removePunctuation: newValue);
         }
       },
       itemBuilder: (context) {
@@ -2702,6 +2708,7 @@ Future<void> _savePerBookSettingsDirectly(
   double? fontSize,
   bool? showSplitView,
   bool? removeNikud,
+  bool? removePunctuation,
 }) async {
   final settingsBloc = context.read<SettingsBloc>();
   if (!settingsBloc.state.enablePerBookSettings) {
@@ -2716,11 +2723,14 @@ Future<void> _savePerBookSettingsDirectly(
   final defaultRemoveNikud = settingsBloc.state.defaultRemoveNikud;
   final defaultShowSplitView =
       Settings.getValue<bool>('key-splited-view') ?? false;
+  // אין ברירת מחדל גלובלית להסרת פיסוק, לכן ברירת המחדל היא false
+  const defaultRemovePunctuation = false;
 
   // בניית הגדרות חדשות - רק שדות ששונו מברירת המחדל
   double? newFontSize = existingSettings?.fontSize;
   bool? newCommentatorsBelow = existingSettings?.commentatorsBelow;
   bool? newRemoveNikud = existingSettings?.removeNikud;
+  bool? newRemovePunctuation = existingSettings?.removePunctuation;
 
   // עדכון רק השדה שהשתנה
   if (fontSize != null) {
@@ -2740,10 +2750,16 @@ Future<void> _savePerBookSettingsDirectly(
     newRemoveNikud = (removeNikud == defaultRemoveNikud) ? null : removeNikud;
   }
 
+  if (removePunctuation != null) {
+    // אם הערך שווה לברירת המחדל, מוחקים את השדה
+    newRemovePunctuation = (removePunctuation == defaultRemovePunctuation) ? null : removePunctuation;
+  }
+
   // אם כל השדות null, מוחקים את הקובץ כולו
   if (newFontSize == null &&
       newCommentatorsBelow == null &&
-      newRemoveNikud == null) {
+      newRemoveNikud == null &&
+      newRemovePunctuation == null) {
     await TextBookPerBookSettings.delete(state.book.title);
     return;
   }
@@ -2753,6 +2769,7 @@ Future<void> _savePerBookSettingsDirectly(
     fontSize: newFontSize,
     commentatorsBelow: newCommentatorsBelow,
     removeNikud: newRemoveNikud,
+    removePunctuation: newRemovePunctuation,
   );
 
   await settings.save(state.book.title);
