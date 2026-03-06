@@ -2138,31 +2138,31 @@ class _ZoomPercentageDisplayState extends State<_ZoomPercentageDisplay> {
             )
           : Tooltip(
               message: 'הזן אחוז זום',
-              child: InkWell(
-                mouseCursor: SystemMouseCursors.click,
-                child: TextButton(
-                  onPressed: () {
-                    setState(() {
-                      _isEditing = true;
-                      _textController.text = zoomPercentage.toString();
-                    });
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (mounted) {
-                        _focusNode.requestFocus();
-                        _textController.selection = TextSelection(
-                          baseOffset: 0,
-                          extentOffset: _textController.text.length,
-                        );
-                      }
-                    });
-                  },
-                  child: Text(
-                    '$zoomPercentage%',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w500,
-                          fontSize: 14,
-                        ),
-                  ),
+              child: TextButton(
+                style: ButtonStyle(
+                  mouseCursor: WidgetStateProperty.all(SystemMouseCursors.click),
+                ),
+                onPressed: () {
+                  setState(() {
+                    _isEditing = true;
+                    _textController.text = zoomPercentage.toString();
+                  });
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      _focusNode.requestFocus();
+                      _textController.selection = TextSelection(
+                        baseOffset: 0,
+                        extentOffset: _textController.text.length,
+                      );
+                    }
+                  });
+                },
+                child: Text(
+                  '$zoomPercentage%',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                      ),
                 ),
               ),
             ),

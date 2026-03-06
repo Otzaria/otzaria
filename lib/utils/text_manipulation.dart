@@ -70,10 +70,10 @@ String removePunctuation(String text) {
 
     processed = result.toString();
 
-    // הסרת " ״ ״ כשזה לא באמצע מילה
+    // הסרת " ״ כשזה לא באמצע מילה
     // מילה = רצף של אותיות עבריות או לועזיות
     processed = processed.replaceAllMapped(
-      RegExp(r'[""״]'),
+      RegExp(r'["״]'),
       (match) {
         final index = match.start;
         // בודקים אם יש אות לפני ואחרי

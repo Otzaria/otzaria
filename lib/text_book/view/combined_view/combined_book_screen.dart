@@ -142,7 +142,6 @@ class _CombinedViewState extends State<CombinedView> {
           state.visibleIndices.isNotEmpty) {
         _hasScrolledToInitialPosition = true;
         final initialIndex = state.visibleIndices.first;
-        debugPrint('DEBUG: גלילה אוטומטית למיקום שמור: $initialIndex');
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted && widget.tab.scrollController.isAttached) {
             widget.tab.scrollController.scrollTo(
@@ -756,7 +755,6 @@ $textWithBreaks
               key: _selectionAreaKey,
               // SelectionArea אחד לכל הרשימה - מאפשר בחירה רציפה בין פסקאות
               contextMenuBuilder: (context, selectableRegionState) {
-                debugPrint('🟢 SelectionArea.contextMenuBuilder called');
                 return const SizedBox.shrink();
               },
               onSelectionChanged: (selection) {
@@ -827,20 +825,17 @@ $textWithBreaks
                 // אם הטקסט ריק - מתזמנים ניקוי בחירה אחרי 100ms
                 // זה נותן ל-SelectionArea זמן להתייצב ולא מנקה בחירה תקינה
                 else {
-                  debugPrint('🟢 Empty selection, scheduling clear in 100ms');
                   _selectionClearTimer = Timer(const Duration(milliseconds: 100), () {
                     // בודק שוב אם באמת אין בחירה
+                    final selectedPlainText = selection?.plainText;
                     if (mounted && 
-                        (selection?.plainText == null || 
-                         selection!.plainText.trim().isEmpty)) {
-                      debugPrint('🟢 Timer expired, clearing selection');
+                        (selectedPlainText == null || 
+                         selectedPlainText.trim().isEmpty)) {
                       // רק עכשיו מנקים את הבחירה
                       _savedSelectedText.value = null;
                       _savedSelectedIndex.value = null;
                       _currentSelectedIndex.value = null;
                       widget.onSelectedTextChanged?.call(null);
-                    } else {
-                      debugPrint('🟢 Timer expired but selection exists, keeping it');
                     }
                   });
                 }
@@ -1040,8 +1035,6 @@ $textWithBreaks
             onPointerDown: (event) {
               // רק לחיצה שמאלית
               if (event.buttons == 1) {
-                debugPrint('🔵 Listener.onPointerDown called for index $index');
-
                 // אם יש טקסט נבחר, לא מנקים אותו ולא מבצעים פעולה
                 if (_savedSelectedText.value != null &&
                     _savedSelectedText.value!.trim().isNotEmpty) {
@@ -1091,7 +1084,6 @@ $textWithBreaks
               }
               // לחיצה ימנית - שומר את האינדקס
               else if (event.buttons == 2) {
-                debugPrint('🔵 Listener.onPointerDown (right click) for index $index');
                 if (mounted) {
                   // אם יש טקסט נבחר, נשתמש באינדקס שלו
                   // אחרת נשתמש באינדקס הנוכחי
