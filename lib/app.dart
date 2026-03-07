@@ -8,6 +8,41 @@ import 'package:otzaria/settings/settings_exports.dart';
 
 // AppColors הועבר ל-lib/theme/app_colors.dart
 
+/// צבעים ייעודיים נוספים שאינם ממופים ישירות ל-ColorScheme.
+class AppThemeColors extends ThemeExtension<AppThemeColors> {
+  final Color pdfZoomEditorBackground;
+
+  const AppThemeColors({
+    required this.pdfZoomEditorBackground,
+  });
+
+  @override
+  AppThemeColors copyWith({
+    Color? pdfZoomEditorBackground,
+  }) {
+    return AppThemeColors(
+      pdfZoomEditorBackground:
+          pdfZoomEditorBackground ?? this.pdfZoomEditorBackground,
+    );
+  }
+
+  @override
+  AppThemeColors lerp(ThemeExtension<AppThemeColors>? other, double t) {
+    if (other is! AppThemeColors) {
+      return this;
+    }
+
+    return AppThemeColors(
+      pdfZoomEditorBackground: Color.lerp(
+            pdfZoomEditorBackground,
+            other.pdfZoomEditorBackground,
+            t,
+          ) ??
+          pdfZoomEditorBackground,
+    );
+  }
+}
+
 class App extends StatelessWidget {
   const App({super.key});
 
@@ -60,6 +95,11 @@ class App extends StatelessWidget {
             visualDensity: VisualDensity.adaptivePlatformDensity,
             fontFamily: 'Roboto',
             colorScheme: lightColorScheme,
+            extensions: const [
+              AppThemeColors(
+                pdfZoomEditorBackground: Color(0xFFF9ECDF),
+              ),
+            ],
             textTheme: const TextTheme(
               bodyMedium: TextStyle(fontSize: 18.0, fontFamily: 'candara'),
             ),
@@ -73,6 +113,11 @@ class App extends StatelessWidget {
             scaffoldBackgroundColor: AppColors.darkScaffold,
             canvasColor: AppColors.darkScaffold,
             cardColor: AppColors.darkCard,
+            extensions: const [
+              AppThemeColors(
+                pdfZoomEditorBackground: AppColors.darkCard,
+              ),
+            ],
             colorScheme: ColorScheme.dark(
               surface: AppColors.darkScaffold,
               surfaceContainer: AppColors.darkCard,

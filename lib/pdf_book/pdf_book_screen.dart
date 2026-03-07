@@ -6,6 +6,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_context_menu/flutter_context_menu.dart' as ctx;
+import 'package:otzaria/app.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
@@ -2107,7 +2108,10 @@ class _ZoomPercentageDisplayState extends State<_ZoomPercentageDisplay> {
           ? Container(
               width: 60,
               decoration: BoxDecoration(
-                color: const Color(0xFFF9ECDF),
+                color: Theme.of(context)
+                        .extension<AppThemeColors>()
+                        ?.pdfZoomEditorBackground ??
+                    Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color: Theme.of(context)
