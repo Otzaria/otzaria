@@ -1954,7 +1954,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   Widget _buildZoomPercentageDisplay() {
     return _ZoomPercentageDisplay(
       controller: widget.tab.pdfViewerController,
-      bloc: _bloc,
       onZoomChanged: (newZoom) {
         widget.tab.savedZoom = newZoom;
         _bloc.add(pdf_events.SavePerBookSettings());
@@ -2037,12 +2036,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
 class _ZoomPercentageDisplay extends StatefulWidget {
   final PdfViewerController controller;
-  final PdfBookBloc bloc;
   final Function(double) onZoomChanged;
 
   const _ZoomPercentageDisplay({
     required this.controller,
-    required this.bloc,
     required this.onZoomChanged,
   });
 
@@ -2113,7 +2110,10 @@ class _ZoomPercentageDisplayState extends State<_ZoomPercentageDisplay> {
                 color: const Color(0xFFF9ECDF),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .outline
+                      .withValues(alpha: 0.3),
                   width: 1,
                 ),
               ),
@@ -2140,7 +2140,8 @@ class _ZoomPercentageDisplayState extends State<_ZoomPercentageDisplay> {
               message: 'הזן אחוז זום',
               child: TextButton(
                 style: ButtonStyle(
-                  mouseCursor: WidgetStateProperty.all(SystemMouseCursors.click),
+                  mouseCursor:
+                      WidgetStateProperty.all(SystemMouseCursors.click),
                 ),
                 onPressed: () {
                   setState(() {

@@ -36,6 +36,7 @@ class SimpleTextViewer extends StatefulWidget {
   final bool isMainText; // האם זה הטקסט המרכזי או מפרש
   final String? title; // כותרת (לכותרת עליונה)
   final String? bookTitle; // שם הספר (למפרשים - לפתיחה בטאב נפרד)
+  final String? pageShapeSlotKey; // מזהה החלונית בצורת הדף
   final Set<int>? highlightedIndices; // אינדקסים להדגשה (למפרשים)
   final VoidCallback? onCommentatorChanged; // callback לרענון אחרי החלפת מפרש
   final bool useInternalScroll; // האם להשתמש בגלילה פנימית
@@ -51,6 +52,7 @@ class SimpleTextViewer extends StatefulWidget {
     this.isMainText = false,
     this.title,
     this.bookTitle,
+    this.pageShapeSlotKey,
     this.highlightedIndices,
     this.onCommentatorChanged,
     this.useInternalScroll = true, // ברירת מחדל - עם גלילה פנימית
@@ -799,31 +801,8 @@ $textWithBreaks
     ];
   }
 
-  String? _findCurrentSlotKey(TextBookLoaded state) {
-    final config = PageShapeSettingsManager.loadConfiguration(
-      state.book.title,
-      heCategories: state.book.heCategories,
-    );
-
-    if (config == null || widget.bookTitle == null) {
-      return null;
-    }
-
-    for (final entry in config.entries) {
-      final configValue = entry.value;
-      if (configValue == null) continue;
-
-      final currentTitle = widget.bookTitle!;
-      if (configValue == currentTitle ||
-          currentTitle.startsWith(configValue) ||
-          currentTitle.contains(configValue) ||
-          configValue.startsWith(currentTitle) ||
-          configValue.contains(currentTitle)) {
-        return entry.key;
-      }
-    }
-
-    return null;
+  String? _findCurrentSlotKey() {
+    return widget.pageShapeSlotKey;
   }
 
   Future<void> _persistConfig(
@@ -852,7 +831,7 @@ $textWithBreaks
     TextBookLoaded state,
     PageShapeCommentaryMode mode,
   ) async {
-    final slotKey = _findCurrentSlotKey(state);
+    final slotKey = _findCurrentSlotKey();
     if (slotKey == null) return;
 
     final config = PageShapeSettingsManager.loadConfiguration(
@@ -906,7 +885,8 @@ $textWithBreaks
       return; // כבר מוצג מפרש זה
     }
 
-    // צריך למצוא באיזה טור המפרש הנוכחי מוצג ולהחליף אותו
+    // ה-slotKey מועבר ישירות מ-PageShapeScreen, ולכן אין צורך לנחש
+    // באיזו חלונית המפרש הנוכחי מוצג.
     final config = PageShapeSettingsManager.loadConfiguration(
       state.book.title,
       heCategories: state.book.heCategories,
@@ -914,28 +894,9 @@ $textWithBreaks
 
     if (config == null) return;
 
-    // מציאת הטור שבו המפרש הנוכחי מוצג
-    String? columnToUpdate;
-    for (final entry in config.entries) {
-      if (entry.value == null) continue;
-
-      // בדיקה אם המפרש הנוכחי תואם לערך בהגדרה
-      final configValue = entry.value!;
-      final currentTitle = widget.bookTitle!;
-
-      if (configValue == currentTitle ||
-          currentTitle.startsWith(configValue) ||
-          currentTitle.contains(configValue) ||
-          configValue.startsWith(currentTitle) ||
-          configValue.contains(currentTitle)) {
-        columnToUpdate = entry.key;
-        break;
-      }
-    }
-
+    final columnToUpdate = _findCurrentSlotKey();
     if (columnToUpdate == null) {
-      debugPrint(
-          '⚠️ PageShape: Could not find column for commentator "${widget.bookTitle}"');
+      debugPrint('⚠️ PageShape: Missing slotKey for "${widget.bookTitle}"');
       return;
     }
 

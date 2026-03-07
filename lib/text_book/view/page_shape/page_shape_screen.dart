@@ -471,6 +471,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
       contextMenu: _buildSlotContextMenu(slotKey),
       child: _CommentaryPane(
         commentatorName: slot.primaryCommentator!,
+        slotKey: slotKey,
         openBookCallback: widget.openBookCallback,
         isBottom: isBottom,
       ),
@@ -790,11 +791,13 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
 /// חלונית מפרש - טוענת ומציגה את הספר של המפרש
 class _CommentaryPane extends StatefulWidget {
   final String commentatorName;
+  final String slotKey;
   final Function(OpenedTab) openBookCallback;
   final bool isBottom; // האם זה מפרש תחתון
 
   const _CommentaryPane({
     required this.commentatorName,
+    required this.slotKey,
     required this.openBookCallback,
     this.isBottom = false,
   });
@@ -1214,6 +1217,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
               positionsListener: _positionsListener,
               isMainText: false,
               bookTitle: widget.commentatorName, // לפתיחה בטאב נפרד
+              pageShapeSlotKey: widget.slotKey,
               highlightedIndices: _highlightedIndices, // הדגשות מקומיות
               onCommentatorChanged: _reloadCommentary, // callback לרענון
             );

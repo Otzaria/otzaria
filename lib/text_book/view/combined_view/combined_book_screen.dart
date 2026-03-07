@@ -760,12 +760,11 @@ $textWithBreaks
               onSelectionChanged: (selection) {
                 // מבטל Timer קודם אם קיים
                 _selectionClearTimer?.cancel();
-                
+
                 final plain = selection?.plainText;
-                
+
                 // אם יש טקסט נבחר, שומרים אותו מיד
                 if (plain != null && plain.trim().isNotEmpty) {
-                  
                   // כניסה למצב בחירה כשיש טקסט נבחר
                   if (!_selectionManager.isInSelectionMode) {
                     // שימוש באינדקס הראשון הנראה במקום 0
@@ -825,13 +824,15 @@ $textWithBreaks
                 // אם הטקסט ריק - מתזמנים ניקוי בחירה אחרי 100ms
                 // זה נותן ל-SelectionArea זמן להתייצב ולא מנקה בחירה תקינה
                 else {
-                  _selectionClearTimer = Timer(const Duration(milliseconds: 100), () {
+                  _selectionClearTimer =
+                      Timer(const Duration(milliseconds: 100), () {
                     // בודק שוב אם באמת אין בחירה
                     final selectedPlainText = selection?.plainText;
-                    if (mounted && 
-                        (selectedPlainText == null || 
-                         selectedPlainText.trim().isEmpty)) {
+                    if (mounted &&
+                        (selectedPlainText == null ||
+                            selectedPlainText.trim().isEmpty)) {
                       // רק עכשיו מנקים את הבחירה
+                      _selectionManager.exitSelectionMode();
                       _savedSelectedText.value = null;
                       _savedSelectedIndex.value = null;
                       _currentSelectedIndex.value = null;
