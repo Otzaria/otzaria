@@ -1663,65 +1663,161 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   }
 
   Widget _buildNikudButton(BuildContext context, TextBookLoaded state) {
-    return PopupMenuButton<String>(
-      icon: Icon(state.removeNikud || state.removePunctuation
-          ? FluentIcons.text_font_24_regular
-          : FluentIcons.text_font_info_24_regular),
-      tooltip: 'אפשרויות טקסט',
-      position: PopupMenuPosition.under,
-      onSelected: (value) async {
-        if (value == 'nikud') {
-          final newValue = !state.removeNikud;
-          context.read<TextBookBloc>().add(ToggleNikud(newValue));
-          await _savePerBookSettingsDirectly(context, state,
-              removeNikud: newValue);
-        } else if (value == 'punctuation') {
-          final newValue = !state.removePunctuation;
-          context.read<TextBookBloc>().add(TogglePunctuation(newValue));
-          await _savePerBookSettingsDirectly(context, state,
-              removePunctuation: newValue);
-        }
-      },
-      itemBuilder: (context) {
-        final primaryColor = Theme.of(context).colorScheme.primary;
+    final colorScheme = Theme.of(context).colorScheme;
+    final textMode = switch ((state.removeNikud, state.removePunctuation)) {
+      (true, false) => 'nikud',
+      (false, true) => 'punctuation',
+      (true, true) => 'both',
+      (false, false) => 'none',
+    };
+    final isPrimarySelected = textMode == 'nikud';
+    final hasActiveMode = textMode != 'none';
 
-        PopupMenuItem<String> buildItem({
-          required String value,
-          required String text,
-          required bool isSelected,
-        }) {
-          final style = isSelected ? TextStyle(color: primaryColor) : null;
-          return PopupMenuItem<String>(
-            value: value,
-            child: Row(
-              children: [
-                Icon(
-                  isSelected
-                      ? FluentIcons.checkbox_checked_24_regular
-                      : FluentIcons.checkbox_unchecked_24_regular,
-                  size: 20,
-                  color: isSelected ? primaryColor : null,
-                ),
-                const SizedBox(width: 12),
-                Text(text, style: style),
-              ],
+    Future<void> applyTextMode({
+      required bool removeNikud,
+      required bool removePunctuation,
+    }) async {
+      context.read<TextBookBloc>().add(ToggleNikud(removeNikud));
+      context.read<TextBookBloc>().add(TogglePunctuation(removePunctuation));
+      await _savePerBookSettingsDirectly(
+        context,
+        state,
+        removeNikud: removeNikud,
+        removePunctuation: removePunctuation,
+      );
+    }
+
+    return Tooltip(
+      message: hasActiveMode ? 'איפוס הסרת ניקוד ופיסוק' : 'הסרת ניקוד',
+      child: Material(
+        color: Colors.transparent,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: isPrimarySelected
+                ? colorScheme.primaryContainer
+                : Colors.transparent,
+            border: Border.all(
+              color: isPrimarySelected
+                  ? colorScheme.primary
+                  : colorScheme.outlineVariant,
             ),
-          );
-        }
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              InkWell(
+                borderRadius: const BorderRadius.horizontal(
+                  right: Radius.circular(999),
+                  left: Radius.circular(4),
+                ),
+                onTap: () => applyTextMode(
+                  removeNikud: !hasActiveMode,
+                  removePunctuation: false,
+                ),
+                child: Padding(
+                  padding: const EdgeInsetsDirectional.fromSTEB(10, 8, 10, 8),
+                  child: Icon(
+                    hasActiveMode
+                        ? FluentIcons.text_font_24_regular
+                        : FluentIcons.text_font_info_24_regular,
+                    color: isPrimarySelected ? colorScheme.primary : null,
+                    size: 20,
+                  ),
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 24,
+                color: isPrimarySelected
+                    ? colorScheme.primary
+                    : colorScheme.outlineVariant,
+              ),
+              PopupMenuButton<String>(
+                tooltip: 'אפשרויות טקסט נוספות',
+                position: PopupMenuPosition.under,
+                padding: EdgeInsets.zero,
+                splashRadius: 18,
+                onSelected: (value) async {
+                  if (value == 'punctuation') {
+                    await applyTextMode(
+                      removeNikud: false,
+                      removePunctuation: true,
+                    );
+                  } else if (value == 'both') {
+                    await applyTextMode(
+                      removeNikud: true,
+                      removePunctuation: true,
+                    );
+                  }
+                },
+                itemBuilder: (context) {
+                  PopupMenuItem<String> buildItem({
+                    required String value,
+                    required String text,
+                    required bool isSelected,
+                  }) {
+                    return PopupMenuItem<String>(
+                      value: value,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? colorScheme.primaryContainer
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              FluentIcons.text_font_24_regular,
+                              size: 18,
+                              color: isSelected ? colorScheme.primary : null,
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              text,
+                              textDirection: TextDirection.rtl,
+                              style: TextStyle(
+                                color: isSelected ? colorScheme.primary : null,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
 
-        return [
-          buildItem(
-            value: 'nikud',
-            text: 'הסרת ניקוד',
-            isSelected: state.removeNikud,
+                  return [
+                    buildItem(
+                      value: 'punctuation',
+                      text: 'הסרת סימני פיסוק',
+                      isSelected: textMode == 'punctuation',
+                    ),
+                    buildItem(
+                      value: 'both',
+                      text: 'הסרת ניקוד ופיסוק יחד',
+                      isSelected: textMode == 'both',
+                    ),
+                  ];
+                },
+                child: Padding(
+                  padding: const EdgeInsetsDirectional.fromSTEB(8, 8, 10, 8),
+                  child: Icon(
+                    FluentIcons.chevron_down_24_regular,
+                    size: 16,
+                    color: hasActiveMode ? colorScheme.primary : null,
+                  ),
+                ),
+              ),
+            ],
           ),
-          buildItem(
-            value: 'punctuation',
-            text: 'הסרת סימני פיסוק',
-            isSelected: state.removePunctuation,
-          ),
-        ];
-      },
+        ),
+      ),
     );
   }
 
