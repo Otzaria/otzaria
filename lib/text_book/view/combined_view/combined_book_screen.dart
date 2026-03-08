@@ -986,7 +986,7 @@ $textWithBreaks
     Map<int, List<PersonalNote>> noteMap,
   ) {
     return ScrollablePositionedList.builder(
-      key: ValueKey('combined-${widget.tab.book.title}'),
+      key: ValueKey('combined-${widget.tab.book.title}-${widget.tab.scrollController.hashCode}'),
       initialScrollIndex: widget.tab.index,
       itemPositionsListener: widget.tab.positionsListener,
       itemScrollController: widget.tab.scrollController,

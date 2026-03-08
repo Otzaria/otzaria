@@ -249,10 +249,10 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                     title: utils.getTitleFromPath(link.path2),
                   ),
                   index: link.index2 - 1,
-                  openLeftPane:
-                      (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
-                          (Settings.getValue<bool>('key-default-sidebar-open') ??
-                              false),
+                  openLeftPane: (Settings.getValue<bool>('key-pin-sidebar') ??
+                          false) ||
+                      (Settings.getValue<bool>('key-default-sidebar-open') ??
+                          false),
                 ),
               );
             },
@@ -313,10 +313,29 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
           enabled: index >= 0 && index < widget.content.length,
           onSelected: (_) => _copyParagraphByIndex(index),
         ),
+        if (!widget.isMainText && widget.bookTitle != null) ...[
+          const ctx.MenuDivider(),
+          ctx.MenuItem<void>(
+            label: const Text('פתח ספר זה בחלון נפרד'),
+            icon: const Icon(FluentIcons.open_24_regular),
+            onSelected: (_) {
+              widget.openBookCallback(
+                TextBookTab(
+                  book: TextBook(title: widget.bookTitle!),
+                  index: index,
+                  openLeftPane: (Settings.getValue<bool>('key-pin-sidebar') ??
+                          false) ||
+                      (Settings.getValue<bool>('key-default-sidebar-open') ??
+                          false),
+                ),
+              );
+            },
+          ),
+        ],
         // [EDITING DISABLED]
         // const ctx.MenuDivider(),
         // // עריכת פסקה
-        // ctx.MenuItem(
+        // ctx.MenuItem<void>(
         //   label: const Text('ערוך פסקה זו'),
         //   icon: const Icon(FluentIcons.edit_24_regular),
         //   onSelected: (_) => _editParagraph(index),
@@ -718,7 +737,9 @@ $textWithBreaks
                           context
                               .read<TextBookBloc>()
                               .add(UpdateSelectedIndex(index));
-                          context.read<TextBookBloc>().add(HighlightLine(index));
+                          context
+                              .read<TextBookBloc>()
+                              .add(HighlightLine(index));
                           context
                               .read<TextBookBloc>()
                               .add(const ToggleLeftPane(true));
