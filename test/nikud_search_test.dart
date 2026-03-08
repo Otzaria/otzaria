@@ -55,6 +55,17 @@ void main() {
       // טקסט עם סימני פיסוק
       expect(removeVolwels('שָׁלוֹם, עוֹלָם!'), 'שלום, עולם!');
     });
+    test('removePunctuation should not attach lines to headings', () {
+      expect(
+        removePunctuation('שורה א\n<h2>כותרת</h2>\nשורה ב'),
+        'שורה א\n<h2>כותרת</h2>\nשורה ב',
+      );
+      expect(
+        removePunctuation('שורה א<br><h2>כותרת</h2><br>שורה ב'),
+        'שורה א<br><h2>כותרת</h2><br>שורה ב',
+      );
+    });
+
     test('Search workflow - nikud removal by default', () {
       // סימולציה של תהליך חיפוש
       const userInput = 'שָׁלוֹם עוֹלָם';

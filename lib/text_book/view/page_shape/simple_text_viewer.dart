@@ -124,6 +124,16 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   /// טיפול באירועי מקלדת - חיצים לניווט
   bool _handleKeyEvent(KeyEvent event) {
     if (event is! KeyDownEvent) return false;
+
+    if ((HardwareKeyboard.instance.isControlPressed ||
+            HardwareKeyboard.instance.isMetaPressed) &&
+        event.logicalKey == LogicalKeyboardKey.keyC) {
+      if (_savedSelectedText != null && _savedSelectedText!.trim().isNotEmpty) {
+        _copyFormattedText();
+        return true;
+      }
+      return false;
+    }
     if (!widget.isMainText) return false; // רק בטקסט המרכזי
 
     final state = context.read<TextBookBloc>().state;
@@ -402,17 +412,26 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   Future<void> _copyParagraphByIndex(int index) async {
     if (index < 0 || index >= widget.content.length) return;
 
-    final text = widget.content[index];
-    if (text.trim().isEmpty) return;
-
     final settingsState = context.read<SettingsBloc>().state;
     final textBookState = context.read<TextBookBloc>().state;
+    if (textBookState is! TextBookLoaded) return;
+
+    final rawText = _buildVisibleLineText(
+      widget.content,
+      index,
+      removePunctuation: widget.isMainText && textBookState.removePunctuation,
+    );
+    final text = _buildDisplayedTextForCopy(
+      rawText,
+      textBookState,
+      settingsState,
+    );
+    if (utils.stripHtmlIfNeeded(text).trim().isEmpty) return;
 
     String finalText = text;
     String finalHtmlText = text;
 
-    if (settingsState.copyWithHeaders != 'none' &&
-        textBookState is TextBookLoaded) {
+    if (settingsState.copyWithHeaders != 'none') {
       final bookName = CopyUtils.extractBookName(textBookState.book);
       final currentPath = await CopyUtils.extractCurrentPath(
         textBookState.book,
@@ -471,11 +490,15 @@ $textWithBreaks
         final textBookState = context.read<TextBookBloc>().state;
 
         String htmlContentToUse = plainText;
+        final shouldCopyRenderedText = textBookState is TextBookLoaded &&
+            _shouldCopyRenderedText(textBookState, settingsState);
 
         // אם יש לנו אינדקס נוכחי, ננסה למצוא את הטקסט המקורי
         if (_savedSelectedIndex != null &&
             _savedSelectedIndex! >= 0 &&
-            _savedSelectedIndex! < widget.content.length) {
+            _savedSelectedIndex! < widget.content.length &&
+            !plainText.contains('\n') &&
+            !shouldCopyRenderedText) {
           final originalData = widget.content[_savedSelectedIndex!];
           final plainTextCleaned =
               plainText.replaceAll(RegExp(r'\s+'), ' ').trim();
@@ -527,7 +550,7 @@ $textWithBreaks
       }
     } catch (e) {
       if (mounted) {
-        UiSnack.showError('שגיאה בהעתקה מעוצבת: $e',
+        UiSnack.showError('שגיאה בהעתקה מעוצבת: ',
             backgroundColor: Theme.of(context).colorScheme.error);
       }
     }
@@ -590,10 +613,48 @@ $textWithBreaks
 
                     return SelectionArea(
                       onSelectionChanged: (selection) {
-                        // שמירת הטקסט הנבחר
-                        if (selection != null) {
+                        final plain = selection?.plainText;
+                        if (plain != null && plain.trim().isNotEmpty) {
+                          final visibleEntries = widget.content
+                              .asMap()
+                              .entries
+                              .where((entry) => !_isMergedIntoPreviousLine(
+                                    widget.content,
+                                    entry.key,
+                                    removePunctuation: widget.isMainText &&
+                                        state.removePunctuation,
+                                  ))
+                              .toList();
+                          final visibleText = visibleEntries
+                              .map((entry) => utils.stripHtmlIfNeeded(
+                                    _buildVisibleLineText(
+                                      widget.content,
+                                      entry.key,
+                                      removePunctuation: widget.isMainText &&
+                                          state.removePunctuation,
+                                    ),
+                                  ))
+                              .join('\n');
+                          final fixedPlain = _restoreNewlinesFromVisibleText(
+                              plain, visibleText);
+                          final selectionStart =
+                              visibleText.indexOf(fixedPlain);
+                          int? foundIndex = _savedSelectedIndex;
+                          if (selectionStart >= 0) {
+                            final visibleLineOffset = '\n'
+                                .allMatches(
+                                  visibleText.substring(0, selectionStart),
+                                )
+                                .length;
+                            if (visibleLineOffset >= 0 &&
+                                visibleLineOffset < visibleEntries.length) {
+                              foundIndex =
+                                  visibleEntries[visibleLineOffset].key;
+                            }
+                          }
                           setState(() {
-                            _savedSelectedText = selection.plainText;
+                            _savedSelectedText = fixedPlain;
+                            _savedSelectedIndex = foundIndex;
                           });
                         }
                       },
@@ -682,6 +743,63 @@ $textWithBreaks
     }
 
     return buffer.toString();
+  }
+
+  String _restoreNewlinesFromVisibleText(String plain, String visibleText) {
+    if (plain.contains('\n')) return plain;
+
+    final normalizedVisible = visibleText.replaceAll('\n', '');
+    final normalizedPlain = plain.replaceAll('\n', '');
+
+    if (normalizedPlain.isEmpty) return plain;
+
+    final startNon = normalizedVisible.indexOf(normalizedPlain);
+    if (startNon < 0) return plain;
+
+    final nonNewlineToVisible = <int>[];
+    for (var i = 0; i < visibleText.length; i++) {
+      if (visibleText[i] != '\n') {
+        nonNewlineToVisible.add(i);
+      }
+    }
+
+    final endNon = startNon + normalizedPlain.length - 1;
+    if (endNon >= nonNewlineToVisible.length) return plain;
+
+    final startVisible = nonNewlineToVisible[startNon];
+    final endVisible = nonNewlineToVisible[endNon];
+    return visibleText.substring(startVisible, endVisible + 1);
+  }
+
+  bool _shouldCopyRenderedText(
+    TextBookLoaded state,
+    SettingsState settingsState,
+  ) {
+    return state.removeNikud ||
+        state.removePunctuation ||
+        !settingsState.showTeamim ||
+        settingsState.replaceHolyNames;
+  }
+
+  String _buildDisplayedTextForCopy(
+    String text,
+    TextBookLoaded state,
+    SettingsState settingsState,
+  ) {
+    var processed = text;
+    if (!settingsState.showTeamim) {
+      processed = utils.removeTeamim(processed);
+    }
+    if (state.removeNikud) {
+      processed = utils.removeVolwels(processed);
+    }
+    if (state.removePunctuation) {
+      processed = utils.removePunctuation(processed);
+    }
+    if (settingsState.replaceHolyNames) {
+      processed = utils.replaceHolyNames(processed);
+    }
+    return processed;
   }
 
   Widget _buildLine(
@@ -788,7 +906,7 @@ $textWithBreaks
 
               final textWidget = SmartTextWidget(
                 text: data,
-                widgetKey: ValueKey('html_simple_text_$index'),
+                widgetKey: ValueKey('html_simple_text_'),
                 settings: RenderSettings(
                   removeNikud: state.removeNikud,
                   removePunctuation: state.removePunctuation,
@@ -802,8 +920,20 @@ $textWithBreaks
                 onOpenBook: widget.openBookCallback,
               );
 
+              final textWithNewline = Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  textWidget,
+                  const Text(
+                    '\n',
+                    style: TextStyle(fontSize: 0, height: 0),
+                  ),
+                ],
+              );
+
               if (!widget.isMainText) {
-                return textWidget;
+                return textWithNewline;
               }
 
               final note = notesForLine.isNotEmpty ? notesForLine.first : null;
@@ -861,7 +991,7 @@ $textWithBreaks
                             child: indicator,
                           ),
                   ),
-                  Expanded(child: textWidget),
+                  Expanded(child: textWithNewline),
                 ],
               );
             },

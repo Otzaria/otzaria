@@ -108,7 +108,9 @@ String removePunctuation(String text) {
 
   for (int i = 0; i < processedLines.length; i++) {
     final line = processedLines[i];
-    final shouldKeepNewline = originalEndsWithAllowed[i];
+    final shouldKeepNewline = originalEndsWithAllowed[i] ||
+        isHeadingLine(line) ||
+        (i < processedLines.length - 1 && isHeadingLine(processedLines[i + 1]));
 
     // אם זו שורה ריקה, נוסיף אותה כמו שהיא
     if (line.trim().isEmpty) {
@@ -145,6 +147,17 @@ String removePunctuation(String text) {
   }
 
   return result.replaceAll('\n', '<br>');
+}
+
+bool isHeadingLine(String line) {
+  final trimmedLine = line.trim();
+  if (trimmedLine.isEmpty) {
+    return false;
+  }
+
+  return RegExp(r'^<h[1-6][^>]*>.*?</h[1-6]>$', caseSensitive: false)
+          .hasMatch(trimmedLine) ||
+      RegExp(r'^#{1,6}\s').hasMatch(trimmedLine);
 }
 
 bool shouldKeepLineBreakAfterPunctuationRemoval(String line) {

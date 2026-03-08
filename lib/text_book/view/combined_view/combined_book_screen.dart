@@ -66,9 +66,6 @@ class _CombinedViewState extends State<CombinedView> {
   // שמירת האינדקס של השורה שממנה הטקסט הודגש
   final ValueNotifier<int?> _savedSelectedIndex = ValueNotifier<int?>(null);
 
-  // Timer לדחיית ניקוי בחירה - מאפשר ל-SelectionArea להתייצב
-  Timer? _selectionClearTimer;
-
   // שמירת reference ל-BLoC לשימוש ב-listeners
   late final TextBookBloc _textBookBloc;
 
@@ -183,7 +180,6 @@ class _CombinedViewState extends State<CombinedView> {
 
   @override
   void dispose() {
-    _selectionClearTimer?.cancel();
     _previewScrollController?.dispose();
     widget.tab.positionsListener.itemPositions.removeListener(_onScroll);
     widget.tab.positionsListener.itemPositions.removeListener(_updateTabIndex);
@@ -494,19 +490,28 @@ class _CombinedViewState extends State<CombinedView> {
   Future<void> _copyParagraphByIndex(int index) async {
     if (index < 0 || index >= widget.data.length) return;
 
-    final text = widget.data[index];
-    if (text.trim().isEmpty) return;
-
     // קבלת ההגדרות הנוכחיות
     final settingsState = context.read<SettingsBloc>().state;
     final textBookState = context.read<TextBookBloc>().state;
+    if (textBookState is! TextBookLoaded) return;
+
+    final rawText = _buildVisibleLineText(
+      widget.data,
+      index,
+      removePunctuation: textBookState.removePunctuation,
+    );
+    final text = _buildDisplayedTextForCopy(
+      rawText,
+      textBookState,
+      settingsState,
+    );
+    if (utils.stripHtmlIfNeeded(text).trim().isEmpty) return;
 
     String finalText = text;
     String finalHtmlText = text;
 
     // אם צריך להוסיף כותרות
-    if (settingsState.copyWithHeaders != 'none' &&
-        textBookState is TextBookLoaded) {
+    if (settingsState.copyWithHeaders != 'none') {
       final bookName = CopyUtils.extractBookName(textBookState.book);
       final currentPath = await CopyUtils.extractCurrentPath(
         textBookState.book,
@@ -543,20 +548,29 @@ class _CombinedViewState extends State<CombinedView> {
     final state = context.read<TextBookBloc>().state;
     if (state is! TextBookLoaded || state.visibleIndices.isEmpty) return;
 
+    // קבלת ההגדרות הנוכחיות
+    final settingsState = context.read<SettingsBloc>().state;
+
     // איסוף כל הטקסט הנראה במסך
     final visibleTexts = <String>[];
     for (final index in state.visibleIndices) {
-      if (index >= 0 && index < widget.data.length) {
-        visibleTexts.add(widget.data[index]);
-      }
+      if (index < 0 || index >= widget.data.length) continue;
+      visibleTexts.add(
+        _buildDisplayedTextForCopy(
+          _buildVisibleLineText(
+            widget.data,
+            index,
+            removePunctuation: state.removePunctuation,
+          ),
+          state,
+          settingsState,
+        ),
+      );
     }
 
     if (visibleTexts.isEmpty) return;
 
     final combinedText = visibleTexts.join('\n\n');
-
-    // קבלת ההגדרות הנוכחיות
-    final settingsState = context.read<SettingsBloc>().state;
 
     String finalText = combinedText;
 
@@ -617,13 +631,20 @@ $textWithBreaks
         // קבלת ההגדרות הנוכחיות לעיצוב
         final settingsState = context.read<SettingsBloc>().state;
         final textBookState = context.read<TextBookBloc>().state;
+        if (textBookState is! TextBookLoaded) {
+          return;
+        }
 
         // ניסיון למצוא את הטקסט המקורי עם תגי HTML
         String htmlContentToUse = plainText;
+        final shouldCopyRenderedText =
+            _shouldCopyRenderedText(textBookState, settingsState);
 
         // אם יש לנו אינדקס נוכחי, ננסה למצוא את החלק הרלוונטי מהטקסט המקורי
         final selectedIndex = _currentSelectedIndex.value;
-        if (selectedIndex != null &&
+        if (!shouldCopyRenderedText &&
+            !plainText.contains('\n') &&
+            selectedIndex != null &&
             selectedIndex >= 0 &&
             selectedIndex < widget.data.length) {
           final originalData = widget.data[selectedIndex];
@@ -648,8 +669,7 @@ $textWithBreaks
 
         // הוספת כותרות אם נדרש
         String finalPlainText = plainText;
-        if (settingsState.copyWithHeaders != 'none' &&
-            textBookState is TextBookLoaded) {
+        if (settingsState.copyWithHeaders != 'none') {
           final bookName = CopyUtils.extractBookName(textBookState.book);
           final currentIndex = _currentSelectedIndex.value ?? 0;
           final currentPath = await CopyUtils.extractCurrentPath(
@@ -758,87 +778,83 @@ $textWithBreaks
                 return const SizedBox.shrink();
               },
               onSelectionChanged: (selection) {
-                // מבטל Timer קודם אם קיים
-                _selectionClearTimer?.cancel();
-
                 final plain = selection?.plainText;
 
-                // אם יש טקסט נבחר, שומרים אותו מיד
-                if (plain != null && plain.trim().isNotEmpty) {
-                  // כניסה למצב בחירה כשיש טקסט נבחר
-                  if (!_selectionManager.isInSelectionMode) {
-                    // שימוש באינדקס הראשון הנראה במקום 0
-                    final positions =
-                        widget.tab.positionsListener.itemPositions.value;
-                    final firstVisibleIndex =
-                        positions.isNotEmpty ? positions.first.index : 0;
-                    _selectionManager.setAnchor(firstVisibleIndex);
-                  }
-
-                  // חשוב: כדי ש-Ctrl+C יעבוד מיד אחרי סימון טקסט עם העכבר
-                  // נוודא שהפוקוס נמצא על אזור הקריאה.
-                  _focusNode.requestFocus();
-
-                  // מחשב את מספר השורה המדויק של הטקסט המודגש
-                  // משתמש באותה לוגיקה כמו בדיווח שגיאות
-                  final state = _textBookBloc.state;
-                  int? foundIndex;
-                  var fixedPlain = plain;
-
-                  if (state is TextBookLoaded) {
-                    // מקבל את השורה הראשונה הנראית
-                    final baseIndex = state.visibleIndices.isNotEmpty
-                        ? state.visibleIndices.first
-                        : 0;
-
-                    // בונה את הטקסט הנראה
-                    final visibleText = state.visibleIndices
-                        .map((idx) =>
-                            widget.data[idx].replaceAll(RegExp(r'<[^>]*>'), ''))
-                        .join('\n');
-
-                    fixedPlain =
-                        _restoreNewlinesFromVisibleText(plain, visibleText);
-
-                    // מוצא את המיקום של הטקסט המודגש
-                    final selectionStart = visibleText.indexOf(fixedPlain);
-
-                    if (selectionStart >= 0) {
-                      // סופר כמה שורות יש לפני הטקסט המודגש
-                      final before = visibleText.substring(0, selectionStart);
-                      final offset = '\n'.allMatches(before).length;
-                      foundIndex = baseIndex + offset;
-                    }
-
-                    // fallback: אם לא הצלחנו לחשב אינדקס, נשתמש בשורה שנבחרה (אם קיימת)
-                    foundIndex ??= state.selectedIndex;
-                  }
-
-                  if (mounted) {
-                    _savedSelectedText.value = fixedPlain;
-                    _savedSelectedIndex.value = foundIndex;
-                    _currentSelectedIndex.value = foundIndex;
-                    widget.onSelectedTextChanged?.call(fixedPlain);
-                  }
+                if (plain == null || plain.trim().isEmpty) {
+                  // אם הבחירה נוקתה, יוצאים ממצב בחירה
+                  _selectionManager.exitSelectionMode();
+                  _savedSelectedText.value = null;
+                  _savedSelectedIndex.value = null;
+                  _currentSelectedIndex.value = null;
+                  widget.onSelectedTextChanged?.call(null);
+                  return;
                 }
-                // אם הטקסט ריק - מתזמנים ניקוי בחירה אחרי 100ms
-                // זה נותן ל-SelectionArea זמן להתייצב ולא מנקה בחירה תקינה
-                else {
-                  _selectionClearTimer =
-                      Timer(const Duration(milliseconds: 100), () {
-                    // בודק שוב אם באמת אין בחירה
-                    final selectedPlainText = selection?.plainText;
-                    if (mounted &&
-                        (selectedPlainText == null ||
-                            selectedPlainText.trim().isEmpty)) {
-                      // רק עכשיו מנקים את הבחירה
-                      _selectionManager.exitSelectionMode();
-                      _savedSelectedText.value = null;
-                      _savedSelectedIndex.value = null;
-                      _currentSelectedIndex.value = null;
-                      widget.onSelectedTextChanged?.call(null);
-                    }
-                  });
+
+                // כניסה למצב בחירה כשיש טקסט נבחר
+                if (!_selectionManager.isInSelectionMode) {
+                  // שימוש באינדקס הראשון הנראה במקום 0
+                  final positions =
+                      widget.tab.positionsListener.itemPositions.value;
+                  final firstVisibleIndex =
+                      positions.isNotEmpty ? positions.first.index : 0;
+                  _selectionManager.setAnchor(firstVisibleIndex);
+                }
+
+                // חשוב: כדי ש-Ctrl+C יעבוד מיד אחרי סימון טקסט עם העכבר
+                // נוודא שהפוקוס נמצא על אזור הקריאה.
+                _focusNode.requestFocus();
+
+                // מחשב את מספר השורה המדויק של הטקסט המודגש
+                // משתמש באותה לוגיקה כמו בדיווח שגיאות
+                final state = _textBookBloc.state;
+                int? foundIndex;
+                var fixedPlain = plain;
+
+                if (state is TextBookLoaded) {
+                  // מקבל את השורה הראשונה הנראית
+                  final baseIndex = state.visibleIndices.isNotEmpty
+                      ? state.visibleIndices.first
+                      : 0;
+
+                  // בונה את הטקסט הנראה
+                  final visibleText = state.visibleIndices
+                      .where((idx) => idx >= 0 && idx < widget.data.length)
+                      .where((idx) => !_isMergedIntoPreviousLine(
+                            widget.data,
+                            idx,
+                            removePunctuation: state.removePunctuation,
+                          ))
+                      .map((idx) => utils.stripHtmlIfNeeded(
+                            _buildVisibleLineText(
+                              widget.data,
+                              idx,
+                              removePunctuation: state.removePunctuation,
+                            ),
+                          ))
+                      .join('\n');
+
+                  fixedPlain =
+                      _restoreNewlinesFromVisibleText(plain, visibleText);
+
+                  // מוצא את המיקום של הטקסט המודגש
+                  final selectionStart = visibleText.indexOf(fixedPlain);
+
+                  if (selectionStart >= 0) {
+                    // סופר כמה שורות יש לפני הטקסט המודגש
+                    final before = visibleText.substring(0, selectionStart);
+                    final offset = '\n'.allMatches(before).length;
+                    foundIndex = baseIndex + offset;
+                  }
+
+                  // fallback: אם לא הצלחנו לחשב אינדקס, נשתמש בשורה שנבחרה (אם קיימת)
+                  foundIndex ??= state.selectedIndex;
+                }
+
+                if (mounted) {
+                  _savedSelectedText.value = fixedPlain;
+                  _savedSelectedIndex.value = foundIndex;
+                  _currentSelectedIndex.value = foundIndex;
+                  widget.onSelectedTextChanged?.call(fixedPlain);
                 }
               },
               child: Directionality(
@@ -1057,6 +1073,37 @@ $textWithBreaks
     }
 
     return buffer.toString();
+  }
+
+  bool _shouldCopyRenderedText(
+    TextBookLoaded state,
+    SettingsState settingsState,
+  ) {
+    return state.removeNikud ||
+        state.removePunctuation ||
+        !settingsState.showTeamim ||
+        settingsState.replaceHolyNames;
+  }
+
+  String _buildDisplayedTextForCopy(
+    String text,
+    TextBookLoaded state,
+    SettingsState settingsState,
+  ) {
+    var processed = text;
+    if (!settingsState.showTeamim) {
+      processed = utils.removeTeamim(processed);
+    }
+    if (state.removeNikud) {
+      processed = utils.removeVolwels(processed);
+    }
+    if (state.removePunctuation) {
+      processed = utils.removePunctuation(processed);
+    }
+    if (settingsState.replaceHolyNames) {
+      processed = utils.replaceHolyNames(processed);
+    }
+    return processed;
   }
 
   Widget buildExpansiomTile(
