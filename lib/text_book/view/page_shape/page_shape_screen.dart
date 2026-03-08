@@ -18,6 +18,7 @@ import 'package:otzaria/text_book/view/page_shape/utils/commentary_sync_helper.d
 import 'package:otzaria/text_book/view/page_shape/page_shape_settings_dialog.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
+import 'package:otzaria/widgets/custom_ui_components.dart';
 import 'package:otzaria/widgets/loading_indicator.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/models/books.dart';
@@ -228,6 +229,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
   Widget _buildEmptyColumnContent({
     required String columnName,
     required VoidCallback onSelectCommentator,
+    required VoidCallback onSetMultipleCommentators,
     required VoidCallback onHideColumn,
   }) {
     return Container(
@@ -239,26 +241,22 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            ElevatedButton.icon(
+            RecommendedActionButton(
               onPressed: onSelectCommentator,
-              icon: const Icon(FluentIcons.book_24_regular),
-              label: const Text('בחר מפרש'),
-              style: ElevatedButton.styleFrom(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              ),
+              icon: FluentIcons.book_24_regular,
+              text: 'בחר מפרש',
             ),
             const SizedBox(height: 12),
-            TextButton.icon(
+            NeutralActionButton(
+              onPressed: onSetMultipleCommentators,
+              icon: FluentIcons.checkbox_checked_24_regular,
+              text: 'הגדר כמפרשים מרובים',
+            ),
+            const SizedBox(height: 12),
+            NeutralActionButton(
               onPressed: onHideColumn,
-              icon: const Icon(FluentIcons.eye_off_24_regular, size: 18),
-              label: const Text('הסתר טור זה'),
-              style: TextButton.styleFrom(
-                foregroundColor: Theme.of(context)
-                    .colorScheme
-                    .onSurface
-                    .withValues(alpha: 0.6),
-              ),
+              icon: FluentIcons.eye_off_24_regular,
+              text: 'הסתר טור זה',
             ),
           ],
         ),
@@ -682,6 +680,11 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                           columnName: 'left',
                                           onSelectCommentator: () =>
                                               _openCommentatorSelector('left'),
+                                          onSetMultipleCommentators: () =>
+                                              _setSlotMode(
+                                                'left',
+                                                PageShapeCommentaryMode.multiple,
+                                              ),
                                           onHideColumn: () =>
                                               _hideColumn('left'),
                                         ),
@@ -761,6 +764,11 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                           columnName: 'right',
                                           onSelectCommentator: () =>
                                               _openCommentatorSelector('right'),
+                                          onSetMultipleCommentators: () =>
+                                              _setSlotMode(
+                                                'right',
+                                                PageShapeCommentaryMode.multiple,
+                                              ),
                                           onHideColumn: () =>
                                               _hideColumn('right'),
                                         ),

@@ -112,6 +112,13 @@ Future<List<Link>> getLinksforIndexs(
     return commentatorsSet.contains(utils.getTitleFromPath(link.path2));
   }).toList();
 
+  // מסיר כפילויות לפי שורת היעד בפירוש, כי ה-UI מרנדר פריט אחד לכל path2/index2.
+  final seenLinkKeys = <String>{};
+  allLinks.retainWhere((link) {
+    final key = '${link.path2}|${link.index2}';
+    return seenLinkKeys.add(key);
+  });
+
   // אם אין קישורים, מחזיר רשימה ריקה מיד
   if (allLinks.isEmpty) {
     return [];

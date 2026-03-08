@@ -138,6 +138,35 @@ void main() {
       expect(result, contains('</a>'));
     });
 
+
+    test('getLinksforIndexs removes duplicate rendered commentary links', () async {
+      final links = [
+        Link(
+          heRef: 'רש"י על בראשית א, א',
+          index1: 1,
+          path2: 'רש"י על בראשית.txt',
+          index2: 1,
+          connectionType: 'COMMENTARY',
+        ),
+        Link(
+          heRef: 'רש"י על בראשית א, ב',
+          index1: 1,
+          path2: 'רש"י על בראשית.txt',
+          index2: 1,
+          connectionType: 'COMMENTARY',
+        ),
+      ];
+
+      final result = await getLinksforIndexs(
+        indexes: const [0],
+        links: links,
+        commentatorsToShow: const ['רש"י על בראשית'],
+      );
+
+      expect(result, hasLength(1));
+      expect(result.single.heRef, 'רש"י על בראשית א, א');
+    });
+
     test('validates link positions', () {
       final text = 'טקסט קצר';
       final invalidLinks = [
