@@ -231,7 +231,7 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
   }
 
   /// בניית תפריט הקשר למפרש ספציפי
-  ctx.ContextMenu _buildCommentaryContextMenu(Link link) {
+  ctx.ContextMenu<void> _buildCommentaryContextMenu(Link link) {
     return ContextMenuUtils.buildCommentaryContextMenu(
       context: context,
       link: link,
@@ -1123,7 +1123,7 @@ class _CollapsibleCommentaryGroup extends StatefulWidget {
   final PdfBookTab tab;
   final double fontSize;
   final Function(OpenedTab) openBookCallback;
-  final ctx.ContextMenu Function(Link) buildContextMenu;
+  final ctx.ContextMenu<void> Function(Link) buildContextMenu;
   final bool isExpanded;
   final Function(bool) onExpansionChanged;
   final String searchQuery;

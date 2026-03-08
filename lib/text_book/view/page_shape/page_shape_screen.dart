@@ -406,20 +406,20 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
     await _persistConfiguration(state, updatedConfig);
   }
 
-  ctx.ContextMenu _buildSlotContextMenu(String slotKey) {
+  ctx.ContextMenu<void> _buildSlotContextMenu(String slotKey) {
     final slot = _slot(slotKey);
     final isMultiple = slot.mode == PageShapeCommentaryMode.multiple;
 
-    return ctx.ContextMenu(
+    return ctx.ContextMenu<void>(
       entries: [
         if (isMultiple)
-          ctx.MenuItem(
+          ctx.MenuItem<void>(
             label: const Text('בחר מפרשים'),
             icon: const Icon(FluentIcons.checkbox_checked_24_regular),
             onSelected: (_) => _openSlotMultipleSelector(slotKey),
           )
         else
-          ctx.MenuItem(
+          ctx.MenuItem<void>(
             label: const Text('הגדר כמפרשים מרובים'),
             onSelected: (_) => _setSlotMode(
               slotKey,
@@ -428,7 +428,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
           ),
         if (isMultiple) ...[
           const ctx.MenuDivider(),
-          ctx.MenuItem(
+          ctx.MenuItem<void>(
             label: const Text('הגדר כמפרש יחיד'),
             onSelected: (_) => _setSlotMode(
               slotKey,
@@ -440,7 +440,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
     );
   }
 
-  List<ctx.ContextMenuEntry> _buildSlotContextEntries(String slotKey) {
+  List<ctx.ContextMenuEntry<void>> _buildSlotContextEntries(String slotKey) {
     return _buildSlotContextMenu(slotKey).entries;
   }
 

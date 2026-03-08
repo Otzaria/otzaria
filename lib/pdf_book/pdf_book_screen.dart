@@ -330,23 +330,23 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     _openCommentaryPane();
   }
 
-  ctx.ContextMenu _buildPdfContextMenu() {
+  ctx.ContextMenu<void> _buildPdfContextMenu() {
     final (commentators: relevantCommentators, links: relevantLinks) =
         _getRelevantContent();
 
-    return ctx.ContextMenu(
+    return ctx.ContextMenu<void>(
       entries: [
-        ctx.MenuItem(
+        ctx.MenuItem<void>(
           label: _buildRtlMenuText('חיפוש'),
           icon: const Icon(FluentIcons.search_24_regular),
           onSelected: (_) => _ensureSearchTabIsActive(),
         ),
-        ctx.MenuItem.submenu(
+        ctx.MenuItem<void>.submenu(
           label: _buildRtlMenuText('מפרשים'),
           icon: const Icon(FluentIcons.book_24_regular),
           enabled: relevantCommentators.isNotEmpty,
           items: [
-            ctx.MenuItem(
+            ctx.MenuItem<void>(
               label: _buildRtlMenuText('הצג את כל המפרשים'),
               icon: relevantCommentators.isNotEmpty &&
                       widget.tab.activeCommentators
@@ -357,7 +357,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             ),
             if (relevantCommentators.isNotEmpty) const ctx.MenuDivider(),
             ...relevantCommentators.map(
-              (commentator) => ctx.MenuItem(
+              (commentator) => ctx.MenuItem<void>(
                 label: Text(commentator, textDirection: TextDirection.rtl),
                 icon: widget.tab.activeCommentators.contains(commentator)
                     ? const Icon(FluentIcons.checkmark_24_regular)
@@ -367,13 +367,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             ),
           ],
         ),
-        ctx.MenuItem.submenu(
+        ctx.MenuItem<void>.submenu(
           label: _buildRtlMenuText('קישורים'),
           icon: const Icon(FluentIcons.link_24_regular),
           enabled: relevantLinks.isNotEmpty,
           items: relevantLinks
               .map(
-                (link) => ctx.MenuItem(
+                (link) => ctx.MenuItem<void>(
                   label: Text(link.heRef, textDirection: TextDirection.rtl),
                   onSelected: (_) {
                     openBook(

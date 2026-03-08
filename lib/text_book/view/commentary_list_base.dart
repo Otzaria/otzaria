@@ -39,7 +39,7 @@ class CommentaryListBase extends StatefulWidget {
   final bool shrinkWrap;
   final ItemPositionsListener? itemPositionsListener;
   final List<String>? selectedCommentatorsOverride;
-  final List<ctx.ContextMenuEntry> Function(
+  final List<ctx.ContextMenuEntry<void>> Function(
           BuildContext context, Link link, String? selectedText)?
       extraContextMenuEntriesBuilder;
 
@@ -902,7 +902,7 @@ class _CollapsibleCommentaryGroup extends StatefulWidget {
   final String indexesKey;
   final ValueListenable<String?> savedSelectedTextListenable;
   final void Function(bool) onExpansionChanged;
-  final List<ctx.ContextMenuEntry> Function(
+  final List<ctx.ContextMenuEntry<void>> Function(
           BuildContext context, Link link, String? selectedText)?
       extraContextMenuEntriesBuilder;
 
@@ -1072,7 +1072,7 @@ class _CollapsibleCommentaryGroupState
               builder: (context, selectedText, child) {
                 final extraEntries = widget.extraContextMenuEntriesBuilder
                         ?.call(context, link, selectedText) ??
-                    const <ctx.ContextMenuEntry>[];
+                    const <ctx.ContextMenuEntry<void>>[];
                 final defaultMenu = ContextMenuUtils.buildCommentaryContextMenu(
                   context: context,
                   link: link,
@@ -1087,7 +1087,7 @@ class _CollapsibleCommentaryGroupState
                 );
 
                 return ctx.ContextMenuRegion(
-                  contextMenu: ctx.ContextMenu(
+                  contextMenu: ctx.ContextMenu<void>(
                     entries: [
                       ...extraEntries,
                       if (extraEntries.isNotEmpty) const ctx.MenuDivider(),

@@ -221,17 +221,17 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   }
 
   /// תפריט הקשר - מעתיק מהתצוגה הרגילה
-  ctx.ContextMenu _buildContextMenu(
+  ctx.ContextMenu<void> _buildContextMenu(
       TextBookLoaded state, int index, BuildContext menuContext) {
     // בניית רשימת מפרשים אם זה מפרש (לא טקסט ראשי)
-    List<ctx.ContextMenuEntry> commentatorMenuItems = [];
+    List<ctx.ContextMenuEntry<void>> commentatorMenuItems = [];
     if (!widget.isMainText && widget.bookTitle != null) {
       commentatorMenuItems = _buildCommentatorSwitchMenu(state);
     }
 
-    return ctx.ContextMenu(
+    return ctx.ContextMenu<void>(
       entries: [
-        ctx.MenuItem(
+        ctx.MenuItem<void>(
           label: const Text('חיפוש'),
           icon: const Icon(FluentIcons.search_24_regular),
           onSelected: (_) {
@@ -246,13 +246,13 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         ],
         const ctx.MenuDivider(),
         // הערות אישיות
-        ctx.MenuItem(
+        ctx.MenuItem<void>(
           label: const Text('הוסף הערה אישית '),
           icon: const Icon(FluentIcons.note_add_24_regular),
           onSelected: (_) => _createNoteForCurrentLine(index),
         ),
         // דיווח על טעות בספר
-        ctx.MenuItem(
+        ctx.MenuItem<void>(
           label: const Text('דווח על טעות בספר'),
           icon: const Icon(FluentIcons.error_circle_24_regular),
           enabled: _savedSelectedText != null &&
@@ -261,14 +261,14 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         ),
         const ctx.MenuDivider(),
         // העתקה
-        ctx.MenuItem(
+        ctx.MenuItem<void>(
           label: const Text('העתק'),
           icon: const Icon(FluentIcons.copy_24_regular),
           enabled: _savedSelectedText != null &&
               _savedSelectedText!.trim().isNotEmpty,
           onSelected: (_) => _copyFormattedText(),
         ),
-        ctx.MenuItem(
+        ctx.MenuItem<void>(
           label: const Text('העתק את כל הפסקה'),
           icon: const Icon(FluentIcons.document_copy_24_regular),
           enabled: index >= 0 && index < widget.content.length,
@@ -721,7 +721,8 @@ $textWithBreaks
   }
 
   /// בניית תפריט החלפת מפרש
-  List<ctx.ContextMenuEntry> _buildCommentatorSwitchMenu(TextBookLoaded state) {
+  List<ctx.ContextMenuEntry<void>> _buildCommentatorSwitchMenu(
+      TextBookLoaded state) {
     // קבלת רשימת המפרשים הזמינים
     final availableCommentators = state.links
         .where((link) => LinkTypes.isCommentaryOrTargum(link.connectionType))
@@ -752,7 +753,7 @@ $textWithBreaks
         availableCommentators.where((c) => !allGrouped.contains(c)).toList();
 
     // בניית תפריט משנה
-    final submenuItems = <dynamic>[];
+    final submenuItems = <ctx.ContextMenuEntry<void>>[];
 
     // הוספת קבוצות
     if (tanachGroup.commentators.isNotEmpty) {
@@ -785,13 +786,13 @@ $textWithBreaks
     }
 
     return [
-      ctx.MenuItem.submenu(
+      ctx.MenuItem<void>.submenu(
         label: const Text('החלף מפרש'),
         icon: const Icon(FluentIcons.arrow_swap_24_regular),
-        items: submenuItems.cast<ctx.ContextMenuEntry>(),
+        items: submenuItems,
       ),
       const ctx.MenuDivider(),
-      ctx.MenuItem(
+      ctx.MenuItem<void>(
         label: const Text('הגדר כמפרשים מרובים'),
         onSelected: (_) => _setCurrentSlotMode(
           state,
@@ -867,7 +868,7 @@ $textWithBreaks
   }
 
   /// בניית פריטי תפריט לקבוצת מפרשים
-  List<ctx.MenuItem> _buildCommentatorGroupItems(
+  List<ctx.MenuItem<void>> _buildCommentatorGroupItems(
       List<String> commentators, TextBookLoaded state) {
     return commentators.map((commentator) {
       final isSelected = commentator == widget.bookTitle;

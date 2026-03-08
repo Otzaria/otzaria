@@ -277,13 +277,13 @@ class _CombinedViewState extends State<CombinedView> {
   }
 
   // בניית תפריט קונטקסט "מקובע" לאינדקס ספציפי של פסקה
-  ctx.ContextMenu _buildContextMenuForIndex(TextBookLoaded state,
+  ctx.ContextMenu<void> _buildContextMenuForIndex(TextBookLoaded state,
       int paragraphIndex, BuildContext menuContext, String? selectedText) {
     // אם זה מצב תצוגה מקדימה, החזר תפריט מצומצם
     if (widget.isPreviewMode) {
-      return ctx.ContextMenu(
+      return ctx.ContextMenu<void>(
         entries: [
-          ctx.MenuItem(
+          ctx.MenuItem<void>(
             label: const Text('העתק'),
             icon: const Icon(FluentIcons.copy_24_regular),
             enabled: selectedText != null && selectedText.trim().isNotEmpty,
@@ -308,20 +308,20 @@ class _CombinedViewState extends State<CombinedView> {
     // 3. יצירת רשימה של מפרשים שלא שויכו לאף קבוצה
     final List<String> ungrouped = ungroupedGroup.commentators;
 
-    return ctx.ContextMenu(
+    return ctx.ContextMenu<void>(
       maxHeight: screenHeight * 0.9,
       entries: [
-        ctx.MenuItem(
+        ctx.MenuItem<void>(
             label: const Text('חיפוש'),
             icon: const Icon(FluentIcons.search_24_regular),
             onSelected: (_) =>
                 widget.openLeftPaneTab(1, searchText: selectedText)),
-        ctx.MenuItem.submenu(
+        ctx.MenuItem<void>.submenu(
           label: const Text('מפרשים'),
           icon: const Icon(FluentIcons.book_24_regular),
           enabled: state.availableCommentators.isNotEmpty,
           items: [
-            ctx.MenuItem(
+            ctx.MenuItem<void>(
               label: const Text('הצג את כל המפרשים'),
               icon: state.activeCommentators
                       .toSet()
@@ -395,13 +395,13 @@ class _CombinedViewState extends State<CombinedView> {
             ..._buildGroup(ungroupedGroup.title, ungrouped, state),
           ],
         ),
-        ctx.MenuItem.submenu(
+        ctx.MenuItem<void>.submenu(
           label: const Text('קישורים'),
           icon: const Icon(FluentIcons.link_24_regular),
           enabled: state.visibleLinks.isNotEmpty,
           items: state.visibleLinks
               .map(
-                (link) => ctx.MenuItem(
+                (link) => ctx.MenuItem<void>(
                   label: Text(link.heRef),
                   onSelected: (_) {
                     widget.openBookCallback(
@@ -425,13 +425,13 @@ class _CombinedViewState extends State<CombinedView> {
         ),
         const ctx.MenuDivider(),
         // הערות אישיות
-        ctx.MenuItem(
+        ctx.MenuItem<void>(
           label: const Text('הוסף הערה אישית '),
           icon: const Icon(FluentIcons.note_add_24_regular),
           onSelected: (_) => _createNoteForCurrentLine(),
         ),
         // דיווח על טעות בספר
-        ctx.MenuItem(
+        ctx.MenuItem<void>(
           label: const Text('דווח על טעות בספר'),
           icon: const Icon(FluentIcons.error_circle_24_regular),
           enabled: selectedText != null && selectedText.trim().isNotEmpty,
@@ -440,19 +440,19 @@ class _CombinedViewState extends State<CombinedView> {
         ),
         const ctx.MenuDivider(),
         // העתקה
-        ctx.MenuItem(
+        ctx.MenuItem<void>(
           label: const Text('העתק'),
           icon: const Icon(FluentIcons.copy_24_regular),
           enabled: selectedText != null && selectedText.trim().isNotEmpty,
           onSelected: (_) => _copyFormattedText(),
         ),
-        ctx.MenuItem(
+        ctx.MenuItem<void>(
           label: const Text('העתק את כל הפסקה'),
           icon: const Icon(FluentIcons.document_copy_24_regular),
           enabled: paragraphIndex >= 0 && paragraphIndex < widget.data.length,
           onSelected: (_) => _copyParagraphByIndex(paragraphIndex),
         ),
-        ctx.MenuItem(
+        ctx.MenuItem<void>(
           label: const Text('העתק את הטקסט המוצג'),
           icon: const Icon(FluentIcons.copy_select_24_regular),
           onSelected: (_) => _copyVisibleText(),
