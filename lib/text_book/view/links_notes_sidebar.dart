@@ -143,6 +143,7 @@ class LinksNotesSidebarState extends State<LinksNotesSidebar>
                 showVisibleLinksIfNoSelection: true,
               ),
               PersonalNotesSidebar(
+                key: ValueKey(widget.bookId),
                 bookId: widget.bookId,
                 onNavigateToLine: widget.onNavigateToLine,
               ),

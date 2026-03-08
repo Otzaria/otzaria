@@ -37,10 +37,15 @@ class PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState> {
       state.copyWith(
         isLoading: true,
         bookId: event.bookId,
+        locatedNotes: const [],
+        missingNotes: const [],
+        filteredLocatedNotes: const [],
+        filteredMissingNotes: const [],
         errorMessage: null,
         // איפוס החיפוש כשטוענים ספר חדש
         searchQuery: '',
         visibleLineIndices: [],
+        clearNewNoteData: true,
       ),
     );
 
