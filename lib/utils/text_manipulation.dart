@@ -26,10 +26,17 @@ String removeVolwels(String s) {
 String removePunctuation(String text) {
   if (text.isEmpty) return text;
 
+  final hadHtmlBreaks =
+      RegExp(r'<br\s*/?>', caseSensitive: false).hasMatch(text);
+  final normalizedText = text
+      .replaceAll(RegExp(r'\r\n?'), '\n')
+      .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n');
+
   // מחלקים לשורות כדי לטפל בכל שורה בנפרד
-  final lines = text.split('\n');
+  final lines = normalizedText.split('\n');
   final processedLines = <String>[];
-  final originalEndsWithAllowed = <bool>[]; // שומרים אם השורה המקורית מסתיימת ב . או :
+  final originalEndsWithAllowed =
+      <bool>[]; // שומרים אם השורה המקורית מסתיימת ב . או :
 
   for (final line in lines) {
     if (line.trim().isEmpty) {
@@ -45,7 +52,8 @@ String removePunctuation(String text) {
     String processed = line;
 
     // מוצאים את הסימן האחרון בשורה (רק . או :)
-    final lastAllowedPunctuationMatch = RegExp(r'[.:](\s*)$').firstMatch(processed);
+    final lastAllowedPunctuationMatch =
+        RegExp(r'[.:](\s*)$').firstMatch(processed);
     final lastAllowedPunctuationIndex = lastAllowedPunctuationMatch?.start;
 
     // מסירים את כל הסימנים חוץ מ . או : בסוף
@@ -57,7 +65,7 @@ String removePunctuation(String text) {
       // אם זה סימן פיסוק שצריך להסיר
       if (RegExp(r'[!:;.,?\-—]').hasMatch(char)) {
         // שומרים רק אם זה . או : בסוף השורה
-        if (lastAllowedPunctuationIndex != null && 
+        if (lastAllowedPunctuationIndex != null &&
             i >= lastAllowedPunctuationIndex &&
             (char == '.' || char == ':')) {
           result.write(char);
@@ -77,8 +85,8 @@ String removePunctuation(String text) {
       (match) {
         final index = match.start;
         // בודקים אם יש אות לפני ואחרי
-        final hasBefore = index > 0 &&
-            RegExp(r'[א-תa-zA-Z]').hasMatch(processed[index - 1]);
+        final hasBefore =
+            index > 0 && RegExp(r'[א-תa-zA-Z]').hasMatch(processed[index - 1]);
         final hasAfter = index < processed.length - 1 &&
             RegExp(r'[א-תa-zA-Z]').hasMatch(processed[index + 1]);
 
@@ -97,11 +105,11 @@ String removePunctuation(String text) {
   // מחברים את השורות בחזרה
   // אם שורה לא הסתיימה ב . או : במקור, נחבר אותה לשורה הבאה עם רווח
   final finalResult = StringBuffer();
-  
+
   for (int i = 0; i < processedLines.length; i++) {
     final line = processedLines[i];
     final shouldKeepNewline = originalEndsWithAllowed[i];
-    
+
     // אם זו שורה ריקה, נוסיף אותה כמו שהיא
     if (line.trim().isEmpty) {
       if (finalResult.isNotEmpty) {
@@ -113,23 +121,42 @@ String removePunctuation(String text) {
       }
       continue;
     }
-    
+
     // מוסיפים רווח לפני השורה אם צריך (אלא אם זו השורה הראשונה או אחרי שורה ריקה)
     final resultStr = finalResult.toString();
-    if (resultStr.isNotEmpty && !resultStr.endsWith('\n') && !resultStr.endsWith(' ')) {
+    if (resultStr.isNotEmpty &&
+        !resultStr.endsWith('\n') &&
+        !resultStr.endsWith(' ')) {
       finalResult.write(' '); // רווח במקום מעבר שורה
     }
-    
+
     // מוסיפים את השורה
     finalResult.write(line);
-    
+
     // אם השורה המקורית הסתיימה ב . או :, נוסיף מעבר שורה
     if (shouldKeepNewline && i < processedLines.length - 1) {
       finalResult.write('\n');
     }
   }
 
-  return finalResult.toString();
+  final result = finalResult.toString();
+  if (!hadHtmlBreaks) {
+    return result;
+  }
+
+  return result.replaceAll('\n', '<br>');
+}
+
+bool shouldKeepLineBreakAfterPunctuationRemoval(String line) {
+  final normalizedLine = stripHtmlIfNeeded(
+    line.replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), ''),
+  ).trimRight();
+
+  if (normalizedLine.isEmpty) {
+    return true;
+  }
+
+  return RegExp(r'[.:]$').hasMatch(normalizedLine);
 }
 
 /// בדיקה אם טקסט מכיל ניקוד או טעמים

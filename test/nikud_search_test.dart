@@ -55,7 +55,6 @@ void main() {
       // טקסט עם סימני פיסוק
       expect(removeVolwels('שָׁלוֹם, עוֹלָם!'), 'שלום, עולם!');
     });
-
     test('Search workflow - nikud removal by default', () {
       // סימולציה של תהליך חיפוש
       const userInput = 'שָׁלוֹם עוֹלָם';

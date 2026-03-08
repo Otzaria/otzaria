@@ -986,7 +986,8 @@ $textWithBreaks
     Map<int, List<PersonalNote>> noteMap,
   ) {
     return ScrollablePositionedList.builder(
-      key: ValueKey('combined-${widget.tab.book.title}-${widget.tab.scrollController.hashCode}'),
+      key: ValueKey(
+          'combined-${widget.tab.book.title}-${widget.tab.scrollController.hashCode}'),
       initialScrollIndex: widget.tab.index,
       itemPositionsListener: widget.tab.positionsListener,
       itemScrollController: widget.tab.scrollController,
@@ -999,6 +1000,65 @@ $textWithBreaks
     );
   }
 
+  int _mergedLineEndIndex(List<String> content, int startIndex,
+      {required bool removePunctuation}) {
+    if (!removePunctuation) {
+      return startIndex;
+    }
+
+    var endIndex = startIndex;
+    while (endIndex < content.length - 1 &&
+        !utils.shouldKeepLineBreakAfterPunctuationRemoval(content[endIndex])) {
+      final nextPlainText =
+          utils.stripHtmlIfNeeded(content[endIndex + 1]).trim();
+      if (nextPlainText.isEmpty) {
+        break;
+      }
+      endIndex++;
+    }
+
+    return endIndex;
+  }
+
+  bool _isMergedIntoPreviousLine(List<String> content, int index,
+      {required bool removePunctuation}) {
+    if (!removePunctuation || index <= 0) {
+      return false;
+    }
+
+    final currentPlainText = utils.stripHtmlIfNeeded(content[index]).trim();
+    if (currentPlainText.isEmpty) {
+      return false;
+    }
+
+    return !utils
+        .shouldKeepLineBreakAfterPunctuationRemoval(content[index - 1]);
+  }
+
+  String _buildVisibleLineText(List<String> content, int startIndex,
+      {required bool removePunctuation}) {
+    if (!removePunctuation) {
+      return content[startIndex];
+    }
+
+    final endIndex =
+        _mergedLineEndIndex(content, startIndex, removePunctuation: true);
+    final buffer = StringBuffer(content[startIndex].trimRight());
+
+    for (int i = startIndex + 1; i <= endIndex; i++) {
+      final nextSegment = content[i].trimLeft();
+      if (nextSegment.isEmpty) {
+        continue;
+      }
+      if (buffer.length > 0 && !buffer.toString().endsWith(' ')) {
+        buffer.write(' ');
+      }
+      buffer.write(nextSegment);
+    }
+
+    return buffer.toString();
+  }
+
   Widget buildExpansiomTile(
     ExpansibleController controller,
     int index,
@@ -1007,7 +1067,23 @@ $textWithBreaks
   ) {
     final isSelected = state.selectedIndex == index;
     final isHighlighted = state.highlightedLine == index;
-    final notesForLine = noteMap[index + 1] ?? const <PersonalNote>[];
+    final mergedLineEndIndex = _mergedLineEndIndex(
+      widget.data,
+      index,
+      removePunctuation: state.removePunctuation,
+    );
+    final notesForLine = <PersonalNote>[
+      for (int i = index; i <= mergedLineEndIndex; i++)
+        ...(noteMap[i + 1] ?? const <PersonalNote>[]),
+    ];
+
+    if (_isMergedIntoPreviousLine(
+      widget.data,
+      index,
+      removePunctuation: state.removePunctuation,
+    )) {
+      return const SizedBox.shrink();
+    }
 
     final theme = Theme.of(context);
     final backgroundColor = () {
@@ -1114,7 +1190,11 @@ $textWithBreaks
                           textMaxWidth = constraints.maxWidth * widthPercent;
                         }
 
-                        String data = widget.data[index];
+                        String data = _buildVisibleLineText(
+                          widget.data,
+                          index,
+                          removePunctuation: state.removePunctuation,
+                        );
 
                         // הוספת קישורים מבוססי תווים לפני כל עיבוד אחר
                         // כי start/end מתייחסים לטקסט המקורי

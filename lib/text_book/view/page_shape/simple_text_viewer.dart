@@ -625,6 +625,65 @@ $textWithBreaks
     );
   }
 
+  int _mergedLineEndIndex(List<String> content, int startIndex,
+      {required bool removePunctuation}) {
+    if (!removePunctuation) {
+      return startIndex;
+    }
+
+    var endIndex = startIndex;
+    while (endIndex < content.length - 1 &&
+        !utils.shouldKeepLineBreakAfterPunctuationRemoval(content[endIndex])) {
+      final nextPlainText =
+          utils.stripHtmlIfNeeded(content[endIndex + 1]).trim();
+      if (nextPlainText.isEmpty) {
+        break;
+      }
+      endIndex++;
+    }
+
+    return endIndex;
+  }
+
+  bool _isMergedIntoPreviousLine(List<String> content, int index,
+      {required bool removePunctuation}) {
+    if (!removePunctuation || index <= 0) {
+      return false;
+    }
+
+    final currentPlainText = utils.stripHtmlIfNeeded(content[index]).trim();
+    if (currentPlainText.isEmpty) {
+      return false;
+    }
+
+    return !utils
+        .shouldKeepLineBreakAfterPunctuationRemoval(content[index - 1]);
+  }
+
+  String _buildVisibleLineText(List<String> content, int startIndex,
+      {required bool removePunctuation}) {
+    if (!removePunctuation) {
+      return content[startIndex];
+    }
+
+    final endIndex =
+        _mergedLineEndIndex(content, startIndex, removePunctuation: true);
+    final buffer = StringBuffer(content[startIndex].trimRight());
+
+    for (int i = startIndex + 1; i <= endIndex; i++) {
+      final nextSegment = content[i].trimLeft();
+      if (nextSegment.isEmpty) {
+        continue;
+      }
+      if (buffer.length > 0 && !buffer.toString().endsWith(' ')) {
+        buffer.write(' ');
+      }
+      buffer.write(nextSegment);
+    }
+
+    return buffer.toString();
+  }
+
   Widget _buildLine(
     int index,
     TextBookLoaded state,
@@ -651,7 +710,23 @@ $textWithBreaks
       return null;
     }();
 
-    final notesForLine = noteMap[index + 1] ?? const <PersonalNote>[];
+    final mergedLineEndIndex = _mergedLineEndIndex(
+      widget.content,
+      index,
+      removePunctuation: widget.isMainText && state.removePunctuation,
+    );
+    final notesForLine = <PersonalNote>[
+      for (int i = index; i <= mergedLineEndIndex; i++)
+        ...(noteMap[i + 1] ?? const <PersonalNote>[]),
+    ];
+
+    if (_isMergedIntoPreviousLine(
+      widget.content,
+      index,
+      removePunctuation: widget.isMainText && state.removePunctuation,
+    )) {
+      return const SizedBox.shrink();
+    }
 
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
@@ -702,7 +777,11 @@ $textWithBreaks
           padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
           child: BlocBuilder<SettingsBloc, SettingsState>(
             builder: (context, settingsState) {
-              final data = widget.content[index];
+              final data = _buildVisibleLineText(
+                widget.content,
+                index,
+                removePunctuation: widget.isMainText && state.removePunctuation,
+              );
 
               // הדגשת טקסט חיפוש רק בטקסט המרכזי
               final searchText = widget.isMainText ? state.searchText : '';
