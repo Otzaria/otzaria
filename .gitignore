@@ -96,3 +96,20 @@ sentry.properties
 linux/flutter/generated_plugin_registrant.cc
 linux/flutter/generated_plugins.cmake
 macos/Flutter/GeneratedPluginRegistrant.swift
+
+# קבצי זבל נוספים
+*.tmp
+*.temp
+log.txt
+LOG.txt
+*.log
+crash_*.txt
+debug_*.txt
+*.dmp
+*.stacktrace
+flutter_*.log
+indexing_*.log
+
+# קבצי Sentry נוספים
+sentry-debug-meta.properties
+.sentry-*
