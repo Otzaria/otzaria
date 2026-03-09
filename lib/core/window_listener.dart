@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
-import '../migration/dao/daos/database.dart';
 import 'package:otzaria/core/window_persistence.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
@@ -38,7 +37,6 @@ class AppWindowListener extends WindowListener {
 
     try {
       // ביצוע פעולות הניקוי
-      await MyDatabase().close();
       await SqliteDataProvider.instance.dispose();
       await Sentry.close();
 
