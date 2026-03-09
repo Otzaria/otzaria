@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import '../../models/books.dart';
 import '../../utils/otzar_utils.dart';
-import '../../core/scaffold_messenger.dart';
+import '../../core/ui_snack.dart';
 
 class OtzarBookDialog extends StatelessWidget {
   final ExternalLibraryBook book;

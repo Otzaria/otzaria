@@ -12,7 +12,7 @@ import '../providers/shamor_zachor_progress_provider.dart';
 import '../widgets/hebrew_utils.dart';
 import '../widgets/completion_animation_overlay.dart';
 import '../widgets/error_boundary.dart';
-import 'package:otzaria/core/scaffold_messenger.dart';
+import 'package:otzaria/core/ui_snack.dart';
 
 /// Screen for displaying and managing progress for a specific book
 class BookDetailScreen extends StatefulWidget {

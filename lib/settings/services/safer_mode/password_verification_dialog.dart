@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
-import 'package:otzaria/core/scaffold_messenger.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/widgets/mixins/dialog_navigation_mixin.dart';
 
 /// דיאלוג לאימות סיסמה למצב מוגן

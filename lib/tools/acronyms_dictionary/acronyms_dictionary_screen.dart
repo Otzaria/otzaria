@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
-import 'package:otzaria/core/scaffold_messenger.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'dart:convert';
 
 class AcronymsDictionaryScreen extends StatefulWidget {

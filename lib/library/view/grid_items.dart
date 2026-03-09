@@ -8,7 +8,7 @@ import 'package:otzaria/services/book_details_service.dart';
 import 'package:otzaria/text_book/view/book_source_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:math';
-import 'package:otzaria/core/scaffold_messenger.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/book_locator.dart';
 
 class HeaderItem extends StatelessWidget {

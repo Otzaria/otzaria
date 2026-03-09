@@ -7,7 +7,7 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria/utils/open_book.dart';
-import 'package:otzaria/core/scaffold_messenger.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:path_provider/path_provider.dart';
 
 // Cache של outlines - מפתח: title של הספר, ערך: outline

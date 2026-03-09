@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:super_clipboard/super_clipboard.dart';
-import 'package:otzaria/core/scaffold_messenger.dart';
+import 'package:otzaria/core/ui_snack.dart';
 
 class CopyUtils {
   /// מחלץ את שם הספר
