@@ -514,7 +514,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       scrollController.scrollTo(
         index: boundedIndex,
         duration: Duration(milliseconds: event.durationMs),
-        alignment: event.alignment,
+        alignment: event.alignment ?? 0.0,
       );
     }
   }
