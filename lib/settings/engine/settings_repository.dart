@@ -43,9 +43,9 @@ class SettingsRepository {
   static const String keyOfflineMode = 'key-offline-mode';
   static const String keyAutoSync = 'key-auto-sync';
   static const String keyAutoSyncCatalogs = 'key-auto-sync-catalogs';
-    static const String keyErrorReportSenderEmail =
+  static const String keyErrorReportSenderEmail =
       'key-error-report-sender-email';
-    static const String keyQueueErrorReportsWhenOffline =
+  static const String keyQueueErrorReportsWhenOffline =
       'key-queue-error-reports-when-offline';
   static const String keyLibraryPath = 'key-library-path';
   static const String keyIndexPath = 'key-index-path';
@@ -219,7 +219,7 @@ class SettingsRepository {
       'shortcuts': await getShortcuts(),
       'enablePerBookSettings': _settings.getValue<bool>(
         keyEnablePerBookSettings,
-        defaultValue: true,
+        defaultValue: false,
       ),
       'isOfflineMode': _settings.getValue<bool>(
         keyOfflineMode,
@@ -664,7 +664,7 @@ class SettingsRepository {
     await _settings.setValue(keyIsFullscreen, false);
     await _settings.setValue(keyLibraryViewMode, 'grid');
     await _settings.setValue(keyLibraryShowPreview, true);
-    await _settings.setValue(keyEnablePerBookSettings, true);
+    await _settings.setValue(keyEnablePerBookSettings, false);
     await _settings.setValue(keyErrorReportSenderEmail, '');
     await _settings.setValue(keyQueueErrorReportsWhenOffline, true);
     await _settings.setValue(keyAlignTabsToRight, false);
