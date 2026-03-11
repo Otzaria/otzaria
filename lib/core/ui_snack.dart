@@ -236,7 +236,7 @@ class UiSnack {
   static const String formattedTextCopied = 'הטקסט המעוצב הועתק ללוח';
   static const String copyError = 'שגיאה בהעתקה';
   static const String formattedCopyError = 'שגיאה בהעתקה מעוצבת';
-  static const String sectionNotFound = 'Section not found';
+  static const String sectionNotFound = 'הדף לא נמצא בתוכן העניינים';
   static const String bookNotFound = 'הספר איננו קיים';
   static const String noteCreated = 'ההערה נוצרה והוצבה בסרגל';
   static const String savedSuccessfully = 'השינויים נשמרו בהצלחה';
