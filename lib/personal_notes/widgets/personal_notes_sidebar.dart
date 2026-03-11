@@ -585,12 +585,10 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
 
     final newLine = result != null ? int.tryParse(result) : null;
     if (newLine != null) {
-      bloc.add(
-        RepositionPersonalNote(
-          bookId: widget.bookId,
-          noteId: note.id,
-          lineNumber: newLine,
-        ),
+      _reanchorToSelectedLineWith(
+        bloc,
+        note,
+        newLine,
       );
     }
   }
