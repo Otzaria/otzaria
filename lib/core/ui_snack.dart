@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 
 /// מפתח גלובלי לניווט - חובה לחבר ל-MaterialApp
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -245,6 +246,35 @@ class UiSnack {
   static const String cleanupCompleted = 'ניקוי טיוטות הושלם';
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// טוקנים פנימיים לטוסט — מקושרים ל-AppTokens
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// עיצוב ה-Toast — כל הקבועים מרוכזים כאן לשינוי קל
+abstract class _ToastTokens {
+  // פינות
+  static const double radiusOuter = AppTokens.radiusMD; // 12 — הבקבוק החיצוני
+  static const double radiusAction = AppTokens.radiusSM; // 8  — כפתור הפעולה
+
+  // גדלי גופן
+  static const double fontMessage =
+      AppTokens.fontLG; // 16 → ישתמש כ-15 עם letterSpacing
+  static const double fontAction = AppTokens.fontMD; // 14
+
+  // ריפוד
+  static const double padH = AppTokens.spaceMD; // 16
+  static const double padV =
+      AppTokens.spaceSM + 4; // 12  (בין spaceSM=8 ל-spaceMD=16)
+
+  // מגבלות רוחב
+  static const double maxWidth = 420;
+  static const double minWidth = 300;
+
+  // אנימציות (ספציפיות לטוסט, לא חלק מ-AppTokens הכלליים)
+  static const Duration animEnter = Duration(milliseconds: 450);
+  static const Duration animExit = Duration(milliseconds: 500);
+}
+
 /// הווידג'ט של ההתראה - אנימציות ועיצוב Windows 11
 class _Win11Toast extends StatefulWidget {
   final String message;
@@ -285,8 +315,8 @@ class _Win11ToastState extends State<_Win11Toast>
     // אנימציית כניסה ויציאה
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 450),
-      reverseDuration: const Duration(milliseconds: 500),
+      duration: _ToastTokens.animEnter,
+      reverseDuration: _ToastTokens.animExit,
     );
 
     // קפיצה עדינה בכניסה (Windows 11 style)
@@ -364,17 +394,18 @@ class _Win11ToastState extends State<_Win11Toast>
               color: Colors.transparent,
               child: Container(
                 constraints: const BoxConstraints(
-                  maxWidth: 420,
-                  minWidth: 300,
+                  maxWidth: _ToastTokens.maxWidth,
+                  minWidth: _ToastTokens.minWidth,
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(_ToastTokens.radiusOuter),
                   child: BackdropFilter(
                     filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
                     child: Container(
                       decoration: BoxDecoration(
                         color: bgColor,
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius:
+                            BorderRadius.circular(_ToastTokens.radiusOuter),
                         border: Border.all(
                           color: borderColor,
                           width: 1.5,
@@ -394,8 +425,8 @@ class _Win11ToastState extends State<_Win11Toast>
                         ],
                       ),
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 16,
+                        horizontal: _ToastTokens.padH,
+                        vertical: _ToastTokens.padV,
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -409,20 +440,20 @@ class _Win11ToastState extends State<_Win11Toast>
                               color: widget.iconColor ?? textColor,
                               size: 24,
                             ),
-                            const SizedBox(width: 16),
+                            const SizedBox(width: AppTokens.spaceMD),
                             Container(
                               width: 1,
                               height: 24,
                               color: textColor.withValues(alpha: 0.15),
                             ),
-                            const SizedBox(width: 16),
+                            const SizedBox(width: AppTokens.spaceMD),
                           ],
                           Flexible(
                             child: Text(
                               widget.message,
                               style: TextStyle(
                                 color: textColor,
-                                fontSize: 15,
+                                fontSize: _ToastTokens.fontMessage,
                                 fontWeight: FontWeight.w600,
                                 letterSpacing: 0.2,
                                 height: 1.4,
@@ -437,7 +468,7 @@ class _Win11ToastState extends State<_Win11Toast>
                           ),
                           if (widget.actionLabel != null &&
                               widget.onAction != null) ...[
-                            const SizedBox(width: 16),
+                            const SizedBox(width: AppTokens.spaceMD),
                             TextButton(
                               onPressed: () {
                                 widget.onAction!();
@@ -445,14 +476,15 @@ class _Win11ToastState extends State<_Win11Toast>
                               },
                               style: TextButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 10,
+                                  horizontal: AppTokens.spaceMD,
+                                  vertical: AppTokens.spaceSM + 2,
                                 ),
                                 backgroundColor: isDark
                                     ? Colors.white.withValues(alpha: 0.12)
                                     : Colors.black.withValues(alpha: 0.08),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
+                                  borderRadius: BorderRadius.circular(
+                                      _ToastTokens.radiusAction),
                                 ),
                                 minimumSize: Size.zero,
                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -461,7 +493,7 @@ class _Win11ToastState extends State<_Win11Toast>
                                 widget.actionLabel!,
                                 style: TextStyle(
                                   color: textColor,
-                                  fontSize: 13,
+                                  fontSize: _ToastTokens.fontAction,
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),

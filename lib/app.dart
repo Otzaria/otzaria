@@ -10,29 +10,24 @@ import 'package:otzaria/navigation/main_window_screen.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:window_manager/window_manager.dart';
 
-// AppColors הועבר ל-lib/theme/app_colors.dart
-
 class App extends StatelessWidget {
   const App({super.key});
 
   /// Check if a color is neutral (white/gray) based on its saturation
   bool _isNeutralColor(Color color) {
     final hslColor = HSLColor.fromColor(color);
-    // If saturation is very low, it's a neutral color (white/gray/black)
     return hslColor.saturation < 0.1;
   }
 
   /// Create a ColorScheme that respects neutral colors
   ColorScheme _createColorScheme(Color seedColor, Brightness brightness) {
     if (_isNeutralColor(seedColor)) {
-      // For neutral colors, use monochrome variant to avoid color tinting
       return ColorScheme.fromSeed(
         seedColor: seedColor,
         brightness: brightness,
         dynamicSchemeVariant: DynamicSchemeVariant.monochrome,
       );
     } else {
-      // For colored seeds, use default behavior
       return ColorScheme.fromSeed(
         seedColor: seedColor,
         brightness: brightness,
@@ -104,9 +99,9 @@ class App extends StatelessWidget {
                 ),
             cardTheme: CardThemeData(
               color: AppColors.darkCard,
-              elevation: 3,
+              elevation: AppTokens.elevation2,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppTokens.radiusMD),
                 side: const BorderSide(
                   color: AppColors.darkOutline,
                   width: 1,
