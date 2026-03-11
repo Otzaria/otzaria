@@ -362,226 +362,101 @@ class TextSettingsTab extends StatelessWidget {
   }
 
   Widget _buildCopySection(BuildContext context, SettingsState state) {
-    return SettingsCard(
-      title: 'הגדרות העתקה',
-      children: [
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final isNarrow = constraints.maxWidth < LayoutBreakpoints.compact;
-            final colorScheme = Theme.of(context).colorScheme;
-            final divider = Divider(
-              height: 1,
-              thickness: 1.5,
-              color: colorScheme.surfaceContainerHighest,
-            );
+    // קביעת ה-subtitle בהתאם למצב העתקת הכותרת
+    String copySubtitle;
+    switch (state.copyWithHeaders) {
+      case 'none':
+        copySubtitle = 'הטקסט יועתק ללא כותרות';
+        break;
+      case 'book_name':
+        copySubtitle = 'הטקסט יועתק עם שם הספר בלבד';
+        break;
+      case 'book_and_path':
+        copySubtitle = 'הטקסט יועתק עם שם הספר ונתיב הטקסט';
+        break;
+      default:
+        copySubtitle = '';
+    }
 
-            if (isNarrow) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // העתקה עם כותרות
-                  Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(FluentIcons.copy_24_regular),
-                            const SizedBox(width: 8),
-                            Text('העתקה עם כותרות', style: kSettingsTitleStyle),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        DropdownButtonFormField<String>(
-                          initialValue: state.copyWithHeaders,
-                          decoration: InputDecoration(
-                            contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
-                            border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8)),
-                          ),
-                          isExpanded: true,
-                          items: const [
-                            DropdownMenuItem(value: 'none', child: Text('ללא')),
-                            DropdownMenuItem(
-                                value: 'book_name',
-                                child: Text('שם הספר בלבד')),
-                            DropdownMenuItem(
-                                value: 'book_and_path',
-                                child: Text('שם הספר+נתיב')),
-                          ],
-                          onChanged: (value) {
-                            if (value != null) {
-                              context
-                                  .read<SettingsBloc>()
-                                  .add(UpdateCopyWithHeaders(value));
-                            }
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                  divider,
-                  // עיצוב העתקה
-                  Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(FluentIcons.text_align_right_24_regular),
-                            const SizedBox(width: 8),
-                            Text('עיצוב העתקה', style: kSettingsTitleStyle),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        DropdownButtonFormField<String>(
-                          initialValue: state.copyHeaderFormat,
-                          decoration: InputDecoration(
-                            contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
-                            border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8)),
-                          ),
-                          isExpanded: true,
-                          items: const [
-                            DropdownMenuItem(
-                                value: 'same_line_after_brackets',
-                                child: Text('אותה שורה אחרי (עם סוגריים)')),
-                            DropdownMenuItem(
-                                value: 'same_line_after_no_brackets',
-                                child: Text('אותה שורה אחרי (בלי סוגריים)')),
-                            DropdownMenuItem(
-                                value: 'same_line_before_brackets',
-                                child: Text('אותה שורה לפני (עם סוגריים)')),
-                            DropdownMenuItem(
-                                value: 'same_line_before_no_brackets',
-                                child: Text('אותה שורה לפני (בלי סוגריים)')),
-                            DropdownMenuItem(
-                                value: 'separate_line_after',
-                                child: Text('פסקה נפרדת אחרי')),
-                            DropdownMenuItem(
-                                value: 'separate_line_before',
-                                child: Text('פסקה נפרדת לפני')),
-                          ],
-                          onChanged: (value) {
-                            if (value != null) {
-                              context
-                                  .read<SettingsBloc>()
-                                  .add(UpdateCopyHeaderFormat(value));
-                            }
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              );
-            } else {
-              return Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      child: Row(
-                        children: [
-                          const Icon(FluentIcons.copy_24_regular),
-                          const SizedBox(width: 8),
-                          Text('העתקה עם כותרות', style: kSettingsTitleStyle),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: DropdownButtonFormField<String>(
-                              initialValue: state.copyWithHeaders,
-                              decoration: InputDecoration(
-                                contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 8),
-                                border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8)),
-                              ),
-                              isExpanded: true,
-                              items: const [
-                                DropdownMenuItem(
-                                    value: 'none', child: Text('ללא')),
-                                DropdownMenuItem(
-                                    value: 'book_name',
-                                    child: Text('שם הספר בלבד')),
-                                DropdownMenuItem(
-                                    value: 'book_and_path',
-                                    child: Text('שם הספר+נתיב')),
-                              ],
-                              onChanged: (value) {
-                                if (value != null) {
-                                  context
-                                      .read<SettingsBloc>()
-                                      .add(UpdateCopyWithHeaders(value));
-                                }
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 24),
-                    Expanded(
-                      child: Row(
-                        children: [
-                          const Icon(FluentIcons.text_align_right_24_regular),
-                          const SizedBox(width: 8),
-                          Text('עיצוב העתקה', style: kSettingsTitleStyle),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: DropdownButtonFormField<String>(
-                              initialValue: state.copyHeaderFormat,
-                              decoration: InputDecoration(
-                                contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 8),
-                                border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8)),
-                              ),
-                              isExpanded: true,
-                              items: const [
-                                DropdownMenuItem(
-                                    value: 'same_line_after_brackets',
-                                    child: Text('אותה שורה אחרי (עם סוגריים)')),
-                                DropdownMenuItem(
-                                    value: 'same_line_after_no_brackets',
-                                    child:
-                                        Text('אותה שורה אחרי (בלי סוגריים)')),
-                                DropdownMenuItem(
-                                    value: 'same_line_before_brackets',
-                                    child: Text('אותה שורה לפני (עם סוגריים)')),
-                                DropdownMenuItem(
-                                    value: 'same_line_before_no_brackets',
-                                    child:
-                                        Text('אותה שורה לפני (בלי סוגריים)')),
-                                DropdownMenuItem(
-                                    value: 'separate_line_after',
-                                    child: Text('פסקה נפרדת אחרי')),
-                                DropdownMenuItem(
-                                    value: 'separate_line_before',
-                                    child: Text('פסקה נפרדת לפני')),
-                              ],
-                              onChanged: (value) {
-                                if (value != null) {
-                                  context
-                                      .read<SettingsBloc>()
-                                      .add(UpdateCopyHeaderFormat(value));
-                                }
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }
+    // קביעת ה-subtitle בהתאם לעיצוב ההעתקה
+    String formatSubtitle;
+    switch (state.copyHeaderFormat) {
+      case 'same_line_after_brackets':
+        formatSubtitle = 'הכותרת תופיע באותה שורה אחרי הטקסט (עם סוגריים)';
+        break;
+      case 'same_line_after_no_brackets':
+        formatSubtitle = 'הכותרת תופיע באותה שורה אחרי הטקסט (בלי סוגריים)';
+        break;
+      case 'same_line_before_brackets':
+        formatSubtitle = 'הכותרת תופיע באותה שורה לפני הטקסט (עם סוגריים)';
+        break;
+      case 'same_line_before_no_brackets':
+        formatSubtitle = 'הכותרת תופיע באותה שורה לפני הטקסט (בלי סוגריים)';
+        break;
+      case 'separate_line_after':
+        formatSubtitle = 'הכותרת תופיע בפסקה נפרדת אחרי הטקסט';
+        break;
+      case 'separate_line_before':
+        formatSubtitle = 'הכותרת תופיע בפסקה נפרדת לפני הטקסט';
+        break;
+      default:
+        formatSubtitle = '';
+    }
+
+    return SettingsCard(
+      title: 'העתקת כותרות ופרקים',
+      children: [
+        SegmentedSettingsTile<String>(
+          icon: FluentIcons.copy_24_regular,
+          title: 'העתקת הכותרת',
+          subtitle: copySubtitle,
+          options: const [
+            SegmentOption(value: 'none', label: 'ללא'),
+            SegmentOption(value: 'book_name', label: 'שם הספר'),
+            SegmentOption(value: 'book_and_path', label: 'שם וכותרת'),
+          ],
+          currentValue: state.copyWithHeaders,
+          onChanged: (value) {
+            context.read<SettingsBloc>().add(UpdateCopyWithHeaders(value));
           },
         ),
+        if (state.copyWithHeaders != 'none')
+          ListTile(
+            leading: const Icon(FluentIcons.text_align_right_24_regular),
+            title: const Text('עיצוב כותרות', style: kSettingsTitleStyle),
+            subtitle: Text(formatSubtitle, style: kSettingsSubtitleStyle),
+            trailing: DropdownButton<String>(
+              value: state.copyHeaderFormat,
+              underline: const SizedBox(),
+              items: const [
+                DropdownMenuItem(
+                    value: 'same_line_after_brackets',
+                    child: Text('אותה שורה אחרי (עם סוגריים)')),
+                DropdownMenuItem(
+                    value: 'same_line_after_no_brackets',
+                    child: Text('אותה שורה אחרי (בלי סוגריים)')),
+                DropdownMenuItem(
+                    value: 'same_line_before_brackets',
+                    child: Text('אותה שורה לפני (עם סוגריים)')),
+                DropdownMenuItem(
+                    value: 'same_line_before_no_brackets',
+                    child: Text('אותה שורה לפני (בלי סוגריים)')),
+                DropdownMenuItem(
+                    value: 'separate_line_after',
+                    child: Text('פסקה נפרדת אחרי')),
+                DropdownMenuItem(
+                    value: 'separate_line_before',
+                    child: Text('פסקה נפרדת לפני')),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  context
+                      .read<SettingsBloc>()
+                      .add(UpdateCopyHeaderFormat(value));
+                }
+              },
+            ),
+          ),
       ],
     );
   }
