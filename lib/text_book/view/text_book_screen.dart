@@ -96,6 +96,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
   // RepaintBoundary key עבור הדפסה של "צורת הדף" כפי שמוצג
   final GlobalKey _pageShapePrintBoundaryKey = GlobalKey();
+  final ValueNotifier<int?> _pageShapeSidebarTabNotifier =
+      ValueNotifier<int?>(null);
 
   // Cache לרשימת אינדקסי TOC ממוינת - למניעת חישוב מחדש בכל לחיצה
   List<int>? _cachedTocIndices;
@@ -649,6 +651,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     navigationSearchFocusNode.dispose();
     _bookContentFocusNode.dispose();
     _sidebarWidth.dispose();
+    _pageShapeSidebarTabNotifier.dispose();
     _settingsSub.cancel();
     super.dispose();
   }
@@ -1382,11 +1385,44 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         onPressed: () => _handleBookmarkPress(context, state),
       ),
 
-      // 2) הצג הערות אישיות
+      // 2) הצג קישורים
       ActionButtonData(
         widget: IconButton(
           onPressed: () {
-            // פתיחת חלונית הצד עם כרטיסיית ההערות (אינדקס 2)
+            if (state.showPageShapeView) {
+              _pageShapeSidebarTabNotifier.value = 0;
+              return;
+            }
+            setState(() {
+              _sidebarTabIndex = 1; // כרטיסיית הקישורים
+            });
+            context.read<TextBookBloc>().add(const ToggleSplitView(true));
+          },
+          icon: const Icon(FluentIcons.link_24_regular),
+          tooltip: 'הצג קישורים',
+        ),
+        icon: FluentIcons.link_24_regular,
+        tooltip: 'הצג קישורים',
+        onPressed: () {
+          if (state.showPageShapeView) {
+            _pageShapeSidebarTabNotifier.value = 0;
+            return;
+          }
+          setState(() {
+            _sidebarTabIndex = 1; // כרטיסיית הקישורים
+          });
+          context.read<TextBookBloc>().add(const ToggleSplitView(true));
+        },
+      ),
+
+      // 3) הצג הערות אישיות
+      ActionButtonData(
+        widget: IconButton(
+          onPressed: () {
+            if (state.showPageShapeView) {
+              _pageShapeSidebarTabNotifier.value = 1;
+              return;
+            }
             setState(() {
               _sidebarTabIndex = 2; // כרטיסיית ההערות
             });
@@ -1398,7 +1434,10 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         icon: FluentIcons.note_24_regular,
         tooltip: 'הצג הערות אישיות',
         onPressed: () {
-          // פתיחת חלונית הצד עם כרטיסיית ההערות (אינדקס 2)
+          if (state.showPageShapeView) {
+            _pageShapeSidebarTabNotifier.value = 1;
+            return;
+          }
           setState(() {
             _sidebarTabIndex = 2; // כרטיסיית ההערות
           });
@@ -1406,7 +1445,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         },
       ),
 
-      // 3) שמור וזכור - סמן כנלמד או הוסף למעקב
+      // 4) שמור וזכור - סמן כנלמד או הוסף למעקב
       ActionButtonData(
         widget: _buildShamorZachorButton(context, state),
         icon: _isBookTrackedInShamorZachor(state.book.title)
@@ -1424,7 +1463,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         },
       ),
 
-      // 4) איפוס הגדרות פר-ספר (מוצג רק כשההגדרה מופעלת) - לא בתצוגה משולבת
+      // 5) איפוס הגדרות פר-ספר (מוצג רק כשההגדרה מופעלת) - לא בתצוגה משולבת
       if (!widget.isInCombinedView &&
           context.read<SettingsBloc>().state.enablePerBookSettings)
         ActionButtonData(
@@ -2427,6 +2466,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
               initialSidebarTabIndex: _sidebarTabIndex,
               pageShapeKey: _pageShapeKey,
               pageShapePrintBoundaryKey: _pageShapePrintBoundaryKey,
+              pageShapeSidebarTabNotifier: _pageShapeSidebarTabNotifier,
             ),
           ),
         ),

@@ -25,6 +25,8 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
 
+const double _kNoteIndicatorGutterWidth = 16.0;
+
 /// תצוגת טקסט פשוטה - משמשת גם לטקסט המרכזי וגם למפרשים
 class SimpleTextViewer extends StatefulWidget {
   final List<String> content;
@@ -229,6 +231,35 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       commentatorMenuItems = _buildCommentatorSwitchMenu(state);
     }
 
+    final linksMenuItems = state.links
+        .where(
+          (link) =>
+              link.index1 == index + 1 &&
+              !LinkTypes.isCommentaryOrTargum(link.connectionType) &&
+              link.start == null &&
+              link.end == null,
+        )
+        .map(
+          (link) => ctx.MenuItem<void>(
+            label: Text(link.heRef),
+            onSelected: (_) {
+              widget.openBookCallback(
+                TextBookTab(
+                  book: TextBook(
+                    title: utils.getTitleFromPath(link.path2),
+                  ),
+                  index: link.index2 - 1,
+                  openLeftPane:
+                      (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
+                          (Settings.getValue<bool>('key-default-sidebar-open') ??
+                              false),
+                ),
+              );
+            },
+          ),
+        )
+        .toList();
+
     return ctx.ContextMenu<void>(
       entries: [
         ctx.MenuItem<void>(
@@ -243,6 +274,14 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         if (commentatorMenuItems.isNotEmpty) ...[
           const ctx.MenuDivider(),
           ...commentatorMenuItems,
+        ],
+        if (linksMenuItems.isNotEmpty) ...[
+          const ctx.MenuDivider(),
+          ctx.MenuItem<void>.submenu(
+            label: const Text('קישורים'),
+            icon: const Icon(FluentIcons.link_24_regular),
+            items: linksMenuItems,
+          ),
         ],
         const ctx.MenuDivider(),
         // הערות אישיות
@@ -665,50 +704,62 @@ $textWithBreaks
                 onOpenBook: widget.openBookCallback,
               );
 
-              if (!widget.isMainText || notesForLine.isEmpty) {
+              if (!widget.isMainText) {
                 return textWidget;
               }
 
-              final note = notesForLine.first;
+              final note = notesForLine.isNotEmpty ? notesForLine.first : null;
+              final indicator = note == null
+                  ? null
+                  : Tooltip(
+                      message: note.contentPlain,
+                      child: GestureDetector(
+                        onTap: () {
+                          context
+                              .read<TextBookBloc>()
+                              .add(UpdateSelectedIndex(index));
+                          context.read<TextBookBloc>().add(HighlightLine(index));
+                          context
+                              .read<TextBookBloc>()
+                              .add(const ToggleLeftPane(true));
+                        },
+                        onLongPress: () {
+                          showDialog<void>(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('הערה לשורה זו'),
+                              content: PersonalNoteContentView(note: note),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(context).pop(),
+                                  child: const Text('סגור'),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 6, right: 2),
+                          child: Icon(
+                            FluentIcons.note_24_filled,
+                            size: 12,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                    );
+
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Tooltip(
-                    message: note.contentPlain,
-                    child: GestureDetector(
-                      onTap: () {
-                        context
-                            .read<TextBookBloc>()
-                            .add(UpdateSelectedIndex(index));
-                        context.read<TextBookBloc>().add(HighlightLine(index));
-                        context
-                            .read<TextBookBloc>()
-                            .add(const ToggleLeftPane(true));
-                      },
-                      onLongPress: () {
-                        showDialog<void>(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Text('הערה לשורה זו'),
-                            content: PersonalNoteContentView(note: note),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                child: const Text('סגור'),
-                              ),
-                            ],
+                  SizedBox(
+                    width: _kNoteIndicatorGutterWidth,
+                    child: indicator == null
+                        ? null
+                        : Align(
+                            alignment: Alignment.topRight,
+                            child: indicator,
                           ),
-                        );
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 6, right: 2),
-                        child: Icon(
-                          FluentIcons.note_24_filled,
-                          size: 12,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ),
-                    ),
                   ),
                   Expanded(child: textWidget),
                 ],

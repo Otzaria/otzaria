@@ -3,8 +3,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_context_menu/flutter_context_menu.dart' as ctx;
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
+import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
+import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/text_book/view/links_notes_sidebar.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_commentary_config.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dart';
@@ -40,8 +44,13 @@ const double _kCommentaryLabelAndSpacingWidth = 32.0;
 /// מסך תצוגת צורת הדף - מציג את הטקסט המרכזי עם מפרשים מסביב
 class PageShapeScreen extends StatefulWidget {
   final Function(OpenedTab) openBookCallback;
+  final ValueNotifier<int?>? sidebarTabNotifier;
 
-  const PageShapeScreen({super.key, required this.openBookCallback});
+  const PageShapeScreen({
+    super.key,
+    required this.openBookCallback,
+    this.sidebarTabNotifier,
+  });
 
   @override
   State<PageShapeScreen> createState() => _PageShapeScreenState();
@@ -50,8 +59,11 @@ class PageShapeScreen extends StatefulWidget {
 class _PageShapeScreenState extends State<PageShapeScreen> {
   PageShapeConfiguration _configuration = const PageShapeConfiguration.empty();
   bool _isLoadingConfig = true;
+  bool _isLeftSidebarOpen = false;
+  int _leftSidebarTabIndex = 0;
 
   // גדלים לחלוניות - יחושבו לפי גודל המסך
+  double? _leftSidebarWidth;
   double? _leftWidth;
   double? _rightWidth;
   double? _bottomHeight;
@@ -75,6 +87,9 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
 
+    _leftSidebarWidth =
+        Settings.getValue<double>('page_shape_left_sidebar_width') ??
+        screenWidth * 0.22;
     _leftWidth = Settings.getValue<double>('page_shape_left_width') ??
         screenWidth * 0.17;
     _rightWidth = Settings.getValue<double>('page_shape_right_width') ??
@@ -87,6 +102,10 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
 
   /// שמירת גדלים
   void _saveSizes() {
+    if (_leftSidebarWidth != null) {
+      Settings.setValue<double>(
+          'page_shape_left_sidebar_width', _leftSidebarWidth!);
+    }
     if (_leftWidth != null) {
       Settings.setValue<double>('page_shape_left_width', _leftWidth!);
     }
@@ -512,27 +531,102 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
     }
   }
 
+  Future<void> _navigateToLine(TextBookLoaded state, int lineNumber) async {
+    if (lineNumber < 1 || state.content.isEmpty) {
+      return;
+    }
+
+    final targetIndex = (lineNumber - 1).clamp(0, state.content.length - 1);
+
+    await state.scrollController.scrollTo(
+      index: targetIndex,
+      alignment: 0.05,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeInOut,
+    );
+
+    if (!mounted) return;
+    if (!context.mounted) return;
+
+    final bloc = context.read<TextBookBloc>();
+    bloc.add(UpdateSelectedIndex(targetIndex));
+    bloc.add(HighlightLine(targetIndex));
+  }
+
+  void _openLeftSidebarTab(int index) {
+    final validIndex = index.clamp(0, 1);
+    if (_isLeftSidebarOpen && _leftSidebarTabIndex == validIndex) {
+      return;
+    }
+    setState(() {
+      _isLeftSidebarOpen = true;
+      _leftSidebarTabIndex = validIndex;
+    });
+  }
+
+  void _toggleLeftSidebar() {
+    setState(() {
+      _isLeftSidebarOpen = !_isLeftSidebarOpen;
+    });
+  }
+
+  void _handleSidebarTabRequest() {
+    final requestedTab = widget.sidebarTabNotifier?.value;
+    if (requestedTab == null) return;
+    _openLeftSidebarTab(requestedTab);
+    widget.sidebarTabNotifier?.value = null;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    widget.sidebarTabNotifier?.addListener(_handleSidebarTabRequest);
+  }
+
+  @override
+  void didUpdateWidget(covariant PageShapeScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.sidebarTabNotifier != widget.sidebarTabNotifier) {
+      oldWidget.sidebarTabNotifier?.removeListener(_handleSidebarTabRequest);
+      widget.sidebarTabNotifier?.addListener(_handleSidebarTabRequest);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.sidebarTabNotifier?.removeListener(_handleSidebarTabRequest);
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    // עוטפים את המסך ב-BlocListener כדי להאזין לשינויים בטעינת הקישורים
-    return BlocListener<TextBookBloc, TextBookState>(
-      listenWhen: (previous, current) {
-        // אנחנו רוצים להגיב רק כאשר רשימת הקישורים (links) משתנה,
-        // למשל כשהיא מסיימת להיטען ועוברת מ-0 קישורים לרשימה מלאה.
-        if (previous is TextBookLoaded && current is TextBookLoaded) {
-          return previous.links.length != current.links.length;
-        }
-        // גם אם המצב הקודם לא היה TextBookLoaded ועכשיו כן
-        return previous is! TextBookLoaded && current is TextBookLoaded;
-      },
-      listener: (context, state) {
-        if (state is TextBookLoaded && state.links.isNotEmpty) {
-          debugPrint(
-              '📖 PageShape: Links loaded (${state.links.length}), reloading configuration...');
-          // קריאה חוזרת לפונקציה שתשדך את המפרשים השמורים לקישורים שהרגע נטענו
-          _loadConfiguration();
-        }
-      },
+    return MultiBlocListener(
+      listeners: [
+        BlocListener<TextBookBloc, TextBookState>(
+          listenWhen: (previous, current) {
+            if (previous is TextBookLoaded && current is TextBookLoaded) {
+              return previous.links.length != current.links.length;
+            }
+            return previous is! TextBookLoaded && current is TextBookLoaded;
+          },
+          listener: (context, state) {
+            if (state is TextBookLoaded && state.links.isNotEmpty) {
+              debugPrint(
+                  '📖 PageShape: Links loaded (${state.links.length}), reloading configuration...');
+              _loadConfiguration();
+            }
+          },
+        ),
+        BlocListener<PersonalNotesBloc, PersonalNotesState>(
+          listenWhen: (previous, current) =>
+              previous.isCreatingNewNote != current.isCreatingNewNote,
+          listener: (context, state) {
+            if (state.isCreatingNewNote) {
+              _openLeftSidebarTab(1);
+            }
+          },
+        ),
+      ],
       child: _isLoadingConfig
           ? const Scaffold(
               body: LoadingIndicator(),
@@ -543,242 +637,305 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
               ),
               builder: (context, state) {
                 return Scaffold(
-                  body: Column(
+                  body: Row(
                     children: [
-                      // Main Content Row - מתרחב לפי השטח הפנוי
                       Expanded(
-                        child: Row(
+                        child: Column(
                           children: [
-                            // Left Commentary with label (label on outer edge - first in RTL)
-                            if (_columnVisibility['left'] == true) ...[
-                              if (!_slot('left').isEmpty) ...[
-                                SizedBox(
-                                  width: 20,
-                                  child: Center(
-                                    child: RotatedBox(
-                                      quarterTurns: 1,
-                                      child: Text(
-                                        _slotLabel('left')!,
-                                        style: const TextStyle(
-                                          fontSize: 14,
+                            // Main Content Row - מתרחב לפי השטח הפנוי
+                            Expanded(
+                              child: Row(
+                                children: [
+                                  // Left Commentary with label (label on outer edge - first in RTL)
+                                  if (_columnVisibility['left'] == true) ...[
+                                    if (!_slot('left').isEmpty) ...[
+                                      SizedBox(
+                                        width: 20,
+                                        child: Center(
+                                          child: RotatedBox(
+                                            quarterTurns: 1,
+                                            child: Text(
+                                              _slotLabel('left')!,
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
-                                SizedBox(
-                                  width: _leftWidth ??
-                                      MediaQuery.of(context).size.width *
-                                          _kCommentaryPaneWidthFactor,
-                                  child: _buildSlotPane('left', _slot('left')),
-                                ),
-                              ] else ...[
-                                // מצב ריק - אין מפרש נבחר
-                                SizedBox(
-                                  width: _leftWidth ??
-                                      MediaQuery.of(context).size.width *
-                                          _kCommentaryPaneWidthFactor,
-                                  child: _buildEmptyColumnContent(
-                                    columnName: 'left',
-                                    onSelectCommentator: () =>
-                                        _openCommentatorSelector('left'),
-                                    onHideColumn: () => _hideColumn('left'),
-                                  ),
-                                ),
-                              ],
-                              ResizableDragHandle(
-                                isVertical: true,
-                                showDivider: false,
-                                onDragDelta: (delta) {
-                                  setState(() {
-                                    _leftWidth = ((_leftWidth ?? 0) - delta)
-                                        .clamp(
+                                      const SizedBox(width: 4),
+                                      SizedBox(
+                                        width: _leftWidth ??
+                                            MediaQuery.of(context).size.width *
+                                                _kCommentaryPaneWidthFactor,
+                                        child: _buildSlotPane(
+                                          'left',
+                                          _slot('left'),
+                                        ),
+                                      ),
+                                    ] else ...[
+                                      SizedBox(
+                                        width: _leftWidth ??
+                                            MediaQuery.of(context).size.width *
+                                                _kCommentaryPaneWidthFactor,
+                                        child: _buildEmptyColumnContent(
+                                          columnName: 'left',
+                                          onSelectCommentator: () =>
+                                              _openCommentatorSelector('left'),
+                                          onHideColumn: () =>
+                                              _hideColumn('left'),
+                                        ),
+                                      ),
+                                    ],
+                                    ResizableDragHandle(
+                                      isVertical: true,
+                                      showDivider: false,
+                                      onDragDelta: (delta) {
+                                        setState(() {
+                                          _leftWidth =
+                                              ((_leftWidth ?? 0) - delta).clamp(
                                             80.0,
                                             MediaQuery.of(context).size.width *
-                                                0.4);
-                                  });
-                                },
-                                onDragEnd: _saveSizes,
-                              ),
-                            ],
-                            // Main Text - מתרחב לפי השטח הפנוי
-                            Expanded(
-                              child: SimpleTextViewer(
-                                content: state.content,
-                                fontSize: state.fontSize,
-                                openBookCallback: widget.openBookCallback,
-                                scrollController: state.scrollController,
-                                positionsListener: state.positionsListener,
-                                isMainText: true,
+                                                0.4,
+                                          );
+                                        });
+                                      },
+                                      onDragEnd: _saveSizes,
+                                    ),
+                                  ],
+                                  Expanded(
+                                    child: SimpleTextViewer(
+                                      content: state.content,
+                                      fontSize: state.fontSize,
+                                      openBookCallback: widget.openBookCallback,
+                                      scrollController: state.scrollController,
+                                      positionsListener: state.positionsListener,
+                                      isMainText: true,
+                                    ),
+                                  ),
+                                  if (_columnVisibility['right'] == true) ...[
+                                    ResizableDragHandle(
+                                      isVertical: true,
+                                      showDivider: false,
+                                      onDragDelta: (delta) {
+                                        setState(() {
+                                          _rightWidth =
+                                              ((_rightWidth ?? 0) + delta).clamp(
+                                            80.0,
+                                            MediaQuery.of(context).size.width *
+                                                0.4,
+                                          );
+                                        });
+                                      },
+                                      onDragEnd: _saveSizes,
+                                    ),
+                                    if (!_slot('right').isEmpty) ...[
+                                      SizedBox(
+                                        width: _rightWidth ??
+                                            MediaQuery.of(context).size.width *
+                                                _kCommentaryPaneWidthFactor,
+                                        child: _buildSlotPane(
+                                            'right', _slot('right')),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      SizedBox(
+                                        width: 20,
+                                        child: Center(
+                                          child: RotatedBox(
+                                            quarterTurns: 3,
+                                            child: Text(
+                                              _slotLabel('right')!,
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ] else ...[
+                                      SizedBox(
+                                        width: _rightWidth ??
+                                            MediaQuery.of(context).size.width *
+                                                _kCommentaryPaneWidthFactor,
+                                        child: _buildEmptyColumnContent(
+                                          columnName: 'right',
+                                          onSelectCommentator: () =>
+                                              _openCommentatorSelector('right'),
+                                          onHideColumn: () =>
+                                              _hideColumn('right'),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ],
                               ),
                             ),
-                            // Right Commentary with label (label on outer edge - last in RTL)
-                            if (_columnVisibility['right'] == true) ...[
-                              ResizableDragHandle(
-                                isVertical: true,
-                                showDivider: false,
-                                onDragDelta: (delta) {
+                            if (!_slot('bottom').isEmpty ||
+                                !_slot('bottomRight').isEmpty) ...[
+                              _HorizontalDragHandle(
+                                leftWidth: _leftWidth,
+                                rightWidth: _rightWidth,
+                                leftCommentator: _slotLabel('left'),
+                                rightCommentator: _slotLabel('right'),
+                                onPanUpdate: (details) {
                                   setState(() {
-                                    _rightWidth = ((_rightWidth ?? 0) + delta)
+                                    _bottomHeight = ((_bottomHeight ?? 0) -
+                                            details.delta.dy)
                                         .clamp(
-                                            80.0,
-                                            MediaQuery.of(context).size.width *
-                                                0.4);
+                                      80.0,
+                                      MediaQuery.of(context).size.height * 0.5,
+                                    );
                                   });
                                 },
-                                onDragEnd: _saveSizes,
+                                onPanEnd: _saveSizes,
                               ),
-                              if (!_slot('right').isEmpty) ...[
-                                SizedBox(
-                                  width: _rightWidth ??
-                                      MediaQuery.of(context).size.width *
-                                          _kCommentaryPaneWidthFactor,
-                                  child:
-                                      _buildSlotPane('right', _slot('right')),
-                                ),
-                                const SizedBox(width: 4),
-                                SizedBox(
-                                  width: 20,
-                                  child: Center(
-                                    child: RotatedBox(
-                                      quarterTurns: 3,
-                                      child: Text(
-                                        _slotLabel('right')!,
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                        ),
-                                      ),
+                              SizedBox(
+                                height: _bottomHeight ??
+                                    MediaQuery.of(context).size.height * 0.27,
+                                child: Column(
+                                  children: [
+                                    Expanded(
+                                      child: !_slot('bottomRight').isEmpty
+                                          ? Row(
+                                              children: [
+                                                if (!_slot('bottom').isEmpty) ...[
+                                                  SizedBox(
+                                                    width: 20,
+                                                    child: Center(
+                                                      child: RotatedBox(
+                                                        quarterTurns: 1,
+                                                        child: Text(
+                                                          _slotLabel('bottom')!,
+                                                          style: const TextStyle(
+                                                            fontSize: 14,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  Expanded(
+                                                    child: _buildSlotPane(
+                                                      'bottom',
+                                                      _slot('bottom'),
+                                                      isBottom: true,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                ],
+                                                Expanded(
+                                                  child: _buildSlotPane(
+                                                    'bottomRight',
+                                                    _slot('bottomRight'),
+                                                    isBottom: true,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 4),
+                                                SizedBox(
+                                                  width: 20,
+                                                  child: Center(
+                                                    child: RotatedBox(
+                                                      quarterTurns: 3,
+                                                      child: Text(
+                                                        _slotLabel(
+                                                            'bottomRight')!,
+                                                        style: const TextStyle(
+                                                          fontSize: 14,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            )
+                                          : Row(
+                                              children: [
+                                                SizedBox(
+                                                  width: 20,
+                                                  child: Center(
+                                                    child: RotatedBox(
+                                                      quarterTurns: 1,
+                                                      child: Text(
+                                                        _slotLabel('bottom')!,
+                                                        style: const TextStyle(
+                                                          fontSize: 14,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Expanded(
+                                                  child: _buildSlotPane(
+                                                    'bottom',
+                                                    _slot('bottom'),
+                                                    isBottom: true,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
                                     ),
-                                  ),
+                                  ],
                                 ),
-                              ] else ...[
-                                // מצב ריק - אין מפרש נבחר
-                                SizedBox(
-                                  width: _rightWidth ??
-                                      MediaQuery.of(context).size.width *
-                                          _kCommentaryPaneWidthFactor,
-                                  child: _buildEmptyColumnContent(
-                                    columnName: 'right',
-                                    onSelectCommentator: () =>
-                                        _openCommentatorSelector('right'),
-                                    onHideColumn: () => _hideColumn('right'),
-                                  ),
-                                ),
-                              ],
+                              ),
                             ],
                           ],
                         ),
                       ),
-
-                      // Bottom Commentary
-                      if (!_slot('bottom').isEmpty ||
-                          !_slot('bottomRight').isEmpty) ...[
-                        // מפריד אופקי לגרירה עם קווים באמצע
-                        _HorizontalDragHandle(
-                          leftWidth: _leftWidth,
-                          rightWidth: _rightWidth,
-                          leftCommentator: _slotLabel('left'),
-                          rightCommentator: _slotLabel('right'),
-                          onPanUpdate: (details) {
+                      if (_isLeftSidebarOpen) ...[
+                        ResizableDragHandle(
+                          isVertical: true,
+                          showDivider: false,
+                          onDragDelta: (delta) {
                             setState(() {
-                              _bottomHeight = ((_bottomHeight ?? 0) -
-                                      details.delta.dy)
-                                  .clamp(80.0,
-                                      MediaQuery.of(context).size.height * 0.5);
+                              _leftSidebarWidth =
+                                  ((_leftSidebarWidth ?? 0) + delta).clamp(
+                                220.0,
+                                MediaQuery.of(context).size.width * 0.35,
+                              );
                             });
                           },
-                          onPanEnd: _saveSizes,
+                          onDragEnd: _saveSizes,
                         ),
                         SizedBox(
-                          height: _bottomHeight ??
-                              MediaQuery.of(context).size.height * 0.27,
-                          child: Column(
-                            children: [
-                              Expanded(
-                                child: !_slot('bottomRight').isEmpty
-                                    ? Row(
-                                        children: [
-                                          if (!_slot('bottom').isEmpty) ...[
-                                            SizedBox(
-                                              width: 20,
-                                              child: Center(
-                                                child: RotatedBox(
-                                                  quarterTurns: 1,
-                                                  child: Text(
-                                                    _slotLabel('bottom')!,
-                                                    style: const TextStyle(
-                                                      fontSize: 14,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 4),
-                                            Expanded(
-                                              child: _buildSlotPane(
-                                                'bottom',
-                                                _slot('bottom'),
-                                                isBottom: true,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                          ],
-                                          Expanded(
-                                            child: _buildSlotPane(
-                                              'bottomRight',
-                                              _slot('bottomRight'),
-                                              isBottom: true,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 4),
-                                          SizedBox(
-                                            width: 20,
-                                            child: Center(
-                                              child: RotatedBox(
-                                                quarterTurns: 3,
-                                                child: Text(
-                                                  _slotLabel('bottomRight')!,
-                                                  style: const TextStyle(
-                                                    fontSize: 14,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      )
-                                    : Row(
-                                        children: [
-                                          SizedBox(
-                                            width: 20,
-                                            child: Center(
-                                              child: RotatedBox(
-                                                quarterTurns: 1,
-                                                child: Text(
-                                                  _slotLabel('bottom')!,
-                                                  style: const TextStyle(
-                                                    fontSize: 14,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Expanded(
-                                            child: _buildSlotPane(
-                                              'bottom',
-                                              _slot('bottom'),
-                                              isBottom: true,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                              ),
-                            ],
+                          width: _leftSidebarWidth ??
+                              MediaQuery.of(context).size.width * 0.22,
+                          child: LinksNotesSidebar(
+                            bookId: state.book.title,
+                            openBookCallback: widget.openBookCallback,
+                            fontSize: state.fontSize,
+                            onNavigateToLine: (lineNumber) =>
+                                _navigateToLine(state, lineNumber),
+                            onClosePane: _toggleLeftSidebar,
+                            initialTabIndex: _leftSidebarTabIndex,
+                            onTabChanged: (index) {
+                              setState(() {
+                                _leftSidebarTabIndex = index;
+                              });
+                            },
                           ),
                         ),
-                      ],
+                      ] else
+                        SizedBox(
+                          width: 20,
+                          child: Material(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerHighest
+                                .withValues(alpha: 0.8),
+                            child: InkWell(
+                              onTap: () => _openLeftSidebarTab(0),
+                              child: Center(
+                                child: Icon(
+                                  FluentIcons.chevron_left_24_regular,
+                                  size: 18,
+                                  color:
+                                      Theme.of(context).colorScheme.onSurface,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 );
