@@ -8,6 +8,7 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
+import 'package:otzaria/text_book/view/page_shape/utils/page_shape_commentary_config.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:otzaria/models/link_types.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
@@ -221,7 +222,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   ctx.ContextMenu _buildContextMenu(
       TextBookLoaded state, int index, BuildContext menuContext) {
     // בניית רשימת מפרשים אם זה מפרש (לא טקסט ראשי)
-    List<ctx.MenuItem> commentatorMenuItems = [];
+    List<ctx.ContextMenuEntry> commentatorMenuItems = [];
     if (!widget.isMainText && widget.bookTitle != null) {
       commentatorMenuItems = _buildCommentatorSwitchMenu(state);
     }
@@ -718,7 +719,7 @@ $textWithBreaks
   }
 
   /// בניית תפריט החלפת מפרש
-  List<ctx.MenuItem> _buildCommentatorSwitchMenu(TextBookLoaded state) {
+  List<ctx.ContextMenuEntry> _buildCommentatorSwitchMenu(TextBookLoaded state) {
     // קבלת רשימת המפרשים הזמינים
     final availableCommentators = state.links
         .where((link) => LinkTypes.isCommentaryOrTargum(link.connectionType))
@@ -787,7 +788,103 @@ $textWithBreaks
         icon: const Icon(FluentIcons.arrow_swap_24_regular),
         items: submenuItems.cast<ctx.ContextMenuEntry>(),
       ),
+      const ctx.MenuDivider(),
+      ctx.MenuItem(
+        label: const Text('הגדר כמפרשים מרובים'),
+        onSelected: (_) => _setCurrentSlotMode(
+          state,
+          PageShapeCommentaryMode.multiple,
+        ),
+      ),
     ];
+  }
+
+  String? _findCurrentSlotKey(TextBookLoaded state) {
+    final config = PageShapeSettingsManager.loadConfiguration(
+      state.book.title,
+      heCategories: state.book.heCategories,
+    );
+
+    if (config == null || widget.bookTitle == null) {
+      return null;
+    }
+
+    for (final entry in config.entries) {
+      final configValue = entry.value;
+      if (configValue == null) continue;
+
+      final currentTitle = widget.bookTitle!;
+      if (configValue == currentTitle ||
+          currentTitle.startsWith(configValue) ||
+          currentTitle.contains(configValue) ||
+          configValue.startsWith(currentTitle) ||
+          configValue.contains(currentTitle)) {
+        return entry.key;
+      }
+    }
+
+    return null;
+  }
+
+  Future<void> _persistConfig(
+    TextBookLoaded state,
+    PageShapeConfiguration configuration,
+  ) async {
+    final hasActualBookConfig =
+        PageShapeSettingsManager.loadConfiguration(state.book.title) != null;
+    final categoryToSave = !hasActualBookConfig &&
+            state.book.heCategories != null &&
+            state.book.heCategories!.isNotEmpty
+        ? PageShapeSettingsManager.getActiveCategory(state.book.heCategories) ??
+            state.book.heCategories
+        : null;
+
+    await PageShapeSettingsManager.saveConfiguration(
+      state.book.title,
+      configuration,
+      saveToCategory: categoryToSave,
+    );
+
+    widget.onCommentatorChanged?.call();
+  }
+
+  Future<void> _setCurrentSlotMode(
+    TextBookLoaded state,
+    PageShapeCommentaryMode mode,
+  ) async {
+    final slotKey = _findCurrentSlotKey(state);
+    if (slotKey == null) return;
+
+    final config = PageShapeSettingsManager.loadConfiguration(
+      state.book.title,
+      heCategories: state.book.heCategories,
+    );
+    if (config == null) return;
+
+    final currentSlot = config.slotFor(slotKey);
+    final availableCommentators = state.links
+        .where((link) => LinkTypes.isCommentaryOrTargum(link.connectionType))
+        .map((link) => utils.getTitleFromPath(link.path2))
+        .toSet()
+        .toList();
+
+    final commentators = mode == PageShapeCommentaryMode.multiple
+        ? List<String>.from(availableCommentators)
+        : currentSlot.commentators.isEmpty
+            ? <String>[]
+            : [currentSlot.commentators.first];
+
+    final updatedSlot =
+        PageShapeSlotConfiguration(mode: mode, commentators: commentators);
+
+    final updatedConfig = config.copyWith(
+      left: slotKey == 'left' ? updatedSlot : null,
+      right: slotKey == 'right' ? updatedSlot : null,
+      bottom: slotKey == 'bottom' ? updatedSlot : null,
+      bottomRight: slotKey == 'bottomRight' ? updatedSlot : null,
+    );
+
+    await _persistConfig(state, updatedConfig);
   }
 
   /// בניית פריטי תפריט לקבוצת מפרשים
@@ -843,8 +940,32 @@ $textWithBreaks
     }
 
     // עדכון ההגדרה
-    final updatedConfig = Map<String, String?>.from(config);
-    updatedConfig[columnToUpdate] = newCommentator;
+    final updatedConfig = config.copyWith(
+      left: columnToUpdate == 'left'
+          ? PageShapeSlotConfiguration(
+              mode: PageShapeCommentaryMode.single,
+              commentators: [newCommentator],
+            )
+          : null,
+      right: columnToUpdate == 'right'
+          ? PageShapeSlotConfiguration(
+              mode: PageShapeCommentaryMode.single,
+              commentators: [newCommentator],
+            )
+          : null,
+      bottom: columnToUpdate == 'bottom'
+          ? PageShapeSlotConfiguration(
+              mode: PageShapeCommentaryMode.single,
+              commentators: [newCommentator],
+            )
+          : null,
+      bottomRight: columnToUpdate == 'bottomRight'
+          ? PageShapeSlotConfiguration(
+              mode: PageShapeCommentaryMode.single,
+              commentators: [newCommentator],
+            )
+          : null,
+    );
 
     // בדיקה אם יש הגדרה ספציפית לספר (לא רק הדגל, אלא הגדרה ממשית)
     final hasActualBookConfig =

@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter_context_menu/flutter_context_menu.dart' as ctx;
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
+import 'package:otzaria/text_book/view/page_shape/utils/page_shape_commentary_config.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dart';
+import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/commentary_sync_helper.dart';
 import 'package:otzaria/text_book/view/page_shape/page_shape_settings_dialog.dart';
+import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
 import 'package:otzaria/widgets/loading_indicator.dart';
 import 'package:otzaria/tabs/models/tab.dart';
@@ -44,10 +48,7 @@ class PageShapeScreen extends StatefulWidget {
 }
 
 class _PageShapeScreenState extends State<PageShapeScreen> {
-  String? _leftCommentator;
-  String? _rightCommentator;
-  String? _bottomCommentator;
-  String? _bottomRightCommentator;
+  PageShapeConfiguration _configuration = const PageShapeConfiguration.empty();
   bool _isLoadingConfig = true;
 
   // גדלים לחלוניות - יחושבו לפי גודל המסך
@@ -116,28 +117,23 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
     _columnVisibility =
         PageShapeSettingsManager.getColumnVisibility(state.book.title);
 
-    final Map<String, String?> commentators;
+    final PageShapeConfiguration configuration;
     if (config != null) {
       debugPrint('📖 PageShape: Found saved configuration: $config');
-      // יש הגדרה שמורה - צריך להתאים שמות בסיסיים לשמות מלאים
-      // (כי הגדרות קטגוריה שומרות רק שמות בסיסיים כמו "רמב"ן")
-      commentators = _resolveCommentatorNames(config, state.links);
-      debugPrint('📖 PageShape: Resolved commentators: $commentators');
+      configuration = _resolveCommentatorNames(config, state.links);
+      debugPrint('📖 PageShape: Resolved commentators: $configuration');
     } else {
       debugPrint(
           '📖 PageShape: No saved configuration, loading defaults from JSON');
-      // אין הגדרה שמורה בכלל - השתמש בברירות מחדל
-      commentators =
-          await DefaultCommentators.getDefaults(state.book, links: state.links);
-      debugPrint('📖 PageShape: Default commentators loaded: $commentators');
+      configuration = PageShapeConfiguration.fromLegacyMap(
+        await DefaultCommentators.getDefaults(state.book, links: state.links),
+      );
+      debugPrint('📖 PageShape: Default commentators loaded: $configuration');
     }
 
     if (mounted) {
       setState(() {
-        _leftCommentator = commentators['left'];
-        _rightCommentator = commentators['right'];
-        _bottomCommentator = commentators['bottom'];
-        _bottomRightCommentator = commentators['bottomRight'];
+        _configuration = configuration;
         _isLoadingConfig = false;
       });
       debugPrint('📖 PageShape: Configuration applied successfully');
@@ -146,8 +142,8 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
 
   /// התאמת שמות מפרשים בסיסיים לשמות מלאים מתוך הקישורים הזמינים
   /// למשל: "רמב"ן" → "רמב"ן על בבא מציעא"
-  Map<String, String?> _resolveCommentatorNames(
-      Map<String, String?> config, List<Link> links) {
+  PageShapeConfiguration _resolveCommentatorNames(
+      PageShapeConfiguration config, List<Link> links) {
     // קבלת רשימת שמות המפרשים הזמינים
     final availableCommentators = links
         .where((link) => LinkTypes.isCommentaryOrTargum(link.connectionType))
@@ -158,12 +154,23 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
     debugPrint('📖 PageShape: Available commentators: $availableCommentators');
     debugPrint('📖 PageShape: Config to resolve: $config');
 
-    return Map.fromEntries(config.entries.map((entry) {
-      final resolved =
-          _findMatchingCommentator(entry.value, availableCommentators);
-      debugPrint('📖 PageShape: Resolving "${entry.value}" → "$resolved"');
-      return MapEntry(entry.key, resolved);
-    }));
+    PageShapeSlotConfiguration resolveSlot(PageShapeSlotConfiguration slot) {
+      final resolved = slot.commentators
+          .map((commentator) =>
+              _findMatchingCommentator(commentator, availableCommentators))
+          .whereType<String>()
+          .toList();
+      debugPrint(
+          '📖 PageShape: Resolving "${slot.commentators}" → "$resolved"');
+      return slot.copyWith(commentators: resolved);
+    }
+
+    return config.copyWith(
+      left: resolveSlot(config.left),
+      right: resolveSlot(config.right),
+      bottom: resolveSlot(config.bottom),
+      bottomRight: resolveSlot(config.bottomRight),
+    );
   }
 
   /// מחפש מפרש שמתאים לשם הנתון (בסיסי או מלא)
@@ -240,6 +247,236 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
     );
   }
 
+  PageShapeSlotConfiguration _slot(String key) => _configuration.slotFor(key);
+
+  Future<List<CommentatorGroup>> _loadCommentatorGroups(
+    List<String> availableCommentators,
+  ) async {
+    final eras = await utils.splitByEra(availableCommentators);
+
+    final known = <String>{
+      ...?eras['תורה שבכתב'],
+      ...?eras['חז"ל'],
+      ...?eras['ראשונים'],
+      ...?eras['אחרונים'],
+      ...?eras['מחברי זמננו'],
+    };
+
+    final others = (eras['מפרשים נוספים'] ?? [])
+        .toSet()
+        .union(availableCommentators.where((c) => !known.contains(c)).toSet())
+        .toList();
+
+    return [
+      CommentatorGroup(
+        title: 'תורה שבכתב',
+        commentators: eras['תורה שבכתב'] ?? const [],
+      ),
+      CommentatorGroup(
+        title: 'חז"ל',
+        commentators: eras['חז"ל'] ?? const [],
+      ),
+      CommentatorGroup(
+        title: 'ראשונים',
+        commentators: eras['ראשונים'] ?? const [],
+      ),
+      CommentatorGroup(
+        title: 'אחרונים',
+        commentators: eras['אחרונים'] ?? const [],
+      ),
+      CommentatorGroup(
+        title: 'מחברי זמננו',
+        commentators: eras['מחברי זמננו'] ?? const [],
+      ),
+      CommentatorGroup(
+        title: 'שאר מפרשים',
+        commentators: others,
+      ),
+    ];
+  }
+
+  String? _slotLabel(String key) {
+    final slot = _slot(key);
+    if (slot.commentators.isEmpty) {
+      return null;
+    }
+    if (slot.mode == PageShapeCommentaryMode.single ||
+        slot.commentators.length == 1) {
+      return slot.primaryCommentator;
+    }
+    return 'מפרשים מרובים (${slot.commentators.length})';
+  }
+
+  Future<void> _persistConfiguration(
+    TextBookLoaded state,
+    PageShapeConfiguration configuration,
+  ) async {
+    final hasActualBookConfig =
+        PageShapeSettingsManager.loadConfiguration(state.book.title) != null;
+    final categoryToSave = !hasActualBookConfig &&
+            state.book.heCategories != null &&
+            state.book.heCategories!.isNotEmpty
+        ? PageShapeSettingsManager.getActiveCategory(state.book.heCategories) ??
+            state.book.heCategories
+        : null;
+
+    await PageShapeSettingsManager.saveConfiguration(
+      state.book.title,
+      configuration,
+      saveToCategory: categoryToSave,
+    );
+
+    if (!mounted) return;
+    await _loadConfiguration();
+  }
+
+  Future<void> _setSlotMode(
+    String slotKey,
+    PageShapeCommentaryMode mode,
+  ) async {
+    final state = context.read<TextBookBloc>().state;
+    if (state is! TextBookLoaded) return;
+
+    final current = _slot(slotKey);
+    final availableCommentators = state.links
+        .where((link) => LinkTypes.isCommentaryOrTargum(link.connectionType))
+        .map((link) => utils.getTitleFromPath(link.path2))
+        .toSet()
+        .toList();
+
+    final commentators = mode == PageShapeCommentaryMode.multiple
+        ? List<String>.from(availableCommentators)
+        : current.commentators.isEmpty
+            ? <String>[]
+            : [current.commentators.first];
+
+    final updatedConfig = _configuration.copyWith(
+      left: slotKey == 'left'
+          ? PageShapeSlotConfiguration(mode: mode, commentators: commentators)
+          : null,
+      right: slotKey == 'right'
+          ? PageShapeSlotConfiguration(mode: mode, commentators: commentators)
+          : null,
+      bottom: slotKey == 'bottom'
+          ? PageShapeSlotConfiguration(mode: mode, commentators: commentators)
+          : null,
+      bottomRight: slotKey == 'bottomRight'
+          ? PageShapeSlotConfiguration(mode: mode, commentators: commentators)
+          : null,
+    );
+
+    await _persistConfiguration(state, updatedConfig);
+  }
+
+  Future<void> _openSlotMultipleSelector(String slotKey) async {
+    final state = context.read<TextBookBloc>().state;
+    if (state is! TextBookLoaded) return;
+
+    final availableCommentators = state.links
+        .where((link) => LinkTypes.isCommentaryOrTargum(link.connectionType))
+        .map((link) => utils.getTitleFromPath(link.path2))
+        .toSet()
+        .toList();
+    if (availableCommentators.isEmpty) return;
+
+    final groups = await _loadCommentatorGroups(availableCommentators);
+    if (!mounted) return;
+
+    final result = await showPageShapeMultipleCommentatorsPickerDialog(
+      context: context,
+      groups: groups,
+      initialSelection: _slot(slotKey).commentators,
+      bookTitle: state.book.title,
+    );
+
+    if (result == null) return;
+
+    final updatedSlot = PageShapeSlotConfiguration(
+      mode: PageShapeCommentaryMode.multiple,
+      commentators: result,
+    );
+
+    final updatedConfig = _configuration.copyWith(
+      left: slotKey == 'left' ? updatedSlot : null,
+      right: slotKey == 'right' ? updatedSlot : null,
+      bottom: slotKey == 'bottom' ? updatedSlot : null,
+      bottomRight: slotKey == 'bottomRight' ? updatedSlot : null,
+    );
+
+    await _persistConfiguration(state, updatedConfig);
+  }
+
+  ctx.ContextMenu _buildSlotContextMenu(String slotKey) {
+    final slot = _slot(slotKey);
+    final isMultiple = slot.mode == PageShapeCommentaryMode.multiple;
+
+    return ctx.ContextMenu(
+      entries: [
+        if (isMultiple)
+          ctx.MenuItem(
+            label: const Text('בחר מפרשים'),
+            icon: const Icon(FluentIcons.checkbox_checked_24_regular),
+            onSelected: (_) => _openSlotMultipleSelector(slotKey),
+          )
+        else
+          ctx.MenuItem(
+            label: const Text('הגדר כמפרשים מרובים'),
+            onSelected: (_) => _setSlotMode(
+              slotKey,
+              PageShapeCommentaryMode.multiple,
+            ),
+          ),
+        if (isMultiple) ...[
+          const ctx.MenuDivider(),
+          ctx.MenuItem(
+            label: const Text('הגדר כמפרש יחיד'),
+            onSelected: (_) => _setSlotMode(
+              slotKey,
+              PageShapeCommentaryMode.single,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  List<ctx.ContextMenuEntry> _buildSlotContextEntries(String slotKey) {
+    return _buildSlotContextMenu(slotKey).entries;
+  }
+
+  Widget _buildSlotPane(String slotKey, PageShapeSlotConfiguration slot,
+      {bool isBottom = false}) {
+    if (slot.commentators.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    if (slot.mode == PageShapeCommentaryMode.multiple &&
+        slot.commentators.length > 1) {
+      return ctx.ContextMenuRegion(
+        contextMenu: _buildSlotContextMenu(slotKey),
+        child: CommentaryListBase(
+          key: ValueKey(
+              'page_shape_multi_${slotKey}_${slot.commentators.join(',')}_$isBottom'),
+          openBookCallback: (tab) => widget.openBookCallback(tab),
+          fontSize: PageShapeSettingsManager.getCommentaryFontSize(),
+          showSearch: false,
+          selectedCommentatorsOverride: slot.commentators,
+          extraContextMenuEntriesBuilder: (_, __, ___) =>
+              _buildSlotContextEntries(slotKey),
+        ),
+      );
+    }
+
+    return ctx.ContextMenuRegion(
+      contextMenu: _buildSlotContextMenu(slotKey),
+      child: _CommentaryPane(
+        commentatorName: slot.primaryCommentator!,
+        openBookCallback: widget.openBookCallback,
+        isBottom: isBottom,
+      ),
+    );
+  }
+
   /// פתיחת דיאלוג בחירת מפרש לטור ספציפי
   Future<void> _openCommentatorSelector(String column) async {
     final state = context.read<TextBookBloc>().state;
@@ -264,10 +501,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
         availableCommentators: availableCommentators,
         bookTitle: state.book.title,
         heCategories: state.book.heCategories,
-        currentLeft: _leftCommentator,
-        currentRight: _rightCommentator,
-        currentBottom: _bottomCommentator,
-        currentBottomRight: _bottomRightCommentator,
+        currentConfiguration: _configuration,
       ),
     );
 
@@ -316,14 +550,14 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                           children: [
                             // Left Commentary with label (label on outer edge - first in RTL)
                             if (_columnVisibility['left'] == true) ...[
-                              if (_leftCommentator != null) ...[
+                              if (!_slot('left').isEmpty) ...[
                                 SizedBox(
                                   width: 20,
                                   child: Center(
                                     child: RotatedBox(
                                       quarterTurns: 1,
                                       child: Text(
-                                        _leftCommentator!,
+                                        _slotLabel('left')!,
                                         style: const TextStyle(
                                           fontSize: 14,
                                         ),
@@ -336,10 +570,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                   width: _leftWidth ??
                                       MediaQuery.of(context).size.width *
                                           _kCommentaryPaneWidthFactor,
-                                  child: _CommentaryPane(
-                                    commentatorName: _leftCommentator!,
-                                    openBookCallback: widget.openBookCallback,
-                                  ),
+                                  child: _buildSlotPane('left', _slot('left')),
                                 ),
                               ] else ...[
                                 // מצב ריק - אין מפרש נבחר
@@ -397,15 +628,13 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                 },
                                 onDragEnd: _saveSizes,
                               ),
-                              if (_rightCommentator != null) ...[
+                              if (!_slot('right').isEmpty) ...[
                                 SizedBox(
                                   width: _rightWidth ??
                                       MediaQuery.of(context).size.width *
                                           _kCommentaryPaneWidthFactor,
-                                  child: _CommentaryPane(
-                                    commentatorName: _rightCommentator!,
-                                    openBookCallback: widget.openBookCallback,
-                                  ),
+                                  child:
+                                      _buildSlotPane('right', _slot('right')),
                                 ),
                                 const SizedBox(width: 4),
                                 SizedBox(
@@ -414,7 +643,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                     child: RotatedBox(
                                       quarterTurns: 3,
                                       child: Text(
-                                        _rightCommentator!,
+                                        _slotLabel('right')!,
                                         style: const TextStyle(
                                           fontSize: 14,
                                         ),
@@ -442,14 +671,14 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                       ),
 
                       // Bottom Commentary
-                      if (_bottomCommentator != null ||
-                          _bottomRightCommentator != null) ...[
+                      if (!_slot('bottom').isEmpty ||
+                          !_slot('bottomRight').isEmpty) ...[
                         // מפריד אופקי לגרירה עם קווים באמצע
                         _HorizontalDragHandle(
                           leftWidth: _leftWidth,
                           rightWidth: _rightWidth,
-                          leftCommentator: _leftCommentator,
-                          rightCommentator: _rightCommentator,
+                          leftCommentator: _slotLabel('left'),
+                          rightCommentator: _slotLabel('right'),
                           onPanUpdate: (details) {
                             setState(() {
                               _bottomHeight = ((_bottomHeight ?? 0) -
@@ -466,17 +695,17 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                           child: Column(
                             children: [
                               Expanded(
-                                child: _bottomRightCommentator != null
+                                child: !_slot('bottomRight').isEmpty
                                     ? Row(
                                         children: [
-                                          if (_bottomCommentator != null) ...[
+                                          if (!_slot('bottom').isEmpty) ...[
                                             SizedBox(
                                               width: 20,
                                               child: Center(
                                                 child: RotatedBox(
                                                   quarterTurns: 1,
                                                   child: Text(
-                                                    _bottomCommentator!,
+                                                    _slotLabel('bottom')!,
                                                     style: const TextStyle(
                                                       fontSize: 14,
                                                     ),
@@ -486,22 +715,18 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                             ),
                                             const SizedBox(width: 4),
                                             Expanded(
-                                              child: _CommentaryPane(
-                                                commentatorName:
-                                                    _bottomCommentator!,
-                                                openBookCallback:
-                                                    widget.openBookCallback,
+                                              child: _buildSlotPane(
+                                                'bottom',
+                                                _slot('bottom'),
                                                 isBottom: true,
                                               ),
                                             ),
                                             const SizedBox(width: 8),
                                           ],
                                           Expanded(
-                                            child: _CommentaryPane(
-                                              commentatorName:
-                                                  _bottomRightCommentator!,
-                                              openBookCallback:
-                                                  widget.openBookCallback,
+                                            child: _buildSlotPane(
+                                              'bottomRight',
+                                              _slot('bottomRight'),
                                               isBottom: true,
                                             ),
                                           ),
@@ -512,7 +737,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                               child: RotatedBox(
                                                 quarterTurns: 3,
                                                 child: Text(
-                                                  _bottomRightCommentator!,
+                                                  _slotLabel('bottomRight')!,
                                                   style: const TextStyle(
                                                     fontSize: 14,
                                                   ),
@@ -530,7 +755,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                               child: RotatedBox(
                                                 quarterTurns: 1,
                                                 child: Text(
-                                                  _bottomCommentator!,
+                                                  _slotLabel('bottom')!,
                                                   style: const TextStyle(
                                                     fontSize: 14,
                                                   ),
@@ -540,11 +765,9 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                           ),
                                           const SizedBox(width: 4),
                                           Expanded(
-                                            child: _CommentaryPane(
-                                              commentatorName:
-                                                  _bottomCommentator!,
-                                              openBookCallback:
-                                                  widget.openBookCallback,
+                                            child: _buildSlotPane(
+                                              'bottom',
+                                              _slot('bottom'),
                                               isBottom: true,
                                             ),
                                           ),

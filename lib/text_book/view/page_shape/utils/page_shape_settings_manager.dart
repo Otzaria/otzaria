@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/text_book/view/page_shape/utils/page_shape_commentary_config.dart';
 
 /// מנהל הגדרות צורת הדף - שומר ומטעין את בחירת המפרשים
 /// תומך בהגדרות גלובליות, הגדרות פר-קטגוריה, והגדרות פר-ספר (override)
@@ -117,7 +120,7 @@ class PageShapeSettingsManager {
 
   /// טעינת הגדרות מפרשים - קודם ספר, אחר כך קטגוריה
   /// סדר עדיפות: ספר ספציפי → קטגוריה → null (יטען מ-JSON)
-  static Map<String, String?>? loadConfiguration(String bookTitle,
+  static PageShapeConfiguration? loadConfiguration(String bookTitle,
       {String? heCategories}) {
     debugPrint('PageShapeSettings: Loading configuration for: $bookTitle');
     debugPrint('PageShapeSettings: heCategories: $heCategories');
@@ -144,14 +147,15 @@ class PageShapeSettingsManager {
   }
 
   /// טעינת הגדרות פר-ספר
-  static Map<String, String?>? _loadBookConfiguration(String bookTitle) {
+  static PageShapeConfiguration? _loadBookConfiguration(String bookTitle) {
     final savedConfig =
         Settings.getValue<String>('$_bookConfigPrefix$bookTitle');
     return _parseConfiguration(savedConfig);
   }
 
   /// טעינת הגדרות פר-קטגוריה
-  static Map<String, String?>? _loadCategoryConfiguration(String heCategories) {
+  static PageShapeConfiguration? _loadCategoryConfiguration(
+      String heCategories) {
     final categories = parseCategories(heCategories);
 
     // מחפשים מהקטגוריה הספציפית ביותר לכללית ביותר
@@ -191,9 +195,23 @@ class PageShapeSettingsManager {
   }
 
   /// פענוח מחרוזת הגדרות
-  static Map<String, String?>? _parseConfiguration(String? savedConfig) {
+  static PageShapeConfiguration? _parseConfiguration(String? savedConfig) {
     if (savedConfig == null) {
       return null;
+    }
+
+    final trimmedConfig = savedConfig.trim();
+    if (trimmedConfig.isEmpty) {
+      return null;
+    }
+
+    if (trimmedConfig.startsWith('{')) {
+      try {
+        final parsed = jsonDecode(trimmedConfig) as Map<String, dynamic>;
+        return PageShapeConfiguration.fromJson(parsed);
+      } catch (e) {
+        debugPrint('PageShapeSettings: Failed parsing JSON config: $e');
+      }
     }
 
     final parts = savedConfig.split('||');
@@ -208,13 +226,13 @@ class PageShapeSettingsManager {
       }
     }
 
-    return config;
+    return PageShapeConfiguration.fromLegacyMap(config);
   }
 
   /// שמירת הגדרות מפרשים - לספר או לקטגוריה
   static Future<void> saveConfiguration(
     String bookTitle,
-    Map<String, String?> config, {
+    PageShapeConfiguration config, {
     String? saveToCategory, // אם מוגדר - שומר לקטגוריה במקום לספר
   }) async {
     debugPrint('PageShapeSettings: Saving configuration for: $bookTitle');
@@ -223,9 +241,12 @@ class PageShapeSettingsManager {
 
     if (saveToCategory != null) {
       // שמירה לקטגוריה - שומרים רק את השמות הבסיסיים של המפרשים
-      final baseConfig = config.map((key, value) {
-        return MapEntry(key, extractBaseCommentatorName(value));
-      });
+      final baseConfig = PageShapeConfiguration(
+        left: _extractBaseSlotConfig(config.left),
+        right: _extractBaseSlotConfig(config.right),
+        bottom: _extractBaseSlotConfig(config.bottom),
+        bottomRight: _extractBaseSlotConfig(config.bottomRight),
+      );
       final configString = _serializeConfiguration(baseConfig);
       debugPrint(
           'PageShapeSettings: Saving to category "$saveToCategory": $configString');
@@ -244,12 +265,19 @@ class PageShapeSettingsManager {
   }
 
   /// המרת הגדרות למחרוזת
-  static String _serializeConfiguration(Map<String, String?> config) {
-    final parts = <String>[];
-    config.forEach((key, value) {
-      parts.add('$key|${value ?? 'null'}');
-    });
-    return parts.join('||');
+  static String _serializeConfiguration(PageShapeConfiguration config) {
+    return jsonEncode(config.toJson());
+  }
+
+  static PageShapeSlotConfiguration _extractBaseSlotConfig(
+    PageShapeSlotConfiguration slot,
+  ) {
+    return slot.copyWith(
+      commentators: slot.commentators
+          .map(extractBaseCommentatorName)
+          .whereType<String>()
+          .toList(),
+    );
   }
 
   // ==================== הגדרת הדגשה ====================

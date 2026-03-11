@@ -48,6 +48,7 @@ import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_progress_pro
 import 'package:otzaria/tools/shamor_zachor/models/book_model.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/text_book/view/page_shape/page_shape_settings_dialog.dart';
+import 'package:otzaria/text_book/view/page_shape/utils/page_shape_commentary_config.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dart';
 import 'package:pdf/pdf.dart';
@@ -601,7 +602,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           textBookBloc.add(ToggleNikud(settings.removeNikud!));
         }
         if (settings.removePunctuation != null) {
-          debugPrint('🔧 Applying removePunctuation: ${settings.removePunctuation}');
+          debugPrint(
+              '🔧 Applying removePunctuation: ${settings.removePunctuation}');
           textBookBloc.add(TogglePunctuation(settings.removePunctuation!));
         }
         break;
@@ -1055,8 +1057,12 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
         // אם אין הגדרות שמורות, נשתמש בברירות מחדל
         final currentSettings = config ??
-            await DefaultCommentators.getDefaults(state.book,
-                links: state.links);
+            PageShapeConfiguration.fromLegacyMap(
+              await DefaultCommentators.getDefaults(
+                state.book,
+                links: state.links,
+              ),
+            );
 
         if (!context.mounted) return;
 
@@ -1068,10 +1074,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             availableCommentators: availableCommentators,
             bookTitle: bookTitle,
             heCategories: state.book.heCategories,
-            currentLeft: currentSettings['left'],
-            currentRight: currentSettings['right'],
-            currentBottom: currentSettings['bottom'],
-            currentBottomRight: currentSettings['bottomRight'],
+            currentConfiguration: currentSettings,
           ),
         );
         // אם היו שינויים, נשנה את המפתח כדי לגרום ל-PageShapeScreen להיבנות מחדש
@@ -2752,7 +2755,9 @@ Future<void> _savePerBookSettingsDirectly(
 
   if (removePunctuation != null) {
     // אם הערך שווה לברירת המחדל, מוחקים את השדה
-    newRemovePunctuation = (removePunctuation == defaultRemovePunctuation) ? null : removePunctuation;
+    newRemovePunctuation = (removePunctuation == defaultRemovePunctuation)
+        ? null
+        : removePunctuation;
   }
 
   // אם כל השדות null, מוחקים את הקובץ כולו
