@@ -612,6 +612,9 @@ $textWithBreaks
                     }
 
                     return SelectionArea(
+                      contextMenuBuilder: (context, selectableRegionState) {
+                        return const SizedBox.shrink();
+                      },
                       onSelectionChanged: (selection) {
                         final plain = selection?.plainText;
                         if (plain != null && plain.trim().isNotEmpty) {
