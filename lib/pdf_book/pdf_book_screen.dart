@@ -206,6 +206,19 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     // טעינת headings וlinks
     _loadPdfHeadingsAndLinks();
 
+    // טעינת המפרשים הפעילים
+    _loadActiveCommentators();
+
+    // אם ה-PDF כבר טעון, קפוץ לעמוד הנכון
+    if (widget.tab.pdfViewerController.isReady && widget.tab.pageNumber > 1) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (mounted && widget.tab.pdfViewerController.isReady) {
+          await widget.tab.pdfViewerController
+              .goToPage(pageNumber: widget.tab.pageNumber);
+        }
+      });
+    }
+
     if (_currentLeftPaneTabIndex == 1) {
       _searchFieldFocusNode.requestFocus();
     } else {
@@ -249,9 +262,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       }
     };
     widget.tab.showLeftPane.addListener(_showLeftPaneListener);
-
-    // טעינת הגדרות פר-ספר
-    _loadPerBookSettings();
   }
 
   Text _buildRtlMenuText(String text) =>
@@ -319,6 +329,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     } else {
       widget.tab.activeCommentators.add(commentator);
     }
+    _saveActiveCommentators();
     _openCommentaryPane();
   }
 
@@ -329,6 +340,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     } else {
       widget.tab.activeCommentators.addAll(commentators);
     }
+    _saveActiveCommentators();
     _openCommentaryPane();
   }
 
@@ -488,6 +500,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           totalPages: document.pages.length,
         ));
 
+        // טעינת headings וlinks
+        await _loadPdfHeadingsAndLinks();
+
         // קפיצה לעמוד הנכון - עם המתנה קצרה כדי לוודא שה-controller מוכן
         if (widget.tab.pageNumber > 1) {
           _isJumping = true; // מסמן שאנחנו בתהליך קפיצה
@@ -562,6 +577,12 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           final settings =
               await PdfBookPerBookSettings.load(widget.tab.book.title);
           shouldFitToWidth = settings?.zoom == null;
+
+          // טעינת המפרשים הפעילים
+          if (settings?.activeCommentators != null) {
+            widget.tab.activeCommentators.clear();
+            widget.tab.activeCommentators.addAll(settings!.activeCommentators!);
+          }
         }
 
         if (shouldFitToWidth) {
@@ -659,18 +680,24 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     );
   }
 
-  Future<void> _loadPerBookSettings() async {
+  Future<void> _saveActiveCommentators() async {
+    final settingsBloc = context.read<SettingsBloc>();
+    if (!settingsBloc.state.enablePerBookSettings) return;
+
+    final settings = PdfBookPerBookSettings(
+      activeCommentators: List.from(widget.tab.activeCommentators),
+    );
+    await settings.save(widget.tab.book.title);
+  }
+
+  Future<void> _loadActiveCommentators() async {
     final settingsBloc = context.read<SettingsBloc>();
     if (!settingsBloc.state.enablePerBookSettings) return;
 
     final settings = await PdfBookPerBookSettings.load(widget.tab.book.title);
-    if (settings == null || !mounted) return;
-
-    if (settings.zoom != null && widget.tab.pdfViewerController.isReady) {
-      widget.tab.pdfViewerController.setZoom(
-        widget.tab.pdfViewerController.centerPosition,
-        settings.zoom!,
-      );
+    if (settings?.activeCommentators != null && mounted) {
+      widget.tab.activeCommentators.clear();
+      widget.tab.activeCommentators.addAll(settings!.activeCommentators!);
     }
   }
 
@@ -725,6 +752,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
   Future<void> _resetPerBookSettings() async {
     _bloc.add(const pdf_events.ResetPerBookSettings());
+    widget.tab.activeCommentators.clear();
     if (mounted) {
       UiSnack.show('ההגדרות הפר-ספריות אופסו בהצלחה');
     }

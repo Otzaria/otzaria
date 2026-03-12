@@ -17,6 +17,7 @@ import 'package:otzaria/personal_notes/widgets/personal_notes_sidebar.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:otzaria/utils/context_menu_utils.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
@@ -364,8 +365,14 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       },
       child: PdfCommentatorsSelector(
         tab: widget.tab,
-        onChanged: () {
-          // לא צריך setState כאן - זה יקרה ב-onBack
+        onChanged: () async {
+          final settingsBloc = context.read<SettingsBloc>();
+          if (settingsBloc.state.enablePerBookSettings) {
+            final settings = PdfBookPerBookSettings(
+              activeCommentators: List.from(widget.tab.activeCommentators),
+            );
+            await settings.save(widget.tab.book.title);
+          }
         },
       ),
     );
