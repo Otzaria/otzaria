@@ -51,6 +51,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
     'ctrl+9': 'CTRL + 9',
     'ctrl+comma': 'CTRL + ,',
     'ctrl+shift+b': 'CTRL + SHIFT + B',
+    'ctrl+shift+comma': 'CTRL + SHIFT + ,',
     'ctrl+shift+d': 'CTRL + SHIFT + D',
     'ctrl+shift+e': 'CTRL + SHIFT + E',
     'ctrl+shift+w': 'CTRL + SHIFT + W',
@@ -130,6 +131,13 @@ class ShortcutsSettingsTab extends StatelessWidget {
                 allShortcuts: _shortcutsList,
               ),
               _ShortcutTile(
+                settingKey: 'key-shortcut-open-context-settings',
+                label: 'הגדרות חלון נוכחי',
+                defaultShortcut: 'ctrl+shift+comma',
+                icon: FluentIcons.settings_24_filled,
+                allShortcuts: _shortcutsList,
+              ),
+              _ShortcutTile(
                 settingKey: 'key-shortcut-open-more',
                 label: 'כלים',
                 defaultShortcut: 'ctrl+m',
@@ -157,6 +165,13 @@ class ShortcutsSettingsTab extends StatelessWidget {
                 icon: FluentIcons.grid_24_regular,
                 allShortcuts: _shortcutsList,
               ),
+              _ShortcutTile(
+                settingKey: 'key-shortcut-print',
+                label: 'הדפסה',
+                defaultShortcut: 'ctrl+p',
+                icon: FluentIcons.print_24_regular,
+                allShortcuts: _shortcutsList,
+              ),
             ],
           ),
 
@@ -180,13 +195,6 @@ class ShortcutsSettingsTab extends StatelessWidget {
               //   icon: FluentIcons.document_edit_24_regular,
               //   allShortcuts: _shortcutsList,
               // ),
-              _ShortcutTile(
-                settingKey: 'key-shortcut-print',
-                label: 'הדפסה',
-                defaultShortcut: 'ctrl+p',
-                icon: FluentIcons.print_24_regular,
-                allShortcuts: _shortcutsList,
-              ),
               _ShortcutTile(
                 settingKey: 'key-shortcut-add-bookmark',
                 label: 'הוסף סימניה',

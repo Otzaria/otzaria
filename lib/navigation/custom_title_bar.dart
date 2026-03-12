@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_context_menu/flutter_context_menu.dart';
@@ -99,122 +100,178 @@ class _CustomTitleBarState extends State<CustomTitleBar>
 
   @override
   Widget build(BuildContext context) {
+    final contextSettingsShortcut =
+        Settings.getValue<String>('key-shortcut-open-context-settings') ??
+            'ctrl+shift+comma';
+
     return BlocBuilder<NavigationBloc, NavigationState>(
       builder: (context, navState) {
-        return BlocBuilder<SettingsBloc, SettingsState>(
-          builder: (context, settingsState) {
-            return SizedBox(
-              height: 40, // גובה הכותרת
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    clipBehavior: Clip.none,
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surface,
-                      border: (navState.currentScreen == Screen.reading ||
-                              navState.currentScreen == Screen.search)
-                          ? null
-                          : Border(
-                              bottom: BorderSide(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .outlineVariant
-                                    .withValues(alpha: 0.6),
-                                width: 1,
-                              ),
-                            ),
-                    ),
-                    child: Row(
-                      children: [
-                        // כפתורי פעולה (היסטוריה וכו') - תמיד מוצגים
-                        SizedBox(
-                          height: 40,
-                          child: Stack(
-                            children: [
-                              Center(
-                                child:
-                                    _buildActionButtons(context, settingsState),
-                              ),
-                              if (navState.currentScreen == Screen.reading ||
-                                  navState.currentScreen == Screen.search)
-                                Positioned(
-                                  bottom: 0,
-                                  left: 0,
-                                  right: 0,
-                                  child: Align(
-                                    alignment: AlignmentDirectional.bottomStart,
-                                    child: Container(
-                                      width: 74,
-                                      height: 1,
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .outlineVariant
-                                          .withValues(alpha: 0.6),
-                                    ),
-                                  ),
+        return CallbackShortcuts(
+          bindings: {
+            _parseShortcut(contextSettingsShortcut): () {
+              _handleContextSettings(context, navState);
+            },
+          },
+          child: BlocBuilder<SettingsBloc, SettingsState>(
+            builder: (context, settingsState) {
+              return SizedBox(
+                height: 40, // גובה הכותרת
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      clipBehavior: Clip.none,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surface,
+                        border: (navState.currentScreen == Screen.reading ||
+                                navState.currentScreen == Screen.search)
+                            ? null
+                            : Border(
+                                bottom: BorderSide(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .outlineVariant
+                                      .withValues(alpha: 0.6),
+                                  width: 1,
                                 ),
-                            ],
-                          ),
-                        ),
-
-                        // תוכן הכותרת (טאבים או כותרת רגילה)
-                        Expanded(
-                          child:
-                              _buildContent(context, navState, settingsState),
-                        ),
-
-                        // כפתורי חלון (רק בדסקטופ)
-                        if (!kIsWeb &&
-                            (Platform.isWindows ||
-                                Platform.isLinux ||
-                                Platform.isMacOS))
+                              ),
+                      ),
+                      child: Row(
+                        children: [
+                          // כפתורי פעולה (היסטוריה וכו') - תמיד מוצגים
                           SizedBox(
-                            height: 50,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
+                            height: 40,
+                            child: Stack(
                               children: [
-                                _buildFullscreenCaptionButton(
-                                    context, settingsState),
-                                if (settingsState.isFullscreen)
-                                  _CaptionActionButton(
-                                    brightness: Theme.of(context).brightness,
-                                    tooltip: 'מזער',
-                                    icon: FluentIcons.subtract_24_regular,
-                                    onPressed: () async {
-                                      await FullscreenHelper.toggleFullscreen(
-                                          context, false);
-                                      await windowManager.minimize();
-                                    },
-                                  ),
-                                if (settingsState.isFullscreen)
-                                  _CaptionActionButton(
-                                    brightness: Theme.of(context).brightness,
-                                    tooltip: 'סגור',
-                                    icon: FluentIcons.dismiss_24_regular,
-                                    onPressed: () => windowManager.close(),
-                                  ),
-                                if (!settingsState.isFullscreen)
-                                  SizedBox(
-                                    width: _kWindowCaptionButtonsWidth,
-                                    height: 50,
-                                    child: WindowCaption(
-                                      brightness: Theme.of(context).brightness,
-                                      backgroundColor: Colors.transparent,
+                                Center(
+                                  child: _buildActionButtons(
+                                      context, settingsState),
+                                ),
+                                if (navState.currentScreen == Screen.reading ||
+                                    navState.currentScreen == Screen.search)
+                                  Positioned(
+                                    bottom: 0,
+                                    left: 0,
+                                    right: 0,
+                                    child: Align(
+                                      alignment:
+                                          AlignmentDirectional.bottomStart,
+                                      child: Container(
+                                        width: 74,
+                                        height: 1,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .outlineVariant
+                                            .withValues(alpha: 0.6),
+                                      ),
                                     ),
                                   ),
                               ],
                             ),
                           ),
-                      ],
+
+                          // תוכן הכותרת (טאבים או כותרת רגילה)
+                          Expanded(
+                            child:
+                                _buildContent(context, navState, settingsState),
+                          ),
+
+                          // כפתורי חלון (רק בדסקטופ)
+                          if (!kIsWeb &&
+                              (Platform.isWindows ||
+                                  Platform.isLinux ||
+                                  Platform.isMacOS))
+                            SizedBox(
+                              height: 50,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _buildFullscreenCaptionButton(
+                                      context, settingsState),
+                                  if (settingsState.isFullscreen)
+                                    _CaptionActionButton(
+                                      brightness: Theme.of(context).brightness,
+                                      tooltip: 'מזער',
+                                      icon: FluentIcons.subtract_24_regular,
+                                      onPressed: () async {
+                                        await FullscreenHelper.toggleFullscreen(
+                                            context, false);
+                                        await windowManager.minimize();
+                                      },
+                                    ),
+                                  if (settingsState.isFullscreen)
+                                    _CaptionActionButton(
+                                      brightness: Theme.of(context).brightness,
+                                      tooltip: 'סגור',
+                                      icon: FluentIcons.dismiss_24_regular,
+                                      onPressed: () => windowManager.close(),
+                                    ),
+                                  if (!settingsState.isFullscreen)
+                                    SizedBox(
+                                      width: _kWindowCaptionButtonsWidth,
+                                      height: 50,
+                                      child: WindowCaption(
+                                        brightness:
+                                            Theme.of(context).brightness,
+                                        backgroundColor: Colors.transparent,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            );
-          },
+                  ],
+                ),
+              );
+            },
+          ),
         );
       },
+    );
+  }
+
+  /// מטפל בקיצור המקשים להגדרות הקשר
+  void _handleContextSettings(BuildContext context, NavigationState navState) {
+    switch (navState.currentScreen) {
+      case Screen.library:
+        showLibrarySettingsDialog(context);
+        break;
+      case Screen.reading:
+      case Screen.search:
+        showReadingSettingsDialog(context);
+        break;
+      default:
+        // אין הגדרות ספציפיות למסכים אחרים
+        break;
+    }
+  }
+
+  /// המרת מחרוזת קיצור מקשים ל-SingleActivator
+  SingleActivator _parseShortcut(String shortcut) {
+    final parts = shortcut.toLowerCase().split('+');
+    final key = parts.last;
+    final hasCtrl = parts.contains('ctrl');
+    final hasShift = parts.contains('shift');
+    final hasAlt = parts.contains('alt');
+
+    LogicalKeyboardKey logicalKey;
+    if (key == 'comma') {
+      logicalKey = LogicalKeyboardKey.comma;
+    } else if (key.length == 1) {
+      logicalKey = LogicalKeyboardKey(
+        LogicalKeyboardKey.keyA.keyId + key.codeUnitAt(0) - 'a'.codeUnitAt(0),
+      );
+    } else {
+      logicalKey = LogicalKeyboardKey.keyA;
+    }
+
+    return SingleActivator(
+      logicalKey,
+      control: hasCtrl,
+      shift: hasShift,
+      alt: hasAlt,
     );
   }
 

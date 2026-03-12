@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -19,6 +20,7 @@ class GematriaSearchScreen extends StatefulWidget {
 
 class GematriaSearchScreenState extends State<GematriaSearchScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
   List<GematriaSearchResult> _searchResults = [];
   bool _isSearching = false;
   int? _lastGematriaValue; // ערך הגימטריה האחרון שחיפשנו
@@ -59,7 +61,35 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _focusNode.dispose();
     super.dispose();
+  }
+
+  /// המרת מחרוזת קיצור מקשים ל-SingleActivator
+  SingleActivator _parseShortcut(String shortcut) {
+    final parts = shortcut.toLowerCase().split('+');
+    final key = parts.last;
+    final hasCtrl = parts.contains('ctrl');
+    final hasShift = parts.contains('shift');
+    final hasAlt = parts.contains('alt');
+
+    LogicalKeyboardKey logicalKey;
+    if (key == 'comma') {
+      logicalKey = LogicalKeyboardKey.comma;
+    } else if (key.length == 1) {
+      logicalKey = LogicalKeyboardKey(
+        LogicalKeyboardKey.keyA.keyId + key.codeUnitAt(0) - 'a'.codeUnitAt(0),
+      );
+    } else {
+      logicalKey = LogicalKeyboardKey.keyA;
+    }
+
+    return SingleActivator(
+      logicalKey,
+      control: hasCtrl,
+      shift: hasShift,
+      alt: hasAlt,
+    );
   }
 
   Future<void> _performSearch() async {
@@ -258,13 +288,28 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Column(
-        children: [
-          _buildSearchBar(),
-          if (_lastGematriaValue != null) _buildStatusBar(),
-          Expanded(child: _buildResultsList()),
-        ],
+    final contextSettingsShortcut =
+        Settings.getValue<String>('key-shortcut-open-context-settings') ??
+            'ctrl+shift+comma';
+
+    return CallbackShortcuts(
+      bindings: {
+        _parseShortcut(contextSettingsShortcut): () {
+          showGematriaSettingsDialog(context);
+        },
+      },
+      child: Focus(
+        autofocus: true,
+        focusNode: _focusNode,
+        child: Scaffold(
+          body: Column(
+            children: [
+              _buildSearchBar(),
+              if (_lastGematriaValue != null) _buildStatusBar(),
+              Expanded(child: _buildResultsList()),
+            ],
+          ),
+        ),
       ),
     );
   }

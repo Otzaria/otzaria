@@ -76,7 +76,24 @@ class CalendarWidgetState extends State<CalendarWidget> {
     _keyboardFocusNode.addListener(_handleFocusChange);
 
     // בקש פוקוס אוטומטי כשהווידג'ט נטען
-    requestKeyboardFocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _requestFocusIfNeeded();
+    });
+  }
+
+  @override
+  void didUpdateWidget(CalendarWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // בקש פוקוס כשחוזרים למסך
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _requestFocusIfNeeded();
+    });
+  }
+
+  void _requestFocusIfNeeded() {
+    if (mounted && !_keyboardFocusNode.hasFocus) {
+      _keyboardFocusNode.requestFocus();
+    }
   }
 
   @override
@@ -230,6 +247,10 @@ class CalendarWidgetState extends State<CalendarWidget> {
             shortcuts['key-shortcut-calendar-create-event'] ?? 'ctrl+n';
         final toggleViewShortcut =
             shortcuts['key-shortcut-calendar-toggle-view'] ?? 'ctrl+shift+e';
+        final printShortcut = shortcuts['key-shortcut-print'] ?? 'ctrl+p';
+        final contextSettingsShortcut =
+            shortcuts['key-shortcut-open-context-settings'] ??
+                'ctrl+shift+comma';
 
         return CallbackShortcuts(
           bindings: {
@@ -281,6 +302,21 @@ class CalendarWidgetState extends State<CalendarWidget> {
               }
 
               cubit.changeCalendarView(nextView);
+            },
+
+            // הדפסה
+            _parseShortcut(printShortcut): () {
+              if (_isTextFieldFocused()) return;
+              _printCalendar(context, state);
+            },
+
+            // הגדרות הקשר
+            _parseShortcut(contextSettingsShortcut): () {
+              if (_isTextFieldFocused()) return;
+              showCalendarSettingsDialog(
+                context,
+                calendarCubit: context.read<CalendarCubit>(),
+              );
             },
 
             // חודש קדימה (Ctrl+Left)
