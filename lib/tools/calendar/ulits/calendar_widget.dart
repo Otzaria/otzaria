@@ -2230,7 +2230,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
         return StatefulBuilder(
           builder: (builderContext, setState) {
             return AlertDialog(
-              title: const Text('קפוץ לתאריך'),
+              title: const Text('מעבר לתאריך'),
               content: SizedBox(
                 width: 350,
                 height: 450,
@@ -2322,7 +2322,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
                     context.read<CalendarCubit>().jumpToDate(dateToJump);
                     Navigator.of(dialogContext).pop();
                   },
-                  child: const Text('קפוץ'),
+                  child: const Text('פתח'),
                 ),
               ],
             );
