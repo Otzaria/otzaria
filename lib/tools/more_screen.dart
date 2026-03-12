@@ -1,3 +1,5 @@
+// lib/tools/more_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -5,7 +7,8 @@ import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/tools/measurement_converter/measurement_converter_screen.dart';
 import 'package:otzaria/tools/gematria/gematria_search_screen.dart';
-import 'package:otzaria/tools/dictionary/dictionary_screen.dart';
+import 'package:otzaria/tools/aramaic_dictionary/aramaic_dictionary_screen.dart';
+import 'package:otzaria/tools/acronyms_dictionary/acronyms_dictionary_screen.dart';
 import 'package:otzaria/tools/shamor_zachor/shamor_zachor.dart';
 import 'package:otzaria/tools/calendar/ulits/calendar_widget.dart';
 import 'package:otzaria/tools/calendar/ulits/calendar_cubit.dart';
@@ -80,7 +83,7 @@ class MoreScreenState extends State<MoreScreen>
   final List<_TabInfo> _tabs = [
     const _TabInfo(
       label: 'לוח שנה',
-      icon: Icons.calendar_month_outlined,
+      icon: FluentIcons.calendar_24_regular,
     ),
     const _TabInfo(
       label: 'שמור וזכור',
@@ -89,7 +92,7 @@ class MoreScreenState extends State<MoreScreen>
     ),
     const _TabInfo(
       label: 'מדות ושיעורים',
-      icon: Icons.straighten,
+      icon: FluentIcons.ruler_24_regular,
     ),
     const _TabInfo(
       label: 'הערות אישיות',
@@ -100,8 +103,12 @@ class MoreScreenState extends State<MoreScreen>
       icon: FluentIcons.calculator_24_regular,
     ),
     const _TabInfo(
-      label: 'מילון',
-      icon: FluentIcons.book_24_regular,
+      label: 'מילון ארמי-עברי',
+      icon: FluentIcons.translate_24_regular,
+    ),
+    const _TabInfo(
+      label: 'ראשי תיבות',
+      icon: FluentIcons.text_quote_24_regular,
     ),
   ];
 
@@ -131,7 +138,6 @@ class MoreScreenState extends State<MoreScreen>
       );
     }).toList();
 
-    // יצירת הדפים פעם אחת ב-initState
     _pages = [
       BlocBuilder<CalendarCubit, CalendarState>(
         builder: (context, _) => CalendarWidget(key: _calendarKey),
@@ -142,7 +148,8 @@ class MoreScreenState extends State<MoreScreen>
       const MeasurementConverterScreen(),
       const PersonalNotesManagerScreen(),
       GematriaSearchScreen(key: _gematriaKey),
-      const DictionaryScreen(),
+      const AramaicDictionaryScreen(),
+      const AcronymsDictionaryScreen(),
     ];
   }
 
