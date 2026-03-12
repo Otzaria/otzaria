@@ -97,7 +97,7 @@ class App extends StatelessWidget {
             colorScheme: lightColorScheme,
             extensions: const [
               AppThemeColors(
-                pdfZoomEditorBackground: Color(0xFFF9ECDF),
+                pdfZoomEditorBackground: AppColors.lightPdfZoomEditorBackground,
               ),
             ],
             textTheme: const TextTheme(

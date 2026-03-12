@@ -41,4 +41,8 @@ class AppColors {
   // ── Dialogs ────────────────────────────────────────────────────────────
   /// צבע מחסום הדיאלוג (barrier) — חצי שקוף
   static const Color dialogBarrier = Color(0x22000000);
+
+  // ── Light Mode Surfaces ────────────────────────────────────────────────
+  /// רקע עורך הזום ב-PDF במצב בהיר
+  static const Color lightPdfZoomEditorBackground = Color(0xFFF9ECDF);
 }

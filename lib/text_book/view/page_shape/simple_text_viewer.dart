@@ -923,17 +923,7 @@ $textWithBreaks
                 onOpenBook: widget.openBookCallback,
               );
 
-              final textWithNewline = Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  textWidget,
-                  const Text(
-                    '\n',
-                    style: TextStyle(fontSize: 0, height: 0),
-                  ),
-                ],
-              );
+              final textWithNewline = textWidget;
 
               if (!widget.isMainText) {
                 return textWithNewline;
