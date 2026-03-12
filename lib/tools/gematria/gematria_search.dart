@@ -1,28 +1,13 @@
+// lib/tools/gematria/gematria_search.dart
+//
+// לוגיקת חיפוש גימטריה — חיפוש בבסיס נתונים SQLite ו-fallback לקבצים.
+// SearchResult הוצא ל-models/search_result.dart.
+
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
-import 'package:otzaria/migration/core/models/toc_entry.dart';
-
-class SearchResult {
-  final String file;
-  final int line;
-  final String text;
-  final String path; // הנתיב ההיררכי (כותרות)
-  final String verseNumber; // מספר הפסוק
-  final String contextBefore; // מילים לפני התוצאה
-  final String contextAfter; // מילים אחרי התוצאה
-
-  const SearchResult({
-    required this.file,
-    required this.line,
-    required this.text,
-    this.path = '',
-    this.verseNumber = '',
-    this.contextBefore = '',
-    this.contextAfter = '',
-  });
-}
+import 'package:otzaria/tools/gematria/models/search_result.dart';
 
 class GimatriaSearch {
   // גימטריה רגילה (ברירת מחדל)
@@ -53,7 +38,7 @@ class GimatriaSearch {
     'ק': 100,
     'ר': 200,
     'ש': 300,
-    'ת': 400
+    'ת': 400,
   };
 
   // גימטריה קטנה
@@ -84,7 +69,7 @@ class GimatriaSearch {
     'ק': 1,
     'ר': 2,
     'ש': 3,
-    'ת': 4
+    'ת': 4,
   };
 
   // גימטריה עם אותיות סופיות שונות
@@ -115,23 +100,15 @@ class GimatriaSearch {
     'ק': 100,
     'ר': 200,
     'ש': 300,
-    'ת': 400
+    'ת': 400,
   };
 
   static int gimatria(String text, {String method = 'regular'}) {
-    Map<String, int> values;
-    switch (method) {
-      case 'small':
-        values = _smallValues;
-        break;
-      case 'finalLetters':
-        values = _finalLettersValues;
-        break;
-      case 'regular':
-      default:
-        values = _regularValues;
-        break;
-    }
+    final Map<String, int> values = switch (method) {
+      'small' => _smallValues,
+      'finalLetters' => _finalLettersValues,
+      _ => _regularValues,
+    };
 
     var sum = 0;
     for (final r in text.runes) {
@@ -142,19 +119,18 @@ class GimatriaSearch {
     return sum;
   }
 
-  /// Search in SQLite database for phrases whose gimatria equals [targetGimatria].
-  /// Falls back to file search if database is not available.
-  /// [maxPhraseWords] bounds phrase length to avoid explosion.
+  /// חיפוש ב-SQLite עם fallback לחיפוש בקבצים.
   static Future<List<SearchResult>> searchInFiles(
-      String folder, int targetGimatria,
-      {int maxPhraseWords = 8,
-      int fileLimit = 1000,
-      bool wholeVerseOnly = false,
-      bool debug = false,
-      String gematriaMethod = 'regular',
-      bool useWithKolel = false,
-      List<String>? bookTitles}) async {
-    // Try database search first
+    String folder,
+    int targetGimatria, {
+    int maxPhraseWords = 8,
+    int fileLimit = 1000,
+    bool wholeVerseOnly = false,
+    bool debug = false,
+    String gematriaMethod = 'regular',
+    bool useWithKolel = false,
+    List<String>? bookTitles,
+  }) async {
     final dbProvider = SqliteDataProvider.instance;
     if (await dbProvider.databaseExists() && dbProvider.isInitialized) {
       try {
@@ -172,12 +148,10 @@ class GimatriaSearch {
         if (debug) {
           debugPrint('Database search failed, falling back to file search: $e');
         }
-        // Fall through to file search
       }
     }
 
-    // Fallback to file search
-    return await _searchInFilesLegacy(
+    return _searchInFilesLegacy(
       folder,
       targetGimatria,
       maxPhraseWords: maxPhraseWords,
@@ -189,15 +163,16 @@ class GimatriaSearch {
     );
   }
 
-  /// Search in SQLite database for phrases whose gimatria equals [targetGimatria]
-  static Future<List<SearchResult>> _searchInDatabase(int targetGimatria,
-      {int maxPhraseWords = 8,
-      int fileLimit = 1000,
-      bool wholeVerseOnly = false,
-      bool debug = false,
-      String gematriaMethod = 'regular',
-      bool useWithKolel = false,
-      List<String>? bookTitles}) async {
+  static Future<List<SearchResult>> _searchInDatabase(
+    int targetGimatria, {
+    int maxPhraseWords = 8,
+    int fileLimit = 1000,
+    bool wholeVerseOnly = false,
+    bool debug = false,
+    String gematriaMethod = 'regular',
+    bool useWithKolel = false,
+    List<String>? bookTitles,
+  }) async {
     final List<SearchResult> found = [];
     final dbProvider = SqliteDataProvider.instance;
     final repository = dbProvider.repository;
@@ -206,17 +181,13 @@ class GimatriaSearch {
       throw Exception('Database repository not initialized');
     }
 
-    // Get all books or specific books
     List<int> bookIds = [];
     if (bookTitles != null && bookTitles.isNotEmpty) {
       for (final title in bookTitles) {
         final book = await repository.getBookByTitle(title);
-        if (book != null) {
-          bookIds.add(book.id);
-        }
+        if (book != null) bookIds.add(book.id);
       }
     } else {
-      // Get all books in Tanach categories
       final allBooks = await repository.getAllBooks();
       bookIds = allBooks.map((b) => b.id).toList();
     }
@@ -225,43 +196,31 @@ class GimatriaSearch {
       debugPrint('Searching in ${bookIds.length} books from database');
     }
 
-    // Search in each book
     for (final bookId in bookIds) {
       if (found.length >= fileLimit) break;
 
       final book = await repository.getBook(bookId);
       if (book == null) continue;
 
-      // Get all lines for this book
       final lines = await repository.getLines(bookId, 0, book.totalLines - 1);
 
       if (debug) {
         debugPrint('Scanning book: ${book.title} (lines: ${lines.length})');
       }
 
-      // Get TOC entries for path extraction
       final tocEntries = await repository.getBookTocs(bookId);
 
       for (int i = 0; i < lines.length; i++) {
         final line = lines[i];
         final content = line.content;
 
-        // Skip header lines (h1-h6)
-        if (RegExp(r'<h[1-6][^>]*>').hasMatch(content)) {
-          continue;
-        }
+        if (RegExp(r'<h[1-6][^>]*>').hasMatch(content)) continue;
 
-        // Extract verse number from parentheses at start of line
         final verseMatch = RegExp(r'^\(([^\)]+)\)').firstMatch(content);
         final verseNumber = verseMatch?.group(1) ?? '';
 
-        // Remove verse number parentheses from line
         var cleanLine = content.replaceFirst(RegExp(r'^\([^\)]+\)\s*'), '');
-
-        // Remove curly braces with content
         cleanLine = cleanLine.replaceAll(RegExp(r'\{[^\}]*\}'), '');
-
-        // Clean HTML tags
         final lineWithoutHtml = _cleanHtml(cleanLine);
 
         final words = lineWithoutHtml
@@ -270,37 +229,25 @@ class GimatriaSearch {
             .toList();
         if (words.isEmpty) continue;
 
-        // Search for whole verse only
         if (wholeVerseOnly) {
           var totalValue = words
               .map((w) => gimatria(w, method: gematriaMethod))
               .fold(0, (a, b) => a + b);
-
-          if (useWithKolel) {
-            totalValue += words.length;
-          }
+          if (useWithKolel) totalValue += words.length;
 
           if (totalValue == targetGimatria) {
-            final phrase = words.join(' ');
-            final path = extractPathFromTocEntries(
-              currentLineIndex: line.lineIndex,
-              bookTitle: book.title,
-              tocEntries: tocEntries,
-            );
-            final cleanPhrase = _cleanHtml(phrase);
+            final path =
+                await _extractPathFromToc(line.id, tocEntries, repository);
             found.add(SearchResult(
               file: book.title,
               line: line.lineIndex + 1,
-              text: cleanPhrase,
+              text: _cleanHtml(words.join(' ')),
               path: path,
               verseNumber: verseNumber,
-              contextBefore: '',
-              contextAfter: '',
             ));
             if (found.length >= fileLimit) return found;
           }
         } else {
-          // Regular search - any phrase
           final wordValues =
               words.map((w) => gimatria(w, method: gematriaMethod)).toList();
           for (int start = 0; start < words.length; start++) {
@@ -309,46 +256,23 @@ class GimatriaSearch {
                 offset < maxPhraseWords && start + offset < words.length;
                 offset++) {
               acc += wordValues[start + offset];
-
               var finalValue = acc;
-              if (useWithKolel) {
-                finalValue += (offset + 1);
-              }
+              if (useWithKolel) finalValue += (offset + 1);
 
               if (finalValue == targetGimatria) {
                 final phrase =
                     words.sublist(start, start + offset + 1).join(' ');
-                final path = extractPathFromTocEntries(
-                  currentLineIndex: line.lineIndex,
-                  bookTitle: book.title,
-                  tocEntries: tocEntries,
-                );
-                final cleanPhrase = _cleanHtml(phrase);
-
-                // Extract context - 2-3 words before and after
-                final contextWordsCount = 3;
-                final contextStart =
-                    start > contextWordsCount ? start - contextWordsCount : 0;
-                final contextEnd =
-                    start + offset + 1 + contextWordsCount < words.length
-                        ? start + offset + 1 + contextWordsCount
-                        : words.length;
-
-                final contextBefore = contextStart < start
-                    ? words.sublist(contextStart, start).join(' ')
-                    : '';
-                final contextAfter = start + offset + 1 < contextEnd
-                    ? words.sublist(start + offset + 1, contextEnd).join(' ')
-                    : '';
-
+                final path =
+                    await _extractPathFromToc(line.id, tocEntries, repository);
+                final ctx = _extractContext(words, start, offset);
                 found.add(SearchResult(
                   file: book.title,
                   line: line.lineIndex + 1,
-                  text: cleanPhrase,
+                  text: _cleanHtml(phrase),
                   path: path,
                   verseNumber: verseNumber,
-                  contextBefore: contextBefore,
-                  contextAfter: contextAfter,
+                  contextBefore: ctx.$1,
+                  contextAfter: ctx.$2,
                 ));
                 if (found.length >= fileLimit) return found;
               } else if (finalValue > targetGimatria) {
@@ -362,71 +286,41 @@ class GimatriaSearch {
     return found;
   }
 
-  /// Extract hierarchical path from TOC entries using the line index.
-  ///
-  /// This avoids relying on a direct line_toc lookup, which may resolve to the
-  /// root book entry and omit the chapter heading for Tanach books.
-  @visibleForTesting
-  static String extractPathFromTocEntries({
-    required int currentLineIndex,
-    required String bookTitle,
-    required List<TocEntry> tocEntries,
-  }) {
-    if (tocEntries.isEmpty) {
+  static Future<String> _extractPathFromToc(
+      int lineId, List<dynamic> tocEntries, dynamic repository) async {
+    try {
+      final tocEntry = await repository.getTocEntryForLine(lineId);
+      if (tocEntry == null) return '';
+
+      final List<String> pathParts = [];
+      dynamic current = tocEntry;
+
+      while (current != null) {
+        final tocText = await repository.getTocText(current.textId);
+        if (tocText != null && tocText.text.isNotEmpty) {
+          pathParts.insert(0, _cleanHtml(tocText.text));
+        }
+        current = current.parentId != null
+            ? await repository.getTocEntry(current.parentId!)
+            : null;
+      }
+
+      return pathParts.join(', ');
+    } catch (_) {
       return '';
     }
-
-    TocEntry? bestEntry;
-    for (final entry in tocEntries) {
-      final lineIndex = entry.lineIndex;
-      if (lineIndex == null || lineIndex > currentLineIndex) {
-        continue;
-      }
-
-      if (bestEntry == null ||
-          lineIndex > bestEntry.lineIndex! ||
-          (lineIndex == bestEntry.lineIndex! &&
-              entry.level > bestEntry.level)) {
-        bestEntry = entry;
-      }
-    }
-
-    if (bestEntry == null) {
-      return '';
-    }
-
-    final tocEntriesById = {
-      for (final entry in tocEntries) entry.id: entry,
-    };
-
-    final pathParts = <String>[];
-    TocEntry? current = bestEntry;
-    while (current != null) {
-      final text = _cleanHtml(current.text);
-      if (text.isNotEmpty && text != bookTitle) {
-        pathParts.insert(0, text);
-      }
-
-      final parentId = current.parentId;
-      current = parentId == null ? null : tocEntriesById[parentId];
-    }
-
-    if (pathParts.isEmpty) {
-      return bookTitle;
-    }
-
-    return <String>[bookTitle, ...pathParts].join(', ');
   }
 
-  /// Legacy file-based search (fallback)
   static Future<List<SearchResult>> _searchInFilesLegacy(
-      String folder, int targetGimatria,
-      {int maxPhraseWords = 8,
-      int fileLimit = 1000,
-      bool wholeVerseOnly = false,
-      bool debug = false,
-      String gematriaMethod = 'regular',
-      bool useWithKolel = false}) async {
+    String folder,
+    int targetGimatria, {
+    int maxPhraseWords = 8,
+    int fileLimit = 1000,
+    bool wholeVerseOnly = false,
+    bool debug = false,
+    String gematriaMethod = 'regular',
+    bool useWithKolel = false,
+  }) async {
     final List<SearchResult> found = [];
     final dir = Directory(folder);
     if (!await dir.exists()) return found;
@@ -438,34 +332,22 @@ class GimatriaSearch {
 
     await for (final file in files) {
       try {
-        // קריאה בטקסט UTF-8 (עם חלופה לקבצים לא תקינים)
         final String content = await file.readAsString(encoding: utf8);
         final lines = const LineSplitter().convert(content);
 
         if (debug) {
-          // הדפס קובץ ונקודות בדיקה מהירות
           debugPrint('Scanning file: ${file.path} (lines: ${lines.length})');
         }
 
         for (int i = 0; i < lines.length; i++) {
           final line = lines[i];
+          if (RegExp(r'<h[1-6][^>]*>').hasMatch(line)) continue;
 
-          // דילוג על שורות כותרות (h1-h6)
-          if (RegExp(r'<h[1-6][^>]*>').hasMatch(line)) {
-            continue;
-          }
-
-          // חילוץ מספר הפסוק מהסוגריים בתחילת השורה
           final verseMatch = RegExp(r'^\(([^\)]+)\)').firstMatch(line);
           final verseNumber = verseMatch?.group(1) ?? '';
 
-          // הסרת הסוגריים עם מספר הפסוק מהשורה
           var cleanLine = line.replaceFirst(RegExp(r'^\([^\)]+\)\s*'), '');
-
-          // הסרת סוגריים מסולסלות עם תוכן
           cleanLine = cleanLine.replaceAll(RegExp(r'\{[^\}]*\}'), '');
-
-          // ניקוי תגיות HTML מהשורה
           final lineWithoutHtml = _cleanHtml(cleanLine);
 
           final words = lineWithoutHtml
@@ -474,33 +356,24 @@ class GimatriaSearch {
               .toList();
           if (words.isEmpty) continue;
 
-          // אם מחפשים פסוק שלם, בדוק את כל השורה
           if (wholeVerseOnly) {
             var totalValue = words
                 .map((w) => gimatria(w, method: gematriaMethod))
                 .fold(0, (a, b) => a + b);
-
-            // הוספת הכולל אם נדרש
-            if (useWithKolel) {
-              totalValue += words.length;
-            }
+            if (useWithKolel) totalValue += words.length;
 
             if (totalValue == targetGimatria) {
-              final phrase = words.join(' ');
               final path = _extractPathFromLines(lines, i);
-              final cleanPhrase = _cleanHtml(phrase);
               found.add(SearchResult(
-                  file: file.path,
-                  line: i + 1,
-                  text: cleanPhrase,
-                  path: path,
-                  verseNumber: verseNumber,
-                  contextBefore: '',
-                  contextAfter: ''));
+                file: file.path,
+                line: i + 1,
+                text: _cleanHtml(words.join(' ')),
+                path: path,
+                verseNumber: verseNumber,
+              ));
               if (found.length >= fileLimit) return found;
             }
           } else {
-            // חיפוש רגיל - כל קטע
             final wordValues =
                 words.map((w) => gimatria(w, method: gematriaMethod)).toList();
             for (int start = 0; start < words.length; start++) {
@@ -509,44 +382,23 @@ class GimatriaSearch {
                   offset < maxPhraseWords && start + offset < words.length;
                   offset++) {
                 acc += wordValues[start + offset];
-
-                // הוספת הכולל אם נדרש
                 var finalValue = acc;
-                if (useWithKolel) {
-                  finalValue += (offset + 1); // מספר המילים בקטע הנוכחי
-                }
+                if (useWithKolel) finalValue += (offset + 1);
 
                 if (finalValue == targetGimatria) {
                   final phrase =
                       words.sublist(start, start + offset + 1).join(' ');
                   final path = _extractPathFromLines(lines, i);
-                  // ניקוי תגיות HTML מהטקסט
-                  final cleanPhrase = _cleanHtml(phrase);
-
-                  // חילוץ ההקשר - 2-3 מילים לפני ואחרי
-                  final contextWordsCount = 3;
-                  final contextStart =
-                      start > contextWordsCount ? start - contextWordsCount : 0;
-                  final contextEnd =
-                      start + offset + 1 + contextWordsCount < words.length
-                          ? start + offset + 1 + contextWordsCount
-                          : words.length;
-
-                  final contextBefore = contextStart < start
-                      ? words.sublist(contextStart, start).join(' ')
-                      : '';
-                  final contextAfter = start + offset + 1 < contextEnd
-                      ? words.sublist(start + offset + 1, contextEnd).join(' ')
-                      : '';
-
+                  final ctx = _extractContext(words, start, offset);
                   found.add(SearchResult(
-                      file: file.path,
-                      line: i + 1,
-                      text: cleanPhrase,
-                      path: path,
-                      verseNumber: verseNumber,
-                      contextBefore: contextBefore,
-                      contextAfter: contextAfter));
+                    file: file.path,
+                    line: i + 1,
+                    text: _cleanHtml(phrase),
+                    path: path,
+                    verseNumber: verseNumber,
+                    contextBefore: ctx.$1,
+                    contextAfter: ctx.$2,
+                  ));
                   if (found.length >= fileLimit) return found;
                 } else if (finalValue > targetGimatria) {
                   break;
@@ -566,54 +418,54 @@ class GimatriaSearch {
     return found;
   }
 
-  /// מחלץ את הנתיב ההיררכי (כותרות) מהשורות שלפני המיקום הנוכחי
+  /// מחלץ הקשר (מילים לפני ואחרי) — מחזיר (contextBefore, contextAfter)
+  static (String, String) _extractContext(
+      List<String> words, int start, int offset) {
+    const contextWordsCount = 3;
+    final contextStart =
+        start > contextWordsCount ? start - contextWordsCount : 0;
+    final contextEnd = start + offset + 1 + contextWordsCount < words.length
+        ? start + offset + 1 + contextWordsCount
+        : words.length;
+
+    final contextBefore = contextStart < start
+        ? words.sublist(contextStart, start).join(' ')
+        : '';
+    final contextAfter = start + offset + 1 < contextEnd
+        ? words.sublist(start + offset + 1, contextEnd).join(' ')
+        : '';
+
+    return (contextBefore, contextAfter);
+  }
+
   static String _extractPathFromLines(List<String> lines, int currentIndex) {
     final Map<int, String> lastHeaderByLevel = {};
     final hTag = RegExp(r'<h([1-6])[^>]*>(.*?)</h\1>', dotAll: true);
 
-    // סריקה אחורה מהמיקום הנוכחי
     for (int i = currentIndex; i >= 0; i--) {
-      // אם מצאנו כותרות מספיק, אפשר לעצור
       if (lastHeaderByLevel.containsKey(1) &&
           lastHeaderByLevel.containsKey(2) &&
           lastHeaderByLevel.containsKey(3)) {
         break;
       }
-
-      final line = lines[i];
-      for (final match in hTag.allMatches(line)) {
+      for (final match in hTag.allMatches(lines[i])) {
         try {
           final level = int.parse(match.group(1)!);
           final text = _cleanHtml(match.group(2)!);
-
-          // שומרים רק את הכותרת הראשונה שנמצאה עבור כל רמה
           if (!lastHeaderByLevel.containsKey(level) && text.isNotEmpty) {
             lastHeaderByLevel[level] = text;
           }
-        } catch (_) {
-          // התעלם אם תגית ה-h אינה תקינה
-        }
+        } catch (_) {}
       }
     }
 
     if (lastHeaderByLevel.isEmpty) return '';
-
-    // הרכבת הנתיב לפי סדר הרמות
     final sortedLevels = lastHeaderByLevel.keys.toList()..sort();
-    final parts = <String>[];
-    for (final level in sortedLevels) {
-      parts.add(lastHeaderByLevel[level]!);
-    }
-
-    return parts.join(', ');
+    return sortedLevels.map((l) => lastHeaderByLevel[l]!).join(', ');
   }
 
-  /// ניקוי תגיות HTML ו-HTML entities
   static String _cleanHtml(String s) {
-    // הסרת תגיות HTML
     var cleaned = s.replaceAll(RegExp(r'<[^>]*>'), '');
-
-    // הסרת HTML entities נפוצות
     cleaned = cleaned.replaceAll('&nbsp;', ' ');
     cleaned = cleaned.replaceAll('&thinsp;', ' ');
     cleaned = cleaned.replaceAll('&ensp;', ' ');
@@ -623,13 +475,9 @@ class GimatriaSearch {
     cleaned = cleaned.replaceAll('&amp;', '&');
     cleaned = cleaned.replaceAll('&quot;', '"');
     cleaned = cleaned.replaceAll('&#39;', "'");
-
-    // הסרת כל HTML entities שנשארו (פורמט &#xxxx; או &name;)
     cleaned = cleaned.replaceAll(RegExp(r'&[a-zA-Z]+;'), '');
     cleaned = cleaned.replaceAll(RegExp(r'&#\d+;'), '');
     cleaned = cleaned.replaceAll(RegExp(r'&#x[0-9a-fA-F]+;'), '');
-
-    // ניקוי רווחים מיותרים
     return cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 }
