@@ -186,7 +186,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
       final libraryPath =
           Settings.getValue<String>(SettingsRepository.keyLibraryPath) ?? '.';
 
-      final List<String>? bookTitlesToSearch =
+      final List<String> bookTitlesToSearch =
           torahOnly ? _tanachOrder.take(5).toList() : _tanachOrder;
 
       final searchPaths = torahOnly
