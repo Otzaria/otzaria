@@ -9,10 +9,12 @@ import 'package:otzaria/widgets/rtl_text_field.dart';
 
 class NotesSearchHeader extends StatefulWidget {
   final String bookId;
+  final bool isPdf;
 
   const NotesSearchHeader({
     super.key,
     required this.bookId,
+    this.isPdf = false,
   });
 
   @override
@@ -119,7 +121,9 @@ class _NotesSearchHeaderState extends State<NotesSearchHeader> {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              'הצג רק הערות לטקסט הנראה',
+                              widget.isPdf
+                                  ? 'הצג רק הערות לעמוד המוצג'
+                                  : 'הצג רק הערות לטקסט הנראה',
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
                           ],

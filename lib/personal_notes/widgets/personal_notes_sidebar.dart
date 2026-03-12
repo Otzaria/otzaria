@@ -20,11 +20,13 @@ import 'package:otzaria/settings/settings_exports.dart';
 class PersonalNotesSidebar extends StatefulWidget {
   final String bookId;
   final ValueChanged<int> onNavigateToLine;
+  final bool isPdf;
 
   const PersonalNotesSidebar({
     super.key,
     required this.bookId,
     required this.onNavigateToLine,
+    this.isPdf = false,
   });
 
   @override
@@ -102,7 +104,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            NotesSearchHeader(bookId: widget.bookId),
+            NotesSearchHeader(bookId: widget.bookId, isPdf: widget.isPdf),
             const Divider(height: 1),
             Expanded(
               child: hasTextBookBloc
@@ -285,7 +287,9 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
     if (items.isEmpty) {
       final message =
           state.showOnlyVisible && state.visibleLineIndices.isNotEmpty
-              ? 'אין הערות לטקסט הנראה במסך'
+              ? (widget.isPdf
+                  ? 'אין הערות לעמוד המוצג'
+                  : 'אין הערות לטקסט הנראה במסך')
               : (state.searchQuery.isNotEmpty
                   ? 'לא נמצאו הערות התואמות לחיפוש'
                   : 'אין עדיין הערות על ספר זה');
