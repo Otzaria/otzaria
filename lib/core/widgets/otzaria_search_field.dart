@@ -19,11 +19,14 @@ abstract class _ST {
   static const double radius = 28.0;
   static const double height = 48.0;
   static const double heightCompact = 40.0;
+  static const double heightShrunken = 36.0; // גובה מוקטן בעת גלילה
   static const double fontSize = AppTokens.fontLG; // 16
+  static const double fontSizeShrunken = AppTokens.fontMD; // 14 - גופן מוקטן
   static const double fillAlphaUnfocused = 0.07;
   static const double fillAlphaFocused = 0.12; // primary × 12% כמו v2
   static const double focusBorderWidth = 1.5; // כמו v2
   static const Duration collapseAnim = Duration(milliseconds: 220);
+  static const Duration shrinkAnim = Duration(milliseconds: 180);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -166,6 +169,12 @@ class OtzariaSearchField extends StatefulWidget {
   /// callback כשמקישים על האייקון במצב compact
   final VoidCallback? onExpand;
 
+  /// כשאמת — השדה מקטין גובה בעת גלילה (מ-48 ל-36)
+  final bool shrinkOnScroll;
+
+  /// ValueNotifier חיצוני לשליטה במצב הכיווץ (אופציונלי)
+  final ValueNotifier<bool>? isShrunkenNotifier;
+
   const OtzariaSearchField({
     super.key,
     required this.controller,
@@ -180,6 +189,8 @@ class OtzariaSearchField extends StatefulWidget {
     this.trailingActions,
     this.isCompact = false,
     this.onExpand,
+    this.shrinkOnScroll = true,
+    this.isShrunkenNotifier,
   });
 
   @override
@@ -189,6 +200,7 @@ class OtzariaSearchField extends StatefulWidget {
 class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
   late FocusNode _effectiveFocusNode;
   bool _hasFocus = false;
+  late ValueNotifier<bool> _effectiveIsShrunkenNotifier;
 
   @override
   void initState() {
@@ -197,6 +209,11 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
     _hasFocus = _effectiveFocusNode.hasFocus;
     _effectiveFocusNode.addListener(_onFocusChange);
     widget.controller.addListener(_onTextChange);
+
+    // אתחול notifier למצב כיווץ
+    _effectiveIsShrunkenNotifier =
+        widget.isShrunkenNotifier ?? ValueNotifier<bool>(false);
+    _effectiveIsShrunkenNotifier.addListener(_onShrinkChange);
   }
 
   @override
@@ -212,21 +229,48 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
       oldWidget.controller.removeListener(_onTextChange);
       widget.controller.addListener(_onTextChange);
     }
+    if (oldWidget.isShrunkenNotifier != widget.isShrunkenNotifier) {
+      _effectiveIsShrunkenNotifier.removeListener(_onShrinkChange);
+      if (oldWidget.isShrunkenNotifier == null) {
+        _effectiveIsShrunkenNotifier.dispose();
+      }
+      _effectiveIsShrunkenNotifier =
+          widget.isShrunkenNotifier ?? ValueNotifier<bool>(false);
+      _effectiveIsShrunkenNotifier.addListener(_onShrinkChange);
+    }
   }
 
   @override
   void dispose() {
     _effectiveFocusNode.removeListener(_onFocusChange);
-    if (widget.focusNode == null) _effectiveFocusNode.dispose();
+    if (widget.focusNode == null) {
+      _effectiveFocusNode.dispose();
+    }
     widget.controller.removeListener(_onTextChange);
+    _effectiveIsShrunkenNotifier.removeListener(_onShrinkChange);
+    if (widget.isShrunkenNotifier == null) {
+      _effectiveIsShrunkenNotifier.dispose();
+    }
     super.dispose();
   }
 
   void _onFocusChange() {
-    if (mounted) setState(() => _hasFocus = _effectiveFocusNode.hasFocus);
+    if (mounted) {
+      setState(() => _hasFocus = _effectiveFocusNode.hasFocus);
+      // כשמקבלים פוקוס, מגדילים את השדה בחזרה
+      if (_hasFocus &&
+          widget.shrinkOnScroll &&
+          _effectiveIsShrunkenNotifier.value) {
+        _effectiveIsShrunkenNotifier.value = false;
+      }
+    }
   }
 
   void _onTextChange() {
+    if (mounted) setState(() {});
+  }
+
+  void _onShrinkChange() {
     if (mounted) setState(() {});
   }
 
@@ -260,6 +304,8 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
   Widget _buildField(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final hasText = widget.controller.text.isNotEmpty;
+    final isShrunken =
+        widget.shrinkOnScroll && _effectiveIsShrunkenNotifier.value;
 
     // ── Fill ──────────────────────────────────────────────────────────────
     // בפוקוס: primary × 12% (כמו v2) — גוון צבע המערכת
@@ -320,8 +366,13 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
           color: _hasFocus ? cs.primary : cs.onSurfaceVariant,
         );
 
-    return SizedBox(
-      height: _ST.height,
+    final effectiveHeight = isShrunken ? _ST.heightShrunken : _ST.height;
+    final effectiveFontSize = isShrunken ? _ST.fontSizeShrunken : _ST.fontSize;
+
+    return AnimatedContainer(
+      duration: _ST.shrinkAnim,
+      curve: Curves.easeInOut,
+      height: effectiveHeight,
       child: RtlTextField(
         controller: widget.controller,
         focusNode: _effectiveFocusNode,
@@ -333,7 +384,7 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
         // Flutter מנהל cursorHeight/cursorWidth אוטומטית (ללא הגדרה ידנית)
         cursorColor: cs.onSurface.withValues(alpha: 0.87),
         style: TextStyle(
-          fontSize: _ST.fontSize,
+          fontSize: effectiveFontSize,
           color: cs.onSurface,
           height: 1.0,
           leadingDistribution: TextLeadingDistribution.even,
@@ -348,20 +399,20 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
           isCollapsed: false,
           isDense: true,
           prefixIcon: prefixIcon,
-          prefixIconConstraints: const BoxConstraints(
+          prefixIconConstraints: BoxConstraints(
             minWidth: 44,
-            minHeight: _ST.height,
+            minHeight: effectiveHeight,
           ),
           suffixIcon: suffixWidget,
           suffixIconConstraints: BoxConstraints(
             minWidth: suffixChildren.isNotEmpty
                 ? (suffixChildren.length * 34.0).clamp(34.0, 180.0)
                 : 40.0,
-            minHeight: _ST.height,
+            minHeight: effectiveHeight,
           ),
           hintText: widget.hintText,
           hintStyle: TextStyle(
-            fontSize: _ST.fontSize,
+            fontSize: effectiveFontSize,
             color: cs.onSurfaceVariant,
             height: 1.0,
           ),
