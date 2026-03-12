@@ -26,6 +26,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
   int? _lastGematriaValue; // ערך הגימטריה האחרון שחיפשנו
   bool _hasMoreResults = false; // האם יש יותר תוצאות מהמקסימום
   bool _hasSearched = false; // האם בוצע חיפוש בפועל
+  bool _showingSettings = false; // האם פאנל ההגדרות פתוח
 
   // סדר ספרי התנ"ך
   static const List<String> _tanachOrder = [
@@ -295,18 +296,92 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
     return CallbackShortcuts(
       bindings: {
         _parseShortcut(contextSettingsShortcut): () {
-          showGematriaSettingsDialog(context);
+          setState(() {
+            _showingSettings = !_showingSettings;
+          });
         },
       },
       child: Focus(
         autofocus: true,
         focusNode: _focusNode,
         child: Scaffold(
-          body: Column(
+          body: Row(
             children: [
-              _buildSearchBar(),
-              if (_lastGematriaValue != null) _buildStatusBar(),
-              Expanded(child: _buildResultsList()),
+              // תוכן ראשי
+              Expanded(
+                child: Column(
+                  children: [
+                    _buildSearchBar(),
+                    if (_lastGematriaValue != null) _buildStatusBar(),
+                    Expanded(child: _buildResultsList()),
+                  ],
+                ),
+              ),
+              // פאנל הגדרות בצד ימין עם אנימציה
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 500),
+                curve: Curves.easeInOut,
+                width: _showingSettings ? 400 : 0,
+                child: ClipRect(
+                  child: OverflowBox(
+                    alignment: Alignment.centerRight,
+                    maxWidth: 400,
+                    minWidth: 0,
+                    child: Container(
+                      width: 400,
+                      decoration: BoxDecoration(
+                        border: Border(
+                          left: BorderSide(
+                            color: Theme.of(context).dividerColor,
+                            width: 1,
+                          ),
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          // כותרת עם כפתור סגירה
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              border: Border(
+                                bottom: BorderSide(
+                                  color: Theme.of(context).dividerColor,
+                                  width: 1,
+                                ),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                IconButton(
+                                  icon: const Icon(
+                                      FluentIcons.settings_24_regular),
+                                  tooltip: 'סגור הגדרות',
+                                  onPressed: showSettingsDialog,
+                                ),
+                                const Spacer(),
+                                const Text(
+                                  'הגדרות גימטריה',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          // תוכן ההגדרות
+                          const Expanded(
+                            child: SingleChildScrollView(
+                              padding: EdgeInsets.all(16),
+                              child: GematriaSettingsTab(),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -351,17 +426,8 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
   }
 
   void showSettingsDialog() {
-    // ההמתנה לסגירת הדיאלוג
-    showGematriaSettingsDialog(context).then((_) {
-      // ווידוא שה-widget עדיין mounted
-      if (!mounted) {
-        return;
-      }
-
-      // רצה בצע חיפוש מחדש אם יש טקסט חיפוש ובוצע חיפוש לפחות פעם אחת
-      if (_searchController.text.trim().isNotEmpty && _hasSearched) {
-        _performSearch();
-      }
+    setState(() {
+      _showingSettings = !_showingSettings;
     });
   }
 
@@ -391,11 +457,13 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
             ),
           ),
           const SizedBox(width: 8),
-          IconButton(
-            icon: const Icon(FluentIcons.settings_24_regular),
-            tooltip: 'הגדרות',
-            onPressed: showSettingsDialog,
-          ),
+          // כפתור הגדרות - מוצג רק כשההגדרות סגורות
+          if (!_showingSettings)
+            IconButton(
+              icon: const Icon(FluentIcons.settings_24_regular),
+              tooltip: 'הגדרות',
+              onPressed: showSettingsDialog,
+            ),
         ],
       ),
     );
