@@ -22,7 +22,6 @@ abstract class _ToastTokens {
   static const double fontAction = AppTokens.fontMD; // 14
 
   static const double maxWidth = 500;
-  static const double minWidth = 320;
 
   /// שקיפות רקע — מספיק שקוף כדי לראות את הרקע, מספיק אטום לקריאות
   static const double bgAlpha = 0.88;
@@ -345,91 +344,84 @@ class _SnackToastState extends State<_SnackToast>
             child: ConstrainedBox(
               constraints: const BoxConstraints(
                 maxWidth: _ToastTokens.maxWidth,
-                minWidth: _ToastTokens.minWidth,
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(_ToastTokens.radius),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(
-                    sigmaX: _ToastTokens.blurSigma,
-                    sigmaY: _ToastTokens.blurSigma,
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: bgColor,
-                        borderRadius:
-                            BorderRadius.circular(_ToastTokens.radius),
-                        //  ללא border — רק צל עדין לעומק
-                        boxShadow: [
-                          BoxShadow(
-                            color: cs.shadow
-                                .withValues(alpha: isDark ? 0.35 : 0.12),
-                            blurRadius: 20,
-                            offset: const Offset(0, 8),
-                            spreadRadius: -2,
-                          ),
-                        ],
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: _ToastTokens.padH,
-                        vertical: _ToastTokens.padV,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (widget.icon != null) ...[
-                            Icon(widget.icon, color: c.fg, size: 20),
-                            const SizedBox(width: AppTokens.spaceSM),
-                          ],
-                          Expanded(
-                            child: Text(
-                              widget.message,
-                              style: TextStyle(
-                                color: c.fg,
-                                fontSize: _ToastTokens.fontMessage,
-                                fontWeight: FontWeight.w400, // רגיל, לא מודגש
-                                height: 1.4,
-                              ),
-                              textDirection: TextDirection.rtl,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
+              child: IntrinsicWidth(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(_ToastTokens.radius),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(
+                      sigmaX: _ToastTokens.blurSigma,
+                      sigmaY: _ToastTokens.blurSigma,
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: bgColor,
+                          borderRadius:
+                              BorderRadius.circular(_ToastTokens.radius),
+                          //  ללא border — רק צל עדין לעומק
+                          boxShadow: [
+                            BoxShadow(
+                              color: cs.shadow
+                                  .withValues(alpha: isDark ? 0.35 : 0.12),
+                              blurRadius: 20,
+                              offset: const Offset(0, 8),
+                              spreadRadius: -2,
                             ),
-                          ),
-                          if (widget.actionLabel != null &&
-                              widget.onAction != null) ...[
-                            const SizedBox(width: AppTokens.spaceSM),
-                            TextButton(
-                              onPressed: () {
-                                widget.onAction!();
-                                _close();
-                              },
-                              style: TextButton.styleFrom(
-                                foregroundColor: c.action,
-                                textStyle: const TextStyle(
-                                  fontSize: _ToastTokens.fontAction,
-                                  fontWeight: FontWeight.w700,
+                          ],
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: _ToastTokens.padH,
+                          vertical: _ToastTokens.padV,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (widget.icon != null) ...[
+                              Icon(widget.icon, color: c.fg, size: 20),
+                              const SizedBox(width: AppTokens.spaceSM),
+                            ],
+                            Flexible(
+                              child: Text(
+                                widget.message,
+                                style: TextStyle(
+                                  color: c.fg,
+                                  fontSize: _ToastTokens.fontMessage,
+                                  fontWeight: FontWeight.w400, // רגיל, לא מודגש
+                                  height: 1.4,
                                 ),
-                                minimumSize: Size.zero,
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: AppTokens.spaceSM, vertical: 4),
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                textDirection: TextDirection.rtl,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              child: Text(widget.actionLabel!),
                             ),
+                            if (widget.actionLabel != null &&
+                                widget.onAction != null) ...[
+                              const SizedBox(width: AppTokens.spaceSM),
+                              TextButton(
+                                onPressed: () {
+                                  widget.onAction!();
+                                  _close();
+                                },
+                                style: TextButton.styleFrom(
+                                  foregroundColor: c.action,
+                                  textStyle: const TextStyle(
+                                    fontSize: _ToastTokens.fontAction,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                  minimumSize: Size.zero,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: AppTokens.spaceSM,
+                                      vertical: 4),
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: Text(widget.actionLabel!),
+                              ),
+                            ],
                           ],
-                          // כפתור סגירה
-                          IconButton(
-                            onPressed: _close,
-                            icon: Icon(Icons.close_rounded,
-                                color: c.fg, size: 18),
-                            visualDensity: VisualDensity.compact,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(
-                                minWidth: 32, minHeight: 32),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
