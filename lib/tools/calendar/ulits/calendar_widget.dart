@@ -33,6 +33,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
   Timer? _keyRepeatTimer;
   LogicalKeyboardKey? _currentPressedKey;
   TabController? _tabController; // שמירת הרפרנס ל-TabController
+  VoidCallback? _toggleSettingsCallback; // callback לפתיחה/סגירה של הגדרות
 
   /// מבקש פוקוס ניווט למקלדת עבור לוח השנה.
   ///
@@ -313,10 +314,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
             // הגדרות הקשר
             _parseShortcut(contextSettingsShortcut): () {
               if (_isTextFieldFocused()) return;
-              showCalendarSettingsDialog(
-                context,
-                calendarCubit: context.read<CalendarCubit>(),
-              );
+              _toggleSettingsCallback?.call();
             },
 
             // חודש קדימה (Ctrl+Left)
@@ -1414,18 +1412,6 @@ class CalendarWidgetState extends State<CalendarWidget> {
               ),
             ],
           ),
-          Positioned(
-            left: 0,
-            top: 0,
-            child: IconButton(
-              icon: const Icon(FluentIcons.settings_24_regular),
-              tooltip: 'הגדרות',
-              onPressed: () => showCalendarSettingsDialog(
-                context,
-                calendarCubit: context.read<CalendarCubit>(),
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -1442,6 +1428,9 @@ class CalendarWidgetState extends State<CalendarWidget> {
       showCreateEventDialog: (ctx, st) => _showCreateEventDialog(ctx, st),
       onTabControllerCreated: (controller) {
         _tabController = controller;
+      },
+      onSettingsToggleCallbackCreated: (callback) {
+        _toggleSettingsCallback = callback;
       },
     );
   }
@@ -2779,10 +2768,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
   Widget _buildCityDropdownWithSearch(
       BuildContext context, CalendarState state) {
     return ElevatedButton(
-      onPressed: () => showCalendarSettingsDialog(
-        context,
-        calendarCubit: context.read<CalendarCubit>(),
-      ),
+      onPressed: () => _toggleSettingsCallback?.call(),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -3037,6 +3023,7 @@ class _TimesAndEventsTabView extends StatefulWidget {
   final Widget Function(BuildContext, CalendarState, bool) buildEventsList;
   final void Function(BuildContext, CalendarState) showCreateEventDialog;
   final void Function(TabController)? onTabControllerCreated;
+  final void Function(VoidCallback)? onSettingsToggleCallbackCreated;
 
   const _TimesAndEventsTabView({
     required this.state,
@@ -3046,6 +3033,7 @@ class _TimesAndEventsTabView extends StatefulWidget {
     required this.buildEventsList,
     required this.showCreateEventDialog,
     this.onTabControllerCreated,
+    this.onSettingsToggleCallbackCreated,
   });
 
   @override
@@ -3055,6 +3043,7 @@ class _TimesAndEventsTabView extends StatefulWidget {
 class _TimesAndEventsTabViewState extends State<_TimesAndEventsTabView>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  bool _showingSettings = false;
 
   @override
   void initState() {
@@ -3062,6 +3051,24 @@ class _TimesAndEventsTabViewState extends State<_TimesAndEventsTabView>
     _tabController = TabController(length: 2, vsync: this);
     // העברת הרפרנס להורה
     widget.onTabControllerCreated?.call(_tabController);
+
+    // העברת callback לטיפול בהגדרות
+    widget.onSettingsToggleCallbackCreated?.call(_toggleSettings);
+
+    // האזנה לשינויים בטאבים כדי לסגור את ההגדרות
+    _tabController.addListener(() {
+      if (_showingSettings && !_tabController.indexIsChanging) {
+        setState(() {
+          _showingSettings = false;
+        });
+      }
+    });
+  }
+
+  void _toggleSettings() {
+    setState(() {
+      _showingSettings = !_showingSettings;
+    });
   }
 
   @override
@@ -3086,230 +3093,285 @@ class _TimesAndEventsTabViewState extends State<_TimesAndEventsTabView>
                 ),
               ),
             ),
-            child: TabBar(
-              controller: _tabController,
-              tabs: const [
-                Tab(
-                  icon: Icon(FluentIcons.calendar_clock_24_regular, size: 18),
-                  iconMargin: EdgeInsets.only(bottom: 2),
-                  height: 48,
-                  child: Text('זמני היום', style: TextStyle(fontSize: 12)),
+            child: Row(
+              children: [
+                // הטאבים - תופסים את שאר המקום
+                Expanded(
+                  child: TabBar(
+                    controller: _tabController,
+                    onTap: (index) {
+                      // סגירת ההגדרות כשלוחצים על טאב
+                      if (_showingSettings) {
+                        setState(() {
+                          _showingSettings = false;
+                        });
+                      }
+                    },
+                    tabs: const [
+                      Tab(
+                        icon: Icon(FluentIcons.calendar_clock_24_regular,
+                            size: 18),
+                        iconMargin: EdgeInsets.only(bottom: 2),
+                        height: 48,
+                        child:
+                            Text('זמני היום', style: TextStyle(fontSize: 12)),
+                      ),
+                      Tab(
+                        icon:
+                            Icon(FluentIcons.calendar_ltr_24_regular, size: 18),
+                        iconMargin: EdgeInsets.only(bottom: 2),
+                        height: 48,
+                        child: Text('אירועים', style: TextStyle(fontSize: 12)),
+                      ),
+                    ],
+                    labelColor: Theme.of(context).colorScheme.primary,
+                    unselectedLabelColor: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.6),
+                    indicatorColor: Theme.of(context).colorScheme.primary,
+                    dividerColor: Colors.transparent,
+                  ),
                 ),
-                Tab(
-                  icon: Icon(FluentIcons.calendar_ltr_24_regular, size: 18),
-                  iconMargin: EdgeInsets.only(bottom: 2),
-                  height: 48,
-                  child: Text('אירועים', style: TextStyle(fontSize: 12)),
+                // כפתור הגדרות בצד ימין
+                Tooltip(
+                  message: 'הגדרות',
+                  child: IconButton(
+                    icon: Icon(
+                      _showingSettings
+                          ? FluentIcons.dismiss_24_regular
+                          : FluentIcons.settings_24_regular,
+                      size: 20,
+                    ),
+                    onPressed: _toggleSettings,
+                    isSelected: _showingSettings,
+                  ),
                 ),
               ],
-              labelColor: Theme.of(context).colorScheme.primary,
-              unselectedLabelColor: Theme.of(context)
-                  .colorScheme
-                  .onSurface
-                  .withValues(alpha: 0.6),
-              indicatorColor: Theme.of(context).colorScheme.primary,
-              dividerColor: Colors.transparent,
             ),
           ),
-          // תוכן הטאבים - ממלא את כל השטח הנותר
+          // תוכן הטאבים עם overlay של הגדרות - ממלא את כל השטח הנותר
           Expanded(
-            child: TabBarView(
-              controller: _tabController,
+            child: Stack(
               children: [
-                // טאב זמני היום
-                SingleChildScrollView(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+                // תוכן הטאבים
+                TabBarView(
+                  controller: _tabController,
+                  children: [
+                    // טאב זמני היום
+                    SingleChildScrollView(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Spacer(),
-                          widget.buildCityDropdown(context, widget.state),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).primaryColor.withAlpha(76),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                              color: Theme.of(context).primaryColor, width: 1),
-                        ),
-                        child: Column(
-                          children: [
-                            Text(
-                              'אין לסמוך על הזמנים כלל!',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Theme.of(context).primaryColor,
-                              ),
+                          Row(
+                            children: [
+                              const Spacer(),
+                              widget.buildCityDropdown(context, widget.state),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color:
+                                  Theme.of(context).primaryColor.withAlpha(76),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                  color: Theme.of(context).primaryColor,
+                                  width: 1),
                             ),
-                            const SizedBox(height: 8),
-                            Text.rich(
-                              TextSpan(
-                                children: [
-                                  const TextSpan(
-                                    text: 'שים לב! ',
-                                    style: TextStyle(fontSize: 12),
+                            child: Column(
+                              children: [
+                                Text(
+                                  'אין לסמוך על הזמנים כלל!',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Theme.of(context).primaryColor,
                                   ),
-                                  WidgetSpan(
-                                    child: InkWell(
-                                      onTap: () =>
-                                          _showCalendarCalculationInfo(context),
-                                      child: Text(
-                                        'הזמנים שונים',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Theme.of(context).primaryColor,
-                                          decoration: TextDecoration.underline,
+                                ),
+                                const SizedBox(height: 8),
+                                Text.rich(
+                                  TextSpan(
+                                    children: [
+                                      const TextSpan(
+                                        text: 'שים לב! ',
+                                        style: TextStyle(fontSize: 12),
+                                      ),
+                                      WidgetSpan(
+                                        child: InkWell(
+                                          onTap: () =>
+                                              _showCalendarCalculationInfo(
+                                                  context),
+                                          child: Text(
+                                            'הזמנים שונים',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Theme.of(context)
+                                                  .primaryColor,
+                                              decoration:
+                                                  TextDecoration.underline,
+                                            ),
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  ),
-                                  const TextSpan(
-                                    text: ' מהותית מהלוח \'עיתים לבינה\'!',
-                                    style: TextStyle(fontSize: 12),
-                                  ),
-                                ],
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      widget.buildTimesGrid(context, widget.state),
-                      const SizedBox(height: 16),
-                      widget.buildDafYomiButtons(context, widget.state),
-                    ],
-                  ),
-                ),
-                // טאב אירועים
-                SingleChildScrollView(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          // כפתור "צור אירוע" בצד ימין
-                          ElevatedButton.icon(
-                            onPressed: () => widget.showCreateEventDialog(
-                                context, widget.state),
-                            icon: const Icon(FluentIcons.add_24_regular,
-                                size: 16),
-                            label: const Text('צור אירוע'),
-                            style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 8),
-                              textStyle: const TextStyle(fontSize: 12),
-                            ),
-                          ),
-                          if (widget.state.googleCalendarEnabled) ...[
-                            const SizedBox(width: 8),
-                            ElevatedButton.icon(
-                              onPressed:
-                                  widget.state.googleCalendarSyncInProgress
-                                      ? null
-                                      : () {
-                                          final cubit =
-                                              context.read<CalendarCubit>();
-                                          if (widget
-                                              .state.googleCalendarConnected) {
-                                            cubit.syncGoogleCalendar(
-                                                interactive: true);
-                                          } else {
-                                            cubit.connectGoogleCalendar();
-                                          }
-                                        },
-                              icon: widget.state.googleCalendarSyncInProgress
-                                  ? const SizedBox(
-                                      width: 14,
-                                      height: 14,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
+                                      const TextSpan(
+                                        text: ' מהותית מהלוח \'עיתים לבינה\'!',
+                                        style: TextStyle(fontSize: 12),
                                       ),
-                                    )
-                                  : const Icon(
-                                      FluentIcons.arrow_sync_24_regular,
-                                      size: 16,
-                                    ),
-                              label: Text(
-                                widget.state.googleCalendarConnected
-                                    ? 'סנכרן Google'
-                                    : 'חבר ל-Google',
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 8),
-                                textStyle: const TextStyle(fontSize: 12),
-                              ),
-                            ),
-                          ],
-                          const Spacer(),
-                          // כפתור "הצג הכל" בצד שמאל
-                          ElevatedButton.icon(
-                            onPressed: () => context
-                                .read<CalendarCubit>()
-                                .toggleShowAllEvents(
-                                    !widget.state.showAllEvents),
-                            icon: Icon(
-                              widget.state.showAllEvents
-                                  ? FluentIcons.calendar_month_24_regular
-                                  : FluentIcons.calendar_day_24_regular,
-                              size: 16,
-                            ),
-                            label: Text(widget.state.showAllEvents
-                                ? 'הצג יום נוכחי'
-                                : 'הצג הכל'),
-                            style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 8),
-                              textStyle: const TextStyle(fontSize: 12),
+                                    ],
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
                             ),
                           ),
+                          const SizedBox(height: 16),
+                          widget.buildTimesGrid(context, widget.state),
+                          const SizedBox(height: 16),
+                          widget.buildDafYomiButtons(context, widget.state),
                         ],
                       ),
-                      const SizedBox(height: 16),
-                      Row(
+                    ),
+                    // טאב אירועים
+                    SingleChildScrollView(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: OtzariaSearchField(
-                              controller: TextEditingController(
-                                  text: widget.state.eventSearchQuery),
-                              hintText: 'חפש אירועים...',
-                              onChanged: (query) => context
-                                  .read<CalendarCubit>()
-                                  .setEventSearchQuery(query),
-                              onClear: () => context
-                                  .read<CalendarCubit>()
-                                  .setEventSearchQuery(''),
-                            ),
+                          Row(
+                            children: [
+                              // כפתור "צור אירוע" בצד ימין
+                              ElevatedButton.icon(
+                                onPressed: () => widget.showCreateEventDialog(
+                                    context, widget.state),
+                                icon: const Icon(FluentIcons.add_24_regular,
+                                    size: 16),
+                                label: const Text('צור אירוע'),
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 8),
+                                  textStyle: const TextStyle(fontSize: 12),
+                                ),
+                              ),
+                              if (widget.state.googleCalendarEnabled) ...[
+                                const SizedBox(width: 8),
+                                ElevatedButton.icon(
+                                  onPressed:
+                                      widget.state.googleCalendarSyncInProgress
+                                          ? null
+                                          : () {
+                                              final cubit =
+                                                  context.read<CalendarCubit>();
+                                              if (widget.state
+                                                  .googleCalendarConnected) {
+                                                cubit.syncGoogleCalendar(
+                                                    interactive: true);
+                                              } else {
+                                                cubit.connectGoogleCalendar();
+                                              }
+                                            },
+                                  icon:
+                                      widget.state.googleCalendarSyncInProgress
+                                          ? const SizedBox(
+                                              width: 14,
+                                              height: 14,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            )
+                                          : const Icon(
+                                              FluentIcons.arrow_sync_24_regular,
+                                              size: 16,
+                                            ),
+                                  label: Text(
+                                    widget.state.googleCalendarConnected
+                                        ? 'סנכרן Google'
+                                        : 'חבר ל-Google',
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 8),
+                                    textStyle: const TextStyle(fontSize: 12),
+                                  ),
+                                ),
+                              ],
+                              const Spacer(),
+                              // כפתור "הצג הכל" בצד שמאל
+                              ElevatedButton.icon(
+                                onPressed: () => context
+                                    .read<CalendarCubit>()
+                                    .toggleShowAllEvents(
+                                        !widget.state.showAllEvents),
+                                icon: Icon(
+                                  widget.state.showAllEvents
+                                      ? FluentIcons.calendar_month_24_regular
+                                      : FluentIcons.calendar_day_24_regular,
+                                  size: 16,
+                                ),
+                                label: Text(widget.state.showAllEvents
+                                    ? 'הצג יום נוכחי'
+                                    : 'הצג הכל'),
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 8),
+                                  textStyle: const TextStyle(fontSize: 12),
+                                ),
+                              ),
+                            ],
                           ),
-                          IconButton(
-                            icon: Icon(widget.state.searchInDescriptions
-                                ? FluentIcons.document_text_24_regular
-                                : FluentIcons.text_t_24_regular),
-                            tooltip: widget.state.searchInDescriptions
-                                ? 'חפש רק בכותרת'
-                                : 'חפש גם בתיאור',
-                            onPressed: () => context
-                                .read<CalendarCubit>()
-                                .toggleSearchInDescriptions(
-                                    !widget.state.searchInDescriptions),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OtzariaSearchField(
+                                  controller: TextEditingController(
+                                      text: widget.state.eventSearchQuery),
+                                  hintText: 'חפש אירועים...',
+                                  onChanged: (query) => context
+                                      .read<CalendarCubit>()
+                                      .setEventSearchQuery(query),
+                                  onClear: () => context
+                                      .read<CalendarCubit>()
+                                      .setEventSearchQuery(''),
+                                ),
+                              ),
+                              IconButton(
+                                icon: Icon(widget.state.searchInDescriptions
+                                    ? FluentIcons.document_text_24_regular
+                                    : FluentIcons.text_t_24_regular),
+                                tooltip: widget.state.searchInDescriptions
+                                    ? 'חפש רק בכותרת'
+                                    : 'חפש גם בתיאור',
+                                onPressed: () => context
+                                    .read<CalendarCubit>()
+                                    .toggleSearchInDescriptions(
+                                        !widget.state.searchInDescriptions),
+                              ),
+                            ],
                           ),
+                          const SizedBox(height: 16),
+                          widget.buildEventsList(context, widget.state,
+                              widget.state.eventSearchQuery.isNotEmpty),
                         ],
                       ),
-                      const SizedBox(height: 16),
-                      widget.buildEventsList(context, widget.state,
-                          widget.state.eventSearchQuery.isNotEmpty),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
+                // overlay של הגדרות
+                if (_showingSettings)
+                  Container(
+                    color: Theme.of(context).colorScheme.surface,
+                    child: BlocProvider.value(
+                      value: context.read<CalendarCubit>(),
+                      child: const SingleChildScrollView(
+                        padding: EdgeInsets.all(16.0),
+                        child: CalendarSettingsTab(),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
