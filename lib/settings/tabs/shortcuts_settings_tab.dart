@@ -51,6 +51,8 @@ class ShortcutsSettingsTab extends StatelessWidget {
     'ctrl+9': 'CTRL + 9',
     'ctrl+comma': 'CTRL + ,',
     'ctrl+shift+b': 'CTRL + SHIFT + B',
+    'ctrl+shift+d': 'CTRL + SHIFT + D',
+    'ctrl+shift+e': 'CTRL + SHIFT + E',
     'ctrl+shift+w': 'CTRL + SHIFT + W',
   };
 
@@ -211,6 +213,51 @@ class ShortcutsSettingsTab extends StatelessWidget {
                 label: 'סגור כל הספרים',
                 defaultShortcut: 'ctrl+shift+w',
                 icon: FluentIcons.dismiss_24_regular,
+                allShortcuts: _shortcutsList,
+              ),
+            ],
+          ),
+
+          kSettingsCardSpacing,
+
+          // ── לוח שנה ────────────────────────────────────────────────────
+          SettingsCard(
+            title: 'לוח שנה',
+            subtitle: 'קיצורי מקשים ללוח השנה (פעילים רק בתוך לוח השנה)',
+            children: [
+              _ShortcutTile(
+                settingKey: 'key-shortcut-calendar-navigate-times',
+                label: 'מעבר בין זמני היום ואירועים',
+                defaultShortcut: 'ctrl+e',
+                icon: FluentIcons.arrow_swap_24_regular,
+                allShortcuts: _shortcutsList,
+              ),
+              _ShortcutTile(
+                settingKey: 'key-shortcut-calendar-today',
+                label: 'מעבר להיום',
+                defaultShortcut: 'ctrl+d',
+                icon: FluentIcons.calendar_today_24_regular,
+                allShortcuts: _shortcutsList,
+              ),
+              _ShortcutTile(
+                settingKey: 'key-shortcut-calendar-jump-date',
+                label: 'מעבר לתאריך אחר',
+                defaultShortcut: 'ctrl+shift+d',
+                icon: FluentIcons.calendar_arrow_right_24_regular,
+                allShortcuts: _shortcutsList,
+              ),
+              _ShortcutTile(
+                settingKey: 'key-shortcut-calendar-create-event',
+                label: 'יצירת אירוע',
+                defaultShortcut: 'ctrl+n',
+                icon: FluentIcons.calendar_add_24_regular,
+                allShortcuts: _shortcutsList,
+              ),
+              _ShortcutTile(
+                settingKey: 'key-shortcut-calendar-toggle-view',
+                label: 'מעבר בין תצוגות (יום/שבוע/חודש)',
+                defaultShortcut: 'ctrl+shift+e',
+                icon: FluentIcons.calendar_ltr_24_regular,
                 allShortcuts: _shortcutsList,
               ),
             ],

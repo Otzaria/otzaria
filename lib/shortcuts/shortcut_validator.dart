@@ -21,6 +21,12 @@ class ShortcutValidator {
     'key-shortcut-add-note',
     'key-shortcut-switch-workspace',
     'key-shortcut-toggle-pdf-view',
+    // Calendar shortcuts
+    'key-shortcut-calendar-navigate-times',
+    'key-shortcut-calendar-today',
+    'key-shortcut-calendar-jump-date',
+    'key-shortcut-calendar-create-event',
+    'key-shortcut-calendar-toggle-view',
   ];
 
   /// Default values for shortcuts
@@ -42,6 +48,12 @@ class ShortcutValidator {
     'key-shortcut-add-note': 'ctrl+n',
     'key-shortcut-switch-workspace': 'ctrl+k',
     'key-shortcut-toggle-pdf-view': 'ctrl+shift+p',
+    // Calendar shortcuts
+    'key-shortcut-calendar-navigate-times': 'ctrl+e',
+    'key-shortcut-calendar-today': 'ctrl+d',
+    'key-shortcut-calendar-jump-date': 'ctrl+shift+d',
+    'key-shortcut-calendar-create-event': 'ctrl+n',
+    'key-shortcut-calendar-toggle-view': 'ctrl+shift+e',
   };
 
   /// Shortcut names for display
@@ -63,6 +75,13 @@ class ShortcutValidator {
     'key-shortcut-add-note': 'הוספת הערה',
     'key-shortcut-switch-workspace': 'החלף שולחן עבודה',
     'key-shortcut-toggle-pdf-view': 'החלף מצב תצוגה (PDF/טקסט)',
+    // Calendar shortcuts
+    'key-shortcut-calendar-navigate-times':
+        'לוח שנה: מעבר בין זמני היום ואירועים',
+    'key-shortcut-calendar-today': 'לוח שנה: מעבר להיום',
+    'key-shortcut-calendar-jump-date': 'לוח שנה: מעבר לתאריך אחר',
+    'key-shortcut-calendar-create-event': 'לוח שנה: יצירת אירוע',
+    'key-shortcut-calendar-toggle-view': 'לוח שנה: מעבר בין תצוגות',
   };
 
   /// Check for conflicts in current shortcuts

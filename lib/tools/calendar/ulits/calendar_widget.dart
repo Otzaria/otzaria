@@ -32,6 +32,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
   late final FocusNode _keyboardFocusNode;
   Timer? _keyRepeatTimer;
   LogicalKeyboardKey? _currentPressedKey;
+  TabController? _tabController; // שמירת הרפרנס ל-TabController
 
   /// מבקש פוקוס ניווט למקלדת עבור לוח השנה.
   ///
@@ -215,32 +216,317 @@ class CalendarWidgetState extends State<CalendarWidget> {
     // BlocBuilder מאזין לשינויים ב-Cubit ובונה מחדש את הממשק בכל פעם שהמצב משתנה
     return BlocBuilder<CalendarCubit, CalendarState>(
       builder: (context, state) {
-        return Focus(
-          focusNode: _keyboardFocusNode,
-          autofocus: true,
-          onKeyEvent: _handleCalendarKeyEvent,
-          child: GestureDetector(
-            // לחיצה על הלוח תחזיר את הפוקוס
-            onTap: () {
-              _keyboardFocusNode.requestFocus();
+        // קריאת קיצורי מקשים מההגדרות
+        final shortcuts = context.watch<SettingsBloc>().state.shortcuts;
+
+        // פונקציות עזר לקיצורי מקשים
+        final navigateTabsShortcut =
+            shortcuts['key-shortcut-calendar-navigate-times'] ?? 'ctrl+e';
+        final todayShortcut =
+            shortcuts['key-shortcut-calendar-today'] ?? 'ctrl+d';
+        final jumpDateShortcut =
+            shortcuts['key-shortcut-calendar-jump-date'] ?? 'ctrl+shift+d';
+        final createEventShortcut =
+            shortcuts['key-shortcut-calendar-create-event'] ?? 'ctrl+n';
+        final toggleViewShortcut =
+            shortcuts['key-shortcut-calendar-toggle-view'] ?? 'ctrl+shift+e';
+
+        return CallbackShortcuts(
+          bindings: {
+            // מעבר בין טאבים (זמני היום ⟷ אירועים)
+            _parseShortcut(navigateTabsShortcut): () {
+              if (_isTextFieldFocused()) return;
+              if (_tabController != null) {
+                final currentIndex = _tabController!.index;
+                _tabController!.animateTo(currentIndex == 0 ? 1 : 0);
+              }
             },
-            child: Scaffold(
-              // אין צורך ב-AppBar כאן אם הוא מגיע ממסך האב
-              body: LayoutBuilder(
-                builder: (context, constraints) {
-                  final isWideScreen = constraints.maxWidth > 800;
-                  if (isWideScreen) {
-                    return _buildWideScreenLayout(context, state);
-                  } else {
-                    return _buildNarrowScreenLayout(context, state);
-                  }
-                },
+
+            // מעבר להיום
+            _parseShortcut(todayShortcut): () {
+              if (_isTextFieldFocused()) return;
+              context.read<CalendarCubit>().jumpToToday();
+            },
+
+            // מעבר לתאריך אחר
+            _parseShortcut(jumpDateShortcut): () {
+              if (_isTextFieldFocused()) return;
+              _showJumpToDateDialog(context);
+            },
+
+            // יצירת אירוע
+            _parseShortcut(createEventShortcut): () {
+              if (_isTextFieldFocused()) return;
+              _showCreateEventDialog(context, state);
+            },
+
+            // מעבר בין תצוגות - רק אם הפוקוס לא בשדה טקסט
+            _parseShortcut(toggleViewShortcut): () {
+              if (_isTextFieldFocused()) return;
+
+              final cubit = context.read<CalendarCubit>();
+              final currentView = state.calendarView;
+              CalendarView nextView;
+
+              switch (currentView) {
+                case CalendarView.month:
+                  nextView = CalendarView.week;
+                  break;
+                case CalendarView.week:
+                  nextView = CalendarView.day;
+                  break;
+                case CalendarView.day:
+                  nextView = CalendarView.month;
+                  break;
+              }
+
+              cubit.changeCalendarView(nextView);
+            },
+
+            // חודש קדימה (Ctrl+Left)
+            const SingleActivator(LogicalKeyboardKey.arrowLeft, control: true):
+                () {
+              if (_isTextFieldFocused()) return;
+              _navigateMonth(context, forward: true);
+            },
+
+            // חודש אחורה (Ctrl+Right)
+            const SingleActivator(LogicalKeyboardKey.arrowRight, control: true):
+                () {
+              if (_isTextFieldFocused()) return;
+              _navigateMonth(context, forward: false);
+            },
+
+            // שנה קדימה (Ctrl+Up)
+            const SingleActivator(LogicalKeyboardKey.arrowUp, control: true):
+                () {
+              if (_isTextFieldFocused()) return;
+              _navigateYear(context, forward: true);
+            },
+
+            // שנה אחורה (Ctrl+Down)
+            const SingleActivator(LogicalKeyboardKey.arrowDown, control: true):
+                () {
+              if (_isTextFieldFocused()) return;
+              _navigateYear(context, forward: false);
+            },
+          },
+          child: Focus(
+            focusNode: _keyboardFocusNode,
+            autofocus: true,
+            onKeyEvent: _handleCalendarKeyEvent,
+            child: GestureDetector(
+              // לחיצה על הלוח תחזיר את הפוקוס
+              onTap: () {
+                _keyboardFocusNode.requestFocus();
+              },
+              child: Scaffold(
+                // אין צורך ב-AppBar כאן אם הוא מגיע ממסך האב
+                body: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isWideScreen = constraints.maxWidth > 800;
+                    if (isWideScreen) {
+                      return _buildWideScreenLayout(context, state);
+                    } else {
+                      return _buildNarrowScreenLayout(context, state);
+                    }
+                  },
+                ),
               ),
             ),
           ),
         );
       },
     );
+  }
+
+  /// ניווט חודש קדימה/אחורה
+  void _navigateMonth(BuildContext context, {required bool forward}) {
+    final cubit = context.read<CalendarCubit>();
+    final currentDate = cubit.state.selectedGregorianDate;
+
+    final newDate = forward
+        ? DateTime(currentDate.year, currentDate.month + 1, currentDate.day)
+        : DateTime(currentDate.year, currentDate.month - 1, currentDate.day);
+
+    cubit.jumpToDate(newDate);
+  }
+
+  /// ניווט שנה קדימה/אחורה
+  void _navigateYear(BuildContext context, {required bool forward}) {
+    final cubit = context.read<CalendarCubit>();
+    final currentDate = cubit.state.selectedGregorianDate;
+
+    final newDate = forward
+        ? DateTime(currentDate.year + 1, currentDate.month, currentDate.day)
+        : DateTime(currentDate.year - 1, currentDate.month, currentDate.day);
+
+    cubit.jumpToDate(newDate);
+  }
+
+  /// המרת מחרוזת קיצור ל-SingleActivator
+  SingleActivator _parseShortcut(String shortcut) {
+    final parts = shortcut.toLowerCase().split('+');
+
+    bool ctrl = false;
+    bool shift = false;
+    bool alt = false;
+    LogicalKeyboardKey? key;
+
+    for (final part in parts) {
+      final trimmed = part.trim();
+      if (trimmed == 'ctrl' || trimmed == 'control') {
+        ctrl = true;
+      } else if (trimmed == 'shift') {
+        shift = true;
+      } else if (trimmed == 'alt') {
+        alt = true;
+      } else {
+        // מיפוי מקשים
+        switch (trimmed) {
+          case 'a':
+            key = LogicalKeyboardKey.keyA;
+            break;
+          case 'b':
+            key = LogicalKeyboardKey.keyB;
+            break;
+          case 'c':
+            key = LogicalKeyboardKey.keyC;
+            break;
+          case 'd':
+            key = LogicalKeyboardKey.keyD;
+            break;
+          case 'e':
+            key = LogicalKeyboardKey.keyE;
+            break;
+          case 'f':
+            key = LogicalKeyboardKey.keyF;
+            break;
+          case 'g':
+            key = LogicalKeyboardKey.keyG;
+            break;
+          case 'h':
+            key = LogicalKeyboardKey.keyH;
+            break;
+          case 'i':
+            key = LogicalKeyboardKey.keyI;
+            break;
+          case 'j':
+            key = LogicalKeyboardKey.keyJ;
+            break;
+          case 'k':
+            key = LogicalKeyboardKey.keyK;
+            break;
+          case 'l':
+            key = LogicalKeyboardKey.keyL;
+            break;
+          case 'm':
+            key = LogicalKeyboardKey.keyM;
+            break;
+          case 'n':
+            key = LogicalKeyboardKey.keyN;
+            break;
+          case 'o':
+            key = LogicalKeyboardKey.keyO;
+            break;
+          case 'p':
+            key = LogicalKeyboardKey.keyP;
+            break;
+          case 'q':
+            key = LogicalKeyboardKey.keyQ;
+            break;
+          case 'r':
+            key = LogicalKeyboardKey.keyR;
+            break;
+          case 's':
+            key = LogicalKeyboardKey.keyS;
+            break;
+          case 't':
+            key = LogicalKeyboardKey.keyT;
+            break;
+          case 'u':
+            key = LogicalKeyboardKey.keyU;
+            break;
+          case 'v':
+            key = LogicalKeyboardKey.keyV;
+            break;
+          case 'w':
+            key = LogicalKeyboardKey.keyW;
+            break;
+          case 'x':
+            key = LogicalKeyboardKey.keyX;
+            break;
+          case 'y':
+            key = LogicalKeyboardKey.keyY;
+            break;
+          case 'z':
+            key = LogicalKeyboardKey.keyZ;
+            break;
+          case '0':
+            key = LogicalKeyboardKey.digit0;
+            break;
+          case '1':
+            key = LogicalKeyboardKey.digit1;
+            break;
+          case '2':
+            key = LogicalKeyboardKey.digit2;
+            break;
+          case '3':
+            key = LogicalKeyboardKey.digit3;
+            break;
+          case '4':
+            key = LogicalKeyboardKey.digit4;
+            break;
+          case '5':
+            key = LogicalKeyboardKey.digit5;
+            break;
+          case '6':
+            key = LogicalKeyboardKey.digit6;
+            break;
+          case '7':
+            key = LogicalKeyboardKey.digit7;
+            break;
+          case '8':
+            key = LogicalKeyboardKey.digit8;
+            break;
+          case '9':
+            key = LogicalKeyboardKey.digit9;
+            break;
+          case 'comma':
+            key = LogicalKeyboardKey.comma;
+            break;
+          case 'arrowleft':
+            key = LogicalKeyboardKey.arrowLeft;
+            break;
+          case 'arrowright':
+            key = LogicalKeyboardKey.arrowRight;
+            break;
+          case 'arrowup':
+            key = LogicalKeyboardKey.arrowUp;
+            break;
+          case 'arrowdown':
+            key = LogicalKeyboardKey.arrowDown;
+            break;
+          default:
+            key = LogicalKeyboardKey.keyA; // ברירת מחדל
+        }
+      }
+    }
+
+    return SingleActivator(
+      key ?? LogicalKeyboardKey.keyA,
+      control: ctrl,
+      shift: shift,
+      alt: alt,
+    );
+  }
+
+  /// בודק אם הפוקוס כרגע בשדה טקסט
+  bool _isTextFieldFocused() {
+    final focusedWidget = FocusManager.instance.primaryFocus?.context?.widget;
+    return focusedWidget is TextField ||
+        focusedWidget is EditableText ||
+        focusedWidget.runtimeType.toString().contains('TextField');
   }
 
   // כל הפונקציות מקבלות כעת את context ואת state
@@ -1118,6 +1404,9 @@ class CalendarWidgetState extends State<CalendarWidget> {
       buildEventsList: (ctx, st, isSearch) =>
           _buildEventsList(ctx, st, isSearch: isSearch),
       showCreateEventDialog: (ctx, st) => _showCreateEventDialog(ctx, st),
+      onTabControllerCreated: (controller) {
+        _tabController = controller;
+      },
     );
   }
 
@@ -2711,6 +3000,7 @@ class _TimesAndEventsTabView extends StatefulWidget {
   final Widget Function(BuildContext, CalendarState) buildCityDropdown;
   final Widget Function(BuildContext, CalendarState, bool) buildEventsList;
   final void Function(BuildContext, CalendarState) showCreateEventDialog;
+  final void Function(TabController)? onTabControllerCreated;
 
   const _TimesAndEventsTabView({
     required this.state,
@@ -2719,6 +3009,7 @@ class _TimesAndEventsTabView extends StatefulWidget {
     required this.buildCityDropdown,
     required this.buildEventsList,
     required this.showCreateEventDialog,
+    this.onTabControllerCreated,
   });
 
   @override
@@ -2733,6 +3024,8 @@ class _TimesAndEventsTabViewState extends State<_TimesAndEventsTabView>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    // העברת הרפרנס להורה
+    widget.onTabControllerCreated?.call(_tabController);
   }
 
   @override
