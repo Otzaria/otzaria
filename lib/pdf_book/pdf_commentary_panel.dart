@@ -527,25 +527,12 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                'לא נמצאו מפרשים לדף זה',
-                style: TextStyle(
-                  fontSize: widget.fontSize * 0.9,
-                  color: Colors.grey,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Debug: currentTextLineNumber is null',
-                style: TextStyle(
-                  fontSize: widget.fontSize * 0.7,
-                  color: Colors.red,
-                ),
-              ),
-            ],
+          child: Text(
+            'טוען מפרשים...',
+            style: TextStyle(
+              fontSize: widget.fontSize * 0.9,
+              color: Colors.grey,
+            ),
           ),
         ),
       );

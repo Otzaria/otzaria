@@ -46,6 +46,7 @@ import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/widgets/commentary_pane_tooltip.dart';
 import 'package:otzaria/pdf_book/pdf_scrollbar.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
+import 'package:otzaria/models/pdf_headings.dart';
 
 class PdfBookScreen extends StatefulWidget {
   final PdfBookTab tab;
@@ -83,7 +84,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   // גלילה רציפה
   Timer? _scrollTimer;
   LogicalKeyboardKey? _currentScrollKey;
-
 
   // Local UI state that syncs with Bloc
   int _rightPaneInitialTabIndex = 0;
@@ -203,6 +203,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     _searchFieldFocusNode.addListener(() {});
     _navigationFieldFocusNode.addListener(() {});
 
+    // טעינת headings וlinks
+    _loadPdfHeadingsAndLinks();
+
     if (_currentLeftPaneTabIndex == 1) {
       _searchFieldFocusNode.requestFocus();
     } else {
@@ -250,7 +253,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     // טעינת הגדרות פר-ספר
     _loadPerBookSettings();
   }
-
 
   Text _buildRtlMenuText(String text) =>
       Text(text, textDirection: TextDirection.rtl);
@@ -516,7 +518,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
               widget.tab.pdfHeadings!.getLineNumberForHeading(title);
           if (lineNumber != null) {
             widget.tab.currentTextLineNumber = lineNumber;
+          } else {
+            widget.tab.currentTextLineNumber = currentPage;
           }
+        } else {
+          widget.tab.currentTextLineNumber = currentPage;
         }
 
         if (!mounted) return;
@@ -640,11 +646,40 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     }
   }
 
+  Future<void> _loadPdfHeadingsAndLinks() async {
+    try {
+      // טעינת headings מה-DB
+      final headings =
+          await PdfHeadings.loadFromDatabase(widget.tab.book.title);
+      if (headings != null) {
+        widget.tab.pdfHeadings = headings;
+      }
+
+      // טעינת links
+      final library = await DataRepository.instance.library;
+
+      final textBook = library.findBookByTitle(widget.tab.book.title, TextBook);
+
+      if (textBook != null) {
+        if (textBook is TextBook) {
+          final loadedLinks = await textBook.links;
+          widget.tab.links = loadedLinks;
+        }
+      }
+
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (e, stackTrace) {
+      debugPrint('Error loading PDF headings and links: $e\n$stackTrace');
+    }
+  }
+
   @override
   void dispose() {
     _stopContinuousScroll();
     textSearcher?.removeListener(_onTextSearcherUpdated);
-    widget.tab.pdfViewerController.removeListener(_onPdfViewerControllerUpdate);
+    pdfController.removeListener(_onPdfViewerControllerUpdate);
     _leftPaneTabController?.removeListener(_leftPaneTabControllerListener);
     widget.tab.showLeftPane.removeListener(_showLeftPaneListener);
     _leftPaneTabController?.dispose();
@@ -709,6 +744,16 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           if (mounted) {
             setState(() {});
           }
+        } else {
+          widget.tab.currentTextLineNumber = newPage;
+          if (mounted) {
+            setState(() {});
+          }
+        }
+      } else {
+        widget.tab.currentTextLineNumber = newPage;
+        if (mounted) {
+          setState(() {});
         }
       }
     }
@@ -859,8 +904,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                           ),
                           child: Stack(
                             children: [
-                              _buildPdfViewerFromFile(
-                                  widget.tab.book.path),
+                              _buildPdfViewerFromFile(widget.tab.book.path),
                               BlocBuilder<PdfBookBloc, PdfBookState>(
                                 buildWhen: (prev, curr) {
                                   if (prev is PdfBookLoaded &&
