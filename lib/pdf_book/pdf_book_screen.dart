@@ -498,36 +498,64 @@ class _PdfBookScreenState extends State<PdfBookScreen>
               await controller.goToPage(pageNumber: widget.tab.pageNumber);
               // המתנה נוספת לוודא שהקפיצה הסתיימה
               await Future.delayed(const Duration(milliseconds: 200));
+
+              // עדכון currentTextLineNumber אחרי הקפיצה
+              if (mounted) {
+                final jumpedPage = widget.tab.pdfViewerController.pageNumber ??
+                    widget.tab.pageNumber;
+                final jumpedTitle = await refFromPageNumber(jumpedPage,
+                    widget.tab.outline.value ?? [], widget.tab.book.title);
+
+                if (widget.tab.pdfHeadings != null && jumpedTitle.isNotEmpty) {
+                  final lineNumber = widget.tab.pdfHeadings!
+                      .getLineNumberForHeading(jumpedTitle);
+                  if (lineNumber != null) {
+                    widget.tab.currentTextLineNumber = lineNumber;
+                  } else {
+                    widget.tab.currentTextLineNumber = jumpedPage;
+                  }
+                } else {
+                  widget.tab.currentTextLineNumber = jumpedPage;
+                }
+                setState(() {});
+              }
+
               _isJumping = false; // מאפס את ה-flag
               _initialPageNumber = null; // מאפס גם את זה
             } else {
               _isJumping = false;
             }
           });
-        }
+        } else {
+          // אם לא קופצים, עדכן את currentTextLineNumber מיד
+          final currentPage = widget.tab.pdfViewerController.isReady
+              ? (widget.tab.pdfViewerController.pageNumber ?? 1)
+              : widget.tab.pageNumber;
+          final title = await refFromPageNumber(
+              currentPage, widget.tab.outline.value, widget.tab.book.title);
+          widget.tab.currentTitle.value = title;
 
-        final currentPage = widget.tab.pdfViewerController.isReady
-            ? (widget.tab.pdfViewerController.pageNumber ?? 1)
-            : widget.tab.pageNumber;
-        final title = await refFromPageNumber(
-            currentPage, widget.tab.outline.value, widget.tab.book.title);
-        widget.tab.currentTitle.value = title;
-
-        if (widget.tab.pdfHeadings != null && title.isNotEmpty) {
-          final lineNumber =
-              widget.tab.pdfHeadings!.getLineNumberForHeading(title);
-          if (lineNumber != null) {
-            widget.tab.currentTextLineNumber = lineNumber;
+          if (widget.tab.pdfHeadings != null && title.isNotEmpty) {
+            final lineNumber =
+                widget.tab.pdfHeadings!.getLineNumberForHeading(title);
+            if (lineNumber != null) {
+              widget.tab.currentTextLineNumber = lineNumber;
+            } else {
+              widget.tab.currentTextLineNumber = currentPage;
+            }
           } else {
             widget.tab.currentTextLineNumber = currentPage;
           }
-        } else {
-          widget.tab.currentTextLineNumber = currentPage;
         }
 
         if (!mounted) return;
         final settingsBloc = context.read<SettingsBloc>();
         final enablePerBookSettings = settingsBloc.state.enablePerBookSettings;
+
+        // קבע את currentPage לשימוש בקוד שלאחר
+        final currentPage = widget.tab.pdfViewerController.isReady
+            ? (widget.tab.pdfViewerController.pageNumber ?? 1)
+            : widget.tab.pageNumber;
 
         bool shouldFitToWidth = true;
         if (enablePerBookSettings) {
