@@ -40,19 +40,18 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                   // סוג לוח
                   SegmentedSettingsTile<CalendarType>(
                     icon: FluentIcons.calendar_24_regular,
-                    title: 'סוג לוח',
+                    title: 'סוג לוח שנה',
                     subtitle: state.calendarType == CalendarType.hebrew
-                        ? 'לוח עברי בלבד'
+                        ? 'יוצג לוח השנה היהודי בלבד'
                         : state.calendarType == CalendarType.gregorian
-                            ? 'לוח לועזי בלבד'
-                            : 'לוח עברי ולועזי ביחד',
+                            ? 'יוצג לוח השנה הלועזי בלבד'
+                            : 'יוצגו תאריכים מהלוח העברי והלועזי יחד',
                     options: const [
+                      SegmentOption(value: CalendarType.hebrew, label: 'עברי'),
                       SegmentOption(
-                          value: CalendarType.hebrew, label: 'לוח עברי'),
+                          value: CalendarType.combined, label: 'משולב'),
                       SegmentOption(
-                          value: CalendarType.combined, label: 'לוח משולב'),
-                      SegmentOption(
-                          value: CalendarType.gregorian, label: 'לוח לועזי'),
+                          value: CalendarType.gregorian, label: 'לועזי'),
                     ],
                     currentValue: state.calendarType,
                     onChanged: (value) {
