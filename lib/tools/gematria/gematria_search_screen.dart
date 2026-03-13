@@ -1,7 +1,9 @@
 // lib/tools/gematria/gematria_search_screen.dart
 //
-// מסך חיפוש גימטריה.
-// ויג'טים הוצאו ל-widgets/ ומודלים ל-models/.
+// שינויים:
+//  • מסך צר (< 800): פאנל הגדרות נפתח כ-Overlay על גבי Stack (לא דוחק תוכן)
+//  • מסך רחב: Row([תוכן, GematriaSettingsPanel]) — כמו קודם
+//  • ניווט מקלדת ברשימה: ↑↓ בין כרטיסים, Focus על ListView
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -17,6 +19,7 @@ import 'package:otzaria/tools/gematria/models/search_result.dart';
 import 'package:otzaria/tools/gematria/widgets/gematria_result_card.dart';
 import 'package:otzaria/tools/gematria/widgets/gematria_settings_panel.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
+import 'package:otzaria/widgets/keyboard_navigator.dart';
 
 class GematriaSearchScreen extends StatefulWidget {
   const GematriaSearchScreen({super.key});
@@ -27,7 +30,8 @@ class GematriaSearchScreen extends StatefulWidget {
 
 class GematriaSearchScreenState extends State<GematriaSearchScreen> {
   final TextEditingController _searchController = TextEditingController();
-  final FocusNode _focusNode = FocusNode();
+  final FocusNode _screenFocusNode = FocusNode();
+  final ScrollController _scrollController = ScrollController();
 
   List<GematriaSearchResult> _searchResults = [];
   bool _isSearching = false;
@@ -36,7 +40,10 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
   bool _hasSearched = false;
   bool _showingSettings = false;
 
-  // ─── ספרי תנ"ך בסדרם ───────────────────────────────────────────────────────
+  // ── ניווט מקלדת ברשימה ───────────────────────────────────────────────────
+  int _focusedCardIndex = -1;
+  static const double _cardEstimatedHeight = 90.0;
+
   static const List<String> _tanachOrder = [
     'בראשית',
     'שמות',
@@ -80,8 +87,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
   ];
 
   int _getBookOrder(String fileName) {
-    final bookName = fileName.replaceAll('.txt', '').trim();
-    final index = _tanachOrder.indexOf(bookName);
+    final index = _tanachOrder.indexOf(fileName.replaceAll('.txt', '').trim());
     return index >= 0 ? index : 999;
   }
 
@@ -94,39 +100,47 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
   @override
   void dispose() {
     _searchController.dispose();
-    _focusNode.dispose();
+    _screenFocusNode.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
   void _toggleSettings() =>
       setState(() => _showingSettings = !_showingSettings);
 
-  // ─── קיצור מקשים ────────────────────────────────────────────────────────────
-
-  SingleActivator _parseShortcut(String shortcut) {
-    final parts = shortcut.toLowerCase().split('+');
-    final key = parts.last;
-    final hasCtrl = parts.contains('ctrl');
-    final hasShift = parts.contains('shift');
-    final hasAlt = parts.contains('alt');
-
-    final LogicalKeyboardKey logicalKey;
-    if (key == 'comma') {
-      logicalKey = LogicalKeyboardKey.comma;
-    } else if (key.length == 1) {
-      logicalKey = LogicalKeyboardKey(
-        LogicalKeyboardKey.keyA.keyId + key.codeUnitAt(0) - 'a'.codeUnitAt(0),
-      );
-    } else {
-      logicalKey = LogicalKeyboardKey.keyA;
-    }
-
-    return SingleActivator(logicalKey,
-        control: hasCtrl, shift: hasShift, alt: hasAlt);
+  ShortcutActivator _settingsShortcut() {
+    final raw =
+        Settings.getValue<String>('key-shortcut-open-context-settings') ??
+            'ctrl+shift+comma';
+    final parts = raw.toLowerCase().split('+');
+    return SingleActivator(
+      LogicalKeyboardKey.comma,
+      control: parts.contains('ctrl'),
+      shift: parts.contains('shift'),
+      alt: parts.contains('alt'),
+    );
   }
 
-  // ─── חיפוש ──────────────────────────────────────────────────────────────────
+  // ── ניווט ↑↓ ברשימה ─────────────────────────────────────────────────────
+  void _moveFocus(int delta) {
+    if (_searchResults.isEmpty) return;
+    final next =
+        (_focusedCardIndex + delta).clamp(0, _searchResults.length - 1);
+    setState(() => _focusedCardIndex = next);
+    // גלילה לכרטיס הנוכחי
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        final offset = next * _cardEstimatedHeight;
+        _scrollController.animateTo(
+          offset.clamp(0.0, _scrollController.position.maxScrollExtent),
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
 
+  // ── חיפוש ─────────────────────────────────────────────────────────────────
   Future<void> _performSearch() async {
     final searchText = _searchController.text.trim();
     if (searchText.isEmpty) return;
@@ -153,7 +167,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
       gematriaMethod = 'finalLetters';
     }
 
-    int? targetGimatria;
+    final int targetGimatria;
     final numericValue = int.tryParse(searchText);
     if (numericValue != null) {
       targetGimatria = numericValue;
@@ -166,11 +180,12 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
         }
         return;
       }
-      targetGimatria =
+      int computed =
           GimatriaSearch.gimatria(searchText, method: gematriaMethod);
       if (useWithKolel) {
-        targetGimatria += searchText.trim().split(RegExp(r'\s+')).length;
+        computed += searchText.trim().split(RegExp(r'\s+')).length;
       }
+      targetGimatria = computed;
     }
 
     if (targetGimatria == 0) return;
@@ -180,15 +195,14 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
       _searchResults = [];
       _lastGematriaValue = targetGimatria;
       _hasSearched = true;
+      _focusedCardIndex = -1;
     });
 
     try {
       final libraryPath =
           Settings.getValue<String>(SettingsRepository.keyLibraryPath) ?? '.';
-
       final List<String> bookTitlesToSearch =
           torahOnly ? _tanachOrder.take(5).toList() : _tanachOrder;
-
       final searchPaths = torahOnly
           ? ['$libraryPath/ספרייה/תנך/תורה']
           : [
@@ -198,8 +212,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
             ];
 
       final List<SearchResult> allResults = [];
-
-      final searchResults = await GimatriaSearch.searchInFiles(
+      final first = await GimatriaSearch.searchInFiles(
         searchPaths.first,
         targetGimatria,
         maxPhraseWords: 8,
@@ -209,11 +222,11 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
         useWithKolel: useWithKolel,
         bookTitles: bookTitlesToSearch,
       );
-      allResults.addAll(searchResults);
+      allResults.addAll(first);
 
       if (allResults.isEmpty && searchPaths.length > 1) {
         for (int i = 1; i < searchPaths.length; i++) {
-          final moreResults = await GimatriaSearch.searchInFiles(
+          final more = await GimatriaSearch.searchInFiles(
             searchPaths[i],
             targetGimatria,
             maxPhraseWords: 8,
@@ -222,7 +235,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
             gematriaMethod: gematriaMethod,
             useWithKolel: useWithKolel,
           );
-          allResults.addAll(moreResults);
+          allResults.addAll(more);
           if (allResults.length > maxResults) break;
         }
       }
@@ -233,24 +246,18 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
       if (filterDuplicates) {
         final seen = <String>{};
         finalResults = finalResults.where((result) {
-          final key = utils.removeVolwels(result.text);
-          return seen.add(key);
+          return seen.add(utils.removeVolwels(result.text));
         }).toList();
       }
 
       setState(() {
         _searchResults = finalResults.map((result) {
-          final relativePath =
-              result.file.replaceFirst(libraryPath, '').replaceAll('\\', '/');
-          final fileName = relativePath.split('/').last.replaceAll('.txt', '');
-
+          final fileName =
+              result.file.split(RegExp(r'[/\\]')).last.replaceAll('.txt', '');
           String displayPath = result.path.isNotEmpty ? result.path : fileName;
           if (result.verseNumber.isNotEmpty) {
             displayPath = '$displayPath, פסוק ${result.verseNumber}';
-          } else if (result.path.isEmpty) {
-            displayPath = '$displayPath, שורה ${result.line}';
           }
-
           return GematriaSearchResult(
             bookTitle: fileName,
             internalPath: displayPath,
@@ -277,46 +284,84 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
     }
   }
 
-  // ─── Build ───────────────────────────────────────────────────────────────────
-
+  // ── Build ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final contextSettingsShortcut =
-        Settings.getValue<String>('key-shortcut-open-context-settings') ??
-            'ctrl+shift+comma';
+    final isNarrow = MediaQuery.of(context).size.width < 800;
+    final settingsPanel = GematriaSettingsPanel(
+      isVisible: _showingSettings,
+      onToggle: _toggleSettings,
+    );
 
-    return CallbackShortcuts(
-      bindings: {
-        _parseShortcut(contextSettingsShortcut): _toggleSettings,
-      },
-      child: Focus(
-        autofocus: true,
-        focusNode: _focusNode,
-        child: Scaffold(
-          body: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  children: [
-                    _buildSearchBar(),
-                    if (_lastGematriaValue != null) _buildStatusBar(),
-                    Expanded(child: _buildResultsList()),
-                  ],
-                ),
-              ),
-              GematriaSettingsPanel(
-                isVisible: _showingSettings,
-                onToggle: _toggleSettings,
-              ),
-            ],
+    return KeyboardNavigator(
+      currentTabIndex: 0,
+      totalTabs: 1,
+      onTabChange: (_) {},
+      child: CallbackShortcuts(
+        bindings: {_settingsShortcut(): _toggleSettings},
+        child: Focus(
+          focusNode: _screenFocusNode,
+          autofocus: true,
+          onKeyEvent: (node, event) {
+            if (event is! KeyDownEvent) return KeyEventResult.ignored;
+            if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+              _moveFocus(1);
+              return KeyEventResult.handled;
+            }
+            if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+              _moveFocus(-1);
+              return KeyEventResult.handled;
+            }
+            return KeyEventResult.ignored;
+          },
+          child: Scaffold(
+            backgroundColor: AppSurfaces.panelBackground(context),
+            body: isNarrow
+                // ── מסך צר: Stack (overlay) ──────────────────────────────
+                ? Stack(
+                    children: [
+                      Column(
+                        children: [
+                          _buildSearchBar(),
+                          if (_lastGematriaValue != null) _buildStatusBar(),
+                          Expanded(child: _buildResultsList()),
+                        ],
+                      ),
+                      // פאנל הגדרות מצף מהצד
+                      settingsPanel.buildNarrowOverlay(context),
+                    ],
+                  )
+                // ── מסך רחב: Row ──────────────────────────────────────────
+                : Row(
+                    children: [
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.topCenter,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(
+                              maxWidth: LayoutConstraints.panelContentMaxWidth,
+                            ),
+                            child: Column(
+                              children: [
+                                _buildSearchBar(),
+                                if (_lastGematriaValue != null)
+                                  _buildStatusBar(),
+                                Expanded(child: _buildResultsList()),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      settingsPanel,
+                    ],
+                  ),
           ),
         ),
       ),
     );
   }
 
-  // ─── Search bar ──────────────────────────────────────────────────────────────
-
+  // ── Search bar ─────────────────────────────────────────────────────────────
   Widget _buildSearchBar() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -337,6 +382,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
                 _searchResults = [];
                 _lastGematriaValue = null;
                 _hasSearched = false;
+                _focusedCardIndex = -1;
               }),
               leading: IconButton(
                 icon: const Icon(FluentIcons.search_24_regular),
@@ -346,41 +392,44 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
             ),
           ),
           const SizedBox(width: AppTokens.spaceSM),
-          if (!_showingSettings)
-            IconButton(
-              icon: const Icon(FluentIcons.settings_24_regular),
-              tooltip: 'הגדרות',
-              onPressed: _toggleSettings,
+          IconButton(
+            icon: Icon(
+              _showingSettings
+                  ? FluentIcons.panel_right_contract_24_regular
+                  : FluentIcons.settings_24_regular,
             ),
+            tooltip: _showingSettings
+                ? 'סגור הגדרות (Ctrl+Shift+,)'
+                : 'הגדרות (Ctrl+Shift+,)',
+            onPressed: _toggleSettings,
+          ),
         ],
       ),
     );
   }
 
-  // ─── Status bar ──────────────────────────────────────────────────────────────
-
+  // ── Status bar ─────────────────────────────────────────────────────────────
   Widget _buildStatusBar() {
-    final resultsText = _hasMoreResults
-        ? 'הוגבל ל-${_searchResults.length} תוצאות'
-        : 'נמצאו ${_searchResults.length} תוצאות';
-
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: AppTokens.spaceMD,
-        vertical: AppTokens.spaceMD - 4,
+        vertical: AppTokens.spaceSM,
       ),
       decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(
-            color: Theme.of(context).colorScheme.outlineVariant,
-            width: 1,
-          ),
+          bottom:
+              BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
         ),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(resultsText, style: const TextStyle(fontSize: AppTokens.fontMD)),
+          Text(
+            _hasMoreResults
+                ? 'הוגבל ל-${_searchResults.length} תוצאות'
+                : 'נמצאו ${_searchResults.length} תוצאות',
+            style: const TextStyle(fontSize: AppTokens.fontMD),
+          ),
           Text(
             'ערך גימטריה: $_lastGematriaValue',
             style: const TextStyle(
@@ -393,40 +442,36 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
     );
   }
 
-  // ─── Results list ─────────────────────────────────────────────────────────────
-
+  // ── Results list ───────────────────────────────────────────────────────────
   Widget _buildResultsList() {
     if (_isSearching) {
       return const Center(child: CircularProgressIndicator());
     }
-
     if (_searchResults.isEmpty && _hasSearched) {
       return _EmptyState(
-        icon: FluentIcons.search_24_regular,
-        message: 'לא נמצאו תוצאות',
-      );
+          icon: FluentIcons.search_24_regular, message: 'לא נמצאו תוצאות');
     }
-
-    if (_searchResults.isEmpty) {
+    if (!_hasSearched) {
       return _EmptyState(
-        icon: FluentIcons.calculator_24_regular,
-        message: 'הזן ערך לחיפוש גימטריה',
-      );
+          icon: FluentIcons.calculator_24_regular,
+          message: 'הזן ערך לחיפוש גימטריה');
     }
 
     return ListView.builder(
+      controller: _scrollController,
       padding: const EdgeInsets.all(AppTokens.spaceMD),
       itemCount: _searchResults.length,
       itemBuilder: (context, index) => GematriaResultCard(
         number: index + 1,
         result: _searchResults[index],
+        isFocused: _focusedCardIndex == index,
+        onTap: () => setState(() => _focusedCardIndex = index),
       ),
     );
   }
 }
 
-// ─── Empty state helper ───────────────────────────────────────────────────────
-
+// ── Empty state ────────────────────────────────────────────────────────────────
 class _EmptyState extends StatelessWidget {
   final IconData icon;
   final String message;
@@ -434,13 +479,16 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dimColor =
-        Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3);
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 64, color: dimColor),
+          Icon(icon,
+              size: 64,
+              color: Theme.of(context)
+                  .colorScheme
+                  .onSurface
+                  .withValues(alpha: 0.3)),
           const SizedBox(height: AppTokens.spaceMD),
           Text(
             message,
