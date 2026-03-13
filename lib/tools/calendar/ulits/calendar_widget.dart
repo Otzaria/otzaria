@@ -34,6 +34,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
   LogicalKeyboardKey? _currentPressedKey;
   TabController? _tabController; // שמירת הרפרנס ל-TabController
   VoidCallback? _toggleSettingsCallback; // callback לפתיחה/סגירה של הגדרות
+  bool _isJumpToDateDialogOpen = false; // מעקב אחרי מצב הדיאלוג
 
   /// מבקש פוקוס ניווט למקלדת עבור לוח השנה.
   ///
@@ -273,7 +274,15 @@ class CalendarWidgetState extends State<CalendarWidget> {
             // מעבר לתאריך אחר
             _parseShortcut(jumpDateShortcut): () {
               if (_isTextFieldFocused()) return;
-              _showJumpToDateDialog(context);
+
+              // אם הדיאלוג פתוח, סגור אותו
+              if (_isJumpToDateDialogOpen) {
+                Navigator.of(context).pop();
+                _isJumpToDateDialogOpen = false;
+              } else {
+                // אחרת, פתח אותו
+                _showJumpToDateDialog(context);
+              }
             },
 
             // יצירת אירוע
@@ -2249,6 +2258,9 @@ class CalendarWidgetState extends State<CalendarWidget> {
     DateTime selectedDate = DateTime.now();
     final TextEditingController dateController = TextEditingController();
 
+    // סמן שהדיאלוג פתוח
+    _isJumpToDateDialogOpen = true;
+
     showDialog(
       context: context,
       builder: (dialogContext) {
@@ -2291,6 +2303,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
 
                         context.read<CalendarCubit>().jumpToDate(dateToJump);
                         Navigator.of(dialogContext).pop();
+                        _isJumpToDateDialogOpen = false;
                       },
                     ),
                     const SizedBox(height: 20),
@@ -2323,7 +2336,10 @@ class CalendarWidgetState extends State<CalendarWidget> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop();
+                    _isJumpToDateDialogOpen = false;
+                  },
                   child: const Text('ביטול'),
                 ),
                 ElevatedButton(
@@ -2346,6 +2362,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
 
                     context.read<CalendarCubit>().jumpToDate(dateToJump);
                     Navigator.of(dialogContext).pop();
+                    _isJumpToDateDialogOpen = false;
                   },
                   child: const Text('פתח'),
                 ),
@@ -2354,7 +2371,10 @@ class CalendarWidgetState extends State<CalendarWidget> {
           },
         );
       },
-    );
+    ).then((_) {
+      // וודא שהדגל מתאפס גם אם הדיאלוג נסגר בדרכים אחרות (ESC, לחיצה מחוץ לדיאלוג)
+      _isJumpToDateDialogOpen = false;
+    });
   }
 
   DateTime? _parseInputDate(BuildContext context, String input) {
