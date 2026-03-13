@@ -208,6 +208,12 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                                   );
                             },
                           ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(FluentIcons.settings_24_regular),
+                            tooltip: 'הגדרות ספרייה',
+                            onPressed: () => showLibrarySettingsDialog(context),
+                          ),
                         ],
                       ),
                     ),

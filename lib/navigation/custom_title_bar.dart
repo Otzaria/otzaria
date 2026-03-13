@@ -357,18 +357,6 @@ class _CustomTitleBarState extends State<CustomTitleBar>
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4.0),
-              child: IconButton(
-                icon: const Icon(FluentIcons.settings_24_regular, size: 18),
-                tooltip: 'הגדרות ספרייה',
-                onPressed: () => showLibrarySettingsDialog(context),
-                style: _kIconButtonStyle.copyWith(
-                  foregroundColor: WidgetStatePropertyAll(
-                      Theme.of(context).colorScheme.onSurfaceVariant),
-                ),
-              ),
-            ),
           ],
         );
       },
