@@ -2,7 +2,8 @@
 //
 // שינויים:
 //  • מסך צר: תפריט סגנון הגדרות (SettingsCard קבוצות + ListTile) → tap → תוכן + חזרה
-//  • מסך רחב: TabBar רגיל (ללא שינוי)
+//  • מסך רחב: TabBar M3 ראשי — ללא קו מתחת, אינדיקטור ריבוע מעוגל שקוף
+//  • AnimatedSwitcher: מעבר חלק בין wide ↔ narrow
 //  • Ctrl+Tab / Ctrl+Shift+Tab: KeyboardNavigator מכל מקום
 //  • רקע: AppSurfaces.panelBackground
 
@@ -49,8 +50,8 @@ class _MoreScreenState extends State<MoreScreen>
         label: 'שמור וזכור',
         icon: null,
         imageIcon: 'assets/icon/שמור וזכור שחור ריק.png'),
-    const _TabInfo(label: 'מדות ושיעורים', icon: FluentIcons.ruler_24_regular),
     const _TabInfo(label: 'הערות אישיות', icon: FluentIcons.note_24_regular),
+    const _TabInfo(label: 'מדות ושיעורים', icon: FluentIcons.ruler_24_regular),
     const _TabInfo(label: 'גימטריה', icon: FluentIcons.calculator_24_regular),
     const _TabInfo(
         label: 'מילון ארמי-עברי', icon: FluentIcons.translate_24_regular),
@@ -60,10 +61,9 @@ class _MoreScreenState extends State<MoreScreen>
 
   // ── קבוצות תפריט מובייל ───────────────────────────────────────────────────
   static const _mobileGroups = [
-    (label: 'יומן וזמן', indices: <int>[0, 1]),
-    (label: 'כלים', indices: <int>[2, 4]),
-    (label: 'מילונים', indices: <int>[5, 6]),
-    (label: 'אישי', indices: <int>[3]),
+    (label: 'לוח שנה', indices: <int>[0]),
+    (label: 'תורה שלמדתי', indices: <int>[1, 2]),
+    (label: 'דקדוקי סופרים', indices: <int>[3, 4, 5, 6]),
   ];
 
   @override
@@ -82,8 +82,8 @@ class _MoreScreenState extends State<MoreScreen>
         builder: (context, _) => const CalendarWidget(),
       ),
       ShamorZachorWidget(onTitleChanged: (_) {}),
-      const MeasurementConverterScreen(),
       const PersonalNotesManagerScreen(),
+      const MeasurementConverterScreen(),
       GematriaSearchScreen(key: _gematriaKey),
       const AramaicDictionaryScreen(),
       const AcronymsDictionaryScreen(),
@@ -127,10 +127,16 @@ class _MoreScreenState extends State<MoreScreen>
     final icon = tab.imageIcon != null
         ? ImageIcon(AssetImage(tab.imageIcon!), size: 20)
         : Icon(tab.icon, size: 20);
-    return SizedBox(
-      width: 100,
-      child: Tab(text: tab.label, icon: icon),
-    );
+    return Tab(text: tab.label, icon: icon);
+  }
+
+  // ── צבע אינדיקטור טאב — מתאים לlight/dark ────────────────────────────────
+  Color _tabIndicatorColor(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return isDark
+        ? cs.surfaceContainerHigh
+        : cs.secondaryContainer.withValues(alpha: 0.72);
   }
 
   // ── Mobile menu ────────────────────────────────────────────────────────────
@@ -140,6 +146,7 @@ class _MoreScreenState extends State<MoreScreen>
       backgroundColor: bgColor,
       appBar: AppBar(
         backgroundColor: bgColor,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
         title: const Text('כלים'),
       ),
@@ -183,6 +190,7 @@ class _MoreScreenState extends State<MoreScreen>
         backgroundColor: bgColor,
         appBar: AppBar(
           backgroundColor: bgColor,
+          surfaceTintColor: Colors.transparent,
           elevation: 0,
           title: Text(_tabs[_selectedIndex].label),
           leading: Tooltip(
@@ -203,35 +211,69 @@ class _MoreScreenState extends State<MoreScreen>
 
   // ── Desktop layout ─────────────────────────────────────────────────────────
   Widget _buildDesktop(Color bgColor) {
+    final cs = Theme.of(context).colorScheme;
+    final indicatorColor = _tabIndicatorColor(context);
+
     return KeyboardNavigator(
       currentTabIndex: _selectedIndex,
       totalTabs: _tabs.length,
       onTabChange: _changeTab,
       child: Scaffold(
         backgroundColor: bgColor,
-        appBar: AppBar(
-          backgroundColor: bgColor,
-          toolbarHeight: 72,
-          title: TabBar(
-            controller: _tabController,
-            isScrollable: true,
-            tabAlignment: TabAlignment.center,
-            tabs: _tabs.map(_buildTabWidget).toList(),
-          ),
-          bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(1.0),
-            child: Container(
-              color: Theme.of(context).dividerColor,
-              height: 1.0,
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ── שורת טאבים M3 ─────────────────────────────────────────────
+            ColoredBox(
+              color: bgColor,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppTokens.spaceMD,
+                  vertical: AppTokens.spaceXS,
+                ),
+                child: TabBar(
+                  controller: _tabController,
+                  isScrollable: true,
+                  tabAlignment: TabAlignment.center,
+                  // ── M3: ללא קו מפריד תחתון ────────────────────────────
+                  dividerColor: Colors.transparent,
+                  dividerHeight: 0,
+                  // ── אינדיקטור ריבוע מעוגל שקוף ─────────────────────────
+                  indicator: BoxDecoration(
+                    borderRadius: BorderRadius.circular(AppTokens.radiusMD),
+                    color: indicatorColor,
+                  ),
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  indicatorPadding: const EdgeInsets.symmetric(
+                    horizontal: 2,
+                    vertical: 4,
+                  ),
+                  // ── צבעי תוויות M3 ───────────────────────────────────
+                  labelColor: cs.onSurface,
+                  unselectedLabelColor: cs.onSurfaceVariant,
+                  labelStyle: const TextStyle(
+                    fontSize: AppTokens.fontMD,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  unselectedLabelStyle: const TextStyle(
+                    fontSize: AppTokens.fontMD,
+                    fontWeight: FontWeight.w400,
+                  ),
+                  tabs: _tabs.map(_buildTabWidget).toList(),
+                ),
+              ),
             ),
-          ),
-        ),
-        body: Focus(
-          focusNode: _contentFocusNode,
-          child: TabBarView(
-            controller: _tabController,
-            children: _pages,
-          ),
+            // ── תוכן טאבים ───────────────────────────────────────────────
+            Expanded(
+              child: Focus(
+                focusNode: _contentFocusNode,
+                child: TabBarView(
+                  controller: _tabController,
+                  children: _pages,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -246,13 +288,32 @@ class _MoreScreenState extends State<MoreScreen>
       builder: (context, constraints) {
         final isMobile = constraints.maxWidth < LayoutBreakpoints.compact;
 
+        Widget content;
         if (isMobile) {
-          return _showMobileMenu
+          content = _showMobileMenu
               ? _buildMobileMenu(bgColor)
               : _buildMobileContent(bgColor);
+        } else {
+          content = _buildDesktop(bgColor);
         }
 
-        return _buildDesktop(bgColor);
+        // ── אנימציה בין wide ↔ narrow ──────────────────────────────────────
+        return AnimatedSwitcher(
+          duration: AppTokens.animNormal,
+          transitionBuilder: (child, animation) => FadeTransition(
+            opacity: CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeInOut,
+            ),
+            child: child,
+          ),
+          child: KeyedSubtree(
+            key: ValueKey(isMobile
+                ? 'mobile-${_showMobileMenu ? "menu" : "content-$_selectedIndex"}'
+                : 'desktop'),
+            child: content,
+          ),
+        );
       },
     );
   }
