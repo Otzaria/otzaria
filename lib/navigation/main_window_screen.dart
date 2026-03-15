@@ -41,6 +41,7 @@ import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/file_sync/file_sync_bloc.dart';
 import 'package:otzaria/file_sync/file_sync_event.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 
 class MainWindowScreen extends StatefulWidget {
   const MainWindowScreen({super.key});
@@ -48,9 +49,6 @@ class MainWindowScreen extends StatefulWidget {
   @override
   MainWindowScreenState createState() => MainWindowScreenState();
 }
-
-// Global key for accessing MoreScreen
-final GlobalKey<MoreScreenState> moreScreenKey = GlobalKey<MoreScreenState>();
 
 class MainWindowScreenState extends State<MainWindowScreen>
     with TickerProviderStateMixin {
@@ -367,7 +365,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
     } else if (state.currentScreen == Screen.more) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          moreScreenKey.currentState?.requestActiveTabFocus();
+          context.read<FocusRepository>().requestMoreScreenFocus();
         }
       });
     } else if (state.currentScreen == Screen.reading) {
@@ -479,7 +477,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
             }
 
             _cachedReadingPage ??= const ReadingScreen();
-            _cachedMorePage ??= MoreScreen(key: moreScreenKey);
+            _cachedMorePage ??= const MoreScreen();
             _cachedSettingsPage ??=
                 MySettingsScreen(controller: _settingsScreenController);
 
@@ -526,9 +524,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                             children: [
                                               Expanded(
                                                 child: Material(
-                                                  color: Theme.of(context)
-                                                      .colorScheme
-                                                      .surface,
+                                                  color: AppSurfaces
+                                                      .panelBackground(context),
                                                   child: LayoutBuilder(
                                                     builder:
                                                         (context, constraints) {
