@@ -81,6 +81,11 @@ class MainWindowScreenState extends State<MainWindowScreen>
   bool _hasRestoredFullscreen = false;
   bool _hasStartedFileSync = false;
 
+  // מצב הדיאלוגים - לניהול מצב selected בסיידבר
+  bool _isSearchOpen = false;
+  bool _isFindRefOpen = false;
+  bool _isAboutOpen = false;
+
   @override
   void initState() {
     super.initState();
@@ -276,6 +281,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
           message: formatShortcut(libraryShortcut),
           child: const Icon(FluentIcons.library_24_regular),
         ),
+        selectedIcon: const Icon(FluentIcons.library_24_filled),
         label: 'ספרייה',
       ),
       NavigationDestination(
@@ -285,6 +291,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
           message: formatShortcut(findShortcut),
           child: const Icon(FluentIcons.book_search_24_regular),
         ),
+        selectedIcon: const Icon(FluentIcons.book_search_24_filled),
         label: 'איתור',
       ),
       NavigationDestination(
@@ -294,6 +301,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
           message: formatShortcut(browseShortcut),
           child: const Icon(FluentIcons.book_open_24_regular),
         ),
+        selectedIcon: const Icon(FluentIcons.book_open_24_filled),
         label: 'עיון',
       ),
       NavigationDestination(
@@ -303,6 +311,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
           message: formatShortcut(searchShortcut),
           child: const Icon(FluentIcons.search_24_regular),
         ),
+        selectedIcon: const Icon(FluentIcons.search_24_filled),
         label: 'חיפוש',
       ),
       NavigationDestination(
@@ -314,6 +323,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
           ),
           child: const Icon(FluentIcons.apps_24_regular),
         ),
+        selectedIcon: const Icon(FluentIcons.apps_24_filled),
         label: 'כלים',
       ),
       NavigationDestination(
@@ -326,10 +336,12 @@ class MainWindowScreenState extends State<MainWindowScreen>
           ),
           child: const Icon(FluentIcons.settings_24_regular),
         ),
+        selectedIcon: const Icon(FluentIcons.settings_24_filled),
         label: 'הגדרות',
       ),
       NavigationDestination(
-        icon: Icon(FluentIcons.info_24_regular),
+        icon: const Icon(FluentIcons.info_24_regular),
+        selectedIcon: const Icon(FluentIcons.info_24_filled),
         label: 'אודות',
       ),
     ];
@@ -705,14 +717,28 @@ class MainWindowScreenState extends State<MainWindowScreen>
   }
 
   void _handleSearchTabOpen(BuildContext context) {
+    // אם הדיאלוג כבר פתוח, סוגרים אותו
+    if (_isSearchOpen) {
+      Navigator.of(context).pop();
+      return;
+    }
+
     final navigationBloc = context.read<NavigationBloc>();
+
+    setState(() {
+      _isSearchOpen = true;
+    });
 
     showDialog(
       context: context,
       builder: (context) => const SearchDialog(existingTab: null),
     ).then((_) {
-      // אחרי סגירת הדיאלוג, אם אנחנו במסך reading/search, נוודא שהמצב מסונכרן
+      // איפוס המצב כשהדיאלוג נסגר
       if (!mounted) return;
+      setState(() {
+        _isSearchOpen = false;
+      });
+
       final currentScreen = navigationBloc.state.currentScreen;
       if (currentScreen == Screen.reading || currentScreen == Screen.search) {
         _syncPageWithState();
@@ -721,14 +747,28 @@ class MainWindowScreenState extends State<MainWindowScreen>
   }
 
   void _handleFindRefOpen(BuildContext context) {
+    // אם הדיאלוג כבר פתוח, סוגרים אותו
+    if (_isFindRefOpen) {
+      Navigator.of(context).pop();
+      return;
+    }
+
     final navigationBloc = context.read<NavigationBloc>();
+
+    setState(() {
+      _isFindRefOpen = true;
+    });
 
     showDialog(
       context: context,
       builder: (context) => FindRefDialog(),
     ).then((_) {
-      // אחרי סגירת הדיאלוג, אם אנחנו במסך reading, נוודא שהמצב מסונכרן
+      // איפוס המצב כשהדיאלוג נסגר
       if (!mounted) return;
+      setState(() {
+        _isFindRefOpen = false;
+      });
+
       final currentScreen = navigationBloc.state.currentScreen;
       if (currentScreen == Screen.reading || currentScreen == Screen.search) {
         _syncPageWithState();
@@ -759,8 +799,24 @@ class MainWindowScreenState extends State<MainWindowScreen>
   /// מחזיר גרסת filled של אייקון כאשר הוא נבחר (M3 standard)
   IconData? _getFilledIcon(int index) {
     return switch (index) {
+      0 => FluentIcons.library_24_filled, // ספרייה
+      1 => FluentIcons.book_search_24_filled, // איתור
+      2 => FluentIcons.book_open_24_filled, // עיון
+      3 => FluentIcons.search_24_filled, // חיפוש
+      4 => FluentIcons.apps_24_filled, // כלים
       5 => FluentIcons.settings_24_filled, // הגדרות
+      6 => FluentIcons.info_24_filled, // אודות
       _ => null,
+    };
+  }
+
+  /// בודק אם כפתור הדיאלוג צריך להיות במצב selected
+  bool _isDialogButtonSelected(int index) {
+    return switch (index) {
+      1 => _isFindRefOpen, // איתור
+      3 => _isSearchOpen, // חיפוש
+      6 => _isAboutOpen, // אודות
+      _ => false,
     };
   }
 
@@ -770,7 +826,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
     int index,
     Screen currentScreen,
   ) {
-    final isSelected = _getSelectedIndex(currentScreen) == index;
+    final isSelected = _getSelectedIndex(currentScreen) == index ||
+        _isDialogButtonSelected(index);
     final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
@@ -794,10 +851,25 @@ class MainWindowScreenState extends State<MainWindowScreen>
               } else if (index == Screen.find.index) {
                 _handleFindRefOpen(context);
               } else if (index == Screen.about.index) {
+                // אם הדיאלוג כבר פתוח, סוגרים אותו
+                if (_isAboutOpen) {
+                  Navigator.of(context).pop();
+                  return;
+                }
+
+                setState(() {
+                  _isAboutOpen = true;
+                });
+
                 showDialog(
                   context: context,
                   builder: (context) => const AboutDialogWidget(),
-                );
+                ).then((_) {
+                  if (!mounted) return;
+                  setState(() {
+                    _isAboutOpen = false;
+                  });
+                });
               } else {
                 context.read<NavigationBloc>().add(
                       NavigateToScreen(Screen.values[index]),
