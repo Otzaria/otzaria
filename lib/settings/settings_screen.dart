@@ -311,7 +311,8 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                                                   _tabsData[index].icon,
                                                   size: 20,
                                                   color: isSelected
-                                                      ? colorScheme.primary
+                                                      ? colorScheme
+                                                          .onSecondaryContainer
                                                       : colorScheme
                                                           .onSurfaceVariant,
                                                 ),
