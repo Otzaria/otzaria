@@ -1,31 +1,17 @@
 // lib/widgets/rtl_icon.dart
 //
-// ווידג'ט RtlIcon — אייקון RTL-מודע שמהפך אוטומטית חיצי ניווט בסביבת RTL.
+// ווידג'ט RtlIcon — אייקון RTL-מודע שמהפך חיצי ניווט אוטומטית.
 //
-// **בעיה:** Flutter לא מהפך אייקוני כיוון (chevron, arrow) אוטומטית ב-RTL.
-// **פתרון:** RtlIcon בודק את Directionality ומחזיר את הצד ההפוך.
+// ⚠️ לא ניתן להשתמש ב-const Map<IconData,...> כי IconData מימש ==.
+//    מפות הנגד מוגדרות כ-static final.
 //
 // **שימוש:**
-// ```dart
-// // במקום: const Icon(Icons.chevron_left)
-// const RtlIcon(Icons.chevron_left)
-//
-// // במקום: const Icon(FluentIcons.chevron_right_24_regular)
-// const RtlIcon(FluentIcons.chevron_right_24_regular)
-// ```
-//
-// **אייקוני Fluent UI** — הוסף ל-_fluentMirrorMap כנדרש.
+//   RtlIcon(Icons.chevron_left)
+//   RtlIcon(FluentIcons.chevron_right_24_regular)
 
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
-/// אייקון RTL-מודע שמהפך חיצי ניווט אוטומטית בסביבת RTL.
-///
-/// תומך ב:
-/// - [Icons] Material icons — ראה [_materialMirrorMap]
-/// - [FluentIcons] — ראה [_fluentMirrorMap]
-///
-/// אייקונים שאינם ברשימות לא משתנים.
 class RtlIcon extends StatelessWidget {
   final IconData icon;
   final double? size;
@@ -40,8 +26,6 @@ class RtlIcon extends StatelessWidget {
     this.semanticLabel,
   });
 
-  // ── Material Icons mirror map ────────────────────────────────────────────
-  // הסרת const כי IconData לא יכול להיות מפתח ב-const map
   static final Map<IconData, IconData> _materialMirrorMap = {
     Icons.arrow_forward: Icons.arrow_back,
     Icons.arrow_back: Icons.arrow_forward,
@@ -61,8 +45,6 @@ class RtlIcon extends StatelessWidget {
     Icons.skip_previous: Icons.skip_next,
   };
 
-  // ── FluentIcons mirror map ───────────────────────────────────────────────
-  // הסרת const כי IconData לא יכול להיות מפתח ב-const map
   static final Map<IconData, IconData> _fluentMirrorMap = {
     FluentIcons.chevron_right_24_regular: FluentIcons.chevron_left_24_regular,
     FluentIcons.chevron_left_24_regular: FluentIcons.chevron_right_24_regular,
@@ -72,22 +54,17 @@ class RtlIcon extends StatelessWidget {
     FluentIcons.chevron_left_16_regular: FluentIcons.chevron_right_16_regular,
     FluentIcons.arrow_right_24_regular: FluentIcons.arrow_left_24_regular,
     FluentIcons.arrow_left_24_regular: FluentIcons.arrow_right_24_regular,
+    FluentIcons.arrow_right_24_filled: FluentIcons.arrow_left_24_filled,
+    FluentIcons.arrow_left_24_filled: FluentIcons.arrow_right_24_filled,
   };
 
   @override
   Widget build(BuildContext context) {
     final isRtl = Directionality.of(context) == TextDirection.rtl;
-
-    IconData resolvedIcon = icon;
-    if (isRtl) {
-      resolvedIcon = _materialMirrorMap[icon] ?? _fluentMirrorMap[icon] ?? icon;
-    }
-
-    return Icon(
-      resolvedIcon,
-      size: size,
-      color: color,
-      semanticLabel: semanticLabel,
-    );
+    final resolvedIcon = isRtl
+        ? (_materialMirrorMap[icon] ?? _fluentMirrorMap[icon] ?? icon)
+        : icon;
+    return Icon(resolvedIcon,
+        size: size, color: color, semanticLabel: semanticLabel);
   }
 }
