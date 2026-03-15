@@ -1,3 +1,12 @@
+// lib/tools/more_screen.dart
+//
+// שינויים:
+//  • מסך צר: תפריט סגנון הגדרות (SettingsCard קבוצות + ListTile) → tap → תוכן + חזרה
+//  • מסך רחב: TabBar M3 ראשי — ללא קו מתחת, אינדיקטור ריבוע מעוגל שקוף
+//  • AnimatedSwitcher: מעבר חלק בין wide ↔ narrow
+//  • Ctrl+Tab / Ctrl+Shift+Tab: KeyboardNavigator מכל מקום
+//  • רקע: AppSurfaces.panelBackground
+
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -62,6 +71,7 @@ class _MoreScreenState extends State<MoreScreen>
   @override
   void initState() {
     super.initState();
+    FocusRepository().moreScreenFocusNode.addListener(_onMoreFocusChange);
     _tabController = TabController(length: _tabs.length, vsync: this)
       ..addListener(() {
         if (!_tabController.indexIsChanging) {
@@ -105,25 +115,15 @@ class _MoreScreenState extends State<MoreScreen>
     }
   }
 
-  bool _moreListenerAttached = false;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (!_moreListenerAttached) {
-      _moreListenerAttached = true;
-      // forward FocusRepository.moreScreenFocusNode -> _contentFocusNode
-      context.read<FocusRepository>().moreScreenFocusNode.addListener(() {
-        if (context.read<FocusRepository>().moreScreenFocusNode.hasFocus &&
-            mounted) {
-          _contentFocusNode.requestFocus();
-        }
-      });
+  void _onMoreFocusChange() {
+    if (FocusRepository().moreScreenFocusNode.hasFocus && mounted) {
+      _contentFocusNode.requestFocus();
     }
   }
 
   @override
   void dispose() {
+    FocusRepository().moreScreenFocusNode.removeListener(_onMoreFocusChange);
     _tabController.dispose();
     _contentFocusNode.dispose();
     super.dispose();
@@ -138,12 +138,6 @@ class _MoreScreenState extends State<MoreScreen>
         ? ImageIcon(AssetImage(tab.imageIcon!), size: 20)
         : Icon(tab.icon, size: 20);
     return Tab(text: tab.label, icon: icon);
-  }
-
-  // ── צבע אינדיקטור טאב — מתאים לlight/dark ────────────────────────────────
-  Color _tabIndicatorColor(BuildContext context) {
-    // M3: TabBar indicator = secondaryContainer (matches sidebar & NavigationBar selection)
-    return Theme.of(context).colorScheme.secondaryContainer;
   }
 
   // ── Mobile menu ────────────────────────────────────────────────────────────
@@ -219,7 +213,6 @@ class _MoreScreenState extends State<MoreScreen>
   // ── Desktop layout ─────────────────────────────────────────────────────────
   Widget _buildDesktop(Color bgColor) {
     final cs = Theme.of(context).colorScheme;
-    final indicatorColor = _tabIndicatorColor(context);
 
     return KeyboardNavigator(
       currentTabIndex: _selectedIndex,
@@ -242,30 +235,13 @@ class _MoreScreenState extends State<MoreScreen>
                   controller: _tabController,
                   isScrollable: true,
                   tabAlignment: TabAlignment.center,
-                  // ── M3: ללא קו מפריד תחתון ────────────────────────────
                   dividerColor: Colors.transparent,
                   dividerHeight: 0,
-                  // ── אינדיקטור ריבוע מעוגל שקוף ─────────────────────────
                   indicator: BoxDecoration(
                     borderRadius: BorderRadius.circular(AppTokens.radiusMD),
-                    color: indicatorColor,
+                    color: cs.secondaryContainer,
                   ),
                   indicatorSize: TabBarIndicatorSize.tab,
-                  indicatorPadding: const EdgeInsets.symmetric(
-                    horizontal: 2,
-                    vertical: 4,
-                  ),
-                  // ── צבעי תוויות M3 ───────────────────────────────────
-                  labelColor: cs.onSurface,
-                  unselectedLabelColor: cs.onSurfaceVariant,
-                  labelStyle: const TextStyle(
-                    fontSize: AppTokens.fontMD,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  unselectedLabelStyle: const TextStyle(
-                    fontSize: AppTokens.fontMD,
-                    fontWeight: FontWeight.w400,
-                  ),
                   tabs: _tabs.map(_buildTabWidget).toList(),
                 ),
               ),

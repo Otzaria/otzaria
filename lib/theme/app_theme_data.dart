@@ -5,23 +5,16 @@ import 'package:otzaria/theme/app_colors.dart';
 // ════════════════════════════════════════════════════════════════════════════
 //  app_theme_data.dart — lib/theme/app_theme_data.dart
 // ════════════════════════════════════════════════════════════════════════════
-//  הגדרות ThemeData של אוצריא — light ו-dark.
 //
 //  שינויים:
-//  • Hover גלובלי לכל כפתורי האפליקציה — M3 (8% hover / 12% press)
-//  • TabBarTheme אחיד — secondaryContainer indicator, ללא קו תחתון
-//    (MoreScreen ו-SettingsScreen כבר לא יצטרכו להגדיר זאת ידנית)
-//
-//  שימוש ב-app.dart:
-//  theme:     AppThemeData.light(lightColorScheme),
-//  darkTheme: AppThemeData.dark(state.darkSeedColor),
-// ════════════════════════════════════════════════════════════════════════════
+//  • Hover גלובלי M3 — צבע primary (לא אפור) להתאמה לצבעי האפליקציה
+//  • TabBarTheme אחיד — secondaryContainer, padding מתאים, ללא קו תחתון
+//  • IconButton hover = primary (לא onSurfaceVariant)
 
 class AppThemeData {
   AppThemeData._();
 
-  // ── Light Theme ────────────────────────────────────────────────────────────
-
+  // ── Light Theme ──────────────────────────────────────────────────────────
   static ThemeData light(ColorScheme colorScheme) {
     return ThemeData(
       visualDensity: VisualDensity.adaptivePlatformDensity,
@@ -30,12 +23,10 @@ class AppThemeData {
       textTheme: const TextTheme(
         bodyMedium: TextStyle(fontSize: 18.0, fontFamily: 'candara'),
       ),
-      // ── Hover גלובלי ────────────────────────────────────────────────────
       iconButtonTheme: _iconButtonTheme(colorScheme),
       filledButtonTheme: _filledButtonTheme(colorScheme),
       textButtonTheme: _textButtonTheme(colorScheme),
       outlinedButtonTheme: _outlinedButtonTheme(colorScheme),
-      // ── TabBar אחיד ───────────────────────────────────────────────────
       tabBarTheme: _tabBarTheme(colorScheme),
     ).copyWith(
       dialogTheme: DialogThemeData(
@@ -45,8 +36,7 @@ class AppThemeData {
     );
   }
 
-  // ── Dark Theme ─────────────────────────────────────────────────────────────
-
+  // ── Dark Theme ───────────────────────────────────────────────────────────
   static ThemeData dark(Color darkSeedColor) {
     final cs = ColorScheme.dark(
       surface: AppColors.darkScaffold,
@@ -58,7 +48,6 @@ class AppThemeData {
       onSecondary: Colors.white,
       outline: AppColors.darkOutline,
     );
-
     return ThemeData.dark(useMaterial3: true).copyWith(
       scaffoldBackgroundColor: AppColors.darkScaffold,
       canvasColor: AppColors.darkScaffold,
@@ -83,10 +72,7 @@ class AppThemeData {
         elevation: AppTokens.elevation2,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppTokens.radiusMD),
-          side: const BorderSide(
-            color: AppColors.darkOutline,
-            width: 1,
-          ),
+          side: const BorderSide(color: AppColors.darkOutline, width: 1),
         ),
       ),
       appBarTheme: const AppBarTheme(
@@ -97,162 +83,139 @@ class AppThemeData {
         barrierColor: AppColors.dialogBarrier,
         backgroundColor: AppColors.darkAppBar,
       ),
-      // ── Hover גלובלי ──────────────────────────────────────────────────
       iconButtonTheme: _iconButtonTheme(cs),
       filledButtonTheme: _filledButtonTheme(cs),
       textButtonTheme: _textButtonTheme(cs),
       outlinedButtonTheme: _outlinedButtonTheme(cs),
-      // ── TabBar אחיד ───────────────────────────────────────────────────
       tabBarTheme: _tabBarTheme(cs),
     );
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  //  Button Themes — Hover גלובלי M3
+  //  Button Themes — Hover בצבע primary
   // ══════════════════════════════════════════════════════════════════════════
   //
-  //  עיקרון M3:
-  //    hover   = 8%  overlay מעל foreground-color
-  //    pressed = 12% overlay
-  //    focused = 12% overlay
-  //
-  //  הגדרה ברמת ThemeData → כל הכפתורים בכל האפליקציה יתנהגו אחיד,
-  //  ללא צורך לחזור על overlayColor בכל widget בנפרד.
-  //
-  //  מקור: https://m3.material.io/foundations/interaction/states/overview
+  //  M3: hover = 8% overlay, pressed/focused = 12%
+  //  צבע: primary (לא אפור) — מתאים לפלטת הצבעים החמה של האפליקציה
   // ──────────────────────────────────────────────────────────────────────────
 
-  static IconButtonThemeData _iconButtonTheme(ColorScheme cs) {
-    return IconButtonThemeData(
-      style: ButtonStyle(
-        // Hover בגודל הכפתור — צורה עגולה לפי M3
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppTokens.radiusXL),
+  static IconButtonThemeData _iconButtonTheme(ColorScheme cs) =>
+      IconButtonThemeData(
+        style: ButtonStyle(
+          // צורה עגולה — M3 standard
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppTokens.radiusXL),
+            ),
           ),
+          // ✅ primary (לא אפור) — hover תואם את צבעי האפליקציה
+          overlayColor: WidgetStateProperty.resolveWith((s) {
+            if (s.contains(WidgetState.hovered)) {
+              return cs.primary.withValues(alpha: 0.08);
+            }
+            if (s.contains(WidgetState.pressed) ||
+                s.contains(WidgetState.focused)) {
+              return cs.primary.withValues(alpha: 0.12);
+            }
+            return null;
+          }),
         ),
-        overlayColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.hovered)) {
-            return cs.onSurfaceVariant.withValues(alpha: 0.08);
-          }
-          if (states.contains(WidgetState.pressed) ||
-              states.contains(WidgetState.focused)) {
-            return cs.onSurfaceVariant.withValues(alpha: 0.12);
-          }
-          return null;
-        }),
-      ),
-    );
-  }
+      );
 
-  static FilledButtonThemeData _filledButtonTheme(ColorScheme cs) {
-    return FilledButtonThemeData(
-      style: ButtonStyle(
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppTokens.radiusMD),
+  static FilledButtonThemeData _filledButtonTheme(ColorScheme cs) =>
+      FilledButtonThemeData(
+        style: ButtonStyle(
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppTokens.radiusMD),
+            ),
           ),
+          overlayColor: WidgetStateProperty.resolveWith((s) {
+            if (s.contains(WidgetState.hovered)) {
+              return cs.onPrimary.withValues(alpha: 0.08);
+            }
+            if (s.contains(WidgetState.pressed) ||
+                s.contains(WidgetState.focused)) {
+              return cs.onPrimary.withValues(alpha: 0.12);
+            }
+            return null;
+          }),
         ),
-        overlayColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.hovered)) {
-            return cs.onPrimary.withValues(alpha: 0.08);
-          }
-          if (states.contains(WidgetState.pressed) ||
-              states.contains(WidgetState.focused)) {
-            return cs.onPrimary.withValues(alpha: 0.12);
-          }
-          return null;
-        }),
-      ),
-    );
-  }
+      );
 
-  static TextButtonThemeData _textButtonTheme(ColorScheme cs) {
-    return TextButtonThemeData(
-      style: ButtonStyle(
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppTokens.radiusMD),
+  static TextButtonThemeData _textButtonTheme(ColorScheme cs) =>
+      TextButtonThemeData(
+        style: ButtonStyle(
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppTokens.radiusMD),
+            ),
           ),
+          overlayColor: WidgetStateProperty.resolveWith((s) {
+            if (s.contains(WidgetState.hovered)) {
+              return cs.primary.withValues(alpha: 0.08);
+            }
+            if (s.contains(WidgetState.pressed) ||
+                s.contains(WidgetState.focused)) {
+              return cs.primary.withValues(alpha: 0.12);
+            }
+            return null;
+          }),
         ),
-        overlayColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.hovered)) {
+      );
+
+  static OutlinedButtonThemeData _outlinedButtonTheme(ColorScheme cs) =>
+      OutlinedButtonThemeData(
+        style: ButtonStyle(
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppTokens.radiusMD),
+            ),
+          ),
+          overlayColor: WidgetStateProperty.resolveWith((s) {
+            if (s.contains(WidgetState.hovered)) {
+              return cs.primary.withValues(alpha: 0.08);
+            }
+            if (s.contains(WidgetState.pressed) ||
+                s.contains(WidgetState.focused)) {
+              return cs.primary.withValues(alpha: 0.12);
+            }
+            return null;
+          }),
+        ),
+      );
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  TabBar Theme — secondaryContainer indicator + primary hover
+  // ══════════════════════════════════════════════════════════════════════════
+
+  static TabBarThemeData _tabBarTheme(ColorScheme cs) => TabBarThemeData(
+        dividerColor: Colors.transparent,
+        dividerHeight: 0,
+        indicator: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppTokens.radiusMD),
+          color: cs.secondaryContainer,
+        ),
+        indicatorSize: TabBarIndicatorSize.tab,
+        labelColor: cs.onSurface,
+        unselectedLabelColor: cs.onSurfaceVariant,
+        labelStyle: const TextStyle(
+          fontSize: AppTokens.fontMD,
+          fontWeight: FontWeight.w600,
+        ),
+        unselectedLabelStyle: const TextStyle(
+          fontSize: AppTokens.fontMD,
+          fontWeight: FontWeight.w400,
+        ),
+        // ✅ primary (לא אפור) — hover תואם את צבעי האפליקציה
+        overlayColor: WidgetStateProperty.resolveWith((s) {
+          if (s.contains(WidgetState.hovered)) {
             return cs.primary.withValues(alpha: 0.08);
           }
-          if (states.contains(WidgetState.pressed) ||
-              states.contains(WidgetState.focused)) {
+          if (s.contains(WidgetState.pressed)) {
             return cs.primary.withValues(alpha: 0.12);
           }
           return null;
         }),
-      ),
-    );
-  }
-
-  static OutlinedButtonThemeData _outlinedButtonTheme(ColorScheme cs) {
-    return OutlinedButtonThemeData(
-      style: ButtonStyle(
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppTokens.radiusMD),
-          ),
-        ),
-        overlayColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.hovered)) {
-            return cs.primary.withValues(alpha: 0.08);
-          }
-          if (states.contains(WidgetState.pressed) ||
-              states.contains(WidgetState.focused)) {
-            return cs.primary.withValues(alpha: 0.12);
-          }
-          return null;
-        }),
-      ),
-    );
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════
-  //  TabBar Theme — אחיד לכל האפליקציה
-  // ══════════════════════════════════════════════════════════════════════════
-  //
-  //  M3 Secondary TabBar:
-  //  • indicator = BoxDecoration עם secondaryContainer + border-radius
-  //  • dividerColor = transparent (ללא קו מפריד תחתון)
-  //  • labelColor / unselectedLabelColor = onSurface / onSurfaceVariant
-  //
-  //  לאחר הגדרה זו:
-  //  MoreScreen ו-SettingsScreen אינם צריכים להגדיר TabBar styles ידנית.
-  //  רק indicatorPadding ו-isScrollable משתנים לפי צורך ספציפי.
-  // ──────────────────────────────────────────────────────────────────────────
-
-  static TabBarThemeData _tabBarTheme(ColorScheme cs) {
-    return TabBarThemeData(
-      dividerColor: Colors.transparent,
-      dividerHeight: 0,
-      indicator: BoxDecoration(
-        borderRadius: BorderRadius.circular(AppTokens.radiusMD),
-        color: cs.secondaryContainer,
-      ),
-      indicatorSize: TabBarIndicatorSize.tab,
-      labelColor: cs.onSurface,
-      unselectedLabelColor: cs.onSurfaceVariant,
-      labelStyle: const TextStyle(
-        fontSize: AppTokens.fontMD,
-        fontWeight: FontWeight.w600,
-      ),
-      unselectedLabelStyle: const TextStyle(
-        fontSize: AppTokens.fontMD,
-        fontWeight: FontWeight.w400,
-      ),
-      overlayColor: WidgetStateProperty.resolveWith((states) {
-        if (states.contains(WidgetState.hovered)) {
-          return cs.onSurface.withValues(alpha: 0.08);
-        }
-        if (states.contains(WidgetState.pressed)) {
-          return cs.onSurface.withValues(alpha: 0.12);
-        }
-        return null;
-      }),
-    );
-  }
+      );
 }

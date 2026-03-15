@@ -756,6 +756,14 @@ class MainWindowScreenState extends State<MainWindowScreen>
     }
   }
 
+  /// מחזיר גרסת filled של אייקון כאשר הוא נבחר (M3 standard)
+  IconData? _getFilledIcon(int index) {
+    return switch (index) {
+      5 => FluentIcons.settings_24_filled, // הגדרות
+      _ => null,
+    };
+  }
+
   Widget _buildNavButton(
     BuildContext context,
     NavigationDestination destination,
@@ -801,15 +809,20 @@ class MainWindowScreenState extends State<MainWindowScreen>
                     );
               }
             },
-            icon: IconTheme(
-              data: IconThemeData(
-                color: isSelected
-                    ? colorScheme.onSecondaryContainer
-                    : colorScheme.onSurfaceVariant,
-                size: 24,
-              ),
-              child: destination.icon,
-            ),
+            icon: Builder(builder: (ctx) {
+              final filledIcon = _getFilledIcon(index);
+              final iconData =
+                  isSelected && filledIcon != null ? filledIcon : null;
+              return IconTheme(
+                data: IconThemeData(
+                  color: isSelected
+                      ? colorScheme.onSecondaryContainer
+                      : colorScheme.onSurfaceVariant,
+                  size: 24,
+                ),
+                child: iconData != null ? Icon(iconData) : destination.icon,
+              );
+            }),
             style: IconButton.styleFrom(
               backgroundColor: isSelected
                   ? colorScheme.secondaryContainer
