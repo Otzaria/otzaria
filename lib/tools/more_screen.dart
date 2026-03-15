@@ -1,12 +1,3 @@
-// lib/tools/more_screen.dart
-//
-// שינויים:
-//  • מסך צר: תפריט סגנון הגדרות (SettingsCard קבוצות + ListTile) → tap → תוכן + חזרה
-//  • מסך רחב: TabBar M3 ראשי — ללא קו מתחת, אינדיקטור ריבוע מעוגל שקוף
-//  • AnimatedSwitcher: מעבר חלק בין wide ↔ narrow
-//  • Ctrl+Tab / Ctrl+Shift+Tab: KeyboardNavigator מכל מקום
-//  • רקע: AppSurfaces.panelBackground
-
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -21,6 +12,8 @@ import 'package:otzaria/tools/calendar/ulits/calendar_widget.dart';
 import 'package:otzaria/tools/calendar/ulits/calendar_cubit.dart';
 import 'package:otzaria/personal_notes/view/personal_notes_screen.dart';
 import 'package:otzaria/widgets/keyboard_navigator.dart';
+import 'package:otzaria/widgets/rtl_icon.dart';
+import 'package:otzaria/core/focus_repository.dart';
 
 class MoreScreen extends StatefulWidget {
   const MoreScreen({super.key});
@@ -112,6 +105,23 @@ class _MoreScreenState extends State<MoreScreen>
     }
   }
 
+  bool _moreListenerAttached = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_moreListenerAttached) {
+      _moreListenerAttached = true;
+      // forward FocusRepository.moreScreenFocusNode -> _contentFocusNode
+      context.read<FocusRepository>().moreScreenFocusNode.addListener(() {
+        if (context.read<FocusRepository>().moreScreenFocusNode.hasFocus &&
+            mounted) {
+          _contentFocusNode.requestFocus();
+        }
+      });
+    }
+  }
+
   @override
   void dispose() {
     _tabController.dispose();
@@ -132,11 +142,8 @@ class _MoreScreenState extends State<MoreScreen>
 
   // ── צבע אינדיקטור טאב — מתאים לlight/dark ────────────────────────────────
   Color _tabIndicatorColor(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return isDark
-        ? cs.surfaceContainerHigh
-        : cs.secondaryContainer.withValues(alpha: 0.72);
+    // M3: TabBar indicator = secondaryContainer (matches sidebar & NavigationBar selection)
+    return Theme.of(context).colorScheme.secondaryContainer;
   }
 
   // ── Mobile menu ────────────────────────────────────────────────────────────
@@ -167,7 +174,7 @@ class _MoreScreenState extends State<MoreScreen>
                           )
                         : Icon(_tabs[idx].icon, color: cs.primary),
                     title: Text(_tabs[idx].label),
-                    trailing: const Icon(Icons.chevron_left),
+                    trailing: const RtlIcon(Icons.chevron_left),
                     onTap: () => _changeTab(idx),
                   ),
               ],
@@ -196,7 +203,7 @@ class _MoreScreenState extends State<MoreScreen>
           leading: Tooltip(
             message: 'חזור (Backspace)',
             child: IconButton(
-              icon: const Icon(Icons.arrow_forward),
+              icon: const RtlIcon(Icons.arrow_forward),
               onPressed: () => setState(() => _showMobileMenu = true),
             ),
           ),
