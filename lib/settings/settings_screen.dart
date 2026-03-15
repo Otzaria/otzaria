@@ -8,6 +8,7 @@ import 'package:otzaria/settings/services/safer_mode/protected_settings_wrapper.
 import 'package:otzaria/widgets/keyboard_navigator.dart';
 import 'package:otzaria/settings/settings_card.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/rtl_icon.dart';
 
 /// רוחב מקסימלי לתוכן ההגדרות — מרכוז על מסכים רחבים
 // kSettingsContentMaxWidth הוסר — משתמשים ב-LayoutConstraints.panelContentMaxWidth מ-layout_tokens.dart
@@ -195,7 +196,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                                   leading: Icon(_tabsData[idx].icon,
                                       color: colorScheme.primary),
                                   title: Text(_tabsData[idx].label),
-                                  trailing: const Icon(Icons.chevron_left),
+                                  trailing: const RtlIcon(Icons.chevron_left),
                                   onTap: () {
                                     setState(() {
                                       _selectedIndex = idx;
@@ -226,7 +227,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                       leading: Tooltip(
                         message: 'חזור (Backspace)',
                         child: IconButton(
-                          icon: const Icon(Icons.arrow_forward),
+                          icon: const RtlIcon(Icons.arrow_forward),
                           onPressed: () =>
                               setState(() => _showMobileMenu = true),
                         ),
@@ -294,8 +295,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                                           vertical: 2),
                                       child: Material(
                                         color: isSelected
-                                            ? colorScheme.primary
-                                                .withValues(alpha: 0.14)
+                                            ? colorScheme.secondaryContainer
                                             : Colors.transparent,
                                         borderRadius: BorderRadius.circular(28),
                                         child: InkWell(
@@ -325,7 +325,8 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                                                           ? FontWeight.bold
                                                           : FontWeight.normal,
                                                       color: isSelected
-                                                          ? colorScheme.primary
+                                                          ? colorScheme
+                                                              .onSecondaryContainer
                                                           : colorScheme
                                                               .onSurfaceVariant,
                                                     ),
