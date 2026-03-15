@@ -47,18 +47,41 @@ class _MoreScreenState extends State<MoreScreen>
 
   // ── הגדרת טאבים ──────────────────────────────────────────────────────────
   final List<_TabInfo> _tabs = [
-    const _TabInfo(label: 'לוח שנה', icon: FluentIcons.calendar_24_regular),
     const _TabInfo(
-        label: 'שמור וזכור',
-        icon: null,
-        imageIcon: 'assets/icon/שמור וזכור שחור ריק.png'),
-    const _TabInfo(label: 'הערות אישיות', icon: FluentIcons.note_24_regular),
-    const _TabInfo(label: 'מדות ושיעורים', icon: FluentIcons.ruler_24_regular),
-    const _TabInfo(label: 'גימטריה', icon: FluentIcons.calculator_24_regular),
+      label: 'לוח שנה',
+      icon: FluentIcons.calendar_24_regular,
+      iconFilled: FluentIcons.calendar_24_filled,
+    ),
     const _TabInfo(
-        label: 'מילון ארמי-עברי', icon: FluentIcons.translate_24_regular),
+      label: 'שמור וזכור',
+      icon: null,
+      imageIcon: 'assets/icon/שמור וזכור שחור ריק.png',
+    ),
     const _TabInfo(
-        label: 'ראשי תיבות', icon: FluentIcons.text_quote_24_regular),
+      label: 'הערות אישיות',
+      icon: FluentIcons.note_24_regular,
+      iconFilled: FluentIcons.note_24_filled,
+    ),
+    const _TabInfo(
+      label: 'מדות ושיעורים',
+      icon: FluentIcons.ruler_24_regular,
+      iconFilled: FluentIcons.ruler_24_filled,
+    ),
+    const _TabInfo(
+      label: 'גימטריה',
+      icon: FluentIcons.calculator_24_regular,
+      iconFilled: FluentIcons.calculator_24_filled,
+    ),
+    const _TabInfo(
+      label: 'מילון ארמי-עברי',
+      icon: FluentIcons.translate_24_regular,
+      iconFilled: FluentIcons.translate_24_filled,
+    ),
+    const _TabInfo(
+      label: 'ראשי תיבות',
+      icon: FluentIcons.text_quote_24_regular,
+      iconFilled: FluentIcons.text_quote_24_filled,
+    ),
   ];
 
   // ── קבוצות תפריט מובייל ───────────────────────────────────────────────────
@@ -134,9 +157,13 @@ class _MoreScreenState extends State<MoreScreen>
 
   // ── Tab widget builder ─────────────────────────────────────────────────────
   Widget _buildTabWidget(_TabInfo tab) {
+    final isSelected = _tabs.indexOf(tab) == _selectedIndex;
     final icon = tab.imageIcon != null
         ? ImageIcon(AssetImage(tab.imageIcon!), size: 20)
-        : Icon(tab.icon, size: 20);
+        : Icon(
+            isSelected && tab.iconFilled != null ? tab.iconFilled : tab.icon,
+            size: 20,
+          );
     return Tab(text: tab.label, icon: icon);
   }
 
@@ -242,6 +269,7 @@ class _MoreScreenState extends State<MoreScreen>
                     color: cs.secondaryContainer,
                   ),
                   indicatorSize: TabBarIndicatorSize.tab,
+                  splashBorderRadius: BorderRadius.circular(AppTokens.radiusMD),
                   tabs: _tabs.map(_buildTabWidget).toList(),
                 ),
               ),
@@ -307,11 +335,13 @@ class _MoreScreenState extends State<MoreScreen>
 class _TabInfo {
   final String label;
   final IconData? icon;
+  final IconData? iconFilled;
   final String? imageIcon;
 
   const _TabInfo({
     required this.label,
     this.icon,
+    this.iconFilled,
     this.imageIcon,
   });
 }
