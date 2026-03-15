@@ -110,3 +110,70 @@ class NeutralActionButton extends StatelessWidget {
         onPressed: onPressed, style: style, child: Text(text));
   }
 }
+
+// ── CustomSidebarItem ─────────────────────────────────────────────────────────
+
+/// פריט sidebar גנרי עם תמיכה ב-Material 3 states
+///
+/// - Unselected: אייקון regular, רקע שקוף
+/// - Selected: אייקון filled, רקע secondaryContainer
+/// - Hover: primary.withOpacity(0.08)
+class CustomSidebarItem extends StatelessWidget {
+  final IconData icon;
+  final IconData? selectedIcon; // אייקון filled אופציונלי
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const CustomSidebarItem({
+    super.key,
+    required this.icon,
+    this.selectedIcon,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final effectiveIcon = isSelected ? (selectedIcon ?? icon) : icon;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      hoverColor: cs.primary.withValues(alpha: 0.08),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? cs.secondaryContainer : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border:
+              isSelected ? Border.all(color: cs.secondary, width: 1.5) : null,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              effectiveIcon,
+              size: 32,
+              color: isSelected ? cs.onSecondaryContainer : cs.onSurfaceVariant,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                color:
+                    isSelected ? cs.onSecondaryContainer : cs.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
