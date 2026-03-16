@@ -151,41 +151,36 @@ class _CatalogSyncTileState extends State<_CatalogSyncTile> {
   String _message = 'סנכרן קטלוגים';
 
   Future<void> _syncCatalogs() async {
+    if (_isSyncing) return;
     setState(() {
       _isSyncing = true;
       _message = 'מסנכרן...';
     });
 
+    late String finalMessage;
     try {
       final repository = ExternalCatalogRepository.instance;
 
       if (!await repository.databaseExists()) {
-        setState(() {
-          _isSyncing = false;
-          _message = 'אין קטלוגים להצגה';
-        });
-        return;
-      }
-
-      final updated = await repository.updateDatabaseIfNeeded();
-
-      if (updated) {
-        DataRepository.instance.invalidateExternalBooksCache();
-        setState(() {
-          _isSyncing = false;
-          _message = 'הקטלוגים עודכנו בהצלחה';
-        });
+        finalMessage = 'אין קטלוגים להצגה';
       } else {
-        setState(() {
-          _isSyncing = false;
-          _message = 'הקטלוגים מעודכנים';
-        });
+        final updated = await repository.updateDatabaseIfNeeded();
+        if (updated) {
+          DataRepository.instance.invalidateExternalBooksCache();
+          finalMessage = 'הקטלוגים עודכנו בהצלחה';
+        } else {
+          finalMessage = 'הקטלוגים מעודכנים';
+        }
       }
     } catch (e) {
-      setState(() {
-        _isSyncing = false;
-        _message = 'שגיאה: ${e.toString()}';
-      });
+      finalMessage = 'שגיאה: ${e.toString()}';
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSyncing = false;
+          _message = finalMessage;
+        });
+      }
     }
   }
 
