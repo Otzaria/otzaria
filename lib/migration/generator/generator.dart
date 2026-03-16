@@ -271,27 +271,34 @@ class DatabaseGenerator {
             insertContent) {
           await repository.clearBookContent(existingBook.id);
           await processBookContent(bookPath, existingBook.id);
-          // Keep file stats in sync for externally-referenced files too.
-          if (fileType != 'txt') {
-            try {
-              final file = File(bookPath);
-              final stat = await file.stat();
-              await repository.updateExternalBookMetadata(existingBook.id,
-                  stat.size, stat.modified.millisecondsSinceEpoch);
-            } catch (e) {
-              _log.warning(
-                  'Failed to update stats for external file: $bookPath', e);
-            }
-          }
-        } else {
+          // Keep file stats and storage location in sync. If insertContent is true and it's a txt file, filePath becomes null.
           try {
             final file = File(bookPath);
             final stat = await file.stat();
-            await repository.updateExternalBookMetadata(existingBook.id,
+            final targetFilePath =
+                (fileType != "txt" || !insertContent) ? bookPath : null;
+            await repository.updateBookStorage(existingBook.id, targetFilePath,
                 stat.size, stat.modified.millisecondsSinceEpoch);
           } catch (e) {
             _log.warning(
-                'Failed to update stats for external file: $bookPath', e);
+                'Failed to update storage stats for file: $bookPath', e);
+          }
+        } else {
+          try {
+            if (fileType == 'txt' || fileType == 'docx') {
+              // We're moving to file-backed storage, so clear lines from DB to save space, but preserve TOC
+              await repository.deleteBookLines(existingBook.id);
+              await repository.updateBookTotalLines(existingBook.id, 0);
+            }
+            final file = File(bookPath);
+            final stat = await file.stat();
+            final targetFilePath =
+                (fileType != "txt" || !insertContent) ? bookPath : null;
+            await repository.updateBookStorage(existingBook.id, targetFilePath,
+                stat.size, stat.modified.millisecondsSinceEpoch);
+          } catch (e) {
+            _log.warning(
+                'Failed to update storage stats for file: $bookPath', e);
           }
         }
 
@@ -303,26 +310,6 @@ class DatabaseGenerator {
             _processedBooksCount /
                 (_totalBooksToProcess > 0 ? _totalBooksToProcess : 1),
             'עודכן ספר: $title ($pct%)');
-
-        // Delete source files if it's a txt file
-        if (fileType == 'txt') {
-          try {
-            final file = File(bookPath);
-            if (await file.exists()) {
-              await file.delete();
-            }
-            // Also delete companion notes file if it exists
-            final dir = Directory(path.dirname(bookPath));
-            final notesTitle = 'הערות על $title';
-            final notesPath = path.join(dir.path, '$notesTitle.txt');
-            final notesFile = File(notesPath);
-            if (await notesFile.exists()) {
-              await notesFile.delete();
-            }
-          } catch (e) {
-            _log.warning('Failed to delete source file(s) for $title', e);
-          }
-        }
 
         // Call the callback if provided
         if (onDuplicateBook != null) {
@@ -427,25 +414,8 @@ class DatabaseGenerator {
               (_totalBooksToProcess > 0 ? _totalBooksToProcess : 1),
           'מעבד ספר: $title ($pct%)');
 
-      // Delete source files if it's a txt file
-      if (fileType == 'txt' && insertContent) {
-        try {
-          final file = File(bookPath);
-          if (await file.exists()) {
-            await file.delete();
-          }
-          // Also delete companion notes file if it exists
-          final dir = Directory(path.dirname(bookPath));
-          final notesTitle = 'הערות על $title';
-          final notesPath = path.join(dir.path, '$notesTitle.txt');
-          final notesFile = File(notesPath);
-          if (await notesFile.exists()) {
-            await notesFile.delete();
-          }
-        } catch (e) {
-          _log.warning('Failed to delete source file(s) for $title', e);
-        }
-      }
+      // NOTE: Original files are never deleted. The DB is the single source of truth
+      // but original files are always preserved on disk.
     } catch (e, stackTrace) {
       final title = path.basenameWithoutExtension(bookPath);
       _log.severe('❌ Critical error processing book: $title at $bookPath', e,
@@ -573,146 +543,130 @@ class DatabaseGenerator {
   }
 
   /// Processes lines of a book, identifying and creating TOC entries.
-  /// OPTIMIZED: Uses batch inserts for maximum performance
+  /// OPTIMIZED: Batch inserts for lines; sequential inserts for tocEntries (needed for
+  /// correct parent-ID resolution). After all insertions, tocEntry.lineId is fixed
+  /// via SQL (matching on lineIndex) and line_toc is rebuilt correctly.
   ///
   /// [bookId] The ID of the book in the database
   /// [lines] The lines of the book content
 
   Future<void> processLinesWithTocEntries(
       int bookId, List<String> lines) async {
-    // Data structures for TOC processing
+    // Collect all TOC entry metadata in a single pass.
+    // We use the entry's position in allTocEntries as its local ID.
     final allTocEntries = <TocEntryData>[];
-    final parentStack = <int, int>{};
-    final entriesByParent = <int?, List<int>>{};
-    int? currentOwningTocEntryId;
 
-    // Batch buffers
-    final linesBatch = <Line>[];
-    final tocEntriesBatch = <TocEntry>[];
-    final lineTocBuffer = <({int lineId, int tocId})>[];
-    final tocUpdates = <({int tocId, int lineId})>[];
+    // level → local index of the most recent entry at that level (for parent tracking)
+    final localParentStack = <int, int>{};
+
+    // local-parent-index → [local child indices] (for isLastChild / hasChildren)
+    final entriesByParent = <int?, List<int>>{};
 
     const batchSize = 1000;
+    final linesBatch = <Line>[];
 
-    // First pass - collect all data
+    // ── PASS 1: Insert lines in batches, collect TOC structure ──────────────
     for (var lineIndex = 0; lineIndex < lines.length; lineIndex++) {
       final line = lines[lineIndex];
       final plainText = cleanHtml(line);
       final level = detectHeaderLevel(line);
 
-      int currentLineId = await repository.getNextNegativeLineId();
-      int currentTocEntryId = await repository.getNextNegativeTocEntryId();
-
       if (level > 0) {
         if (plainText.trim().isEmpty) {
-          parentStack.remove(level);
-          continue;
-        }
-
-        int? parentId;
-        for (int l = level - 1; l >= 1; l--) {
-          if (parentStack.containsKey(l)) {
-            parentId = parentStack[l];
-            break;
+          localParentStack.remove(level);
+        } else {
+          // Find the nearest ancestor's local index
+          int? parentLocalIdx;
+          for (int l = level - 1; l >= 1; l--) {
+            if (localParentStack.containsKey(l)) {
+              parentLocalIdx = localParentStack[l];
+              break;
+            }
           }
-        }
 
-        // Store TOC entry info
-        allTocEntries.add(TocEntryData(
-          id: currentTocEntryId,
-          parentId: parentId,
-          level: level,
-          text: plainText,
-          lineIndex: lineIndex,
-        ));
+          final localIdx = allTocEntries.length;
+          allTocEntries.add(TocEntryData(
+            id: localIdx,
+            parentId: parentLocalIdx,
+            level: level,
+            text: plainText,
+            lineIndex: lineIndex,
+          ));
 
-        // Buffer TOC entry
-        tocEntriesBatch.add(TocEntry(
-          id: currentTocEntryId,
-          bookId: bookId,
-          parentId: parentId,
-          text: plainText,
-          level: level,
-          lineId: null,
-          isLastChild: false,
-          hasChildren: false,
-        ));
-
-        parentStack[level] = currentTocEntryId;
-        entriesByParent.putIfAbsent(parentId, () => []).add(currentTocEntryId);
-        currentOwningTocEntryId = currentTocEntryId;
-
-        // Buffer line
-        linesBatch.add(Line(
-          id: currentLineId,
-          bookId: bookId,
-          lineIndex: lineIndex,
-          content: line,
-        ));
-
-        // Store update for later
-        tocUpdates.add((tocId: currentTocEntryId, lineId: currentLineId));
-
-        // Buffer line-toc mapping
-        lineTocBuffer.add((lineId: currentLineId, tocId: currentTocEntryId));
-      } else {
-        // Regular line
-        linesBatch.add(Line(
-          id: currentLineId,
-          bookId: bookId,
-          lineIndex: lineIndex,
-          content: line,
-        ));
-
-        // Buffer mapping for regular line if there is a current owner
-        if (currentOwningTocEntryId != null) {
-          lineTocBuffer
-              .add((lineId: currentLineId, tocId: currentOwningTocEntryId));
+          localParentStack[level] = localIdx;
+          entriesByParent.putIfAbsent(parentLocalIdx, () => []).add(localIdx);
         }
       }
 
-      // Flush batches when they reach size limit
+      linesBatch.add(Line(
+        id: 0, // auto-assigned by SQLite
+        bookId: bookId,
+        lineIndex: lineIndex,
+        content: line,
+      ));
+
       if (linesBatch.length >= batchSize) {
         await repository.insertLinesBatch(linesBatch);
         linesBatch.clear();
       }
-      if (tocEntriesBatch.length >= batchSize) {
-        await repository.insertTocEntriesBatch(tocEntriesBatch);
-        tocEntriesBatch.clear();
-      }
     }
 
-    // Flush remaining batches
     if (linesBatch.isNotEmpty) {
       await repository.insertLinesBatch(linesBatch);
     }
-    if (tocEntriesBatch.isNotEmpty) {
-      await repository.insertTocEntriesBatch(tocEntriesBatch);
-    }
-    if (lineTocBuffer.isNotEmpty) {
-      await repository.bulkUpsertLineToc(lineTocBuffer);
+
+    // ── PASS 2: Insert TOC entries one by one to get real DB IDs ─────────────
+    // We need sequential insertion because each child's parentId must reference
+    // the actual auto-incremented DB ID of its parent (not a placeholder).
+    final localIdxToDbId = <int, int>{}; // local index → actual DB ID
+    final actualParentStack = <int, int>{}; // level → actual DB ID
+
+    for (final entryData in allTocEntries) {
+      // Resolve parent's actual DB ID
+      int? parentDbId;
+      for (int l = entryData.level - 1; l >= 1; l--) {
+        if (actualParentStack.containsKey(l)) {
+          parentDbId = actualParentStack[l];
+          break;
+        }
+      }
+
+      final actualId = await repository.insertTocEntry(TocEntry(
+        id: 0, // auto-assign
+        bookId: bookId,
+        parentId: parentDbId,
+        text: entryData.text,
+        level: entryData.level,
+        lineIndex: entryData.lineIndex,
+        lineId: null, // fixed by SQL below
+        isLastChild: false,
+        hasChildren: false,
+      ));
+
+      localIdxToDbId[entryData.id] = actualId;
+      actualParentStack[entryData.level] = actualId;
     }
 
-    // Update TOC entries with their line IDs in batch
-    if (tocUpdates.isNotEmpty) {
-      await repository.bulkUpdateTocEntryLineIds(tocUpdates);
+    // ── PASS 3: Fix lineId on tocEntries + rebuild line_toc via SQL ──────────
+    if (allTocEntries.isNotEmpty) {
+      await repository.updateTocEntryLineIdsByLineIndex(bookId);
+      await repository.rebuildLineTocForBook(bookId);
     }
 
-    // Second pass: Update isLastChild and hasChildren in batch
-    final parentIds =
-        allTocEntries.map((e) => e.parentId).whereType<int>().toSet();
+    // ── PASS 4: Mark hasChildren / isLastChild ────────────────────────────────
+    final parentLocalIdxs = entriesByParent.keys.whereType<int>().toSet();
 
-    // Collect IDs to update
-    final hasChildrenIds = allTocEntries
-        .where((e) => parentIds.contains(e.id))
-        .map((e) => e.id)
+    final hasChildrenIds = parentLocalIdxs
+        .map((idx) => localIdxToDbId[idx])
+        .whereType<int>()
         .toList();
+
     final lastChildIds = entriesByParent.values
         .where((children) => children.isNotEmpty)
-        .map((children) => children.last)
+        .map((children) => localIdxToDbId[children.last])
+        .whereType<int>()
         .toList();
 
-    // Batch update
     if (hasChildrenIds.isNotEmpty) {
       await repository.bulkUpdateTocEntryHasChildren(hasChildrenIds, true);
     }

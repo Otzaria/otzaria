@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart' show debugPrint;
@@ -7,8 +6,6 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as path;
 
-import '../core/models/book.dart';
-import '../core/models/category.dart';
 import '../dao/repository/seforim_repository.dart';
 import '../../settings/services/custom_folders/custom_folder.dart';
 import '../../settings/engine/settings_repository.dart';
@@ -21,7 +18,6 @@ class FileSyncResult {
   final int updatedBooks;
   final int addedCategories;
   final int addedLinks;
-  final int deletedFiles;
   final int skippedFiles;
   final List<String> errors;
   final Duration duration;
@@ -31,7 +27,6 @@ class FileSyncResult {
     this.updatedBooks = 0,
     this.addedCategories = 0,
     this.addedLinks = 0,
-    this.deletedFiles = 0,
     this.skippedFiles = 0,
     this.errors = const [],
     this.duration = Duration.zero,
@@ -40,7 +35,7 @@ class FileSyncResult {
   @override
   String toString() {
     return 'FileSyncResult(added: $addedBooks, updated: $updatedBooks, '
-        'categories: $addedCategories, links: $addedLinks, deleted: $deletedFiles, '
+        'categories: $addedCategories, links: $addedLinks, '
         'skipped: $skippedFiles, errors: ${errors.length}, '
         'duration: ${duration.inSeconds}s)';
   }
@@ -102,194 +97,44 @@ class FileSyncService {
     }
   }
 
-  /// Restore files from DB for a custom folder
-  /// This exports books from the "ספרים אישיים" category back to files
-  /// and then deletes them from the database.
-  ///
-  /// [folder] - The custom folder to restore
-  /// [onProgress] - Progress callback for UI updates
-  ///
-  /// Returns the number of books restored
-  Future<RestoreFolderResult> restoreFolderFromDatabase(
-    CustomFolder folder, {
-    void Function(double progress, String message)? onProgress,
-  }) async {
-    _log.info('Restoring folder from DB: ${folder.name}');
-    int restoredBooks = 0;
-    int restoredCategories = 0;
-    final errors = <String>[];
-
-    try {
-      // Find the "ספרים אישיים" root category
-      final rootCategories = await _repository.getRootCategories();
-      Category? personalCategory;
-      for (final cat in rootCategories) {
-        if (cat.title == 'ספרים אישיים') {
-          personalCategory = cat;
-          break;
-        }
-      }
-
-      if (personalCategory == null) {
-        _log.info('No "ספרים אישיים" category found in DB');
-        return RestoreFolderResult(
-          restoredBooks: 0,
-          restoredCategories: 0,
-          errors: ['לא נמצאה קטגוריית "ספרים אישיים" במסד הנתונים'],
-        );
-      }
-
-      // Find the folder's category under "ספרים אישיים"
-      final folderCategories =
-          await _repository.getCategoryChildren(personalCategory.id);
-      Category? folderCategory;
-      for (final cat in folderCategories) {
-        if (cat.title == folder.name) {
-          folderCategory = cat;
-          break;
-        }
-      }
-
-      if (folderCategory == null) {
-        _log.info('Folder category not found in DB: ${folder.name}');
-        return RestoreFolderResult(
-          restoredBooks: 0,
-          restoredCategories: 0,
-          errors: ['התיקייה "${folder.name}" לא נמצאה במסד הנתונים'],
-        );
-      }
-
-      onProgress?.call(0.1, 'מייצא ספרים מהמסד...');
-
-      // Recursively restore all books and subcategories
-      final result = await _restoreCategoryRecursive(
-        folderCategory,
-        folder.path,
-        onProgress,
-        0.1,
-        0.8,
-      );
-      restoredBooks = result.books;
-      restoredCategories = result.categories;
-      errors.addAll(result.errors);
-
-      onProgress?.call(0.9, 'מוחק נתונים מהמסד...');
-
-      // Delete the folder category and all its contents from DB
-      await _deleteCategoryRecursive(folderCategory.id);
-
-      // Clean up empty parent categories up to "ספרים אישיים"
-      await _cleanupEmptyParentCategories(personalCategory.id);
-
-      onProgress?.call(1.0, 'השחזור הושלם');
-      _log.info(
-          'Restored $restoredBooks books and $restoredCategories categories from DB');
-    } catch (e, stackTrace) {
-      _log.severe('Error restoring folder from DB', e, stackTrace);
-      errors.add('שגיאה בשחזור: $e');
-    }
-
-    return RestoreFolderResult(
-      restoredBooks: restoredBooks,
-      restoredCategories: restoredCategories,
-      errors: errors,
-    );
-  }
-
-  /// Recursively restore a category and its contents to files
-  Future<_RestoreResult> _restoreCategoryRecursive(
-    Category category,
-    String targetPath,
-    void Function(double progress, String message)? onProgress,
-    double progressStart,
-    double progressEnd,
-  ) async {
-    int books = 0;
-    int categories = 0;
-    final errors = <String>[];
-
-    // Ensure the target directory exists
-    final targetDir = Directory(targetPath);
-    if (!await targetDir.exists()) {
-      await targetDir.create(recursive: true);
-      categories++;
-    }
-
-    // Get books in this category
-    final categoryBooks = await _repository.getBooksByCategory(category.id);
-
-    // Restore each book
-    for (int i = 0; i < categoryBooks.length; i++) {
-      final book = categoryBooks[i];
-      try {
-        await _restoreBookToFile(book, targetPath);
-        books++;
-
-        final progress = progressStart +
-            (progressEnd - progressStart) * (i / categoryBooks.length) * 0.5;
-        onProgress?.call(progress, 'משחזר: ${book.title}');
-      } catch (e) {
-        _log.warning('Error restoring book ${book.title}: $e');
-        errors.add('שגיאה בשחזור "${book.title}": $e');
-      }
-    }
-
-    // Get and restore subcategories
-    final subCategories = await _repository.getCategoryChildren(category.id);
-    for (int i = 0; i < subCategories.length; i++) {
-      final subCat = subCategories[i];
-      final subPath = path.join(targetPath, subCat.title);
-
-      final subResult = await _restoreCategoryRecursive(
-        subCat,
-        subPath,
-        onProgress,
-        progressStart + (progressEnd - progressStart) * 0.5,
-        progressEnd,
-      );
-
-      books += subResult.books;
-      categories += subResult.categories + 1;
-      errors.addAll(subResult.errors);
-    }
-
-    return _RestoreResult(books: books, categories: categories, errors: errors);
-  }
-
-  /// Restore a single book to a file
-  Future<void> _restoreBookToFile(Book book, String targetPath) async {
-    // Get all lines for the book
-    final lines = await _repository.getLines(book.id, 0, book.totalLines - 1);
-
-    // Sort lines by index
-    lines.sort((a, b) => a.lineIndex.compareTo(b.lineIndex));
-
-    // Build the file content
-    final content = lines.map((line) => line.content).join('\n');
-
-    // Write to file
-    final filePath = path.join(targetPath, '${book.title}.txt');
-    final file = File(filePath);
-    await file.writeAsString(content, encoding: utf8);
-
-    _log.info('Restored book to file: $filePath');
-  }
-
   /// Recursively delete a category and all its contents from DB
   Future<void> _deleteCategoryRecursive(int categoryId) async {
     // First, delete all books in this category
     final books = await _repository.getBooksByCategory(categoryId);
+    debugPrint(
+        '[FileSyncService] _deleteCategoryRecursive: categoryId=$categoryId, found ${books.length} books');
     for (final book in books) {
-      await _repository.deleteBookCompletely(book.id);
+      debugPrint(
+          '[FileSyncService]   deleting book: id=${book.id}, title="${book.title}"');
+      try {
+        await _repository.deleteBookCompletely(book.id);
+      } catch (e, st) {
+        _log.warning(
+            'Failed to delete book ${book.id} ("${book.title}"), continuing',
+            e,
+            st);
+      }
     }
 
     // Then, recursively delete subcategories
     final subCategories = await _repository.getCategoryChildren(categoryId);
+    debugPrint(
+        '[FileSyncService] _deleteCategoryRecursive: categoryId=$categoryId, found ${subCategories.length} subcategories');
     for (final subCat in subCategories) {
-      await _deleteCategoryRecursive(subCat.id);
+      debugPrint(
+          '[FileSyncService]   recursing into subcategory: id=${subCat.id}, title="${subCat.title}"');
+      try {
+        await _deleteCategoryRecursive(subCat.id);
+      } catch (e, st) {
+        _log.warning(
+            'Failed to delete subcategory ${subCat.id} ("${subCat.title}"), continuing',
+            e,
+            st);
+      }
     }
 
     // Finally, delete this category
+    debugPrint('[FileSyncService]   deleting category itself: id=$categoryId');
     await _repository.deleteCategory(categoryId);
   }
 
@@ -323,13 +168,28 @@ class FileSyncService {
   Future<void> deleteFolderFromDatabase(
       int folderCategoryId, int personalCategoryId) async {
     _log.info('Deleting folder category from DB: $folderCategoryId');
+    debugPrint(
+        '[FileSyncService] deleteFolderFromDatabase START: folderCategoryId=$folderCategoryId, personalCategoryId=$personalCategoryId');
 
     // Delete the folder category and all its contents
     await _deleteCategoryRecursive(folderCategoryId);
+    debugPrint(
+        '[FileSyncService] deleteFolderFromDatabase: recursive delete done, cleaning up empty parents...');
 
     // Clean up empty parent categories
     await _cleanupEmptyParentCategories(personalCategoryId);
 
+    // Clean up orphaned tocText entries (shared lookup table, not deleted per-book)
+    await _repository.deleteOrphanedTocTexts();
+    debugPrint(
+        '[FileSyncService] deleteFolderFromDatabase: orphaned tocText cleaned up');
+
+    // Clean up any orphaned line_toc rows (e.g. (-1,-1) artifact from prior bugs)
+    await _repository.deleteOrphanedLineToc();
+    debugPrint(
+        '[FileSyncService] deleteFolderFromDatabase: orphaned line_toc cleaned up');
+
+    debugPrint('[FileSyncService] deleteFolderFromDatabase END');
     _log.info('Folder deleted from DB');
   }
 
@@ -337,12 +197,11 @@ class FileSyncService {
   Future<FileSyncResult> _scanAndImportPath(
       {required String rootPath,
       required List<String> categoryPrefix,
-      required bool deleteOriginals,
+      required bool insertContent,
       required DatabaseGenerator generator}) async {
     int addedBooks = 0;
     int updatedBooks = 0;
     int addedCategories = 0;
-    int deletedFiles = 0;
     int skippedFiles = 0;
     final errors = <String>[];
 
@@ -364,6 +223,7 @@ class FileSyncService {
           filePath: filePath,
           basePath: rootPath,
           categoryPrefix: categoryPrefix,
+          insertContent: insertContent,
           generator: generator,
         );
 
@@ -376,44 +236,21 @@ class FileSyncService {
           skippedFiles++;
         }
 
-        // Delete the file after successful processing if requested
-        // ONLY delete .txt files, as other files (PDF, DOCX) are referenced externally
-        final isTxtFile = path.extension(filePath).toLowerCase() == '.txt';
-
-        if (deleteOriginals &&
-            isTxtFile &&
-            (result.wasAdded || result.wasUpdated)) {
-          try {
-            await File(filePath).delete();
-            deletedFiles++;
-            _log.info('Deleted processed file: ${path.basename(filePath)}');
-          } catch (e) {
-            _log.warning('Failed to delete file $filePath: $e');
-          }
-        }
-
-        // We don't report progress here to avoid spamming the main progress callback
-        // or we could use a sub-progress callback if needed
+        // NOTE: Original files are never deleted. The DB is the single source
+        // of truth but original files are always preserved on disk.
       } catch (e, stackTrace) {
         final errorMsg = 'Error processing file $filePath: $e';
         _log.warning(errorMsg, e, stackTrace);
         errors.add('Error processing ${path.basename(filePath)}: $e');
-        // Print to console for debugging
         debugPrint('❌ $errorMsg');
         debugPrint('Stack trace: $stackTrace');
       }
-    }
-
-    // Clean up empty directories after processing if we deleted files
-    if (deleteOriginals) {
-      await _removeEmptyDirectories(rootPath);
     }
 
     return FileSyncResult(
       addedBooks: addedBooks,
       updatedBooks: updatedBooks,
       addedCategories: addedCategories,
-      deletedFiles: deletedFiles,
       skippedFiles: skippedFiles,
       errors: errors,
     );
@@ -424,10 +261,15 @@ class FileSyncService {
     required String filePath,
     required String basePath,
     required List<String> categoryPrefix,
+    required bool insertContent,
     required DatabaseGenerator generator,
   }) async {
     final title = path.basenameWithoutExtension(filePath);
     final extension = path.extension(filePath).toLowerCase();
+
+    // PDF and DOCX files always act as external (content never in DB)
+    final isPdfOrDocx = extension == '.pdf' || extension == '.docx';
+    final effectiveInsertContent = isPdfOrDocx ? false : insertContent;
 
     // Build category path
     final relativeCategories = _parsePathToCategories(filePath, basePath);
@@ -448,7 +290,6 @@ class FileSyncService {
     final fileType = extension.replaceFirst('.', '').toLowerCase();
 
     // Check if book already exists in this category with the same file type
-    // We do this check here to know if we are updating or adding for stats
     final existingBook = await _repository
         .checkBookExistsInCategoryWithFileType(title, categoryId, fileType);
 
@@ -456,31 +297,42 @@ class FileSyncService {
     bool wasUpdated = false;
 
     if (existingBook != null) {
+      debugPrint(
+          '[FileSyncService] Found existing book: title=$title, id=${existingBook.id}, filePath=${existingBook.filePath}, isFileBacked=${existingBook.isFileBacked}, totalLines=${existingBook.totalLines}');
+
       // Book exists - check if file has changed
       final file = File(filePath);
       final fileStat = await file.stat();
       final fileSize = fileStat.size;
       final lastModified = fileStat.modified.millisecondsSinceEpoch;
 
-      // Only update content if file has actually changed
+      // Only update if file has actually changed
       final fileChanged = existingBook.fileSize != fileSize ||
           existingBook.lastModified != lastModified;
 
-      if (fileChanged) {
+      // Also update if the storage preference changed (e.g. user toggled addToDatabase)
+      final expectedIsContentExternal = !effectiveInsertContent;
+      final storageChanged =
+          existingBook.isFileBacked != expectedIsContentExternal;
+
+      if (fileChanged || storageChanged) {
+        if (storageChanged) {
+          debugPrint(
+              '[FileSyncService] Storage preference changed for ${existingBook.title}: isFileBacked=${existingBook.isFileBacked} -> $expectedIsContentExternal');
+        }
         wasUpdated = true;
         await generator.createAndProcessBook(
           filePath,
           categoryId,
-          insertContent: true,
+          insertContent: effectiveInsertContent,
         );
       }
-      // If file hasn't changed, do nothing (no need to update metadata either)
     } else {
       wasAdded = true;
       await generator.createAndProcessBook(
         filePath,
         categoryId,
-        insertContent: true,
+        insertContent: effectiveInsertContent,
       );
     }
 
@@ -508,7 +360,6 @@ class FileSyncService {
     int updatedBooks = 0;
     int addedCategories = 0;
     int addedLinks = 0;
-    int deletedFiles = 0;
     int skippedFiles = 0;
     final errors = <String>[];
 
@@ -530,21 +381,17 @@ class FileSyncService {
       // All books are already in the database
       _log.info('Skipping אוצריא folder scan - books are in database');
 
-      // Scan custom folders that are marked for DB sync
+      // Scan ALL custom folders (DB is single source of truth)
       _reportProgress(0.4, 'סורק תיקיות מותאמות אישית...');
       // Load custom folders from settings
       final customFoldersJson =
           Settings.getValue<String>(SettingsRepository.keyCustomFolders);
       final customFolders = CustomFoldersManager.loadFolders(customFoldersJson);
 
-      // Filter only folders marked for DB sync
-      final foldersToSync =
-          customFolders.where((f) => f.addToDatabase).toList();
+      if (customFolders.isNotEmpty) {
+        _log.info('Found ${customFolders.length} custom folders to sync');
 
-      if (foldersToSync.isNotEmpty) {
-        _log.info('Found ${foldersToSync.length} custom folders to sync');
-
-        for (final folder in foldersToSync) {
+        for (final folder in customFolders) {
           final folderDir = Directory(folder.path);
           if (!await folderDir.exists()) {
             _log.warning('Custom folder does not exist: ${folder.path}');
@@ -552,19 +399,21 @@ class FileSyncService {
             continue;
           }
 
-          _log.info('Scanning custom folder: ${folder.path}');
+          _log.info(
+              'Scanning custom folder: ${folder.path} (addToDatabase: ${folder.addToDatabase})');
 
-          // Use the new internal method
+          // insertContent depends on the addToDatabase flag:
+          // true = content lines go into DB
+          // false = only metadata/TOC saved, content read on-the-fly from file
           final result = await _scanAndImportPath(
               rootPath: folder.path,
               categoryPrefix: ['ספרים אישיים', folder.name],
-              deleteOriginals: true, // Keep existing behavior
+              insertContent: folder.addToDatabase,
               generator: generator);
 
           addedBooks += result.addedBooks;
           updatedBooks += result.updatedBooks;
           addedCategories += result.addedCategories;
-          deletedFiles += result.deletedFiles;
           skippedFiles += result.skippedFiles;
           errors.addAll(result.errors);
         }
@@ -588,7 +437,6 @@ class FileSyncService {
           updateBookHasLinks: true,
         );
         addedLinks += linksResult.processedLinks;
-        deletedFiles += linksResult.deletedFiles;
         errors.addAll(linksResult.errors);
       }
 
@@ -612,7 +460,6 @@ class FileSyncService {
       updatedBooks: updatedBooks,
       addedCategories: addedCategories,
       addedLinks: addedLinks,
-      deletedFiles: deletedFiles,
       skippedFiles: skippedFiles,
       errors: errors,
       duration: stopwatch.elapsed,
@@ -670,25 +517,21 @@ class FileSyncService {
     return parts.sublist(0, parts.length - 1);
   }
 
-  Future<void> _removeEmptyDirectories(String basePath) async {
-    final dir = Directory(basePath);
-    final entities = await dir.list(recursive: true).toList();
-
-    // Sort from deepest to shallowest
-    entities.sort((a, b) => b.path.length.compareTo(a.path.length));
-
-    for (final entity in entities) {
-      if (entity is Directory) {
-        try {
-          final contents = await entity.list().toList();
-          if (contents.isEmpty) {
-            await entity.delete();
-            _log.fine('Deleted empty directory: ${entity.path}');
-          }
-        } catch (e) {
-          // Ignore errors when deleting directories
-        }
+  /// Delete the physical files/directory of a custom folder
+  /// Used when the user explicitly confirms file deletion
+  Future<bool> deletePhysicalFolder(String folderPath) async {
+    try {
+      final dir = Directory(folderPath);
+      if (await dir.exists()) {
+        await dir.delete(recursive: true);
+        _log.info('Deleted physical folder: $folderPath');
+        return true;
       }
+      return false;
+    } catch (e, stackTrace) {
+      _log.warning(
+          'Error deleting physical folder: $folderPath', e, stackTrace);
+      return false;
     }
   }
 
@@ -721,19 +564,6 @@ class RestoreFolderResult {
   const RestoreFolderResult({
     this.restoredBooks = 0,
     this.restoredCategories = 0,
-    this.errors = const [],
-  });
-}
-
-/// Internal result for recursive restore
-class _RestoreResult {
-  final int books;
-  final int categories;
-  final List<String> errors;
-
-  const _RestoreResult({
-    this.books = 0,
-    this.categories = 0,
     this.errors = const [],
   });
 }

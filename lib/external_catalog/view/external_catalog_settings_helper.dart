@@ -5,9 +5,12 @@ import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/external_catalog/repository/external_catalog_repository.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
+import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/widgets/custom_ui_components.dart';
 
 class ExternalCatalogSettingsHelper {
+  static bool _isAutoSyncInProgress = false;
+
   static Future<void> updateExternalBooks(
     BuildContext context,
     bool enabled,
@@ -20,6 +23,7 @@ class ExternalCatalogSettingsHelper {
     settingsBloc.add(UpdateShowExternalBooks(enabled));
     settingsBloc.add(UpdateShowHebrewBooks(enabled));
     settingsBloc.add(UpdateShowOtzarHachochma(enabled));
+    settingsBloc.add(UpdateAutoSyncCatalogs(enabled));
   }
 
   static Future<void> updateOtzarBooks(
@@ -89,6 +93,36 @@ class ExternalCatalogSettingsHelper {
     } catch (e) {
       UiSnack.showError('שגיאה בהורדת מסד הקטלוגים: $e');
       return false;
+    }
+  }
+
+  static Future<void> maybeAutoSyncCatalogs(
+    SettingsState settingsState, {
+    ExternalCatalogRepository? repository,
+    VoidCallback? invalidateExternalBooksCache,
+  }) async {
+    if (!settingsState.showExternalBooks ||
+        !settingsState.autoSyncCatalogs ||
+        _isAutoSyncInProgress) {
+      return;
+    }
+
+    final catalogsRepository = repository ?? ExternalCatalogRepository.instance;
+    if (!await catalogsRepository.databaseExists()) {
+      return;
+    }
+
+    _isAutoSyncInProgress = true;
+    try {
+      final updated = await catalogsRepository.updateDatabaseIfNeeded();
+      if (updated) {
+        (invalidateExternalBooksCache ??
+            DataRepository.instance.invalidateExternalBooksCache)();
+      }
+    } catch (e) {
+      UiSnack.showError('שגיאה בסנכרון הקטלוגים: $e');
+    } finally {
+      _isAutoSyncInProgress = false;
     }
   }
 }

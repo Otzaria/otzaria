@@ -6,7 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:path/path.dart' as path;
-import 'package:sqflite/sqflite.dart' as sqflite;
+import 'package:sqlite3/sqlite3.dart' as sqlite3;
 import 'package:zstandard/zstandard.dart';
 
 /// מנהל את מסד הקטלוגים החיצוניים (אוצר החכמה והיברובוקס).
@@ -56,15 +56,11 @@ class ExternalCatalogRepository {
       return null;
     }
 
-    sqflite.Database? db;
+    sqlite3.Database? db;
     try {
-      db = await sqflite.openDatabase(
-        databasePath,
-        readOnly: true,
-        singleInstance: false,
-      );
+      db = sqlite3.sqlite3.open(databasePath, mode: sqlite3.OpenMode.readOnly);
 
-      final result = await db.rawQuery(
+      final result = db.select(
         'SELECT value FROM db_meta WHERE key = ? LIMIT 1',
         [_versionMetaKey],
       );
@@ -78,7 +74,7 @@ class ExternalCatalogRepository {
       debugPrint('Error reading external catalog DB version: $e');
       return null;
     } finally {
-      await db?.close();
+      db?.close();
     }
   }
 
@@ -145,24 +141,22 @@ class ExternalCatalogRepository {
       return <T>[];
     }
 
-    sqflite.Database? db;
+    sqlite3.Database? db;
     try {
-      db = await sqflite.openDatabase(
-        databasePath,
-        readOnly: true,
-        singleInstance: false,
-      );
+      db = sqlite3.sqlite3.open(databasePath, mode: sqlite3.OpenMode.readOnly);
 
-      final rows = await db.rawQuery(
+      final rows = db.select(
         'SELECT * FROM $tableName ORDER BY title COLLATE NOCASE',
       );
 
-      return rows.map((row) => mapper(row)).toList(growable: false);
+      return rows
+          .map((row) => mapper(row as Map<String, Object?>))
+          .toList(growable: false);
     } catch (e) {
       debugPrint('Error loading external catalog table $tableName: $e');
       return <T>[];
     } finally {
-      await db?.close();
+      db?.close();
     }
   }
 

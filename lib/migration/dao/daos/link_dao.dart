@@ -1,5 +1,6 @@
-import 'package:sqflite/sqflite.dart';
+import 'package:sqlite3/sqlite3.dart' as sqlite3;
 import '../../core/models/link.dart';
+import '../sqflite/sqlite3_utils.dart';
 import '../sqflite/query_loader.dart';
 import 'database.dart';
 
@@ -11,19 +12,18 @@ class LinkDao {
     _queries = QueryLoader.loadQueries('LinkQueries.sq');
   }
 
-  Future<Database> get database => _db.database;
+  Future<sqlite3.Database> get database => _db.database;
 
   Future<Link?> selectLinkById(int id) async {
     final db = await database;
-    final result = await db.rawQuery(_queries['selectLinkById']!, [id]);
+    final result = db.select(_queries['selectLinkById']!, [id]).toMapList();
     if (result.isEmpty) return null;
     return _mapToLink(result.first);
   }
 
   Future<int> countAllLinks() async {
     final db = await database;
-    final result = await db.rawQuery(_queries['countAllLinks']!);
-    return Sqflite.firstIntValue(result) ?? 0;
+    return firstIntValue(db.select(_queries['countAllLinks']!)) ?? 0;
   }
 
   Future<List<Map<String, dynamic>>> selectLinksBySourceLineIds(
@@ -32,38 +32,41 @@ class LinkDao {
     final placeholders = List.filled(lineIds.length, '?').join(',');
     final query =
         _queries['selectLinksBySourceLineIds']!.replaceFirst('?', placeholders);
-    return await db.rawQuery(query, lineIds);
+    return db.select(query, lineIds).toMapList();
   }
 
   Future<List<Map<String, dynamic>>> selectLinksBySourceBook(int bookId) async {
     final db = await database;
-    return await db.rawQuery(_queries['selectLinksBySourceBook']!, [bookId]);
+    return db
+        .select(_queries['selectLinksBySourceBook']!, [bookId]).toMapList();
   }
 
   Future<List<Map<String, dynamic>>> selectCommentatorsByBook(
       int bookId) async {
     final db = await database;
-    return await db.rawQuery(_queries['selectCommentatorsByBook']!, [bookId]);
+    return db
+        .select(_queries['selectCommentatorsByBook']!, [bookId]).toMapList();
   }
 
   Future<int> insertLink(Link link, int connectionTypeId) async {
     final db = await database;
-    return await db.rawInsert(_queries['insert']!, [
+    db.execute(_queries['insert']!, [
       link.sourceBookId,
       link.targetBookId,
       link.sourceLineId,
       link.targetLineId,
       connectionTypeId
     ]);
+    return db.lastInsertRowId;
   }
 
   Future<Link?> selectLinkByDetails(int sourceBookId, int targetBookId,
       int sourceLineId, int targetLineId) async {
     final db = await database;
-    final result = await db.rawQuery('''
+    final result = db.select('''
       SELECT id FROM link
       WHERE sourceBookId = ? AND targetBookId = ? AND sourceLineId = ? AND targetLineId = ?
-    ''', [sourceBookId, targetBookId, sourceLineId, targetLineId]);
+    ''', [sourceBookId, targetBookId, sourceLineId, targetLineId]).toMapList();
 
     if (result.isEmpty) return null;
     final linkId = result.first['id'] as int;
@@ -72,46 +75,47 @@ class LinkDao {
 
   Future<int> delete(int id) async {
     final db = await database;
-    return await db.rawDelete(_queries['delete']!, [id]);
+    db.execute(_queries['delete']!, [id]);
+    return db.updatedRows;
   }
 
   Future<int> deleteByBookId(int bookId) async {
     final db = await database;
-    return await db.rawDelete(_queries['deleteByBookId']!, [bookId, bookId]);
+    db.execute(_queries['deleteByBookId']!, [bookId, bookId]);
+    return db.updatedRows;
   }
 
   Future<int> getLastInsertRowId() async {
     final db = await database;
-    final result = await db.rawQuery(_queries['lastInsertRowId']!);
-    return result.first.values.first as int;
+    return db.lastInsertRowId;
   }
 
   Future<int> countLinksBySourceBook(int bookId) async {
     final db = await database;
-    final result =
-        await db.rawQuery(_queries['countLinksBySourceBook']!, [bookId]);
-    return Sqflite.firstIntValue(result) ?? 0;
+    return firstIntValue(
+            db.select(_queries['countLinksBySourceBook']!, [bookId])) ??
+        0;
   }
 
   Future<int> countLinksByTargetBook(int bookId) async {
     final db = await database;
-    final result =
-        await db.rawQuery(_queries['countLinksByTargetBook']!, [bookId]);
-    return Sqflite.firstIntValue(result) ?? 0;
+    return firstIntValue(
+            db.select(_queries['countLinksByTargetBook']!, [bookId])) ??
+        0;
   }
 
   Future<int> countLinksBySourceBookAndType(int bookId, String typeName) async {
     final db = await database;
-    final result = await db.rawQuery(
-        _queries['countLinksBySourceBookAndType']!, [bookId, typeName]);
-    return Sqflite.firstIntValue(result) ?? 0;
+    return firstIntValue(db.select(
+            _queries['countLinksBySourceBookAndType']!, [bookId, typeName])) ??
+        0;
   }
 
   Future<int> countLinksByTargetBookAndType(int bookId, String typeName) async {
     final db = await database;
-    final result = await db.rawQuery(
-        _queries['countLinksByTargetBookAndType']!, [bookId, typeName]);
-    return Sqflite.firstIntValue(result) ?? 0;
+    return firstIntValue(db.select(
+            _queries['countLinksByTargetBookAndType']!, [bookId, typeName])) ??
+        0;
   }
 
   Link _mapToLink(Map<String, dynamic> map) {
@@ -126,3 +130,4 @@ class LinkDao {
     );
   }
 }
+

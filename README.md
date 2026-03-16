@@ -135,7 +135,7 @@ Also, it is a multiplatform framework.
 Download the latest build for Windows from [releases](https://github.com/Sivan22/otzaria/releases). 
 
 **Note:** The library is included in the .exe file.
-In case you need only the app itself (for upgrading) you can download the .msix file.
+In case you need only the app itself for upgrading, download the Windows ZIP build from releases.
 
 #### Prerequisites (for Regular Installer only)
 If using the regular installer, make sure that Visual C++ Redistributable is installed on your computer. If not, download it from [here](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170) and install it.
@@ -145,12 +145,16 @@ If using the regular installer, make sure that Visual C++ Redistributable is ins
 ```sudo apt-get install libgtk-3-0 libblkid1 liblzma5```
 #### Installation
 * Download the linux build from releases, extract and run Otzaria.
+* For version releases there is also a FULL bundle: `otzaria-linux-full.tar.gz`.
+* The FULL bundle includes the app and the library together. Extract it and run `run-otzaria.sh`.
 * When first running the app, you will be asked to download the library.
 * Llternatively, you can download the library manually from [here](https://github.com/Sivan22/otzaria-library/releases), extract it and provide its path to the app.
 
 ### android
 * The app is available on Google Play: [link](https://play.google.com/store/apps/details?id=com.mendelg.otzaria&pli=1)
 * Alternatively, you can download the .apk file from the releases page, and install it.
+* For version releases there is also a FULL bundle: `otzaria-android-full.zip`.
+* The Android FULL bundle includes the APK together with the offline library payload for distribution.
 * When first running the app, you will be asked to download the library.
 * Alternatively, you can download the library manually from [here](https://github.com/Sivan22/otzaria-library/releases) and provide the zip file to the app.
 
@@ -160,6 +164,8 @@ If using the regular installer, make sure that Visual C++ Redistributable is ins
 
 ### macos
 * Download the latest MacOS build from the releases page.
+* For version releases there is also a FULL bundle: `otzaria-macos-full.zip`.
+* The FULL bundle includes the app and the library together. Extract it and launch `Run Otzaria.command`.
 * Run the app while pressing the ctrl key.
 * When first running the app, you will be asked to download the library.
 * Alternatively, you can download the library manually from [here](https://github.com/Sivan22/otzaria-library/releases), extract it and provide its path to the app.

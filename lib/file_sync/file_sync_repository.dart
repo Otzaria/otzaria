@@ -4,9 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
-import 'package:otzaria/migration/dao/daos/database.dart';
 import 'package:otzaria/services/data_collection_service.dart';
-import 'package:sqflite/sqflite.dart' as sqflite;
+import 'package:sqlite3/sqlite3.dart' as sqlite3;
 import 'package:zstandard/zstandard.dart';
 
 class FileSyncRepository {
@@ -111,10 +110,10 @@ class FileSyncRepository {
   }
 
   Future<int> getCurrentLibraryVersion() async {
-    sqflite.Database? db;
+    sqlite3.Database? db;
     try {
-      db = await _openRawDatabase();
-      final result = await db.rawQuery(
+      db = _openRawDatabase();
+      final result = db.select(
         'SELECT value FROM db_meta WHERE key = ? LIMIT 1',
         ['content_version_int'],
       );
@@ -127,7 +126,7 @@ class FileSyncRepository {
         }
       }
     } finally {
-      await db?.close();
+      db?.close();
     }
 
     final displayVersion = await DataCollectionService().readLibraryVersion();
@@ -279,27 +278,25 @@ class FileSyncRepository {
 
     await SqliteDataProvider.instance.dispose();
 
-    sqflite.Database? db;
+    sqlite3.Database? db;
     try {
-      db = await _openRawDatabase();
+      db = _openRawDatabase();
 
       for (final statement in statements) {
         if (!isSyncing) {
           throw Exception('הסינכרון בוטל');
         }
 
-        await db.execute(statement);
+        db.execute(statement);
       }
     } finally {
-      await db?.close();
+      db?.close();
     }
   }
 
-  Future<sqflite.Database> _openRawDatabase() async {
-    MyDatabase.initialize();
-    return sqflite.openDatabase(
+  sqlite3.Database _openRawDatabase() {
+    return sqlite3.sqlite3.open(
       DatabaseConstants.getDatabasePath(),
-      singleInstance: false,
     );
   }
 

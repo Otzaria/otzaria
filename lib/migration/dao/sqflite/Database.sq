@@ -120,24 +120,6 @@ CREATE INDEX IF NOT EXISTS idx_book_title ON book(title);
 CREATE INDEX IF NOT EXISTS idx_book_order ON book(orderIndex);
 CREATE INDEX IF NOT EXISTS idx_book_source ON book(sourceId);
 
--- Book file table (PDF binary content)
-CREATE TABLE IF NOT EXISTS book_file (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    bookId INTEGER NOT NULL,
-    kind TEXT NOT NULL,
-    data BLOB NOT NULL,
-    size INTEGER NOT NULL,
-    sha256 TEXT NOT NULL,
-    originalRelPath TEXT,
-    createdAt INTEGER NOT NULL,
-    FOREIGN KEY (bookId) REFERENCES book(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_book_file_book ON book_file(bookId);
-CREATE INDEX IF NOT EXISTS idx_book_file_kind ON book_file(kind);
-CREATE UNIQUE INDEX IF NOT EXISTS uq_book_file_book_kind ON book_file(bookId, kind);
-CREATE UNIQUE INDEX IF NOT EXISTS uq_book_file_kind_sha ON book_file(kind, sha256);
-
 -- Book-publication place junction table
 CREATE TABLE IF NOT EXISTS book_pub_place (
     bookId INTEGER NOT NULL,

@@ -1,9 +1,8 @@
-import 'dart:io';
-
-import 'package:sqflite/sqflite.dart';
+import 'package:sqlite3/sqlite3.dart';
 
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
+import 'package:otzaria/migration/dao/sqflite/sqlite3_utils.dart';
 
 /// SQLite database for storing personal notes.
 ///
@@ -47,25 +46,30 @@ class PersonalNotesDatabase {
   Future<Database> _initDatabase() async {
     final dbPath = await AppPaths.resolveNotesDbPath(_databaseName);
 
-    return await openDatabase(
-      dbPath,
-      version: _databaseVersion,
-      onConfigure: (db) async {
-        if (Platform.isAndroid || Platform.isIOS) {
-          await db.rawQuery('PRAGMA journal_mode=WAL');
-        } else if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-          await db.execute('PRAGMA journal_mode=WAL');
-        }
-      },
-      onCreate: _onCreate,
-      onUpgrade: _onUpgrade,
-    );
+    final db = sqlite3.open(dbPath);
+    db.execute('PRAGMA journal_mode=WAL');
+    _migrateSchema(db);
+    return db;
   }
 
-  /// Create database schema
-  Future<void> _onCreate(Database db, int version) async {
-    await db.execute('''
-      CREATE TABLE $_tableNotes (
+  /// Apply schema migrations based on user_version
+  void _migrateSchema(Database db) {
+    final currentVersion =
+        db.select('PRAGMA user_version').first.values.first as int;
+
+    if (currentVersion == 0) {
+      _createSchemaV1(db);
+    }
+    if (currentVersion < 2) {
+      _migrateV1ToV2(db);
+    }
+    db.execute('PRAGMA user_version = $_databaseVersion');
+  }
+
+  /// Create database schema version 1
+  void _createSchemaV1(Database db) {
+    db.execute('''
+      CREATE TABLE IF NOT EXISTS $_tableNotes (
         $_columnId TEXT PRIMARY KEY,
         $_columnBookId TEXT NOT NULL,
         $_columnLineNumber INTEGER,
@@ -73,31 +77,27 @@ class PersonalNotesDatabase {
         $_columnLastKnownLine INTEGER,
         $_columnStatus TEXT NOT NULL,
         $_columnContent TEXT NOT NULL,
-        $_columnContentPlain TEXT NOT NULL,
-        $_columnContentFormat TEXT NOT NULL,
         $_columnCreatedAt TEXT NOT NULL,
         $_columnUpdatedAt TEXT NOT NULL
       )
     ''');
-
-    // Create indexes for faster queries
-    await db.execute('''
-      CREATE INDEX idx_book_id ON $_tableNotes($_columnBookId)
-    ''');
-
-    await db.execute('''
-      CREATE INDEX idx_book_line ON $_tableNotes($_columnBookId, $_columnLineNumber)
-    ''');
+    db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_book_id ON $_tableNotes($_columnBookId)');
+    db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_book_line ON $_tableNotes($_columnBookId, $_columnLineNumber)');
   }
 
-  /// Handle database upgrades
-  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    if (oldVersion < 2) {
-      await db.execute(
+  /// Migrate schema from v1 to v2
+  void _migrateV1ToV2(Database db) {
+    // Check if columns already exist (safe to re-run)
+    final info = db.select('PRAGMA table_info($_tableNotes)');
+    final cols = info.map((r) => r['name'] as String).toSet();
+    if (!cols.contains(_columnContentPlain)) {
+      db.execute(
           'ALTER TABLE $_tableNotes ADD COLUMN $_columnContentPlain TEXT NOT NULL DEFAULT \'\'');
-      await db.execute(
+      db.execute(
           'ALTER TABLE $_tableNotes ADD COLUMN $_columnContentFormat TEXT NOT NULL DEFAULT \'plain\'');
-      await db.execute(
+      db.execute(
           'UPDATE $_tableNotes SET $_columnContentPlain = $_columnContent WHERE $_columnContentPlain = \'\'');
     }
   }
@@ -105,59 +105,49 @@ class PersonalNotesDatabase {
   /// Load all notes for a specific book
   Future<List<PersonalNote>> loadNotes(String bookId) async {
     final db = await database;
-
-    final maps = await db.query(
-      _tableNotes,
-      where: '$_columnBookId = ?',
-      whereArgs: [bookId],
-      orderBy: '$_columnLineNumber ASC, $_columnUpdatedAt DESC',
-    );
-
+    final maps = db.select(
+      'SELECT * FROM $_tableNotes WHERE $_columnBookId = ? ORDER BY $_columnLineNumber ASC, $_columnUpdatedAt DESC',
+      [bookId],
+    ).toMapList();
     return maps.map((map) => _noteFromMap(map)).toList();
   }
 
   /// Insert a new note
   Future<void> insertNote(PersonalNote note) async {
     final db = await database;
-    await db.insert(
-      _tableNotes,
-      _noteToMap(note),
-      conflictAlgorithm: ConflictAlgorithm.replace,
+    final m = _noteToMap(note);
+    final cols = m.keys.join(', ');
+    final placeholders = List.filled(m.length, '?').join(', ');
+    db.execute(
+      'INSERT OR REPLACE INTO $_tableNotes ($cols) VALUES ($placeholders)',
+      m.values.toList(),
     );
   }
 
   /// Update an existing note
   Future<void> updateNote(PersonalNote note) async {
     final db = await database;
-    await db.update(
-      _tableNotes,
-      _noteToMap(note),
-      where: '$_columnId = ?',
-      whereArgs: [note.id],
+    final m = _noteToMap(note);
+    final setClause = m.keys.map((k) => '$k = ?').join(', ');
+    db.execute(
+      'UPDATE $_tableNotes SET $setClause WHERE $_columnId = ?',
+      [...m.values, note.id],
     );
   }
 
   /// Delete a note
   Future<void> deleteNote(String noteId) async {
     final db = await database;
-    await db.delete(
-      _tableNotes,
-      where: '$_columnId = ?',
-      whereArgs: [noteId],
-    );
+    db.execute('DELETE FROM $_tableNotes WHERE $_columnId = ?', [noteId]);
   }
 
   /// Get a single note by ID
   Future<PersonalNote?> getNote(String noteId) async {
     final db = await database;
-
-    final maps = await db.query(
-      _tableNotes,
-      where: '$_columnId = ?',
-      whereArgs: [noteId],
-      limit: 1,
-    );
-
+    final maps = db.select(
+      'SELECT * FROM $_tableNotes WHERE $_columnId = ? LIMIT 1',
+      [noteId],
+    ).toMapList();
     if (maps.isEmpty) return null;
     return _noteFromMap(maps.first);
   }
@@ -165,8 +155,7 @@ class PersonalNotesDatabase {
   /// Get all books that have notes
   Future<List<BookNotesInfo>> listBooksWithNotes() async {
     final db = await database;
-
-    final result = await db.rawQuery('''
+    final result = db.select('''
       SELECT 
         $_columnBookId,
         COUNT(*) as note_count,
@@ -174,8 +163,7 @@ class PersonalNotesDatabase {
       FROM $_tableNotes
       GROUP BY $_columnBookId
       ORDER BY $_columnBookId ASC
-    ''');
-
+    ''').toMapList();
     return result.map((row) {
       return BookNotesInfo(
         bookId: row[_columnBookId] as String,
@@ -188,49 +176,42 @@ class PersonalNotesDatabase {
   /// Delete all notes for a specific book
   Future<void> deleteBookNotes(String bookId) async {
     final db = await database;
-    await db.delete(
-      _tableNotes,
-      where: '$_columnBookId = ?',
-      whereArgs: [bookId],
-    );
+    db.execute('DELETE FROM $_tableNotes WHERE $_columnBookId = ?', [bookId]);
   }
 
   /// Batch update multiple notes (for reconciliation)
   Future<void> batchUpdateNotes(List<PersonalNote> notes) async {
     final db = await database;
-    final batch = db.batch();
-
-    for (final note in notes) {
-      batch.update(
-        _tableNotes,
-        _noteToMap(note),
-        where: '$_columnId = ?',
-        whereArgs: [note.id],
-      );
-    }
-
-    await batch.commit(noResult: true);
+    withTransaction(db, () {
+      for (final note in notes) {
+        final m = _noteToMap(note);
+        final setClause = m.keys.map((k) => '$k = ?').join(', ');
+        db.execute(
+          'UPDATE $_tableNotes SET $setClause WHERE $_columnId = ?',
+          [...m.values, note.id],
+        );
+      }
+    });
   }
 
   /// Batch insert multiple notes (for migration)
   /// Skips notes that already exist (by ID)
   Future<int> batchInsertNotes(List<PersonalNote> notes) async {
     if (notes.isEmpty) return 0;
-
     final db = await database;
-    final batch = db.batch();
     int count = 0;
-
-    for (final note in notes) {
-      batch.insert(
-        _tableNotes,
-        _noteToMap(note),
-        conflictAlgorithm: ConflictAlgorithm.ignore, // Skip if ID exists
-      );
-      count++;
-    }
-
-    await batch.commit(noResult: true);
+    withTransaction(db, () {
+      for (final note in notes) {
+        final m = _noteToMap(note);
+        final cols = m.keys.join(', ');
+        final placeholders = List.filled(m.length, '?').join(', ');
+        db.execute(
+          'INSERT OR IGNORE INTO $_tableNotes ($cols) VALUES ($placeholders)',
+          m.values.toList(),
+        );
+        count++;
+      }
+    });
     return count;
   }
 
@@ -275,7 +256,7 @@ class PersonalNotesDatabase {
   Future<void> close() async {
     final db = _database;
     if (db != null) {
-      await db.close();
+      db.close();
       _database = null;
     }
   }

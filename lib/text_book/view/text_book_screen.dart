@@ -86,8 +86,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   bool _isInitialFocusDone = false;
   FocusRepository? _focusRepository; // שמירת הפניה לשימוש ב-dispose
   final GlobalKey _viewModeMenuKey = GlobalKey(); // מפתח לתפריט בחירת התצוגה
-  final GlobalKey<PopupMenuButtonState<int>> _contentMarginMenuKey =
-      GlobalKey<PopupMenuButtonState<int>>();
   String? _selectedTextForSearch;
 
   // Key עבור PageShapeScreen - שינוי המפתח יגרום לבנייה מחדש
@@ -95,6 +93,10 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
   // RepaintBoundary key עבור הדפסה של "צורת הדף" כפי שמוצג
   final GlobalKey _pageShapePrintBoundaryKey = GlobalKey();
+
+  // בקשות לפתיחת חלונית פנימית ב"צורת הדף": 0=קישורים, 1=הערות
+  final ValueNotifier<int?> _pageShapeSidebarTabNotifier =
+      ValueNotifier<int?>(null);
 
   // Cache לרשימת אינדקסי TOC ממוינת - למניעת חישוב מחדש בכל לחיצה
   List<int>? _cachedTocIndices;
@@ -643,8 +645,21 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     navigationSearchFocusNode.dispose();
     _bookContentFocusNode.dispose();
     _sidebarWidth.dispose();
+    _pageShapeSidebarTabNotifier.dispose();
     _settingsSub.cancel();
     super.dispose();
+  }
+
+  void _openPersonalNotesForCurrentView(TextBookLoaded state) {
+    if (state.showPageShapeView) {
+      _pageShapeSidebarTabNotifier.value = 1;
+      return;
+    }
+
+    setState(() {
+      _sidebarTabIndex = 2;
+    });
+    context.read<TextBookBloc>().add(const ToggleSplitView(true));
   }
 
   void _openLeftPaneTab(int index, {String? searchText}) {
@@ -1265,19 +1280,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         },
       ),
 
-      // 7) Content Margin Width Button (3 levels)
-      ActionButtonData(
-        widget: _buildContentMarginButton(context),
-        icon: FluentIcons.text_align_justify_24_regular,
-        tooltip: _getContentMarginTooltip(context),
-        onPressed: () {
-          final PopupMenuButtonState<int>? menuState =
-              _contentMarginMenuKey.currentState;
-          menuState?.showButtonMenu();
-        },
-      ),
-
-      // 8) Navigation Buttons - רק אם לא בתצוגה משולבת
+      // 7) Navigation Buttons - רק אם לא בתצוגה משולבת
       if (!widget.isInCombinedView) ...[
         ActionButtonData(
           widget: _buildPreviousTocButton(state),
@@ -1384,25 +1387,13 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       // 2) הצג הערות אישיות
       ActionButtonData(
         widget: IconButton(
-          onPressed: () {
-            // פתיחת חלונית הצד עם כרטיסיית ההערות (אינדקס 2)
-            setState(() {
-              _sidebarTabIndex = 2; // כרטיסיית ההערות
-            });
-            context.read<TextBookBloc>().add(const ToggleSplitView(true));
-          },
+          onPressed: () => _openPersonalNotesForCurrentView(state),
           icon: const Icon(FluentIcons.note_24_regular),
           tooltip: 'הצג הערות אישיות',
         ),
         icon: FluentIcons.note_24_regular,
         tooltip: 'הצג הערות אישיות',
-        onPressed: () {
-          // פתיחת חלונית הצד עם כרטיסיית ההערות (אינדקס 2)
-          setState(() {
-            _sidebarTabIndex = 2; // כרטיסיית ההערות
-          });
-          context.read<TextBookBloc>().add(const ToggleSplitView(true));
-        },
+        onPressed: () => _openPersonalNotesForCurrentView(state),
       ),
 
       // 3) שמור וזכור - סמן כנלמד או הוסף למעקב
@@ -1674,125 +1665,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           ? FluentIcons.text_font_24_regular
           : FluentIcons.text_font_info_24_regular),
       tooltip: state.removeNikud ? 'הצג ניקוד' : 'הסתר ניקוד',
-    );
-  }
-
-  int _getContentMarginLevel(BuildContext context, double textMaxWidth) {
-    if (textMaxWidth < 0) {
-      final level = (-textMaxWidth).toInt();
-      if (level >= 4) {
-        return 2;
-      }
-      if (level >= 2) {
-        return 1;
-      }
-      return 0;
-    }
-
-    if (textMaxWidth == 0) {
-      return 0;
-    }
-
-    final screenWidth = MediaQuery.of(context).size.width;
-    final ratio = (textMaxWidth / screenWidth).clamp(0.0, 1.0);
-
-    if (ratio <= 0.82) {
-      return 2;
-    }
-    if (ratio <= 0.92) {
-      return 1;
-    }
-    return 0;
-  }
-
-  double _getTextMaxWidthByMarginLevel(int level) {
-    switch (level) {
-      case 1:
-        return -2.0; // ~90% מרוחב המסך
-      case 2:
-        return -4.0; // ~80% מרוחב המסך
-      case 0:
-      default:
-        return 0.0; // מלא
-    }
-  }
-
-  String _getContentMarginLabel(int level) {
-    switch (level) {
-      case 1:
-        return 'שוליים בינוניים';
-      case 2:
-        return 'שוליים רחבים';
-      case 0:
-      default:
-        return 'שוליים צרים';
-    }
-  }
-
-  String _getContentMarginTooltip(BuildContext context) {
-    final textMaxWidth = context.read<SettingsBloc>().state.textMaxWidth;
-    final level = _getContentMarginLevel(context, textMaxWidth);
-    return 'רוחב שוליים: ${_getContentMarginLabel(level)}';
-  }
-
-  Widget _buildContentMarginButton(BuildContext context) {
-    return BlocBuilder<SettingsBloc, SettingsState>(
-      buildWhen: (previous, current) =>
-          previous.textMaxWidth != current.textMaxWidth,
-      builder: (context, settingsState) {
-        final selectedLevel =
-            _getContentMarginLevel(context, settingsState.textMaxWidth);
-        final primaryColor = Theme.of(context).colorScheme.primary;
-
-        PopupMenuItem<int> buildItem({
-          required int level,
-          required String title,
-        }) {
-          final isSelected = selectedLevel == level;
-          final style = isSelected ? TextStyle(color: primaryColor) : null;
-
-          return PopupMenuItem<int>(
-            value: level,
-            child: Row(
-              children: [
-                Text(
-                  title,
-                  style: style,
-                  textDirection: TextDirection.rtl,
-                ),
-                if (isSelected) ...[
-                  const Spacer(),
-                  Icon(
-                    FluentIcons.checkmark_24_regular,
-                    size: 16,
-                    color: primaryColor,
-                  ),
-                ],
-              ],
-            ),
-          );
-        }
-
-        return PopupMenuButton<int>(
-          key: _contentMarginMenuKey,
-          tooltip: _getContentMarginTooltip(context),
-          icon: Icon(
-            FluentIcons.text_align_justify_24_regular,
-            color: selectedLevel > 0 ? primaryColor : null,
-          ),
-          position: PopupMenuPosition.under,
-          onSelected: (level) {
-            context
-                .read<SettingsBloc>()
-                .add(UpdateTextMaxWidth(_getTextMaxWidthByMarginLevel(level)));
-          },
-          itemBuilder: (context) => [
-            buildItem(level: 0, title: 'שוליים צרים'),
-            buildItem(level: 1, title: 'שוליים בינוניים'),
-            buildItem(level: 2, title: 'שוליים רחבים'),
-          ],
-        );
-      },
     );
   }
 
@@ -2283,6 +2155,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
               initialSidebarTabIndex: _sidebarTabIndex,
               pageShapeKey: _pageShapeKey,
               pageShapePrintBoundaryKey: _pageShapePrintBoundaryKey,
+              pageShapeSidebarTabNotifier: _pageShapeSidebarTabNotifier,
             ),
           ),
         ),
@@ -2775,6 +2648,13 @@ Future<void> _addNoteFromKeyboard(
         initialContent: draft?.content ?? '',
         initialFormat: draft?.contentFormat ?? PersonalNoteContentFormat.plain,
       ));
+
+  if (state.showPageShapeView) {
+    final viewerState =
+        context.findAncestorStateOfType<_TextBookViewerBlocState>();
+    viewerState?._pageShapeSidebarTabNotifier.value = 1;
+    return;
+  }
 
   // פתח את ה-split view אם הוא סגור
   if (!state.showSplitView) {

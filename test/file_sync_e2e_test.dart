@@ -90,7 +90,7 @@ void main() {
         await Settings.setValue<bool>(SettingsRepository.keyOfflineMode, false);
         await Settings.setValue<bool>(SettingsRepository.keyAutoSync, false);
 
-        MyDatabase.initialize();
+        MyDatabase();
         await SqliteDataProvider.instance.dispose();
 
         expect(await _readDbVersion(workingDbPath), 2);

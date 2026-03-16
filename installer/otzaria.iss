@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "אוצריא"
-#define MyAppVersion "0.9.74"
+#define MyAppVersion "0.9.81"
 #define MyAppPublisher "sivan22"
 #define MyAppURL "https://github.com/Y-PLONI/otzaria"
 #define MyAppExeName "otzaria.exe"
@@ -18,11 +18,10 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
-DefaultDirName=C:\{#MyAppName}
+PrivilegesRequiredOverridesAllowed=dialog
+DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
-; Uncomment the following line to run in non administrative install mode (install for current user only.)
-;PrivilegesRequired=lowest
 OutputDir=.\
 OutputBaseFilename=otzaria-{#MyAppVersion}-windows
 SetupIconFile=white_sketch128x128.ico
@@ -36,22 +35,49 @@ DisableDirPage=no
 [InstallDelete]
 Type: filesandordirs; Name: "{app}\default.isar";
 
+[Dirs]
+Name: "{commonappdata}\{#MyAppName}"; Permissions: users-modify; Check: IsAdminInstallMode
+Name: "{commonappdata}\{#MyAppName}\books"; Permissions: users-modify; Check: IsAdminInstallMode
+Name: "{commonappdata}\{#MyAppName}\index"; Permissions: users-modify; Check: IsAdminInstallMode
+
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+Name: "resetsettings"; Description: "איפוס הגדרות משתמש והסרת התקנות קודמות (מומלץ למעדכנים מגרסה < 0.9.80, שים לב: זה ימחק הערות אישיות!)"; Flags: unchecked
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"; WorkingDir: "{app}"; Parameters: " -sta -WindowStyle Hidden -noprofile -executionpolicy bypass -file uninstall_msix.ps1"; Flags: runhidden waituntilterminated
 Filename: "{app}\{#MyAppExeName}"; Description: "הפעל את {#MyAppName}"; Flags: nowait postinstall skipifsilent 
 
 [Languages]
 Name: "hebrew"; MessagesFile: "compiler:Languages\Hebrew.isl"
 
 [Files]
-Source: "..\build\windows\x64\runner\Release\*"; \
-    Excludes: "*.msix,*.msixbundle,*.appx,*.appxbundle,*.appinstaller"; \
-    DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "uninstall_msix.ps1"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[INI]
+Filename: "{app}\system_install.marker"; Section: "Install"; Key: "Mode"; String: "Admin"; Check: IsAdminInstallMode
+
+[Code]
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  AppDataPath: string;
+begin
+  if CurStep = ssInstall then
+  begin
+    if WizardIsTaskSelected('resetsettings') then
+    begin
+      // Delete previous installation directory (usually in LocalAppData)
+      AppDataPath := ExpandConstant('{localappdata}\אוצריא');
+      if DirExists(AppDataPath) then
+        DelTree(AppDataPath, True, True, True);
+        
+      // Delete old settings and personal notes (in AppData/Roaming)
+      AppDataPath := ExpandConstant('{userappdata}\com.example');
+      if DirExists(AppDataPath) then
+        DelTree(AppDataPath, True, True, True);
+    end;
+  end;
+end;

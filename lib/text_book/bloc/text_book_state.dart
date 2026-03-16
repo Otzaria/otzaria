@@ -110,6 +110,9 @@ class TextBookLoaded extends TextBookState {
   final bool hasDraft;
   final bool hasLinksFile;
 
+  // Caches
+  final Map<int, List<Link>> linksByLine;
+
   // Controllers
   final ItemScrollController scrollController;
   final ItemPositionsListener positionsListener;
@@ -127,6 +130,7 @@ class TextBookLoaded extends TextBookState {
     required this.availableCommentators,
     required this.links,
     this.visibleLinks = const [],
+    required this.linksByLine,
     required this.tableOfContents,
     required this.removeNikud,
     required this.visibleIndices,
@@ -172,6 +176,7 @@ class TextBookLoaded extends TextBookState {
       availableCommentators: const [],
       links: const [],
       visibleLinks: const [],
+      linksByLine: const {},
       tableOfContents: const [],
       removeNikud: false,
       pinLeftPane: Settings.getValue<bool>('key-pin-sidebar') ?? false,
@@ -205,6 +210,7 @@ class TextBookLoaded extends TextBookState {
     List<String>? availableCommentators,
     List<Link>? links,
     List<Link>? visibleLinks,
+    Map<int, List<Link>>? linksByLine,
     List<TocEntry>? tableOfContents,
     bool? removeNikud,
     int? selectedIndex,
@@ -244,6 +250,7 @@ class TextBookLoaded extends TextBookState {
           availableCommentators ?? this.availableCommentators,
       links: links ?? this.links,
       visibleLinks: visibleLinks ?? this.visibleLinks,
+      linksByLine: linksByLine ?? this.linksByLine,
       tableOfContents: tableOfContents ?? this.tableOfContents,
       removeNikud: removeNikud ?? this.removeNikud,
       visibleIndices: visibleIndices ?? this.visibleIndices,

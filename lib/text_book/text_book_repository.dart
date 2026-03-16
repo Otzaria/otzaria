@@ -8,6 +8,7 @@ import 'package:otzaria/utils/docx_to_otzaria.dart';
 import 'package:otzaria/utils/toc_parser.dart';
 import 'dart:io';
 import 'dart:isolate';
+import 'package:otzaria/migration/dao/sqflite/sqlite3_utils.dart';
 
 class TextBookRepository {
   final FileSystemData _fileSystem;
@@ -96,7 +97,7 @@ class TextBookRepository {
     try {
       final db = await repository.database.database;
 
-      final result = await db.rawQuery('''
+      final result = db.select('''
         SELECT 
           sl.lineIndex as sourceLineIndex,
           tl.lineIndex as targetLineIndex,
@@ -109,7 +110,7 @@ class TextBookRepository {
         LEFT JOIN connection_type ct ON l.connectionTypeId = ct.id
         WHERE l.sourceBookId = ?
         ORDER BY sl.lineIndex, tb.orderIndex
-      ''', [dbBook.id]);
+      ''', [dbBook.id]).toMapList();
 
       return result.map((row) {
         final targetTitle = row['targetBookTitle'] as String;

@@ -1,7 +1,5 @@
-import 'dart:io';
-import 'package:sqflite/sqflite.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart' as sqflite_ffi;
 import 'package:path/path.dart' as p;
+import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
 import 'author_dao.dart';
 import 'book_acronym_dao.dart';
@@ -21,18 +19,10 @@ import 'topic_dao.dart';
 import '../sqflite/query_loader.dart';
 
 class MyDatabase {
-  static Database? _database;
+  static sqlite3.Database? _database;
   static String? _customPath;
 
-  /// Initialize the database factory for the appropriate platform.
-  /// This must be called before using any database operations.
-  static void initialize() {
-    // Initialize FFI for desktop platforms
-    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-      sqflite_ffi.sqfliteFfiInit();
-      databaseFactory = sqflite_ffi.databaseFactoryFfi;
-    }
-  }
+  // (no platform initialization required – sqlite3 handles all platforms natively)
 
   // DAOs
   AuthorDao? _authorDao;
@@ -150,72 +140,43 @@ class MyDatabase {
     return instance;
   }
 
-  Future<Database> get database async {
+  Future<sqlite3.Database> get database async {
     if (_database != null) return _database!;
     // Initialize QueryLoader before creating DAOs
     await QueryLoader.initialize();
-    _database = await _initDatabase();
+    _database = _initDatabase();
     _initializeDaos();
     return _database!;
   }
 
-  Future<Database> _initDatabase() async {
+  sqlite3.Database _initDatabase() {
     String path;
 
     if (_customPath != null) {
       // Use the custom path provided
       path = _customPath!;
     } else {
-      // Use the current working directory as the database folder to avoid depending on path_provider.
-      final dbFolder = Directory.current;
-      path = p.join(dbFolder.path, 'db.sqlite');
+      // Use the current working directory as the database folder.
+      final dbFolder = p.current;
+      path = p.join(dbFolder, 'db.sqlite');
     }
 
-    return await openDatabase(
-      path,
-      version: 5, // Incremented version to align book_file/db_meta schema
-      onConfigure: (db) async {
-        // Enable WAL (Write-Ahead Logging) mode for concurrent read/write access.
-        // WAL allows multiple readers and a single writer simultaneously without blocking,
-        // preventing "database locked" errors during startup when multiple components
-        // (library catalog, SeforimRepository, BooksCache, BackgroundSync) access the DB.
-        if (Platform.isAndroid || Platform.isIOS) {
-          await db.rawQuery('PRAGMA journal_mode=WAL');
-        } else if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-          await db.execute('PRAGMA journal_mode=WAL');
-        }
-      },
-      onCreate: _onCreate,
-      onOpen: _onOpen,
-    );
+    final db = sqlite3.sqlite3.open(path);
+
+    // Enable WAL for concurrent read/write access (uniform across all platforms).
+    db.execute('PRAGMA journal_mode=WAL');
+
+    // Ensure schema exists (all scripts use CREATE TABLE/INDEX IF NOT EXISTS).
+    for (final script in _getCreateScripts()) {
+      db.execute(script);
+    }
+
+    return db;
   }
 
-  Future<void> _onOpen(Database db) async {
-    // Ensure all tables exist even when opening an existing database
-    // This handles cases where the schema has been updated
-    final createScripts = _getCreateScripts();
-    for (final script in createScripts) {
-      try {
-        await db.execute(script);
-      } catch (e) {
-        // Ignore errors for tables that already exist
-      }
-    }
-  }
-
-  Future<void> _onCreate(Database db, int version) async {
-    // Execute all table creation scripts from Database.sq
-    final createScripts = _getCreateScripts();
-    for (final script in createScripts) {
-      await db.execute(script);
-    }
-  }
-
-  Future<void> close() async {
-    if (_database != null) {
-      await _database!.close();
-      _database = null;
-    }
+  void close() {
+    _database?.close();
+    _database = null;
   }
 
   void _initializeDaos() {
@@ -369,25 +330,6 @@ class MyDatabase {
       'CREATE INDEX IF NOT EXISTS idx_book_title ON book(title);',
       'CREATE INDEX IF NOT EXISTS idx_book_order ON book(orderIndex);',
       'CREATE INDEX IF NOT EXISTS idx_book_source ON book(sourceId);',
-
-      // Book file table (PDF binary content)
-      '''
-        CREATE TABLE IF NOT EXISTS book_file (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            bookId INTEGER NOT NULL,
-            kind TEXT NOT NULL,
-            data BLOB NOT NULL,
-            size INTEGER NOT NULL,
-            sha256 TEXT NOT NULL,
-            originalRelPath TEXT,
-            createdAt INTEGER NOT NULL,
-            FOREIGN KEY (bookId) REFERENCES book(id) ON DELETE CASCADE
-        );
-        ''',
-      'CREATE INDEX IF NOT EXISTS idx_book_file_book ON book_file(bookId);',
-      'CREATE INDEX IF NOT EXISTS idx_book_file_kind ON book_file(kind);',
-      'CREATE UNIQUE INDEX IF NOT EXISTS uq_book_file_book_kind ON book_file(bookId, kind);',
-      'CREATE UNIQUE INDEX IF NOT EXISTS uq_book_file_kind_sha ON book_file(kind, sha256);',
 
       // Book-publication place junction table
       '''

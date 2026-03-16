@@ -12,7 +12,7 @@ import 'linux_installer.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 
 /// סוג ההתקנה המוגדר בזמן build (אופציונלי)
-/// להגדרה: --dart-define=INSTALL_KIND=msix/exe/zip
+/// להגדרה: --dart-define=INSTALL_KIND=exe/zip
 const _kInstallKind =
     String.fromEnvironment('INSTALL_KIND', defaultValue: 'auto');
 
@@ -23,15 +23,11 @@ String _preferredWindowsFormat() {
   if (!Platform.isWindows) return 'unknown';
 
   // אם הוגדר סוג התקנה בזמן build - משתמש בו
-  if (_kInstallKind != 'auto') return _kInstallKind; // 'msix' | 'exe' | 'zip'
+  if (_kInstallKind != 'auto') return _kInstallKind; // 'exe' | 'zip'
 
   try {
     // זיהוי אוטומטי לפי נתיב הקובץ
     final executablePath = Platform.resolvedExecutable.toLowerCase();
-
-    if (executablePath.contains('\\windowsapps\\')) {
-      return 'msix'; // התקנת MSIX
-    }
 
     if (executablePath.contains('\\program files\\') ||
         executablePath.contains('\\program files (x86)\\')) {
@@ -187,10 +183,7 @@ class MyUpdatWidget extends StatelessWidget {
                   final url = a["browser_download_url"] as String;
                   final isWin = name.contains('win') ||
                       name.contains('windows') ||
-                      name.endsWith('.exe') ||
-                      name.endsWith('.msix') ||
-                      name.endsWith('.msixbundle') ||
-                      name.endsWith('.appinstaller');
+                      name.endsWith('.exe');
                   if (!isWin) continue;
 
                   // דלג על קובץ full - מיועד להתקנה ראשונית בלבד
@@ -214,46 +207,12 @@ class MyUpdatWidget extends StatelessWidget {
 
               if (platform == 'windows') {
                 // בחירת סדר עדיפות לפי סוג ההתקנה
-                // חשוב: משתמש MSIX חייב לקבל MSIX, לא EXE!
                 final pref = _preferredWindowsFormat();
                 final order = switch (pref) {
-                  'msix' => [
-                      '.appinstaller', // מנהל עדכונים אוטומטיים
-                      '.msixbundle',
-                      '.msix',
-                      // בכוונה לא כולל .exe ו-.zip למשתמשי MSIX
-                    ],
-                  'exe' => [
-                      '.exe',
-                      // אפשר fallback ל-MSIX אם אין EXE
-                      '.msixbundle',
-                      '.msix',
-                      '.appinstaller',
-                      '.zip'
-                    ],
-                  'zip' => [
-                      '.zip',
-                      '.exe',
-                      '.msixbundle',
-                      '.msix',
-                      '.appinstaller'
-                    ],
-                  _ => [
-                      '.exe',
-                      '.msixbundle',
-                      '.msix',
-                      '.appinstaller',
-                      '.zip'
-                    ],
+                  'zip' => ['.zip', '.exe'],
+                  _ => ['.exe', '.zip'],
                 };
-                // משתמשי MSIX לא יכולים להשתמש ב-ZIP כ-fallback
-                assetUrl = pickWindows(order, allowZipFallback: pref != 'msix');
-
-                // אם זיהינו MSIX אבל לא מצאנו קובץ MSIX - זרוק שגיאה ברורה
-                if (pref == 'msix' && assetUrl == null) {
-                  throw Exception(
-                      'MSIX installation detected but no MSIX asset found in this release');
-                }
+                assetUrl = pickWindows(order, allowZipFallback: true);
               } else if (platform == 'macos') {
                 // macOS - חיפוש קובץ zip
                 for (final a in assets) {

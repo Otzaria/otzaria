@@ -37,7 +37,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     required TextBookInitial initialState,
     required this.scrollController,
     required this.positionsListener,
-  })  : // [EDITING DISABLED] _overridesRepository = overridesRepository,
+  }) : // [EDITING DISABLED] _overridesRepository = overridesRepository,
         super(initialState) {
     on<LoadContent>(_onLoadContent);
     on<UpdateFontSize>(_onUpdateFontSize);
@@ -218,6 +218,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         book: book,
         content: content.split('\n'),
         links: emptyLinks,
+        linksByLine: const {},
         availableCommentators: existingAvailableCommentators,
         tableOfContents: tableOfContents,
         fontSize: event.fontSize,
@@ -262,11 +263,16 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
       // העשרת heCategories ברקע (אם חסר)
       _enrichHeCategoriesInBackground(book);
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('Error loading textbook: $e\n$st');
       if (state is TextBookInitial) {
         final initial = state as TextBookInitial;
         emit(TextBookError(e.toString(), initial.book, initial.index,
             initial.showLeftPane, initial.commentators));
+      } else if (state is TextBookLoading) {
+        final loading = state as TextBookLoading;
+        emit(TextBookError(e.toString(), loading.book, loading.index,
+            loading.showLeftPane, loading.commentators));
       } else if (state is TextBookLoaded && event.preserveState) {
         final current = state as TextBookLoaded;
         emit(TextBookError(
@@ -930,6 +936,17 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       final currentState = state as TextBookLoaded;
       final links = event.links.cast<Link>();
 
+      // Build linksByLine map for O(1) lookups
+      final Map<int, List<Link>> linksByLine = {};
+      for (final link in links) {
+        final list = linksByLine[link.index1];
+        if (list == null) {
+          linksByLine[link.index1] = [link];
+        } else {
+          list.add(link);
+        }
+      }
+
       // Calculate visible links
       final visibleLinks = _getVisibleLinks(
         links: links,
@@ -939,6 +956,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
       emit(currentState.copyWith(
         links: links,
+        linksByLine: linksByLine,
         visibleLinks: visibleLinks,
       ));
     }

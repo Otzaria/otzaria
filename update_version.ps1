@@ -17,11 +17,7 @@ if (-not (Test-Path $VersionFile)) {
 $versionData = Get-Content $VersionFile | ConvertFrom-Json
 $newVersion = $versionData.version
 
-# Create different version formats for different files
-$msixVersion = "$newVersion.0"  # MSIX needs 4 parts
-
 Write-Host "Updating version to: $newVersion"
-Write-Host "MSIX version will be: $msixVersion"
 
 # Update .gitignore (lines 63-64)
 $gitignoreContent = Get-Content ".gitignore"
@@ -39,9 +35,6 @@ Write-Host "Updated .gitignore"
 # Update pubspec.yaml (lines 13 and 39)
 $pubspecContent = Get-Content "pubspec.yaml"
 for ($i = 0; $i -lt $pubspecContent.Length; $i++) {
-    if ($pubspecContent[$i] -match "^\s*msix_version:\s*") {
-        $pubspecContent[$i] = "  msix_version: $msixVersion"
-    }
     if ($pubspecContent[$i] -match "^\s*version:\s*") {
         $pubspecContent[$i] = "version: $newVersion"
     }

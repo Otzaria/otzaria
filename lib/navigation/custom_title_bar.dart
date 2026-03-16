@@ -476,22 +476,21 @@ class _CustomTitleBarState extends State<CustomTitleBar>
   /// בונה אייקון הצמדה inline עם hover state מהטאב
   Widget _buildPinIconInline(
       BuildContext context, OpenedTab tab, bool isHovered) {
-    // אם הטאב לא מוצמד ואין hover, לא מציגים כלום
-    if (!tab.isPinned && !isHovered) {
-      return const SizedBox.shrink();
-    }
-
     return GestureDetector(
       onTap: () => context.read<TabsBloc>().add(TogglePinTab(tab)),
       child: Padding(
-        padding: const EdgeInsets.only(left: 4.0),
+        padding: const EdgeInsets.only(right: 1.0),
         child: Tooltip(
           message: tab.isPinned ? 'בטל הצמדה' : 'הצמד כרטיסיה',
-          child: Icon(
-            tab.isPinned
-                ? FluentIcons.pin_24_filled
-                : FluentIcons.pin_24_regular,
-            size: 14,
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 150),
+            opacity: (tab.isPinned || isHovered) ? 1.0 : 0.0,
+            child: Icon(
+              tab.isPinned
+                  ? FluentIcons.pin_24_filled
+                  : FluentIcons.pin_24_regular,
+              size: 14,
+            ),
           ),
         ),
       ),
@@ -675,34 +674,34 @@ class _CustomTitleBarState extends State<CustomTitleBar>
         contextMenu: ContextMenu(
           // ... תפריט ההקשר נשאר בדיוק כפי שהיה ...
           maxHeight: 400,
-          entries: <ContextMenuEntry>[
-            MenuItem(
+          entries: <ContextMenuEntry<Object>>[
+            MenuItem<Object>(
               label: Text(tab.isPinned ? 'בטל הצמדת כרטיסיה' : 'הצמד כרטיסיה'),
               onSelected: (_) =>
                   context.read<TabsBloc>().add(TogglePinTab(tab)),
             ),
-            MenuItem(
+            MenuItem<Object>(
                 label: const Text('סגור'),
                 onSelected: (_) => closeTab(tab, context)),
-            MenuItem(
+            MenuItem<Object>(
                 label: const Text('סגור הכל'),
                 onSelected: (_) => closeAllTabs(state, context)),
-            MenuItem(
+            MenuItem<Object>(
               label: const Text('סגור את האחרים'),
               onSelected: (_) => closeAllTabsButCurrent(state, context),
             ),
-            MenuItem(
+            MenuItem<Object>(
               label: const Text('שיכפול'),
               onSelected: (_) => context.read<TabsBloc>().add(CloneTab(tab)),
             ),
             const MenuDivider(),
             if (tab is! CombinedTab)
               if (state.tabs.length > 1)
-                MenuItem.submenu(
+                MenuItem<Object>.submenu(
                   label: const Text('הצג לצד'),
                   items: state.tabs
                       .where((t) => t != tab && t is! CombinedTab)
-                      .map((otherTab) => MenuItem(
+                      .map((otherTab) => MenuItem<Object>(
                             label: Text(otherTab.title),
                             onSelected: (_) {
                               context.read<TabsBloc>().add(
@@ -716,25 +715,25 @@ class _CustomTitleBarState extends State<CustomTitleBar>
                       .toList(),
                 )
               else
-                MenuItem(
+                MenuItem<Object>(
                   label: const Text('הצג לצד'),
                   enabled: false,
                   onSelected: (_) {},
                 ),
             if (tab is CombinedTab) ...[
-              MenuItem(
+              MenuItem<Object>(
                 label: const Text('החלף צדדים'),
                 onSelected: (_) =>
                     context.read<TabsBloc>().add(const SwapSideBySideTabs()),
               ),
-              MenuItem(
+              MenuItem<Object>(
                 label: const Text('חזרה לתצוגה רגילה'),
                 onSelected: (_) =>
                     context.read<TabsBloc>().add(const DisableSideBySideMode()),
               ),
             ],
             const MenuDivider(),
-            MenuItem.submenu(
+            MenuItem<Object>.submenu(
               label: const Text('כרטיסיות פתוחות '),
               items: _getMenuItems(state.tabs, context),
             ),
@@ -806,7 +805,7 @@ class _CustomTitleBarState extends State<CustomTitleBar>
   }
 
   /// בונה פריט תפריט להעברת טאב לשולחן עבודה אחר
-  ContextMenuEntry _buildMoveToWorkspaceMenuItem(
+  ContextMenuEntry<Object> _buildMoveToWorkspaceMenuItem(
       BuildContext context, OpenedTab tab) {
     final workspaceState = context.read<WorkspaceBloc>().state;
 
@@ -817,7 +816,7 @@ class _CustomTitleBarState extends State<CustomTitleBar>
 
     // אם אין שולחנות עבודה אחרים, מציג פריט מושבת
     if (otherWorkspaces.isEmpty) {
-      return MenuItem(
+      return MenuItem<Object>(
         label: const Text('העבר לשולחן עבודה'),
         enabled: false,
         onSelected: (_) {},
@@ -825,10 +824,10 @@ class _CustomTitleBarState extends State<CustomTitleBar>
     }
 
     // בונה תת-תפריט עם כל שולחנות העבודה האחרים
-    return MenuItem.submenu(
+    return MenuItem<Object>.submenu(
       label: const Text('העבר לשולחן עבודה'),
       items: otherWorkspaces.map((workspace) {
-        return MenuItem(
+        return MenuItem<Object>(
           label: Text(workspace.name),
           onSelected: (_) {
             _moveTabToWorkspace(context, tab, workspace.id);
@@ -871,14 +870,14 @@ class _CustomTitleBarState extends State<CustomTitleBar>
     UiSnack.show('הכרטיסיה הועברה לשולחן העבודה "${targetWorkspace.name}"');
   }
 
-  List<ContextMenuEntry> _getMenuItems(
+  List<ContextMenuEntry<Object>> _getMenuItems(
     List<OpenedTab> tabs,
     BuildContext context,
   ) {
     final sortedTabs = [...tabs]..sort((a, b) => a.title.compareTo(b.title));
 
     return sortedTabs.map((tab) {
-      return MenuItem(
+      return MenuItem<Object>(
         // חשוב: נותן רוחב מינימלי כדי שהשורה לא תהיה "חבילה" ממורכזת
         constraints: const BoxConstraints(minWidth: 280, minHeight: 32),
 

@@ -109,16 +109,15 @@ jobs:
           if (-not $relDir) { throw 'Release directory not found' }
           Compress-Archive -Path "$relDir\runner\Release\*" -DestinationPath otzaria-windows.zip
 
-      - name: Build MSIX package
-        shell: pwsh
-        run: |
-          dart run msix:create --install-certificate false
-
       - name: Check if commit message is a version tag
         id: check_version
         shell: pwsh
         run: |
           $commitMessage = "${{ github.event.head_commit.message }}"
+          if ([string]::IsNullOrWhiteSpace($commitMessage)) {
+            Write-Host "Commit message not available in event payload; using checked-out HEAD commit message instead"
+            $commitMessage = git log -1 --pretty=%B
+          }
           $commitMessage = $commitMessage.Split([Environment]::NewLine)[0].Trim()
           Write-Host "Commit message: $commitMessage"
           
@@ -240,6 +239,9 @@ jobs:
           if ("${{ steps.check_version.outputs.is_version }}" -eq "true") {
             Write-Host "Building FULL installer with library and VC++ Redistributable (version tag detected)..."
             & "$env:ISCC" installer\otzaria_full.iss
+            if ($LASTEXITCODE -ne 0) {
+              throw "FULL installer build failed"
+            }
             
             # ניקוי קבצי הספרייה והחולץ לאחר בניית ה-FULL installer
             Write-Host "Cleaning up bundled DB assets to free disk space..."
@@ -259,9 +261,15 @@ jobs:
             
             Write-Host "Building REGULAR installer (without VC++ Redistributable)..."
             & "$env:ISCC" installer\otzaria.iss
+            if ($LASTEXITCODE -ne 0) {
+              throw "Regular installer build failed"
+            }
           } else {
             Write-Host "Building regular installer only (not a version tag)..."
             & "$env:ISCC" installer\otzaria.iss
+            if ($LASTEXITCODE -ne 0) {
+              throw "Regular installer build failed"
+            }
           }
 
       - name: Upload Windows installer
@@ -276,12 +284,6 @@ jobs:
           name: otzaria-windows-zip
           path: otzaria-windows.zip
 
-      - name: Upload Windows MSIX
-        uses: actions/upload-artifact@v4
-        with:
-          name: otzaria.msix
-          path: build/windows/x64/runner/release/*.msix
-
   build_linux:
     if: github.event_name != 'release' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
@@ -291,6 +293,24 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
+
+      - name: Check if commit message is a version tag
+        id: check_version
+        shell: bash
+        run: |
+          COMMIT_MESSAGE='${{ github.event.head_commit.message }}'
+          if [ -z "$COMMIT_MESSAGE" ]; then
+            echo "Commit message not available in event payload; using checked-out HEAD commit message instead"
+            COMMIT_MESSAGE=$(git log -1 --pretty=%B)
+          fi
+          COMMIT_MESSAGE=$(printf '%s' "$COMMIT_MESSAGE" | head -n 1 | xargs)
+          echo "Commit message: $COMMIT_MESSAGE"
+
+          if printf '%s' "$COMMIT_MESSAGE" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "is_version=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_version=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -340,12 +360,22 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y \
             build-essential ninja-build libgtk-3-dev libblkid1 liblzma5 \
-            clang cmake git pkg-config liblzma-dev rpm patchelf curl xz-utils \
+            clang cmake git pkg-config liblzma-dev rpm patchelf curl xz-utils zstd \
             libcurl4-openssl-dev
           # Fallback אם מסיבה כלשהי cargo לא קיים (למשל כשל זמני ב-rustup)
           if ! command -v cargo >/dev/null 2>&1; then
             sudo apt-get install -y rustc cargo
           fi
+
+      - name: Download library assets for Linux FULL bundle (version tags only)
+        if: steps.check_version.outputs.is_version == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p full_installer/library_db
+          curl -L --fail https://github.com/Otzaria/SeforimLibrary/releases/latest/download/seforim.db.zst -o full_installer/library_db/seforim.db.zst
+          curl -L --fail https://github.com/Otzaria/otzar-HB_catalog/releases/latest/download/otzar-HB_catalog.db.zst -o full_installer/library_db/otzar-HB_catalog.db.zst
+          curl -L --fail https://github.com/Otzaria/otzaria-library/releases/latest/download/talmud_bavli_latest.tar.zst -o full_installer/library_db/talmud_bavli_latest.tar.zst
       
       - name: Install flutter_distributor
         run: dart pub global activate flutter_distributor
@@ -481,6 +511,44 @@ jobs:
           name: otzaria-linux-raw
           path: linux-build/*
 
+      - name: Create Linux FULL portable bundle
+        if: steps.check_version.outputs.is_version == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUNDLE_ROOT="full_installer/otzaria-linux-full"
+          rm -rf "$BUNDLE_ROOT"
+          mkdir -p "$BUNDLE_ROOT/app" "$BUNDLE_ROOT/אוצריא"
+
+          cp -r linux-build/. "$BUNDLE_ROOT/app/"
+          zstd -d -c --long=31 --memory=2048MB full_installer/library_db/seforim.db.zst > "$BUNDLE_ROOT/אוצריא/seforim.db"
+          zstd -d -c --long=31 --memory=2048MB full_installer/library_db/otzar-HB_catalog.db.zst > "$BUNDLE_ROOT/אוצריא/otzar-HB_catalog.db"
+          zstd -d -c --long=31 --memory=2048MB full_installer/library_db/talmud_bavli_latest.tar.zst | tar -xf - -C "$BUNDLE_ROOT/אוצריא"
+
+          cat > "$BUNDLE_ROOT/run-otzaria.sh" << 'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          cd "$(dirname "$0")"
+          exec ./app/otzaria
+          EOF
+          chmod +x "$BUNDLE_ROOT/run-otzaria.sh"
+
+          cat > "$BUNDLE_ROOT/README.txt" << 'EOF'
+          Otzaria Linux FULL bundle
+
+          This portable bundle includes the app and the bundled library.
+          Start the app using ./run-otzaria.sh so the app can detect the bundled library folder.
+          EOF
+
+          tar -czf otzaria-linux-full.tar.gz -C full_installer otzaria-linux-full
+
+      - name: Upload Linux FULL bundle
+        if: steps.check_version.outputs.is_version == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: otzaria-linux-full
+          path: otzaria-linux-full.tar.gz
+
   build_android:
     if: github.event_name != 'release' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
@@ -490,6 +558,24 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
+
+      - name: Check if commit message is a version tag
+        id: check_version
+        shell: bash
+        run: |
+          COMMIT_MESSAGE='${{ github.event.head_commit.message }}'
+          if [ -z "$COMMIT_MESSAGE" ]; then
+            echo "Commit message not available in event payload; using checked-out HEAD commit message instead"
+            COMMIT_MESSAGE=$(git log -1 --pretty=%B)
+          fi
+          COMMIT_MESSAGE=$(printf '%s' "$COMMIT_MESSAGE" | head -n 1 | xargs)
+          echo "Commit message: $COMMIT_MESSAGE"
+
+          if printf '%s' "$COMMIT_MESSAGE" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "is_version=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_version=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Free up disk space
         run: |
@@ -653,6 +739,16 @@ jobs:
           if [ ! -d "${ANDROID_SDK_ROOT}/build-tools/36.0.0" ]; then
             ${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager --install "build-tools;36.0.0"
           fi
+
+      - name: Download library assets for Android FULL bundle (version tags only)
+        if: steps.check_version.outputs.is_version == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p full_installer/library_db
+          curl -L --fail https://github.com/Otzaria/SeforimLibrary/releases/latest/download/seforim.db.zst -o full_installer/library_db/seforim.db.zst
+          curl -L --fail https://github.com/Otzaria/otzar-HB_catalog/releases/latest/download/otzar-HB_catalog.db.zst -o full_installer/library_db/otzar-HB_catalog.db.zst
+          curl -L --fail https://github.com/Otzaria/otzaria-library/releases/latest/download/talmud_bavli_latest.tar.zst -o full_installer/library_db/talmud_bavli_latest.tar.zst
       
       - name: Build Android APK
         env:
@@ -674,6 +770,33 @@ jobs:
         with:
           name: otzaria-android.apk
           path: build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Create Android FULL bundle
+        if: steps.check_version.outputs.is_version == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUNDLE_ROOT="full_installer/otzaria-android-full"
+          rm -rf "$BUNDLE_ROOT"
+          mkdir -p "$BUNDLE_ROOT/library_db"
+          cp build/app/outputs/flutter-apk/app-release.apk "$BUNDLE_ROOT/otzaria-android.apk"
+          cp full_installer/library_db/* "$BUNDLE_ROOT/library_db/"
+          cat > "$BUNDLE_ROOT/README.txt" << 'EOF'
+          Otzaria Android FULL bundle
+
+          This bundle includes the APK and the offline library payload.
+          The APK itself cannot preinstall external library files automatically.
+          Use this bundle when distributing the APK together with the library payload.
+          EOF
+          cd full_installer
+          zip -r ../otzaria-android-full.zip otzaria-android-full
+
+      - name: Upload Android FULL bundle
+        if: steps.check_version.outputs.is_version == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: otzaria-android-full
+          path: otzaria-android-full.zip
       
       - name: Final cleanup
         if: always()
@@ -693,6 +816,24 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
+
+      - name: Check if commit message is a version tag
+        id: check_version
+        shell: bash
+        run: |
+          COMMIT_MESSAGE='${{ github.event.head_commit.message }}'
+          if [ -z "$COMMIT_MESSAGE" ]; then
+            echo "Commit message not available in event payload; using checked-out HEAD commit message instead"
+            COMMIT_MESSAGE=$(git log -1 --pretty=%B)
+          fi
+          COMMIT_MESSAGE=$(printf '%s' "$COMMIT_MESSAGE" | head -n 1 | xargs)
+          echo "Commit message: $COMMIT_MESSAGE"
+
+          if printf '%s' "$COMMIT_MESSAGE" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "is_version=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_version=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -745,6 +886,16 @@ jobs:
           # Build Universal Binary that supports both Intel (x86_64) and Apple Silicon (arm64)
           flutter build macos --release
 
+      - name: Download library assets for macOS FULL bundle (version tags only)
+        if: steps.check_version.outputs.is_version == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p full_installer/library_db
+          curl -L --fail https://github.com/Otzaria/SeforimLibrary/releases/latest/download/seforim.db.zst -o full_installer/library_db/seforim.db.zst
+          curl -L --fail https://github.com/Otzaria/otzar-HB_catalog/releases/latest/download/otzar-HB_catalog.db.zst -o full_installer/library_db/otzar-HB_catalog.db.zst
+          curl -L --fail https://github.com/Otzaria/otzaria-library/releases/latest/download/talmud_bavli_latest.tar.zst -o full_installer/library_db/talmud_bavli_latest.tar.zst
+
       - name: Verify Universal Binary
         run: |
           APP_PATH="build/macos/Build/Products/Release/otzaria.app/Contents/MacOS/otzaria"
@@ -782,11 +933,54 @@ jobs:
             "${APP_PATH}" \
             || hdiutil create -volname "Otzaria" -srcfolder "${APP_PATH}" -ov -format UDZO "${DMG_NAME}"
 
+      - name: Create macOS FULL portable bundle
+        if: steps.check_version.outputs.is_version == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v zstd &> /dev/null; then
+            brew install zstd
+          fi
+
+          BUNDLE_ROOT="full_installer/otzaria-macos-full"
+          rm -rf "$BUNDLE_ROOT"
+          mkdir -p "$BUNDLE_ROOT/אוצריא"
+
+          cp -R build/macos/Build/Products/Release/otzaria.app "$BUNDLE_ROOT/otzaria.app"
+          zstd -d -c --long=31 --memory=2048MB full_installer/library_db/seforim.db.zst > "$BUNDLE_ROOT/אוצריא/seforim.db"
+          zstd -d -c --long=31 --memory=2048MB full_installer/library_db/otzar-HB_catalog.db.zst > "$BUNDLE_ROOT/אוצריא/otzar-HB_catalog.db"
+          zstd -d -c --long=31 --memory=2048MB full_installer/library_db/talmud_bavli_latest.tar.zst | tar -xf - -C "$BUNDLE_ROOT/אוצריא"
+
+          cat > "$BUNDLE_ROOT/Run Otzaria.command" << 'EOF'
+          #!/bin/bash
+          set -euo pipefail
+          cd "$(dirname "$0")"
+          exec "./otzaria.app/Contents/MacOS/otzaria"
+          EOF
+          chmod +x "$BUNDLE_ROOT/Run Otzaria.command"
+
+          cat > "$BUNDLE_ROOT/README.txt" << 'EOF'
+          Otzaria macOS FULL bundle
+
+          This portable bundle includes the app and the bundled library.
+          Start the app using Run Otzaria.command so the app can detect the bundled library folder.
+          EOF
+
+          ditto -c -k --sequesterRsrc --keepParent "$BUNDLE_ROOT" otzaria-macos-full.zip
+
       - name: Upload macOS DMG
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: otzaria-macos.dmg
           path: otzaria-macos.dmg
+
+      - name: Upload macOS FULL bundle
+        if: steps.check_version.outputs.is_version == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: otzaria-macos-full
+          path: otzaria-macos-full.zip
 
   create_release:
     if: "!cancelled() && github.event_name != 'release' && github.event_name != 'pull_request'"
@@ -847,11 +1041,6 @@ jobs:
             cp artifacts/otzaria-windows-zip/*.zip release-files/ || true
           fi
 
-          # Windows MSIX
-          if [ -d "artifacts/otzaria.msix" ]; then
-            cp artifacts/otzaria.msix/*.msix release-files/ || true
-          fi
-
           # Linux DEB package
           if [ -d "artifacts/otzaria-linux-deb" ]; then
             cp artifacts/otzaria-linux-deb/*.deb release-files/ || true
@@ -868,15 +1057,30 @@ jobs:
             zip -r ../../release-files/otzaria-linux-raw.zip *
             cd ../..
           fi
+
+          # Linux FULL bundle
+          if [ -d "artifacts/otzaria-linux-full" ]; then
+            cp artifacts/otzaria-linux-full/*.tar.gz release-files/ || true
+          fi
           
           # Android APK
           if [ -d "artifacts/otzaria-android.apk" ]; then
             cp artifacts/otzaria-android.apk/*.apk release-files/ || true
           fi
+
+          # Android FULL bundle
+          if [ -d "artifacts/otzaria-android-full" ]; then
+            cp artifacts/otzaria-android-full/*.zip release-files/ || true
+          fi
           
           # macOS DMG
           if [ -d "artifacts/otzaria-macos.dmg" ]; then
             cp artifacts/otzaria-macos.dmg/*.dmg release-files/ || true
+          fi
+
+          # macOS FULL bundle
+          if [ -d "artifacts/otzaria-macos-full" ]; then
+            cp artifacts/otzaria-macos-full/*.zip release-files/ || true
           fi
           
           # List files for debugging

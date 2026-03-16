@@ -38,8 +38,8 @@ class AppWindowListener extends WindowListener {
 
     try {
       // ביצוע פעולות הניקוי
-      await MyDatabase().close();
-      await SqliteDataProvider.instance.dispose();
+      MyDatabase().close();
+      SqliteDataProvider.instance.dispose();
       await Sentry.close();
 
       if (!kIsWeb &&

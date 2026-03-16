@@ -44,7 +44,7 @@ class AcronymsCache {
 
     try {
       final db = await repository.database.database;
-      final acrRows = await db.rawQuery(
+      final acrRows = db.select(
         'SELECT bookId, term FROM book_acronym ORDER BY bookId',
       );
 

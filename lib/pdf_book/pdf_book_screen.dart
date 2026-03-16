@@ -45,6 +45,7 @@ import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/widgets/commentary_pane_tooltip.dart';
 import 'package:otzaria/pdf_book/pdf_scrollbar.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
+import 'package:otzaria/models/pdf_headings.dart';
 
 class PdfBookScreen extends StatefulWidget {
   final PdfBookTab tab;
@@ -82,7 +83,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   // גלילה רציפה
   Timer? _scrollTimer;
   LogicalKeyboardKey? _currentScrollKey;
-
 
   // Local UI state that syncs with Bloc
   int _rightPaneInitialTabIndex = 0;
@@ -202,6 +202,22 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     _searchFieldFocusNode.addListener(() {});
     _navigationFieldFocusNode.addListener(() {});
 
+    // טעינת headings וlinks
+    _loadPdfHeadingsAndLinks();
+
+    // טעינת המפרשים הפעילים
+    _loadActiveCommentators();
+
+    // אם ה-PDF כבר טעון, קפוץ לעמוד הנכון
+    if (widget.tab.pdfViewerController.isReady && widget.tab.pageNumber > 1) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (mounted && widget.tab.pdfViewerController.isReady) {
+          await widget.tab.pdfViewerController
+              .goToPage(pageNumber: widget.tab.pageNumber);
+        }
+      });
+    }
+
     if (_currentLeftPaneTabIndex == 1) {
       _searchFieldFocusNode.requestFocus();
     } else {
@@ -245,11 +261,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       }
     };
     widget.tab.showLeftPane.addListener(_showLeftPaneListener);
-
-    // טעינת הגדרות פר-ספר
-    _loadPerBookSettings();
   }
-
 
   Text _buildRtlMenuText(String text) =>
       Text(text, textDirection: TextDirection.rtl);
@@ -316,6 +328,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     } else {
       widget.tab.activeCommentators.add(commentator);
     }
+    _saveActiveCommentators();
     _openCommentaryPane();
   }
 
@@ -326,26 +339,27 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     } else {
       widget.tab.activeCommentators.addAll(commentators);
     }
+    _saveActiveCommentators();
     _openCommentaryPane();
   }
 
-  ctx.ContextMenu _buildPdfContextMenu() {
+  ctx.ContextMenu<Object> _buildPdfContextMenu() {
     final (commentators: relevantCommentators, links: relevantLinks) =
         _getRelevantContent();
 
     return ctx.ContextMenu(
-      entries: [
-        ctx.MenuItem(
+      entries: <ctx.ContextMenuEntry<Object>>[
+        ctx.MenuItem<Object>(
           label: _buildRtlMenuText('חיפוש'),
           icon: const Icon(FluentIcons.search_24_regular),
           onSelected: (_) => _ensureSearchTabIsActive(),
         ),
-        ctx.MenuItem.submenu(
+        ctx.MenuItem<Object>.submenu(
           label: _buildRtlMenuText('מפרשים'),
           icon: const Icon(FluentIcons.book_24_regular),
           enabled: relevantCommentators.isNotEmpty,
-          items: [
-            ctx.MenuItem(
+          items: <ctx.ContextMenuEntry<Object>>[
+            ctx.MenuItem<Object>(
               label: _buildRtlMenuText('הצג את כל המפרשים'),
               icon: relevantCommentators.isNotEmpty &&
                       widget.tab.activeCommentators
@@ -355,8 +369,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
               onSelected: (_) => _toggleAllCommentators(relevantCommentators),
             ),
             if (relevantCommentators.isNotEmpty) const ctx.MenuDivider(),
-            ...relevantCommentators.map(
-              (commentator) => ctx.MenuItem(
+            ...relevantCommentators.map<ctx.ContextMenuEntry<Object>>(
+              (commentator) => ctx.MenuItem<Object>(
                 label: Text(commentator, textDirection: TextDirection.rtl),
                 icon: widget.tab.activeCommentators.contains(commentator)
                     ? const Icon(FluentIcons.checkmark_24_regular)
@@ -366,13 +380,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             ),
           ],
         ),
-        ctx.MenuItem.submenu(
+        ctx.MenuItem<Object>.submenu(
           label: _buildRtlMenuText('קישורים'),
           icon: const Icon(FluentIcons.link_24_regular),
           enabled: relevantLinks.isNotEmpty,
           items: relevantLinks
-              .map(
-                (link) => ctx.MenuItem(
+              .map<ctx.ContextMenuEntry<Object>>(
+                (link) => ctx.MenuItem<Object>(
                   label: Text(link.heRef, textDirection: TextDirection.rtl),
                   onSelected: (_) {
                     openBook(
@@ -485,6 +499,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           totalPages: document.pages.length,
         ));
 
+        // טעינת headings וlinks
+        await _loadPdfHeadingsAndLinks();
+
         // קפיצה לעמוד הנכון - עם המתנה קצרה כדי לוודא שה-controller מוכן
         if (widget.tab.pageNumber > 1) {
           _isJumping = true; // מסמן שאנחנו בתהליך קפיצה
@@ -495,26 +512,53 @@ class _PdfBookScreenState extends State<PdfBookScreen>
               await controller.goToPage(pageNumber: widget.tab.pageNumber);
               // המתנה נוספת לוודא שהקפיצה הסתיימה
               await Future.delayed(const Duration(milliseconds: 200));
+
+              // עדכון currentTextLineNumber אחרי הקפיצה
+              if (mounted) {
+                final jumpedPage = widget.tab.pdfViewerController.pageNumber ??
+                    widget.tab.pageNumber;
+                final jumpedTitle = await refFromPageNumber(jumpedPage,
+                    widget.tab.outline.value ?? [], widget.tab.book.title);
+
+                if (widget.tab.pdfHeadings != null && jumpedTitle.isNotEmpty) {
+                  final lineNumber = widget.tab.pdfHeadings!
+                      .getLineNumberForHeading(jumpedTitle);
+                  if (lineNumber != null) {
+                    widget.tab.currentTextLineNumber = lineNumber;
+                  } else {
+                    widget.tab.currentTextLineNumber = jumpedPage;
+                  }
+                } else {
+                  widget.tab.currentTextLineNumber = jumpedPage;
+                }
+                setState(() {});
+              }
+
               _isJumping = false; // מאפס את ה-flag
               _initialPageNumber = null; // מאפס גם את זה
             } else {
               _isJumping = false;
             }
           });
-        }
+        } else {
+          // אם לא קופצים, עדכן את currentTextLineNumber מיד
+          final currentPage = widget.tab.pdfViewerController.isReady
+              ? (widget.tab.pdfViewerController.pageNumber ?? 1)
+              : widget.tab.pageNumber;
+          final title = await refFromPageNumber(
+              currentPage, widget.tab.outline.value, widget.tab.book.title);
+          widget.tab.currentTitle.value = title;
 
-        final currentPage = widget.tab.pdfViewerController.isReady
-            ? (widget.tab.pdfViewerController.pageNumber ?? 1)
-            : widget.tab.pageNumber;
-        final title = await refFromPageNumber(
-            currentPage, widget.tab.outline.value, widget.tab.book.title);
-        widget.tab.currentTitle.value = title;
-
-        if (widget.tab.pdfHeadings != null && title.isNotEmpty) {
-          final lineNumber =
-              widget.tab.pdfHeadings!.getLineNumberForHeading(title);
-          if (lineNumber != null) {
-            widget.tab.currentTextLineNumber = lineNumber;
+          if (widget.tab.pdfHeadings != null && title.isNotEmpty) {
+            final lineNumber =
+                widget.tab.pdfHeadings!.getLineNumberForHeading(title);
+            if (lineNumber != null) {
+              widget.tab.currentTextLineNumber = lineNumber;
+            } else {
+              widget.tab.currentTextLineNumber = currentPage;
+            }
+          } else {
+            widget.tab.currentTextLineNumber = currentPage;
           }
         }
 
@@ -522,11 +566,22 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         final settingsBloc = context.read<SettingsBloc>();
         final enablePerBookSettings = settingsBloc.state.enablePerBookSettings;
 
+        // קבע את currentPage לשימוש בקוד שלאחר
+        final currentPage = widget.tab.pdfViewerController.isReady
+            ? (widget.tab.pdfViewerController.pageNumber ?? 1)
+            : widget.tab.pageNumber;
+
         bool shouldFitToWidth = true;
         if (enablePerBookSettings) {
           final settings =
               await PdfBookPerBookSettings.load(widget.tab.book.title);
           shouldFitToWidth = settings?.zoom == null;
+
+          // טעינת המפרשים הפעילים
+          if (settings?.activeCommentators != null) {
+            widget.tab.activeCommentators.clear();
+            widget.tab.activeCommentators.addAll(settings!.activeCommentators!);
+          }
         }
 
         if (shouldFitToWidth) {
@@ -624,18 +679,56 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     );
   }
 
-  Future<void> _loadPerBookSettings() async {
+  Future<void> _saveActiveCommentators() async {
+    final settingsBloc = context.read<SettingsBloc>();
+    if (!settingsBloc.state.enablePerBookSettings) return;
+
+    final existingSettings =
+        await PdfBookPerBookSettings.load(widget.tab.book.title);
+    final settings = PdfBookPerBookSettings(
+      zoom: existingSettings?.zoom,
+      activeCommentators: List.from(widget.tab.activeCommentators),
+    );
+    await settings.save(widget.tab.book.title);
+  }
+
+  Future<void> _loadActiveCommentators() async {
     final settingsBloc = context.read<SettingsBloc>();
     if (!settingsBloc.state.enablePerBookSettings) return;
 
     final settings = await PdfBookPerBookSettings.load(widget.tab.book.title);
-    if (settings == null || !mounted) return;
+    if (settings?.activeCommentators != null && mounted) {
+      widget.tab.activeCommentators.clear();
+      widget.tab.activeCommentators.addAll(settings!.activeCommentators!);
+    }
+  }
 
-    if (settings.zoom != null && widget.tab.pdfViewerController.isReady) {
-      widget.tab.pdfViewerController.setZoom(
-        widget.tab.pdfViewerController.centerPosition,
-        settings.zoom!,
-      );
+  Future<void> _loadPdfHeadingsAndLinks() async {
+    try {
+      // טעינת headings מה-DB
+      final headings =
+          await PdfHeadings.loadFromDatabase(widget.tab.book.title);
+      if (headings != null) {
+        widget.tab.pdfHeadings = headings;
+      }
+
+      // טעינת links
+      final library = await DataRepository.instance.library;
+
+      final textBook = library.findBookByTitle(widget.tab.book.title, TextBook);
+
+      if (textBook != null) {
+        if (textBook is TextBook) {
+          final loadedLinks = await textBook.links;
+          widget.tab.links = loadedLinks;
+        }
+      }
+
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (e, stackTrace) {
+      debugPrint('Error loading PDF headings and links: $e\n$stackTrace');
     }
   }
 
@@ -643,7 +736,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   void dispose() {
     _stopContinuousScroll();
     textSearcher?.removeListener(_onTextSearcherUpdated);
-    widget.tab.pdfViewerController.removeListener(_onPdfViewerControllerUpdate);
+    pdfController.removeListener(_onPdfViewerControllerUpdate);
     _leftPaneTabController?.removeListener(_leftPaneTabControllerListener);
     widget.tab.showLeftPane.removeListener(_showLeftPaneListener);
     _leftPaneTabController?.dispose();
@@ -661,6 +754,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
   Future<void> _resetPerBookSettings() async {
     _bloc.add(const pdf_events.ResetPerBookSettings());
+    widget.tab.activeCommentators.clear();
     if (mounted) {
       UiSnack.show('ההגדרות הפר-ספריות אופסו בהצלחה');
     }
@@ -708,6 +802,16 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           if (mounted) {
             setState(() {});
           }
+        } else {
+          widget.tab.currentTextLineNumber = newPage;
+          if (mounted) {
+            setState(() {});
+          }
+        }
+      } else {
+        widget.tab.currentTextLineNumber = newPage;
+        if (mounted) {
+          setState(() {});
         }
       }
     }
@@ -858,8 +962,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                           ),
                           child: Stack(
                             children: [
-                              _buildPdfViewerFromFile(
-                                  widget.tab.book.path),
+                              _buildPdfViewerFromFile(widget.tab.book.path),
                               BlocBuilder<PdfBookBloc, PdfBookState>(
                                 buildWhen: (prev, curr) {
                                   if (prev is PdfBookLoaded &&

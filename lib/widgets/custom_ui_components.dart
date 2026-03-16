@@ -41,12 +41,14 @@ const _kSegmentNarrowLayoutThreshold = 200.0;
 class SingleActionDialog extends StatefulWidget {
   final dynamic title;
   final String content;
+  final Widget? customContent;
   final String confirmText;
 
   const SingleActionDialog({
     super.key,
     required this.title,
     required this.content,
+    this.customContent,
     this.confirmText = 'אישור',
   });
 
@@ -64,7 +66,7 @@ class _SingleActionDialogState extends State<SingleActionDialog>
       onCancel: () => Navigator.of(context).pop(false),
       child: AlertDialog(
         title: widget.title is String ? Text(widget.title) : widget.title,
-        content: Text(widget.content),
+        content: widget.customContent ?? Text(widget.content),
         actions: [
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
@@ -284,13 +286,17 @@ class NeutralActionButton extends StatelessWidget {
 Future<bool?> showSingleActionDialog({
   required BuildContext context,
   required String title,
-  required String content,
+  String content = '',
+  Widget? customContent,
   String confirmText = 'אישור',
 }) =>
     showDialog<bool>(
       context: context,
       builder: (_) => SingleActionDialog(
-          title: title, content: content, confirmText: confirmText),
+          title: title,
+          content: content,
+          customContent: customContent,
+          confirmText: confirmText),
     );
 
 Future<bool?> showTwoActionsDialog({

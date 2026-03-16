@@ -46,6 +46,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
   static const _keyBackupNotes = 'key-backup-notes';
   static const _keyBackupWorkspaces = 'key-backup-workspaces';
   static const _keyBackupShamorZachor = 'key-backup-shamor-zachor';
+  static const _keyBackupUserOverrides = 'key-backup-user-overrides';
   static const _keyAutoBackupFrequency = 'key-auto-backup-frequency';
 
   _BackupMode _selectedBackupMode = _BackupMode.all;
@@ -345,6 +346,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
         includeNotes: _shouldInclude(_keyBackupNotes),
         includeWorkspaces: _shouldInclude(_keyBackupWorkspaces),
         includeShamorZachor: _shouldInclude(_keyBackupShamorZachor),
+        includeUserOverrides: _shouldInclude(_keyBackupUserOverrides),
       );
       if (!mounted) return;
       final file = File(backupPath);
@@ -602,6 +604,13 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                         title: 'שמור וזכור',
                         subtitle: 'ספרים ומעקב לימוד',
                         settingKey: _keyBackupShamorZachor,
+                        onChanged: () => setState(() {}),
+                      ),
+                      _BackupOptionTile(
+                        icon: FluentIcons.document_edit_24_regular,
+                        title: 'הגדרות מתקדמות',
+                        subtitle: 'הגדרות נוספות שדרסת',
+                        settingKey: _keyBackupUserOverrides,
                         onChanged: () => setState(() {}),
                       ),
                     ],

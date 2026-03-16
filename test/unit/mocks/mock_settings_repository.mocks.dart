@@ -367,6 +367,16 @@ class MockSettingsRepository extends _i1.Mock
       ) as _i3.Future<void>);
 
   @override
+  _i3.Future<void> updateAutoSyncCatalogs(bool? value) => (super.noSuchMethod(
+        Invocation.method(
+          #updateAutoSyncCatalogs,
+          [value],
+        ),
+        returnValue: _i3.Future<void>.value(),
+        returnValueForMissingStub: _i3.Future<void>.value(),
+      ) as _i3.Future<void>);
+
+  @override
   _i3.Future<void> updateCalendarNotificationsEnabled(bool? value) =>
       (super.noSuchMethod(
         Invocation.method(

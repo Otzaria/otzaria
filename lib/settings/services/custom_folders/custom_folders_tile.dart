@@ -16,6 +16,7 @@ import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/migration/core/models/category.dart';
 import 'package:otzaria/widgets/zip_extraction_progress_dialog.dart';
+import 'package:otzaria/core/ui_snack.dart';
 
 /// Widget להוספה וניהול תיקיות מותאמות אישית
 class CustomFoldersTile extends StatefulWidget {
@@ -159,102 +160,156 @@ class _CustomFoldersTileState extends State<CustomFoldersTile> {
     }
   }
 
+  /// הסרת תיקייה מהתוכנה.
+  /// מנתק את הקישור של התיקייה מהתוכנה (התוכנה מפסיקה לסרוק אותה).
+  /// שואל את המשתמש אם למחוק גם את הנתונים מה-DB.
+  /// קבצים פיזיים לעולם לא נמחקים.
   Future<void> _removeFolder(CustomFolder folder) async {
-    String dialogContent;
-    if (folder.addToDatabase) {
-      dialogContent = 'האם להסיר את התיקייה "${folder.name}" מהרשימה?\n'
-          'התיקייה תימחק גם ממסד הנתונים.';
-    } else {
-      dialogContent = 'האם להסיר את התיקייה "${folder.name}" מהרשימה?\n'
-          'הקבצים עצמם לא יימחקו.';
-    }
+    debugPrint('[CustomFolders] _removeFolder START: name=${folder.name}, path=${folder.path}, addToDatabase=${folder.addToDatabase}');
 
     final confirmed = await showConfirmationDialog(
       context: context,
       title: 'הסרת תיקייה',
-      content: dialogContent,
-      isDangerous: folder.addToDatabase,
+      content: 'האם להסיר את התיקייה "${folder.name}" מהספרייה?\n'
+          'הקבצים המקוריים לא יימחקו.',
+      isDangerous: false,
     );
 
-    if (confirmed == true) {
-      // אם התיקייה הייתה ב-DB, מחק אותה משם
-      if (folder.addToDatabase) {
-        await _deleteFolderFromDatabase(folder);
-      }
+    if (confirmed != true) {
+      debugPrint('[CustomFolders] _removeFolder CANCELLED by user');
+      return;
+    }
 
-      setState(() {
-        _folders = CustomFoldersManager.removeFolder(_folders, folder.path);
-      });
-      await _saveFolders();
+    // הסרת הקישור מהתוכנה (מפסיקה לסרוק את התיקייה)
+    debugPrint('[CustomFolders] _removeFolder: removing link from settings...');
+    setState(() {
+      _folders = CustomFoldersManager.removeFolder(_folders, folder.path);
+    });
+    await _saveFolders();
+    debugPrint('[CustomFolders] _removeFolder: link removed. Remaining folders: ${_folders.length}');
 
-      // רענון הספרייה
+    if (!mounted) return;
+
+    // שואל אם למחוק גם מה-DB
+    debugPrint('[CustomFolders] _removeFolder: asking user about DB deletion...');
+    final deleteFromDb = await showTwoActionsDialog(
+      context: context,
+      title: 'מחיקה ממסד הנתונים',
+      content: 'התיקייה הוסרה מהרשימה.\n'
+          'האם למחוק גם את הספרים ממסד הנתונים?',
+      cancelText: 'השאר ב-DB',
+      confirmText: 'מחק מ-DB',
+    );
+
+    if (deleteFromDb == true) {
+      debugPrint('[CustomFolders] _removeFolder: user chose DELETE FROM DB');
+      await _deleteFolderFromDatabase(folder);
       if (mounted) {
-        context.read<LibraryBloc>().add(RefreshLibrary());
+        UiSnack.show('התיקייה והספרים נמחקו ממסד הנתונים.');
+      }
+    } else {
+      debugPrint('[CustomFolders] _removeFolder: user chose KEEP IN DB');
+      if (mounted) {
+        UiSnack.show('התיקייה הוסרה. הספרים נשארו במסד הנתונים.');
       }
     }
+
+    // רענון הספרייה
+    debugPrint('[CustomFolders] _removeFolder: refreshing library...');
+    if (mounted) {
+      context.read<LibraryBloc>().add(RefreshLibrary());
+    }
+    debugPrint('[CustomFolders] _removeFolder END');
   }
 
-  /// מחיקת תיקייה מה-DB (בלי שחזור קבצים)
+  /// מחיקת תיקייה מה-DB
   Future<void> _deleteFolderFromDatabase(CustomFolder folder) async {
+    debugPrint('[CustomFolders] _deleteFolderFromDatabase START: ${folder.name}');
     try {
       final sqliteProvider = SqliteDataProvider.instance;
       if (!sqliteProvider.isInitialized) {
+        debugPrint('[CustomFolders] _deleteFolderFromDatabase: initializing SqliteProvider...');
         await sqliteProvider.initialize();
       }
 
       final repository = sqliteProvider.repository;
-      if (repository == null) return;
+      if (repository == null) {
+        debugPrint('[CustomFolders] _deleteFolderFromDatabase: repository is NULL, aborting');
+        return;
+      }
 
       // מצא את קטגוריית "ספרים אישיים"
       final rootCategories = await repository.getRootCategories();
+      debugPrint('[CustomFolders] _deleteFolderFromDatabase: found ${rootCategories.length} root categories');
       Category? personalCategory;
       for (final cat in rootCategories) {
+        debugPrint('[CustomFolders]   root category: id=${cat.id}, title="${cat.title}"');
         if (cat.title == 'ספרים אישיים') {
           personalCategory = cat;
           break;
         }
       }
 
-      if (personalCategory == null) return;
+      if (personalCategory == null) {
+        debugPrint('[CustomFolders] _deleteFolderFromDatabase: "ספרים אישיים" NOT FOUND, aborting');
+        return;
+      }
+      debugPrint('[CustomFolders] _deleteFolderFromDatabase: found "ספרים אישיים" id=${personalCategory.id}');
 
       // מצא את קטגוריית התיקייה
       final folderCategories =
           await repository.getCategoryChildren(personalCategory.id);
+      debugPrint('[CustomFolders] _deleteFolderFromDatabase: ${folderCategories.length} children under "ספרים אישיים"');
       Category? folderCategory;
       for (final cat in folderCategories) {
+        debugPrint('[CustomFolders]   child category: id=${cat.id}, title="${cat.title}"');
         if (cat.title == folder.name) {
           folderCategory = cat;
           break;
         }
       }
 
-      if (folderCategory == null) return;
+      if (folderCategory == null) {
+        debugPrint('[CustomFolders] _deleteFolderFromDatabase: folder category "${folder.name}" NOT FOUND, aborting');
+        return;
+      }
+      debugPrint('[CustomFolders] _deleteFolderFromDatabase: found folder category id=${folderCategory.id}, calling deleteFolderFromDatabase...');
 
       // מחק את התיקייה וכל תוכנה מה-DB
       final syncService = await FileSyncService.getInstance(repository);
       if (syncService != null) {
         await syncService.deleteFolderFromDatabase(
             folderCategory.id, personalCategory.id);
+        debugPrint('[CustomFolders] _deleteFolderFromDatabase: deletion COMPLETE');
+      } else {
+        debugPrint('[CustomFolders] _deleteFolderFromDatabase: syncService is NULL');
       }
-    } catch (e) {
-      debugPrint('Error deleting folder from DB: $e');
+    } catch (e, stackTrace) {
+      debugPrint('[CustomFolders] _deleteFolderFromDatabase ERROR: $e');
+      debugPrint('[CustomFolders] stackTrace: $stackTrace');
     }
   }
 
   Future<void> _toggleAddToDatabase(CustomFolder folder, bool value) async {
+    debugPrint('[CustomFolders] _toggleAddToDatabase: ${folder.name}, newValue=$value (was ${folder.addToDatabase})');
     if (value) {
       // הצגת אזהרה לפני הפעלה
       final confirmed = await showConfirmationDialog(
         context: context,
         title: 'הכנסת תוכן ל-DB',
         content:
-            'שים לב: לאחר הכנסת תוכן התיקייה למסד הנתונים, קבצי הטקסט המקוריים יימחקו.\n\n'
+            'תוכן הספרים יישמר במסד הנתונים.\n'
+            'הקבצים המקוריים יישארו במקום.\n\n'
             'האם להמשיך?',
-        isDangerous: true,
+        isDangerous: false,
       );
 
-      if (confirmed != true) return;
+      if (confirmed != true) {
+        debugPrint('[CustomFolders] _toggleAddToDatabase ON cancelled by user');
+        return;
+      }
 
+      debugPrint('[CustomFolders] _toggleAddToDatabase ON confirmed, saving setting...');
       setState(() {
         _folders = CustomFoldersManager.updateFolderDbSetting(
             _folders, folder.path, value);
@@ -262,96 +317,26 @@ class _CustomFoldersTileState extends State<CustomFoldersTile> {
       await _saveFolders();
 
       // הפעל סנכרון
+      debugPrint('[CustomFolders] _toggleAddToDatabase ON: starting sync...');
       await _syncFolderToDatabase(folder);
     } else {
-      // כיבוי - הצגת אזהרה ושחזור קבצים
-      final confirmed = await showConfirmationDialog(
-        context: context,
-        title: 'הסרת תיקייה מה-DB',
-        content: 'האם להסיר את התיקייה מהמסד הנתונים ולשחזר את הקבצים?\n\n'
-            'הספרים יוחזרו לתיקייה המקורית כקבצי טקסט.',
-        isDangerous: true,
-      );
-
-      if (confirmed != true) return;
-
+      // כיבוי - עדכון הגדרות והפעלת סנכרון כדי לנקות את ה-DB
+      debugPrint('[CustomFolders] _toggleAddToDatabase OFF: saving setting');
       setState(() {
         _folders = CustomFoldersManager.updateFolderDbSetting(
             _folders, folder.path, value);
       });
       await _saveFolders();
 
-      // שחזר קבצים מה-DB
-      await _restoreFolderFromDatabase(folder);
-    }
-  }
+      // הפעל סנכרון כדי להחיל את שינוי הסטטוס על הספרים
+      debugPrint('[CustomFolders] _toggleAddToDatabase OFF: starting sync...');
+      await _syncFolderToDatabase(folder);
 
-  Future<void> _restoreFolderFromDatabase(CustomFolder folder) async {
-    setState(() {
-      _isSyncing = true;
-    });
+      debugPrint('[CustomFolders] _toggleAddToDatabase OFF: done.');
 
-    try {
-      final sqliteProvider = SqliteDataProvider.instance;
-      if (!sqliteProvider.isInitialized) {
-        await sqliteProvider.initialize();
-      }
-
-      final repository = sqliteProvider.repository;
-      if (repository == null) {
-        throw Exception('מסד הנתונים לא זמין');
-      }
-
-      final syncService = await FileSyncService.getInstance(repository);
-      if (syncService == null) {
-        throw Exception('שירות הסנכרון לא זמין');
-      }
-
-      // שחזור קבצים מה-DB
-      final result = await syncService.restoreFolderFromDatabase(
-        folder,
-        onProgress: (progress, message) {
-          debugPrint('Restore progress: $progress - $message');
-        },
-      );
-
-      if (!mounted) return;
-
-      // רענון הספרייה
       if (mounted) {
-        context.read<LibraryBloc>().add(RefreshLibrary());
-      }
-
-      if (!mounted) return;
-
-      if (result.errors.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'השחזור הושלם עם שגיאות: ${result.restoredBooks} ספרים שוחזרו',
-            ),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'השחזור הושלם: ${result.restoredBooks} ספרים שוחזרו',
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('שגיאה בשחזור: $e')),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSyncing = false;
-        });
+        UiSnack.show('תוכן הספרים נסרק ועודכן.\n'
+            'מעתה הספרים ייקראו ישירות מהקבצים.');
       }
     }
   }

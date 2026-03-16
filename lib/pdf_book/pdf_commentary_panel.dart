@@ -15,6 +15,7 @@ import 'package:otzaria/pdf_book/pdf_commentators_selector.dart';
 import 'package:otzaria/pdf_book/pdf_commentary_content.dart';
 import 'package:otzaria/personal_notes/widgets/personal_notes_sidebar.dart';
 import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:otzaria/utils/context_menu_utils.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
@@ -205,22 +206,22 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
   }
 
   /// בניית תפריט הקשר כללי
-  ctx.ContextMenu _buildContextMenu() {
+  ctx.ContextMenu<Object> _buildContextMenu() {
     return ctx.ContextMenu(
-      entries: [
-        ctx.MenuItem(
+      entries: <ctx.ContextMenuEntry<Object>>[
+        ctx.MenuItem<Object>(
           label: const Text('העתק'),
           icon: const Icon(FluentIcons.copy_24_regular),
           enabled: _savedSelectedText != null &&
               _savedSelectedText!.trim().isNotEmpty,
           onSelected: (_) => _copyFormattedText(),
         ),
-        ctx.MenuItem(
+        ctx.MenuItem<Object>(
           label: const Text('העתק את כל הטקסט'),
           icon: const Icon(FluentIcons.document_copy_24_regular),
           onSelected: (_) => _copyAllVisibleText(),
         ),
-        ctx.MenuItem(
+        ctx.MenuItem<Object>(
           label: const Text('בחר את כל הטקסט'),
           icon: const Icon(FluentIcons.select_all_on_24_regular),
           onSelected: (_) =>
@@ -362,8 +363,14 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       },
       child: PdfCommentatorsSelector(
         tab: widget.tab,
-        onChanged: () {
-          // לא צריך setState כאן - זה יקרה ב-onBack
+        onChanged: () async {
+          final settingsBloc = context.read<SettingsBloc>();
+          if (settingsBloc.state.enablePerBookSettings) {
+            final settings = PdfBookPerBookSettings(
+              activeCommentators: List.from(widget.tab.activeCommentators),
+            );
+            await settings.save(widget.tab.book.title);
+          }
         },
       ),
     );
@@ -527,25 +534,12 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                'לא נמצאו מפרשים לדף זה',
-                style: TextStyle(
-                  fontSize: widget.fontSize * 0.9,
-                  color: Colors.grey,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Debug: currentTextLineNumber is null',
-                style: TextStyle(
-                  fontSize: widget.fontSize * 0.7,
-                  color: Colors.red,
-                ),
-              ),
-            ],
+          child: Text(
+            'טוען מפרשים...',
+            style: TextStyle(
+              fontSize: widget.fontSize * 0.9,
+              color: Colors.grey,
+            ),
           ),
         ),
       );
@@ -1052,11 +1046,11 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       builder: (context, snapshot) {
         final bookId = widget.tab.book.title; // תמיד נשתמש בשם הספר המקורי
 
-        debugPrint('Building notes view for bookId: $bookId');
-
         return PersonalNotesSidebar(
           key: ValueKey(bookId),
           bookId: bookId,
+          isPdf: true,
+          visibleLineIndices: _getVisibleLineIndicesForCurrentPage(),
           onNavigateToLine: (lineNumber) {
             // מנסים למצוא את העמוד המתאים למספר השורה
             if (widget.tab.pdfHeadings != null) {
@@ -1092,6 +1086,28 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
           },
         );
       },
+    );
+  }
+
+  List<int>? _getVisibleLineIndicesForCurrentPage() {
+    final currentLine = widget.tab.currentTextLineNumber;
+    if (currentLine == null) return null;
+
+    int endLine = currentLine + 50;
+    if (widget.tab.pdfHeadings != null) {
+      final sortedHeadings = widget.tab.pdfHeadings!.getSortedHeadings();
+      final currentIndex = sortedHeadings.indexWhere(
+        (heading) => heading.value == currentLine,
+      );
+
+      if (currentIndex != -1 && currentIndex < sortedHeadings.length - 1) {
+        endLine = sortedHeadings[currentIndex + 1].value - 1;
+      }
+    }
+
+    return List<int>.generate(
+      endLine - currentLine + 1,
+      (index) => currentLine + index - 1,
     );
   }
 

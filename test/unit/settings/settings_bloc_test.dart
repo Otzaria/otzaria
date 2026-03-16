@@ -60,6 +60,7 @@ void main() {
         'enablePerBookSettings': true,
         'shortcuts': <String, String>{},
         'isOfflineMode': false,
+        'autoSyncCatalogs': true,
         'personalNotesCollapsedByDefault': true,
       };
 
@@ -110,6 +111,8 @@ void main() {
             enablePerBookSettings:
                 mockSettings['enablePerBookSettings'] as bool,
             isOfflineMode: mockSettings['isOfflineMode'] as bool? ?? false,
+            autoSyncCatalogs:
+                mockSettings['autoSyncCatalogs'] as bool? ?? false,
             alignTabsToRight:
                 mockSettings['alignTabsToRight'] as bool? ?? false,
             enableHtmlLinks: mockSettings['enableHtmlLinks'] as bool? ?? true,
@@ -269,6 +272,24 @@ void main() {
         ],
         verify: (_) {
           verify(mockRepository.updateSidebarWidth(newWidth)).called(1);
+        },
+      );
+    });
+
+    group('UpdateAutoSyncCatalogs', () {
+      blocTest<SettingsBloc, SettingsState>(
+        'emits updated state when UpdateAutoSyncCatalogs is added',
+        build: () {
+          when(mockRepository.updateAutoSyncCatalogs(true))
+              .thenAnswer((_) async {});
+          return settingsBloc;
+        },
+        act: (bloc) => bloc.add(const UpdateAutoSyncCatalogs(true)),
+        expect: () => [
+          settingsBloc.state.copyWith(autoSyncCatalogs: true),
+        ],
+        verify: (_) {
+          verify(mockRepository.updateAutoSyncCatalogs(true)).called(1);
         },
       );
     });

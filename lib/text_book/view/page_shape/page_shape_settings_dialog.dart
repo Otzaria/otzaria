@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/text_book/view/page_shape/utils/page_shape_commentary_selection.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
@@ -572,7 +573,7 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
               Row(
                 children: [
                   Icon(
-                    Icons.visibility,
+                    FluentIcons.eye_24_regular,
                     size: 16,
                     color: Theme.of(context)
                         .colorScheme
@@ -611,6 +612,7 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
                     value, (v) => _rightCommentator = v,
                     visibilityKey: 'right'),
                 visibilityKey: 'right',
+                allowRemainingCommentatorsSelection: true,
               ),
               const SizedBox(height: 12),
               _buildCommentatorDropdown(
@@ -782,6 +784,7 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
     required String? value,
     required ValueChanged<String?> onChanged,
     String? visibilityKey,
+    bool allowRemainingCommentatorsSelection = false,
   }) {
     final isVisible = visibilityKey != null
         ? (_columnVisibility[visibilityKey] ?? true)
@@ -818,7 +821,12 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
         ),
         Expanded(
           child: InkWell(
-            onTap: () => _showCommentatorPicker(value, onChanged),
+            onTap: () => _showCommentatorPicker(
+              value,
+              onChanged,
+              allowRemainingCommentatorsSelection:
+                  allowRemainingCommentatorsSelection,
+            ),
             child: InputDecorator(
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
@@ -827,7 +835,8 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
                 suffixIcon: Icon(FluentIcons.chevron_down_24_regular, size: 20),
               ),
               child: Text(
-                value ?? 'ללא מפרש',
+                formatPageShapeCommentatorSelection(value),
+                textDirection: TextDirection.rtl,
                 style: TextStyle(
                   fontSize: 13,
                   color: value == null
@@ -845,6 +854,7 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
   Future<void> _showCommentatorPicker(
     String? currentValue,
     ValueChanged<String?> onChanged,
+    {bool allowRemainingCommentatorsSelection = false}
   ) async {
     if (_isLoadingGroups) {
       return;
@@ -856,6 +866,8 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
         groups: _groups,
         currentValue: currentValue,
         availableCommentators: widget.availableCommentators,
+        allowRemainingCommentatorsSelection:
+            allowRemainingCommentatorsSelection,
       ),
     );
 
@@ -870,11 +882,13 @@ class _CommentatorPickerDialog extends StatefulWidget {
   final List<CommentatorGroup> groups;
   final String? currentValue;
   final List<String> availableCommentators;
+  final bool allowRemainingCommentatorsSelection;
 
   const _CommentatorPickerDialog({
     required this.groups,
     required this.currentValue,
     required this.availableCommentators,
+    this.allowRemainingCommentatorsSelection = false,
   });
 
   @override
@@ -917,6 +931,20 @@ class _CommentatorPickerDialogState extends State<_CommentatorPickerDialog> {
         _filteredGroups = [];
       });
     }
+  }
+
+  bool _shouldShowRemainingOption() {
+    if (!widget.allowRemainingCommentatorsSelection) {
+      return false;
+    }
+
+    final query = _searchController.text.trim();
+    if (query.isEmpty) {
+      return true;
+    }
+
+    return pageShapeRemainingCommentatorsLabel.contains(query) ||
+        'מפרשים נוספים'.contains(query);
   }
 
   @override
@@ -989,57 +1017,83 @@ class _CommentatorPickerDialogState extends State<_CommentatorPickerDialog> {
   }
 
   Widget _buildGroupedList() {
-    return ListView.builder(
-      itemCount: _filteredGroups.length,
-      itemBuilder: (context, groupIndex) {
-        final group = _filteredGroups[groupIndex];
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding:
-                  const EdgeInsets.symmetric(vertical: 10.0, horizontal: 16.0),
-              child: Row(
-                children: [
-                  const Expanded(child: Divider()),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                    child: Text(
-                      group.title,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context)
-                            .colorScheme
-                            .primary
-                            .withValues(alpha: 0.8),
+    return ListView(
+      children: [
+        if (_shouldShowRemainingOption()) _buildRemainingCommentatorsTile(),
+        for (final group in _filteredGroups)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(vertical: 10.0, horizontal: 16.0),
+                child: Row(
+                  children: [
+                    const Expanded(child: Divider()),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                      child: Text(
+                        group.title,
+                        textDirection: TextDirection.rtl,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withValues(alpha: 0.8),
+                        ),
                       ),
                     ),
-                  ),
-                  const Expanded(child: Divider()),
-                ],
+                    const Expanded(child: Divider()),
+                  ],
+                ),
               ),
-            ),
-            ...group.commentators
-                .map((commentator) => _buildCommentatorTile(commentator)),
-          ],
-        );
-      },
+              ...group.commentators
+                  .map((commentator) => _buildCommentatorTile(commentator)),
+            ],
+          ),
+      ],
     );
   }
 
   Widget _buildFilteredList() {
-    if (_filteredCommentators.isEmpty) {
+    if (_filteredCommentators.isEmpty && !_shouldShowRemainingOption()) {
       return const Center(
-        child: Text('לא נמצאו מפרשים'),
+        child: Text(
+          'לא נמצאו מפרשים',
+          textDirection: TextDirection.rtl,
+        ),
       );
     }
 
-    return ListView.builder(
-      itemCount: _filteredCommentators.length,
-      itemBuilder: (context, index) {
-        return _buildCommentatorTile(_filteredCommentators[index]);
-      },
+    return ListView(
+      children: [
+        if (_shouldShowRemainingOption()) _buildRemainingCommentatorsTile(),
+        ..._filteredCommentators
+            .map((commentator) => _buildCommentatorTile(commentator)),
+      ],
+    );
+  }
+
+  Widget _buildRemainingCommentatorsTile() {
+    final isSelected =
+        widget.currentValue == pageShapeRemainingCommentatorsValue;
+
+    return ListTile(
+      title: const Text(
+        pageShapeRemainingCommentatorsLabel,
+        textDirection: TextDirection.rtl,
+      ),
+      subtitle: const Text(
+        'כל המפרשים שלא שובצו בחלוניות האחרות',
+        textDirection: TextDirection.rtl,
+      ),
+      selected: isSelected,
+      trailing:
+          isSelected ? const Icon(FluentIcons.checkmark_24_regular) : null,
+      onTap: () =>
+          Navigator.of(context).pop(pageShapeRemainingCommentatorsValue),
     );
   }
 
@@ -1047,7 +1101,10 @@ class _CommentatorPickerDialogState extends State<_CommentatorPickerDialog> {
     final isSelected = commentator == widget.currentValue;
 
     return ListTile(
-      title: Text(commentator),
+      title: Text(
+        commentator,
+        textDirection: TextDirection.rtl,
+      ),
       selected: isSelected,
       trailing:
           isSelected ? const Icon(FluentIcons.checkmark_24_regular) : null,

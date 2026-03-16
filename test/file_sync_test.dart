@@ -6,12 +6,10 @@ import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/file_sync/file_sync_repository.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as path;
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:sqlite3/sqlite3.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  sqfliteFfiInit();
-  databaseFactory = databaseFactoryFfi;
 
   group('DiffReleaseAsset', () {
     test('parses DIFF asset names from GitHub release assets', () {
@@ -194,23 +192,18 @@ UPDATE db_meta SET value='value;still-value' WHERE key='note';
         DatabaseConstants.otzariaFolderName,
       );
 
-      final db = await openDatabase(
-        DatabaseConstants.getDatabasePath(),
-        version: 1,
-        onCreate: (db, version) async {
-          await db.execute('''
+      final db = sqlite3.open(DatabaseConstants.getDatabasePath());
+      db.execute('''
             CREATE TABLE db_meta (
               key TEXT PRIMARY KEY,
               value TEXT NOT NULL
             )
           ''');
-        },
+      db.execute(
+        'INSERT INTO db_meta (key, value) VALUES (?, ?)',
+        ['content_version_int', '3'],
       );
-      await db.insert('db_meta', {
-        'key': 'content_version_int',
-        'value': '3',
-      });
-      await db.close();
+      db.close();
     });
 
     tearDown(() async {

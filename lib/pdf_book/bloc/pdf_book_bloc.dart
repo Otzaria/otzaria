@@ -670,6 +670,7 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
 
     final settings = PdfBookPerBookSettings(
       zoom: pdfController.value.zoom,
+      activeCommentators: List.from(tab.activeCommentators),
     );
 
     await settings.save(current.book.title);

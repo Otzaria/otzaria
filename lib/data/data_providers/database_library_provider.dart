@@ -1,11 +1,12 @@
 import 'dart:io';
 import 'dart:isolate';
 import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
-import 'package:sqflite/sqflite.dart' as sqflite;
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/book_composite_key.dart';
 import 'package:otzaria/data/data_providers/library_provider.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
+import 'package:otzaria/migration/dao/sqflite/sqlite3_utils.dart';
+import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
@@ -124,10 +125,9 @@ class DatabaseLibraryProvider implements LibraryProvider {
       }
       final targetCategory =
           titleToSubCategory[title] ?? orphanCategory ?? category;
-      final targetCategoryId =
-          titleToSubCategory.containsKey(title)
-              ? targetCategory.title.hashCode
-              : DatabaseConstants.talmudBavliFolderName.hashCode;
+      final targetCategoryId = titleToSubCategory.containsKey(title)
+          ? targetCategory.title.hashCode
+          : DatabaseConstants.talmudBavliFolderName.hashCode;
 
       final bookMeta = metadata[title];
       final matchingTextBook = targetCategory.books
@@ -596,7 +596,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
 
   /// Private helper for database operations to reduce boilerplate
   Future<T> _dbOperation<T>(
-    Future<T> Function(sqflite.Database db) operation,
+    Future<T> Function(sqlite3.Database db) operation,
     T defaultValue,
     String errorContext,
   ) async {
@@ -645,12 +645,9 @@ class DatabaseLibraryProvider implements LibraryProvider {
     late final List<Map<String, dynamic>> allCatRows;
 
     final db = await repository.database.database;
-    await db.transaction((txn) async {
-      allDbBooks = await repository.database.bookDao.getAllBooksMinimalInTxn(
-        txn,
-      );
-      allCatRows =
-          await repository.database.categoryDao.getAllCategoryRowsInTxn(txn);
+    withTransaction(db, () {
+      allDbBooks = repository.database.bookDao.getAllBooksMinimal(db);
+      allCatRows = repository.database.categoryDao.getAllCategoryRows(db);
     });
 
     debugPrint(
@@ -911,9 +908,10 @@ class DatabaseLibraryProvider implements LibraryProvider {
       final entry = entries[i];
       final isLastChild = i == entries.length - 1;
       final hasChildren = entry.children.isNotEmpty;
+      final localEntryId = dbEntries.length + 1;
 
       final dbEntry = db_models.TocEntry(
-        id: 0,
+        id: localEntryId,
         bookId: bookId,
         parentId: parentId,
         text: entry.text,
@@ -926,11 +924,13 @@ class DatabaseLibraryProvider implements LibraryProvider {
 
       dbEntries.add(dbEntry);
 
-      // Process children recursively
-      // Note: We can't set the actual parentId here since we don't have the inserted ID yet
-      // The repository will handle this during insertion
       if (hasChildren) {
-        _convertTocEntriesToDb(entry.children, dbEntries, bookId, null);
+        _convertTocEntriesToDb(
+          entry.children,
+          dbEntries,
+          bookId,
+          localEntryId,
+        );
       }
     }
   }
@@ -951,7 +951,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
       title: dbCategory.title,
       description: metadata[dbCategory.title]?['heDesc'] ?? '',
       shortDescription: metadata[dbCategory.title]?['heShortDesc'] ?? '',
-      order: dbCategory.orderIndex, // Use DB orderIndex instead of metadata
+      order: dbCategory.orderIndex,
       subCategories: [],
       books: [],
       parent: parent,
@@ -1127,7 +1127,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
         }
 
         // Get all links where this book is the source
-        final result = await db.rawQuery('''
+        final result = db.select('''
         SELECT 
           l.sourceLineId,
           l.targetLineId,
@@ -1142,7 +1142,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
         LEFT JOIN connection_type ct ON l.connectionTypeId = ct.id
         WHERE l.sourceBookId = ?
         ORDER BY sl.lineIndex
-      ''', [book.id]);
+      ''', [book.id]).toMapList();
 
         final links = result.map((row) {
           final targetTitle = row['targetBookTitle'] as String;
@@ -1207,12 +1207,10 @@ class DatabaseLibraryProvider implements LibraryProvider {
     return _dbOperation<List<AltTocStructure>>(
       (db) async {
         // First get the book ID
-        final bookResults = await db.query(
-          'book',
-          columns: ['id'],
-          where: 'title = ?',
-          whereArgs: [bookTitle],
-        );
+        final bookResults = db.select(
+          'SELECT id FROM book WHERE title = ?',
+          [bookTitle],
+        ).toMapList();
 
         if (bookResults.isEmpty) {
           return [];
@@ -1221,11 +1219,10 @@ class DatabaseLibraryProvider implements LibraryProvider {
         final bookId = bookResults.first['id'] as int;
 
         // Then get the structures
-        final results = await db.query(
-          'alt_toc_structure',
-          where: 'bookId = ?',
-          whereArgs: [bookId],
-        );
+        final results = db.select(
+          'SELECT * FROM alt_toc_structure WHERE bookId = ?',
+          [bookId],
+        ).toMapList();
 
         return results.map((json) => AltTocStructure.fromJson(json)).toList();
       },
@@ -1238,7 +1235,8 @@ class DatabaseLibraryProvider implements LibraryProvider {
   Future<List<AltTocStructure>> getAlternativeStructures() async {
     return _dbOperation<List<AltTocStructure>>(
       (db) async {
-        final results = await db.query('alt_toc_structure');
+        final results =
+            db.select('SELECT * FROM alt_toc_structure').toMapList();
         return results.map((json) => AltTocStructure.fromJson(json)).toList();
       },
       [],
@@ -1252,13 +1250,13 @@ class DatabaseLibraryProvider implements LibraryProvider {
       (db) async {
         // We join with tocText to get the actual text
         // Order by ID to ensure consistent order (or maybe level/parentId)
-        final results = await db.rawQuery('''
+        final results = db.select('''
           SELECT e.*, t.text
           FROM alt_toc_entry e
           JOIN tocText t ON e.textId = t.id
           WHERE e.structureId = ?
           ORDER BY e.id
-        ''', [structureId]);
+        ''', [structureId]).toMapList();
 
         return results.map((json) => AltTocEntry.fromJson(json)).toList();
       },
@@ -1273,7 +1271,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
     return _dbOperation<List<Link>>(
       (db) async {
         // Join line_alt_toc -> line -> book
-        final results = await db.rawQuery('''
+        final results = db.select('''
           SELECT 
             b.title as bookTitle,
             l.lineIndex,
@@ -1283,7 +1281,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
           JOIN book b ON l.bookId = b.id
           WHERE lat.structureId = ? AND lat.altTocEntryId = ?
           ORDER BY b.title, l.lineIndex
-        ''', [structureId, altTocEntryId]);
+        ''', [structureId, altTocEntryId]).toMapList();
 
         return results.map((row) {
           final bookTitle = row['bookTitle'] as String;
@@ -1308,14 +1306,14 @@ class DatabaseLibraryProvider implements LibraryProvider {
       String bookTitle, int lineIndex, int structureId) async {
     return _dbOperation<int?>(
       (db) async {
-        final results = await db.rawQuery('''
+        final results = db.select('''
           SELECT lat.altTocEntryId
           FROM line_alt_toc lat
           JOIN line l ON lat.lineId = l.id
           JOIN book b ON l.bookId = b.id
           WHERE b.title = ? AND l.lineIndex = ? AND lat.structureId = ?
           LIMIT 1
-  ''', [bookTitle, lineIndex, structureId]);
+  ''', [bookTitle, lineIndex, structureId]).toMapList();
 
         if (results.isNotEmpty) {
           return results.first['altTocEntryId'] as int;
@@ -1465,6 +1463,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
         lastModified: lastModified,
         heShortDesc: metadata[title]?['heShortDesc'],
         orderIndex: (metadata[title]?['order'] ?? 999).toDouble(),
+        isPersonal: true,
         tocEntries: tocEntries,
       );
 

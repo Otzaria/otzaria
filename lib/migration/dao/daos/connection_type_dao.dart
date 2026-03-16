@@ -1,5 +1,6 @@
-import 'package:sqflite/sqflite.dart';
+import 'package:sqlite3/sqlite3.dart' as sqlite3;
 import '../sqflite/query_loader.dart';
+import '../sqflite/sqlite3_utils.dart';
 import 'database.dart';
 
 // Simple model for connection type table entries
@@ -35,47 +36,53 @@ class ConnectionTypeDao {
     _queries = QueryLoader.loadQueries('ConnectionTypeQueries.sq');
   }
 
-  Future<Database> get database => _db.database;
+  Future<sqlite3.Database> get database => _db.database;
 
   Future<List<ConnectionTypeEntry>> getAllConnectionTypes() async {
     final db = await database;
-    final result = await db.rawQuery(_queries['selectAll']!);
-    return result.map((row) => ConnectionTypeEntry.fromMap(row)).toList();
+    return db
+        .select(_queries['selectAll']!)
+        .toMapList()
+        .map((row) => ConnectionTypeEntry.fromMap(row))
+        .toList();
   }
 
   Future<ConnectionTypeEntry?> getConnectionTypeById(int id) async {
     final db = await database;
-    final result = await db.rawQuery(_queries['selectById']!, [id]);
+    final result = db.select(_queries['selectById']!, [id]).toMapList();
     if (result.isEmpty) return null;
     return ConnectionTypeEntry.fromMap(result.first);
   }
 
   Future<ConnectionTypeEntry?> getConnectionTypeByName(String name) async {
     final db = await database;
-    final result = await db.rawQuery(_queries['selectByName']!, [name]);
+    final result = db.select(_queries['selectByName']!, [name]).toMapList();
     if (result.isEmpty) return null;
     return ConnectionTypeEntry.fromMap(result.first);
   }
 
   Future<int> insertConnectionType(String name) async {
     final db = await database;
-    return await db.rawInsert(_queries['insert']!, [name]);
+    db.execute(_queries['insert']!, [name]);
+    return db.lastInsertRowId;
   }
 
   Future<int> insertConnectionTypeAndGetId(String name) async {
     final db = await database;
-    await db.rawInsert(_queries['insert']!, [name]);
-    final result = await db.rawQuery(_queries['lastInsertRowId']!);
-    return result.first.values.first as int;
+    db.execute(_queries['insert']!, [name]);
+    return db.lastInsertRowId;
   }
 
   Future<int> updateConnectionType(int id, String name) async {
     final db = await database;
-    return await db.rawUpdate(_queries['update']!, [name, id]);
+    db.execute(_queries['update']!, [name, id]);
+    return db.updatedRows;
   }
 
   Future<int> deleteConnectionType(int id) async {
     final db = await database;
-    return await db.rawDelete(_queries['delete']!, [id]);
+    db.execute(_queries['delete']!, [id]);
+    return db.updatedRows;
   }
 }
+

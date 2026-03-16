@@ -47,7 +47,7 @@ import 'package:otzaria/data/data_providers/hive_data_provider.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/migration/file_to_db_migrator.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+
 import 'package:search_engine/search_engine.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/window_listener.dart';
@@ -319,8 +319,6 @@ Future<void> _runAppBootstrap() async {
 Future<void> initialize() async {
   // Initialize SQLite FFI for desktop platforms
   if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
-    sqfliteFfiInit();
-    databaseFactory = databaseFactoryFfi;
     await windowManager.ensureInitialized();
 
     // Configure window manager for proper close handling

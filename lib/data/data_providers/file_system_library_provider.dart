@@ -90,51 +90,15 @@ class FileSystemLibraryProvider implements LibraryProvider {
     final personalBooksDir = Directory(personalBooksPath);
     if (await personalBooksDir.exists()) {
       await _loadBooksRecursively(
-          personalBooksDir, metadata, booksByCategory, ['אישי'], map);
+          personalBooksDir, metadata, booksByCategory, ['ספרים אישיים'], map);
     }
 
     await _loadBundledTalmudBavliBooks(metadata, booksByCategory, map);
 
-    // Load books from custom folders (those NOT marked for DB sync)
-    await _loadCustomFoldersBooks(metadata, booksByCategory, map);
+    // NOTE: Custom folders are now fully managed via the database.
+    // They are scanned by FileSyncService and loaded by DatabaseLibraryProvider.
 
     return booksByCategory;
-  }
-
-  /// Load books from custom folders that are NOT marked for DB sync
-  /// These books are displayed directly from the file system
-  Future<void> _loadCustomFoldersBooks(
-    Map<String, Map<String, dynamic>> metadata,
-    Map<String, List<Book>> booksByCategory,
-    Map<String, String> keyToPath,
-  ) async {
-    final customFoldersJson =
-        Settings.getValue<String>(SettingsRepository.keyCustomFolders);
-    final customFolders = CustomFoldersManager.loadFolders(customFoldersJson);
-
-    // Only load folders NOT marked for DB sync (those marked will be in DB)
-    final foldersToLoad = customFolders.where((f) => !f.addToDatabase).toList();
-
-    if (foldersToLoad.isEmpty) return;
-
-    debugPrint('📁 Loading ${foldersToLoad.length} custom folders');
-
-    for (final folder in foldersToLoad) {
-      final folderDir = Directory(folder.path);
-      if (!await folderDir.exists()) {
-        debugPrint('⚠️ Custom folder does not exist: ${folder.path}');
-        continue;
-      }
-
-      // Load books with category path: ספרים אישיים -> folder name -> subfolders
-      await _loadBooksRecursively(
-        folderDir,
-        metadata,
-        booksByCategory,
-        ['ספרים אישיים', folder.name],
-        keyToPath,
-      );
-    }
   }
 
   Future<void> _loadBundledTalmudBavliBooks(
@@ -388,7 +352,7 @@ class FileSystemLibraryProvider implements LibraryProvider {
     if (await Directory(personalBooksPath).exists()) {
       final personalPaths = await _getAllBookPaths(personalBooksPath);
       for (var path in personalPaths) {
-        addPath(path, personalBooksPath, ['אישי']);
+        addPath(path, personalBooksPath, ['ספרים אישיים']);
       }
     }
 
@@ -406,21 +370,7 @@ class FileSystemLibraryProvider implements LibraryProvider {
       }
     }
 
-    // Load from custom folders (those NOT marked for DB sync)
-    final customFoldersJson =
-        Settings.getValue<String>(SettingsRepository.keyCustomFolders);
-    final customFolders = CustomFoldersManager.loadFolders(customFoldersJson);
-    final foldersToLoad = customFolders.where((f) => !f.addToDatabase).toList();
-
-    for (final folder in foldersToLoad) {
-      final folderDir = Directory(folder.path);
-      if (!await folderDir.exists()) continue;
-
-      final folderPaths = await _getAllBookPaths(folder.path);
-      for (var path in folderPaths) {
-        addPath(path, folder.path, ['ספרים אישיים', folder.name]);
-      }
-    }
+    // NOTE: Custom folders are now managed via the database.
 
     return keyToPath;
   }

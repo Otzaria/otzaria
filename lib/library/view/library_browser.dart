@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/focus_repository.dart';
+import 'package:otzaria/external_catalog/view/external_catalog_settings_helper.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
@@ -97,8 +100,19 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         repositoryName: "SeforimLibrary",
       ),
     );
-  }
 
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      unawaited(
+        ExternalCatalogSettingsHelper.maybeAutoSyncCatalogs(
+          context.read<SettingsBloc>().state,
+        ),
+      );
+    });
+  }
 
   @override
   void dispose() {
@@ -110,18 +124,35 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   Widget build(BuildContext context) {
     super.build(context);
 
-    return BlocListener<SettingsBloc, SettingsState>(
-      listenWhen: (previous, current) {
-        return previous.showExternalBooks != current.showExternalBooks ||
-            previous.showHebrewBooks != current.showHebrewBooks ||
-            previous.showOtzarHachochma != current.showOtzarHachochma;
-      },
-      listener: (context, settingsState) {
-        final query = context.read<LibraryBloc>().state.searchQuery;
-        if (query != null && query.trim().length >= 3) {
-          _searchWithSettings(context, settingsState);
-        }
-      },
+    return MultiBlocListener(
+      listeners: [
+        BlocListener<SettingsBloc, SettingsState>(
+          listenWhen: (previous, current) {
+            return previous.showExternalBooks != current.showExternalBooks ||
+                previous.autoSyncCatalogs != current.autoSyncCatalogs;
+          },
+          listener: (context, settingsState) {
+            unawaited(
+              ExternalCatalogSettingsHelper.maybeAutoSyncCatalogs(
+                settingsState,
+              ),
+            );
+          },
+        ),
+        BlocListener<SettingsBloc, SettingsState>(
+          listenWhen: (previous, current) {
+            return previous.showExternalBooks != current.showExternalBooks ||
+                previous.showHebrewBooks != current.showHebrewBooks ||
+                previous.showOtzarHachochma != current.showOtzarHachochma;
+          },
+          listener: (context, settingsState) {
+            final query = context.read<LibraryBloc>().state.searchQuery;
+            if (query != null && query.trim().length >= 3) {
+              _searchWithSettings(context, settingsState);
+            }
+          },
+        ),
+      ],
       child: BlocBuilder<SettingsBloc, SettingsState>(
         builder: (context, settingsState) {
           return BlocBuilder<LibraryBloc, LibraryState>(

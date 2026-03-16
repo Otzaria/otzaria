@@ -78,7 +78,7 @@ class SqliteDataProvider {
   /// Closes the database connection to free resources
   Future<void> dispose() async {
     if (_isInitialized) {
-      await _repository.database.close();
+      _repository.database.close();
       _isInitialized = false;
     }
   }
@@ -224,8 +224,6 @@ class SqliteDataProvider {
     }
   }
 
-
-
   /// Gets the repository instance (for advanced operations)
   SeforimRepository? get repository => _isInitialized ? _repository : null;
 
@@ -347,7 +345,7 @@ class SqliteDataProvider {
 
     try {
       final db = await _repository.database.database;
-      await db.execute('VACUUM');
+      db.execute('VACUUM');
     } catch (e) {
       debugPrint('❌ Error optimizing database: $e');
       rethrow;

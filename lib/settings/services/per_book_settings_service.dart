@@ -281,18 +281,23 @@ class TextBookPerBookSettings {
 /// הגדרות פר-ספר לספרי PDF
 class PdfBookPerBookSettings {
   final double? zoom;
+  final List<String>? activeCommentators;
 
   PdfBookPerBookSettings({
     this.zoom,
+    this.activeCommentators,
   });
 
   Map<String, dynamic> toJson() => {
         if (zoom != null) 'zoom': zoom,
+        if (activeCommentators != null) 'activeCommentators': activeCommentators,
       };
 
   factory PdfBookPerBookSettings.fromJson(Map<String, dynamic> json) {
     return PdfBookPerBookSettings(
       zoom: json['zoom'] as double?,
+      activeCommentators: (json['activeCommentators'] as List<dynamic>?)
+          ?.cast<String>(),
     );
   }
 

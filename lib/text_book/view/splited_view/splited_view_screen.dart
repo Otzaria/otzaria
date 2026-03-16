@@ -166,12 +166,16 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
   bool _hasCommentaryInCurrentLine(TextBookLoaded state) {
     if (state.visibleIndices.isEmpty) return false;
 
-    final visibleIndicesSet = state.visibleIndices.toSet();
-    // בדיקה אם יש קישורים מסוג מפרשים לאינדקסים הנראים
-    return state.links.any((link) =>
-        visibleIndicesSet.contains(link.index1 - 1) &&
-        (link.connectionType.toUpperCase() == "COMMENTARY" ||
-            link.connectionType.toUpperCase() == "TARGUM"));
+    for (final index in state.visibleIndices) {
+      final links = state.linksByLine[index + 1];
+      if (links == null) continue;
+
+      for (final link in links) {
+        final type = link.connectionType.toUpperCase();
+        if (type == "COMMENTARY" || type == "TARGUM") return true;
+      }
+    }
+    return false;
   }
 
   void _openPane() {

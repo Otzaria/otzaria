@@ -23,7 +23,8 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
             extractCompressedDatabase ?? _extractZstWithSystemProcess,
         _installationDirectoryPath = installationDirectoryPath,
         super(EmptyLibraryInitial()) {
-    on<PickDatabaseFileRequested>(_onPickDatabaseFileRequested);
+    on<PickDirectoryRequested>(_onPickDirectoryRequested);
+    on<PickArchiveFileRequested>(_onPickArchiveFileRequested);
     on<DownloadLibraryRequested>(_onDownloadLibraryRequested);
     on<DeleteZipAnswered>(_onDeleteZipAnswered);
   }
@@ -33,74 +34,80 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       _extractCompressedDatabase;
   final String? _installationDirectoryPath;
 
-  Future<void> _onPickDatabaseFileRequested(
-      PickDatabaseFileRequested event, Emitter<EmptyLibraryState> emit) async {
-    String? selectedFile = event.filePath;
+  Future<void> _onPickDirectoryRequested(
+      PickDirectoryRequested event, Emitter<EmptyLibraryState> emit) async {
+    final result = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: 'בחר את תיקיית הספרייה (התיקייה שמכילה את seforim.db)',
+    );
 
-    if (selectedFile == null) {
-      // FilePicker.getFilePath לא קיים, נשתמש בפתיחת תיקייה ובחירת קובץ
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['db', 'zip', 'zst'],
-        dialogTitle: 'בחר קובץ מסד נתונים (seforim.db) או קובץ דחוס',
-      );
+    if (result == null) return;
 
-      if (result == null || result.files.isEmpty) {
-        return;
-      }
+    emit(EmptyLibraryLoading(selectedPath: result));
+    await _handleDirectorySelection(result, emit);
+  }
 
-      selectedFile = result.files.first.path;
-      if (selectedFile == null) {
-        return;
-      }
-    }
+  Future<void> _onPickArchiveFileRequested(
+      PickArchiveFileRequested event, Emitter<EmptyLibraryState> emit) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['zip', 'zst'],
+      dialogTitle: 'בחר קובץ דחוס (ZIP או ZST)',
+    );
+
+    if (result == null || result.files.isEmpty) return;
+
+    final selectedFile = result.files.first.path;
+    if (selectedFile == null) return;
 
     emit(EmptyLibraryLoading(selectedPath: selectedFile));
 
-    // בדיקה אם הקובץ הוא ZIP
     if (selectedFile.toLowerCase().endsWith('.zip')) {
       await _handleZipFile(selectedFile, emit);
     } else if (selectedFile.toLowerCase().endsWith('.zst')) {
       await _handleZstFile(selectedFile, emit);
-    } else if (selectedFile.toLowerCase().endsWith('.db')) {
-      await _handleDatabaseFile(selectedFile, emit);
     } else {
       emit(EmptyLibraryError(
-        errorMessage: 'סוג קובץ לא תומך. בחר קובץ .db, .zip או .zst',
+        errorMessage: 'סוג קובץ לא נתמך. בחר קובץ .zip או .zst',
         selectedPath: selectedFile,
       ));
     }
   }
 
-  Future<void> _handleDatabaseFile(
-      String dbFilePath, Emitter<EmptyLibraryState> emit) async {
+  Future<void> _handleDirectorySelection(
+      String directoryPath, Emitter<EmptyLibraryState> emit) async {
     try {
+      final directory = Directory(directoryPath);
+      if (!await directory.exists()) {
+        emit(EmptyLibraryError(
+          errorMessage: 'התיקייה לא קיימת: $directoryPath',
+          selectedPath: directoryPath,
+        ));
+        return;
+      }
+
+      // מחפש את המסד בתיקייה שנבחרה (ללא חיפוש עמוק)
+      final dbFilePath =
+          path.join(directoryPath, DatabaseConstants.databaseFileName);
       final dbFile = File(dbFilePath);
+
       if (!await dbFile.exists()) {
         emit(EmptyLibraryError(
-          errorMessage: 'הקובץ לא קיים: $dbFilePath',
-          selectedPath: dbFilePath,
-        ));
-        return;
-      }
-
-      // המרת נתיב קובץ ה-DB לתיקיית השורש ושמירה בהגדרות
-      final saved = await _saveLibraryPathFromDbFile(dbFilePath);
-      if (!saved) {
-        emit(EmptyLibraryError(
           errorMessage:
-              'קובץ ה-DB צריך להיות בתוך תת-תיקייה (לדוגמה: אוצריא/seforim.db)',
-          selectedPath: dbFilePath,
+              'לא נמצא מסד הנתונים ${DatabaseConstants.databaseFileName} בתיקייה שנבחרה.',
+          selectedPath: directoryPath,
         ));
         return;
       }
 
-      final rootPath = path.dirname(path.dirname(dbFilePath));
-      emit(EmptyLibraryDirectorySelected(selectedPath: rootPath));
+      await Settings.setValue(SettingsRepository.keyLibraryPath, directoryPath);
+      await Settings.setValue(SettingsRepository.keyLibraryFolderName,
+          path.basename(directoryPath));
+
+      emit(EmptyLibraryDirectorySelected(selectedPath: directoryPath));
     } catch (e) {
       emit(EmptyLibraryError(
-        errorMessage: 'שגיאה: $e',
-        selectedPath: dbFilePath,
+        errorMessage: 'שגיאה בבדיקת התיקייה: $e',
+        selectedPath: directoryPath,
       ));
     }
   }
@@ -211,19 +218,13 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
         return;
       }
 
-      // המרת נתיב קובץ ה-DB לתיקיית השורש ושמירה בהגדרות
       final dbPath = dbFiles.first.path;
-      final saved = await _saveLibraryPathFromDbFile(dbPath);
-      if (!saved) {
-        emit(EmptyLibraryError(
-          errorMessage:
-              'מבנה תיקיות לא תקין - קובץ ה-DB צריך להיות בתוך תת-תיקייה',
-          selectedPath: extractedDirectory,
-        ));
-        return;
-      }
+      final rootPath = path.dirname(dbPath);
 
-      final rootPath = path.dirname(path.dirname(dbPath));
+      await Settings.setValue(SettingsRepository.keyLibraryPath, rootPath);
+      await Settings.setValue(
+          SettingsRepository.keyLibraryFolderName, path.basename(rootPath));
+
       emit(EmptyLibraryDirectorySelected(selectedPath: rootPath));
     } catch (e) {
       emit(EmptyLibraryError(
@@ -316,25 +317,6 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
         errorMessage: 'שגיאה: $e',
       ));
     }
-  }
-
-  /// המרת נתיב קובץ DB לתיקיית שורש ושמירה בהגדרות.
-  /// מצפה למבנה: Root/תיקייה/seforim.db
-  /// מחזירה true אם הצליח, false אם המבנה לא תקין.
-  Future<bool> _saveLibraryPathFromDbFile(String dbFilePath) async {
-    final parentDir = path.dirname(dbFilePath);
-    final rootPath = path.dirname(parentDir);
-    final folderName = path.basename(parentDir);
-
-    // וידוא שהקובץ באמת בתוך תת-תיקייה (לא בשורש דיסק)
-    if (rootPath == parentDir || folderName.isEmpty) {
-      return false;
-    }
-
-    await Settings.setValue(SettingsRepository.keyLibraryPath, rootPath);
-    await Settings.setValue(
-        SettingsRepository.keyLibraryFolderName, folderName);
-    return true;
   }
 
   Future<DatabaseReleaseAsset> _fetchLatestDatabaseAsset() async {

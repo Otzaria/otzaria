@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "אוצריא"
-#define MyAppVersion "0.9.74"
+#define MyAppVersion "0.9.81"
 #define MyAppPublisher "sivan22"
 #define MyAppURL "https://github.com/Y-PLONI/otzaria"
 #define MyAppExeName "otzaria.exe"
@@ -18,12 +18,10 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
-DefaultDirName=C:\{#MyAppName}
+PrivilegesRequiredOverridesAllowed=dialog
+DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
-; Uncomment the following line to run in non administrative install mode (install for current user only.)
-;PrivilegesRequired=lowest
-PrivilegesRequired=admin
 OutputDir=.
 OutputBaseFilename=otzaria-{#MyAppVersion}-windows-full
 SetupIconFile=white_sketch128x128.ico
@@ -35,41 +33,53 @@ WizardStyle=modern
 DisableDirPage=no
 
 [InstallDelete]
-; מחיקת ספרייה ישנה לפני פריסת מסד הנתונים החדש
-Type: filesandordirs; Name: "{app}\אוצריא"
-Type: filesandordirs; Name: "{app}\links"
+; מחיקת ספריית נתונים ישנה לפני פריסת מסד הנתונים החדש
+Type: filesandordirs; Name: "{code:GetDataDir}\books"
+
+[Dirs]
+Name: "{commonappdata}\{#MyAppName}"; Permissions: users-modify; Check: IsAdminInstallMode
+Name: "{commonappdata}\{#MyAppName}\books"; Permissions: users-modify; Check: IsAdminInstallMode
+Name: "{commonappdata}\{#MyAppName}\index"; Permissions: users-modify; Check: IsAdminInstallMode
 
 [Languages]
 Name: "hebrew"; MessagesFile: "compiler:Languages\Hebrew.isl"
 
 [Code]
+
+function GetDataDir(Param: String): String;
+begin
+  if IsAdminInstallMode then
+    Result := ExpandConstant('{commonappdata}\{#MyAppName}')
+  else
+    Result := ExpandConstant('{localappdata}\{#MyAppName}\Data');
+end;
+
 function InitializeSetup(): Boolean;
 var
-  InstallPath, OldPath: String;
+  DataPath, OldPath: String;
 begin
   Result := True;
-  InstallPath := ExpandConstant('C:\{#MyAppName}');
+  DataPath := GetDataDir('');
   OldPath := 'C:\אוצריא';
   
   // בדיקה אם יש התקנה ישנה בנתיב העברי
   if DirExists(OldPath) then
   begin
     if MsgBox('נמצאה התקנה ישנה ב-' + OldPath + #13#10 +
-              'התוכנה עברה לנתיב חדש: ' + InstallPath + #13#10#13#10 +
+              'ספריית הספרים עוברת לנתיב חדש: ' + DataPath + #13#10#13#10 +
               'האם להעביר את הנתונים למיקום החדש?',
               mbConfirmation, MB_YESNO) = IDYES then
     begin
       // המשתמש יצטרך להעביר ידנית או שנוסיף קוד העברה
-      MsgBox('לאחר ההתקנה, תוכל להעביר את הנתונים מ-' + OldPath + ' ל-' + InstallPath, mbInformation, MB_OK);
+      MsgBox('לאחר ההתקנה, תוכל להעביר את הנתונים מ-' + OldPath + ' ל-' + DataPath, mbInformation, MB_OK);
     end;
   end;
   
   // בדיקה אם התיקיות קיימות והצגת אזהרה
-  if DirExists(InstallPath + '\אוצריא') or DirExists(InstallPath + '\links') then
+  if DirExists(DataPath + '\books') then
   begin
-    if MsgBox('שים לב: אם קיימים נתונים בתיקיות הבאות, הם ימחקו:' + #13#10 +
-              '- אוצריא' + #13#10 +
-              '- links' + #13#10#13#10 +
+    if MsgBox('שים לב: קיימים נתונים מספרייה ישנה בתיקייה ' + DataPath + '\books' + #13#10 +
+              'הקודמים יימחקו ויוחלפו בנתוני ההתקנה החדשה.' + #13#10#13#10 +
               'האם להמשיך בהתקנה?',
               mbConfirmation, MB_YESNO) = IDNO then
     begin
@@ -106,8 +116,10 @@ begin
     exit;
   end;
 
-  DatabasePath := ExpandConstant('{app}\אוצריא\' + DatabaseName);
+  DatabasePath := ExpandConstant('{code:GetDataDir}\books\' + DatabaseName);
   ZstdPath := ExpandConstant('{app}\zstd.exe');
+
+  ForceDirectories(ExtractFileDir(DatabasePath));
 
   Log('Extracting bundled database from ' + ArchivePath);
   Params := '-d -f -T0 --long=31 "' + ArchivePath + '" -o "' + DatabasePath + '"';
@@ -133,9 +145,9 @@ begin
     exit;
   end;
 
-  ParentDir := ExpandConstant('{app}\אוצריא');
+  ParentDir := ExpandConstant('{code:GetDataDir}\books');
   TarPath := ParentDir + '\' + ChangeFileExt(ArchiveName, '');
-  TargetDir := ExpandConstant('{app}\אוצריא\' + TargetDirName);
+  TargetDir := ExpandConstant('{code:GetDataDir}\books\' + TargetDirName);
   ZstdPath := ExpandConstant('{app}\zstd.exe');
   PowerShellPath := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
 
@@ -166,12 +178,31 @@ begin
 
   DeleteFile(TarPath);
   DeleteFile(ArchivePath);
+  // Optional: Delete the bundled db directory since everything was extracted elsewhere
+  // But maybe it's cleaner to handle this in a separate procedure if needed.
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   ZstdPath: String;
+  AppDataPath: string;
 begin
+  if CurStep = ssInstall then
+  begin
+    if WizardIsTaskSelected('resetsettings') then
+    begin
+      // Delete previous installation directory (usually in LocalAppData)
+      AppDataPath := ExpandConstant('{localappdata}\אוצריא');
+      if DirExists(AppDataPath) then
+        DelTree(AppDataPath, True, True, True);
+        
+      // Delete old settings and personal notes (in AppData/Roaming)
+      AppDataPath := ExpandConstant('{userappdata}\com.example');
+      if DirExists(AppDataPath) then
+        DelTree(AppDataPath, True, True, True);
+    end;
+  end;
+
   if CurStep <> ssPostInstall then
     exit;
 
@@ -187,11 +218,13 @@ begin
   ExtractBundledDatabase('otzar-HB_catalog.db.zst', 'otzar-HB_catalog.db');
   ExtractBundledTarArchive('talmud_bavli_latest.tar.zst', 'תלמוד בבלי');
   DeleteFile(ZstdPath);
+  
+  // Cleanup the temporary extraction directory
+  DelTree(ExpandConstant('{app}\אוצריא'), True, True, True);
 end;
 
 [Run]
 Filename: "{tmp}\VisualCppRedist_AIO_x86_x64.exe"; Parameters: "/ai /gm2"; StatusMsg: "מתקין Visual C++ Redistributable..."; Flags: waituntilterminated; Check: VCRedistNeedsInstall
-Filename: "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"; WorkingDir: "{app}"; Parameters: " -sta -WindowStyle Hidden -noprofile -executionpolicy bypass -file uninstall_msix.ps1"; Flags: runhidden waituntilterminated
 Filename: "{app}\{#MyAppExeName}"; Description: "הפעל את {#MyAppName}"; Flags: nowait postinstall skipifsilent 
 
 [Icons]
@@ -200,13 +233,14 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+Name: "resetsettings"; Description: "איפוס הגדרות משתמש והסרת התקנות קודמות (מומלץ למעדכנים מגרסה < 0.9.80, שים לב: זה ימחק הערות אישיות!)"; Flags: unchecked
 
 [Files]
 ; Copy DLL files without compression to prevent corruption
 Source: "..\build\windows\x64\runner\Release\*.dll"; DestDir: "{app}"; Flags: ignoreversion nocompression
 ; Copy all other app files
 Source: "..\build\windows\x64\runner\Release\*"; \
-    Excludes: "*.msix,*.msixbundle,*.appx,*.appxbundle,*.appinstaller,*.dll"; \
+  Excludes: "*.dll"; \
     DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; Copy compressed library assets and extraction tool for post-install extraction
@@ -215,5 +249,7 @@ Source: "library_db\otzar-HB_catalog.db.zst"; DestDir: "{app}\אוצריא"; Fla
 Source: "library_db\talmud_bavli_latest.tar.zst"; DestDir: "{app}\אוצריא"; Flags: ignoreversion
 Source: "zstd.exe"; DestDir: "{app}"; Flags: ignoreversion
 
-Source: "uninstall_msix.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "VisualCppRedist_AIO_x86_x64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
+
+[INI]
+Filename: "{app}\system_install.marker"; Section: "Install"; Key: "Mode"; String: "Admin"; Check: IsAdminInstallMode

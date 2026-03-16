@@ -7,7 +7,6 @@ import 'package:otzaria/empty_library/bloc/empty_library_bloc.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_event.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_state.dart';
 import 'package:otzaria/core/ui_snack.dart';
-import 'package:file_picker/file_picker.dart';
 
 class EmptyLibraryScreen extends StatelessWidget {
   final VoidCallback onLibraryLoaded;
@@ -288,14 +287,14 @@ class _EmptyLibraryViewState extends State<_EmptyLibraryView> {
         ),
         const SizedBox(height: 24),
         const Text(
-          'לא נמצא קובץ מסד נתונים',
+          'לא נמצאה ספריית ספרים',
           style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           textAlign: TextAlign.center,
           textDirection: TextDirection.rtl,
         ),
         const SizedBox(height: 16),
         Text(
-          'יש לבחור קובץ מסד נתונים (seforim.db) או קובץ דחוס בפורמט ZIP/ZST',
+          'תוכל לבחור תיקייה קיימת המכילה את הספרייה (ניתן להעתיק ממחשב אחר), או לחלץ מקובץ דחוס (ZIP/ZST).',
           style: TextStyle(
             fontSize: 16,
             color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -321,12 +320,25 @@ class _EmptyLibraryViewState extends State<_EmptyLibraryView> {
               ),
             ),
           ),
-        ElevatedButton.icon(
-          onPressed: state.isLoading ? null : () => _pickFile(context),
-          icon: const Icon(FluentIcons.folder_open_24_regular),
-          label: const Text('בחר קובץ'),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          textDirection: TextDirection.rtl,
+          children: [
+            FilledButton.icon(
+              onPressed: state.isLoading ? null : () => _pickDirectory(context),
+              icon: const Icon(FluentIcons.folder_open_24_regular),
+              label: const Text('בחר תיקיית ספרייה'),
+            ),
+            const SizedBox(width: 16),
+            ElevatedButton.icon(
+              onPressed:
+                  state.isLoading ? null : () => _pickArchiveFile(context),
+              icon: const Icon(FluentIcons.folder_zip_24_regular),
+              label: const Text('חלץ מקובץ דחוס'),
+            ),
+          ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
         OutlinedButton.icon(
           onPressed: state.isLoading
               ? null
@@ -351,19 +363,11 @@ class _EmptyLibraryViewState extends State<_EmptyLibraryView> {
     );
   }
 
-  Future<void> _pickFile(BuildContext context) async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['db', 'zip', 'zst'],
-      dialogTitle: 'בחר קובץ מסד נתונים (seforim.db) או קובץ דחוס',
-    );
+  Future<void> _pickDirectory(BuildContext context) async {
+    BlocProvider.of<EmptyLibraryBloc>(context).add(PickDirectoryRequested());
+  }
 
-    if (result == null || result.files.isEmpty || !context.mounted) return;
-
-    final selectedFile = result.files.first.path;
-    if (selectedFile == null) return;
-
-    BlocProvider.of<EmptyLibraryBloc>(context)
-        .add(PickDatabaseFileRequested(filePath: selectedFile));
+  Future<void> _pickArchiveFile(BuildContext context) async {
+    BlocProvider.of<EmptyLibraryBloc>(context).add(PickArchiveFileRequested());
   }
 }

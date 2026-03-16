@@ -5,14 +5,9 @@ abstract class EmptyLibraryEvent extends Equatable {
   List<Object?> get props => [];
 }
 
-class PickDatabaseFileRequested extends EmptyLibraryEvent {
-  final String? filePath;
+class PickDirectoryRequested extends EmptyLibraryEvent {}
 
-  PickDatabaseFileRequested({this.filePath});
-
-  @override
-  List<Object?> get props => [filePath];
-}
+class PickArchiveFileRequested extends EmptyLibraryEvent {}
 
 class DownloadLibraryRequested extends EmptyLibraryEvent {}
 

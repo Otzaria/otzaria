@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/library/models/library.dart';
@@ -201,24 +202,25 @@ class BookGridItem extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     mainAxisSize: MainAxisSize.max,
                     children: [
-                      // Data source indicator (DB or File)
-                      SizedBox(
-                        width: 32,
-                        height: 32,
-                        child: Center(
-                          child: book is TextBook
-                              ? DataSourceIndicatorAsync(
-                                  sourceFuture:
-                                      FileSystemData.instance.getBookDataSource(
-                                    book.title,
-                                    categoryId: book.categoryId,
-                                    fileType: book.fileType,
-                                  ),
-                                  size: 18.0,
-                                )
-                              : const SizedBox.shrink(),
+                      // Data source indicator (DB or File) - only in debug mode
+                      if (kDebugMode)
+                        SizedBox(
+                          width: 32,
+                          height: 32,
+                          child: Center(
+                            child: book is TextBook
+                                ? DataSourceIndicatorAsync(
+                                    sourceFuture: FileSystemData.instance
+                                        .getBookDataSource(
+                                      book.title,
+                                      categoryId: book.categoryId,
+                                      fileType: book.fileType,
+                                    ),
+                                    size: 18.0,
+                                  )
+                                : const SizedBox.shrink(),
+                          ),
                         ),
-                      ),
                       // כפתור מידע - מושבת זמנית
                       SizedBox(
                         width: 32,
@@ -250,7 +252,8 @@ class BookGridItem extends StatelessWidget {
                       SizedBox(
                         width: 32,
                         height: 32,
-                        child: book is! ExternalLibraryBook
+                        child: (book.categoryPath?.startsWith('ספרים אישיים') ==
+                                true)
                             ? PopupMenuButton<String>(
                                 icon: Icon(
                                   FluentIcons.more_vertical_24_regular,

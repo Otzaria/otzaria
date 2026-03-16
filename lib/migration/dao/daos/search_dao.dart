@@ -1,5 +1,6 @@
-import 'package:sqflite/sqflite.dart';
+import 'package:sqlite3/sqlite3.dart' as sqlite3;
 import '../../core/models/search_result.dart';
+import '../sqflite/sqlite3_utils.dart';
 import '../sqflite/query_loader.dart';
 import 'database.dart';
 
@@ -11,73 +12,86 @@ class SearchDao {
     _queries = QueryLoader.loadQueries('SearchQueries.sq');
   }
 
-  Future<Database> get database => _db.database;
+  Future<sqlite3.Database> get database => _db.database;
 
   Future<List<SearchResult>> searchAll(String query,
       {int limit = 20, int offset = 0}) async {
     final db = await database;
-    final result =
-        await db.rawQuery(_queries['searchAll']!, [query, limit, offset]);
-    return result.map((row) => _mapToSearchResult(row)).toList();
+    return db
+        .select(_queries['searchAll']!, [query, limit, offset])
+        .toMapList()
+        .map((row) => _mapToSearchResult(row))
+        .toList();
   }
 
   Future<List<SearchResult>> searchInBook(String query, int bookId,
       {int limit = 20, int offset = 0}) async {
     final db = await database;
-    final result = await db
-        .rawQuery(_queries['searchInBook']!, [query, bookId, limit, offset]);
-    return result.map((row) => _mapToSearchResult(row)).toList();
+    return db
+        .select(_queries['searchInBook']!, [query, bookId, limit, offset])
+        .toMapList()
+        .map((row) => _mapToSearchResult(row))
+        .toList();
   }
 
   Future<List<SearchResult>> searchByAuthor(String query, String authorName,
       {int limit = 20, int offset = 0}) async {
     final db = await database;
-    final result = await db.rawQuery(
-        _queries['searchByAuthor']!, [query, authorName, limit, offset]);
-    return result.map((row) => _mapToSearchResult(row)).toList();
+    return db
+        .select(_queries['searchByAuthor']!, [query, authorName, limit, offset])
+        .toMapList()
+        .map((row) => _mapToSearchResult(row))
+        .toList();
   }
 
   Future<List<SearchResult>> searchWithBookFilter(
       String query, String bookTitleFilter,
       {int limit = 20, int offset = 0}) async {
     final db = await database;
-    final result = await db.rawQuery(_queries['searchWithBookFilter']!,
-        [query, bookTitleFilter, limit, offset]);
-    return result.map((row) => _mapToSearchResult(row)).toList();
+    return db
+        .select(_queries['searchWithBookFilter']!,
+            [query, bookTitleFilter, limit, offset])
+        .toMapList()
+        .map((row) => _mapToSearchResult(row))
+        .toList();
   }
 
   Future<List<SearchResult>> searchExactPhrase(String query,
       {int limit = 20, int offset = 0}) async {
     final db = await database;
-    final result = await db
-        .rawQuery(_queries['searchExactPhrase']!, [query, limit, offset]);
-    return result.map((row) => _mapToSearchResult(row)).toList();
+    return db
+        .select(_queries['searchExactPhrase']!, [query, limit, offset])
+        .toMapList()
+        .map((row) => _mapToSearchResult(row))
+        .toList();
   }
 
   Future<List<SearchResult>> searchWithOperators(String query,
       {int limit = 20, int offset = 0}) async {
     final db = await database;
-    final result = await db
-        .rawQuery(_queries['searchWithOperators']!, [query, limit, offset]);
-    return result.map((row) => _mapToSearchResult(row)).toList();
+    return db
+        .select(_queries['searchWithOperators']!, [query, limit, offset])
+        .toMapList()
+        .map((row) => _mapToSearchResult(row))
+        .toList();
   }
 
   Future<int> countSearchResults(String query) async {
     final db = await database;
-    final result = await db.rawQuery(_queries['countSearchResults']!, [query]);
-    return Sqflite.firstIntValue(result) ?? 0;
+    return firstIntValue(db.select(_queries['countSearchResults']!, [query])) ??
+        0;
   }
 
   Future<int> countSearchResultsInBook(String query, int bookId) async {
     final db = await database;
-    final result = await db
-        .rawQuery(_queries['countSearchResultsInBook']!, [query, bookId]);
-    return Sqflite.firstIntValue(result) ?? 0;
+    return firstIntValue(db
+            .select(_queries['countSearchResultsInBook']!, [query, bookId])) ??
+        0;
   }
 
   Future<void> rebuildFts5Index() async {
     final db = await database;
-    await db.rawQuery(_queries['rebuildFts5Index']!);
+    db.execute(_queries['rebuildFts5Index']!);
   }
 
   SearchResult _mapToSearchResult(Map<String, dynamic> map) {

@@ -1,5 +1,6 @@
-import 'package:sqflite/sqflite.dart';
+import 'package:sqlite3/sqlite3.dart' as sqlite3;
 import '../../core/models/pub_place.dart';
+import '../sqflite/sqlite3_utils.dart';
 import '../sqflite/query_loader.dart';
 import 'database.dart';
 
@@ -11,60 +12,67 @@ class PubPlaceDao {
     _queries = QueryLoader.loadQueries('PubPlaceQueries.sq');
   }
 
-  Future<Database> get database => _db.database;
+  Future<sqlite3.Database> get database => _db.database;
 
   Future<List<PubPlace>> getAllPubPlaces() async {
     final db = await database;
-    final result = await db.rawQuery(_queries['selectAll']!);
-    return result.map((row) => PubPlace.fromJson(row)).toList();
+    return db
+        .select(_queries['selectAll']!)
+        .toMapList()
+        .map((row) => PubPlace.fromJson(row))
+        .toList();
   }
 
   Future<PubPlace?> getPubPlaceById(int id) async {
     final db = await database;
-    final result = await db.rawQuery(_queries['selectById']!, [id]);
+    final result = db.select(_queries['selectById']!, [id]).toMapList();
     if (result.isEmpty) return null;
     return PubPlace.fromJson(result.first);
   }
 
   Future<PubPlace?> getPubPlaceByName(String name) async {
     final db = await database;
-    final result = await db.rawQuery(_queries['selectByName']!, [name]);
+    final result = db.select(_queries['selectByName']!, [name]).toMapList();
     if (result.isEmpty) return null;
     return PubPlace.fromJson(result.first);
   }
 
   Future<List<PubPlace>> getPubPlacesByBookId(int bookId) async {
     final db = await database;
-    final result = await db.rawQuery(_queries['selectByBookId']!, [bookId]);
-    return result.map((row) => PubPlace.fromJson(row)).toList();
+    return db
+        .select(_queries['selectByBookId']!, [bookId])
+        .toMapList()
+        .map((row) => PubPlace.fromJson(row))
+        .toList();
   }
 
   Future<int> insertPubPlace(String name) async {
     final db = await database;
-    return await db.rawInsert(_queries['insert']!, [name]);
+    db.execute(_queries['insert']!, [name]);
+    return db.lastInsertRowId;
   }
 
   Future<int> insertPubPlaceAndGetId(String name) async {
     final db = await database;
-    await db.rawInsert(_queries['insert']!, [name]);
-    final result = await db.rawQuery(_queries['lastInsertRowId']!);
-    return result.first.values.first as int;
+    db.execute(_queries['insert']!, [name]);
+    return db.lastInsertRowId;
   }
 
   Future<int> linkBookPubPlace(int bookId, int pubPlaceId) async {
     final db = await database;
-    return await db
-        .rawInsert(_queries['linkBookPubPlace']!, [bookId, pubPlaceId]);
+    db.execute(_queries['linkBookPubPlace']!, [bookId, pubPlaceId]);
+    return db.lastInsertRowId;
   }
 
   Future<int> deletePubPlace(int id) async {
     final db = await database;
-    return await db.rawDelete(_queries['delete']!, [id]);
+    db.execute(_queries['delete']!, [id]);
+    return db.updatedRows;
   }
 
   Future<int> countAllPubPlaces() async {
     final db = await database;
-    final result = await db.rawQuery(_queries['countAll']!);
-    return Sqflite.firstIntValue(result) ?? 0;
+    return firstIntValue(db.select(_queries['countAll']!)) ?? 0;
   }
 }
+

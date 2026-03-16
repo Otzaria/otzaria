@@ -13,6 +13,7 @@ import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path_provider/path_provider.dart';
 
 /// Service for backing up and restoring app data
 class BackupService {
@@ -21,13 +22,24 @@ class BackupService {
 
   /// Get the backup directory path
   static Future<String> getBackupDirectory() async {
-    final libraryPath = await AppPaths.getLibraryPath();
-    final backupPath = p.join(libraryPath, backupFolderName);
+    final backupPath = await AppPaths.getBackupPath();
     final dir = Directory(backupPath);
     if (!await dir.exists()) {
       await dir.create(recursive: true);
     }
     return backupPath;
+  }
+
+  /// Open the backup directory in the file explorer
+  static Future<void> openBackupDirectory() async {
+    final dir = await getBackupDirectory();
+    if (Platform.isWindows) {
+      await Process.run('explorer', [dir]);
+    } else if (Platform.isMacOS) {
+      await Process.run('open', [dir]);
+    } else if (Platform.isLinux) {
+      await Process.run('xdg-open', [dir]);
+    }
   }
 
   /// Create a backup with specified options
@@ -38,6 +50,7 @@ class BackupService {
     required bool includeNotes,
     required bool includeWorkspaces,
     required bool includeShamorZachor,
+    required bool includeUserOverrides,
   }) async {
     try {
       final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
@@ -58,6 +71,7 @@ class BackupService {
           'notes': includeNotes,
           'workspaces': includeWorkspaces,
           'shamorZachor': includeShamorZachor,
+          'userOverrides': includeUserOverrides,
         },
       };
 
@@ -79,6 +93,11 @@ class BackupService {
       // Backup notes
       if (includeNotes) {
         backupData['notes'] = await _backupNotes();
+      }
+
+      // Backup user overrides
+      if (includeUserOverrides) {
+        backupData['user_overrides'] = await _backupUserOverrides();
       }
 
       // Backup workspaces
@@ -214,6 +233,34 @@ class BackupService {
     };
   }
 
+  /// Backup user overrides
+  static Future<Map<String, dynamic>> _backupUserOverrides() async {
+    final docs = await getApplicationDocumentsDirectory();
+    final overridesDir = Directory(p.join(docs.path, 'user_overrides'));
+    
+    if (!await overridesDir.exists()) {
+      return {};
+    }
+
+    final overridesData = <String, dynamic>{};
+    
+    await for (final entity in overridesDir.list(recursive: true)) {
+      if (entity is File && 
+         (entity.path.endsWith('.md') || 
+          entity.path.endsWith('.tmp') || 
+          entity.path.endsWith('.recovery'))) {
+        final relativePath = p.relative(entity.path, from: overridesDir.path);
+        try {
+          overridesData[relativePath] = await entity.readAsString();
+        } catch (e) {
+          _logger.warning('Failed to backup override file $relativePath: $e');
+        }
+      }
+    }
+    
+    return overridesData;
+  }
+
   /// Backup workspaces
   static Future<Map<String, dynamic>> _backupWorkspaces() async {
     final repo = WorkspaceRepository();
@@ -288,6 +335,14 @@ class BackupService {
     if (includes['notes'] == true && backupData.containsKey('notes')) {
       await _restoreNotes(
         (backupData['notes'] as List).cast<Map<String, dynamic>>(),
+      );
+    }
+
+    // Restore user_overrides
+    final includeOverrides = includes['userOverrides'] as bool? ?? includes['notes'] == true;
+    if (includeOverrides && backupData.containsKey('user_overrides')) {
+      await _restoreUserOverrides(
+        backupData['user_overrides'] as Map<String, dynamic>,
       );
     }
 
@@ -474,6 +529,31 @@ class BackupService {
     return contents;
   }
 
+  /// Restore user overrides to files
+  static Future<void> _restoreUserOverrides(Map<String, dynamic> overridesData) async {
+    final docs = await getApplicationDocumentsDirectory();
+    final overridesDir = Directory(p.join(docs.path, 'user_overrides'));
+    
+    for (final entry in overridesData.entries) {
+      try {
+        final relativePath = entry.key;
+        final content = entry.value as String;
+        
+        final filePath = p.join(overridesDir.path, relativePath);
+        final file = File(filePath);
+        
+        // Ensure parent directory exists
+        await file.parent.create(recursive: true);
+        
+        // Only restore if file doesn't exist, to not overwrite user's latest edits,
+        // or overwrite it if wanted. The standard restore overwrites.
+        await file.writeAsString(content);
+      } catch (e) {
+        _logger.warning('Failed to restore override file ${entry.key}: $e');
+      }
+    }
+  }
+
   /// Restore workspaces
   static Future<void> _restoreWorkspaces(
     List<Map<String, dynamic>> workspacesData,
@@ -553,6 +633,8 @@ class BackupService {
         Settings.getValue<bool>('key-backup-workspaces') ?? true;
     final includeShamorZachor =
         Settings.getValue<bool>('key-backup-shamor-zachor') ?? true;
+    final includeUserOverrides =
+        Settings.getValue<bool>('key-backup-user-overrides') ?? true;
 
     await createBackup(
       includeSettings: includeSettings,
@@ -561,6 +643,7 @@ class BackupService {
       includeNotes: includeNotes,
       includeWorkspaces: includeWorkspaces,
       includeShamorZachor: includeShamorZachor,
+      includeUserOverrides: includeUserOverrides,
     );
 
     await Settings.setValue(

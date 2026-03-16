@@ -38,6 +38,7 @@ class CommentaryListBase extends StatefulWidget {
   final VoidCallback? onClosePane;
   final bool shrinkWrap;
   final ItemPositionsListener? itemPositionsListener;
+  final List<String>? selectedCommentatorsOverride;
 
   const CommentaryListBase({
     super.key,
@@ -48,6 +49,7 @@ class CommentaryListBase extends StatefulWidget {
     this.onClosePane,
     this.shrinkWrap = true,
     this.itemPositionsListener,
+    this.selectedCommentatorsOverride,
   });
 
   @override
@@ -82,6 +84,10 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
 
   // רשימה של כל ה-links לפי סדר הופעתם (נבנית מחדש בכל build)
   List<Link> _orderedLinks = [];
+
+  List<String> _selectedCommentators(TextBookLoaded state) {
+    return widget.selectedCommentatorsOverride ?? state.activeCommentators;
+  }
 
   int _getItemSearchIndex(Link link) {
     // מחשב את האינדקס המצטבר עד ל-link הנוכחי
@@ -395,6 +401,8 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
         },
         loadingWidget: const Center(),
         builder: (context, state) {
+          final selectedCommentators = _selectedCommentators(state);
+
           Widget buildList() {
             return Builder(
               builder: (context) {
@@ -416,22 +424,29 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                       ];
 
                 // בדיקה אם יש בכלל קישורים לאינדקסים הנוכחיים (ללא סינון מפרשים)
-                final hasAnyCommentaryLinks = state.links.any((link) =>
-                    currentIndexes.contains(link.index1 - 1) &&
-                    (link.connectionType.toUpperCase() == "COMMENTARY" ||
-                        link.connectionType.toUpperCase() == "TARGUM"));
+                final hasAnyCommentaryLinks = currentIndexes.any((idx) {
+                  final lineLinks = state.linksByLine[idx + 1];
+                  if (lineLinks == null) return false;
+                  return lineLinks.any((link) {
+                    final type = link.connectionType.toUpperCase();
+                    return type == "COMMENTARY" || type == "TARGUM";
+                  });
+                });
 
                 // סינון מהיר של קישורים רלוונטיים
-                final hasRelevantLinks = state.links.any((link) =>
-                    currentIndexes.contains(link.index1 - 1) &&
-                    state.activeCommentators
-                        .contains(utils.getTitleFromPath(link.path2)));
+                final hasRelevantLinks = currentIndexes.any((idx) {
+                  final lineLinks = state.linksByLine[idx + 1];
+                  if (lineLinks == null) return false;
+                  return lineLinks.any((link) => selectedCommentators
+                      .contains(utils.getTitleFromPath(link.path2)));
+                });
 
                 // אם אין קישורים רלוונטיים
                 if (!hasRelevantLinks) {
                   // אם יש מפרשים זמינים אבל לא נבחרו בכלל - פתח אוטומטית את מסך הבחירה
-                  if (hasAnyCommentaryLinks &&
-                      state.activeCommentators.isEmpty &&
+                  if (widget.showSearch &&
+                      hasAnyCommentaryLinks &&
+                      selectedCommentators.isEmpty &&
                       !_showCommentatorsFilter) {
                     WidgetsBinding.instance.addPostFrameCallback((_) {
                       if (mounted) {
@@ -465,7 +480,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                   future: getLinksforIndexs(
                       indexes: currentIndexes,
                       links: state.links,
-                      commentatorsToShow: state.activeCommentators),
+                      commentatorsToShow: selectedCommentators),
                   builder: (context, thisLinksSnapshot) {
                     if (!thisLinksSnapshot.hasData) {
                       // רק אם יש קישורים רלוונטיים, מציג אנימציית טעינה
@@ -519,7 +534,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                           initialScrollIndex:
                               _lastScrollIndex.clamp(0, groups.length - 1),
                           key: PageStorageKey(
-                              'commentary_${indexesKey}_${state.activeCommentators.join(',')}_$_allExpanded'),
+                              'commentary_${indexesKey}_${selectedCommentators.join(',')}_$_allExpanded'),
                           physics: const ClampingScrollPhysics(),
                           scrollOffsetController: scrollController,
                           shrinkWrap: widget.shrinkWrap,
@@ -687,7 +702,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                       ),
                       const SizedBox(width: 8),
                       // כפתור סגירה/פתיחה גלובלית של כל המפרשים - מוצג רק אם יש מפרשים פעילים
-                      if (state.activeCommentators.isNotEmpty)
+                      if (selectedCommentators.isNotEmpty)
                         IconButton(
                           icon: Icon(
                             _allExpanded
@@ -751,7 +766,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 // כפתור גלובלי מעל הרשימה
-                if (state.activeCommentators.isNotEmpty)
+                if (selectedCommentators.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.all(8.0),
                     child: Align(

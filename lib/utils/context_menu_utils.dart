@@ -15,7 +15,7 @@ import 'package:otzaria/settings/settings_exports.dart';
 /// פונקציות עזר לתפריטי הקשר במפרשים
 class ContextMenuUtils {
   /// בניית תפריט הקשר למפרש ספציפי
-  static ctx.ContextMenu buildCommentaryContextMenu({
+  static ctx.ContextMenu<Object> buildCommentaryContextMenu({
     required BuildContext context,
     required Link link,
     required Function(TextBookTab) openBookCallback,
@@ -24,15 +24,15 @@ class ContextMenuUtils {
     required VoidCallback onCopySelected,
   }) {
     return ctx.ContextMenu(
-      entries: [
-        ctx.MenuItem(
+      entries: <ctx.ContextMenuEntry<Object>>[
+        ctx.MenuItem<Object>(
           label: const Text('העתק'),
           icon: const Icon(FluentIcons.copy_24_regular),
           enabled:
               savedSelectedText != null && savedSelectedText.trim().isNotEmpty,
           onSelected: (_) => onCopySelected(),
         ),
-        ctx.MenuItem(
+        ctx.MenuItem<Object>(
           label: const Text('העתק את כל הפסקה'),
           icon: const Icon(FluentIcons.document_copy_24_regular),
           onSelected: (_) => copyCommentaryParagraph(
@@ -42,7 +42,7 @@ class ContextMenuUtils {
           ),
         ),
         const ctx.MenuDivider(),
-        ctx.MenuItem(
+        ctx.MenuItem<Object>(
           label: const Text('פתח ספר זה בחלון נפרד'),
           icon: const Icon(FluentIcons.open_24_regular),
           onSelected: (_) {

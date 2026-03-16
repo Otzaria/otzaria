@@ -9,12 +9,10 @@ import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/external_catalog/repository/external_catalog_repository.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as path;
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:sqlite3/sqlite3.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  sqfliteFfiInit();
-  databaseFactory = databaseFactoryFfi;
 
   group('ExternalCatalogRepository', () {
     late Directory tempDir;
@@ -146,11 +144,8 @@ void main() {
 
     test('getOtzarBooks ו-getHebrewBooks מחזירים ספרים מה-DB החיצוני',
         () async {
-      final db = await openDatabase(
-        repository.databasePath,
-        version: 1,
-        onCreate: (db, version) async {
-          await db.execute('''
+      final db = sqlite3.open(repository.databasePath);
+      db.execute('''
             CREATE TABLE otzar_hahochma (
               book_id INTEGER PRIMARY KEY,
               title TEXT,
@@ -163,7 +158,7 @@ void main() {
               pages INTEGER
             )
           ''');
-          await db.execute('''
+      db.execute('''
             CREATE TABLE hebrew_books (
               id_book INTEGER PRIMARY KEY,
               title TEXT,
@@ -175,31 +170,33 @@ void main() {
               tags TEXT
             )
           ''');
-
-          await db.insert('otzar_hahochma', {
-            'book_id': 42,
-            'title': 'ספר אוצר',
-            'authors': '["מחבר א","מחבר ב"]',
-            'from_year': 'תש"ס',
-            'to_year': 'תשס"א',
-            'places': 'ירושלים',
-            'subjects': 'הלכה, מוסר',
-            'pages': 200,
-          });
-
-          await db.insert('hebrew_books', {
-            'id_book': 77,
-            'title': 'ספר היברו',
-            'author': 'מחבר ג',
-            'printing_place': 'ורשה',
-            'printing_year': 'תרצ"ד',
-            'pub_date': 1934,
-            'pages': 120,
-            'tags': '["שו\\"ת","הלכה"]',
-          });
-        },
+      db.execute(
+        'INSERT INTO otzar_hahochma (book_id, title, authors, from_year, to_year, places, subjects, pages) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [
+          42,
+          'ספר אוצר',
+          '["מחבר א","מחבר ב"]',
+          'תש"ס',
+          'תשס"א',
+          'ירושלים',
+          'הלכה, מוסר',
+          200
+        ],
       );
-      await db.close();
+      db.execute(
+        'INSERT INTO hebrew_books (id_book, title, author, printing_place, printing_year, pub_date, pages, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [
+          77,
+          'ספר היברו',
+          'מחבר ג',
+          'ורשה',
+          'תרצ"ד',
+          1934,
+          120,
+          '["שו\\"ת","הלכה"]'
+        ],
+      );
+      db.close();
 
       final otzarBooks = await repository.getOtzarBooks();
       final hebrewBooks = await repository.getHebrewBooks();
@@ -242,32 +239,30 @@ Future<void> _createCatalogDatabase(
   String dbPath, {
   required int version,
 }) async {
-  final db = await openDatabase(
-    dbPath,
-    version: 1,
-    onCreate: (db, versionNumber) async {
-      await db.execute('''
+  final db = sqlite3.open(dbPath);
+  db.execute('''
         CREATE TABLE db_meta (
           key TEXT PRIMARY KEY,
           value TEXT NOT NULL
         )
       ''');
-      await db.execute('''
+  db.execute('''
         CREATE TABLE otzar_hahochma (
           book_id INTEGER PRIMARY KEY,
           title TEXT
         )
       ''');
-      await db.execute('''
+  db.execute('''
         CREATE TABLE hebrew_books (
           id_book INTEGER PRIMARY KEY,
           title TEXT
         )
       ''');
-    },
+  db.execute(
+    'INSERT INTO db_meta (key, value) VALUES (?, ?)',
+    ['version', version.toString()],
   );
-  await db.insert('db_meta', {'key': 'version', 'value': version.toString()});
-  await db.close();
+  db.close();
 }
 
 class _MemoryCacheProvider extends CacheProvider {

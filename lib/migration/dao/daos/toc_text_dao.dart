@@ -1,5 +1,6 @@
-import 'package:sqflite/sqflite.dart';
+import 'package:sqlite3/sqlite3.dart' as sqlite3;
 import '../../core/models/toc_text.dart';
+import '../sqflite/sqlite3_utils.dart';
 import '../sqflite/query_loader.dart';
 import 'database.dart';
 
@@ -11,61 +12,64 @@ class TocTextDao {
     _queries = QueryLoader.loadQueries('TocTextQueries.sq');
   }
 
-  Future<Database> get database => _db.database;
+  Future<sqlite3.Database> get database => _db.database;
 
   Future<List<TocText>> selectAll() async {
     final db = await database;
-    final result = await db.rawQuery(_queries['selectAll']!);
-    return result.map((row) => TocText.fromMap(row)).toList();
+    return db
+        .select(_queries['selectAll']!)
+        .toMapList()
+        .map((row) => TocText.fromMap(row))
+        .toList();
   }
 
   Future<TocText?> selectById(int id) async {
     final db = await database;
-    final result = await db.rawQuery(_queries['selectById']!, [id]);
+    final result = db.select(_queries['selectById']!, [id]).toMapList();
     if (result.isEmpty) return null;
     return TocText.fromMap(result.first);
   }
 
   Future<TocText?> selectByText(String text) async {
     final db = await database;
-    final result = await db.rawQuery(_queries['selectByText']!, [text]);
+    final result = db.select(_queries['selectByText']!, [text]).toMapList();
     if (result.isEmpty) return null;
     return TocText.fromMap(result.first);
   }
 
   Future<int> insert(TocText tocText) async {
     final db = await database;
-    return await db.rawInsert(_queries['insert']!, [tocText.text]);
+    db.execute(_queries['insert']!, [tocText.text]);
+    return db.lastInsertRowId;
   }
 
   Future<int> insertAndGetId(TocText tocText) async {
     final db = await database;
-    await db.rawInsert(_queries['insertAndGetId']!, [tocText.text]);
-    final result = await db.rawQuery(_queries['lastInsertRowId']!);
-    return result.first.values.first as int;
+    db.execute(_queries['insertAndGetId']!, [tocText.text]);
+    return db.lastInsertRowId;
   }
 
   Future<int> selectIdByText(String text) async {
     final db = await database;
-    final result = await db.rawQuery(_queries['selectIdByText']!, [text]);
+    final result = db.select(_queries['selectIdByText']!, [text]).toMapList();
     if (result.isEmpty) return 0;
     return result.first['id'] as int;
   }
 
   Future<int> delete(int id) async {
     final db = await database;
-    return await db.rawDelete(_queries['delete']!, [id]);
+    db.execute(_queries['delete']!, [id]);
+    return db.updatedRows;
   }
 
   Future<int> countAll() async {
     final db = await database;
-    final result = await db.rawQuery(_queries['countAll']!);
-    return Sqflite.firstIntValue(result) ?? 0;
+    return firstIntValue(db.select(_queries['countAll']!)) ?? 0;
   }
 
   Future<int> getLastInsertRowId() async {
     final db = await database;
-    final result = await db.rawQuery(_queries['lastInsertRowId']!);
-    return result.first.values.first as int;
+    return db.lastInsertRowId;
   }
 }
+

@@ -1,5 +1,6 @@
-import 'package:sqflite/sqflite.dart';
+import 'package:sqlite3/sqlite3.dart' as sqlite3;
 import '../../core/models/pub_date.dart';
+import '../sqflite/sqlite3_utils.dart';
 import '../sqflite/query_loader.dart';
 import 'database.dart';
 
@@ -11,60 +12,67 @@ class PubDateDao {
     _queries = QueryLoader.loadQueries('PubDateQueries.sq');
   }
 
-  Future<Database> get database => _db.database;
+  Future<sqlite3.Database> get database => _db.database;
 
   Future<List<PubDate>> getAllPubDates() async {
     final db = await database;
-    final result = await db.rawQuery(_queries['selectAll']!);
-    return result.map((row) => PubDate.fromJson(row)).toList();
+    return db
+        .select(_queries['selectAll']!)
+        .toMapList()
+        .map((row) => PubDate.fromJson(row))
+        .toList();
   }
 
   Future<PubDate?> getPubDateById(int id) async {
     final db = await database;
-    final result = await db.rawQuery(_queries['selectById']!, [id]);
+    final result = db.select(_queries['selectById']!, [id]).toMapList();
     if (result.isEmpty) return null;
     return PubDate.fromJson(result.first);
   }
 
   Future<PubDate?> getPubDateByDate(String date) async {
     final db = await database;
-    final result = await db.rawQuery(_queries['selectByDate']!, [date]);
+    final result = db.select(_queries['selectByDate']!, [date]).toMapList();
     if (result.isEmpty) return null;
     return PubDate.fromJson(result.first);
   }
 
   Future<List<PubDate>> getPubDatesByBookId(int bookId) async {
     final db = await database;
-    final result = await db.rawQuery(_queries['selectByBookId']!, [bookId]);
-    return result.map((row) => PubDate.fromJson(row)).toList();
+    return db
+        .select(_queries['selectByBookId']!, [bookId])
+        .toMapList()
+        .map((row) => PubDate.fromJson(row))
+        .toList();
   }
 
   Future<int> insertPubDate(String date) async {
     final db = await database;
-    return await db.rawInsert(_queries['insert']!, [date]);
+    db.execute(_queries['insert']!, [date]);
+    return db.lastInsertRowId;
   }
 
   Future<int> insertPubDateAndGetId(String date) async {
     final db = await database;
-    await db.rawInsert(_queries['insert']!, [date]);
-    final result = await db.rawQuery(_queries['lastInsertRowId']!);
-    return result.first.values.first as int;
+    db.execute(_queries['insert']!, [date]);
+    return db.lastInsertRowId;
   }
 
   Future<int> linkBookPubDate(int bookId, int pubDateId) async {
     final db = await database;
-    return await db
-        .rawInsert(_queries['linkBookPubDate']!, [bookId, pubDateId]);
+    db.execute(_queries['linkBookPubDate']!, [bookId, pubDateId]);
+    return db.lastInsertRowId;
   }
 
   Future<int> deletePubDate(int id) async {
     final db = await database;
-    return await db.rawDelete(_queries['delete']!, [id]);
+    db.execute(_queries['delete']!, [id]);
+    return db.updatedRows;
   }
 
   Future<int> countAllPubDates() async {
     final db = await database;
-    final result = await db.rawQuery(_queries['countAll']!);
-    return Sqflite.firstIntValue(result) ?? 0;
+    return firstIntValue(db.select(_queries['countAll']!)) ?? 0;
   }
 }
+
