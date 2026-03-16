@@ -1385,16 +1385,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
 
   Widget _buildDayDetailsWithoutEvents(
       BuildContext context, CalendarState state) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _buildDateHeader(context, state),
-        const SizedBox(height: 16),
-        Expanded(
-          child: _buildTimesAndEventsTabbed(context, state),
-        ),
-      ],
-    );
+    return _buildTimesAndEventsTabbed(context, state);
   }
 
   Widget _buildDateHeader(BuildContext context, CalendarState state) {
@@ -1449,6 +1440,8 @@ class CalendarWidgetState extends State<CalendarWidget> {
       buildEventsList: (ctx, st, isSearch) =>
           _buildEventsList(ctx, st, isSearch: isSearch),
       showCreateEventDialog: (ctx, st) => _showCreateEventDialog(ctx, st),
+      buildDateHeader: (ctx, st) => _buildDateHeader(ctx, st),
+      hebrewDays: hebrewDays,
       onTabControllerCreated: (controller) {
         _tabController = controller;
       },
@@ -3064,6 +3057,8 @@ class _TimesAndEventsTabView extends StatefulWidget {
   final Widget Function(BuildContext, CalendarState) buildCityDropdown;
   final Widget Function(BuildContext, CalendarState, bool) buildEventsList;
   final void Function(BuildContext, CalendarState) showCreateEventDialog;
+  final Widget Function(BuildContext, CalendarState) buildDateHeader;
+  final List<String> hebrewDays;
   final void Function(TabController)? onTabControllerCreated;
   final void Function(VoidCallback)? onSettingsToggleCallbackCreated;
 
@@ -3074,6 +3069,8 @@ class _TimesAndEventsTabView extends StatefulWidget {
     required this.buildCityDropdown,
     required this.buildEventsList,
     required this.showCreateEventDialog,
+    required this.buildDateHeader,
+    required this.hebrewDays,
     this.onTabControllerCreated,
     this.onSettingsToggleCallbackCreated,
   });
@@ -3220,6 +3217,9 @@ class _TimesAndEventsTabViewState extends State<_TimesAndEventsTabView>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // תצוגת התאריך
+                          widget.buildDateHeader(context, widget.state),
+                          const SizedBox(height: 16),
                           Row(
                             children: [
                               const Spacer(),
@@ -3302,6 +3302,9 @@ class _TimesAndEventsTabViewState extends State<_TimesAndEventsTabView>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // תצוגת התאריך
+                          widget.buildDateHeader(context, widget.state),
+                          const SizedBox(height: 16),
                           Row(
                             children: [
                               // כפתור "צור אירוע" בצד ימין
