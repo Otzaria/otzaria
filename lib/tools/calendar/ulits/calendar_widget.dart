@@ -2230,11 +2230,12 @@ class CalendarWidgetState extends State<CalendarWidget> {
                 ),
               ),
               actions: [
-                TextButton(
+                NeutralActionButton(
+                  text: 'ביטול',
                   onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: const Text('ביטול'),
                 ),
-                ElevatedButton(
+                RecommendedActionButton(
+                  text: 'הדפס',
                   onPressed: () {
                     Navigator.of(dialogContext).pop();
                     Navigator.of(context).push(
@@ -2252,7 +2253,6 @@ class CalendarWidgetState extends State<CalendarWidget> {
                       ),
                     );
                   },
-                  child: const Text('הדפס'),
                 ),
               ],
             );
@@ -2350,7 +2350,8 @@ class CalendarWidgetState extends State<CalendarWidget> {
                   },
                   child: const Text('ביטול'),
                 ),
-                ElevatedButton(
+                RecommendedActionButton(
+                  text: 'פתח',
                   onPressed: () {
                     DateTime? dateToJump;
 
@@ -2372,7 +2373,6 @@ class CalendarWidgetState extends State<CalendarWidget> {
                     Navigator.of(dialogContext).pop();
                     _isJumpToDateDialogOpen = false;
                   },
-                  child: const Text('פתח'),
                 ),
               ],
             );
@@ -2743,7 +2743,8 @@ class CalendarWidgetState extends State<CalendarWidget> {
                   onPressed: () => Navigator.of(dialogContext).pop(),
                   child: const Text('ביטול'),
                 ),
-                ElevatedButton(
+                RecommendedActionButton(
+                  text: isEditMode ? 'שמור שינויים' : 'צור',
                   onPressed: () {
                     if (titleController.text.isEmpty) {
                       UiSnack.showError('יש למלא כותרת לאירוע.');
@@ -2786,7 +2787,6 @@ class CalendarWidgetState extends State<CalendarWidget> {
                     }
                     Navigator.of(dialogContext).pop();
                   },
-                  child: Text(isEditMode ? 'שמור שינויים' : 'צור'),
                 ),
               ],
             );
@@ -3093,12 +3093,16 @@ class _TimesAndEventsTabViewState extends State<_TimesAndEventsTabView>
     // העברת callback לטיפול בהגדרות
     widget.onSettingsToggleCallbackCreated?.call(_toggleSettings);
 
-    // האזנה לשינויים בטאבים כדי לסגור את ההגדרות
+    // האזנה לשינויים בטאבים כדי לסגור את ההגדרות ולעדכן את האייקונים
     _tabController.addListener(() {
       if (_showingSettings && !_tabController.indexIsChanging) {
         setState(() {
           _showingSettings = false;
         });
+      }
+      // עדכון האייקונים כשמשנים טאב
+      if (!_tabController.indexIsChanging) {
+        setState(() {});
       }
     });
 
@@ -3334,21 +3338,30 @@ class _TimesAndEventsTabViewState extends State<_TimesAndEventsTabView>
                         });
                       }
                     },
-                    tabs: const [
+                    tabs: [
                       Tab(
-                        icon: Icon(FluentIcons.calendar_clock_24_regular,
-                            size: 18),
-                        iconMargin: EdgeInsets.only(bottom: 2),
+                        icon: Icon(
+                          _tabController.index == 0
+                              ? FluentIcons.calendar_clock_24_filled
+                              : FluentIcons.calendar_clock_24_regular,
+                          size: 18,
+                        ),
+                        iconMargin: const EdgeInsets.only(bottom: 2),
                         height: 48,
-                        child:
-                            Text('זמני היום', style: TextStyle(fontSize: 12)),
+                        child: const Text('זמני היום',
+                            style: TextStyle(fontSize: 12)),
                       ),
                       Tab(
-                        icon:
-                            Icon(FluentIcons.calendar_ltr_24_regular, size: 18),
-                        iconMargin: EdgeInsets.only(bottom: 2),
+                        icon: Icon(
+                          _tabController.index == 1
+                              ? FluentIcons.calendar_ltr_24_filled
+                              : FluentIcons.calendar_ltr_24_regular,
+                          size: 18,
+                        ),
+                        iconMargin: const EdgeInsets.only(bottom: 2),
                         height: 48,
-                        child: Text('אירועים', style: TextStyle(fontSize: 12)),
+                        child: const Text('אירועים',
+                            style: TextStyle(fontSize: 12)),
                       ),
                     ],
                     unselectedLabelColor:
@@ -3371,12 +3384,23 @@ class _TimesAndEventsTabViewState extends State<_TimesAndEventsTabView>
                   child: IconButton(
                     icon: Icon(
                       _showingSettings
-                          ? FluentIcons.dismiss_24_regular
+                          ? FluentIcons.settings_24_filled
                           : FluentIcons.settings_24_regular,
                       size: 20,
                     ),
                     onPressed: _toggleSettings,
                     isSelected: _showingSettings,
+                    style: IconButton.styleFrom(
+                      foregroundColor: _showingSettings
+                          ? Theme.of(context).colorScheme.primary
+                          : null,
+                      backgroundColor: _showingSettings
+                          ? Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withValues(alpha: 0.12)
+                          : null,
+                    ),
                   ),
                 ),
               ],
