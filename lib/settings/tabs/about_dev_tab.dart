@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:otzaria/widgets/custom_ui_components.dart';
 import 'package:otzaria/settings/settings_card.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/ad_popup_dialog.dart';
 
 /// טאב "חכמי לב" — אודות, קהילה, תורמים ומפתחים.
 class AboutDevTab extends StatelessWidget {
@@ -142,10 +143,27 @@ class AboutDevTab extends StatelessWidget {
         children: [
           _buildHeader(context),
 
-          // ── תרומה ──
+          // ── תרומה ומידע ──
           SettingsCard(
-            title: 'תרום לפרויקט',
-            children: [_buildDonationContent(context)],
+            title: 'תרומה ומידע',
+            children: [
+              _ActionTile(
+                icon: FluentIcons.payment_24_regular,
+                title: 'תרום לפרויקט',
+                subtitle:
+                    'תרומתך תעזור לנו להמשיך לפתח ולשפר את אוצריא עבור כלל הציבור.',
+                buttonLabel: 'נדרים+',
+                buttonIcon: FluentIcons.payment_24_regular,
+                onTap: () => _openUrl('https://nedar.im/ezOd'),
+              ),
+              _ActionTile(
+                icon: FluentIcons.shield_task_24_filled,
+                title: 'אוצריא מתגייסת לעזרת לומדי התורה',
+                subtitle: 'מרכז המידע על ארגוני סיוע ללומדי התורה',
+                buttonLabel: 'למידע נוסף',
+                onTap: () => _openAdPopup(context),
+              ),
+            ],
           ),
 
           // ── הצטרף ──
@@ -257,30 +275,6 @@ class AboutDevTab extends StatelessWidget {
     );
   }
 
-  Widget _buildDonationContent(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'תרומתך תעזור לנו להמשיך לפתח ולשפר את אוצריא עבור כלל הציבור.',
-            style: kSettingsSubtitleStyle,
-          ),
-          kSettingsCardSpacing,
-          SizedBox(
-            width: double.infinity,
-            child: RecommendedActionButton(
-              text: 'נדרים+',
-              icon: FluentIcons.payment_24_regular,
-              onPressed: () => _openUrl('https://nedar.im/ezOd'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _editorCategory(String label, List<Map<String, String>> editors) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -324,6 +318,16 @@ class AboutDevTab extends StatelessWidget {
   Future<void> _openUrl(String url) async {
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) await launchUrl(uri);
+  }
+
+  void _openAdPopup(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => const AdPopupDialog(
+        title: 'אוצריא מתגייסת לעזרת לומדי התורה',
+      ),
+    );
   }
 }
 
@@ -407,6 +411,7 @@ class _ActionTile extends StatelessWidget {
   final String title;
   final String subtitle;
   final String buttonLabel;
+  final IconData? buttonIcon;
   final VoidCallback onTap;
 
   const _ActionTile({
@@ -414,6 +419,7 @@ class _ActionTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.buttonLabel,
+    this.buttonIcon,
     required this.onTap,
   });
 
@@ -426,6 +432,7 @@ class _ActionTile extends StatelessWidget {
       subtitle: Text(subtitle, style: kSettingsSubtitleStyle),
       trailing: RecommendedActionButton(
         text: buttonLabel,
+        icon: buttonIcon,
         onPressed: onTap,
       ),
     );
