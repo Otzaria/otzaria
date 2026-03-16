@@ -51,8 +51,8 @@ lib/
 ### DataRepository (Singleton)
 המרכז של כל גישה לנתונים. מתאם בין:
 - FileSystemDataProvider - קריאת ספרים מקבצים
-- SqliteDataProvider - הערות אישיות, סימניות
-- HiveDataProvider - טאבים, workspaces, היסטוריה
+- SqliteDataProvider - הערות אישיות
+- HiveDataProvider - טאבים, workspaces, היסטוריה, סימניות
 - TantivyDataProvider - מנוע חיפוש
 
 ### Data Providers
@@ -651,15 +651,13 @@ SegmentedSettingsTile<String>(
 - JSON - metadata
 
 ### SqliteDataProvider
-**תפקיד:** הערות אישיות וסימניות
+**תפקיד:** הערות אישיות
 
 **טבלאות:**
 - `personal_notes` - הערות משתמש
-- `bookmarks` - סימניות
 
 **פעולות:**
 - CRUD על הערות
-- CRUD על סימניות
 - חיפוש בהערות
 
 **מיגרציה:** `FileToDbMigrator` - מעביר הערות מקבצים ל-DB
@@ -837,12 +835,12 @@ class PersonalNote {
 **קובץ:** `lib/theme/app_colors.dart`
 
 **צבעים מוגדרים:**
-- `darkScaffold` - רקע כהה (#0A0A0A)
-- `darkCard` - כרטיס כהה (#1A1A1A)
-- `darkOnSurface` - טקסט כהה (#E8E8E8)
-- `darkOutline` - מתאר כהה (#2A2A2A)
-- `darkAppBar` - AppBar כהה (#141414)
-- `dialogBarrier` - רקע דיאלוג (שחור 60%)
+- `darkScaffold` - רקע כהה (#242424)
+- `darkCard` - כרטיס כהה (#333333)
+- `darkOnSurface` - טקסט כהה (#E0E0E0)
+- `darkOutline` - מתאר כהה (#4A4A4A)
+- `darkAppBar` - AppBar כהה (#2A2A2A)
+- `dialogBarrier` - רקע דיאלוג (שחור ~13%)
 
 ### AppFonts
 **קובץ:** `lib/theme/app_fonts.dart`
@@ -872,6 +870,6 @@ class PersonalNote {
 
 **קבועים:**
 - `radiusXL` - 20 (כרטיסים)
-- `radiusL` - 12 (דיאלוגים)
-- `radiusM` - 8 (כפתורים)
-- `spacing` - 8, 16, 24, 32
+- `radiusMD` - 12 (דיאלוגים)
+- `radiusSM` - 8 (כפתורים)
+- `spacing` - 4, 8, 16, 24, 32
