@@ -11,6 +11,7 @@ import 'package:otzaria/daf_yomi/daf_yomi_helper.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/widgets/dialogs.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
+import 'package:otzaria/widgets/buttons/action_buttons.dart';
 import 'package:otzaria/printing/printing_screen.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -701,13 +702,13 @@ class CalendarWidgetState extends State<CalendarWidget> {
       spacing: 8,
       runSpacing: 8,
       children: [
-        ElevatedButton(
+        RecommendedActionButton(
+          text: 'היום',
           onPressed: () => context.read<CalendarCubit>().jumpToToday(),
-          child: const Text('היום'),
         ),
-        ElevatedButton(
+        NeutralActionButton(
+          text: 'עבור לתאריך',
           onPressed: () => _showJumpToDateDialog(context),
-          child: const Text('עבור לתאריך'),
         ),
       ],
     );
@@ -809,15 +810,15 @@ class CalendarWidgetState extends State<CalendarWidget> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    ElevatedButton(
+                    RecommendedActionButton(
+                      text: 'היום',
                       onPressed: () =>
                           context.read<CalendarCubit>().jumpToToday(),
-                      child: const Text('היום'),
                     ),
                     const SizedBox(height: 8),
-                    ElevatedButton(
+                    NeutralActionButton(
+                      text: 'עבור לתאריך',
                       onPressed: () => _showJumpToDateDialog(context),
-                      child: const Text('עבור לתאריך'),
                     ),
                   ],
                 ),
@@ -2798,16 +2799,10 @@ class CalendarWidgetState extends State<CalendarWidget> {
   // הוספת הוויג'ט החדש לבחירת עיר עם סינון
   Widget _buildCityDropdownWithSearch(
       BuildContext context, CalendarState state) {
-    return ElevatedButton(
+    return NeutralActionButton(
+      text: state.selectedCity,
+      icon: FluentIcons.chevron_down_24_regular,
       onPressed: () => _toggleSettingsCallback?.call(),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(state.selectedCity),
-          const SizedBox(width: 8),
-          const Icon(FluentIcons.chevron_down_24_regular),
-        ],
-      ),
     );
   }
 
@@ -3519,20 +3514,12 @@ class _TimesAndEventsTabViewState extends State<_TimesAndEventsTabView>
                                 Row(
                                   children: [
                                     // כפתור "צור אירוע" בצד ימין
-                                    ElevatedButton.icon(
+                                    RecommendedActionButton(
+                                      text: 'צור אירוע',
+                                      icon: FluentIcons.add_24_regular,
                                       onPressed: () =>
                                           widget.showCreateEventDialog(
                                               context, widget.state),
-                                      icon: const Icon(
-                                          FluentIcons.add_24_regular,
-                                          size: 16),
-                                      label: const Text('צור אירוע'),
-                                      style: ElevatedButton.styleFrom(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 12, vertical: 8),
-                                        textStyle:
-                                            const TextStyle(fontSize: 12),
-                                      ),
                                     ),
                                     if (widget.state.googleCalendarEnabled) ...[
                                       const SizedBox(width: 8),
@@ -3581,28 +3568,18 @@ class _TimesAndEventsTabViewState extends State<_TimesAndEventsTabView>
                                     ],
                                     const Spacer(),
                                     // כפתור "הצג הכל" בצד שמאל
-                                    ElevatedButton.icon(
+                                    NeutralActionButton(
+                                      text: widget.state.showAllEvents
+                                          ? 'הצג יום נוכחי'
+                                          : 'הצג הכל',
+                                      icon: widget.state.showAllEvents
+                                          ? FluentIcons
+                                              .calendar_month_24_regular
+                                          : FluentIcons.calendar_day_24_regular,
                                       onPressed: () => context
                                           .read<CalendarCubit>()
                                           .toggleShowAllEvents(
                                               !widget.state.showAllEvents),
-                                      icon: Icon(
-                                        widget.state.showAllEvents
-                                            ? FluentIcons
-                                                .calendar_month_24_regular
-                                            : FluentIcons
-                                                .calendar_day_24_regular,
-                                        size: 16,
-                                      ),
-                                      label: Text(widget.state.showAllEvents
-                                          ? 'הצג יום נוכחי'
-                                          : 'הצג הכל'),
-                                      style: ElevatedButton.styleFrom(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 12, vertical: 8),
-                                        textStyle:
-                                            const TextStyle(fontSize: 12),
-                                      ),
                                     ),
                                   ],
                                 ),

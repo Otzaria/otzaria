@@ -62,27 +62,16 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                   ListTile(
                     leading: const Icon(FluentIcons.location_24_regular),
                     title: const Text('עיר נבחרת', style: kSettingsTitleStyle),
-                    subtitle:
-                        Text(state.selectedCity, style: kSettingsSubtitleStyle),
-                    trailing: ElevatedButton(
+                    trailing: NeutralActionButton(
+                      text: state.selectedCity,
+                      icon: _showCitySearch
+                          ? FluentIcons.chevron_up_24_regular
+                          : FluentIcons.chevron_down_24_regular,
                       onPressed: () {
                         setState(() {
                           _showCitySearch = !_showCitySearch;
                         });
                       },
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text('שנה'),
-                          const SizedBox(width: 8),
-                          Icon(
-                            _showCitySearch
-                                ? FluentIcons.chevron_up_24_regular
-                                : FluentIcons.chevron_down_24_regular,
-                            size: 20,
-                          ),
-                        ],
-                      ),
                     ),
                   ),
                   AnimatedSize(
@@ -249,7 +238,10 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                             Row(
                               children: [
                                 Expanded(
-                                  child: ElevatedButton.icon(
+                                  child: NeutralActionButton(
+                                    text:
+                                        'לוחות שנה (${state.googleCalendarSelectedIds.length})',
+                                    icon: FluentIcons.calendar_24_regular,
                                     onPressed: () async {
                                       final cubit =
                                           context.read<CalendarCubit>();
@@ -289,30 +281,16 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                                             interactive: false);
                                       }
                                     },
-                                    icon: const Icon(
-                                        FluentIcons.calendar_24_regular),
-                                    label: Text(
-                                        'לוחות שנה (${state.googleCalendarSelectedIds.length})'),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
-                                ElevatedButton.icon(
-                                  onPressed: state.googleCalendarSyncInProgress
-                                      ? null
-                                      : () => context
-                                          .read<CalendarCubit>()
-                                          .syncGoogleCalendar(
-                                              interactive: true),
-                                  icon: state.googleCalendarSyncInProgress
-                                      ? const SizedBox(
-                                          width: 14,
-                                          height: 14,
-                                          child: CircularProgressIndicator(
-                                              strokeWidth: 2))
-                                      : const Icon(
-                                          FluentIcons.arrow_sync_24_regular,
-                                          size: 16),
-                                  label: const Text('סנכרן'),
+                                RecommendedActionButton(
+                                  text: 'סנכרן',
+                                  icon: FluentIcons.arrow_sync_24_regular,
+                                  isLoading: state.googleCalendarSyncInProgress,
+                                  onPressed: () => context
+                                      .read<CalendarCubit>()
+                                      .syncGoogleCalendar(interactive: true),
                                 ),
                                 const SizedBox(width: 8),
                                 TextButton(
