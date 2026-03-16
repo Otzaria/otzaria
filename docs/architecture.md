@@ -7,7 +7,7 @@
 אוצריא היא אפליקציית ספרייה יהודית חינמית ופתוחה, הבנויה ב-Flutter/Dart.
 התוכנה תומכת ב-Windows, Linux, Android, iOS ו-macOS.
 
-**גרסה נוכחית:** 0.9.74
+**גרסה נוכחית:** 0.9.81
 
 ## דפוסי עיצוב מרכזיים
 
@@ -129,7 +129,8 @@ Icon(FluentIcons.search_24_regular)
 
 ### Storage
 - `hive` ^4.0.0-dev.2 - NoSQL מהיר (tabs, workspaces, history)
-- `sqflite` ^2.4.2 - SQLite (personal notes)
+- `sqlite3` ^3.2.0 - SQLite (personal notes)
+- `sqflite_common_ffi` ^2.4.0 - SQLite FFI wrapper
 - `isar` ^4.0.0-dev.14 - DB מהיר (references)
 
 ### Search
