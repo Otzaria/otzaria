@@ -74,7 +74,7 @@ lib/
 ### 1. RtlTextField
 **חובה לכל שדה טקסט!** מתקן בעיות RTL ב-Flutter Desktop:
 - מקשי חיצים הפוכים
-- Collapse של Selection
+- בעיות קריסת בחירת טקסט
 - תפריט הקשר מותאם
 
 ```dart
@@ -217,7 +217,7 @@ class Category {
 - EnableSideBySideMode, DisableSideBySideMode
 - TogglePinTab, CloneTab, MoveTab
 
-**אופטימיזציה:** עוצר Pdfrx worker כשאין PDF tabs
+**אופטימיזציה:** עוצר Pdfrx worker כשאין טאבי PDF פתוחים
 
 ### SearchBloc
 **תפקיד:** חיפוש טקסט מלא (Tantivy)
@@ -269,11 +269,11 @@ User types → SearchBloc.add(SearchRequested())
 
 ### 1. RTL Support
 **בעיה:** Flutter Desktop לא תומך טוב ב-RTL
-**פתרון:** RtlTextField מתקן מקשי חיצים ו-selection
+**פתרון:** RtlTextField מתקן התנהגות מקשי חיצים ובעיות בחירת טקסט
 
 ### 2. PDF Worker Memory
-**בעיה:** Pdfrx worker ממשיך לרוץ גם אחרי סגירת PDF tabs
-**פתרון:** TabsBloc עוצר worker אוטומטית כשאין PDF tabs
+**בעיה:** Pdfrx worker ממשיך לרוץ גם אחרי סגירת טאבי PDF
+**פתרון:** TabsBloc עוצר worker אוטומטית כשאין טאבי PDF פתוחים
 
 ### 3. Lazy Loading של External Books
 **בעיה:** טעינת Otzar/HebrewBooks הייתה חוסמת את האתחול
@@ -348,7 +348,7 @@ User types → SearchBloc.add(SearchRequested())
 - `PdfBookTab` - ספר PDF
 - `CombinedTab` - שני טאבים side-by-side
 
-**אופטימיזציה:** עוצר Pdfrx worker כשאין PDF tabs פתוחים
+**אופטימיזציה:** עוצר Pdfrx worker כשאין טאבי PDF פתוחים
 
 ### 3. Search (חיפוש)
 **תיקייה:** `lib/search/`
