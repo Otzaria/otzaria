@@ -107,26 +107,34 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
 
   // ── הגדרת רשימת הטאבים ────────────────────────────────────────────────────
   late final List<
-          ({String label, IconData icon, Widget Function() pageBuilder})>
-      _tabsData = [
+      ({
+        String label,
+        IconData icon,
+        IconData iconFilled,
+        Widget Function() pageBuilder
+      })> _tabsData = [
     (
       label: 'מראה',
       icon: FluentIcons.paint_brush_24_regular,
+      iconFilled: FluentIcons.paint_brush_24_filled,
       pageBuilder: () => const DesignSettingsTab(),
     ),
     (
       label: 'כתב',
       icon: FluentIcons.book_24_regular,
+      iconFilled: FluentIcons.book_24_filled,
       pageBuilder: () => const TextSettingsTab(),
     ),
     (
       label: 'ספריה',
       icon: FluentIcons.library_24_regular,
+      iconFilled: FluentIcons.library_24_filled,
       pageBuilder: () => const LibrarySettingsTab(),
     ),
     (
       label: 'כלים',
-      icon: FluentIcons.wrench_24_regular,
+      icon: FluentIcons.apps_24_regular,
+      iconFilled: FluentIcons.apps_24_filled,
       pageBuilder: () => ToolsSettingsTab(
             calendarCubit: context.read<CalendarCubit>(),
           ),
@@ -134,16 +142,19 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
     (
       label: 'קיצורים',
       icon: FluentIcons.keyboard_24_regular,
+      iconFilled: FluentIcons.keyboard_24_filled,
       pageBuilder: () => const ShortcutsSettingsTab(),
     ),
     (
       label: 'מערכת',
       icon: FluentIcons.settings_24_regular,
+      iconFilled: FluentIcons.settings_24_filled,
       pageBuilder: () => const SystemSettingsTab(),
     ),
     (
       label: 'אודות',
       icon: FluentIcons.people_team_24_regular,
+      iconFilled: FluentIcons.people_team_24_filled,
       pageBuilder: () => const AboutDevTab(),
     ),
   ];
@@ -308,7 +319,10 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                                             child: Row(
                                               children: [
                                                 Icon(
-                                                  _tabsData[index].icon,
+                                                  isSelected
+                                                      ? _tabsData[index]
+                                                          .iconFilled
+                                                      : _tabsData[index].icon,
                                                   size: 20,
                                                   color: isSelected
                                                       ? colorScheme
