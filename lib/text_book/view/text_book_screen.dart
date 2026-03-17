@@ -2488,6 +2488,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             child: FloatingPanel(
               elevation: 1,
               borderRadius: BorderRadius.circular(AppTokens.radiusLG),
+              color: AppSurfaces.panelBackground(context),
               child: Column(
                 children: [
                   SizedBox(

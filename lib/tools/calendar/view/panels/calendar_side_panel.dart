@@ -158,9 +158,7 @@ class _CalendarSidePanelState extends State<CalendarSidePanel>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final cardColor =
-        isDark ? theme.colorScheme.surfaceContainer : theme.colorScheme.surface;
+    final cardColor = AppSurfaces.panelBackground(context);
 
     return Card(
       elevation: 0,

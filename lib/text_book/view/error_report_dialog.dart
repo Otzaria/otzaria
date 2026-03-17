@@ -889,6 +889,7 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
         mediaQuery.padding.bottom;
 
     return Dialog(
+      backgroundColor: AppSurfaces.panelBackground(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),

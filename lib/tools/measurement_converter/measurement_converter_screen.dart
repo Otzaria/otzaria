@@ -15,6 +15,7 @@ import 'package:otzaria/tools/measurement_converter/measurement_converter_logic.
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/custom_ui_components.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/widgets/sidebar_nav_item.dart';
 
 class MeasurementConverterScreen extends StatefulWidget {
   const MeasurementConverterScreen({super.key});
@@ -173,6 +174,17 @@ class _MeasurementConverterScreenState
     };
   }
 
+  IconData _getCategoryIconFilled(String category) {
+    return switch (category) {
+      'אורך' => FluentIcons.ruler_24_filled,
+      'שטח' => FluentIcons.square_24_filled,
+      'נפח' => FluentIcons.cube_24_filled,
+      'משקל' => FluentIcons.scales_24_filled,
+      'זמן' => FluentIcons.clock_24_filled,
+      _ => FluentIcons.apps_24_filled,
+    };
+  }
+
   void _copyResult() {
     final text = '${_inputController.text} $_selectedFromUnit = '
         '${_resultController.text} $_selectedToUnit';
@@ -192,16 +204,13 @@ class _MeasurementConverterScreenState
       focusNode: _screenFocusNode,
       autofocus: true,
       onKeyEvent: _handleKeyEvent,
-      child: ColoredBox(
-        color: bgColor,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isWide = constraints.maxWidth >= 700;
-            return isWide
-                ? _buildWide(bgColor, constraints)
-                : _buildNarrow(bgColor);
-          },
-        ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth >= 700;
+          return isWide
+              ? _buildWide(bgColor, constraints)
+              : _buildNarrow(bgColor);
+        },
       ),
     );
   }
@@ -222,7 +231,7 @@ class _MeasurementConverterScreenState
           child: _sidebarVisible
               ? Container(
                   width: 150,
-                  color: cs.surfaceContainerLow,
+                  color: bgColor,
                   padding: const EdgeInsets.symmetric(
                     vertical: AppTokens.spaceMD,
                     horizontal: AppTokens.spaceSM,
@@ -233,8 +242,9 @@ class _MeasurementConverterScreenState
                       return Padding(
                         padding: const EdgeInsets.symmetric(
                             vertical: AppTokens.spaceXS),
-                        child: CustomSidebarItem(
+                        child: SidebarNavItem(
                           icon: _getCategoryIcon(cat),
+                          iconFilled: _getCategoryIconFilled(cat),
                           label: cat,
                           isSelected: isSelected,
                           onTap: () {
@@ -248,6 +258,7 @@ class _MeasurementConverterScreenState
                                   (_) => _screenFocusNode.requestFocus());
                             }
                           },
+                          verticalPadding: 0,
                         ),
                       );
                     }).toList(),
@@ -453,8 +464,9 @@ class _MeasurementConverterScreenState
                     return Padding(
                       padding: const EdgeInsets.symmetric(
                           vertical: AppTokens.spaceXS),
-                      child: CustomSidebarItem(
+                      child: SidebarNavItem(
                         icon: _getCategoryIcon(cat),
+                        iconFilled: _getCategoryIconFilled(cat),
                         label: cat,
                         isSelected: isSelected,
                         onTap: () {
@@ -469,6 +481,7 @@ class _MeasurementConverterScreenState
                             setState(() => _narrowShowCategories = false);
                           }
                         },
+                        verticalPadding: 0,
                       ),
                     );
                   }).toList(),
@@ -948,66 +961,6 @@ class _MeasurementConverterScreenState
 }
 
 // ── CustomSidebarItem ───────────────────────────────────────────────────────
-class CustomSidebarItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const CustomSidebarItem({
-    super.key,
-    required this.icon,
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final bgColor =
-        isSelected ? cs.secondaryContainer : cs.surfaceContainerLow;
-    final fgColor =
-        isSelected ? cs.onSecondaryContainer : cs.onSurfaceVariant;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppTokens.radiusSM),
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppTokens.spaceSM,
-            vertical: AppTokens.spaceSM,
-          ),
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: BorderRadius.circular(AppTokens.radiusSM),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 18, color: fgColor),
-              const SizedBox(width: AppTokens.spaceXS),
-              Flexible(
-                child: Text(
-                  label,
-                  textDirection: TextDirection.rtl,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: AppTokens.fontSM,
-                    color: fgColor,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
 //  _MeasurementTextField
 // ═══════════════════════════════════════════════════════════════════════════

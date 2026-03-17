@@ -48,9 +48,7 @@ class _ShamorZachorSidebarState extends State<ShamorZachorSidebar> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: Theme.of(context).colorScheme.surface,
-      child: Column(
+    return Column(
         children: [
           // Search Field
           _buildSearchField(),
@@ -78,8 +76,7 @@ class _ShamorZachorSidebarState extends State<ShamorZachorSidebar> {
             ),
           ),
         ],
-      ),
-    );
+      );
   }
 
   Widget _buildSearchField() {

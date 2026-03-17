@@ -208,7 +208,10 @@ class MoreScreenState extends State<MoreScreen>
         ),
         body: Focus(
           focusNode: _contentFocusNode,
-          child: _pages[_selectedIndex],
+          child: ColoredBox(
+            color: bgColor,
+            child: _pages[_selectedIndex],
+          ),
         ),
       ),
     );
@@ -271,7 +274,10 @@ class MoreScreenState extends State<MoreScreen>
                   color: bgColor,
                   child: IndexedStack(
                     index: _selectedIndex,
-                    children: _pages,
+                    children: [
+                      for (final page in _pages)
+                        ColoredBox(color: bgColor, child: page),
+                    ],
                   ),
                 ),
               ),

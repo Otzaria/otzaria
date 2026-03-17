@@ -315,7 +315,6 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
             return KeyEventResult.ignored;
           },
           child: Scaffold(
-            backgroundColor: AppSurfaces.panelBackground(context),
             body: isNarrow
                 // ── מסך צר: Stack (overlay) ──────────────────────────────
                 ? Stack(

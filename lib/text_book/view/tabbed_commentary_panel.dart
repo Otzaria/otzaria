@@ -114,11 +114,11 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final bgColor = AppSurfaces.panelBackground(context);
     return TextBookStateBuilder(
       builder: (context, state) {
         return Container(
-          color: cs.surfaceContainerLow,
+          color: bgColor,
           child: Column(
             children: [
               SizedBox(

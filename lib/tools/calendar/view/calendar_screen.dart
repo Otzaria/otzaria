@@ -320,7 +320,6 @@ class _CalendarWidgetState extends State<CalendarWidget> {
             child: GestureDetector(
               onTap: () => _keyboardFocusNode.requestFocus(),
               child: Scaffold(
-                backgroundColor: AppSurfaces.panelBackground(context),
                 body: LayoutBuilder(
                   builder: (context, constraints) {
                     final isWideScreen = constraints.maxWidth > 800;
