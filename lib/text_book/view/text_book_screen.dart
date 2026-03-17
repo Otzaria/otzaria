@@ -1030,11 +1030,16 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                   final screenWidth = MediaQuery.of(context).size.width;
                   return Scaffold(
                     appBar: AppBar(
-                      backgroundColor: Theme.of(context).colorScheme.surface,
-                      surfaceTintColor: Colors.transparent,
-                      shadowColor: Colors.black.withValues(alpha: 0.10),
-                      elevation: 1,
-                      scrolledUnderElevation: 2,
+                      backgroundColor:
+                          Theme.of(context).colorScheme.surfaceContainer,
+                      shape: Border(
+                        bottom: BorderSide(
+                          color: Theme.of(context).colorScheme.outlineVariant,
+                          width: 0.3,
+                        ),
+                      ),
+                      elevation: 0,
+                      scrolledUnderElevation: 0,
                       centerTitle: false,
                       title: Text(
                         widget.tab.book.title,
@@ -1237,11 +1242,15 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     bool wideScreen,
   ) {
     return AppBar(
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      surfaceTintColor: Colors.transparent,
-      shadowColor: Colors.black.withValues(alpha: 0.10),
-      elevation: 1,
-      scrolledUnderElevation: 2,
+      backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
+      shape: Border(
+        bottom: BorderSide(
+          color: Theme.of(context).colorScheme.outlineVariant,
+          width: 0.3,
+        ),
+      ),
+      elevation: 0,
+      scrolledUnderElevation: 0,
       centerTitle: false,
       title: _buildTitle(state),
       leadingWidth:
