@@ -13,7 +13,7 @@ import 'package:otzaria/tools/calendar/models/city_coordinates.dart';
 import 'package:otzaria/tools/calendar/models/google_calendar_info.dart';
 import 'package:otzaria/tools/calendar/services/google_calendar_service.dart';
 import 'package:otzaria/tools/calendar/services/notification_service.dart';
-import 'package:otzaria/tools/calendar/utils/jewish_month_navigation.dart';
+import 'package:otzaria/tools/calendar/utils/calendar_month_navigation.dart';
 import 'package:otzaria/tools/calendar/utils/zmanim_calculator.dart';
 import 'package:timezone/timezone.dart' as tz;
 
@@ -103,8 +103,7 @@ class CalendarCubit extends Cubit<CalendarState> {
     List<CustomEvent> events = [];
     try {
       final List<dynamic> eventsList = jsonDecode(eventsJson);
-      events =
-          eventsList.map((e) => CustomEvent.fromJson(e)).toList();
+      events = eventsList.map((e) => CustomEvent.fromJson(e)).toList();
     } catch (_) {
       events = [];
     }
@@ -199,8 +198,8 @@ class CalendarCubit extends Cubit<CalendarState> {
     }
 
     final updated = Map<String, ZmanAlertPreference>.from(state.zmanAlerts);
-    updated[timeId] =
-        ZmanAlertPreference(minutesBefore: minutesBefore, displayName: displayName);
+    updated[timeId] = ZmanAlertPreference(
+        minutesBefore: minutesBefore, displayName: displayName);
     emit(state.copyWith(zmanAlerts: updated));
     await _settingsRepository.updateCalendarZmanAlertsJson(
         jsonEncode(updated.map((k, v) => MapEntry(k, v.toJson()))));
@@ -238,8 +237,10 @@ class CalendarCubit extends Cubit<CalendarState> {
     final cityData = getCityData(state.selectedCity);
     final String timeZoneId;
     if (cityData == null) {
-      debugPrint('CalendarCubit: city data not found, defaulting to Asia/Jerusalem');
-      UiSnack.showError('לא נמצאו נתונים עבור העיר שנבחרה. נעשה שימוש באזור זמן ברירת המחדל.');
+      debugPrint(
+          'CalendarCubit: city data not found, defaulting to Asia/Jerusalem');
+      UiSnack.showError(
+          'לא נמצאו נתונים עבור העיר שנבחרה. נעשה שימוש באזור זמן ברירת המחדל.');
       timeZoneId = 'Asia/Jerusalem';
     } else {
       timeZoneId = cityData['timezone'] as String? ?? 'Asia/Jerusalem';
@@ -313,8 +314,7 @@ class CalendarCubit extends Cubit<CalendarState> {
   }
 
   Future<void> changeCity(String newCity) async {
-    final newTimes =
-        calculateDailyTimes(state.selectedGregorianDate, newCity);
+    final newTimes = calculateDailyTimes(state.selectedGregorianDate, newCity);
     emit(state.copyWith(
       selectedCity: newCity,
       dailyTimes: newTimes,
@@ -326,18 +326,17 @@ class CalendarCubit extends Cubit<CalendarState> {
 
   Future<void> changeCalendarType(CalendarType type) async {
     emit(state.copyWith(calendarType: type));
-    await _settingsRepository
-        .updateCalendarType(_calendarTypeToString(type));
+    await _settingsRepository.updateCalendarType(_calendarTypeToString(type));
   }
 
   Future<void> reloadSettings() async => _initializeCalendar();
 
   void _previousMonth() {
     if (state.calendarType == CalendarType.gregorian) {
-      final current = state.currentGregorianDate;
-      final newDate = current.month == 1
-          ? DateTime(current.year - 1, 12, 1)
-          : DateTime(current.year, current.month - 1, 1);
+      final newDate = shiftGregorianMonthPreservingDay(
+        state.currentGregorianDate,
+        forward: false,
+      );
       final newTimes = calculateDailyTimes(newDate, state.selectedCity);
       emit(state.copyWith(
         currentGregorianDate: newDate,
@@ -347,7 +346,10 @@ class CalendarCubit extends Cubit<CalendarState> {
         dailyTimes: newTimes,
       ));
     } else {
-      final newJewishDate = computePreviousJewishMonth(state.currentJewishDate);
+      final newJewishDate = shiftJewishMonthPreservingDay(
+        state.currentJewishDate,
+        forward: false,
+      );
       final newGregorian = newJewishDate.getGregorianCalendar();
       final newTimes = calculateDailyTimes(newGregorian, state.selectedCity);
       emit(state.copyWith(
@@ -362,10 +364,10 @@ class CalendarCubit extends Cubit<CalendarState> {
 
   void _nextMonth() {
     if (state.calendarType == CalendarType.gregorian) {
-      final current = state.currentGregorianDate;
-      final newDate = current.month == 12
-          ? DateTime(current.year + 1, 1, 1)
-          : DateTime(current.year, current.month + 1, 1);
+      final newDate = shiftGregorianMonthPreservingDay(
+        state.currentGregorianDate,
+        forward: true,
+      );
       final newTimes = calculateDailyTimes(newDate, state.selectedCity);
       emit(state.copyWith(
         currentGregorianDate: newDate,
@@ -375,7 +377,10 @@ class CalendarCubit extends Cubit<CalendarState> {
         dailyTimes: newTimes,
       ));
     } else {
-      final newJewishDate = computeNextJewishMonth(state.currentJewishDate);
+      final newJewishDate = shiftJewishMonthPreservingDay(
+        state.currentJewishDate,
+        forward: true,
+      );
       final newGregorian = newJewishDate.getGregorianCalendar();
       final newTimes = calculateDailyTimes(newGregorian, state.selectedCity);
       emit(state.copyWith(
@@ -492,8 +497,7 @@ class CalendarCubit extends Cubit<CalendarState> {
   }
 
   void navigateToNextDay() => _navigateByDuration(const Duration(days: 1));
-  void navigateToPreviousDay() =>
-      _navigateByDuration(const Duration(days: -1));
+  void navigateToPreviousDay() => _navigateByDuration(const Duration(days: -1));
   void navigateToNextWeek() => _navigateByDuration(const Duration(days: 7));
   void navigateToPreviousWeek() =>
       _navigateByDuration(const Duration(days: -7));
@@ -536,8 +540,7 @@ class CalendarCubit extends Cubit<CalendarState> {
     }
   }
 
-  Future<void> updateGoogleCalendarSelectedIds(
-      List<String> calendarIds) async {
+  Future<void> updateGoogleCalendarSelectedIds(List<String> calendarIds) async {
     emit(state.copyWith(googleCalendarSelectedIds: calendarIds));
     await _settingsRepository.updateGoogleCalendarSelectedIds(calendarIds);
   }
@@ -774,8 +777,7 @@ class CalendarCubit extends Cubit<CalendarState> {
       if (gEvent.status == 'cancelled') continue;
       final mapped = _fromGoogleEvent(gEvent);
       if (mapped == null) continue;
-      final otzariaId =
-          gEvent.extendedProperties?.private?['otzaria_event_id'];
+      final otzariaId = gEvent.extendedProperties?.private?['otzaria_event_id'];
       final googleId = gEvent.id ?? '';
       if (googleId.isNotEmpty && byGoogleId.containsKey(googleId)) {
         final index = byGoogleId[googleId]!;
@@ -813,8 +815,7 @@ class CalendarCubit extends Cubit<CalendarState> {
     if (start == null) return null;
     final date = DateTime(start.year, start.month, start.day);
     final jewishDate = JewishDate.fromDateTime(date);
-    final otzariaId =
-        gEvent.extendedProperties?.private?['otzaria_event_id'];
+    final otzariaId = gEvent.extendedProperties?.private?['otzaria_event_id'];
     RecurrenceType recurrenceType = RecurrenceType.none;
     if (gEvent.recurrence != null && gEvent.recurrence!.isNotEmpty) {
       final rrule = gEvent.recurrence!.first;
@@ -904,7 +905,9 @@ class CalendarCubit extends Cubit<CalendarState> {
         event.baseGregorianDate.year + event.recurringYears!,
         event.baseGregorianDate.month,
         event.baseGregorianDate.day,
-        23, 59, 59,
+        23,
+        59,
+        59,
       ).toUtc();
       buffer.write(';UNTIL=${_formatRRuleUntil(until)}');
     }
@@ -937,8 +940,8 @@ class CalendarCubit extends Cubit<CalendarState> {
       title: title,
       description: description ?? '',
       createdAt: DateTime.now(),
-      baseGregorianDate: DateTime(
-          baseGregorianDate.year, baseGregorianDate.month, baseGregorianDate.day),
+      baseGregorianDate: DateTime(baseGregorianDate.year,
+          baseGregorianDate.month, baseGregorianDate.day),
       baseJewishYear: baseJewish.getJewishYear(),
       baseJewishMonth: baseJewish.getJewishMonth(),
       baseJewishDay: baseJewish.getJewishDayOfMonth(),
@@ -1004,7 +1007,9 @@ class CalendarCubit extends Cubit<CalendarState> {
               e.recurrenceType == RecurrenceType.monthlyHebrew) {
             if (hY >= e.baseJewishYear + e.recurringYears!) expired = true;
           } else {
-            if (gY >= e.baseGregorianDate.year + e.recurringYears!) expired = true;
+            if (gY >= e.baseGregorianDate.year + e.recurringYears!) {
+              expired = true;
+            }
           }
           if (expired) return false;
         }
@@ -1110,8 +1115,7 @@ class CalendarCubit extends Cubit<CalendarState> {
       await notificationService.cancelNotification(id);
     }
     if (!state.calendarNotificationsEnabled) {
-      await _settingsRepository
-          .updateCalendarEventNotificationIdsJson('[]');
+      await _settingsRepository.updateCalendarEventNotificationIdsJson('[]');
       return;
     }
 
@@ -1133,8 +1137,8 @@ class CalendarCubit extends Cubit<CalendarState> {
             }
             try {
               final jd = JewishDate();
-              jd.setJewishDate(targetHebrewYear, event.baseJewishMonth,
-                  event.baseJewishDay);
+              jd.setJewishDate(
+                  targetHebrewYear, event.baseJewishMonth, event.baseJewishDay);
               occurrenceDate = jd.getGregorianCalendar();
             } catch (_) {
               continue;
@@ -1149,8 +1153,12 @@ class CalendarCubit extends Cubit<CalendarState> {
 
           final DateTime eventDateTime;
           if (event.eventTime != null) {
-            eventDateTime = DateTime(occurrenceDate.year, occurrenceDate.month,
-                occurrenceDate.day, event.eventTime!.hour, event.eventTime!.minute);
+            eventDateTime = DateTime(
+                occurrenceDate.year,
+                occurrenceDate.month,
+                occurrenceDate.day,
+                event.eventTime!.hour,
+                event.eventTime!.minute);
           } else {
             eventDateTime = DateTime(occurrenceDate.year, occurrenceDate.month,
                 occurrenceDate.day, 0, 0);
@@ -1175,14 +1183,19 @@ class CalendarCubit extends Cubit<CalendarState> {
         final DateTime eventDateTime;
         if (event.eventTime != null) {
           eventDateTime = DateTime(
-            event.baseGregorianDate.year, event.baseGregorianDate.month,
+            event.baseGregorianDate.year,
+            event.baseGregorianDate.month,
             event.baseGregorianDate.day,
-            event.eventTime!.hour, event.eventTime!.minute,
+            event.eventTime!.hour,
+            event.eventTime!.minute,
           );
         } else {
           eventDateTime = DateTime(
-            event.baseGregorianDate.year, event.baseGregorianDate.month,
-            event.baseGregorianDate.day, 12, 0,
+            event.baseGregorianDate.year,
+            event.baseGregorianDate.month,
+            event.baseGregorianDate.day,
+            12,
+            0,
           );
         }
         if (eventDateTime.isAfter(now)) {
