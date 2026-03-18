@@ -49,6 +49,65 @@ class SegmentOption<T> {
   const SegmentOption({required this.value, required this.label, this.icon});
 }
 
+// ── AppSegmentedControl ─────────────────────────────────────────────────────
+
+/// בקר מקטעים גנרי — מחזיר רק [SegmentedButton] מעוצב.
+class AppSegmentedControl<T> extends StatelessWidget {
+  final List<SegmentOption<T>> options;
+  final T currentValue;
+  final ValueChanged<T> onChanged;
+
+  const AppSegmentedControl({
+    super.key,
+    required this.options,
+    required this.currentValue,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final hasIcons = options.any((o) => o.icon != null);
+    return SegmentedButton<T>(
+      showSelectedIcon: true,
+      selectedIcon: const Icon(Icons.check, size: 16),
+      style: ButtonStyle(
+        minimumSize: WidgetStateProperty.all(const Size(0, 40)),
+        maximumSize: WidgetStateProperty.all(const Size(double.infinity, 40)),
+        shape: WidgetStateProperty.all(RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppTokens.radiusSM))),
+        backgroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
+          if (states.contains(WidgetState.selected)) {
+            return cs.secondaryContainer;
+          }
+          return cs.surface;
+        }),
+        foregroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
+          if (states.contains(WidgetState.selected)) {
+            return cs.onSecondaryContainer;
+          }
+          return cs.onSurfaceVariant;
+        }),
+      ),
+      segments: options
+          .map((o) => ButtonSegment<T>(
+                value: o.value,
+                label: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(o.label, style: AppTextStyles.settingTitle)),
+                icon: hasIcons
+                    ? (o.icon != null
+                        ? Icon(o.icon, size: 18)
+                        : const SizedBox(width: 18))
+                    : null,
+              ))
+          .toList(),
+      selected: {currentValue},
+      onSelectionChanged: (s) => onChanged(s.first),
+    );
+  }
+}
+
 // ── SegmentedButtonTile ───────────────────────────────────────────────────────
 
 /// ListTile עם SegmentedButton — פריסה אדפטיבית narrow/wide.
