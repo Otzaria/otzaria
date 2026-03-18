@@ -11,6 +11,11 @@
 1. **Plan** - Create detailed action plan before execution
 2. **Execute** - Step by step until completion
 3. **Validate** - Run `flutter analyze` after EVERY change
+   - If `flutter analyze` fails due to network/SSL issues → retry with:
+     `flutter analyze --offline`
+   - If it still fails → fallback to:
+     `dart analyze`
+- Prefer `dart analyze` when running in restricted or sandboxed environments
 4. **Fix ALL errors before proceeding to next step**
 5. **Never skip validation - errors compound quickly!**
 
@@ -485,6 +490,8 @@ if (Platform.isAndroid || Platform.isIOS) {
 ### Non-Negotiable Requirements
 1. **No progression with errors** - Fix ALL analyzer errors before next step
 2. **Run `flutter analyze` after EVERY file change** - Don't accumulate errors
+   - On failure (network/SSL issues): retry with `--offline`
+   - Final fallback: `dart analyze`
 3. **RTL text fields** - Use `RtlTextField` exclusively, never `TextField`
 4. **Icons** - Only `fluentui_system_icons`, no exceptions
 5. **User messages** - Only through `UiSnack`, never direct SnackBar
