@@ -72,6 +72,7 @@ class _CustomShortcutDialogState extends State<CustomShortcutDialog> {
         }
       },
       child: AlertDialog(
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
         title: const Text(
           'הגדרת קיצור מקשים מותאם אישית',
           textAlign: TextAlign.right,

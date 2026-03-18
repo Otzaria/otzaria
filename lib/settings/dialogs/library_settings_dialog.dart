@@ -7,6 +7,7 @@ void showLibrarySettingsDialog(BuildContext context) {
   showDialog(
     context: context,
     builder: (dialogContext) => AlertDialog(
+      backgroundColor: Theme.of(dialogContext).colorScheme.surfaceContainerHigh,
       title: const Text(
         'הגדרות ספרייה',
         style: TextStyle(fontWeight: FontWeight.bold),

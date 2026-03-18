@@ -31,7 +31,7 @@ class AppThemeData {
     ).copyWith(
       dialogTheme: DialogThemeData(
         barrierColor: AppColors.dialogBarrier,
-        backgroundColor: colorScheme.surface,
+        backgroundColor: colorScheme.surfaceContainerHigh,
       ),
     );
   }
@@ -79,9 +79,9 @@ class AppThemeData {
         backgroundColor: AppColors.darkAppBar,
         foregroundColor: AppColors.darkOnSurface,
       ),
-      dialogTheme: const DialogThemeData(
+      dialogTheme: DialogThemeData(
         barrierColor: AppColors.dialogBarrier,
-        backgroundColor: AppColors.darkAppBar,
+        backgroundColor: cs.surfaceContainerHigh,
       ),
       iconButtonTheme: _iconButtonTheme(cs),
       filledButtonTheme: _filledButtonTheme(cs),

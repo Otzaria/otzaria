@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:otzaria/theme/theme_exports.dart';
 
 /// Generic settings dialog that can be used across different screens
 /// Supports master switches and dependent sub-settings
@@ -18,7 +17,7 @@ class GenericSettingsDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: AppSurfaces.panelBackground(context),
+      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
       title: Text(
         title,
         style: const TextStyle(fontWeight: FontWeight.bold),

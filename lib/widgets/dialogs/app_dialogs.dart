@@ -22,7 +22,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:otzaria/widgets/mixins/dialog_navigation_mixin.dart';
-import 'package:otzaria/theme/theme_exports.dart';
 
 // ── SingleActionDialog ────────────────────────────────────────────────────────
 
@@ -57,7 +56,7 @@ class _SingleActionDialogState extends State<SingleActionDialog>
       onConfirm: () => Navigator.of(context).pop(true),
       onCancel: () => Navigator.of(context).pop(false),
       child: AlertDialog(
-        backgroundColor: AppSurfaces.panelBackground(context),
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
         title: widget.title is String ? Text(widget.title) : widget.title,
         content: widget.customContent ?? Text(widget.content!),
         actions: [
@@ -103,7 +102,7 @@ class _TwoActionsDialogState extends State<TwoActionsDialog>
       onConfirm: () => Navigator.of(context).pop(true),
       onCancel: () => Navigator.of(context).pop(false),
       child: AlertDialog(
-        backgroundColor: AppSurfaces.panelBackground(context),
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
         title: widget.title is String ? Text(widget.title) : widget.title,
         content: Text(widget.content),
         actions: [
@@ -158,7 +157,7 @@ class _WarningDialogState extends State<WarningDialog>
       onConfirm: () => Navigator.of(context).pop(true),
       onCancel: () => Navigator.of(context).pop(false),
       child: AlertDialog(
-        backgroundColor: AppSurfaces.panelBackground(context),
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
         title: widget.title is String ? Text(widget.title) : widget.title,
         content: Column(
           mainAxisSize: MainAxisSize.min,

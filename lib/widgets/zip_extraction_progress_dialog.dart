@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/utils/zip_extractor_service.dart';
-import 'package:otzaria/theme/theme_exports.dart';
 
 /// ווידג'ט לטיפול בהצגת דיאלוג התקדמות חילוץ ZIP
 class ZipExtractionProgressDialog {
@@ -24,7 +23,8 @@ class ZipExtractionProgressDialog {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: AppSurfaces.panelBackground(dialogContext),
+        backgroundColor:
+            Theme.of(dialogContext).colorScheme.surfaceContainerHigh,
         title: const Text('מעבד תיקייה'),
         content: ValueListenableBuilder<bool>(
           valueListenable: isExtractingNotifier,
@@ -103,7 +103,8 @@ class ZipExtractionProgressDialog {
           final shouldDelete = await showDialog<bool>(
             context: context,
             builder: (dialogContext) => AlertDialog(
-              backgroundColor: AppSurfaces.panelBackground(dialogContext),
+              backgroundColor:
+                  Theme.of(dialogContext).colorScheme.surfaceContainerHigh,
               title: const Text('מחיקת קובץ דחוס'),
               content: const Text(
                 'האם למחוק את קובץ ה-ZIP המקורי?\n\n'
@@ -129,7 +130,8 @@ class ZipExtractionProgressDialog {
               context: context,
               barrierDismissible: false,
               builder: (dialogContext) => AlertDialog(
-                backgroundColor: AppSurfaces.panelBackground(dialogContext),
+                backgroundColor:
+                    Theme.of(dialogContext).colorScheme.surfaceContainerHigh,
                 title: const Text('משלים...'),
                 content: const Column(
                   mainAxisSize: MainAxisSize.min,

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
 import 'package:otzaria/widgets/mixins/dialog_navigation_mixin.dart';
-import 'package:otzaria/theme/theme_exports.dart';
 
 /// דיאלוג הזנת טקסט עם תמיכה באנטר וחיצים
 class InputDialog extends StatefulWidget {
@@ -66,7 +65,7 @@ class _InputDialogState extends State<InputDialog> with DialogNavigationMixin {
       onCancel: () => Navigator.of(context).pop(),
       textFieldFocusNode: _textFieldFocusNode,
       child: AlertDialog(
-        backgroundColor: AppSurfaces.panelBackground(context),
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
         title: Text(widget.title),
         content: Column(
           mainAxisSize: MainAxisSize.min,

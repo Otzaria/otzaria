@@ -11,6 +11,7 @@ void showReadingSettingsDialog(BuildContext context) {
     builder: (context) => BlocBuilder<SettingsBloc, SettingsState>(
       builder: (context, settingsState) {
         return AlertDialog(
+          backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
           title: const Text(
             'הגדרות תצוגת הספרים',
             style: TextStyle(fontWeight: FontWeight.bold),

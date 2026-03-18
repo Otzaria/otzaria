@@ -448,6 +448,8 @@ $detailsSection
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        backgroundColor:
+            Theme.of(dialogContext).colorScheme.surfaceContainerHigh,
         title: const Text('דיווח נשלח בהצלחה'),
         content: const Text('הדיווח נשלח בהצלחה לצוות אוצריא. תודה על הדיווח!'),
         actions: [
@@ -889,7 +891,7 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
         mediaQuery.padding.bottom;
 
     return Dialog(
-      backgroundColor: AppSurfaces.panelBackground(context),
+      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),

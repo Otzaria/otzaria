@@ -83,6 +83,7 @@ class _PasswordVerificationDialogState extends State<PasswordVerificationDialog>
       onCancel: () => Navigator.of(context).pop(false),
       textFieldFocusNode: _textFieldFocusNode,
       child: AlertDialog(
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
         title: Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
@@ -287,6 +288,7 @@ class _SetPasswordDialogState extends State<SetPasswordDialog>
       onCancel: () => Navigator.of(context).pop(false),
       textFieldFocusNode: _passwordFocusNode,
       child: AlertDialog(
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
         title: const Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [

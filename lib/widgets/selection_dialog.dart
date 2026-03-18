@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/core/widgets/otzaria_search_field.dart';
-import 'package:otzaria/theme/theme_exports.dart';
 
 /// דיאלוג בחירה עם חיפוש
 class SelectionDialog<T> extends StatefulWidget {
@@ -52,7 +51,7 @@ class _SelectionDialogState<T> extends State<SelectionDialog<T>> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: AppSurfaces.panelBackground(context),
+      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
       title: Text(widget.title),
       content: SizedBox(
         width: 300,
