@@ -45,11 +45,13 @@ const double _kCommentaryLabelAndSpacingWidth = 32.0;
 /// מסך תצוגת צורת הדף - מציג את הטקסט המרכזי עם מפרשים מסביב
 class PageShapeScreen extends StatefulWidget {
   final Function(OpenedTab) openBookCallback;
+  final ValueChanged<String?>? openSearchPane;
   final ValueNotifier<int?>? sidebarTabNotifier;
 
   const PageShapeScreen({
     super.key,
     required this.openBookCallback,
+    this.openSearchPane,
     this.sidebarTabNotifier,
   });
 
@@ -597,6 +599,8 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                           fontSize: state.fontSize,
                                           openBookCallback:
                                               widget.openBookCallback,
+                                          onOpenSearch:
+                                            widget.openSearchPane,
                                           scrollController:
                                               state.scrollController,
                                           positionsListener:

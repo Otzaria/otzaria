@@ -13,6 +13,7 @@ class TextBookScaffold extends StatelessWidget {
   final List<String> content;
   final Function(OpenedTab) openBookCallback;
   final void Function(int, {String? searchText}) openLeftPaneTab;
+  final ValueChanged<String?>? openSearchPane;
   final ValueChanged<String?>? onSelectedTextChanged;
   final TextEditingValue searchTextController;
   final TextBookTab tab;
@@ -26,6 +27,7 @@ class TextBookScaffold extends StatelessWidget {
     required this.content,
     required this.openBookCallback,
     required this.openLeftPaneTab,
+    this.openSearchPane,
     this.onSelectedTextChanged,
     required this.searchTextController,
     required this.tab,
@@ -47,6 +49,7 @@ class TextBookScaffold extends StatelessWidget {
           content: content,
           openBookCallback: openBookCallback,
           openLeftPaneTab: openLeftPaneTab,
+          openSearchPane: openSearchPane,
           onSelectedTextChanged: onSelectedTextChanged,
           searchTextController: searchTextController,
           tab: tab,

@@ -701,6 +701,10 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     _openLeftPaneTab(1, searchText: _selectedTextForSearch);
   }
 
+  void _openSearchPane(String? searchText) {
+    _openLeftPaneTab(1, searchText: searchText);
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<SettingsBloc, SettingsState>(
@@ -2151,6 +2155,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
               content: state.content,
               openBookCallback: widget.openBookCallback,
               openLeftPaneTab: _openLeftPaneTab,
+              openSearchPane: _openSearchPane,
               onSelectedTextChanged: _onSelectedTextChanged,
               searchTextController: TextEditingValue(text: state.searchText),
               tab: widget.tab,

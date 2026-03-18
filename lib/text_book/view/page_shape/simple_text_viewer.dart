@@ -41,6 +41,7 @@ class SimpleTextViewer extends StatefulWidget {
   final VoidCallback? onCommentatorChanged; // callback לרענון אחרי החלפת מפרש
   final bool useInternalScroll; // האם להשתמש בגלילה פנימית
   final ValueChanged<int>? onOpenSidebarTab;
+  final ValueChanged<String?>? onOpenSearch;
 
   const SimpleTextViewer({
     super.key,
@@ -57,6 +58,7 @@ class SimpleTextViewer extends StatefulWidget {
     this.onCommentatorChanged,
     this.useInternalScroll = true, // ברירת מחדל - עם גלילה פנימית
     this.onOpenSidebarTab,
+    this.onOpenSearch,
   });
 
   @override
@@ -288,10 +290,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         ctx.MenuItem<Object>(
           label: const Text('חיפוש'),
           icon: const Icon(FluentIcons.search_24_regular),
-          onSelected: (_) {
-            // בצורת הדף אין חיפוש - אפשר להוסיף בעתיד
-            UiSnack.show('חיפוש לא זמין בתצוגה זו');
-          },
+          onSelected: (_) => widget.onOpenSearch?.call(_savedSelectedText),
         ),
         // הוספת תפריט החלפת מפרש אם זה מפרש
         if (commentatorMenuItems.isNotEmpty) ...[

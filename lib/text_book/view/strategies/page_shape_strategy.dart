@@ -15,6 +15,7 @@ class PageShapeStrategyImpl extends TextBookViewStrategy {
     final page = PageShapeScreen(
       key: config.pageShapeKey,
       openBookCallback: config.openBookCallback,
+      openSearchPane: config.openSearchPane,
       sidebarTabNotifier: config.pageShapeSidebarTabNotifier,
     );
 
