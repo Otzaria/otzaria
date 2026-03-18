@@ -10,13 +10,15 @@ import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/buttons/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs.dart';
-import 'package:otzaria/widgets/rtl_text_field.dart';
 import 'package:otzaria/widgets/app_floating_panel.dart';
 import 'package:otzaria/widgets/inputs/segmented_button_tile.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/utils/daf_yomi_navigator.dart';
 import 'package:otzaria/tools/calendar/view/widgets/calendar_date_formatters.dart';
 import 'package:otzaria/tools/calendar/view/widgets/calendar_day_cell.dart';
+import 'package:otzaria/tools/calendar/view/widgets/calendar_event_dialog.dart';
+import 'package:otzaria/tools/calendar/view/widgets/calendar_print_dialog.dart';
+import 'package:otzaria/tools/calendar/view/widgets/jump_to_date_dialog.dart';
 import 'package:otzaria/tools/calendar/view/widgets/calendar_zman_alert_dialog.dart';
 import 'package:otzaria/tools/calendar/view/panels/calendar_side_panel.dart';
 import 'package:otzaria/tools/calendar/view/calendar_print_helper.dart'
@@ -343,9 +345,8 @@ class _CalendarWidgetState extends State<CalendarWidget> {
                   return Scaffold(
                     backgroundColor: AppSurfaces.panelBackground(context),
                     appBar: _buildTopAppBar(context, state, isMobile),
-                    endDrawer: isMobile
-                        ? _buildSidePanelDrawer(context, state)
-                        : null,
+                    endDrawer:
+                        isMobile ? _buildSidePanelDrawer(context, state) : null,
                     body: isMobile
                         ? _buildMobileLayout(context, state)
                         : _buildDesktopLayout(context, state),
@@ -1387,100 +1388,16 @@ class _CalendarWidgetState extends State<CalendarWidget> {
   // ─── Dialogs ───────────────────────────────────────────────────────────────
 
   void _showJumpToDateDialog(BuildContext context) {
-    DateTime selectedDate = DateTime.now();
-    final dateController = TextEditingController();
     _isJumpToDateDialogOpen = true;
-
-    showDialog(
+    showJumpToDateDialog(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          backgroundColor: AppSurfaces.panelBackground(ctx),
-          title: const Text('מעבר לתאריך'),
-          content: SizedBox(
-            width: 350,
-            height: 450,
-            child: Column(
-              children: [
-                RtlTextField(
-                  controller: dateController,
-                  autofocus: true,
-                  textInputAction: TextInputAction.done,
-                  decoration: const InputDecoration(
-                    labelText: 'הזן תאריך',
-                    hintText: 'דוגמאות: 15/3/2025, כ״ה אדר תשפ״ה',
-                    border: OutlineInputBorder(),
-                    helperText: 'ניתן להזין תאריך לועזי (יום/חודש/שנה) או עברי',
-                  ),
-                  onChanged: (_) => setState(() {}),
-                  onSubmitted: (value) {
-                    DateTime? dateToJump;
-                    if (value.isNotEmpty) {
-                      dateToJump = _parseInputDate(context, value);
-                      if (dateToJump == null) {
-                        UiSnack.showError('לא הצלחנו לפרש את התאריך.');
-                        return;
-                      }
-                    } else {
-                      dateToJump = selectedDate;
-                    }
-                    context.read<CalendarCubit>().jumpToDate(dateToJump);
-                    Navigator.of(dialogContext).pop();
-                    _isJumpToDateDialogOpen = false;
-                  },
-                ),
-                const SizedBox(height: 20),
-                const Divider(),
-                const Text('או בחר בלוח השנה:',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 10),
-                Expanded(
-                  child: CalendarDatePicker(
-                    initialDate: selectedDate,
-                    firstDate: DateTime(1900),
-                    lastDate: DateTime(2100),
-                    onDateChanged: (date) {
-                      setState(() {
-                        selectedDate = date;
-                        dateController.text =
-                            '${date.day}/${date.month}/${date.year}';
-                      });
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-                _isJumpToDateDialogOpen = false;
-              },
-              child: const Text('ביטול'),
-            ),
-            RecommendedActionButton(
-              text: 'פתח',
-              onPressed: () {
-                DateTime? dateToJump;
-                if (dateController.text.isNotEmpty) {
-                  dateToJump = _parseInputDate(context, dateController.text);
-                  if (dateToJump == null) {
-                    UiSnack.showError('לא הצלחנו לפרש את התאריך.');
-                    return;
-                  }
-                } else {
-                  dateToJump = selectedDate;
-                }
-                context.read<CalendarCubit>().jumpToDate(dateToJump);
-                Navigator.of(dialogContext).pop();
-                _isJumpToDateDialogOpen = false;
-              },
-            ),
-          ],
-        ),
-      ),
-    ).then((_) => _isJumpToDateDialogOpen = false);
+      parseInputDate: (input) => _parseInputDate(context, input),
+    ).then((selectedDate) {
+      if (selectedDate != null && context.mounted) {
+        context.read<CalendarCubit>().jumpToDate(selectedDate);
+      }
+      _isJumpToDateDialogOpen = false;
+    });
   }
 
   DateTime? _parseInputDate(BuildContext context, String input) {
@@ -1538,372 +1455,59 @@ class _CalendarWidgetState extends State<CalendarWidget> {
     CustomEvent? existingEvent,
     DateTime? specificDate,
   }) {
-    final cubit = context.read<CalendarCubit>();
-    final isEditMode = existingEvent != null;
-    final titleController = TextEditingController(text: existingEvent?.title);
-    final descriptionController =
-        TextEditingController(text: existingEvent?.description);
-    final yearsController = TextEditingController(
-        text: existingEvent?.recurringYears?.toString() ?? '');
-    bool isRecurring = (existingEvent?.recurrenceType ?? RecurrenceType.none) !=
-        RecurrenceType.none;
-    RecurrenceType selectedRecurrenceType = isRecurring
-        ? existingEvent!.recurrenceType
-        : RecurrenceType.annualHebrew;
-    bool recurForever = existingEvent?.recurringYears == null;
-    TimeOfDay? selectedTime = existingEvent?.eventTime;
-    final displayedGregorianDate = existingEvent != null
-        ? existingEvent.baseGregorianDate
-        : (specificDate ?? state.selectedGregorianDate);
-    final displayedJewishDate = JewishDate.fromDateTime(displayedGregorianDate);
-
-    showDialog(
+    showCalendarEventDialog(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          backgroundColor: AppSurfaces.panelBackground(ctx),
-          title: Text(isEditMode ? 'ערוך אירוע' : 'צור אירוע חדש'),
-          content: SizedBox(
-            width: 450,
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  RtlTextField(
-                    controller: titleController,
-                    autofocus: true,
-                    textInputAction: TextInputAction.done,
-                    decoration: const InputDecoration(
-                        labelText: 'כותרת האירוע',
-                        border: OutlineInputBorder()),
-                    onSubmitted: (_) => _saveEvent(
-                      context,
-                      dialogContext,
-                      cubit,
-                      isEditMode,
-                      existingEvent,
-                      titleController,
-                      descriptionController,
-                      yearsController,
-                      isRecurring,
-                      recurForever,
-                      selectedRecurrenceType,
-                      displayedGregorianDate,
-                      selectedTime,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  RtlTextField(
-                    controller: descriptionController,
-                    decoration: const InputDecoration(
-                        labelText: 'תיאור (אופציונלי)',
-                        border: OutlineInputBorder()),
-                    maxLines: 3,
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .primaryContainer
-                          .withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(AppTokens.radiusMD),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'תאריך לועזי: ${displayedGregorianDate.day}/${displayedGregorianDate.month}/${displayedGregorianDate.year}',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        Text(
-                          'תאריך עברי: ${formatHebrewDay(displayedJewishDate.getJewishDayOfMonth())} ${getHebrewMonthNameFor(displayedJewishDate)} ${formatHebrewYear(displayedJewishDate.getJewishYear())}',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('שעת האירוע (אופציונלי)'),
-                    subtitle: Text(
-                      selectedTime != null
-                          ? 'שעה: ${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}'
-                          : 'לא נבחרה שעה',
-                      textDirection: TextDirection.rtl,
-                    ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (selectedTime != null)
-                          IconButton(
-                            icon: const Icon(FluentIcons.dismiss_24_regular),
-                            onPressed: () =>
-                                setState(() => selectedTime = null),
-                            tooltip: 'נקה שעה',
-                          ),
-                        IconButton(
-                          icon: const Icon(FluentIcons.clock_24_regular),
-                          onPressed: () async {
-                            final time = await showTimePicker(
-                              context: context,
-                              initialTime: selectedTime ?? TimeOfDay.now(),
-                              builder: (context, child) => Directionality(
-                                textDirection: TextDirection.rtl,
-                                child: child!,
-                              ),
-                            );
-                            if (time != null) {
-                              setState(() => selectedTime = time);
-                            }
-                          },
-                          tooltip: 'בחר שעה',
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  SwitchListTile(
-                    title: const Text('אירוע חוזר'),
-                    value: isRecurring,
-                    onChanged: (value) => setState(() => isRecurring = value),
-                  ),
-                  if (isRecurring) ...[
-                    const SizedBox(height: 8),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: Column(
-                        children: [
-                          DropdownButtonFormField<RecurrenceType>(
-                            initialValue: selectedRecurrenceType,
-                            decoration: const InputDecoration(
-                                labelText: 'חזור לפי',
-                                border: OutlineInputBorder()),
-                            items: [
-                              const DropdownMenuItem(
-                                  value: RecurrenceType.weekly,
-                                  child: Text('שבועי')),
-                              DropdownMenuItem(
-                                value: RecurrenceType.monthlyHebrew,
-                                child: Text(
-                                    'חודשי עברי (יום ${formatHebrewDay(displayedJewishDate.getJewishDayOfMonth())})'),
-                              ),
-                              DropdownMenuItem(
-                                value: RecurrenceType.monthlyGregorian,
-                                child: Text(
-                                    'חודשי לועזי (יום ${displayedGregorianDate.day})'),
-                              ),
-                              DropdownMenuItem(
-                                value: RecurrenceType.annualHebrew,
-                                child: Text(
-                                    'שנתי עברי (${formatHebrewDay(displayedJewishDate.getJewishDayOfMonth())} ${getHebrewMonthNameFor(displayedJewishDate)})'),
-                              ),
-                              DropdownMenuItem(
-                                value: RecurrenceType.annualGregorian,
-                                child: Text(
-                                    'שנתי לועזי (${displayedGregorianDate.day}/${displayedGregorianDate.month})'),
-                              ),
-                            ],
-                            onChanged: (value) => setState(() =>
-                                selectedRecurrenceType =
-                                    value ?? RecurrenceType.annualHebrew),
-                          ),
-                          const SizedBox(height: 16),
-                          CheckboxListTile(
-                            title: const Text('חזרה ללא הגבלה (תמיד)'),
-                            value: recurForever,
-                            onChanged: (value) {
-                              setState(() {
-                                recurForever = value ?? true;
-                                if (recurForever) yearsController.clear();
-                              });
-                            },
-                            controlAffinity: ListTileControlAffinity.leading,
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                          const SizedBox(height: 8),
-                          RtlTextField(
-                            controller: yearsController,
-                            keyboardType: TextInputType.number,
-                            enabled: !recurForever,
-                            decoration: InputDecoration(
-                              labelText: 'חזור למשך (שנים)',
-                              hintText: 'לדוגמה: 5',
-                              border: const OutlineInputBorder(),
-                              filled: recurForever,
-                              fillColor: recurForever
-                                  ? Theme.of(context)
-                                      .disabledColor
-                                      .withValues(alpha: 0.1)
-                                  : null,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('ביטול'),
-            ),
-            RecommendedActionButton(
-              text: isEditMode ? 'שמור שינויים' : 'צור',
-              onPressed: () => _saveEvent(
-                context,
-                dialogContext,
-                cubit,
-                isEditMode,
-                existingEvent,
-                titleController,
-                descriptionController,
-                yearsController,
-                isRecurring,
-                recurForever,
-                selectedRecurrenceType,
-                displayedGregorianDate,
-                selectedTime,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+      state: state,
+      existingEvent: existingEvent,
+      specificDate: specificDate,
+    ).then((result) {
+      if (result == null || !context.mounted) {
+        return;
+      }
 
-  void _saveEvent(
-    BuildContext context,
-    BuildContext dialogContext,
-    CalendarCubit cubit,
-    bool isEditMode,
-    CustomEvent? existingEvent,
-    TextEditingController titleController,
-    TextEditingController descriptionController,
-    TextEditingController yearsController,
-    bool isRecurring,
-    bool recurForever,
-    RecurrenceType selectedRecurrenceType,
-    DateTime displayedGregorianDate,
-    TimeOfDay? selectedTime,
-  ) {
-    if (titleController.text.isEmpty) {
-      UiSnack.showError('יש למלא כותרת לאירוע.');
-      return;
-    }
-    final int? recurringYears = (isRecurring && !recurForever)
-        ? int.tryParse(yearsController.text.trim())
-        : null;
-    final finalRecurrenceType =
-        isRecurring ? selectedRecurrenceType : RecurrenceType.none;
+      final cubit = context.read<CalendarCubit>();
+      final displayedGregorianDate = existingEvent != null
+          ? existingEvent.baseGregorianDate
+          : (specificDate ?? state.selectedGregorianDate);
 
-    if (isEditMode) {
-      cubit.updateEvent(existingEvent!.copyWith(
-        title: titleController.text.trim(),
-        description: descriptionController.text.trim(),
-        recurrenceType: finalRecurrenceType,
-        recurringYears: recurringYears,
-        eventTime: selectedTime,
-      ));
-    } else {
-      cubit.addEvent(
-        title: titleController.text.trim(),
-        description: descriptionController.text.trim(),
-        baseGregorianDate: displayedGregorianDate,
-        recurrenceType: finalRecurrenceType,
-        recurringYears: recurringYears,
-        eventTime: selectedTime,
-      );
-    }
-    Navigator.of(dialogContext).pop();
+      if (existingEvent != null) {
+        cubit.updateEvent(existingEvent.copyWith(
+          title: result.title,
+          description: result.description,
+          recurrenceType: result.recurrenceType,
+          recurringYears: result.recurringYears,
+          eventTime: result.eventTime,
+        ));
+      } else {
+        cubit.addEvent(
+          title: result.title,
+          description: result.description,
+          baseGregorianDate: displayedGregorianDate,
+          recurrenceType: result.recurrenceType,
+          recurringYears: result.recurringYears,
+          eventTime: result.eventTime,
+        );
+      }
+    });
   }
 
   void _printCalendar(BuildContext context, CalendarState state) {
-    int count = 1;
-    showDialog(
+    showCalendarPrintDialog(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (ctx, setState) {
-          final (String periodName, String periodNamePlural, int maxCount) =
-              switch (state.calendarView) {
-            CalendarView.month => ('חודש', 'חודשים', 12),
-            CalendarView.week => ('שבוע', 'שבועות', 52),
-            CalendarView.day => ('יום', 'ימים', 365),
-          };
-          return AlertDialog(
-            backgroundColor: AppSurfaces.panelBackground(context),
-            title: const Text('הגדרות הדפסה'),
-            content: SizedBox(
-              width: 400,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('בחר כמה $periodNamePlural להדפיס:'),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Slider(
-                          value: count.toDouble(),
-                          min: 1,
-                          max: maxCount.toDouble(),
-                          divisions: maxCount - 1,
-                          label: count.toString(),
-                          onChanged: (v) => setState(() => count = v.round()),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      SizedBox(
-                        width: 100,
-                        child: Text(
-                          count == 1
-                              ? '$count $periodName'
-                              : '$count $periodNamePlural',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'טווח: ${count == 1 ? periodName : '$count $periodNamePlural'} החל מהתאריך הנוכחי',
-                    style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              NeutralActionButton(
-                text: 'ביטול',
-                onPressed: () => Navigator.of(dialogContext).pop(),
-              ),
-              RecommendedActionButton(
-                text: 'הדפס',
-                onPressed: () {
-                  Navigator.of(dialogContext).pop();
-                  Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => PrintingScreen(
-                      data: Future.value(''),
-                      bookId: 'calendar',
-                      createPdfOverride: (format) => print_helper
-                          .createCalendarPdf(state, format, count: count),
-                    ),
-                  ));
-                },
-              ),
-            ],
-          );
-        },
-      ),
-    );
+      calendarView: state.calendarView,
+    ).then((count) {
+      if (count == null || !context.mounted) {
+        return;
+      }
+
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => PrintingScreen(
+          data: Future.value(''),
+          bookId: 'calendar',
+          createPdfOverride: (format) =>
+              print_helper.createCalendarPdf(state, format, count: count),
+        ),
+      ));
+    });
   }
 }
