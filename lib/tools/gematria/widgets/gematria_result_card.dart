@@ -59,70 +59,99 @@ class GematriaResultCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(AppTokens.radiusMD),
           border: isFocused ? Border.all(color: cs.primary, width: 1.5) : null,
         ),
-        child: SelectionArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppTokens.spaceMD,
-              vertical: AppTokens.spaceSM,
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isNarrow = constraints.maxWidth < 700;
+            final actionButtons = Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // ── מספר ──────────────────────────────────────────────────
-                _NumberBadge(number: number),
-                const SizedBox(width: AppTokens.spaceSM),
-                // ── נתיב + תצוגה (Expanded) ───────────────────────────────
-                Expanded(
-                  child: BlocBuilder<SettingsBloc, SettingsState>(
-                    builder: (context, state) {
-                      String displayPath = result.internalPath.isNotEmpty
-                          ? result.internalPath
-                          : result.bookTitle;
-                      if (state.replaceHolyNames) {
-                        displayPath = utils.replaceHolyNames(displayPath);
-                      }
-                      String displayText = result.preview;
-                      if (state.replaceHolyNames) {
-                        displayText = utils.replaceHolyNames(displayText);
-                      }
-
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // נתיב (קומפקטי)
-                          SelectableText(
-                            displayPath,
-                            style: TextStyle(
-                              fontSize: AppTokens.fontSM,
-                              fontWeight: FontWeight.w500,
-                              color: cs.onSurfaceVariant,
-                            ),
-                            textAlign: TextAlign.right,
-                            maxLines: 1,
-                          ),
-                          // טקסט
-                          if (result.preview.isNotEmpty) ...[
-                            const SizedBox(height: 2),
-                            _InlinePreview(
-                              result: result,
-                              state: state,
-                              displayText: displayText,
-                            ),
-                          ],
-                        ],
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(width: AppTokens.spaceSM),
-                // ── כפתורי פעולה (תמיד גלויים, בשורה) ───────────────────
                 ToolCopyButton(onPressed: () => _copy(context)),
                 const SizedBox(width: 4),
                 ToolNavigateButton(onPressed: () => _navigate(context)),
               ],
-            ),
-          ),
+            );
+            final reservedEndSpace = isNarrow ? 84.0 : 92.0;
+            final topInset = isNarrow ? 6.0 : 8.0;
+
+            return SelectionArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppTokens.spaceMD,
+                  vertical: AppTokens.spaceSM,
+                ),
+                child: BlocBuilder<SettingsBloc, SettingsState>(
+                  builder: (context, state) {
+                    String displayPath = result.internalPath.isNotEmpty
+                        ? result.internalPath
+                        : result.bookTitle;
+                    if (state.replaceHolyNames) {
+                      displayPath = utils.replaceHolyNames(displayPath);
+                    }
+                    String displayText = result.preview;
+                    if (state.replaceHolyNames) {
+                      displayText = utils.replaceHolyNames(displayText);
+                    }
+
+                    final textColumn = Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SelectableText(
+                          displayPath,
+                          style: TextStyle(
+                            fontSize: AppTokens.fontSM,
+                            fontWeight: FontWeight.w500,
+                            color: cs.onSurfaceVariant,
+                          ),
+                          textAlign: TextAlign.right,
+                          maxLines: isNarrow ? null : 1,
+                        ),
+                        if (result.preview.isNotEmpty) ...[
+                          SizedBox(height: isNarrow ? 3 : 4),
+                          _InlinePreview(
+                            result: result,
+                            state: state,
+                            displayText: displayText,
+                            maxLines: null,
+                            lineHeight: isNarrow ? 1.28 : 1.22,
+                          ),
+                        ],
+                      ],
+                    );
+
+                    return ConstrainedBox(
+                      constraints: BoxConstraints(minHeight: isNarrow ? 56 : 72),
+                      child: Stack(
+                        children: [
+                          Padding(
+                            padding: EdgeInsetsDirectional.only(
+                              end: reservedEndSpace,
+                              top: topInset,
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // ── מספר ──────────────────────────────────
+                                _NumberBadge(number: number),
+                                const SizedBox(width: AppTokens.spaceSM),
+                                // ── נתיב + תצוגה ───────────────────────────
+                                Expanded(child: textColumn),
+                              ],
+                            ),
+                          ),
+                          PositionedDirectional(
+                            end: 0,
+                            top: 0,
+                            child: actionButtons,
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -163,10 +192,14 @@ class _InlinePreview extends StatelessWidget {
   final GematriaSearchResult result;
   final SettingsState state;
   final String displayText;
+  final int? maxLines;
+  final double lineHeight;
   const _InlinePreview({
     required this.result,
     required this.state,
     required this.displayText,
+    this.maxLines,
+    this.lineHeight = 1.4,
   });
 
   @override
@@ -185,7 +218,7 @@ class _InlinePreview extends StatelessWidget {
           fontSize: state.fontSize - 1,
           fontFamily: state.fontFamily,
           color: cs.onSurface,
-          height: 1.4,
+          height: lineHeight,
         ),
         children: [
           if (before.isNotEmpty)
@@ -205,7 +238,7 @@ class _InlinePreview extends StatelessWidget {
         ],
       ),
       textAlign: TextAlign.right,
-      maxLines: 2,
+      maxLines: maxLines,
     );
   }
 }
