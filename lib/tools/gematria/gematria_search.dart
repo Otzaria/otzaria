@@ -237,8 +237,11 @@ class GimatriaSearch {
           if (useWithKolel) totalValue += words.length;
 
           if (totalValue == targetGimatria) {
-            final path =
-                await _extractPathFromToc(line.id, tocEntries, repository);
+            final path = extractPathFromTocEntries(
+              currentLineIndex: line.lineIndex,
+              bookTitle: book.title,
+              tocEntries: tocEntries,
+            );
             found.add(SearchResult(
               file: book.title,
               line: line.lineIndex + 1,
@@ -263,8 +266,11 @@ class GimatriaSearch {
               if (finalValue == targetGimatria) {
                 final phrase =
                     words.sublist(start, start + offset + 1).join(' ');
-                final path =
-                    await _extractPathFromToc(line.id, tocEntries, repository);
+                final path = extractPathFromTocEntries(
+                  currentLineIndex: line.lineIndex,
+                  bookTitle: book.title,
+                  tocEntries: tocEntries,
+                );
                 final ctx = _extractContext(words, start, offset);
                 found.add(SearchResult(
                   file: book.title,
@@ -287,29 +293,61 @@ class GimatriaSearch {
     return found;
   }
 
-  static Future<String> _extractPathFromToc(
-      int lineId, List<dynamic> tocEntries, dynamic repository) async {
-    try {
-      final tocEntry = await repository.getTocEntryForLine(lineId);
-      if (tocEntry == null) return '';
-
-      final List<String> pathParts = [];
-      dynamic current = tocEntry;
-
-      while (current != null) {
-        final tocText = await repository.getTocText(current.textId);
-        if (tocText != null && tocText.text.isNotEmpty) {
-          pathParts.insert(0, _cleanHtml(tocText.text));
-        }
-        current = current.parentId != null
-            ? await repository.getTocEntry(current.parentId!)
-            : null;
-      }
-
-      return pathParts.join(', ');
-    } catch (_) {
+  /// מחלץ נתיב היררכי מתוך רשימת TOC לפי שורת החיפוש.
+  ///
+  /// הפונקציה בוחרת את ה-TOC entry הקרוב ביותר שמופיע לפני או בשורה
+  /// הנוכחית, ואז בונה מסלול מלא לאורך שרשרת ההורים שלו.
+  /// אם אין נתיב רלוונטי, מוחזר שם הספר.
+  @visibleForTesting
+  static String extractPathFromTocEntries({
+    required int currentLineIndex,
+    required String bookTitle,
+    required List<TocEntry> tocEntries,
+  }) {
+    if (tocEntries.isEmpty) {
       return '';
     }
+
+    TocEntry? bestEntry;
+    for (final entry in tocEntries) {
+      final lineIndex = entry.lineIndex;
+      if (lineIndex == null || lineIndex > currentLineIndex) {
+        continue;
+      }
+
+      if (bestEntry == null ||
+          lineIndex > bestEntry.lineIndex! ||
+          (lineIndex == bestEntry.lineIndex! &&
+              entry.level > bestEntry.level)) {
+        bestEntry = entry;
+      }
+    }
+
+    if (bestEntry == null) {
+      return '';
+    }
+
+    final tocEntriesById = {
+      for (final entry in tocEntries) entry.id: entry,
+    };
+
+    final pathParts = <String>[];
+    TocEntry? current = bestEntry;
+    while (current != null) {
+      final text = _cleanHtml(current.text);
+      if (text.isNotEmpty && text != bookTitle) {
+        pathParts.insert(0, text);
+      }
+
+      final parentId = current.parentId;
+      current = parentId == null ? null : tocEntriesById[parentId];
+    }
+
+    if (pathParts.isEmpty) {
+      return bookTitle;
+    }
+
+    return <String>[bookTitle, ...pathParts].join(', ');
   }
 
   static Future<List<SearchResult>> _searchInFilesLegacy(
