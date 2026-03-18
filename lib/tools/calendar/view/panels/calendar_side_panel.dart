@@ -6,9 +6,7 @@ import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/buttons/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs.dart';
-import 'package:otzaria/widgets/inputs/segmented_button_tile.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
-import 'package:otzaria/tools/calendar/view/widgets/calendar_date_formatters.dart';
 
 /// הפאנל הצדדי — מציג תוכן לפי מצב נבחר
 enum CalendarSidePanelView { times, events, settings }
@@ -23,7 +21,6 @@ class CalendarSidePanel extends StatefulWidget {
   final Widget Function(BuildContext, CalendarState) buildCityDropdown;
   final Widget Function(BuildContext, CalendarState, bool) buildEventsList;
   final void Function(BuildContext, CalendarState) showCreateEventDialog;
-  final List<String> hebrewDays;
 
   const CalendarSidePanel({
     super.key,
@@ -35,105 +32,43 @@ class CalendarSidePanel extends StatefulWidget {
     required this.buildCityDropdown,
     required this.buildEventsList,
     required this.showCreateEventDialog,
-    required this.hebrewDays,
   });
 
   @override
   State<CalendarSidePanel> createState() => _CalendarSidePanelState();
 }
 
-class _CalendarSidePanelState extends State<CalendarSidePanel> {
+class _CalendarSidePanelState extends State<CalendarSidePanel>
+    with SingleTickerProviderStateMixin {
   final ScrollController _timesScrollController = ScrollController();
   final ScrollController _eventsScrollController = ScrollController();
-  double _timesScrollProgress = 0.0;
-  double _eventsScrollProgress = 0.0;
+  late final TabController _tabController;
 
   @override
   void initState() {
     super.initState();
-    _timesScrollController.addListener(() {
-      const maxScroll = 60.0;
-      final progress =
-          (_timesScrollController.offset / maxScroll).clamp(0.0, 1.0);
-      if (progress != _timesScrollProgress) {
-        setState(() => _timesScrollProgress = progress);
-      }
-    });
+    _tabController = TabController(
+      length: CalendarSidePanelView.values.length,
+      vsync: this,
+      initialIndex: CalendarSidePanelView.values.indexOf(widget.activeView),
+    );
+  }
 
-    _eventsScrollController.addListener(() {
-      const maxScroll = 60.0;
-      final progress =
-          (_eventsScrollController.offset / maxScroll).clamp(0.0, 1.0);
-      if (progress != _eventsScrollProgress) {
-        setState(() => _eventsScrollProgress = progress);
-      }
-    });
+  @override
+  void didUpdateWidget(covariant CalendarSidePanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final nextIndex = CalendarSidePanelView.values.indexOf(widget.activeView);
+    if (_tabController.index != nextIndex) {
+      _tabController.animateTo(nextIndex);
+    }
   }
 
   @override
   void dispose() {
     _timesScrollController.dispose();
     _eventsScrollController.dispose();
+    _tabController.dispose();
     super.dispose();
-  }
-
-  // ─── Animated date header ──────────────────────────────────────────────────
-
-  Widget _buildAnimatedDateHeader(BuildContext context, double progress) {
-    final state = widget.state;
-    final dayOfWeek =
-        widget.hebrewDays[state.selectedGregorianDate.weekday % 7];
-    final jewishDay =
-        formatHebrewDay(state.selectedJewishDate.getJewishDayOfMonth());
-    final jewishMonth = getHebrewMonthNameFor(state.selectedJewishDate);
-    final gregorianDay = state.selectedGregorianDate.day;
-    final gregorianMonth =
-        getGregorianMonthName(state.selectedGregorianDate.month);
-    final gregorianYear = state.selectedGregorianDate.year;
-
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final fontSize = 20.0 - (6.0 * progress);
-    final padding = 16.0 - (8.0 * progress);
-    final opacity = 1.0 - progress;
-
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(padding),
-      decoration: BoxDecoration(
-        color: isDark
-            ? cs.surfaceContainer
-            : cs.surfaceContainerHighest.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(AppTokens.radiusMD),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Text(
-            '$dayOfWeek $jewishDay $jewishMonth',
-            style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.bold),
-            textAlign: TextAlign.center,
-            textDirection: TextDirection.rtl,
-          ),
-          if (opacity > 0.01)
-            Opacity(
-              opacity: opacity,
-              child: Padding(
-                padding: EdgeInsets.only(top: 4.0 * opacity),
-                child: Text(
-                  '$gregorianDay $gregorianMonth $gregorianYear',
-                  style: TextStyle(
-                    fontSize: 16.0 - (2.0 * progress),
-                    color: cs.onSurfaceVariant,
-                  ),
-                  textAlign: TextAlign.center,
-                  textDirection: TextDirection.rtl,
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
   }
 
   // ─── Build ─────────────────────────────────────────────────────────────────
@@ -146,34 +81,40 @@ class _CalendarSidePanelState extends State<CalendarSidePanel> {
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: AppSegmentedControl<CalendarSidePanelView>(
-              options: const [
-                SegmentOption(
-                  value: CalendarSidePanelView.times,
-                  label: 'זמני היום',
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            child: TabBar(
+              controller: _tabController,
+              onTap: (index) => widget.onViewChanged(
+                CalendarSidePanelView.values[index],
+              ),
+              tabs: const [
+                Tab(
+                  icon: Icon(FluentIcons.clock_24_regular),
                 ),
-                SegmentOption(
-                  value: CalendarSidePanelView.events,
-                  label: 'אירועים',
+                Tab(
+                  icon: Icon(FluentIcons.calendar_24_regular),
                 ),
-                SegmentOption(
-                  value: CalendarSidePanelView.settings,
-                  label: 'הגדרות',
+                Tab(
+                  icon: Icon(FluentIcons.settings_24_regular),
                 ),
               ],
-              currentValue: widget.activeView,
-              onChanged: widget.onViewChanged,
+              isScrollable: false,
+              indicatorSize: TabBarIndicatorSize.tab,
+              indicatorColor: theme.colorScheme.primary,
+              labelColor: theme.colorScheme.primary,
+              unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+              dividerColor: theme.colorScheme.outlineVariant,
+              overlayColor: WidgetStatePropertyAll(Colors.transparent),
+              splashFactory: NoSplash.splashFactory,
             ),
           ),
-          const SizedBox(height: AppTokens.spaceMD),
           Expanded(
             child: IndexedStack(
               index: CalendarSidePanelView.values.indexOf(widget.activeView),
               children: [
                 _buildTimesPanel(context, theme),
                 _buildEventsPanel(context, theme),
-                _buildSettingsPanel(context, theme),
+                _buildSettingsPanel(context),
               ],
             ),
           ),
@@ -189,10 +130,6 @@ class _CalendarSidePanelState extends State<CalendarSidePanel> {
       child: SettingsCard(
         title: 'זמני היום',
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: _buildAnimatedDateHeader(context, _timesScrollProgress),
-          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: Row(
@@ -278,10 +215,6 @@ class _CalendarSidePanelState extends State<CalendarSidePanel> {
       child: SettingsCard(
         title: 'אירועים',
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: _buildAnimatedDateHeader(context, _eventsScrollProgress),
-          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: Row(
@@ -385,7 +318,7 @@ class _CalendarSidePanelState extends State<CalendarSidePanel> {
     );
   }
 
-  Widget _buildSettingsPanel(BuildContext context, ThemeData theme) {
+  Widget _buildSettingsPanel(BuildContext context) {
     return BlocProvider.value(
       value: context.read<CalendarCubit>(),
       child: const SingleChildScrollView(

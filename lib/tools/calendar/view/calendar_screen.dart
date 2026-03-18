@@ -403,6 +403,11 @@ class _CalendarWidgetState extends State<CalendarWidget> {
             text: 'היום',
             onPressed: () => context.read<CalendarCubit>().jumpToToday(),
           ),
+          const SizedBox(width: AppTokens.spaceXS),
+          RecommendedActionButton(
+            text: 'מעבר לתאריך',
+            onPressed: () => _showJumpToDateDialog(context),
+          ),
           const SizedBox(width: AppTokens.spaceMD),
           AppSegmentedControl<CalendarView>(
             options: const [
@@ -804,7 +809,6 @@ class _CalendarWidgetState extends State<CalendarWidget> {
       buildEventsList: (ctx, st, isSearch) =>
           _buildEventsList(ctx, st, isSearch: isSearch),
       showCreateEventDialog: (ctx, st) => _showCreateEventDialog(ctx, st),
-      hebrewDays: hebrewDays,
     );
   }
 
