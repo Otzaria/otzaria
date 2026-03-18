@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/widgets/mixins/dialog_navigation_mixin.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 
 /// דיאלוג אישור עם תמיכה באנטר וחיצים
 class ConfirmationDialog extends StatefulWidget {
@@ -32,6 +33,7 @@ class _ConfirmationDialogState extends State<ConfirmationDialog>
       onConfirm: () => Navigator.of(context).pop(true),
       onCancel: () => Navigator.of(context).pop(false),
       child: AlertDialog(
+        backgroundColor: AppSurfaces.panelBackground(context),
         title: Text(widget.title),
         content: Text(widget.content),
         actions: [

@@ -40,5 +40,5 @@ class AppColors {
 
   // ── Dialogs ────────────────────────────────────────────────────────────
   /// צבע מחסום הדיאלוג (barrier) — חצי שקוף
-  static const Color dialogBarrier = Color(0x22000000);
+  static const Color dialogBarrier = Color(0x52000000);
 }
