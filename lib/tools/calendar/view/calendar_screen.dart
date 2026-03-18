@@ -11,6 +11,8 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/buttons/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
+import 'package:otzaria/widgets/app_floating_panel.dart';
+import 'package:otzaria/widgets/inputs/segmented_button_tile.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/utils/daf_yomi_navigator.dart';
 import 'package:otzaria/tools/calendar/view/widgets/calendar_date_formatters.dart';
@@ -33,9 +35,9 @@ class _CalendarWidgetState extends State<CalendarWidget> {
   late final FocusNode _keyboardFocusNode;
   Timer? _keyRepeatTimer;
   LogicalKeyboardKey? _currentPressedKey;
-  TabController? _tabController;
-  VoidCallback? _toggleSettingsCallback;
   bool _isJumpToDateDialogOpen = false;
+  bool _isSidebarVisible = true;
+  CalendarSidePanelView _sidePanelView = CalendarSidePanelView.times;
 
   final List<String> hebrewDays = kHebrewDays;
   final List<String> hebrewMonths = kHebrewMonths;
@@ -227,6 +229,19 @@ class _CalendarWidgetState extends State<CalendarWidget> {
     cubit.jumpToDate(newDate);
   }
 
+  void _openSidePanelIfNeeded(BuildContext context, bool isMobile) {
+    if (!isMobile) return;
+    Scaffold.of(context).openEndDrawer();
+  }
+
+  void _toggleSidebar(BuildContext context, bool isMobile) {
+    if (isMobile) {
+      _openSidePanelIfNeeded(context, true);
+      return;
+    }
+    setState(() => _isSidebarVisible = !_isSidebarVisible);
+  }
+
   // ─── Build ─────────────────────────────────────────────────────────────────
 
   @override
@@ -253,9 +268,11 @@ class _CalendarWidgetState extends State<CalendarWidget> {
           bindings: {
             _parseShortcut(navigateTabsShortcut): () {
               if (_isTextFieldFocused()) return;
-              if (_tabController != null) {
-                _tabController!.animateTo(_tabController!.index == 0 ? 1 : 0);
-              }
+              setState(() {
+                _sidePanelView = _sidePanelView == CalendarSidePanelView.times
+                    ? CalendarSidePanelView.events
+                    : CalendarSidePanelView.times;
+              });
             },
             _parseShortcut(todayShortcut): () {
               if (_isTextFieldFocused()) return;
@@ -290,7 +307,7 @@ class _CalendarWidgetState extends State<CalendarWidget> {
             },
             _parseShortcut(contextSettingsShortcut): () {
               if (_isTextFieldFocused()) return;
-              _toggleSettingsCallback?.call();
+              setState(() => _sidePanelView = CalendarSidePanelView.settings);
             },
             const SingleActivator(LogicalKeyboardKey.arrowLeft, control: true):
                 () {
@@ -319,15 +336,21 @@ class _CalendarWidgetState extends State<CalendarWidget> {
             onKeyEvent: _handleCalendarKeyEvent,
             child: GestureDetector(
               onTap: () => _keyboardFocusNode.requestFocus(),
-              child: Scaffold(
-                body: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final isWideScreen = constraints.maxWidth > 800;
-                    return isWideScreen
-                        ? _buildWideScreenLayout(context, state)
-                        : _buildNarrowScreenLayout(context, state);
-                  },
-                ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final isMobile =
+                      constraints.maxWidth < LayoutBreakpoints.compact;
+                  return Scaffold(
+                    backgroundColor: AppSurfaces.panelBackground(context),
+                    appBar: _buildTopAppBar(context, state, isMobile),
+                    endDrawer: isMobile
+                        ? _buildSidePanelDrawer(context, state)
+                        : null,
+                    body: isMobile
+                        ? _buildMobileLayout(context, state)
+                        : _buildDesktopLayout(context, state),
+                  );
+                },
               ),
             ),
           ),
@@ -338,248 +361,140 @@ class _CalendarWidgetState extends State<CalendarWidget> {
 
   // ─── Layouts ───────────────────────────────────────────────────────────────
 
-  Widget _buildWideScreenLayout(BuildContext context, CalendarState state) {
-    return Row(
-      children: [
-        Expanded(
-          flex: 2,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [_buildCalendar(context, state)],
-            ),
-          ),
-        ),
-        Expanded(
-          flex: 1,
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: _buildSidePanel(context, state),
-          ),
-        ),
-      ],
+  PreferredSizeWidget _buildTopAppBar(
+      BuildContext context, CalendarState state, bool isMobile) {
+    return AppBar(
+      backgroundColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      titleSpacing: AppTokens.spaceMD,
+      centerTitle: true,
+      title: Text(
+        getCurrentMonthYearText(state),
+        textDirection: TextDirection.rtl,
+        style: Theme.of(context)
+            .textTheme
+            .titleMedium
+            ?.copyWith(fontWeight: FontWeight.bold),
+      ),
+      actions: _buildTopBarActions(context, state, isMobile),
     );
   }
 
-  Widget _buildNarrowScreenLayout(BuildContext context, CalendarState state) {
-    return Column(
-      children: [
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                _buildCalendar(context, state),
-                const SizedBox(height: 16),
-              ],
+  List<Widget> _buildTopBarActions(
+      BuildContext context, CalendarState state, bool isMobile) {
+    return [
+      Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: 'חודש קודם',
+            onPressed: () => context.read<CalendarCubit>().previous(),
+            icon: const Icon(FluentIcons.chevron_left_24_regular),
+          ),
+          IconButton(
+            tooltip: 'חודש הבא',
+            onPressed: () => context.read<CalendarCubit>().next(),
+            icon: const Icon(FluentIcons.chevron_right_24_regular),
+          ),
+          const SizedBox(width: AppTokens.spaceXS),
+          RecommendedActionButton(
+            text: 'היום',
+            onPressed: () => context.read<CalendarCubit>().jumpToToday(),
+          ),
+          const SizedBox(width: AppTokens.spaceMD),
+          AppSegmentedControl<CalendarView>(
+            options: const [
+              SegmentOption(value: CalendarView.day, label: 'יום'),
+              SegmentOption(value: CalendarView.week, label: 'שבוע'),
+              SegmentOption(value: CalendarView.month, label: 'חודש'),
+            ],
+            currentValue: state.calendarView,
+            onChanged: (value) =>
+                context.read<CalendarCubit>().changeCalendarView(value),
+          ),
+          const SizedBox(width: AppTokens.spaceMD),
+          SizedBox(
+            height: 24,
+            child: VerticalDivider(
+              color: Theme.of(context).dividerColor,
+              thickness: 1,
             ),
           ),
-        ),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: _buildSidePanel(context, state),
+          const SizedBox(width: AppTokens.spaceMD),
+          IconButton(
+            tooltip: 'הדפס',
+            icon: const Icon(FluentIcons.print_24_regular),
+            onPressed: () => _printCalendar(context, state),
           ),
+          IconButton(
+            tooltip: 'לוח צד',
+            icon: const Icon(FluentIcons.panel_right_24_regular),
+            onPressed: () => _toggleSidebar(context, isMobile),
+          ),
+        ],
+      ),
+    ];
+  }
+
+  Widget _buildDesktopLayout(BuildContext context, CalendarState state) {
+    return Padding(
+      padding: const EdgeInsets.all(AppTokens.spaceMD),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: SingleChildScrollView(
+              child: _buildCalendar(context, state),
+            ),
+          ),
+          if (_isSidebarVisible) ...[
+            const SizedBox(width: AppTokens.spaceMD),
+            Expanded(
+              flex: 1,
+              child: AppFloatingPanel(
+                child: _buildSidePanel(context, state),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMobileLayout(BuildContext context, CalendarState state) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(AppTokens.spaceMD),
+      child: _buildCalendar(context, state),
+    );
+  }
+
+  Widget _buildSidePanelDrawer(BuildContext context, CalendarState state) {
+    final cs = Theme.of(context).colorScheme;
+    return Drawer(
+      backgroundColor: cs.surfaceContainerHigh,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(AppTokens.spaceMD),
+          child: _buildSidePanel(context, state),
         ),
-      ],
+      ),
     );
   }
 
   // ─── Calendar card ────────────────────────────────────────────────────────
 
   Widget _buildCalendar(BuildContext context, CalendarState state) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final cardColor =
-        isDark ? theme.colorScheme.surfaceContainer : theme.colorScheme.surface;
-    return Card(
-      elevation: 0,
-      color: cardColor,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.all(Radius.circular(AppTokens.radiusXL)),
-      ),
+    return AppFloatingPanel(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            _buildCalendarHeader(context, state),
-            const SizedBox(height: 16),
             _buildCalendarGrid(context, state),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildCalendarHeader(BuildContext context, CalendarState state) {
-    Widget buildViewButton(CalendarView view, IconData icon, String tooltip) {
-      final bool isSelected = state.calendarView == view;
-      return Tooltip(
-        message: tooltip,
-        child: IconButton(
-          isSelected: isSelected,
-          icon: Icon(icon),
-          onPressed: () =>
-              context.read<CalendarCubit>().changeCalendarView(view),
-          style: IconButton.styleFrom(
-            foregroundColor:
-                isSelected ? Theme.of(context).colorScheme.primary : null,
-            backgroundColor: isSelected
-                ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.12)
-                : null,
-            side: isSelected
-                ? BorderSide(color: Theme.of(context).colorScheme.primary)
-                : BorderSide.none,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          ),
-        ),
-      );
-    }
-
-    final todayAndJumpButtons = Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        RecommendedActionButton(
-          text: 'היום',
-          onPressed: () => context.read<CalendarCubit>().jumpToToday(),
-        ),
-        NeutralActionButton(
-          text: 'עבור לתאריך',
-          onPressed: () => _showJumpToDateDialog(context),
-        ),
-      ],
-    );
-
-    final viewButtonsRow = Wrap(
-      crossAxisAlignment: WrapCrossAlignment.center,
-      spacing: 4,
-      children: [
-        buildViewButton(
-            CalendarView.month, FluentIcons.calendar_month_24_regular, 'חודש'),
-        buildViewButton(CalendarView.week,
-            FluentIcons.calendar_week_numbers_24_regular, 'שבוע'),
-        buildViewButton(
-            CalendarView.day, FluentIcons.calendar_day_24_regular, 'יום'),
-      ],
-    );
-
-    final printButton = Tooltip(
-      message: 'הדפס לוח שנה',
-      child: IconButton(
-        onPressed: () => _printCalendar(context, state),
-        icon: const Icon(FluentIcons.print_24_regular),
-      ),
-    );
-
-    final periodNavButtons = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconButton(
-          onPressed: () => context.read<CalendarCubit>().previous(),
-          icon: const Icon(FluentIcons.chevron_left_24_regular),
-        ),
-        IconButton(
-          onPressed: () => context.read<CalendarCubit>().next(),
-          icon: const Icon(FluentIcons.chevron_right_24_regular),
-        ),
-      ],
-    );
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isNarrowHeader = constraints.maxWidth < 720;
-        if (!isNarrowHeader) {
-          return Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              todayAndJumpButtons,
-              Expanded(
-                child: Text(
-                  getCurrentMonthYearText(state),
-                  style: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              Wrap(
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  viewButtonsRow,
-                  Container(
-                      height: 24,
-                      width: 1,
-                      color: Theme.of(context).dividerColor,
-                      margin: const EdgeInsets.symmetric(horizontal: 4)),
-                  printButton,
-                  Container(
-                      height: 24,
-                      width: 1,
-                      color: Theme.of(context).dividerColor,
-                      margin: const EdgeInsets.symmetric(horizontal: 4)),
-                  periodNavButtons,
-                ],
-              ),
-            ],
-          );
-        }
-        return Row(
-          textDirection: TextDirection.rtl,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    RecommendedActionButton(
-                      text: 'היום',
-                      onPressed: () =>
-                          context.read<CalendarCubit>().jumpToToday(),
-                    ),
-                    const SizedBox(height: 8),
-                    NeutralActionButton(
-                      text: 'עבור לתאריך',
-                      onPressed: () => _showJumpToDateDialog(context),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Center(
-                  child: Text(
-                    getCurrentMonthYearText(state),
-                    style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.bold),
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ),
-            ),
-            Expanded(
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    periodNavButtons,
-                    const SizedBox(height: 6),
-                    viewButtonsRow,
-                    const SizedBox(height: 6),
-                    printButton,
-                  ],
-                ),
-              ),
-            ),
-          ],
-        );
-      },
     );
   }
 
@@ -881,51 +796,15 @@ class _CalendarWidgetState extends State<CalendarWidget> {
   Widget _buildSidePanel(BuildContext context, CalendarState state) {
     return CalendarSidePanel(
       state: state,
+      activeView: _sidePanelView,
+      onViewChanged: (view) => setState(() => _sidePanelView = view),
       buildTimesGrid: (ctx, st) => _buildTimesGrid(ctx, st),
       buildDafYomiButtons: (ctx, st) => _buildDafYomiButtons(ctx, st),
       buildCityDropdown: (ctx, st) => _buildCityDropdownWithSearch(ctx, st),
       buildEventsList: (ctx, st, isSearch) =>
           _buildEventsList(ctx, st, isSearch: isSearch),
       showCreateEventDialog: (ctx, st) => _showCreateEventDialog(ctx, st),
-      buildDateHeader: (ctx, st) => _buildDateHeader(ctx, st),
       hebrewDays: hebrewDays,
-      onTabControllerCreated: (controller) => _tabController = controller,
-      onSettingsToggleCallbackCreated: (callback) =>
-          _toggleSettingsCallback = callback,
-    );
-  }
-
-  Widget _buildDateHeader(BuildContext context, CalendarState state) {
-    final dayOfWeek = hebrewDays[state.selectedGregorianDate.weekday % 7];
-    final jewishDateStr =
-        '${formatHebrewDay(state.selectedJewishDate.getJewishDayOfMonth())} ${getHebrewMonthNameFor(state.selectedJewishDate)}';
-    final gregorianDateStr =
-        '${state.selectedGregorianDate.day} ${getGregorianMonthName(state.selectedGregorianDate.month)} ${state.selectedGregorianDate.year}';
-    final cs = Theme.of(context).colorScheme;
-    final isDarkHeader = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16.0),
-      decoration: BoxDecoration(
-        color: isDarkHeader
-            ? cs.surfaceContainer
-            : cs.surfaceContainerHighest.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(AppTokens.radiusMD),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Text(
-            '$dayOfWeek $jewishDateStr',
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            gregorianDateStr,
-            style: TextStyle(fontSize: 16, color: cs.onSurfaceVariant),
-          ),
-        ],
-      ),
     );
   }
 
@@ -1325,7 +1204,8 @@ class _CalendarWidgetState extends State<CalendarWidget> {
     return NeutralActionButton(
       text: state.selectedCity,
       icon: FluentIcons.chevron_down_24_regular,
-      onPressed: () => _toggleSettingsCallback?.call(),
+      onPressed: () =>
+          setState(() => _sidePanelView = CalendarSidePanelView.settings),
     );
   }
 
@@ -1511,6 +1391,7 @@ class _CalendarWidgetState extends State<CalendarWidget> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
+          backgroundColor: AppSurfaces.panelBackground(ctx),
           title: const Text('מעבר לתאריך'),
           content: SizedBox(
             width: 350,
@@ -1676,6 +1557,7 @@ class _CalendarWidgetState extends State<CalendarWidget> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
+          backgroundColor: AppSurfaces.panelBackground(ctx),
           title: Text(isEditMode ? 'ערוך אירוע' : 'צור אירוע חדש'),
           content: SizedBox(
             width: 450,
@@ -1951,6 +1833,7 @@ class _CalendarWidgetState extends State<CalendarWidget> {
             CalendarView.day => ('יום', 'ימים', 365),
           };
           return AlertDialog(
+            backgroundColor: AppSurfaces.panelBackground(context),
             title: const Text('הגדרות הדפסה'),
             content: SizedBox(
               width: 400,

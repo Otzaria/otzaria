@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:kosher_dart/kosher_dart.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_state.dart';
 import 'package:otzaria/tools/calendar/view/widgets/calendar_date_formatters.dart';
 
@@ -38,7 +39,8 @@ Widget buildDayCell(
 ) {
   final isSelected = state.selectedJewishDate.getJewishDayOfMonth() ==
           jewishDate.getJewishDayOfMonth() &&
-      state.selectedJewishDate.getJewishMonth() == jewishDate.getJewishMonth() &&
+      state.selectedJewishDate.getJewishMonth() ==
+          jewishDate.getJewishMonth() &&
       state.selectedJewishDate.getJewishYear() == jewishDate.getJewishYear();
 
   final today = DateTime.now();
@@ -47,102 +49,125 @@ Widget buildDayCell(
       gregorianDate.year == today.year;
 
   final cs = Theme.of(context).colorScheme;
+  final baseCellColor = cs.surface;
 
   return HoverableDayCell(
     onAdd: onAdd,
-    child: GestureDetector(
-      onTap: onTap,
-      child: Opacity(
-        opacity: isFromOtherMonth ? 0.4 : 1.0,
-        child: Container(
-          margin: const EdgeInsets.all(2),
-          height: 88,
-          decoration: BoxDecoration(
-            color: getDayBackgroundColor(
-                    context, gregorianDate, isSelected, isToday, state.inIsrael) ??
-                (isSelected
-                    ? cs.primaryContainer
-                    : isToday
-                        ? cs.primary.withValues(alpha: 0.25)
-                        : cs.surfaceContainer.withValues(alpha: 0.2)),
+    builder: (isHovered) {
+      final baseBackground = getDayBackgroundColor(
+              context, gregorianDate, isSelected, isToday, state.inIsrael) ??
+          (isSelected
+              ? cs.primaryContainer
+              : isToday
+                  ? cs.primary.withValues(alpha: 0.25)
+                  : baseCellColor);
+      final tintedBackground = (isHovered || isToday)
+          ? Color.alphaBlend(
+              cs.surfaceTint.withValues(alpha: 0.08), baseBackground)
+          : baseBackground;
+      final elevation = (isHovered || isToday) ? AppTokens.elevation2 : 0.0;
+
+      return GestureDetector(
+        onTap: onTap,
+        child: Opacity(
+          opacity: isFromOtherMonth ? 0.4 : 1.0,
+          child: Material(
+            elevation: elevation,
+            color: Colors.transparent,
+            shadowColor: Colors.black.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: isSelected
-                  ? cs.primary
-                  : isToday
+            child: Container(
+              margin: const EdgeInsets.all(2),
+              height: 88,
+              decoration: BoxDecoration(
+                color: tintedBackground,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isSelected
                       ? cs.primary
-                      : cs.outlineVariant,
-              width: isToday ? 2 : 1,
-            ),
-          ),
-          child: Stack(
-            children: [
-              // Primary date (ימין)
-              Positioned(
-                top: 4,
-                right: 4,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      (state.calendarType == CalendarType.hebrew ||
-                              state.calendarType == CalendarType.combined)
-                          ? formatHebrewDay(jewishDate.getJewishDayOfMonth())
-                          : '${gregorianDate.day}',
-                      style: TextStyle(
-                        color: isSelected ? cs.onPrimaryContainer : cs.onSurface,
-                        fontWeight:
-                            isSelected ? FontWeight.bold : FontWeight.normal,
-                        fontSize:
-                            state.calendarType == CalendarType.combined ? 12 : 14,
-                      ),
-                    ),
-                    // שם חודש עברי בתחילת חודש אדר בשנה מעוברת
-                    if ((state.calendarType == CalendarType.hebrew ||
-                            state.calendarType == CalendarType.combined) &&
-                        jewishDate.isJewishLeapYear() &&
-                        (jewishDate.getJewishMonth() == 12 ||
-                            jewishDate.getJewishMonth() == 13) &&
-                        jewishDate.getJewishDayOfMonth() == 1)
-                      Text(
-                        getHebrewMonthNameFor(jewishDate),
-                        style: TextStyle(
-                          fontSize: 8,
-                          color: isSelected
-                              ? cs.onPrimaryContainer
-                              : cs.onSurfaceVariant,
-                        ),
-                      ),
-                  ],
+                      : isToday
+                          ? cs.primary
+                          : cs.outlineVariant,
+                  width: isToday ? 2 : 1,
                 ),
               ),
-              // Secondary date (שמאל — תצוגה משולבת)
-              if (state.calendarType == CalendarType.combined)
-                Positioned(
-                  top: 4,
-                  left: 4,
-                  child: Text(
-                    '${gregorianDate.day}',
-                    style: TextStyle(
-                      color: isSelected
-                          ? cs.onPrimaryContainer.withValues(alpha: 0.85)
-                          : cs.onSurfaceVariant,
-                      fontSize: 10,
+              child: Stack(
+                children: [
+                  // Primary date (ימין)
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          (state.calendarType == CalendarType.hebrew ||
+                                  state.calendarType == CalendarType.combined)
+                              ? formatHebrewDay(
+                                  jewishDate.getJewishDayOfMonth())
+                              : '${gregorianDate.day}',
+                          style: TextStyle(
+                            color: isSelected
+                                ? cs.onPrimaryContainer
+                                : cs.onSurface,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                            fontSize:
+                                state.calendarType == CalendarType.combined
+                                    ? 12
+                                    : 14,
+                          ),
+                        ),
+                        // שם חודש עברי בתחילת חודש אדר בשנה מעוברת
+                        if ((state.calendarType == CalendarType.hebrew ||
+                                state.calendarType == CalendarType.combined) &&
+                            jewishDate.isJewishLeapYear() &&
+                            (jewishDate.getJewishMonth() == 12 ||
+                                jewishDate.getJewishMonth() == 13) &&
+                            jewishDate.getJewishDayOfMonth() == 1)
+                          Text(
+                            getHebrewMonthNameFor(jewishDate),
+                            style: TextStyle(
+                              fontSize: 8,
+                              color: isSelected
+                                  ? cs.onPrimaryContainer
+                                  : cs.onSurfaceVariant,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
-                ),
-              // אירועים ומועדים
-              Positioned(
-                top: 30,
-                left: 4,
-                right: 4,
-                child: DayExtras(date: gregorianDate, inIsrael: state.inIsrael),
+                  // Secondary date (שמאל — תצוגה משולבת)
+                  if (state.calendarType == CalendarType.combined)
+                    Positioned(
+                      top: 4,
+                      left: 4,
+                      child: Text(
+                        '${gregorianDate.day}',
+                        style: TextStyle(
+                          color: isSelected
+                              ? cs.onPrimaryContainer.withValues(alpha: 0.85)
+                              : cs.onSurfaceVariant,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ),
+                  // אירועים ומועדים
+                  Positioned(
+                    top: 30,
+                    left: 4,
+                    right: 4,
+                    child: DayExtras(
+                        date: gregorianDate, inIsrael: state.inIsrael),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
-      ),
-    ),
+      );
+    },
   );
 }
 
@@ -231,10 +256,14 @@ class DayExtras extends StatelessWidget {
 
 /// עוטף תא יום — מציג כפתור הוספה בריחוף
 class HoverableDayCell extends StatefulWidget {
-  final Widget child;
+  final Widget Function(bool isHovered) builder;
   final VoidCallback onAdd;
 
-  const HoverableDayCell({super.key, required this.child, required this.onAdd});
+  const HoverableDayCell({
+    super.key,
+    required this.builder,
+    required this.onAdd,
+  });
 
   @override
   State<HoverableDayCell> createState() => _HoverableDayCellState();
@@ -242,19 +271,29 @@ class HoverableDayCell extends StatefulWidget {
 
 class _HoverableDayCellState extends State<HoverableDayCell> {
   bool _showButton = false;
+  bool _isHovered = false;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return MouseRegion(
-      onEnter: (_) => setState(() => _showButton = true),
-      onExit: (_) => setState(() => _showButton = false),
+      onEnter: (_) => setState(() {
+        _showButton = true;
+        _isHovered = true;
+      }),
+      onExit: (_) => setState(() {
+        _showButton = false;
+        _isHovered = false;
+      }),
       child: Stack(
         alignment: Alignment.topCenter,
         children: [
           Listener(
-            onPointerDown: (_) => setState(() => _showButton = true),
-            child: widget.child,
+            onPointerDown: (_) => setState(() {
+              _showButton = true;
+              _isHovered = true;
+            }),
+            child: widget.builder(_isHovered),
           ),
           AnimatedOpacity(
             opacity: _showButton ? 1.0 : 0.0,

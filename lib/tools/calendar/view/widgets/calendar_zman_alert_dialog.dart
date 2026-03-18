@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_spinbox/flutter_spinbox.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 
 enum ZmanMenuAction { toggle }
 
@@ -49,6 +50,7 @@ class _ZmanAlertDialogState extends State<ZmanAlertDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      backgroundColor: AppSurfaces.panelBackground(context),
       title: Text(widget.zmanName),
       content: Column(
         mainAxisSize: MainAxisSize.min,

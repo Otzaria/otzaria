@@ -237,27 +237,21 @@ class MoreScreenState extends State<MoreScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.only(
-                          right: 12, left: 12, bottom: 20),
-                      child: Text(
-                        'כלים',
-                        style: Theme.of(context)
-                            .textTheme
-                            .headlineSmall
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                    ),
                     Expanded(
-                      child: ListView.builder(
-                        itemCount: _tabs.length,
-                        itemBuilder: (context, index) => SidebarNavItem(
-                          icon: _tabs[index].icon,
-                          iconFilled: _tabs[index].iconFilled,
-                          imageAsset: _tabs[index].imageIcon,
-                          label: _tabs[index].label,
-                          isSelected: _selectedIndex == index,
-                          onTap: () => _changeTab(index),
+                      child: SingleChildScrollView(
+                        child: SettingsCard(
+                          title: 'כלים',
+                          children: [
+                            for (int index = 0; index < _tabs.length; index++)
+                              SidebarNavItem(
+                                icon: _tabs[index].icon,
+                                iconFilled: _tabs[index].iconFilled,
+                                imageAsset: _tabs[index].imageIcon,
+                                label: _tabs[index].label,
+                                isSelected: _selectedIndex == index,
+                                onTap: () => _changeTab(index),
+                              ),
+                          ],
                         ),
                       ),
                     ),
