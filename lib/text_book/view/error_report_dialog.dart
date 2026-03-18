@@ -404,7 +404,7 @@ $detailsSection
 
     await reportService.saveSenderEmail(enteredEmail);
     if (context.mounted) {
-      UiSnack.showSuccess('כתובת הזיהוי נשמרה. ניתן לשנות אותה בהגדרות.');
+      UiSnack.show('כתובת הזיהוי נשמרה. ניתן לשנות אותה בהגדרות.');
     }
     return enteredEmail.trim();
   }
@@ -533,7 +533,7 @@ $detailsSection
       }
 
       if (result.isSent) {
-        UiSnack.showSuccess(result.message);
+        UiSnack.show(result.message);
       } else if (result.isQueued) {
         UiSnack.show(result.message);
       } else {

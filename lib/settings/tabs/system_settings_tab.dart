@@ -129,7 +129,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     await reportService.saveSenderEmail(email);
     if (!mounted) return;
     setState(() {});
-    UiSnack.showSuccess('כתובת הזיהוי נשמרה. ניתן לשנות אותה בהגדרות.');
+    UiSnack.show('כתובת הזיהוי נשמרה. ניתן לשנות אותה בהגדרות.');
   }
 
   Future<void> _clearSenderEmail() async {
@@ -155,7 +155,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     });
 
     if (sentCount > 0) {
-      UiSnack.showSuccess('נשלחו $sentCount דיווחים ממתינים.');
+      UiSnack.show('נשלחו $sentCount דיווחים ממתינים.');
     } else if (pendingBefore == 0) {
       UiSnack.show('לא נמצאו דיווחים שמורים לשליחה.');
     } else {
@@ -226,7 +226,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
       await File(path).writeAsString(script, encoding: ascii);
 
       if (!mounted) return;
-      UiSnack.showSuccess(
+      UiSnack.show(
         'סקריפט השליחה נשמר בהצלחה. לשליחת הדיווחים הפעילו את הקובץ במחשב מחובר.',
       );
     } catch (e) {
