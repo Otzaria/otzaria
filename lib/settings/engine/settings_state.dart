@@ -39,6 +39,7 @@ class SettingsState extends Equatable {
   final bool personalNotesCollapsedByDefault;
   final bool protectedModeEnabled;
   final bool autoSyncCatalogs;
+  final bool compactMenuMode;
 
   const SettingsState({
     required this.isDarkMode,
@@ -77,6 +78,7 @@ class SettingsState extends Equatable {
     required this.personalNotesCollapsedByDefault,
     required this.protectedModeEnabled,
     required this.autoSyncCatalogs,
+    required this.compactMenuMode,
   });
 
   factory SettingsState.initial() {
@@ -118,6 +120,7 @@ class SettingsState extends Equatable {
       personalNotesCollapsedByDefault: true,
       protectedModeEnabled: false,
       autoSyncCatalogs: false,
+      compactMenuMode: false,
     );
   }
 
@@ -158,6 +161,7 @@ class SettingsState extends Equatable {
     bool? personalNotesCollapsedByDefault,
     bool? protectedModeEnabled,
     bool? autoSyncCatalogs,
+    bool? compactMenuMode,
   }) {
     return SettingsState(
       isDarkMode: isDarkMode ?? this.isDarkMode,
@@ -200,6 +204,7 @@ class SettingsState extends Equatable {
           this.personalNotesCollapsedByDefault,
       protectedModeEnabled: protectedModeEnabled ?? this.protectedModeEnabled,
       autoSyncCatalogs: autoSyncCatalogs ?? this.autoSyncCatalogs,
+      compactMenuMode: compactMenuMode ?? this.compactMenuMode,
     );
   }
 
@@ -241,5 +246,6 @@ class SettingsState extends Equatable {
         personalNotesCollapsedByDefault,
         protectedModeEnabled,
         autoSyncCatalogs,
+        compactMenuMode,
       ];
 }

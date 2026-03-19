@@ -43,6 +43,7 @@ class SettingsRepository {
   static const String keyOfflineMode = 'key-offline-mode';
   static const String keyAutoSync = 'key-auto-sync';
   static const String keyAutoSyncCatalogs = 'key-auto-sync-catalogs';
+  static const String keyCompactMenuMode = 'key-compact-menu-mode';
   static const String keyErrorReportSenderEmail =
       'key-error-report-sender-email';
   static const String keyQueueErrorReportsWhenOffline =
@@ -231,6 +232,10 @@ class SettingsRepository {
           keyShowExternalBooks,
           defaultValue: false,
         ),
+      ),
+      'compactMenuMode': _settings.getValue<bool>(
+        keyCompactMenuMode,
+        defaultValue: false,
       ),
       'alignTabsToRight': _settings.getValue<bool>(
         keyAlignTabsToRight,
@@ -442,6 +447,10 @@ class SettingsRepository {
 
   Future<void> updateAutoSyncCatalogs(bool value) async {
     await _settings.setValue(keyAutoSyncCatalogs, value);
+  }
+
+  Future<void> updateCompactMenuMode(bool value) async {
+    await _settings.setValue(keyCompactMenuMode, value);
   }
 
   Future<void> updateAlignTabsToRight(bool value) async {
@@ -667,6 +676,7 @@ class SettingsRepository {
     await _settings.setValue(keyEnablePerBookSettings, false);
     await _settings.setValue(keyErrorReportSenderEmail, '');
     await _settings.setValue(keyQueueErrorReportsWhenOffline, true);
+    await _settings.setValue(keyCompactMenuMode, false);
     await _settings.setValue(keyAlignTabsToRight, false);
     await _settings.setValue(keyPersonalNotesCollapsedByDefault, true);
 

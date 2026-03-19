@@ -85,6 +85,26 @@ class DesignSettingsTab extends StatelessWidget {
                                 .add(UpdateDarkMode(value));
                           },
                   ),
+                  if (!(Platform.isAndroid || Platform.isIOS))
+                    SwitchSettingsTile(
+                      leading: const Icon(FluentIcons.list_24_regular),
+                      title: const Text(
+                        'תפריטים קומפקטיים',
+                        style: kSettingsTitleStyle,
+                      ),
+                      subtitle: Text(
+                        state.compactMenuMode
+                            ? 'התפריטים יוצגו בצפיפות גבוהה בסגנון Chrome'
+                            : 'התפריטים יוצגו במרווח נוח וברור',
+                        style: kSettingsSubtitleStyle,
+                      ),
+                      value: state.compactMenuMode,
+                      onChanged: (value) {
+                        context
+                            .read<SettingsBloc>()
+                            .add(UpdateCompactMenuMode(value));
+                      },
+                    ),
                   ClipRect(
                     child: Align(
                       alignment: Alignment.topCenter,

@@ -1811,6 +1811,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         }
       },
       itemBuilder: (context) {
+        final menuMetrics = Theme.of(context).extension<AppMenuMetrics>() ??
+            AppMenuMetrics.create(compactMenus: false);
         final primaryColor = Theme.of(context).colorScheme.primary;
         final isSplit = !state.showPageShapeView && state.showSplitView;
         final isBelow = !state.showPageShapeView && !state.showSplitView;
@@ -1825,6 +1827,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           final style = isSelected ? TextStyle(color: primaryColor) : null;
           return PopupMenuItem<String>(
             value: value,
+            height: menuMetrics.itemHeight,
+            padding: menuMetrics.itemPadding,
             child: Row(
               children: [
                 icon,

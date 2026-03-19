@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 
 /// רכיב שמציג כפתורי פעולה עם יכולת הסתרה במסכים צרים
 /// כשחלק מהכפתורים נסתרים, מוצג כפתור "..." שפותח תפריט
@@ -187,11 +188,13 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
     return Builder(
       key: ValueKey(uniqueKey),
       builder: (context) {
+        final menuMetrics = Theme.of(context).extension<AppMenuMetrics>() ??
+            AppMenuMetrics.create(compactMenus: false);
         return PopupMenuButton<ActionButtonData>(
           icon: const Icon(FluentIcons.more_vertical_24_regular),
           tooltip: 'עוד פעולות',
-          // הוספת offset כדי למקם את התפריט מתחת לכפתור
-          offset: const Offset(0, 40.0),
+          // מרווח קטן בסגנון Chrome
+          offset: const Offset(0, 8.0),
           onSelected: (action) {
             action.onPressed?.call();
           },
@@ -202,6 +205,7 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
                   action.submenuItems!.isNotEmpty) {
                 return PopupMenuItem<ActionButtonData>(
                   enabled: false,
+                  height: menuMetrics.itemHeight,
                   padding: EdgeInsets.zero,
                   child: SubmenuButton(
                     menuChildren: action.submenuItems!.map((subAction) {
@@ -209,6 +213,12 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
                         leadingIcon: subAction.icon != null
                             ? Icon(subAction.icon, size: 20)
                             : null,
+                        style: ButtonStyle(
+                          padding: WidgetStatePropertyAll(
+                            menuMetrics.itemPadding,
+                          ),
+                          visualDensity: menuMetrics.visualDensity,
+                        ),
                         onPressed: () {
                           Navigator.of(context).pop(); // סוגר את התפריט הראשי
                           subAction.onPressed?.call();
@@ -217,8 +227,7 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
                       );
                     }).toList(),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
+                      padding: menuMetrics.itemPadding,
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -240,6 +249,8 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
               return PopupMenuItem<ActionButtonData>(
                 value: action,
                 enabled: action.onPressed != null,
+                height: menuMetrics.itemHeight,
+                padding: menuMetrics.itemPadding,
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [

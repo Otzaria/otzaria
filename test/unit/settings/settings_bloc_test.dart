@@ -61,6 +61,7 @@ void main() {
         'shortcuts': <String, String>{},
         'isOfflineMode': false,
         'autoSyncCatalogs': true,
+        'compactMenuMode': true,
         'personalNotesCollapsedByDefault': true,
       };
 
@@ -113,6 +114,7 @@ void main() {
             isOfflineMode: mockSettings['isOfflineMode'] as bool? ?? false,
             autoSyncCatalogs:
                 mockSettings['autoSyncCatalogs'] as bool? ?? false,
+            compactMenuMode: mockSettings['compactMenuMode'] as bool? ?? false,
             alignTabsToRight:
                 mockSettings['alignTabsToRight'] as bool? ?? false,
             enableHtmlLinks: mockSettings['enableHtmlLinks'] as bool? ?? true,
@@ -290,6 +292,24 @@ void main() {
         ],
         verify: (_) {
           verify(mockRepository.updateAutoSyncCatalogs(true)).called(1);
+        },
+      );
+    });
+
+    group('UpdateCompactMenuMode', () {
+      blocTest<SettingsBloc, SettingsState>(
+        'emits updated state when UpdateCompactMenuMode is added',
+        build: () {
+          when(mockRepository.updateCompactMenuMode(true))
+              .thenAnswer((_) async {});
+          return settingsBloc;
+        },
+        act: (bloc) => bloc.add(const UpdateCompactMenuMode(true)),
+        expect: () => [
+          settingsBloc.state.copyWith(compactMenuMode: true),
+        ],
+        verify: (_) {
+          verify(mockRepository.updateCompactMenuMode(true)).called(1);
         },
       );
     });

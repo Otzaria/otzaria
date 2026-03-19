@@ -79,7 +79,15 @@ void main() {
               SettingsRepository.keyDefaultSidebarOpen,
               defaultValue: false))
           .thenReturn(false);
+      when(mockSettingsWrapper.getValue<bool>(
+              SettingsRepository.keyCompactMenuMode,
+              defaultValue: false))
+          .thenReturn(false);
       when(mockSettingsWrapper.getValue<bool>(SettingsRepository.keyPinSidebar,
+              defaultValue: false))
+          .thenReturn(false);
+      when(mockSettingsWrapper.getValue<bool>(
+              SettingsRepository.keyCompactMenuMode,
               defaultValue: false))
           .thenReturn(false);
 
@@ -104,6 +112,7 @@ void main() {
       expect(settings['removeNikudFromTanach'], false);
       expect(settings['defaultSidebarOpen'], false);
       expect(settings['pinSidebar'], false);
+      expect(settings['compactMenuMode'], false);
     });
 
     test('loadSettings returns custom values when settings are set', () async {
@@ -172,6 +181,10 @@ void main() {
       when(mockSettingsWrapper.getValue<bool>(SettingsRepository.keyPinSidebar,
               defaultValue: false))
           .thenReturn(true);
+      when(mockSettingsWrapper.getValue<bool>(
+              SettingsRepository.keyCompactMenuMode,
+              defaultValue: false))
+          .thenReturn(true);
 
       final settings = await repository.loadSettings();
 
@@ -194,6 +207,7 @@ void main() {
       expect(settings['removeNikudFromTanach'], true);
       expect(settings['defaultSidebarOpen'], true);
       expect(settings['pinSidebar'], true);
+      expect(settings['compactMenuMode'], true);
     });
 
     test('updateDarkMode calls setValue on settings wrapper', () async {
@@ -252,6 +266,13 @@ void main() {
       await repository.updatePinSidebar(true);
       verify(mockSettingsWrapper.setValue(
               SettingsRepository.keyPinSidebar, true))
+          .called(1);
+    });
+
+    test('updateCompactMenuMode calls setValue on settings wrapper', () async {
+      await repository.updateCompactMenuMode(true);
+      verify(mockSettingsWrapper.setValue(
+              SettingsRepository.keyCompactMenuMode, true))
           .called(1);
     });
 
@@ -367,6 +388,9 @@ void main() {
       verify(mockSettingsWrapper.setValue(
               SettingsRepository.keyPinSidebar, false))
           .called(1);
+      verify(mockSettingsWrapper.setValue(
+              SettingsRepository.keyCompactMenuMode, false))
+          .called(1);
     });
 
     test('loadSettings does not initialize defaults when fontFamily exists',
@@ -432,6 +456,10 @@ void main() {
           .thenReturn(false);
       when(mockSettingsWrapper.getValue<bool>(
               SettingsRepository.keyDefaultSidebarOpen,
+              defaultValue: false))
+          .thenReturn(false);
+      when(mockSettingsWrapper.getValue<bool>(
+              SettingsRepository.keyCompactMenuMode,
               defaultValue: false))
           .thenReturn(false);
 

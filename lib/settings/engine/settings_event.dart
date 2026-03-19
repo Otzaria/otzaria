@@ -308,6 +308,15 @@ class UpdateAutoSyncCatalogs extends SettingsEvent {
   List<Object?> get props => [autoSyncCatalogs];
 }
 
+class UpdateCompactMenuMode extends SettingsEvent {
+  final bool compactMenuMode;
+
+  const UpdateCompactMenuMode(this.compactMenuMode);
+
+  @override
+  List<Object?> get props => [compactMenuMode];
+}
+
 class UpdateAlignTabsToRight extends SettingsEvent {
   final bool alignTabsToRight;
 

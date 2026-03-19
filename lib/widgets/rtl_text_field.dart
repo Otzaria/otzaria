@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 
 /// TextField מותאם אישית עם תמיכה מלאה ב-RTL
 ///
@@ -214,6 +215,8 @@ class _RtlTextFieldState extends State<RtlTextField> {
     Offset position,
     TextEditingController controller,
   ) {
+    final menuMetrics = Theme.of(context).extension<AppMenuMetrics>() ??
+        AppMenuMetrics.create(compactMenus: false);
     final selection = controller.selection;
     final hasSelection = selection.isValid && !selection.isCollapsed;
 
@@ -248,7 +251,7 @@ class _RtlTextFieldState extends State<RtlTextField> {
 
     if (controller.text.isNotEmpty) {
       menuItems.addAll([
-        const PopupMenuDivider(height: 8),
+        PopupMenuDivider(height: menuMetrics.dividerHeight),
         _buildMenuItem(
           context,
           'selectAll',
@@ -265,11 +268,6 @@ class _RtlTextFieldState extends State<RtlTextField> {
         Offset.zero & overlay.size,
       ),
       items: menuItems,
-      elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-      ),
-      color: Theme.of(context).colorScheme.surface,
     ).then((value) async {
       if (value == null) return;
 
@@ -324,8 +322,9 @@ class _RtlTextFieldState extends State<RtlTextField> {
   ) {
     return PopupMenuItem<String>(
       value: value,
-      height: 36,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      height: Theme.of(context).extension<AppMenuMetrics>()?.itemHeight ?? 40,
+      padding: Theme.of(context).extension<AppMenuMetrics>()?.itemPadding ??
+          const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

@@ -46,6 +46,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     on<UpdateEnablePerBookSettings>(_onUpdateEnablePerBookSettings);
     on<UpdateOfflineMode>(_onUpdateOfflineMode);
     on<UpdateAutoSyncCatalogs>(_onUpdateAutoSyncCatalogs);
+    on<UpdateCompactMenuMode>(_onUpdateCompactMenuMode);
     on<UpdateAlignTabsToRight>(_onUpdateAlignTabsToRight);
     on<UpdateEnableHtmlLinks>(_onUpdateEnableHtmlLinks);
     on<UpdatePersonalNotesCollapsedByDefault>(
@@ -100,6 +101,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       enablePerBookSettings: settings['enablePerBookSettings'],
       isOfflineMode: settings['isOfflineMode'] ?? false,
       autoSyncCatalogs: settings['autoSyncCatalogs'] ?? true,
+      compactMenuMode: settings['compactMenuMode'] ?? false,
       alignTabsToRight: settings['alignTabsToRight'] ?? false,
       enableHtmlLinks: settings['enableHtmlLinks'] ?? true,
       personalNotesCollapsedByDefault:
@@ -130,6 +132,14 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   ) async {
     await _repository.updateAutoSyncCatalogs(event.autoSyncCatalogs);
     emit(state.copyWith(autoSyncCatalogs: event.autoSyncCatalogs));
+  }
+
+  Future<void> _onUpdateCompactMenuMode(
+    UpdateCompactMenuMode event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateCompactMenuMode(event.compactMenuMode);
+    emit(state.copyWith(compactMenuMode: event.compactMenuMode));
   }
 
   Future<void> _onUpdateAlignTabsToRight(
