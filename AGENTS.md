@@ -15,7 +15,6 @@
      `flutter analyze --offline`
    - If it still fails → fallback to:
      `dart analyze`
-- Prefer `dart analyze` when running in restricted or sandboxed environments
 4. **Fix ALL errors before proceeding to next step**
 5. **Never skip validation - errors compound quickly!**
 
