@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/app_menu.dart';
 
 /// רכיב שמציג כפתורי פעולה עם יכולת הסתרה במסכים צרים
 /// כשחלק מהכפתורים נסתרים, מוצג כפתור "..." שפותח תפריט
@@ -190,11 +191,10 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
       builder: (context) {
         final menuMetrics = Theme.of(context).extension<AppMenuMetrics>() ??
             AppMenuMetrics.create(compactMenus: false);
-        return PopupMenuButton<ActionButtonData>(
+        return AppPopupMenuButton<ActionButtonData>(
           icon: const Icon(FluentIcons.more_vertical_24_regular),
           tooltip: 'עוד פעולות',
-          // מרווח קטן בסגנון Chrome
-          offset: const Offset(0, 8.0),
+          position: PopupMenuPosition.under,
           onSelected: (action) {
             action.onPressed?.call();
           },
@@ -211,13 +211,23 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
                     menuChildren: action.submenuItems!.map((subAction) {
                       return MenuItemButton(
                         leadingIcon: subAction.icon != null
-                            ? Icon(subAction.icon, size: 20)
+                            ? Icon(subAction.icon, size: menuMetrics.iconSize)
                             : null,
                         style: ButtonStyle(
                           padding: WidgetStatePropertyAll(
                             menuMetrics.itemPadding,
                           ),
+                          minimumSize: WidgetStatePropertyAll(
+                            Size(0, menuMetrics.itemHeight),
+                          ),
                           visualDensity: menuMetrics.visualDensity,
+                          shape: WidgetStatePropertyAll(
+                            RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                menuMetrics.itemBorderRadius,
+                              ),
+                            ),
+                          ),
                         ),
                         onPressed: () {
                           Navigator.of(context).pop(); // סוגר את התפריט הראשי
@@ -232,12 +242,14 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           if (action.icon != null) ...[
-                            Icon(action.icon),
+                            Icon(action.icon, size: menuMetrics.iconSize),
                             const SizedBox(width: 8),
                           ],
                           Expanded(child: Text(action.tooltip ?? '')),
-                          const Icon(FluentIcons.arrow_left_24_regular,
-                              size: 16),
+                          Icon(
+                            FluentIcons.arrow_left_24_regular,
+                            size: menuMetrics.iconSize,
+                          ),
                         ],
                       ),
                     ),
@@ -255,7 +267,7 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (action.icon != null) ...[
-                      Icon(action.icon),
+                      Icon(action.icon, size: menuMetrics.iconSize),
                       const SizedBox(width: 8),
                     ],
                     Text(action.tooltip ?? ''),

@@ -29,13 +29,14 @@ class AppThemeData {
     return _isDesktopPlatform(defaultTargetPlatform) && compactMenuMode;
   }
 
-  static Color _menuBackground(Brightness brightness) {
-    return brightness == Brightness.dark
-        ? AppColors.menuDarkBackground
-        : AppColors.menuLightBackground;
+  static Color _menuBackground(ColorScheme cs) {
+    return cs.surfaceContainerHigh;
   }
 
   static BorderSide _menuBorder(ColorScheme cs) {
+    if (cs.brightness == Brightness.dark) {
+      return BorderSide.none;
+    }
     return BorderSide(
       color: cs.outlineVariant.withValues(alpha: 0.55),
       width: 1,
@@ -48,7 +49,7 @@ class AppThemeData {
     required bool compactMenuMode,
   }) {
     final compactMenus = _usesCompactMenus(compactMenuMode);
-    final menuBackground = _menuBackground(Brightness.light);
+    final menuBackground = _menuBackground(colorScheme);
     final menuMetrics = AppMenuMetrics.create(compactMenus: compactMenus);
 
     return ThemeData(
@@ -64,6 +65,8 @@ class AppThemeData {
       textButtonTheme: _textButtonTheme(colorScheme),
       outlinedButtonTheme: _outlinedButtonTheme(colorScheme),
       tabBarTheme: _tabBarTheme(colorScheme),
+      dropdownMenuTheme: _dropdownMenuTheme(colorScheme, menuMetrics),
+      menuButtonTheme: _menuButtonTheme(colorScheme, menuMetrics),
       popupMenuTheme: _popupMenuTheme(
         colorScheme,
         backgroundColor: menuBackground,
@@ -99,7 +102,7 @@ class AppThemeData {
       outline: AppColors.darkOutline,
     );
     final compactMenus = _usesCompactMenus(compactMenuMode);
-    final menuBackground = _menuBackground(Brightness.dark);
+    final menuBackground = _menuBackground(cs);
     final menuMetrics = AppMenuMetrics.create(compactMenus: compactMenus);
 
     return ThemeData.dark(useMaterial3: true).copyWith(
@@ -142,6 +145,8 @@ class AppThemeData {
       textButtonTheme: _textButtonTheme(cs),
       outlinedButtonTheme: _outlinedButtonTheme(cs),
       tabBarTheme: _tabBarTheme(cs),
+      dropdownMenuTheme: _dropdownMenuTheme(cs, menuMetrics),
+      menuButtonTheme: _menuButtonTheme(cs, menuMetrics),
       popupMenuTheme: _popupMenuTheme(
         cs,
         backgroundColor: menuBackground,
@@ -167,13 +172,15 @@ class AppThemeData {
       shadowColor: Colors.black.withValues(alpha: 0.22),
       elevation: AppTokens.elevation1,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppTokens.radiusSM),
+        borderRadius: BorderRadius.circular(metrics.menuBorderRadius),
         side: _menuBorder(cs),
       ),
       menuPadding: metrics.menuPadding,
       textStyle: TextStyle(
+        fontFamily: 'Roboto',
         color: cs.onSurface,
-        fontSize: AppTokens.fontMD,
+        fontSize: metrics.fontSize,
+        fontWeight: FontWeight.w400,
       ),
     );
   }
@@ -192,12 +199,81 @@ class AppThemeData {
         elevation: const WidgetStatePropertyAll(AppTokens.elevation1),
         shape: WidgetStatePropertyAll(
           RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppTokens.radiusSM),
+            borderRadius: BorderRadius.circular(metrics.menuBorderRadius),
             side: _menuBorder(cs),
           ),
         ),
         padding: WidgetStatePropertyAll(metrics.menuPadding),
         visualDensity: metrics.visualDensity,
+      ),
+    );
+  }
+
+  static DropdownMenuThemeData _dropdownMenuTheme(
+    ColorScheme cs,
+    AppMenuMetrics metrics,
+  ) {
+    return DropdownMenuThemeData(
+      textStyle: TextStyle(
+        fontFamily: 'Roboto',
+        fontSize: metrics.fontSize,
+        fontWeight: FontWeight.w400,
+        color: cs.onSurface,
+      ),
+      inputDecorationTheme: const InputDecorationTheme(
+        border: OutlineInputBorder(),
+        isDense: true,
+      ),
+      menuStyle: MenuStyle(
+        backgroundColor: WidgetStatePropertyAll(_menuBackground(cs)),
+        surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+        shadowColor:
+            WidgetStatePropertyAll(Colors.black.withValues(alpha: 0.22)),
+        elevation: const WidgetStatePropertyAll(AppTokens.elevation1),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(metrics.menuBorderRadius),
+            side: _menuBorder(cs),
+          ),
+        ),
+        padding: WidgetStatePropertyAll(metrics.menuPadding),
+        visualDensity: metrics.visualDensity,
+      ),
+    );
+  }
+
+  static MenuButtonThemeData _menuButtonTheme(
+    ColorScheme cs,
+    AppMenuMetrics metrics,
+  ) {
+    final overlayColor = cs.onSurface.withValues(alpha: 0.08);
+    return MenuButtonThemeData(
+      style: ButtonStyle(
+        minimumSize: WidgetStatePropertyAll(Size(0, metrics.itemHeight)),
+        padding: WidgetStatePropertyAll(metrics.itemPadding),
+        visualDensity: metrics.visualDensity,
+        textStyle: WidgetStatePropertyAll(
+          TextStyle(
+            fontFamily: 'Roboto',
+            fontSize: metrics.fontSize,
+            fontWeight: FontWeight.w400,
+            color: cs.onSurface,
+          ),
+        ),
+        foregroundColor: WidgetStatePropertyAll(cs.onSurface),
+        iconColor: WidgetStatePropertyAll(cs.onSurface),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(metrics.itemBorderRadius),
+          ),
+        ),
+        overlayColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.hovered) ||
+              states.contains(WidgetState.focused)) {
+            return overlayColor;
+          }
+          return null;
+        }),
       ),
     );
   }
@@ -339,6 +415,10 @@ class AppMenuMetrics extends ThemeExtension<AppMenuMetrics> {
   final EdgeInsets menuPadding;
   final VisualDensity visualDensity;
   final double dividerHeight;
+  final double fontSize;
+  final double iconSize;
+  final double menuBorderRadius;
+  final double itemBorderRadius;
 
   const AppMenuMetrics({
     required this.compactMenus,
@@ -347,6 +427,10 @@ class AppMenuMetrics extends ThemeExtension<AppMenuMetrics> {
     required this.menuPadding,
     required this.visualDensity,
     required this.dividerHeight,
+    required this.fontSize,
+    required this.iconSize,
+    required this.menuBorderRadius,
+    required this.itemBorderRadius,
   });
 
   factory AppMenuMetrics.create({required bool compactMenus}) {
@@ -355,18 +439,20 @@ class AppMenuMetrics extends ThemeExtension<AppMenuMetrics> {
 
     return AppMenuMetrics(
       compactMenus: effectiveCompact,
-      itemHeight: isDesktop ? (effectiveCompact ? 32 : 40) : 48,
+      itemHeight: effectiveCompact ? 32 : 36,
       itemPadding: EdgeInsets.symmetric(
-        horizontal: AppTokens.spaceMD,
-        vertical: isDesktop ? (effectiveCompact ? 4 : 8) : 8,
+        horizontal: 12,
+        vertical: 0,
       ),
-      menuPadding: EdgeInsets.symmetric(
-        vertical: isDesktop ? (effectiveCompact ? 4 : 8) : 8,
-      ),
+      menuPadding: const EdgeInsets.symmetric(vertical: 8),
       visualDensity: isDesktop
           ? (effectiveCompact ? VisualDensity.compact : VisualDensity.standard)
           : VisualDensity.standard,
       dividerHeight: isDesktop ? (effectiveCompact ? 6 : 8) : 8,
+      fontSize: effectiveCompact ? 13 : 14,
+      iconSize: effectiveCompact ? 16 : 18,
+      menuBorderRadius: 8,
+      itemBorderRadius: 4,
     );
   }
 
@@ -378,6 +464,10 @@ class AppMenuMetrics extends ThemeExtension<AppMenuMetrics> {
     EdgeInsets? menuPadding,
     VisualDensity? visualDensity,
     double? dividerHeight,
+    double? fontSize,
+    double? iconSize,
+    double? menuBorderRadius,
+    double? itemBorderRadius,
   }) {
     return AppMenuMetrics(
       compactMenus: compactMenus ?? this.compactMenus,
@@ -386,6 +476,10 @@ class AppMenuMetrics extends ThemeExtension<AppMenuMetrics> {
       menuPadding: menuPadding ?? this.menuPadding,
       visualDensity: visualDensity ?? this.visualDensity,
       dividerHeight: dividerHeight ?? this.dividerHeight,
+      fontSize: fontSize ?? this.fontSize,
+      iconSize: iconSize ?? this.iconSize,
+      menuBorderRadius: menuBorderRadius ?? this.menuBorderRadius,
+      itemBorderRadius: itemBorderRadius ?? this.itemBorderRadius,
     );
   }
 
@@ -403,6 +497,14 @@ class AppMenuMetrics extends ThemeExtension<AppMenuMetrics> {
       visualDensity: t < 0.5 ? visualDensity : other.visualDensity,
       dividerHeight:
           lerpDouble(dividerHeight, other.dividerHeight, t) ?? dividerHeight,
+      fontSize: lerpDouble(fontSize, other.fontSize, t) ?? fontSize,
+      iconSize: lerpDouble(iconSize, other.iconSize, t) ?? iconSize,
+      menuBorderRadius:
+          lerpDouble(menuBorderRadius, other.menuBorderRadius, t) ??
+              menuBorderRadius,
+      itemBorderRadius:
+          lerpDouble(itemBorderRadius, other.itemBorderRadius, t) ??
+              itemBorderRadius,
     );
   }
 }

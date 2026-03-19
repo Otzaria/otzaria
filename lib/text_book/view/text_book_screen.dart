@@ -45,6 +45,7 @@ import 'package:otzaria/utils/fullscreen_helper.dart';
 import 'package:otzaria/widgets/responsive_action_bar.dart';
 import 'package:otzaria/widgets/resizable_drag_handle.dart';
 import 'package:otzaria/widgets/floating_panel.dart';
+import 'package:otzaria/widgets/app_menu.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_data_provider.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_progress_provider.dart';
 import 'package:otzaria/tools/shamor_zachor/models/book_model.dart';
@@ -1773,7 +1774,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             child: Icon(_getViewModeIcon(state)),
           );
 
-    return PopupMenuButton<String>(
+    return AppPopupMenuButton<String>(
       key: key,
       tooltip: 'בחר סוג תצוגת מפרשים',
       icon: iconWidget,
@@ -1837,7 +1838,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                 if (isSelected) ...[
                   const Spacer(),
                   Icon(FluentIcons.checkmark_24_regular,
-                      size: 16, color: primaryColor),
+                      size: menuMetrics.iconSize, color: primaryColor),
                 ],
               ],
             ),

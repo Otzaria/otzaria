@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/app_menu.dart';
 
 /// TextField מותאם אישית עם תמיכה מלאה ב-RTL
 ///
@@ -215,59 +215,54 @@ class _RtlTextFieldState extends State<RtlTextField> {
     Offset position,
     TextEditingController controller,
   ) {
-    final menuMetrics = Theme.of(context).extension<AppMenuMetrics>() ??
-        AppMenuMetrics.create(compactMenus: false);
     final selection = controller.selection;
     final hasSelection = selection.isValid && !selection.isCollapsed;
 
     final RenderBox overlay =
         Overlay.of(context).context.findRenderObject() as RenderBox;
 
-    List<PopupMenuEntry<String>> menuItems = [];
+    final menuEntries = <AppMenuEntry<String>>[];
 
     if (hasSelection) {
-      menuItems.addAll([
-        _buildMenuItem(
-          context,
-          'cut',
-          'גזור',
-          FluentIcons.cut_24_regular,
+      menuEntries.addAll([
+        const AppMenuEntry(
+          value: 'cut',
+          label: 'גזור',
+          icon: FluentIcons.cut_24_regular,
         ),
-        _buildMenuItem(
-          context,
-          'copy',
-          'העתק',
-          FluentIcons.copy_24_regular,
+        const AppMenuEntry(
+          value: 'copy',
+          label: 'העתק',
+          icon: FluentIcons.copy_24_regular,
         ),
       ]);
     }
 
-    menuItems.add(_buildMenuItem(
-      context,
-      'paste',
-      'הדבק',
-      FluentIcons.clipboard_paste_24_regular,
-    ));
+    menuEntries.add(
+      const AppMenuEntry(
+        value: 'paste',
+        label: 'הדבק',
+        icon: FluentIcons.clipboard_paste_24_regular,
+      ),
+    );
 
     if (controller.text.isNotEmpty) {
-      menuItems.addAll([
-        PopupMenuDivider(height: menuMetrics.dividerHeight),
-        _buildMenuItem(
-          context,
-          'selectAll',
-          'בחר הכל',
-          FluentIcons.select_all_on_24_regular,
+      menuEntries.add(
+        const AppMenuEntry(
+          value: 'selectAll',
+          label: 'בחר הכל',
+          icon: FluentIcons.select_all_on_24_regular,
         ),
-      ]);
+      );
     }
 
-    showMenu<String>(
+    showAppMenu<String>(
       context: context,
       position: RelativeRect.fromRect(
         position & const Size(40, 40),
         Offset.zero & overlay.size,
       ),
-      items: menuItems,
+      entries: menuEntries,
     ).then((value) async {
       if (value == null) return;
 
@@ -312,27 +307,5 @@ class _RtlTextFieldState extends State<RtlTextField> {
           break;
       }
     });
-  }
-
-  PopupMenuItem<String> _buildMenuItem(
-    BuildContext context,
-    String value,
-    String label,
-    IconData icon,
-  ) {
-    return PopupMenuItem<String>(
-      value: value,
-      height: Theme.of(context).extension<AppMenuMetrics>()?.itemHeight ?? 40,
-      padding: Theme.of(context).extension<AppMenuMetrics>()?.itemPadding ??
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 18, color: Theme.of(context).colorScheme.onSurface),
-          const SizedBox(width: 8),
-          Text(label, style: const TextStyle(fontSize: 14)),
-        ],
-      ),
-    );
   }
 }

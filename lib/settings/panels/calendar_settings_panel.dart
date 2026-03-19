@@ -10,6 +10,7 @@ import 'package:otzaria/widgets/dialogs.dart';
 import 'package:otzaria/settings/settings_card.dart';
 import 'package:otzaria/widgets/custom_ui_components.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/app_menu.dart';
 
 /// טאב הגדרות לוח שנה
 class CalendarSettingsTab extends StatefulWidget {
@@ -128,19 +129,19 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                     ),
                     Padding(
                       padding: const EdgeInsets.all(16.0),
-                      child: DropdownButtonFormField<int>(
+                      child: AppDropdownField<int>(
+                        value: state.calendarNotificationTime,
                         decoration: const InputDecoration(
                           labelText: 'זמן תזכורת לפני האירוע',
                           border: OutlineInputBorder(),
                         ),
-                        initialValue: state.calendarNotificationTime,
-                        items: const [
-                          DropdownMenuItem(value: 60, child: Text('שעה')),
-                          DropdownMenuItem(value: 720, child: Text('12 שעות')),
-                          DropdownMenuItem(value: 1440, child: Text('יום')),
-                          DropdownMenuItem(value: 2880, child: Text('יומיים')),
+                        entries: const [
+                          AppMenuEntry(value: 60, label: 'שעה'),
+                          AppMenuEntry(value: 720, label: '12 שעות'),
+                          AppMenuEntry(value: 1440, label: 'יום'),
+                          AppMenuEntry(value: 2880, label: 'יומיים'),
                         ],
-                        onChanged: (value) {
+                        onSelected: (value) {
                           if (value != null) {
                             context
                                 .read<CalendarCubit>()

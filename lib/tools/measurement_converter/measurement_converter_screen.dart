@@ -15,6 +15,7 @@ import 'package:otzaria/tools/measurement_converter/measurement_converter_logic.
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/custom_ui_components.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/widgets/app_menu.dart';
 import 'package:otzaria/widgets/sidebar_nav_item.dart';
 
 class MeasurementConverterScreen extends StatefulWidget {
@@ -549,8 +550,8 @@ class _MeasurementConverterScreenState
           ),
         ),
         const SizedBox(height: 4),
-        DropdownButtonFormField<String>(
-          initialValue: _selectedOpinion,
+        AppDropdownField<String>(
+          value: _selectedOpinion,
           decoration: InputDecoration(
             filled: true,
             fillColor: isEnabled
@@ -565,16 +566,10 @@ class _MeasurementConverterScreenState
             ),
             enabled: isEnabled,
           ),
-          isExpanded: true,
-          style: TextStyle(
-            fontSize: AppTokens.fontMD,
-            color:
-                isEnabled ? cs.onSurface : cs.onSurface.withValues(alpha: 0.4),
-          ),
-          items: opinions
-              .map((o) => DropdownMenuItem(value: o, child: Text(o)))
+          entries: opinions
+              .map((opinion) => AppMenuEntry(value: opinion, label: opinion))
               .toList(),
-          onChanged: isEnabled
+          onSelected: isEnabled
               ? (value) {
                   setState(() {
                     _selectedOpinion = value;

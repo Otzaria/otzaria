@@ -5,6 +5,7 @@ import 'package:flutter_spinbox/flutter_spinbox.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
+import 'package:otzaria/widgets/app_menu.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/search/view/tantivy_search_results.dart';
@@ -526,27 +527,23 @@ class OrderOfResults extends StatelessWidget {
           height: 52,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-            child: DropdownButtonFormField<ResultsOrder>(
-              initialValue: state.sortBy,
+            child: AppDropdownField<ResultsOrder>(
+              value: state.sortBy,
               decoration: const InputDecoration(
                 labelText: 'מיון',
                 border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: 12.0,
-                  vertical: 8.0,
-                ),
               ),
-              items: const [
-                DropdownMenuItem(
+              entries: const [
+                AppMenuEntry(
                   value: ResultsOrder.relevance,
-                  child: Text('לפי רלוונטיות'),
+                  label: 'לפי רלוונטיות',
                 ),
-                DropdownMenuItem(
+                AppMenuEntry(
                   value: ResultsOrder.catalogue,
-                  child: Text('לפי סדר קטלוגי'),
+                  label: 'לפי סדר קטלוגי',
                 ),
               ],
-              onChanged: (value) {
+              onSelected: (value) {
                 if (value != null) {
                   context.read<SearchBloc>().add(UpdateSortOrder(value));
                 }

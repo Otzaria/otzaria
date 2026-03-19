@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/services/ad_popup_service.dart';
+import 'package:otzaria/widgets/app_menu.dart';
 
 /// פופאפ פרסומת עם אנימציה מתקדמת
 class AdPopupDialog extends StatefulWidget {
@@ -325,7 +326,7 @@ class _AdPopupDialogState extends State<AdPopupDialog>
       child: Align(
         alignment: Alignment.centerLeft,
         child: Builder(
-          builder: (builderContext) => PopupMenuButton<String>(
+          builder: (builderContext) => AppPopupMenuButton<String>(
             onSelected: (value) async {
               final navigator = Navigator.of(builderContext);
               switch (value) {
@@ -341,36 +342,21 @@ class _AdPopupDialogState extends State<AdPopupDialog>
               }
               navigator.pop();
             },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
+            entries: const [
+              AppMenuEntry(
                 value: 'week',
-                child: Row(
-                  children: [
-                    Icon(FluentIcons.calendar_24_regular, size: 20),
-                    SizedBox(width: 12),
-                    Text('למשך שבוע'),
-                  ],
-                ),
+                label: 'למשך שבוע',
+                icon: FluentIcons.calendar_24_regular,
               ),
-              const PopupMenuItem(
+              AppMenuEntry(
                 value: 'month',
-                child: Row(
-                  children: [
-                    Icon(FluentIcons.calendar_month_24_regular, size: 20),
-                    SizedBox(width: 12),
-                    Text('למשך חודש'),
-                  ],
-                ),
+                label: 'למשך חודש',
+                icon: FluentIcons.calendar_month_24_regular,
               ),
-              const PopupMenuItem(
+              AppMenuEntry(
                 value: 'forever',
-                child: Row(
-                  children: [
-                    Icon(FluentIcons.prohibited_24_regular, size: 20),
-                    SizedBox(width: 12),
-                    Text('לעולם'),
-                  ],
-                ),
+                label: 'לעולם',
+                icon: FluentIcons.prohibited_24_regular,
               ),
             ],
             child: OutlinedButton.icon(

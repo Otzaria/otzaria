@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
+import 'package:otzaria/widgets/app_menu.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
 
 enum NotesExportMode {
@@ -105,15 +106,17 @@ class _PersonalNotesExportDialogState extends State<PersonalNotesExportDialog> {
             ),
             const SizedBox(height: 12),
             if (_mode == NotesExportMode.byBook)
-              DropdownButtonFormField<String>(
-                initialValue: _selectedBookId,
-                items: books
-                    .map((bookId) => DropdownMenuItem(
-                          value: bookId,
-                          child: Text(bookId),
-                        ))
+              AppDropdownField<String>(
+                value: _selectedBookId,
+                entries: books
+                    .map(
+                      (bookId) => AppMenuEntry(
+                        value: bookId,
+                        label: bookId,
+                      ),
+                    )
                     .toList(),
-                onChanged: (value) => setState(() => _selectedBookId = value),
+                onSelected: (value) => setState(() => _selectedBookId = value),
                 decoration: const InputDecoration(
                   labelText: 'בחר ספר',
                   border: OutlineInputBorder(),

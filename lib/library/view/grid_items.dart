@@ -7,6 +7,7 @@ import 'package:otzaria/widgets/data_source_indicator.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/services/book_details_service.dart';
 import 'package:otzaria/text_book/view/book_source_dialog.dart';
+import 'package:otzaria/widgets/app_menu.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:math';
 import 'package:otzaria/core/ui_snack.dart';
@@ -133,7 +134,8 @@ class LibraryItemTitle extends StatelessWidget {
       textDirection: TextDirection.rtl,
       style: theme.textTheme.titleMedium?.copyWith(
         fontWeight: isFolder ? FontWeight.w700 : FontWeight.w500,
-        color: isFolder ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+        color:
+            isFolder ? theme.colorScheme.primary : theme.colorScheme.onSurface,
       ),
     );
   }
@@ -201,8 +203,8 @@ class CategoryGridItem extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color:
-                      theme.colorScheme.primaryContainer.withValues(alpha: 0.55),
+                  color: theme.colorScheme.primaryContainer
+                      .withValues(alpha: 0.55),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
@@ -242,10 +244,10 @@ class CategoryGridItem extends StatelessWidget {
                     mouseCursor: SystemMouseCursors.basic,
                     onPressed: null,
                     icon: const Icon(FluentIcons.info_24_regular),
-                    color:
-                        theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
-                    disabledColor:
-                        theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                    color: theme.colorScheme.onSurfaceVariant
+                        .withValues(alpha: 0.6),
+                    disabledColor: theme.colorScheme.onSurfaceVariant
+                        .withValues(alpha: 0.6),
                   ),
                 ),
             ],
@@ -518,7 +520,7 @@ class _BookGridActionColumn extends StatelessWidget {
           SizedBox(
             width: 32,
             height: 32,
-            child: PopupMenuButton<String>(
+            child: AppPopupMenuButton<String>(
               icon: Icon(
                 FluentIcons.more_vertical_24_regular,
                 size: 18,
@@ -536,24 +538,12 @@ class _BookGridActionColumn extends StatelessWidget {
                   _showDeleteBookDialog(context, book, onBookDeleted);
                 }
               },
-              itemBuilder: (BuildContext context) => [
-                PopupMenuItem<String>(
+              entries: const [
+                AppMenuEntry<String>(
                   value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(
-                        FluentIcons.delete_24_regular,
-                        color: theme.colorScheme.error,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'מחק ספר זה',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.error,
-                        ),
-                      ),
-                    ],
-                  ),
+                  label: 'מחק ספר זה',
+                  icon: FluentIcons.delete_24_regular,
+                  isDestructive: true,
                 ),
               ],
             ),
@@ -580,9 +570,8 @@ class MyGridView extends StatelessWidget {
                 : width >= 800
                     ? 1.8
                     : 1.65;
-        final textAdjustment = textScale <= 1.0
-            ? 1.0
-            : (1.0 / (1.0 + ((textScale - 1.0) * 0.65)));
+        final textAdjustment =
+            textScale <= 1.0 ? 1.0 : (1.0 / (1.0 + ((textScale - 1.0) * 0.65)));
         final childAspectRatio = (baseRatio * textAdjustment).clamp(1.45, 2.15);
 
         return Padding(

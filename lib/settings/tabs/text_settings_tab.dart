@@ -6,6 +6,7 @@ import 'package:otzaria/settings/engine/settings_engine_exports.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/settings/settings_card.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/app_menu.dart';
 import 'package:otzaria/widgets/custom_ui_components.dart';
 
 /// טאב הגדרות תצוגת ספרים
@@ -423,36 +424,49 @@ class TextSettingsTab extends StatelessWidget {
             leading: const Icon(FluentIcons.text_align_right_24_regular),
             title: const Text('עיצוב כותרות', style: kSettingsTitleStyle),
             subtitle: Text(formatSubtitle, style: kSettingsSubtitleStyle),
-            trailing: DropdownButton<String>(
-              value: state.copyHeaderFormat,
-              underline: const SizedBox(),
-              items: const [
-                DropdownMenuItem(
+            trailing: SizedBox(
+              width: 220,
+              child: AppDropdownField<String>(
+                value: state.copyHeaderFormat,
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: EdgeInsets.zero,
+                ),
+                entries: const [
+                  AppMenuEntry(
                     value: 'same_line_after_brackets',
-                    child: Text('אותה שורה אחרי (עם סוגריים)')),
-                DropdownMenuItem(
+                    label: 'אותה שורה אחרי (עם סוגריים)',
+                  ),
+                  AppMenuEntry(
                     value: 'same_line_after_no_brackets',
-                    child: Text('אותה שורה אחרי (בלי סוגריים)')),
-                DropdownMenuItem(
+                    label: 'אותה שורה אחרי (בלי סוגריים)',
+                  ),
+                  AppMenuEntry(
                     value: 'same_line_before_brackets',
-                    child: Text('אותה שורה לפני (עם סוגריים)')),
-                DropdownMenuItem(
+                    label: 'אותה שורה לפני (עם סוגריים)',
+                  ),
+                  AppMenuEntry(
                     value: 'same_line_before_no_brackets',
-                    child: Text('אותה שורה לפני (בלי סוגריים)')),
-                DropdownMenuItem(
+                    label: 'אותה שורה לפני (בלי סוגריים)',
+                  ),
+                  AppMenuEntry(
                     value: 'separate_line_after',
-                    child: Text('פסקה נפרדת אחרי')),
-                DropdownMenuItem(
+                    label: 'פסקה נפרדת אחרי',
+                  ),
+                  AppMenuEntry(
                     value: 'separate_line_before',
-                    child: Text('פסקה נפרדת לפני')),
-              ],
-              onChanged: (value) {
-                if (value != null) {
-                  context
-                      .read<SettingsBloc>()
-                      .add(UpdateCopyHeaderFormat(value));
-                }
-              },
+                    label: 'פסקה נפרדת לפני',
+                  ),
+                ],
+                onSelected: (value) {
+                  if (value != null) {
+                    context
+                        .read<SettingsBloc>()
+                        .add(UpdateCopyHeaderFormat(value));
+                  }
+                },
+              ),
             ),
           ),
       ],
@@ -634,18 +648,36 @@ class _FontDropdown extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: DropdownButtonFormField<String>(
-            initialValue: value,
-            decoration: InputDecoration(
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              border:
-                  OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          child: AppDropdownField<String>(
+            value: value,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
             ),
-            dropdownColor: Theme.of(context).colorScheme.surface,
-            isExpanded: true,
-            items: AppFonts.buildDropdownItems(),
-            onChanged: onChanged,
+            entries: AppFonts.availableFonts
+                .map(
+                  (font) => AppMenuEntry(
+                    value: font.value,
+                    label: font.label,
+                  ),
+                )
+                .toList(),
+            selectedBuilder: (context, selectedValue) {
+              final matchingFont = AppFonts.availableFonts.firstWhere(
+                (font) => font.value == selectedValue,
+                orElse: () => AppFonts.availableFonts.first,
+              );
+              return Text(
+                matchingFont.label,
+                style: TextStyle(
+                  fontFamily: AppFonts.fontPaths.containsKey(matchingFont.value)
+                      ? matchingFont.value
+                      : null,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              );
+            },
+            onSelected: onChanged,
           ),
         ),
       ],

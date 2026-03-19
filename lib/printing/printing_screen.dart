@@ -21,6 +21,7 @@ import 'package:otzaria/printing/print_content_models.dart';
 import 'package:otzaria/printing/word_export_service.dart';
 import 'package:otzaria/utils/text_manipulation.dart';
 import 'package:otzaria/widgets/dialogs.dart';
+import 'package:otzaria/widgets/app_menu.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:printing/printing.dart';
 import 'package:pdf/pdf.dart';
@@ -1006,84 +1007,86 @@ class _PrintingScreenState extends State<PrintingScreen> {
                                     _buildDropdownRow(
                                       context: context,
                                       label: 'גודל דף',
-                                      child: DropdownButton<PdfPageFormat>(
+                                      child: AppDropdownField<PdfPageFormat>(
                                         value: format,
-                                        isExpanded: true,
-                                        underline: const SizedBox(),
-                                        borderRadius: BorderRadius.circular(8),
-                                        onChanged: (PdfPageFormat? value) {
+                                        decoration: const InputDecoration(
+                                          border: OutlineInputBorder(),
+                                        ),
+                                        entries: const {
+                                          'A4': PdfPageFormat.a4,
+                                          'Letter': PdfPageFormat.letter,
+                                        }.entries.map((entry) {
+                                          return AppMenuEntry(
+                                            value: entry.value,
+                                            label: entry.key,
+                                          );
+                                        }).toList(),
+                                        onSelected: (PdfPageFormat? value) {
                                           if (value == null) return;
                                           setState(() {
                                             format = value;
                                             _refreshPreviewPdf();
                                           });
                                         },
-                                        items: const {
-                                          'A4': PdfPageFormat.a4,
-                                          'Letter': PdfPageFormat.letter,
-                                        }.entries.map((entry) {
-                                          return DropdownMenuItem(
-                                            value: entry.value,
-                                            child: Text(entry.key),
-                                          );
-                                        }).toList(),
                                       ),
                                     ),
                                     const SizedBox(height: 12),
                                     _buildDropdownRow(
                                       context: context,
                                       label: 'כיוון',
-                                      child: DropdownButton<pw.PageOrientation>(
+                                      child:
+                                          AppDropdownField<pw.PageOrientation>(
                                         value: orientation,
-                                        isExpanded: true,
-                                        underline: const SizedBox(),
-                                        borderRadius: BorderRadius.circular(8),
-                                        onChanged: (pw.PageOrientation? value) {
+                                        decoration: const InputDecoration(
+                                          border: OutlineInputBorder(),
+                                        ),
+                                        entries: const [
+                                          AppMenuEntry(
+                                            value: pw.PageOrientation.portrait,
+                                            label: 'לאורך',
+                                          ),
+                                          AppMenuEntry(
+                                            value: pw.PageOrientation.landscape,
+                                            label: 'לרוחב',
+                                          ),
+                                        ],
+                                        onSelected:
+                                            (pw.PageOrientation? value) {
                                           if (value == null) return;
                                           orientation = value;
                                           setState(_refreshPreviewPdf);
                                         },
-                                        items: const [
-                                          DropdownMenuItem(
-                                            value: pw.PageOrientation.portrait,
-                                            child: Text('לאורך'),
-                                          ),
-                                          DropdownMenuItem(
-                                            value: pw.PageOrientation.landscape,
-                                            child: Text('לרוחב'),
-                                          ),
-                                        ],
                                       ),
                                     ),
                                     const SizedBox(height: 12),
                                     _buildDropdownRow(
                                       context: context,
                                       label: 'עמודים בגליון',
-                                      child: DropdownButton<int>(
+                                      child: AppDropdownField<int>(
                                         value: _pagesPerSheet,
-                                        isExpanded: true,
-                                        underline: const SizedBox(),
-                                        borderRadius: BorderRadius.circular(8),
-                                        onChanged: (int? value) {
+                                        decoration: const InputDecoration(
+                                          border: OutlineInputBorder(),
+                                        ),
+                                        entries: const [
+                                          AppMenuEntry(
+                                            value: 1,
+                                            label: '1 (רגיל)',
+                                          ),
+                                          AppMenuEntry(
+                                            value: 2,
+                                            label: '2 (יישור לימין)',
+                                          ),
+                                          AppMenuEntry(
+                                            value: 4,
+                                            label: '4 (יישור לימין)',
+                                          ),
+                                        ],
+                                        onSelected: (int? value) {
                                           if (value == null) return;
                                           setState(() {
                                             _pagesPerSheet = value;
                                           });
                                         },
-                                        items: const [
-                                          DropdownMenuItem(
-                                            value: 1,
-                                            child: Text('1 (רגיל)'),
-                                          ),
-                                          DropdownMenuItem(
-                                            value: 2,
-                                            child: Text('2 (יישור לימין)'),
-                                          ),
-                                          DropdownMenuItem(
-                                            value: 4,
-                                            child: Text('4 (יישור לימין)'),
-                                          ),
-                                        ],
                                       ),
                                     ),
                                   ],
@@ -1397,13 +1400,22 @@ class _PrintingScreenState extends State<PrintingScreen> {
                                       _buildDropdownRow(
                                         context: context,
                                         label: 'מ-',
-                                        child: DropdownButton<int>(
+                                        child: AppDropdownField<int>(
                                           value: _startHeaderIndex,
-                                          isExpanded: true,
-                                          underline: const SizedBox(),
-                                          borderRadius:
-                                              BorderRadius.circular(8),
-                                          onChanged: (int? value) {
+                                          decoration: const InputDecoration(
+                                            border: OutlineInputBorder(),
+                                          ),
+                                          entries: _flatHeaders
+                                              .asMap()
+                                              .entries
+                                              .map(
+                                                (entry) => AppMenuEntry(
+                                                  value: entry.key,
+                                                  label: entry.value.fullText,
+                                                ),
+                                              )
+                                              .toList(),
+                                          onSelected: (int? value) {
                                             setState(() {
                                               _startHeaderIndex = value;
                                               if (_endHeaderIndex != null &&
@@ -1414,32 +1426,28 @@ class _PrintingScreenState extends State<PrintingScreen> {
                                               _updateRangeByHeaders();
                                             });
                                           },
-                                          items: _flatHeaders
-                                              .asMap()
-                                              .entries
-                                              .map((entry) {
-                                            return DropdownMenuItem<int>(
-                                              value: entry.key,
-                                              child: Text(
-                                                entry.value.fullText,
-                                                overflow: TextOverflow.ellipsis,
-                                                maxLines: 1,
-                                              ),
-                                            );
-                                          }).toList(),
                                         ),
                                       ),
                                       const SizedBox(height: 12),
                                       _buildDropdownRow(
                                         context: context,
                                         label: 'עד-',
-                                        child: DropdownButton<int>(
+                                        child: AppDropdownField<int>(
                                           value: _endHeaderIndex,
-                                          isExpanded: true,
-                                          underline: const SizedBox(),
-                                          borderRadius:
-                                              BorderRadius.circular(8),
-                                          onChanged: (int? value) {
+                                          decoration: const InputDecoration(
+                                            border: OutlineInputBorder(),
+                                          ),
+                                          entries: _flatHeaders
+                                              .asMap()
+                                              .entries
+                                              .map(
+                                                (entry) => AppMenuEntry(
+                                                  value: entry.key,
+                                                  label: entry.value.fullText,
+                                                ),
+                                              )
+                                              .toList(),
+                                          onSelected: (int? value) {
                                             setState(() {
                                               _endHeaderIndex = value;
                                               if (_startHeaderIndex != null &&
@@ -1450,19 +1458,6 @@ class _PrintingScreenState extends State<PrintingScreen> {
                                               _updateRangeByHeaders();
                                             });
                                           },
-                                          items: _flatHeaders
-                                              .asMap()
-                                              .entries
-                                              .map((entry) {
-                                            return DropdownMenuItem<int>(
-                                              value: entry.key,
-                                              child: Text(
-                                                entry.value.fullText,
-                                                overflow: TextOverflow.ellipsis,
-                                                maxLines: 1,
-                                              ),
-                                            );
-                                          }).toList(),
                                         ),
                                       ),
                                       const SizedBox(height: 8),
@@ -1716,80 +1711,81 @@ class _PrintingScreenState extends State<PrintingScreen> {
                                     _buildDropdownRow(
                                       context: context,
                                       label: 'גודל עמוד',
-                                      child: DropdownButton<PdfPageFormat>(
+                                      child: AppDropdownField<PdfPageFormat>(
                                         value: format,
-                                        isExpanded: true,
-                                        underline: const SizedBox(),
-                                        borderRadius: BorderRadius.circular(8),
-                                        onChanged: (PdfPageFormat? value) {
+                                        decoration: const InputDecoration(
+                                          border: OutlineInputBorder(),
+                                        ),
+                                        entries: formats.entries
+                                            .map(
+                                              (entry) => AppMenuEntry(
+                                                value: entry.key,
+                                                label: entry.value,
+                                              ),
+                                            )
+                                            .toList(),
+                                        onSelected: (PdfPageFormat? value) {
                                           format = value!;
                                           setState(_refreshPreviewPdf);
                                         },
-                                        items: formats.entries.map<
-                                            DropdownMenuItem<
-                                                PdfPageFormat>>((entry) {
-                                          return DropdownMenuItem<
-                                              PdfPageFormat>(
-                                            value: entry.key,
-                                            child: Text(entry.value),
-                                          );
-                                        }).toList(),
                                       ),
                                     ),
                                     const SizedBox(height: 12),
                                     _buildDropdownRow(
                                       context: context,
                                       label: 'כיוון',
-                                      child: DropdownButton<pw.PageOrientation>(
+                                      child:
+                                          AppDropdownField<pw.PageOrientation>(
                                         value: orientation,
-                                        isExpanded: true,
-                                        underline: const SizedBox(),
-                                        borderRadius: BorderRadius.circular(8),
-                                        onChanged: (pw.PageOrientation? value) {
+                                        decoration: const InputDecoration(
+                                          border: OutlineInputBorder(),
+                                        ),
+                                        entries: const [
+                                          AppMenuEntry(
+                                            value: pw.PageOrientation.portrait,
+                                            label: 'לאורך',
+                                          ),
+                                          AppMenuEntry(
+                                            value: pw.PageOrientation.landscape,
+                                            label: 'לרוחב',
+                                          ),
+                                        ],
+                                        onSelected:
+                                            (pw.PageOrientation? value) {
                                           orientation = value!;
                                           setState(_refreshPreviewPdf);
                                         },
-                                        items: const [
-                                          DropdownMenuItem(
-                                            value: pw.PageOrientation.portrait,
-                                            child: Text('לאורך'),
-                                          ),
-                                          DropdownMenuItem(
-                                            value: pw.PageOrientation.landscape,
-                                            child: Text('לרוחב'),
-                                          ),
-                                        ],
                                       ),
                                     ),
                                     const SizedBox(height: 12),
                                     _buildDropdownRow(
                                       context: context,
                                       label: 'עמודים בגליון',
-                                      child: DropdownButton<int>(
+                                      child: AppDropdownField<int>(
                                         value: _pagesPerSheet,
-                                        isExpanded: true,
-                                        underline: const SizedBox(),
-                                        borderRadius: BorderRadius.circular(8),
-                                        onChanged: (int? value) {
+                                        decoration: const InputDecoration(
+                                          border: OutlineInputBorder(),
+                                        ),
+                                        entries: const [
+                                          AppMenuEntry(
+                                            value: 1,
+                                            label: '1 (רגיל)',
+                                          ),
+                                          AppMenuEntry(
+                                            value: 2,
+                                            label: '2 (יישור לימין)',
+                                          ),
+                                          AppMenuEntry(
+                                            value: 4,
+                                            label: '4 (יישור לימין)',
+                                          ),
+                                        ],
+                                        onSelected: (int? value) {
                                           if (value == null) return;
                                           setState(() {
                                             _pagesPerSheet = value;
                                           });
                                         },
-                                        items: const [
-                                          DropdownMenuItem(
-                                            value: 1,
-                                            child: Text('1 (רגיל)'),
-                                          ),
-                                          DropdownMenuItem(
-                                            value: 2,
-                                            child: Text('2 (יישור לימין)'),
-                                          ),
-                                          DropdownMenuItem(
-                                            value: 4,
-                                            child: Text('4 (יישור לימין)'),
-                                          ),
-                                        ],
                                       ),
                                     ),
                                   ],

@@ -7,6 +7,7 @@ import 'package:otzaria/text_book/view/page_shape/utils/page_shape_commentary_se
 import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
+import 'package:otzaria/widgets/app_menu.dart';
 
 /// סוג שמירת הגדרות מפרשים
 enum CommentatorSaveScope {
@@ -554,24 +555,23 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
                             CommentatorSaveScope.category &&
                         _availableCategories.isNotEmpty) ...[
                       const SizedBox(height: 8),
-                      DropdownButtonFormField<String>(
-                        initialValue: _selectedCategory,
+                      AppDropdownField<String>(
+                        value: _selectedCategory,
                         decoration: InputDecoration(
                           labelText: 'בחר קטגוריה',
                           border: const OutlineInputBorder(),
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 8),
                           filled: true,
                           fillColor: Theme.of(context).colorScheme.surface,
                         ),
-                        items: _availableCategories.map((category) {
-                          return DropdownMenuItem<String>(
-                            value: category,
-                            child: Text(category,
-                                style: const TextStyle(fontSize: 13)),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
+                        entries: _availableCategories
+                            .map(
+                              (category) => AppMenuEntry(
+                                value: category,
+                                label: category,
+                              ),
+                            )
+                            .toList(),
+                        onSelected: (value) {
                           setState(() {
                             _selectedCategory = value;
                             _hasChanges = true;
@@ -733,29 +733,37 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
                     ),
                   ),
                   Expanded(
-                    child: DropdownButtonFormField<String>(
-                      initialValue: _bottomFontFamily,
+                    child: AppDropdownField<String>(
+                      value: _bottomFontFamily,
                       decoration: const InputDecoration(
                         border: OutlineInputBorder(),
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                       ),
-                      items: AppFonts.availableFonts.map((font) {
-                        return DropdownMenuItem<String>(
-                          value: font.value,
-                          child: Text(
-                            font.label,
-                            style: TextStyle(
-                              fontFamily:
-                                  AppFonts.fontPaths.containsKey(font.value)
-                                      ? font.value
-                                      : null,
-                              fontSize: 13,
+                      entries: AppFonts.availableFonts
+                          .map(
+                            (font) => AppMenuEntry(
+                              value: font.value,
+                              label: font.label,
                             ),
-                          ),
+                          )
+                          .toList(),
+                      selectedBuilder: (context, selectedValue) {
+                        final matchingFont = AppFonts.availableFonts.firstWhere(
+                          (font) => font.value == selectedValue,
+                          orElse: () => AppFonts.availableFonts.first,
                         );
-                      }).toList(),
-                      onChanged: (value) {
+                        return Text(
+                          matchingFont.label,
+                          style: TextStyle(
+                            fontFamily: AppFonts.fontPaths
+                                    .containsKey(matchingFont.value)
+                                ? matchingFont.value
+                                : null,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        );
+                      },
+                      onSelected: (value) {
                         if (value != null) {
                           _onFontChanged(value);
                         }

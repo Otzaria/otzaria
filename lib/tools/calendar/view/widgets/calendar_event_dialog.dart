@@ -6,6 +6,7 @@ import 'package:otzaria/tools/calendar/bloc/calendar_state.dart';
 import 'package:otzaria/tools/calendar/models/calendar_event.dart';
 import 'package:otzaria/tools/calendar/view/widgets/calendar_date_formatters.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/app_menu.dart';
 import 'package:otzaria/widgets/buttons/action_buttons.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
 
@@ -218,43 +219,39 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     child: Column(
                       children: [
-                        DropdownButtonFormField<RecurrenceType>(
-                          initialValue: _selectedRecurrenceType,
+                        AppDropdownField<RecurrenceType>(
+                          value: _selectedRecurrenceType,
                           decoration: const InputDecoration(
                             labelText: 'חזור לפי',
                             border: OutlineInputBorder(),
                           ),
-                          items: [
-                            const DropdownMenuItem(
+                          entries: [
+                            const AppMenuEntry(
                               value: RecurrenceType.weekly,
-                              child: Text('שבועי'),
+                              label: 'שבועי',
                             ),
-                            DropdownMenuItem(
+                            AppMenuEntry(
                               value: RecurrenceType.monthlyHebrew,
-                              child: Text(
-                                'חודשי עברי (יום ${formatHebrewDay(_displayedJewishDate.getJewishDayOfMonth())})',
-                              ),
+                              label:
+                                  'חודשי עברי (יום ${formatHebrewDay(_displayedJewishDate.getJewishDayOfMonth())})',
                             ),
-                            DropdownMenuItem(
+                            AppMenuEntry(
                               value: RecurrenceType.monthlyGregorian,
-                              child: Text(
-                                'חודשי לועזי (יום ${_displayedGregorianDate.day})',
-                              ),
+                              label:
+                                  'חודשי לועזי (יום ${_displayedGregorianDate.day})',
                             ),
-                            DropdownMenuItem(
+                            AppMenuEntry(
                               value: RecurrenceType.annualHebrew,
-                              child: Text(
-                                'שנתי עברי (${formatHebrewDay(_displayedJewishDate.getJewishDayOfMonth())} ${getHebrewMonthNameFor(_displayedJewishDate)})',
-                              ),
+                              label:
+                                  'שנתי עברי (${formatHebrewDay(_displayedJewishDate.getJewishDayOfMonth())} ${getHebrewMonthNameFor(_displayedJewishDate)})',
                             ),
-                            DropdownMenuItem(
+                            AppMenuEntry(
                               value: RecurrenceType.annualGregorian,
-                              child: Text(
-                                'שנתי לועזי (${_displayedGregorianDate.day}/${_displayedGregorianDate.month})',
-                              ),
+                              label:
+                                  'שנתי לועזי (${_displayedGregorianDate.day}/${_displayedGregorianDate.month})',
                             ),
                           ],
-                          onChanged: (value) => setState(() =>
+                          onSelected: (value) => setState(() =>
                               _selectedRecurrenceType =
                                   value ?? RecurrenceType.annualHebrew),
                         ),

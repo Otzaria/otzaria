@@ -4,6 +4,7 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart'
     hide SwitchSettingsTile;
 import 'package:otzaria/settings/settings_card.dart';
 import 'package:otzaria/widgets/custom_ui_components.dart';
+import 'package:otzaria/widgets/app_menu.dart';
 
 /// טאב הגדרות גימטריה
 class GematriaSettingsTab extends StatefulWidget {
@@ -59,21 +60,29 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
                     style: kSettingsTitleStyle),
                 subtitle: const Text('כמות התוצאות המקסימלית להצגה',
                     style: kSettingsSubtitleStyle),
-                trailing: DropdownButton<int>(
-                  value: maxResults,
-                  underline: const SizedBox(),
-                  items: [50, 100, 200, 500, 1000].map((value) {
-                    return DropdownMenuItem<int>(
-                      value: value,
-                      child: Text('$value'),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    if (value != null) {
-                      setState(() => maxResults = value);
-                      Settings.setValue<int>('key-gematria-max-results', value);
-                    }
-                  },
+                trailing: SizedBox(
+                  width: 120,
+                  child: AppDropdownField<int>(
+                    value: maxResults,
+                    entries: [50, 100, 200, 500, 1000]
+                        .map(
+                          (value) =>
+                              AppMenuEntry(value: value, label: '$value'),
+                        )
+                        .toList(),
+                    onSelected: (value) {
+                      if (value != null) {
+                        setState(() => maxResults = value);
+                        Settings.setValue<int>(
+                            'key-gematria-max-results', value);
+                      }
+                    },
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
                 ),
               ),
               SwitchSettingsTile(
