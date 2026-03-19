@@ -20,7 +20,6 @@ import 'package:otzaria/pdf_book/pdf_scrollbar.dart';
 import 'package:otzaria/printing/print_content_models.dart';
 import 'package:otzaria/printing/word_export_service.dart';
 import 'package:otzaria/utils/text_manipulation.dart';
-import 'package:otzaria/widgets/dialogs.dart';
 import 'package:otzaria/widgets/app_menu.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:printing/printing.dart';
@@ -1598,58 +1597,26 @@ class _PrintingScreenState extends State<PrintingScreen> {
                                           ),
                                         ),
                                         Expanded(
-                                          child: InkWell(
-                                            onTap: () async {
-                                              final fontItems = fontNames
-                                                  .entries
-                                                  .map((entry) =>
-                                                      SelectionItem<String>(
-                                                        label: entry.value,
-                                                        value: entry.key,
-                                                        searchValue:
-                                                            '${entry.value} ${entry.key}',
-                                                      ))
-                                                  .toList();
-
-                                              final result =
-                                                  await showSelectionDialog<
-                                                      String>(
-                                                context: context,
-                                                title: 'בחירת גופן להדפסה',
-                                                items: fontItems,
-                                                initialValue: fontName,
-                                                searchHint: 'חיפוש גופן',
-                                              );
-                                              if (result != null) {
-                                                setState(() {
-                                                  fontName = result;
-                                                  _refreshPreviewPdf();
-                                                });
-                                              }
-                                            },
-                                            child: InputDecorator(
-                                              decoration: InputDecoration(
-                                                contentPadding:
-                                                    const EdgeInsets.symmetric(
-                                                  horizontal: 12,
-                                                  vertical: 8,
-                                                ),
-                                                border: OutlineInputBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
-                                                ),
-                                                suffixIcon: const Icon(FluentIcons
-                                                    .chevron_down_24_regular),
-                                              ),
-                                              child: Text(
-                                                fontNames[fontName] ?? fontName,
-                                                style: TextStyle(
-                                                  fontFamily: fontName,
-                                                ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
+                                          child: AppDropdownField<String>(
+                                            value: fontName,
+                                            decoration: const InputDecoration(
+                                              border: OutlineInputBorder(),
+                                              hintText: 'חיפוש גופן',
                                             ),
+                                            entries: fontNames.entries
+                                                .map(
+                                                  (entry) => AppMenuEntry(
+                                                    value: entry.key,
+                                                    label: entry.value,
+                                                  ),
+                                                )
+                                                .toList(),
+                                            onSelected: (value) {
+                                              if (value == null) return;
+                                              setState(() {
+                                                fontName = value;
+                                              });
+                                            },
                                           ),
                                         ),
                                       ],

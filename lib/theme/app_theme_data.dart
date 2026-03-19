@@ -419,6 +419,7 @@ class AppMenuMetrics extends ThemeExtension<AppMenuMetrics> {
   final double iconSize;
   final double menuBorderRadius;
   final double itemBorderRadius;
+  final double menuMinWidth;
 
   const AppMenuMetrics({
     required this.compactMenus,
@@ -431,6 +432,7 @@ class AppMenuMetrics extends ThemeExtension<AppMenuMetrics> {
     required this.iconSize,
     required this.menuBorderRadius,
     required this.itemBorderRadius,
+    required this.menuMinWidth,
   });
 
   factory AppMenuMetrics.create({required bool compactMenus}) {
@@ -453,6 +455,7 @@ class AppMenuMetrics extends ThemeExtension<AppMenuMetrics> {
       iconSize: effectiveCompact ? 16 : 18,
       menuBorderRadius: 8,
       itemBorderRadius: 4,
+      menuMinWidth: 150,
     );
   }
 
@@ -468,6 +471,7 @@ class AppMenuMetrics extends ThemeExtension<AppMenuMetrics> {
     double? iconSize,
     double? menuBorderRadius,
     double? itemBorderRadius,
+    double? menuMinWidth,
   }) {
     return AppMenuMetrics(
       compactMenus: compactMenus ?? this.compactMenus,
@@ -480,6 +484,7 @@ class AppMenuMetrics extends ThemeExtension<AppMenuMetrics> {
       iconSize: iconSize ?? this.iconSize,
       menuBorderRadius: menuBorderRadius ?? this.menuBorderRadius,
       itemBorderRadius: itemBorderRadius ?? this.itemBorderRadius,
+      menuMinWidth: menuMinWidth ?? this.menuMinWidth,
     );
   }
 
@@ -505,6 +510,8 @@ class AppMenuMetrics extends ThemeExtension<AppMenuMetrics> {
       itemBorderRadius:
           lerpDouble(itemBorderRadius, other.itemBorderRadius, t) ??
               itemBorderRadius,
+      menuMinWidth:
+          lerpDouble(menuMinWidth, other.menuMinWidth, t) ?? menuMinWidth,
     );
   }
 }
