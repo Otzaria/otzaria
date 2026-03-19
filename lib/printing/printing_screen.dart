@@ -1599,6 +1599,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
                                         Expanded(
                                           child: AppDropdownField<String>(
                                             value: fontName,
+                                            enableSearch: true,
                                             decoration: const InputDecoration(
                                               border: OutlineInputBorder(),
                                               hintText: 'חיפוש גופן',

@@ -81,7 +81,14 @@ class _AppPopupMenuButtonState<T> extends State<AppPopupMenuButton<T>> {
   ) {
     return widget.itemBuilder?.call(context) ??
         widget.entries!
-            .map((entry) => buildAppPopupMenuItem(context, entry, metrics))
+            .map<PopupMenuEntry<T>>(
+              (entry) => buildAppPopupMenuItem<T>(
+                context,
+                entry,
+                metrics,
+                null,
+              ),
+            )
             .toList();
   }
 
@@ -192,14 +199,19 @@ class _AppPopupMenuButtonState<T> extends State<AppPopupMenuButton<T>> {
   }
 }
 
-PopupMenuItem<T> buildAppPopupMenuItem<T>(
+PopupMenuEntry<T> buildAppPopupMenuItem<T>(
   BuildContext context,
   AppMenuEntry<T> entry,
   AppMenuMetrics metrics,
+  T? selectedValue,
 ) {
   final colorScheme = Theme.of(context).colorScheme;
-  final foregroundColor =
-      entry.isDestructive ? colorScheme.error : colorScheme.onSurface;
+  final isSelected = selectedValue != null && entry.value == selectedValue;
+  final foregroundColor = entry.isDestructive
+      ? colorScheme.error
+      : isSelected
+          ? colorScheme.onSecondaryContainer
+          : colorScheme.onSurface;
 
   return PopupMenuItem<T>(
     value: entry.value,
@@ -208,30 +220,46 @@ PopupMenuItem<T> buildAppPopupMenuItem<T>(
     padding: metrics.itemPadding,
     child: ConstrainedBox(
       constraints: BoxConstraints(minWidth: metrics.menuMinWidth),
-      child: Row(
-        children: [
-          if (entry.icon != null) ...[
-            Icon(entry.icon, size: metrics.iconSize, color: foregroundColor),
-            const SizedBox(width: 8),
-          ],
-          Expanded(
-            child: Text(
-              entry.label,
-              style: TextStyle(
-                fontFamily: 'Roboto',
-                fontSize: metrics.fontSize,
-                fontWeight: FontWeight.w400,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: isSelected
+              ? colorScheme.secondaryContainer.withValues(alpha: 0.95)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(metrics.itemBorderRadius),
+        ),
+        child: Row(
+          children: [
+            if (entry.icon != null) ...[
+              Icon(entry.icon, size: metrics.iconSize, color: foregroundColor),
+              const SizedBox(width: 8),
+            ],
+            Expanded(
+              child: Text(
+                entry.label,
+                style: TextStyle(
+                  fontFamily: 'Roboto',
+                  fontSize: metrics.fontSize,
+                  fontWeight:
+                      isSelected ? FontWeight.w700 : metrics.itemFontWeight,
+                  color: foregroundColor,
+                ),
+                overflow: TextOverflow.ellipsis,
+                textDirection: TextDirection.rtl,
+              ),
+            ),
+            if (isSelected) ...[
+              const SizedBox(width: 8),
+              Icon(
+                FluentIcons.checkmark_24_regular,
+                size: metrics.iconSize,
                 color: foregroundColor,
               ),
-              overflow: TextOverflow.ellipsis,
-              textDirection: TextDirection.rtl,
-            ),
-          ),
-          if (entry.trailing != null) ...[
-            const SizedBox(width: 8),
-            entry.trailing!,
+            ] else if (entry.trailing != null) ...[
+              const SizedBox(width: 8),
+              entry.trailing!,
+            ],
           ],
-        ],
+        ),
       ),
     ),
   );
@@ -248,7 +276,9 @@ Future<T?> showAppMenu<T>({
     context: context,
     position: position,
     items: entries
-        .map((entry) => buildAppPopupMenuItem(context, entry, metrics))
+        .map<PopupMenuEntry<T>>(
+          (entry) => buildAppPopupMenuItem<T>(context, entry, metrics, null),
+        )
         .toList(),
   );
 }
@@ -260,6 +290,7 @@ class AppDropdownField<T> extends StatefulWidget {
   final InputDecoration? decoration;
   final bool enabled;
   final bool isExpanded;
+  final bool enableSearch;
   final Widget Function(BuildContext context, T? value)? selectedBuilder;
   final String Function(T value)? labelBuilder;
 
@@ -271,6 +302,7 @@ class AppDropdownField<T> extends StatefulWidget {
     this.decoration,
     this.enabled = true,
     this.isExpanded = true,
+    this.enableSearch = false,
     this.selectedBuilder,
     this.labelBuilder,
   });
@@ -281,11 +313,13 @@ class AppDropdownField<T> extends StatefulWidget {
 
 class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
   late final TextEditingController _controller;
+  late final FocusNode _focusNode;
 
   @override
   void initState() {
     super.initState();
     _controller = TextEditingController(text: _selectedLabel);
+    _focusNode = FocusNode()..addListener(_handleFocusChanged);
   }
 
   @override
@@ -302,8 +336,26 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
 
   @override
   void dispose() {
+    _focusNode
+      ..removeListener(_handleFocusChanged)
+      ..dispose();
     _controller.dispose();
     super.dispose();
+  }
+
+  void _handleFocusChanged() {
+    if (_focusNode.hasFocus) return;
+    if (widget.enableSearch && _controller.text != _selectedLabel) {
+      _restoreSelectedText();
+    }
+  }
+
+  void _restoreSelectedText() {
+    final selectedLabel = _selectedLabel;
+    _controller.value = TextEditingValue(
+      text: selectedLabel,
+      selection: TextSelection.collapsed(offset: selectedLabel.length),
+    );
   }
 
   String get _selectedLabel {
@@ -317,6 +369,16 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
       return widget.labelBuilder!(widget.value as T);
     }
     return '';
+  }
+
+  AppMenuEntry<T>? get _selectedEntry {
+    if (widget.value == null) return null;
+    for (final entry in widget.entries) {
+      if (entry.value == widget.value) {
+        return entry;
+      }
+    }
+    return null;
   }
 
   InputDecorationTheme _buildDecorationTheme(
@@ -386,14 +448,73 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
                 ? constraints.maxWidth
                 : width;
 
+        if (!widget.enableSearch) {
+          final selectedEntry = _selectedEntry;
+          final displayText = widget.selectedBuilder?.call(context, widget.value) ??
+              Text(
+                _selectedLabel,
+                style: TextStyle(
+                  fontFamily: 'Roboto',
+                  fontSize: metrics.fontSize,
+                  fontWeight: metrics.itemFontWeight,
+                  color: cs.onSurface,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textDirection: TextDirection.rtl,
+              );
+
+          final field = InputDecorator(
+            isEmpty: widget.value == null,
+            isFocused: false,
+            expands: false,
+            decoration: (widget.decoration ?? const InputDecoration()).copyWith(
+              enabled: effectiveEnabled,
+              suffixIcon: Icon(
+                FluentIcons.chevron_down_24_regular,
+                size: metrics.iconSize,
+              ),
+            ),
+            child: selectedEntry?.icon == null
+                ? displayText
+                : Row(
+                    children: [
+                      Icon(
+                        selectedEntry!.icon,
+                        size: metrics.iconSize,
+                        color: cs.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(child: displayText),
+                    ],
+                  ),
+          );
+
+          return SizedBox(
+            width: resolvedWidth,
+            child: AppPopupMenuButton<T>(
+              entries: widget.entries,
+              enabled: effectiveEnabled,
+              onSelected: widget.onSelected == null
+                  ? null
+                  : (value) => widget.onSelected!(value),
+              child: SizedBox(
+                width: double.infinity,
+                child: field,
+              ),
+            ),
+          );
+        }
+
         return SizedBox(
           width: resolvedWidth,
           child: DropdownMenu<T>(
             controller: _controller,
+            focusNode: _focusNode,
             enabled: effectiveEnabled,
-            enableFilter: true,
-            enableSearch: true,
-            requestFocusOnTap: true,
+            enableFilter: widget.enableSearch,
+            enableSearch: widget.enableSearch,
+            requestFocusOnTap: widget.enableSearch,
             initialSelection: widget.value,
             menuHeight: (metrics.itemHeight * 8) + metrics.menuPadding.vertical,
             width: resolvedWidth,
@@ -429,11 +550,39 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
                     leadingIcon: entry.icon != null
                         ? Icon(entry.icon, size: metrics.iconSize)
                         : null,
-                    trailingIcon: entry.trailing,
+                    trailingIcon: entry.value == widget.value
+                        ? Icon(
+                            FluentIcons.checkmark_24_regular,
+                            size: metrics.iconSize,
+                            color: cs.onSecondaryContainer,
+                          )
+                        : entry.trailing,
+                    style: entry.value == widget.value
+                        ? ButtonStyle(
+                            foregroundColor: WidgetStatePropertyAll(
+                              cs.onSecondaryContainer,
+                            ),
+                            textStyle: const WidgetStatePropertyAll(
+                              TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                            iconColor: WidgetStatePropertyAll(
+                              cs.onSecondaryContainer,
+                            ),
+                            backgroundColor: WidgetStatePropertyAll(
+                              cs.secondaryContainer.withValues(alpha: 0.95),
+                            ),
+                          )
+                        : null,
                   ),
                 )
                 .toList(),
             onSelected: (value) {
+              if (value == null) {
+                if (widget.enableSearch) {
+                  _restoreSelectedText();
+                }
+                return;
+              }
               widget.onSelected?.call(value);
             },
           ),

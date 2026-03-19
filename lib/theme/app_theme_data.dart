@@ -180,7 +180,7 @@ class AppThemeData {
         fontFamily: 'Roboto',
         color: cs.onSurface,
         fontSize: metrics.fontSize,
-        fontWeight: FontWeight.w400,
+        fontWeight: metrics.itemFontWeight,
       ),
     );
   }
@@ -256,7 +256,7 @@ class AppThemeData {
           TextStyle(
             fontFamily: 'Roboto',
             fontSize: metrics.fontSize,
-            fontWeight: FontWeight.w400,
+            fontWeight: metrics.itemFontWeight,
             color: cs.onSurface,
           ),
         ),
@@ -420,6 +420,7 @@ class AppMenuMetrics extends ThemeExtension<AppMenuMetrics> {
   final double menuBorderRadius;
   final double itemBorderRadius;
   final double menuMinWidth;
+  final FontWeight itemFontWeight;
 
   const AppMenuMetrics({
     required this.compactMenus,
@@ -433,29 +434,26 @@ class AppMenuMetrics extends ThemeExtension<AppMenuMetrics> {
     required this.menuBorderRadius,
     required this.itemBorderRadius,
     required this.menuMinWidth,
+    required this.itemFontWeight,
   });
 
   factory AppMenuMetrics.create({required bool compactMenus}) {
-    final isDesktop = AppThemeData._isDesktopPlatform(defaultTargetPlatform);
-    final effectiveCompact = isDesktop && compactMenus;
-
     return AppMenuMetrics(
-      compactMenus: effectiveCompact,
-      itemHeight: effectiveCompact ? 32 : 36,
-      itemPadding: EdgeInsets.symmetric(
+      compactMenus: compactMenus,
+      itemHeight: 36,
+      itemPadding: const EdgeInsets.symmetric(
         horizontal: 12,
         vertical: 0,
       ),
       menuPadding: const EdgeInsets.symmetric(vertical: 8),
-      visualDensity: isDesktop
-          ? (effectiveCompact ? VisualDensity.compact : VisualDensity.standard)
-          : VisualDensity.standard,
-      dividerHeight: isDesktop ? (effectiveCompact ? 6 : 8) : 8,
-      fontSize: effectiveCompact ? 13 : 14,
-      iconSize: effectiveCompact ? 16 : 18,
+      visualDensity: VisualDensity.standard,
+      dividerHeight: 8,
+      fontSize: 14,
+      iconSize: 18,
       menuBorderRadius: 8,
       itemBorderRadius: 4,
       menuMinWidth: 150,
+      itemFontWeight: compactMenus ? FontWeight.w600 : FontWeight.w400,
     );
   }
 
@@ -472,6 +470,7 @@ class AppMenuMetrics extends ThemeExtension<AppMenuMetrics> {
     double? menuBorderRadius,
     double? itemBorderRadius,
     double? menuMinWidth,
+    FontWeight? itemFontWeight,
   }) {
     return AppMenuMetrics(
       compactMenus: compactMenus ?? this.compactMenus,
@@ -485,6 +484,7 @@ class AppMenuMetrics extends ThemeExtension<AppMenuMetrics> {
       menuBorderRadius: menuBorderRadius ?? this.menuBorderRadius,
       itemBorderRadius: itemBorderRadius ?? this.itemBorderRadius,
       menuMinWidth: menuMinWidth ?? this.menuMinWidth,
+      itemFontWeight: itemFontWeight ?? this.itemFontWeight,
     );
   }
 
@@ -512,6 +512,7 @@ class AppMenuMetrics extends ThemeExtension<AppMenuMetrics> {
               itemBorderRadius,
       menuMinWidth:
           lerpDouble(menuMinWidth, other.menuMinWidth, t) ?? menuMinWidth,
+      itemFontWeight: t < 0.5 ? itemFontWeight : other.itemFontWeight,
     );
   }
 }
