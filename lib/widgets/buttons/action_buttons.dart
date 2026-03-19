@@ -5,6 +5,7 @@
 // מכיל:
 //  • [RecommendedActionButton] — כפתור פעולה מומלצת (Primary)
 //  • [NeutralActionButton]     — כפתור פעולה ניטרלית (Tonal/SecondaryContainer)
+//  • [ToolbarActionButton]     — כפתור סרגל כלי עבודה / פעיל (Pill)
 //
 // ℹ️ ניווט בסיידבר: ראה SidebarNavItem (lib/widgets/sidebar_nav_item.dart)
 // ℹ️ ניווט ב-NavRail ראשי: ראה NavRailItem (lib/widgets/nav_rail_item.dart)
@@ -111,5 +112,61 @@ class NeutralActionButton extends StatelessWidget {
     }
     return FilledButton.tonal(
         onPressed: onPressed, style: style, child: Text(text));
+  }
+}
+
+// ── ToolbarActionButton ──────────────────────────────────────────────────────
+
+/// כפתור סרגל כלים בסגנון M3.
+///
+/// מתאים לכפתורי AppBar, פאנלים צפים ותצוגות בינאריות/רב-מצביות.
+/// כש-[selected] הוא `true`, הכפתור מקבל רקע בולט יותר.
+class ToolbarActionButton extends StatelessWidget {
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onPressed;
+  final bool selected;
+  final String? label;
+
+  const ToolbarActionButton({
+    super.key,
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+    this.selected = false,
+    this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final backgroundColor = selected ? cs.primaryContainer : cs.surfaceContainerHighest;
+    final foregroundColor = selected ? cs.onPrimaryContainer : cs.onSurface;
+    final style = FilledButton.styleFrom(
+      backgroundColor: backgroundColor,
+      foregroundColor: foregroundColor,
+      padding: label == null
+          ? const EdgeInsets.symmetric(horizontal: 12, vertical: 10)
+          : const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      shape: const StadiumBorder(),
+    );
+
+    final button = label == null
+        ? FilledButton(
+            onPressed: onPressed,
+            style: style,
+            child: Icon(icon, size: 18),
+          )
+        : FilledButton.icon(
+            onPressed: onPressed,
+            style: style,
+            icon: Icon(icon, size: 18),
+            label: Text(label!),
+          );
+
+    return Tooltip(
+      message: tooltip,
+      child: button,
+    );
   }
 }
