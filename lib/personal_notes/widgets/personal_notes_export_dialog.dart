@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/widgets/app_menu.dart';
+import 'package:otzaria/widgets/custom_ui_components.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 enum NotesExportMode {
   all,
@@ -128,7 +130,7 @@ class _PersonalNotesExportDialogState extends State<PersonalNotesExportDialog> {
                 title: Text(_dateRange == null
                     ? 'בחר טווח תאריכים'
                     : '${_dateRange!.start.toString().split(' ').first} - ${_dateRange!.end.toString().split(' ').first}'),
-                trailing: const Icon(Icons.date_range),
+                trailing: const Icon(FluentIcons.calendar_24_regular),
                 onTap: () async {
                   final picked = await showDateRangePicker(
                     context: context,
@@ -180,13 +182,13 @@ class _PersonalNotesExportDialogState extends State<PersonalNotesExportDialog> {
         ),
       ),
       actions: [
-        TextButton(
+        NeutralActionButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('ביטול'),
+          text: 'ביטול',
         ),
-        FilledButton(
+        RecommendedActionButton(
           onPressed: _submit,
-          child: const Text('ייצא'),
+          text: 'ייצא',
         ),
       ],
     );

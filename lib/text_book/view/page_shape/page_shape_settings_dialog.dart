@@ -8,6 +8,7 @@ import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/app_menu.dart';
+import 'package:otzaria/widgets/custom_ui_components.dart';
 
 /// סוג שמירת הגדרות מפרשים
 enum CommentatorSaveScope {
@@ -385,25 +386,14 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
                       value: _saveForCurrentBookOnly,
                       onChanged: (value) async {
                         if (!value && _saveForCurrentBookOnly) {
-                          final confirm = await showDialog<bool>(
+                          final confirm = await showWarningDialog(
                             context: context,
-                            builder: (context) => AlertDialog(
-                              title: const Text('חזרה להגדרות גלובליות'),
-                              content: const Text(
+                            title: 'חזרה להגדרות גלובליות',
+                            content:
                                 'האם לאפס את הגדרות התצוגה הספציפיות לספר זה ולחזור להגדרות הגלובליות?',
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () =>
-                                      Navigator.pop(context, false),
-                                  child: const Text('ביטול'),
-                                ),
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context, true),
-                                  child: const Text('אפס'),
-                                ),
-                              ],
-                            ),
+                            subtitle: 'פעולה זו תמחק את ההגדרות המקומיות לספר.',
+                            cancelText: 'ביטול',
+                            confirmText: 'אפס',
                           );
                           if (confirm == true) {
                             await _resetDisplaySettingsToGlobal();
@@ -778,28 +768,17 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
       ),
       actions: [
         // כפתור איפוס הגדרות מפרשים
-        TextButton.icon(
+        NeutralActionButton(
           onPressed: () async {
             final navigator = Navigator.of(context);
-            final confirm = await showDialog<bool>(
+            final confirm = await showWarningDialog(
               context: context,
-              builder: (context) => AlertDialog(
-                title: const Text('איפוס הגדרות מפרשים'),
-                content: const Text(
-                  'האם לאפס את הגדרות המפרשים לברירות המחדל?\n\n'
-                  'פעולה זו תמחק את ההגדרות השמורות ותטען את המפרשים המתאימים לפי סוג הספר.',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: const Text('ביטול'),
-                  ),
-                  TextButton(
-                    onPressed: () => Navigator.pop(context, true),
-                    child: const Text('אפס'),
-                  ),
-                ],
-              ),
+              title: 'איפוס הגדרות מפרשים',
+              content:
+                  'האם לאפס את הגדרות המפרשים לברירות המחדל?\n\nפעולה זו תמחק את ההגדרות השמורות ותטען את המפרשים המתאימים לפי סוג הספר.',
+              subtitle: 'לא ניתן לבטל את האיפוס לאחר אישור.',
+              cancelText: 'ביטול',
+              confirmText: 'אפס',
             );
 
             if (confirm == true) {
@@ -812,16 +791,13 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
               navigator.pop(true); // סגירת הדיאלוג עם סימון שהיו שינויים
             }
           },
-          icon: const Icon(FluentIcons.arrow_reset_24_regular, size: 18),
-          label: const Text('איפוס מפרשים'),
-          style: TextButton.styleFrom(
-            foregroundColor: Theme.of(context).colorScheme.error,
-          ),
+          icon: FluentIcons.arrow_reset_24_regular,
+          text: 'איפוס מפרשים',
         ),
         const SizedBox(width: 12),
-        TextButton(
+        NeutralActionButton(
           onPressed: () => Navigator.of(context).pop(_hasChanges),
-          child: const Text('סגור'),
+          text: 'סגור',
         ),
       ],
     );
@@ -869,7 +845,7 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
           ),
         ),
         Expanded(
-          child: InkWell(
+          child: AppSelectionField(
             onTap: () => _showCommentatorPicker(
               value,
               onChanged,
@@ -878,22 +854,17 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
               allowMultipleCommentatorsSelection:
                   allowMultipleCommentatorsSelection,
             ),
-            child: InputDecorator(
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                contentPadding:
-                    EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                suffixIcon: Icon(FluentIcons.chevron_down_24_regular, size: 20),
-              ),
-              child: Text(
-                formatPageShapeCommentatorSelection(value),
-                textDirection: TextDirection.rtl,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: value == null
-                      ? Theme.of(context).hintColor
-                      : Theme.of(context).textTheme.bodyLarge?.color,
-                ),
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+            ),
+            child: Text(
+              formatPageShapeCommentatorSelection(value),
+              textDirection: TextDirection.rtl,
+              style: TextStyle(
+                fontSize: 13,
+                color: value == null
+                    ? Theme.of(context).hintColor
+                    : Theme.of(context).textTheme.bodyLarge?.color,
               ),
             ),
           ),
@@ -1091,14 +1062,14 @@ class _CommentatorPickerDialogState extends State<_CommentatorPickerDialog> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  TextButton(
+                  NeutralActionButton(
+                    text: 'ביטול',
                     onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('ביטול'),
                   ),
                   const SizedBox(width: 8),
-                  TextButton(
+                  NeutralActionButton(
+                    text: 'ללא מפרש',
                     onPressed: () => Navigator.of(context).pop('__NONE__'),
-                    child: const Text('ללא מפרש'),
                   ),
                 ],
               ),
