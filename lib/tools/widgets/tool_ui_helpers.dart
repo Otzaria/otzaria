@@ -107,49 +107,41 @@ class ToolNavigateButton extends StatelessWidget {
 
 // ── ToolPanelWrapper ──────────────────────────────────────────────────────────
 
-/// עוטף תוכן כלי ברקע מסך ההגדרות ומרכז אותו אופקית עם הגבלת רוחב.
+/// עוטף תוכן כלי עם אפשרות למרכוז אופקי והגבלת רוחב.
 ///
-/// [hasNavigationBar] = true  → רק רקע, ללא הגבלת רוחב (כשיש TabBar/Sidebar).
-/// [hasNavigationBar] = false → רקע + Align(topCenter) + maxWidth 860px.
+/// כברירת מחדל הווידג'ט רק ממרכז ומגביל רוחב, בלי לצבוע רקע נוסף.
+/// כך נמנעים משכבות רקע כפולות במסכים שבהם מסך האב כבר קובע את הרקע.
+///
+/// [centerContent] = true  → Align(topCenter) + maxWidth.
+/// [centerContent] = false → מציג את התוכן ברוחב מלא.
+/// [paintBackground] = true → צובע את אזורי הרקע שמחוץ לתוכן.
 ///
 /// **שימוש:**
 /// ```dart
 /// // מסך עצמאי
 /// return ToolPanelWrapper(child: Column(...));
 ///
-/// // מסך עם TabBar
-/// Scaffold(
-///   body: Column(
-///     children: [
-///       TabBar(...),
-///       Expanded(
-///         child: ToolPanelWrapper(hasNavigationBar: true, child: TabBarView(...)),
-///       ),
-///     ],
-///   ),
-/// )
+/// // מסך עם ניווט פנימי/Sidebar
+/// return ToolPanelWrapper(centerContent: false, child: Row(...));
 /// ```
 class ToolPanelWrapper extends StatelessWidget {
   final Widget child;
-  final bool hasNavigationBar;
+  final bool centerContent;
+  final bool paintBackground;
 
   const ToolPanelWrapper({
     super.key,
     required this.child,
-    this.hasNavigationBar = false,
+    this.centerContent = true,
+    this.paintBackground = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final bgColor = AppSurfaces.panelBackground(context);
+    Widget content = child;
 
-    if (hasNavigationBar) {
-      return ColoredBox(color: bgColor, child: child);
-    }
-
-    return ColoredBox(
-      color: bgColor,
-      child: Align(
+    if (centerContent) {
+      content = Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
           constraints: const BoxConstraints(
@@ -157,7 +149,16 @@ class ToolPanelWrapper extends StatelessWidget {
           ),
           child: child,
         ),
-      ),
+      );
+    }
+
+    if (!paintBackground) {
+      return content;
+    }
+
+    return ColoredBox(
+      color: AppSurfaces.panelBackground(context),
+      child: content,
     );
   }
 }

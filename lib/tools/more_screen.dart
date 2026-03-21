@@ -10,6 +10,7 @@ import 'package:otzaria/tools/aramaic_dictionary/aramaic_dictionary_screen.dart'
 import 'package:otzaria/tools/acronyms_dictionary/acronyms_dictionary_screen.dart';
 import 'package:otzaria/tools/shamor_zachor/shamor_zachor.dart';
 import 'package:otzaria/tools/calendar/view/calendar_screen.dart';
+import 'package:otzaria/tools/widgets/tool_ui_helpers.dart';
 import 'package:otzaria/personal_notes/view/personal_notes_screen.dart';
 import 'package:otzaria/widgets/keyboard_navigator.dart';
 import 'package:otzaria/widgets/rtl_icon.dart';
@@ -103,6 +104,18 @@ class MoreScreenState extends State<MoreScreen>
       AramaicDictionaryScreen(key: _aramaicDictionaryKey),
       AcronymsDictionaryScreen(key: _acronymsDictionaryKey),
     ];
+  }
+
+  Widget _buildDesktopPage(int index) {
+    final centerContent = switch (index) {
+      0 || 1 || 2 || 3 => false,
+      _ => true,
+    };
+
+    return ToolPanelWrapper(
+      centerContent: centerContent,
+      child: _pages[index],
+    );
   }
 
   void _changeTab(int index) {
@@ -284,29 +297,40 @@ class MoreScreenState extends State<MoreScreen>
             children: [
               ColoredBox(
                 color: bgColor,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppTokens.spaceMD,
-                    vertical: AppTokens.spaceXS,
-                  ),
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        for (int index = 0; index < _tabs.length; index++) ...[
-                          TopNavItem(
-                            icon: _tabs[index].icon,
-                            iconFilled: _tabs[index].iconFilled,
-                            imageAsset: _tabs[index].imageIcon,
-                            label: _tabs[index].label,
-                            isSelected: _selectedIndex == index,
-                            onTap: () => _changeTab(index),
-                          ),
-                          if (index < _tabs.length - 1)
-                            const SizedBox(width: AppTokens.spaceXS),
-                        ],
-                      ],
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: LayoutConstraints.panelContentMaxWidth,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.only(
+                        top: AppTokens.spaceXS,
+                        right: AppTokens.spaceMD,
+                        left: AppTokens.spaceMD,
+                      ),
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (int index = 0;
+                                index < _tabs.length;
+                                index++) ...[
+                              TopNavItem(
+                                icon: _tabs[index].icon,
+                                iconFilled: _tabs[index].iconFilled,
+                                imageAsset: _tabs[index].imageIcon,
+                                label: _tabs[index].label,
+                                isSelected: _selectedIndex == index,
+                                onTap: () => _changeTab(index),
+                              ),
+                              if (index < _tabs.length - 1)
+                                const SizedBox(width: AppTokens.spaceXS),
+                            ],
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -320,7 +344,10 @@ class MoreScreenState extends State<MoreScreen>
                       color: bgColor,
                       child: IndexedStack(
                         index: _selectedIndex,
-                        children: _pages,
+                        children: [
+                          for (int index = 0; index < _pages.length; index++)
+                            _buildDesktopPage(index),
+                        ],
                       ),
                     ),
                   ),
