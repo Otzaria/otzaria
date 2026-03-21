@@ -175,6 +175,23 @@ class TopNavItem extends StatelessWidget {
         isSelected ? cs.onSecondaryContainer : cs.onSurfaceVariant;
     final textColor =
         isSelected ? cs.onSecondaryContainer : cs.onSurfaceVariant;
+    final animatedTextStyle = TextStyle(
+      fontSize: 14,
+      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+      color: textColor,
+    );
+    final reservedTextStyle = TextStyle(
+      fontSize: 14,
+      fontWeight: FontWeight.bold,
+      color: textColor,
+    );
+    final textDirection = Directionality.of(context);
+    final textPainter = TextPainter(
+      text: TextSpan(text: label, style: reservedTextStyle),
+      textDirection: textDirection,
+      maxLines: 1,
+    )..layout();
+    final textWidth = textPainter.width.ceilToDouble();
 
     final Widget iconWidget = imageAsset != null
         ? ImageIcon(
@@ -224,20 +241,37 @@ class TopNavItem extends StatelessWidget {
                 children: [
                   iconWidget,
                   const SizedBox(height: 4),
-                  AnimatedDefaultTextStyle(
-                    duration: const Duration(milliseconds: 200),
-                    style: (Theme.of(context).textTheme.titleSmall ??
-                            const TextStyle())
-                        .copyWith(
-                      color: textColor,
-                    ),
-                    child: Text(
-                      label,
-                      textDirection: TextDirection.rtl,
-                      textAlign: TextAlign.center,
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: textWidth,
+                        child: Opacity(
+                          opacity: 0,
+                          child: Text(
+                            label,
+                            textDirection: TextDirection.rtl,
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            style: reservedTextStyle,
+                          ),
+                        ),
+                      ),
+                      SizedBox(
+                        width: textWidth,
+                        child: AnimatedDefaultTextStyle(
+                          duration: const Duration(milliseconds: 200),
+                          style: animatedTextStyle,
+                          child: Text(
+                            label,
+                            textDirection: TextDirection.rtl,
+                            textAlign: TextAlign.center,
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
