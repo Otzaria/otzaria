@@ -110,8 +110,7 @@ class SidebarNavItem extends StatelessWidget {
             return null;
           }),
           child: Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             child: Row(
               children: [
                 iconWidget,
@@ -121,9 +120,8 @@ class SidebarNavItem extends StatelessWidget {
                     duration: const Duration(milliseconds: 200),
                     style: TextStyle(
                       fontSize: 14,
-                      fontWeight: isSelected
-                          ? FontWeight.bold
-                          : FontWeight.normal,
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.normal,
                       color: isSelected
                           ? cs.onSecondaryContainer
                           : cs.onSurfaceVariant,
@@ -154,7 +152,7 @@ class TopNavItem extends StatelessWidget {
   final String label;
   final bool isSelected;
   final VoidCallback onTap;
-  final double width;
+  final double? width;
 
   const TopNavItem({
     super.key,
@@ -164,7 +162,7 @@ class TopNavItem extends StatelessWidget {
     required this.label,
     required this.isSelected,
     required this.onTap,
-    this.width = 96,
+    this.width,
   }) : assert(
           icon != null || imageAsset != null,
           'TopNavItem: חייב לספק icon או imageAsset',
@@ -204,10 +202,10 @@ class TopNavItem extends StatelessWidget {
       width: width,
       child: Material(
         color: isSelected ? cs.secondaryContainer : Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
           overlayColor: WidgetStateProperty.resolveWith((states) {
             if (states.contains(WidgetState.hovered)) {
               return cs.primary.withValues(alpha: 0.08);
@@ -217,25 +215,32 @@ class TopNavItem extends StatelessWidget {
             }
             return null;
           }),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                iconWidget,
-                const SizedBox(height: 4),
-                Text(
-                  label,
-                  textAlign: TextAlign.center,
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.normal,
-                    color: textColor,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 72, minHeight: 56),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  iconWidget,
+                  const SizedBox(height: 4),
+                  AnimatedDefaultTextStyle(
+                    duration: const Duration(milliseconds: 200),
+                    style: (Theme.of(context).textTheme.titleSmall ??
+                            const TextStyle())
+                        .copyWith(
+                      color: textColor,
+                    ),
+                    child: Text(
+                      label,
+                      textDirection: TextDirection.rtl,
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

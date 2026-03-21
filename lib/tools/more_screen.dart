@@ -14,6 +14,7 @@ import 'package:otzaria/personal_notes/view/personal_notes_screen.dart';
 import 'package:otzaria/widgets/keyboard_navigator.dart';
 import 'package:otzaria/widgets/rtl_icon.dart';
 import 'package:otzaria/core/focus_repository.dart';
+import 'package:otzaria/widgets/sidebar_nav_item.dart';
 
 final GlobalKey<MoreScreenState> moreScreenKey = GlobalKey<MoreScreenState>();
 
@@ -25,14 +26,13 @@ class MoreScreen extends StatefulWidget {
 }
 
 class MoreScreenState extends State<MoreScreen>
-    with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
+    with AutomaticKeepAliveClientMixin {
   final GlobalKey _calendarWidgetKey = GlobalKey();
   final GlobalKey _measurementConverterKey = GlobalKey();
   final GlobalKey _gematriaKey = GlobalKey();
   final GlobalKey _aramaicDictionaryKey = GlobalKey();
   final GlobalKey _acronymsDictionaryKey = GlobalKey();
   late final List<Widget> _pages;
-  late final TabController _tabController;
 
   // ── מצב ─────────────────────────────────────────────────────────────────
   int _selectedIndex = 0;
@@ -91,8 +91,6 @@ class MoreScreenState extends State<MoreScreen>
   void initState() {
     super.initState();
     FocusRepository().moreScreenFocusNode.addListener(_onMoreFocusChange);
-    _tabController = TabController(length: _tabs.length, vsync: this)
-      ..addListener(_onTabControllerChanged);
 
     _pages = [
       BlocBuilder<CalendarCubit, CalendarState>(
@@ -117,9 +115,6 @@ class MoreScreenState extends State<MoreScreen>
       _selectedIndex = index;
       _showMobileMenu = false;
     });
-    if (_tabController.index != index) {
-      _tabController.animateTo(index);
-    }
     _requestFocusForSelectedTab();
   }
 
@@ -136,47 +131,6 @@ class MoreScreenState extends State<MoreScreen>
     if (FocusRepository().moreScreenFocusNode.hasFocus && mounted) {
       _requestFocusForSelectedTab();
     }
-  }
-
-  void _onTabControllerChanged() {
-    if (_tabController.indexIsChanging || !mounted) {
-      return;
-    }
-
-    if (_selectedIndex != _tabController.index) {
-      setState(() {
-        _selectedIndex = _tabController.index;
-      });
-    }
-    _requestFocusForSelectedTab();
-  }
-
-  Widget _buildTabWidget(_TabInfo tab) {
-    final isSelected = _tabs.indexOf(tab) == _selectedIndex;
-    final iconWidget = tab.imageIcon != null
-        ? ImageIcon(
-            AssetImage(tab.imageIcon!),
-            size: 20,
-          )
-        : AnimatedSwitcher(
-            duration: const Duration(milliseconds: 250),
-            switchInCurve: Curves.easeInOutCubicEmphasized,
-            switchOutCurve: Curves.easeInOutCubicEmphasized,
-            transitionBuilder: (child, animation) => FadeTransition(
-              opacity: animation,
-              child: ScaleTransition(scale: animation, child: child),
-            ),
-            child: Icon(
-              isSelected && tab.iconFilled != null ? tab.iconFilled : tab.icon,
-              size: 20,
-              key: ValueKey<bool>(isSelected),
-            ),
-          );
-
-    return Tab(
-      text: tab.label,
-      icon: iconWidget,
-    );
   }
 
   void _requestFocusForSelectedTab() {
@@ -222,9 +176,6 @@ class MoreScreenState extends State<MoreScreen>
   @override
   void dispose() {
     FocusRepository().moreScreenFocusNode.removeListener(_onMoreFocusChange);
-    _tabController
-      ..removeListener(_onTabControllerChanged)
-      ..dispose();
     _contentFocusNode.dispose();
     _contentScrollController.dispose();
     super.dispose();
@@ -308,8 +259,6 @@ class MoreScreenState extends State<MoreScreen>
 
   // ── Desktop layout — Top tabs + content ───────────────────────────────────
   Widget _buildDesktop(Color bgColor) {
-    final cs = Theme.of(context).colorScheme;
-
     return KeyboardNavigator(
       currentTabIndex: _selectedIndex,
       totalTabs: _tabs.length,
@@ -340,31 +289,25 @@ class MoreScreenState extends State<MoreScreen>
                     horizontal: AppTokens.spaceMD,
                     vertical: AppTokens.spaceXS,
                   ),
-                  child: TabBar(
-                    controller: _tabController,
-                    isScrollable: true,
-                    tabAlignment: TabAlignment.center,
-                    dividerColor: Colors.transparent,
-                    dividerHeight: 0,
-                    labelColor: cs.onSecondaryContainer,
-                    unselectedLabelColor: cs.onSurfaceVariant,
-                    indicator: BoxDecoration(
-                      borderRadius: BorderRadius.circular(AppTokens.radiusMD),
-                      color: cs.secondaryContainer,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (int index = 0; index < _tabs.length; index++) ...[
+                          TopNavItem(
+                            icon: _tabs[index].icon,
+                            iconFilled: _tabs[index].iconFilled,
+                            imageAsset: _tabs[index].imageIcon,
+                            label: _tabs[index].label,
+                            isSelected: _selectedIndex == index,
+                            onTap: () => _changeTab(index),
+                          ),
+                          if (index < _tabs.length - 1)
+                            const SizedBox(width: AppTokens.spaceXS),
+                        ],
+                      ],
                     ),
-                    indicatorSize: TabBarIndicatorSize.tab,
-                    overlayColor: WidgetStateProperty.resolveWith((states) {
-                      if (states.contains(WidgetState.hovered)) {
-                        return cs.primary.withValues(alpha: 0.08);
-                      }
-                      if (states.contains(WidgetState.pressed)) {
-                        return cs.primary.withValues(alpha: 0.12);
-                      }
-                      return null;
-                    }),
-                    splashBorderRadius:
-                        BorderRadius.circular(AppTokens.radiusMD),
-                    tabs: _tabs.map(_buildTabWidget).toList(),
                   ),
                 ),
               ),
