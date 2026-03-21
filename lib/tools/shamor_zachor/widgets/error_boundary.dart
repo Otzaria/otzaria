@@ -82,6 +82,7 @@ class _ErrorBoundaryState extends State<ErrorBoundary> {
     if (widget.fallbackWidget != null) {
       return widget.fallbackWidget!;
     }
+    final colorScheme = Theme.of(context).colorScheme;
 
     // הסרנו את ה-Scaffold והחלפנו במבנה גמיש
     return LayoutBuilder(
@@ -100,10 +101,10 @@ class _ErrorBoundaryState extends State<ErrorBoundary> {
                 mainAxisAlignment: MainAxisAlignment.center, // ממורכז אנכית
                 crossAxisAlignment: CrossAxisAlignment.center, // ממורכז אופקית
                 children: [
-                  const Icon(
+                  Icon(
                     FluentIcons.error_circle_24_regular,
                     size: 64,
-                    color: Colors.redAccent,
+                    color: colorScheme.error,
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -151,7 +152,7 @@ class _ErrorBoundaryState extends State<ErrorBoundary> {
                           width: double.infinity,
                           padding: const EdgeInsets.all(12.0),
                           decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.05),
+                            color: colorScheme.surfaceContainerHighest,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: SelectableText(

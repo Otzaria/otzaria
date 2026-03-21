@@ -384,7 +384,7 @@ class _CalendarWidgetState extends State<CalendarWidget> {
                     _searchController.text = state.eventSearchQuery;
                   }
                   return Scaffold(
-                    backgroundColor: AppSurfaces.panelBackground(context),
+                    backgroundColor: Colors.transparent,
                     appBar: CalendarTopBar(
                       state: state,
                       isSearchMode: _isSearchMode,

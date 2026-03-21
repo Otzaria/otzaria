@@ -18,6 +18,7 @@ import 'package:otzaria/tools/gematria/models/gematria_search_result.dart';
 import 'package:otzaria/tools/gematria/models/search_result.dart';
 import 'package:otzaria/tools/gematria/widgets/gematria_result_card.dart';
 import 'package:otzaria/tools/gematria/widgets/gematria_settings_panel.dart';
+import 'package:otzaria/tools/widgets/tool_ui_helpers.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/keyboard_navigator.dart';
 
@@ -320,47 +321,39 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
             }
             return KeyEventResult.ignored;
           },
-          child: Scaffold(
-            body: isNarrow
-                // ── מסך צר: Stack (overlay) ──────────────────────────────
-                ? Stack(
-                    children: [
-                      Column(
-                        children: [
-                          _buildSearchBar(),
-                          if (_lastGematriaValue != null) _buildStatusBar(),
-                          Expanded(child: _buildResultsList()),
-                        ],
-                      ),
-                      // פאנל הגדרות מצף מהצד
-                      settingsPanel.buildNarrowOverlay(context),
-                    ],
-                  )
-                // ── מסך רחב: Row ──────────────────────────────────────────
-                : Row(
-                    children: [
-                      Expanded(
-                        child: Align(
-                          alignment: Alignment.topCenter,
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(
-                              maxWidth: LayoutConstraints.panelContentMaxWidth,
-                            ),
-                            child: Column(
-                              children: [
-                                _buildSearchBar(),
-                                if (_lastGematriaValue != null)
-                                  _buildStatusBar(),
-                                Expanded(child: _buildResultsList()),
-                              ],
-                            ),
-                          ),
+          child: isNarrow
+              // ── מסך צר: Stack (overlay) ──────────────────────────────
+              ? Stack(
+                  children: [
+                    Column(
+                      children: [
+                        _buildSearchBar(),
+                        if (_lastGematriaValue != null) _buildStatusBar(),
+                        Expanded(child: _buildResultsList()),
+                      ],
+                    ),
+                    // פאנל הגדרות מצף מהצד
+                    settingsPanel.buildNarrowOverlay(context),
+                  ],
+                )
+              // ── מסך רחב: Row ──────────────────────────────────────────
+              : Row(
+                  children: [
+                    Expanded(
+                      child: ToolPanelWrapper(
+                        centerContent: !_showingSettings,
+                        child: Column(
+                          children: [
+                            _buildSearchBar(),
+                            if (_lastGematriaValue != null) _buildStatusBar(),
+                            Expanded(child: _buildResultsList()),
+                          ],
                         ),
                       ),
-                      settingsPanel,
-                    ],
-                  ),
-          ),
+                    ),
+                    settingsPanel,
+                  ],
+                ),
         ),
       ),
     );
