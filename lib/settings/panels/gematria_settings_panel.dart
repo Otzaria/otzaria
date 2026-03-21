@@ -78,9 +78,8 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
                       }
                     },
                     decoration: const InputDecoration(
-                      border: InputBorder.none,
+                      border: OutlineInputBorder(),
                       isDense: true,
-                      contentPadding: EdgeInsets.zero,
                     ),
                   ),
                 ),
