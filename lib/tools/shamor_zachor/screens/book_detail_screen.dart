@@ -13,6 +13,7 @@ import '../widgets/hebrew_utils.dart';
 import '../widgets/completion_animation_overlay.dart';
 import '../widgets/error_boundary.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
 
 /// Screen for displaying and managing progress for a specific book
 class BookDetailScreen extends StatefulWidget {
@@ -97,25 +98,12 @@ class _BookDetailScreenState extends State<BookDetailScreen>
   }
 
   Future<bool> _showWarningDialog() async {
-    final result = await showDialog<bool>(
+    final result = await showWarningDialog(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text("אזהרה"),
-          content:
-              const Text("פעולה זו תשנה את כל הסימונים בעמודה זו. האם להמשיך?"),
-          actions: <Widget>[
-            TextButton(
-              child: const Text("לא"),
-              onPressed: () => Navigator.of(context).pop(false),
-            ),
-            TextButton(
-              child: const Text("כן"),
-              onPressed: () => Navigator.of(context).pop(true),
-            ),
-          ],
-        );
-      },
+      title: 'אזהרה',
+      content: 'פעולה זו תשנה את כל הסימונים בעמודה זו. האם להמשיך?',
+      cancelText: 'לא',
+      confirmText: 'כן',
     );
     return result ?? false;
   }

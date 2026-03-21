@@ -10,6 +10,7 @@ import '../widgets/shamor_zachor_sidebar.dart';
 import '../widgets/category_books_grid.dart';
 import '../models/book_model.dart';
 import 'book_detail_screen.dart';
+import 'package:otzaria/widgets/buttons/action_buttons.dart';
 
 /// Main screen for Shamor Zachor with Split View (Sidebar + Content)
 class ShamorZachorMainScreen extends StatefulWidget {
@@ -150,11 +151,12 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                     const Text('שגיאה בטעינת הנתונים'),
-                    ElevatedButton(
-                        onPressed: () {
-                          dataProvider.loadAllData();
-                        },
-                        child: const Text('נסה שוב'))
+                    RecommendedActionButton(
+                      text: 'נסה שוב',
+                      onPressed: () {
+                        dataProvider.loadAllData();
+                      },
+                    )
                   ]));
             }
 
