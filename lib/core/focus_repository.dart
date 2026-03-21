@@ -2,6 +2,12 @@ import 'package:flutter/widgets.dart';
 
 enum FocusTarget { none, librarySearch, findRefSearch, bookContent, moreScreen }
 
+/// מבקש focus רק אם ה-[FocusNode] עדיין לא מחזיק בו.
+void requestFocusIfNeeded(FocusNode focusNode) {
+  if (focusNode.hasFocus) return;
+  focusNode.requestFocus();
+}
+
 class FocusRepository {
   static final FocusRepository _instance = FocusRepository._internal();
   factory FocusRepository() => _instance;
