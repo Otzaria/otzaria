@@ -139,3 +139,107 @@ class SidebarNavItem extends StatelessWidget {
     );
   }
 }
+
+/// TopNavItem — פריט ניווט עליון בסגנון הישן של מסך הכלים.
+///
+/// מתאים לשורת בחירה אופקית:
+///  • אייקון מעל הטקסט
+///  • רקע secondaryContainer כשנבחר
+///  • אנימציית החלפת אייקון regular ↔ filled
+///  • hover / pressed states דרך InkWell
+class TopNavItem extends StatelessWidget {
+  final IconData? icon;
+  final IconData? iconFilled;
+  final String? imageAsset;
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final double width;
+
+  const TopNavItem({
+    super.key,
+    this.icon,
+    this.iconFilled,
+    this.imageAsset,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+    this.width = 96,
+  }) : assert(
+          icon != null || imageAsset != null,
+          'TopNavItem: חייב לספק icon או imageAsset',
+        );
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final iconColor =
+        isSelected ? cs.onSecondaryContainer : cs.onSurfaceVariant;
+    final textColor =
+        isSelected ? cs.onSecondaryContainer : cs.onSurfaceVariant;
+
+    final Widget iconWidget = imageAsset != null
+        ? ImageIcon(
+            AssetImage(imageAsset!),
+            size: 20,
+            color: iconColor,
+          )
+        : AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            switchInCurve: Curves.easeInOutCubicEmphasized,
+            switchOutCurve: Curves.easeInOutCubicEmphasized,
+            transitionBuilder: (child, animation) => FadeTransition(
+              opacity: animation,
+              child: ScaleTransition(scale: animation, child: child),
+            ),
+            child: Icon(
+              isSelected && iconFilled != null ? iconFilled! : icon!,
+              key: ValueKey<bool>(isSelected),
+              size: 20,
+              color: iconColor,
+            ),
+          );
+
+    return SizedBox(
+      width: width,
+      child: Material(
+        color: isSelected ? cs.secondaryContainer : Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          overlayColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.hovered)) {
+              return cs.primary.withValues(alpha: 0.08);
+            }
+            if (states.contains(WidgetState.pressed)) {
+              return cs.primary.withValues(alpha: 0.12);
+            }
+            return null;
+          }),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                iconWidget,
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.normal,
+                    color: textColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
