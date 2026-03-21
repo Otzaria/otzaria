@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:flutter_context_menu/flutter_context_menu.dart' as ctx;
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:super_clipboard/super_clipboard.dart';
@@ -11,11 +10,29 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:otzaria/utils/copy_utils.dart';
 import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria/widgets/app_menu.dart';
 
 /// פונקציות עזר לתפריטי הקשר במפרשים
 class ContextMenuUtils {
-  /// בניית תפריט הקשר למפרש ספציפי
-  static ctx.ContextMenu<Object> buildCommentaryContextMenu({
+  /// בניית רשימת פריטי תפריט הקשר למפרש ספציפי.
+  ///
+  /// מחזיר [List<AppContextMenuEntry>] לשימוש עם [AppContextMenuRegion].
+  ///
+  /// דוגמה:
+  /// ```dart
+  /// AppContextMenuRegion(
+  ///   menuBuilder: (ctx) => ContextMenuUtils.buildCommentaryMenuEntries(
+  ///     context: ctx,
+  ///     link: link,
+  ///     openBookCallback: ...,
+  ///     fontSize: fontSize,
+  ///     savedSelectedText: _savedText,
+  ///     onCopySelected: _copy,
+  ///   ),
+  ///   child: myCommentaryWidget,
+  /// )
+  /// ```
+  static List<AppContextMenuEntry> buildCommentaryMenuEntries({
     required BuildContext context,
     required Link link,
     required Function(TextBookTab) openBookCallback,
@@ -23,40 +40,59 @@ class ContextMenuUtils {
     String? savedSelectedText,
     required VoidCallback onCopySelected,
   }) {
-    return ctx.ContextMenu<Object>(
-      entries: <ctx.ContextMenuEntry<Object>>[
-        ctx.MenuItem<Object>(
-          label: const Text('העתק'),
-          icon: const Icon(FluentIcons.copy_24_regular),
-          enabled:
-              savedSelectedText != null && savedSelectedText.trim().isNotEmpty,
-          onSelected: (_) => onCopySelected(),
+    return [
+      AppContextMenuEntry(
+        label: 'העתק',
+        icon: FluentIcons.copy_24_regular,
+        enabled:
+            savedSelectedText != null && savedSelectedText.trim().isNotEmpty,
+        onTap: onCopySelected,
+      ),
+      AppContextMenuEntry(
+        label: 'העתק את כל הפסקה',
+        icon: FluentIcons.document_copy_24_regular,
+        onTap: () => copyCommentaryParagraph(
+          context: context,
+          link: link,
+          fontSize: fontSize,
         ),
-        ctx.MenuItem<Object>(
-          label: const Text('העתק את כל הפסקה'),
-          icon: const Icon(FluentIcons.document_copy_24_regular),
-          onSelected: (_) => copyCommentaryParagraph(
-            context: context,
-            link: link,
-            fontSize: fontSize,
-          ),
-        ),
-        const ctx.MenuDivider(),
-        ctx.MenuItem<Object>(
-          label: const Text('פתח ספר זה בחלון נפרד'),
-          icon: const Icon(FluentIcons.open_24_regular),
-          onSelected: (_) {
-            openBookCallback(TextBookTab(
-              book: TextBook(title: utils.getTitleFromPath(link.path2)),
-              index: link.index2 - 1,
-              openLeftPane:
-                  (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
-                      (Settings.getValue<bool>('key-default-sidebar-open') ??
-                          false),
-            ));
-          },
-        ),
-      ],
+      ),
+      const AppContextMenuEntry.divider(),
+      AppContextMenuEntry(
+        label: 'פתח ספר זה בחלון נפרד',
+        icon: FluentIcons.open_24_regular,
+        onTap: () {
+          openBookCallback(TextBookTab(
+            book: TextBook(title: utils.getTitleFromPath(link.path2)),
+            index: link.index2 - 1,
+            openLeftPane: (Settings.getValue<bool>('key-pin-sidebar') ??
+                    false) ||
+                (Settings.getValue<bool>('key-default-sidebar-open') ?? false),
+          ));
+        },
+      ),
+    ];
+  }
+
+  /// בניית תפריט הקשר למפרש ספציפי (wrapper למתודה החדשה).
+  ///
+  /// מתודה זו קיימת לתאימות לאחור עם קוד ישן שמשתמש ב-API הישן של תפריטי הקשר.
+  /// מומלץ להשתמש ב-buildCommentaryMenuEntries ישירות.
+  static List<AppContextMenuEntry> buildCommentaryContextMenu({
+    required BuildContext context,
+    required Link link,
+    required Function(TextBookTab) openBookCallback,
+    required double fontSize,
+    String? savedSelectedText,
+    required VoidCallback onCopySelected,
+  }) {
+    return buildCommentaryMenuEntries(
+      context: context,
+      link: link,
+      openBookCallback: openBookCallback,
+      fontSize: fontSize,
+      savedSelectedText: savedSelectedText,
+      onCopySelected: onCopySelected,
     );
   }
 
@@ -67,20 +103,16 @@ class ContextMenuUtils {
     required double fontSize,
   }) async {
     try {
-      // שמירת ההגדרות לפני ה-await
       final settingsState = context.read<SettingsBloc>().state;
 
-      // טעינת התוכן של המפרש
       final content = await link.content;
       if (content.trim().isEmpty) {
         UiSnack.show('אין תוכן להעתקה');
         return;
       }
 
-      // ניקוי תגיות HTML
       final plainText = utils.stripHtmlIfNeeded(content);
 
-      // הוספת כותרות אם נדרש
       String finalText = plainText;
       String finalHtmlText = content;
 

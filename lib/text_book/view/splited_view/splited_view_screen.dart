@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_context_menu/flutter_context_menu.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:multi_split_view/multi_split_view.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
+import 'package:otzaria/widgets/app_menu.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 import 'package:otzaria/text_book/view/tabbed_commentary_panel.dart';
@@ -194,36 +194,34 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
     super.dispose();
   }
 
-  ContextMenu<Object> _buildContextMenu(TextBookLoaded state, String? selectedText) {
-    return ContextMenu<Object>(
-      entries: [
-        MenuItem<Object>(
-          label: const Text('העתק'),
-          icon: const Icon(FluentIcons.copy_24_regular),
-          enabled: selectedText != null && selectedText.trim().isNotEmpty,
-          onSelected: (_) => ContextMenuUtils.copyFormattedText(
-            context: context,
-            savedSelectedText: selectedText,
-            fontSize: state.fontSize,
-          ),
+  List<AppContextMenuEntry> _buildContextMenuEntries(
+      BuildContext menuCtx, TextBookLoaded state, String? selectedText) {
+    return [
+      AppContextMenuEntry(
+        label: 'העתק',
+        icon: FluentIcons.copy_24_regular,
+        enabled: selectedText != null && selectedText.trim().isNotEmpty,
+        onTap: () => ContextMenuUtils.copyFormattedText(
+          context: context,
+          savedSelectedText: selectedText,
+          fontSize: state.fontSize,
         ),
-        MenuItem<Object>(
-            label: const Text('חיפוש'),
-            onSelected: (_) =>
-                widget.openLeftPaneTab(1, searchText: selectedText)),
-        MenuItem<Object>(
-          label: const Text('דווח על טעות בספר'),
-          icon: const Icon(FluentIcons.error_circle_24_regular),
-          onSelected: (_) => _openErrorReportDialog(selectedText ?? ''),
-        ),
-        const MenuDivider(),
-        MenuItem<Object>(
-          label: const Text('בחר את כל הטקסט'),
-          onSelected: (_) =>
-              _selectionKey.currentState?.selectableRegion.selectAll(),
-        ),
-      ],
-    );
+      ),
+      AppContextMenuEntry(
+        label: 'חיפוש',
+        onTap: () => widget.openLeftPaneTab(1, searchText: selectedText),
+      ),
+      AppContextMenuEntry(
+        label: 'דווח על טעות בספר',
+        icon: FluentIcons.error_circle_24_regular,
+        onTap: () => _openErrorReportDialog(selectedText ?? ''),
+      ),
+      const AppContextMenuEntry.divider(),
+      AppContextMenuEntry(
+        label: 'בחר את כל הטקסט',
+        onTap: () => _selectionKey.currentState?.selectableRegion.selectAll(),
+      ),
+    ];
   }
 
   /// פתיחת דיאלוג דיווח על טעות בספר
@@ -357,8 +355,9 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                           ),
                         ),
                         builder: (context, selectedText, child) {
-                          return ContextMenuRegion(
-                            contextMenu: _buildContextMenu(state, selectedText),
+                          return AppContextMenuRegion(
+                            menuBuilder: (menuCtx) => _buildContextMenuEntries(
+                                menuCtx, state, selectedText),
                             child: child!,
                           );
                         },

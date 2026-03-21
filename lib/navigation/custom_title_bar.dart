@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:flutter_context_menu/flutter_context_menu.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
@@ -18,6 +17,7 @@ import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/widgets/scrollable_tab_bar.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/history/history_dialog.dart';
+import 'package:otzaria/widgets/app_menu.dart';
 import 'package:otzaria/bookmarks/bookmarks_dialog.dart';
 import 'package:otzaria/workspaces/view/workspace_switcher_dialog.dart';
 import 'package:otzaria/utils/fullscreen_helper.dart';
@@ -104,116 +104,114 @@ class _CustomTitleBarState extends State<CustomTitleBar>
         return BlocBuilder<SettingsBloc, SettingsState>(
           builder: (context, settingsState) {
             return SizedBox(
-                height: 40, // גובה הכותרת
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Container(
-                      clipBehavior: Clip.none,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surface,
-                        border: (navState.currentScreen == Screen.reading ||
-                                navState.currentScreen == Screen.search)
-                            ? null
-                            : Border(
-                                bottom: BorderSide(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .outlineVariant
-                                      .withValues(alpha: 0.6),
-                                  width: 1,
-                                ),
+              height: 40, // גובה הכותרת
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    clipBehavior: Clip.none,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      border: (navState.currentScreen == Screen.reading ||
+                              navState.currentScreen == Screen.search)
+                          ? null
+                          : Border(
+                              bottom: BorderSide(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .outlineVariant
+                                    .withValues(alpha: 0.6),
+                                width: 1,
                               ),
-                      ),
-                      child: Row(
-                        children: [
-                          // כפתורי פעולה (היסטוריה וכו') - תמיד מוצגים
-                          SizedBox(
-                            height: 40,
-                            child: Stack(
-                              children: [
-                                Center(
-                                  child: _buildActionButtons(
-                                      context, settingsState),
+                            ),
+                    ),
+                    child: Row(
+                      children: [
+                        // כפתורי פעולה (היסטוריה וכו') - תמיד מוצגים
+                        SizedBox(
+                          height: 40,
+                          child: Stack(
+                            children: [
+                              Center(
+                                child:
+                                    _buildActionButtons(context, settingsState),
+                              ),
+                              if (navState.currentScreen == Screen.reading ||
+                                  navState.currentScreen == Screen.search)
+                                Positioned(
+                                  bottom: 0,
+                                  left: 0,
+                                  right: 0,
+                                  child: Align(
+                                    alignment: AlignmentDirectional.bottomStart,
+                                    child: Container(
+                                      width: 74,
+                                      height: 1,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .outlineVariant
+                                          .withValues(alpha: 0.6),
+                                    ),
+                                  ),
                                 ),
-                                if (navState.currentScreen == Screen.reading ||
-                                    navState.currentScreen == Screen.search)
-                                  Positioned(
-                                    bottom: 0,
-                                    left: 0,
-                                    right: 0,
-                                    child: Align(
-                                      alignment:
-                                          AlignmentDirectional.bottomStart,
-                                      child: Container(
-                                        width: 74,
-                                        height: 1,
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .outlineVariant
-                                            .withValues(alpha: 0.6),
-                                      ),
+                            ],
+                          ),
+                        ),
+
+                        // תוכן הכותרת (טאבים או כותרת רגילה)
+                        Expanded(
+                          child:
+                              _buildContent(context, navState, settingsState),
+                        ),
+
+                        // כפתורי חלון (רק בדסקטופ)
+                        if (!kIsWeb &&
+                            (Platform.isWindows ||
+                                Platform.isLinux ||
+                                Platform.isMacOS))
+                          SizedBox(
+                            height: 50,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _buildFullscreenCaptionButton(
+                                    context, settingsState),
+                                if (settingsState.isFullscreen)
+                                  _CaptionActionButton(
+                                    brightness: Theme.of(context).brightness,
+                                    tooltip: 'מזער',
+                                    icon: FluentIcons.subtract_24_regular,
+                                    onPressed: () async {
+                                      await FullscreenHelper.toggleFullscreen(
+                                          context, false);
+                                      await windowManager.minimize();
+                                    },
+                                  ),
+                                if (settingsState.isFullscreen)
+                                  _CaptionActionButton(
+                                    brightness: Theme.of(context).brightness,
+                                    tooltip: 'סגור',
+                                    icon: FluentIcons.dismiss_24_regular,
+                                    onPressed: () => windowManager.close(),
+                                  ),
+                                if (!settingsState.isFullscreen)
+                                  SizedBox(
+                                    width: _kWindowCaptionButtonsWidth,
+                                    height: 50,
+                                    child: WindowCaption(
+                                      brightness: Theme.of(context).brightness,
+                                      backgroundColor: Colors.transparent,
                                     ),
                                   ),
                               ],
                             ),
                           ),
-
-                          // תוכן הכותרת (טאבים או כותרת רגילה)
-                          Expanded(
-                            child:
-                                _buildContent(context, navState, settingsState),
-                          ),
-
-                          // כפתורי חלון (רק בדסקטופ)
-                          if (!kIsWeb &&
-                              (Platform.isWindows ||
-                                  Platform.isLinux ||
-                                  Platform.isMacOS))
-                            SizedBox(
-                              height: 50,
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  _buildFullscreenCaptionButton(
-                                      context, settingsState),
-                                  if (settingsState.isFullscreen)
-                                    _CaptionActionButton(
-                                      brightness: Theme.of(context).brightness,
-                                      tooltip: 'מזער',
-                                      icon: FluentIcons.subtract_24_regular,
-                                      onPressed: () async {
-                                        await FullscreenHelper.toggleFullscreen(
-                                            context, false);
-                                        await windowManager.minimize();
-                                      },
-                                    ),
-                                  if (settingsState.isFullscreen)
-                                    _CaptionActionButton(
-                                      brightness: Theme.of(context).brightness,
-                                      tooltip: 'סגור',
-                                      icon: FluentIcons.dismiss_24_regular,
-                                      onPressed: () => windowManager.close(),
-                                    ),
-                                  if (!settingsState.isFullscreen)
-                                    SizedBox(
-                                      width: _kWindowCaptionButtonsWidth,
-                                      height: 50,
-                                      child: WindowCaption(
-                                        brightness:
-                                            Theme.of(context).brightness,
-                                        backgroundColor: Colors.transparent,
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                        ],
-                      ),
+                      ],
                     ),
-                  ],
-                ),
-              );
+                  ),
+                ],
+              ),
+            );
           },
         );
       },
@@ -695,76 +693,9 @@ class _CustomTitleBarState extends State<CustomTitleBar>
           closeTab(tab, context);
         }
       },
-      child: ContextMenuRegion(
-        contextMenu: ContextMenu<Object>(
-          // ... תפריט ההקשר נשאר בדיוק כפי שהיה ...
-          maxHeight: 400,
-          entries: <ContextMenuEntry<Object>>[
-            MenuItem<Object>(
-              label: Text(tab.isPinned ? 'בטל הצמדת כרטיסיה' : 'הצמד כרטיסיה'),
-              onSelected: (_) =>
-                  context.read<TabsBloc>().add(TogglePinTab(tab)),
-            ),
-            MenuItem<Object>(
-                label: const Text('סגור'),
-                onSelected: (_) => closeTab(tab, context)),
-            MenuItem<Object>(
-                label: const Text('סגור הכל'),
-                onSelected: (_) => closeAllTabs(state, context)),
-            MenuItem<Object>(
-              label: const Text('סגור את האחרים'),
-              onSelected: (_) => closeAllTabsButCurrent(state, context),
-            ),
-            MenuItem<Object>(
-              label: const Text('שיכפול'),
-              onSelected: (_) => context.read<TabsBloc>().add(CloneTab(tab)),
-            ),
-            const MenuDivider(),
-            if (tab is! CombinedTab)
-              if (state.tabs.length > 1)
-                MenuItem<Object>.submenu(
-                  label: const Text('הצג לצד'),
-                  items: state.tabs
-                      .where((t) => t != tab && t is! CombinedTab)
-                      .map((otherTab) => MenuItem<Object>(
-                            label: Text(otherTab.title),
-                            onSelected: (_) {
-                              context.read<TabsBloc>().add(
-                                    EnableSideBySideMode(
-                                      rightTab: tab,
-                                      leftTab: otherTab,
-                                    ),
-                                  );
-                            },
-                          ))
-                      .toList(),
-                )
-              else
-                MenuItem<Object>(
-                  label: const Text('הצג לצד'),
-                  enabled: false,
-                  onSelected: (_) {},
-                ),
-            if (tab is CombinedTab) ...[
-              MenuItem<Object>(
-                label: const Text('החלף צדדים'),
-                onSelected: (_) =>
-                    context.read<TabsBloc>().add(const SwapSideBySideTabs()),
-              ),
-              MenuItem<Object>(
-                label: const Text('חזרה לתצוגה רגילה'),
-                onSelected: (_) =>
-                    context.read<TabsBloc>().add(const DisableSideBySideMode()),
-              ),
-            ],
-            const MenuDivider(),
-            MenuItem<Object>.submenu(
-              label: const Text('כרטיסיות פתוחות '),
-              items: _getMenuItems(state.tabs, context),
-            ),
-            _buildMoveToWorkspaceMenuItem(context, tab)
-          ],
-        ),
+      child: AppContextMenuRegion(
+        menuBuilder: (menuCtx) =>
+            _buildTabContextMenuEntries(menuCtx, tab, state),
         child: Draggable<OpenedTab>(
           axis: Axis.horizontal,
           data: tab,
@@ -830,7 +761,7 @@ class _CustomTitleBarState extends State<CustomTitleBar>
   }
 
   /// בונה פריט תפריט להעברת טאב לשולחן עבודה אחר
-  ContextMenuEntry<Object> _buildMoveToWorkspaceMenuItem(
+  AppContextMenuEntry _buildMoveToWorkspaceMenuEntry(
       BuildContext context, OpenedTab tab) {
     final workspaceState = context.read<WorkspaceBloc>().state;
 
@@ -841,20 +772,19 @@ class _CustomTitleBarState extends State<CustomTitleBar>
 
     // אם אין שולחנות עבודה אחרים, מציג פריט מושבת
     if (otherWorkspaces.isEmpty) {
-      return MenuItem<Object>(
-        label: const Text('העבר לשולחן עבודה'),
+      return AppContextMenuEntry(
+        label: 'העבר לשולחן עבודה',
         enabled: false,
-        onSelected: (_) {},
       );
     }
 
     // בונה תת-תפריט עם כל שולחנות העבודה האחרים
-    return MenuItem<Object>.submenu(
-      label: const Text('העבר לשולחן עבודה'),
-      items: otherWorkspaces.map((workspace) {
-        return MenuItem<Object>(
-          label: Text(workspace.name),
-          onSelected: (_) {
+    return AppContextMenuEntry(
+      label: 'העבר לשולחן עבודה',
+      children: otherWorkspaces.map((workspace) {
+        return AppContextMenuEntry(
+          label: workspace.name,
+          onTap: () {
             _moveTabToWorkspace(context, tab, workspace.id);
           },
         );
@@ -895,38 +825,99 @@ class _CustomTitleBarState extends State<CustomTitleBar>
     UiSnack.show('הכרטיסיה הועברה לשולחן העבודה "${targetWorkspace.name}"');
   }
 
-  List<ContextMenuEntry<Object>> _getMenuItems(
-    List<OpenedTab> tabs,
-    BuildContext context,
+  List<AppContextMenuEntry> _buildTabContextMenuEntries(
+    BuildContext menuCtx,
+    OpenedTab tab,
+    TabsState state,
   ) {
+    final entries = <AppContextMenuEntry>[
+      AppContextMenuEntry(
+        label: tab.isPinned ? 'בטל הצמדת כרטיסיה' : 'הצמד כרטיסיה',
+        onTap: () => context.read<TabsBloc>().add(TogglePinTab(tab)),
+      ),
+      AppContextMenuEntry(
+        label: 'סגור',
+        onTap: () => closeTab(tab, context),
+      ),
+      AppContextMenuEntry(
+        label: 'סגור הכל',
+        onTap: () => closeAllTabs(state, context),
+      ),
+      AppContextMenuEntry(
+        label: 'סגור את האחרים',
+        onTap: () => closeAllTabsButCurrent(state, context),
+      ),
+      AppContextMenuEntry(
+        label: 'שיכפול',
+        onTap: () => context.read<TabsBloc>().add(CloneTab(tab)),
+      ),
+      const AppContextMenuEntry.divider(),
+    ];
+
+    // הצג לצד
+    if (tab is! CombinedTab) {
+      if (state.tabs.length > 1) {
+        final otherTabs = state.tabs
+            .where((t) => t != tab && t is! CombinedTab)
+            .map((otherTab) => AppContextMenuEntry(
+                  label: otherTab.title,
+                  onTap: () {
+                    context.read<TabsBloc>().add(
+                          EnableSideBySideMode(
+                            rightTab: tab,
+                            leftTab: otherTab,
+                          ),
+                        );
+                  },
+                ))
+            .toList();
+        entries.add(AppContextMenuEntry(
+          label: 'הצג לצד',
+          children: otherTabs,
+        ));
+      } else {
+        entries.add(AppContextMenuEntry(
+          label: 'הצג לצד',
+          enabled: false,
+        ));
+      }
+    }
+
+    // אפשרויות CombinedTab
+    if (tab is CombinedTab) {
+      entries.addAll([
+        AppContextMenuEntry(
+          label: 'החלף צדדים',
+          onTap: () => context.read<TabsBloc>().add(const SwapSideBySideTabs()),
+        ),
+        AppContextMenuEntry(
+          label: 'חזרה לתצוגה רגילה',
+          onTap: () =>
+              context.read<TabsBloc>().add(const DisableSideBySideMode()),
+        ),
+      ]);
+    }
+
+    entries.addAll([
+      const AppContextMenuEntry.divider(),
+      AppContextMenuEntry(
+        label: 'כרטיסיות פתוחות',
+        children: _getOpenTabsMenuEntries(state.tabs),
+      ),
+      _buildMoveToWorkspaceMenuEntry(context, tab),
+    ]);
+
+    return entries;
+  }
+
+  List<AppContextMenuEntry> _getOpenTabsMenuEntries(List<OpenedTab> tabs) {
     final sortedTabs = [...tabs]..sort((a, b) => a.title.compareTo(b.title));
 
     return sortedTabs.map((tab) {
-      return MenuItem<Object>(
-        // חשוב: נותן רוחב מינימלי כדי שהשורה לא תהיה "חבילה" ממורכזת
-        constraints: const BoxConstraints(minWidth: 280, minHeight: 32),
-
-        // חשוב: label פשוט, בלי Row
-        label: Text(
-          tab.title,
-          overflow: TextOverflow.ellipsis,
-        ),
-
-        // חשוב: ה-X מגיע כ-trailing, ואז החבילה ממקמת אותו בקצה
-        trailing: IconButton(
-          tooltip: 'סגור',
-          visualDensity: VisualDensity.compact,
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-          icon: const Icon(FluentIcons.dismiss_24_regular, size: 14),
-          onPressed: () {
-            Navigator.of(context).maybePop(); // סוגר את התפריט
-            closeTab(tab, context);
-          },
-        ),
-
-        onSelected: (_) {
-          final index = tabs.indexOf(tab); // אינדקס לפי הרשימה המקורית
+      return AppContextMenuEntry(
+        label: tab.title,
+        onTap: () {
+          final index = tabs.indexOf(tab);
           context.read<TabsBloc>().add(SetCurrentTab(index));
         },
       );

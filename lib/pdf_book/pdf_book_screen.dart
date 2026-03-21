@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_context_menu/flutter_context_menu.dart' as ctx;
+import 'package:otzaria/widgets/app_menu.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -264,9 +264,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     widget.tab.showLeftPane.addListener(_showLeftPaneListener);
   }
 
-  Text _buildRtlMenuText(String text) =>
-      Text(text, textDirection: TextDirection.rtl);
-
   ({int startLine, int endLine})? _getCurrentPdfLinesRange() {
     final currentLine = widget.tab.currentTextLineNumber;
     if (currentLine == null) return null;
@@ -369,74 +366,62 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     _openCommentaryPane();
   }
 
-  ctx.ContextMenu<Object> _buildPdfContextMenu() {
+  List<AppContextMenuEntry> _buildPdfContextMenuEntries(
+      BuildContext menuContext) {
     final (commentators: relevantCommentators, links: relevantLinks) =
         _getRelevantContent();
 
-    return ctx.ContextMenu<Object>(
-      entries: <ctx.ContextMenuEntry<Object>>[
-        ctx.MenuItem<Object>(
-          label: _buildRtlMenuText('חיפוש'),
-          icon: const Icon(FluentIcons.search_24_regular),
-          onSelected: (_) => _ensureSearchTabIsActive(),
-        ),
-        ctx.MenuItem<Object>.submenu(
-          label: _buildRtlMenuText('מפרשים'),
-          icon: const Icon(FluentIcons.book_24_regular),
-          enabled: relevantCommentators.isNotEmpty,
-          items: <ctx.ContextMenuEntry<Object>>[
-            ctx.MenuItem<Object>(
-              label: _buildRtlMenuText('הצג את כל המפרשים'),
-              icon: relevantCommentators.isNotEmpty &&
-                      widget.tab.activeCommentators
-                          .containsAll(relevantCommentators)
-                  ? const Icon(FluentIcons.checkmark_24_regular)
-                  : null,
-              onSelected: (_) => _toggleAllCommentators(relevantCommentators),
-            ),
-            if (relevantCommentators.isNotEmpty) const ctx.MenuDivider(),
-            ...relevantCommentators.map<ctx.ContextMenuEntry<Object>>(
-              (commentator) => ctx.MenuItem<Object>(
-                label: Text(commentator, textDirection: TextDirection.rtl),
-                icon: widget.tab.activeCommentators.contains(commentator)
-                    ? const Icon(FluentIcons.checkmark_24_regular)
-                    : null,
-                onSelected: (_) => _toggleCommentator(commentator),
+    final allActive = relevantCommentators.isNotEmpty &&
+        widget.tab.activeCommentators.containsAll(relevantCommentators);
+
+    final commentatorChildren = <AppContextMenuEntry>[
+      AppContextMenuEntry(
+        label: 'הצג את כל המפרשים',
+        icon: allActive ? FluentIcons.checkmark_24_regular : null,
+        onTap: () => _toggleAllCommentators(relevantCommentators),
+      ),
+      if (relevantCommentators.isNotEmpty) const AppContextMenuEntry.divider(),
+      ...relevantCommentators.map((c) => AppContextMenuEntry(
+            label: c,
+            icon: widget.tab.activeCommentators.contains(c)
+                ? FluentIcons.checkmark_24_regular
+                : null,
+            onTap: () => _toggleCommentator(c),
+          )),
+    ];
+
+    final linkChildren = relevantLinks
+        .map((link) => AppContextMenuEntry(
+              label: link.heRef,
+              onTap: () => openBook(
+                menuContext,
+                TextBook(title: utils.getTitleFromPath(link.path2)),
+                link.index2 - 1,
+                '',
+                ignoreHistory: false,
               ),
-            ),
-          ],
-        ),
-        ctx.MenuItem<Object>.submenu(
-          label: _buildRtlMenuText('קישורים'),
-          icon: const Icon(FluentIcons.link_24_regular),
-          enabled: relevantLinks.isNotEmpty,
-          items: relevantLinks
-              .map<ctx.ContextMenuEntry<Object>>(
-                (link) => ctx.MenuItem<Object>(
-                  label: FutureBuilder<String>(
-                    future: link.displayReference,
-                    builder: (context, snapshot) {
-                      return Text(
-                        snapshot.data ?? link.fallbackDisplayReference,
-                        textDirection: TextDirection.rtl,
-                      );
-                    },
-                  ),
-                  onSelected: (_) {
-                    openBook(
-                      context,
-                      TextBook(title: utils.getTitleFromPath(link.path2)),
-                      link.index2 - 1,
-                      '',
-                      ignoreHistory: false,
-                    );
-                  },
-                ),
-              )
-              .toList(),
-        ),
-      ],
-    );
+            ))
+        .toList();
+
+    return [
+      AppContextMenuEntry(
+        label: 'חיפוש',
+        icon: FluentIcons.search_24_regular,
+        onTap: _ensureSearchTabIsActive,
+      ),
+      AppContextMenuEntry(
+        label: 'מפרשים',
+        icon: FluentIcons.book_24_regular,
+        enabled: relevantCommentators.isNotEmpty,
+        children: commentatorChildren,
+      ),
+      AppContextMenuEntry(
+        label: 'קישורים',
+        icon: FluentIcons.link_24_regular,
+        enabled: relevantLinks.isNotEmpty,
+        children: linkChildren,
+      ),
+    ];
   }
 
   PdfViewerParams _buildPdfViewerParams() {
@@ -480,17 +465,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       },
       viewerOverlayBuilder: (context, size, handleLinkTap) => [
         Positioned.fill(
-          child: Listener(
-            behavior: HitTestBehavior.translucent,
-            onPointerDown: (event) {
-              if (event.buttons == kSecondaryMouseButton) {
-                ctx.showContextMenu(
-                  context,
-                  contextMenu: _buildPdfContextMenu()
-                      .copyWith(position: event.position),
-                );
-              }
-            },
+          child: AppContextMenuRegion(
+            menuBuilder: _buildPdfContextMenuEntries,
+            child: const ColoredBox(color: Colors.transparent),
           ),
         ),
         // פס גלילה אנכי עם track מלא

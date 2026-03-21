@@ -16,7 +16,7 @@ import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:otzaria/tabs/models/tab.dart';
-import 'package:flutter_context_menu/flutter_context_menu.dart' as ctx;
+import 'package:otzaria/widgets/app_menu.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/utils/copy_utils.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -32,7 +32,6 @@ import 'package:otzaria/text_book/view/selection/selected_text_copy.dart';
 import 'package:otzaria/text_book/view/selection/selected_text_restore.dart';
 import 'package:otzaria/tools/dictionary/dictionary_context_menu_entries.dart';
 import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository.dart';
-import 'package:otzaria/widgets/custom_ui_components.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_debug_logger.dart';
 
 /// תצוגת טקסט פשוטה - משמשת גם לטקסט המרכזי וגם למפרשים
@@ -658,86 +657,63 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   }
 
   /// תפריט הקשר - מעתיק מהתצוגה הרגילה
-  ctx.ContextMenu<Object> _buildContextMenu(
+  /// תפריט הקשר
+  List<AppContextMenuEntry> _buildContextMenu(
       TextBookLoaded state, int index, BuildContext menuContext) {
-    // בניית רשימת מפרשים אם זה מפרש (לא טקסט ראשי)
-    List<ctx.MenuItem<Object>> commentatorMenuItems = [];
+    List<AppContextMenuEntry> commentatorItems = [];
     if (!widget.isMainText && widget.bookTitle != null) {
-      commentatorMenuItems = _buildCommentatorSwitchMenu(state);
+      commentatorItems = _buildCommentatorSwitchMenu(state);
     }
 
-    final linksMenuItems = state.links
-        .where(
-          (link) =>
-              link.index1 == index + 1 &&
-              !LinkTypes.isCommentaryOrTargum(link.connectionType) &&
-              link.start == null &&
-              link.end == null,
-        )
-        .map(
-          (link) => ctx.MenuItem<Object>(
-            label: FutureBuilder<String>(
-              future: link.displayReference,
-              builder: (context, snapshot) {
-                return Text(
-                  snapshot.data ?? link.fallbackDisplayReference,
-                  textDirection: TextDirection.rtl,
-                );
-              },
-            ),
-            onSelected: (_) {
-              widget.openBookCallback(
+    final linksItems = state.links
+        .where((link) =>
+            link.index1 == index + 1 &&
+            !LinkTypes.isCommentaryOrTargum(link.connectionType) &&
+            link.start == null &&
+            link.end == null)
+        .map((link) => AppContextMenuEntry(
+              label: link.heRef,
+              onTap: () => widget.openBookCallback(
                 TextBookTab(
-                  book: TextBook(
-                    title: utils.getTitleFromPath(link.path2),
-                  ),
+                  book: TextBook(title: utils.getTitleFromPath(link.path2)),
                   index: link.index2 - 1,
                   openLeftPane: (Settings.getValue<bool>('key-pin-sidebar') ??
                           false) ||
                       (Settings.getValue<bool>('key-default-sidebar-open') ??
                           false),
                 ),
-              );
-            },
-          ),
-        )
+              ),
+            ))
         .toList();
 
-    final entries = <ctx.ContextMenuEntry<Object>>[];
+    final entries = <AppContextMenuEntry>[];
 
     if (widget.isMainText) {
-      entries.add(
-        ctx.MenuItem<Object>(
-          label: const Text('חיפוש'),
-          icon: const Icon(FluentIcons.search_24_regular),
-          onSelected: (_) {
-            if (widget.onOpenSearch != null) {
-              widget.onOpenSearch!(_savedSelectedText);
-            } else {
-              UiSnack.show('חיפוש לא זמין בתצוגה זו');
-            }
-          },
-        ),
-      );
+      entries.add(AppContextMenuEntry(
+        label: 'חיפוש',
+        icon: FluentIcons.search_24_regular,
+        onTap: () {
+          if (widget.onOpenSearch != null) {
+            widget.onOpenSearch!(_savedSelectedText);
+          } else {
+            UiSnack.show('חיפוש לא זמין בתצוגה זו');
+          }
+        },
+      ));
     }
 
-    // הוספת תפריט החלפת מפרש אם זה מפרש
-    if (commentatorMenuItems.isNotEmpty) {
-      if (entries.isNotEmpty) {
-        entries.add(const ctx.MenuDivider());
-      }
-      entries.addAll(commentatorMenuItems);
+    if (commentatorItems.isNotEmpty) {
+      if (entries.isNotEmpty) entries.add(const AppContextMenuEntry.divider());
+      entries.addAll(commentatorItems);
     }
 
-    if (linksMenuItems.isNotEmpty) {
-      entries.add(const ctx.MenuDivider());
-      entries.add(
-        ctx.MenuItem<Object>.submenu(
-          label: const Text('קישורים'),
-          icon: const Icon(FluentIcons.link_24_regular),
-          items: linksMenuItems,
-        ),
-      );
+    if (linksItems.isNotEmpty) {
+      entries.add(const AppContextMenuEntry.divider());
+      entries.add(AppContextMenuEntry(
+        label: 'קישורים',
+        icon: FluentIcons.link_24_regular,
+        children: linksItems,
+      ));
     }
 
     final dictionaryEntries = buildDictionaryContextMenuEntries(
@@ -746,75 +722,127 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       repository: _dictionaryLookupRepository,
     );
     if (dictionaryEntries.isNotEmpty) {
-      entries.add(const ctx.MenuDivider());
+      entries.add(const AppContextMenuEntry.divider());
       entries.addAll(dictionaryEntries);
     }
 
-    entries.add(const ctx.MenuDivider());
+    entries.add(const AppContextMenuEntry.divider());
     entries.addAll([
-      // הערות אישיות
-      ctx.MenuItem<Object>(
-        label: const Text('הוסף הערה אישית '),
-        icon: const Icon(FluentIcons.note_add_24_regular),
-        onSelected: (_) => _createNoteForCurrentLine(index),
+      AppContextMenuEntry(
+        label: 'הוסף הערה אישית ',
+        icon: FluentIcons.note_add_24_regular,
+        onTap: () => _createNoteForCurrentLine(index),
       ),
-      // דיווח על טעות בספר
-      ctx.MenuItem<Object>(
-        label: const Text('דווח על טעות בספר'),
-        icon: const Icon(FluentIcons.error_circle_24_regular),
-        onSelected: (_) => _openErrorReportDialog(_savedSelectedText ?? ''),
+      AppContextMenuEntry(
+        label: 'דווח על טעות בספר',
+        icon: FluentIcons.error_circle_24_regular,
+        onTap: () => _openErrorReportDialog(_savedSelectedText ?? ''),
       ),
-      const ctx.MenuDivider(),
-      // העתקה
-      ctx.MenuItem<Object>(
-        label: const Text('העתק'),
-        icon: const Icon(FluentIcons.copy_24_regular),
+      const AppContextMenuEntry.divider(),
+      AppContextMenuEntry(
+        label: 'העתק',
+        icon: FluentIcons.copy_24_regular,
         enabled:
             _savedSelectedText != null && _savedSelectedText!.trim().isNotEmpty,
-        onSelected: (_) => _copyFormattedText(),
+        onTap: _copyFormattedText,
       ),
-      ctx.MenuItem<Object>(
-        label: const Text('העתק את כל הפסקה'),
-        icon: const Icon(FluentIcons.document_copy_24_regular),
+      AppContextMenuEntry(
+        label: 'העתק את כל הפסקה',
+        icon: FluentIcons.document_copy_24_regular,
         enabled: index >= 0 && index < widget.content.length,
-        onSelected: (_) => _copyParagraphByIndex(index),
+        onTap: () => _copyParagraphByIndex(index),
       ),
-      // [EDITING DISABLED]
-      // const ctx.MenuDivider(),
-      // // עריכת פסקה
-      // ctx.MenuItem(
-      //   label: const Text('ערוך פסקה זו'),
-      //   icon: const Icon(FluentIcons.edit_24_regular),
-      //   onSelected: (_) => _editParagraph(index),
-      // ),
     ]);
 
-    return ctx.ContextMenu<Object>(
-        entries: _normalizeContextMenuEntries(entries));
+    return _normalizeEntries(entries);
   }
 
-  List<ctx.ContextMenuEntry<Object>> _normalizeContextMenuEntries(
-    List<ctx.ContextMenuEntry<Object>> entries,
-  ) {
-    final normalized = <ctx.ContextMenuEntry<Object>>[];
-
-    for (final entry in entries) {
-      final isDivider = entry is ctx.MenuDivider;
-      final previousIsDivider =
-          normalized.isNotEmpty && normalized.last is ctx.MenuDivider;
-
-      if (isDivider && (normalized.isEmpty || previousIsDivider)) {
-        continue;
+  List<AppContextMenuEntry> _normalizeEntries(
+      List<AppContextMenuEntry> entries) {
+    final result = <AppContextMenuEntry>[];
+    for (final e in entries) {
+      if (e.isDivider) {
+        if (result.isEmpty || result.last.isDivider) continue;
+        result.add(e);
+      } else {
+        result.add(e);
       }
-
-      normalized.add(entry);
     }
-
-    while (normalized.isNotEmpty && normalized.last is ctx.MenuDivider) {
-      normalized.removeLast();
+    while (result.isNotEmpty && result.last.isDivider) {
+      result.removeLast();
     }
+    return result;
+  }
 
-    return normalized;
+  List<AppContextMenuEntry> _buildCommentatorSwitchMenu(TextBookLoaded state) {
+    final availableCommentators = state.availableCommentators;
+    if (availableCommentators.isEmpty) return [];
+
+    final groups = state.commentatorGroups;
+    final tanachGroup = CommentatorGroup.groupByTitle(groups, 'תורה שבכתב');
+    final chazalGroup = CommentatorGroup.groupByTitle(groups, 'חז"ל');
+    final rishonimGroup = CommentatorGroup.groupByTitle(groups, 'ראשונים');
+    final acharonimGroup = CommentatorGroup.groupByTitle(groups, 'אחרונים');
+    final modernGroup = CommentatorGroup.groupByTitle(groups, 'מחברי זמננו');
+    final allGrouped = [
+      ...tanachGroup.commentators,
+      ...chazalGroup.commentators,
+      ...rishonimGroup.commentators,
+      ...acharonimGroup.commentators,
+      ...modernGroup.commentators,
+    ];
+    final ungrouped =
+        availableCommentators.where((c) => !allGrouped.contains(c)).toList();
+
+    List<AppContextMenuEntry> buildGroup(List<String> commentators) =>
+        commentators
+            .map((c) => AppContextMenuEntry(
+                  label: c,
+                  icon: c == widget.bookTitle
+                      ? FluentIcons.checkmark_24_regular
+                      : null,
+                  onTap: () => _switchCommentator(c, state),
+                ))
+            .toList();
+
+    final children = <AppContextMenuEntry>[
+      ...buildGroup(tanachGroup.commentators),
+      if (tanachGroup.commentators.isNotEmpty &&
+          chazalGroup.commentators.isNotEmpty)
+        const AppContextMenuEntry.divider(),
+      ...buildGroup(chazalGroup.commentators),
+      if (chazalGroup.commentators.isNotEmpty &&
+          rishonimGroup.commentators.isNotEmpty)
+        const AppContextMenuEntry.divider(),
+      ...buildGroup(rishonimGroup.commentators),
+      if (rishonimGroup.commentators.isNotEmpty &&
+          acharonimGroup.commentators.isNotEmpty)
+        const AppContextMenuEntry.divider(),
+      ...buildGroup(acharonimGroup.commentators),
+      if (acharonimGroup.commentators.isNotEmpty &&
+          modernGroup.commentators.isNotEmpty)
+        const AppContextMenuEntry.divider(),
+      ...buildGroup(modernGroup.commentators),
+      if ((tanachGroup.commentators.isNotEmpty ||
+              chazalGroup.commentators.isNotEmpty ||
+              rishonimGroup.commentators.isNotEmpty ||
+              acharonimGroup.commentators.isNotEmpty ||
+              modernGroup.commentators.isNotEmpty) &&
+          ungrouped.isNotEmpty)
+        const AppContextMenuEntry.divider(),
+      ...buildGroup(ungrouped),
+    ];
+
+    final normalized = _normalizeEntries(children);
+    if (normalized.isEmpty) return [];
+
+    return [
+      AppContextMenuEntry(
+        label: 'החלף מפרש',
+        icon: FluentIcons.arrow_swap_24_regular,
+        children: normalized,
+      ),
+    ];
   }
 
   /// יצירת הערה לשורה הנוכחית
@@ -1161,8 +1189,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
           _savedSelectedIndex = index;
         });
       },
-      child: ctx.ContextMenuRegion(
-        contextMenu: _buildContextMenu(state, index, context),
+      child: AppContextMenuRegion(
+        menuBuilder: (menuCtx) => _buildContextMenu(state, index, menuCtx),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeInOut,
@@ -1283,91 +1311,6 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   }
 
   /// בניית תפריט החלפת מפרש
-  List<ctx.MenuItem<Object>> _buildCommentatorSwitchMenu(TextBookLoaded state) {
-    // קבלת רשימת המפרשים הזמינים
-    final availableCommentators = state.availableCommentators;
-
-    if (availableCommentators.isEmpty) {
-      return [];
-    }
-
-    // קיבוץ המפרשים לפי קבוצות
-    final groups = state.commentatorGroups;
-    final tanachGroup = CommentatorGroup.groupByTitle(groups, 'תורה שבכתב');
-    final chazalGroup = CommentatorGroup.groupByTitle(groups, 'תורה שבעל פה');
-    final rishonimGroup = CommentatorGroup.groupByTitle(groups, 'ראשונים');
-    final acharonimGroup = CommentatorGroup.groupByTitle(groups, 'אחרונים');
-    final modernGroup = CommentatorGroup.groupByTitle(groups, 'מודרני');
-
-    final allGrouped = [
-      ...tanachGroup.commentators,
-      ...chazalGroup.commentators,
-      ...rishonimGroup.commentators,
-      ...acharonimGroup.commentators,
-      ...modernGroup.commentators,
-    ];
-    final ungrouped =
-        availableCommentators.where((c) => !allGrouped.contains(c)).toList();
-
-    // בניית תפריט משנה
-    final submenuItems = <ctx.ContextMenuEntry<Object>>[];
-
-    // הוספת קבוצות
-    if (tanachGroup.commentators.isNotEmpty) {
-      submenuItems
-          .addAll(_buildCommentatorGroupItems(tanachGroup.commentators, state));
-    }
-    if (chazalGroup.commentators.isNotEmpty) {
-      if (submenuItems.isNotEmpty) submenuItems.add(const ctx.MenuDivider());
-      submenuItems
-          .addAll(_buildCommentatorGroupItems(chazalGroup.commentators, state));
-    }
-    if (rishonimGroup.commentators.isNotEmpty) {
-      if (submenuItems.isNotEmpty) submenuItems.add(const ctx.MenuDivider());
-      submenuItems.addAll(
-          _buildCommentatorGroupItems(rishonimGroup.commentators, state));
-    }
-    if (acharonimGroup.commentators.isNotEmpty) {
-      if (submenuItems.isNotEmpty) submenuItems.add(const ctx.MenuDivider());
-      submenuItems.addAll(
-          _buildCommentatorGroupItems(acharonimGroup.commentators, state));
-    }
-    if (modernGroup.commentators.isNotEmpty) {
-      if (submenuItems.isNotEmpty) submenuItems.add(const ctx.MenuDivider());
-      submenuItems
-          .addAll(_buildCommentatorGroupItems(modernGroup.commentators, state));
-    }
-    if (ungrouped.isNotEmpty) {
-      if (submenuItems.isNotEmpty) submenuItems.add(const ctx.MenuDivider());
-      submenuItems.addAll(_buildCommentatorGroupItems(ungrouped, state));
-    }
-
-    final normalizedSubmenuItems = _normalizeContextMenuEntries(submenuItems);
-    if (normalizedSubmenuItems.isEmpty) {
-      return [];
-    }
-
-    return [
-      ctx.MenuItem<Object>.submenu(
-        label: const Text('החלף מפרש'),
-        icon: const Icon(FluentIcons.arrow_swap_24_regular),
-        items: normalizedSubmenuItems,
-      ),
-    ];
-  }
-
-  /// בניית פריטי תפריט לקבוצת מפרשים
-  List<ctx.ContextMenuEntry<Object>> _buildCommentatorGroupItems(
-      List<String> commentators, TextBookLoaded state) {
-    return commentators.map<ctx.ContextMenuEntry<Object>>((commentator) {
-      final isSelected = commentator == widget.bookTitle;
-      return ctx.MenuItem<Object>(
-        label: Text(commentator),
-        icon: isSelected ? const Icon(FluentIcons.checkmark_24_regular) : null,
-        onSelected: (_) => _switchCommentator(commentator, state),
-      );
-    }).toList();
-  }
 
   /// החלפת מפרש
   void _switchCommentator(String newCommentator, TextBookLoaded state) {

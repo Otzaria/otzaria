@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_context_menu/flutter_context_menu.dart' as ctx;
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/commentators_filter_button.dart';
 import 'package:otzaria/widgets/commentators_filter_screen.dart';
@@ -19,6 +18,7 @@ import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:otzaria/utils/context_menu_utils.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
+import 'package:otzaria/widgets/app_menu.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'dart:async'; // Added for Timer
@@ -236,35 +236,33 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
   }
 
   /// בניית תפריט הקשר כללי
-  ctx.ContextMenu<Object> _buildContextMenu() {
-    return ctx.ContextMenu<Object>(
-      entries: <ctx.ContextMenuEntry<Object>>[
-        ctx.MenuItem<Object>(
-          label: const Text('העתק'),
-          icon: const Icon(FluentIcons.copy_24_regular),
-          enabled: _savedSelectedText != null &&
-              _savedSelectedText!.trim().isNotEmpty,
-          onSelected: (_) => _copyFormattedText(),
-        ),
-        ctx.MenuItem<Object>(
-          label: const Text('העתק את כל הטקסט'),
-          icon: const Icon(FluentIcons.document_copy_24_regular),
-          onSelected: (_) => _copyAllVisibleText(),
-        ),
-        ctx.MenuItem<Object>(
-          label: const Text('בחר את כל הטקסט'),
-          icon: const Icon(FluentIcons.select_all_on_24_regular),
-          onSelected: (_) =>
-              _selectionKey.currentState?.selectableRegion.selectAll(),
-        ),
-      ],
-    );
+  List<AppContextMenuEntry> _buildContextMenuEntries(BuildContext menuCtx) {
+    return [
+      AppContextMenuEntry(
+        label: 'העתק',
+        icon: FluentIcons.copy_24_regular,
+        enabled:
+            _savedSelectedText != null && _savedSelectedText!.trim().isNotEmpty,
+        onTap: _copyFormattedText,
+      ),
+      AppContextMenuEntry(
+        label: 'העתק את כל הטקסט',
+        icon: FluentIcons.document_copy_24_regular,
+        onTap: _copyAllVisibleText,
+      ),
+      AppContextMenuEntry(
+        label: 'בחר את כל הטקסט',
+        icon: FluentIcons.select_all_on_24_regular,
+        onTap: () => _selectionKey.currentState?.selectableRegion.selectAll(),
+      ),
+    ];
   }
 
   /// בניית תפריט הקשר למפרש ספציפי
-  ctx.ContextMenu<Object> _buildCommentaryContextMenu(Link link) {
+  List<AppContextMenuEntry> _buildCommentaryContextMenuEntries(
+      BuildContext menuCtx, Link link) {
     return ContextMenuUtils.buildCommentaryContextMenu(
-      context: context,
+      context: menuCtx,
       link: link,
       openBookCallback: widget.openBookCallback,
       fontSize: widget.fontSize,
@@ -348,21 +346,21 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
         ),
         // תוכן הכרטיסיות - עטוף ב-SelectionArea כדי לאפשר בחירת טקסט
         Expanded(
-          child: SelectionArea(
-            key: _selectionKey,
-            contextMenuBuilder: (context, selectableRegionState) {
-              // מבטל את התפריט הרגיל של Flutter כי יש ContextMenuRegion
-              return const SizedBox.shrink();
-            },
-            onSelectionChanged: (selection) {
-              if (selection != null && selection.plainText.isNotEmpty) {
-                setState(() {
-                  _savedSelectedText = selection.plainText;
-                });
-              }
-            },
-            child: ctx.ContextMenuRegion(
-              contextMenu: _buildContextMenu(),
+          child: AppContextMenuRegion(
+            menuBuilder: _buildContextMenuEntries,
+            child: SelectionArea(
+              key: _selectionKey,
+              contextMenuBuilder: (context, selectableRegionState) {
+                // מבטל את התפריט הרגיל של Flutter כי יש ContextMenuRegion
+                return const SizedBox.shrink();
+              },
+              onSelectionChanged: (selection) {
+                if (selection != null && selection.plainText.isNotEmpty) {
+                  setState(() {
+                    _savedSelectedText = selection.plainText;
+                  });
+                }
+              },
               child: TabBarView(
                 controller: _tabController,
                 physics: const NeverScrollableScrollPhysics(),
@@ -835,7 +833,7 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
           tab: widget.tab,
           fontSize: widget.fontSize,
           openBookCallback: widget.openBookCallback,
-          buildContextMenu: _buildCommentaryContextMenu,
+          buildContextMenu: _buildCommentaryContextMenuEntries,
           isExpanded: isExpanded,
           onExpansionChanged: (expanded) {
             setState(() {
@@ -911,8 +909,9 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
         final isExpanded =
             _expandedLinkStates[keyStr] ?? restoredExpanded ?? false;
 
-        return ctx.ContextMenuRegion(
-          contextMenu: _buildCommentaryContextMenu(link),
+        return AppContextMenuRegion(
+          menuBuilder: (menuCtx) =>
+              _buildCommentaryContextMenuEntries(menuCtx, link),
           child: ExpansionTile(
             key: PageStorageKey(keyStr),
             initiallyExpanded: isExpanded,
@@ -1243,7 +1242,7 @@ class _CollapsibleCommentaryGroup extends StatefulWidget {
   final PdfBookTab tab;
   final double fontSize;
   final Function(OpenedTab) openBookCallback;
-  final ctx.ContextMenu<Object> Function(Link) buildContextMenu;
+  final List<AppContextMenuEntry> Function(BuildContext, Link) buildContextMenu;
   final bool isExpanded;
   final Function(bool) onExpansionChanged;
   final String searchQuery;
@@ -1319,10 +1318,10 @@ class _CollapsibleCommentaryGroupState
         // תוכן המפרשים - מוצג רק כשמורחב
         if (widget.isExpanded)
           ...widget.group.links.map((link) {
-            return ctx.ContextMenuRegion(
+            return AppContextMenuRegion(
               key: widget.getKeyForLink
                   ?.call(link), // Attach the key here for scrolling
-              contextMenu: widget.buildContextMenu(link),
+              menuBuilder: (menuCtx) => widget.buildContextMenu(menuCtx, link),
               child: Padding(
                 padding: const EdgeInsets.only(
                     right: 32.0, left: 16.0, top: 8.0, bottom: 8.0),

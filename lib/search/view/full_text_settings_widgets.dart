@@ -524,7 +524,6 @@ class OrderOfResults extends StatelessWidget {
       builder: (context, state) {
         return SizedBox(
           width: 183,
-          height: 52,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
             child: AppDropdownField<ResultsOrder>(

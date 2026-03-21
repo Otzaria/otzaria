@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
-import 'package:flutter_context_menu/flutter_context_menu.dart' as ctx;
 import 'package:otzaria/core/widgets/otzaria_search_field.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
@@ -14,6 +13,7 @@ import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
 import 'package:otzaria/widgets/app_future_builder.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:otzaria/utils/context_menu_utils.dart';
+import 'package:otzaria/widgets/app_menu.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_debug_logger.dart';
 
@@ -358,9 +358,9 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
       },
       level: 'BUILD',
     );
-    return ctx.ContextMenuRegion(
-      contextMenu: ContextMenuUtils.buildCommentaryContextMenu(
-        context: context,
+    return AppContextMenuRegion(
+      menuBuilder: (menuCtx) => ContextMenuUtils.buildCommentaryContextMenu(
+        context: menuCtx,
         link: link,
         openBookCallback: widget.openBookCallback,
         fontSize: widget.fontSize,

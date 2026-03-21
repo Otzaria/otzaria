@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_context_menu/flutter_context_menu.dart' as ctx;
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
+import 'package:otzaria/widgets/app_menu.dart';
 import 'package:otzaria/text_book/view/combined_view/commentary_content.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/text_book/view/commentators_list_screen.dart';
@@ -1220,9 +1220,10 @@ class _CollapsibleCommentaryGroupState
                 ),
               ),
               builder: (context, selectedText, child) {
-                return ctx.ContextMenuRegion(
-                  contextMenu: ContextMenuUtils.buildCommentaryContextMenu(
-                    context: context,
+                return AppContextMenuRegion(
+                  menuBuilder: (menuCtx) =>
+                      ContextMenuUtils.buildCommentaryContextMenu(
+                    context: menuCtx,
                     link: link,
                     openBookCallback: widget.openBookCallback,
                     fontSize: widget.fontSize,

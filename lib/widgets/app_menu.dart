@@ -3,6 +3,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 
+// ═══════════════════════════════════════════════════════════════════════════
+// AppMenuEntry — נתוני פריט בתפריט
+// ═══════════════════════════════════════════════════════════════════════════
+
 class AppMenuEntry<T> {
   final T value;
   final String label;
@@ -21,6 +25,44 @@ class AppMenuEntry<T> {
   });
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// AppContextMenuEntry — פריט בתפריט הקשר (right-click)
+// ═══════════════════════════════════════════════════════════════════════════
+
+class AppContextMenuEntry {
+  final String? label;
+  final IconData? icon;
+  final bool enabled;
+  final bool isDivider;
+  final bool isDestructive;
+  final VoidCallback? onTap;
+
+  /// תת-פריטים לתפריט משנה
+  final List<AppContextMenuEntry>? children;
+
+  const AppContextMenuEntry({
+    required this.label,
+    this.icon,
+    this.enabled = true,
+    this.isDestructive = false,
+    this.onTap,
+    this.children,
+  }) : isDivider = false;
+
+  const AppContextMenuEntry.divider()
+      : label = null,
+        icon = null,
+        enabled = false,
+        isDivider = true,
+        isDestructive = false,
+        onTap = null,
+        children = null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AppPopupMenuButton — כפתור שפותח תפריט
+// ═══════════════════════════════════════════════════════════════════════════
+
 class AppPopupMenuButton<T> extends StatefulWidget {
   final List<AppMenuEntry<T>>? entries;
   final List<PopupMenuEntry<T>> Function(BuildContext context)? itemBuilder;
@@ -33,6 +75,7 @@ class AppPopupMenuButton<T> extends StatefulWidget {
   final PopupMenuPosition position;
   final Offset offset;
   final bool enabled;
+  final T? initialValue;
 
   const AppPopupMenuButton({
     super.key,
@@ -47,6 +90,7 @@ class AppPopupMenuButton<T> extends StatefulWidget {
     this.position = PopupMenuPosition.under,
     this.offset = const Offset(0, 4),
     this.enabled = true,
+    this.initialValue,
   });
 
   @override
@@ -86,21 +130,10 @@ class _AppPopupMenuButtonState<T> extends State<AppPopupMenuButton<T>> {
                 context,
                 entry,
                 metrics,
-                null,
+                widget.initialValue,
               ),
             )
             .toList();
-  }
-
-  double _estimateMenuHeight(
-    List<PopupMenuEntry<T>> items,
-    AppMenuMetrics metrics,
-  ) {
-    return items.fold<double>(
-          metrics.menuPadding.vertical,
-          (sum, item) => sum + item.height,
-        ) +
-        8;
   }
 
   Future<void> _showAdaptiveMenu() async {
@@ -108,42 +141,12 @@ class _AppPopupMenuButtonState<T> extends State<AppPopupMenuButton<T>> {
     final anchorContext = _anchorKey.currentContext;
     if (anchorContext == null) return;
 
-    final metrics = Theme.of(context).extension<AppMenuMetrics>() ??
-        AppMenuMetrics.create(compactMenus: false);
-    final items = _buildItems(context, metrics);
-    if (items.isEmpty) return;
-
-    final renderBox = anchorContext.findRenderObject() as RenderBox;
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-    final targetRect = MatrixUtils.transformRect(
-      renderBox.getTransformTo(overlay),
-      Offset.zero & renderBox.size,
-    );
-
-    final menuHeight = _estimateMenuHeight(items, metrics);
-    final spaceAbove = targetRect.top;
-    final spaceBelow = overlay.size.height - targetRect.bottom;
-    final preferBelow = widget.position == PopupMenuPosition.under;
-    final shouldOpenBelow = preferBelow
-        ? (spaceBelow >= menuHeight || spaceBelow >= spaceAbove)
-        : !(spaceAbove >= menuHeight || spaceAbove >= spaceBelow);
-
-    final anchorTop = shouldOpenBelow
-        ? targetRect.bottom + widget.offset.dy
-        : (targetRect.top - menuHeight - widget.offset.dy).clamp(
-            0.0,
-            overlay.size.height,
-          );
-
-    final anchorRect = RelativeRect.fromRect(
-      Rect.fromLTWH(targetRect.left, anchorTop, targetRect.width, 0),
-      Offset.zero & overlay.size,
-    );
-
-    final selected = await showMenu<T>(
+    final selected = await showAnchoredAppMenu<T>(
       context: context,
-      position: anchorRect,
-      items: items,
+      anchorContext: anchorContext,
+      itemsBuilder: (metrics) => _buildItems(context, metrics),
+      position: widget.position,
+      offset: widget.offset,
     );
 
     if (selected != null) {
@@ -199,71 +202,281 @@ class _AppPopupMenuButtonState<T> extends State<AppPopupMenuButton<T>> {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// showAnchoredAppMenu — פתיחת תפריט עוגן לרכיב קיים
+// ═══════════════════════════════════════════════════════════════════════════
+
+Future<T?> showAnchoredAppMenu<T>({
+  required BuildContext context,
+  required BuildContext anchorContext,
+  required List<PopupMenuEntry<T>> Function(AppMenuMetrics metrics)
+      itemsBuilder,
+  PopupMenuPosition position = PopupMenuPosition.under,
+  Offset offset = const Offset(0, 4),
+}) async {
+  final metrics = Theme.of(context).extension<AppMenuMetrics>() ??
+      AppMenuMetrics.create(compactMenus: false);
+  final items = itemsBuilder(metrics);
+  if (items.isEmpty) return null;
+
+  final renderBox = anchorContext.findRenderObject() as RenderBox;
+  final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+  final targetRect = MatrixUtils.transformRect(
+    renderBox.getTransformTo(overlay),
+    Offset.zero & renderBox.size,
+  );
+
+  final menuHeight = items.fold<double>(
+        metrics.menuPadding.vertical,
+        (sum, item) => sum + item.height,
+      ) +
+      8;
+  final spaceAbove = targetRect.top;
+  final spaceBelow = overlay.size.height - targetRect.bottom;
+  final preferBelow = position == PopupMenuPosition.under;
+  final shouldOpenBelow = preferBelow
+      ? (spaceBelow >= menuHeight || spaceBelow >= spaceAbove)
+      : !(spaceAbove >= menuHeight || spaceAbove >= spaceBelow);
+
+  final anchorTop = shouldOpenBelow
+      ? targetRect.bottom + offset.dy
+      : (targetRect.top - menuHeight - offset.dy).clamp(
+          0.0,
+          overlay.size.height,
+        );
+
+  final anchorRect = RelativeRect.fromRect(
+    Rect.fromLTWH(targetRect.left, anchorTop, targetRect.width, 0),
+    Offset.zero & overlay.size,
+  );
+
+  return showMenu<T>(
+    context: context,
+    position: anchorRect,
+    items: items,
+    // מינימום רוחב תואם רוחב הטריגר — סעיף 4
+    constraints: BoxConstraints(minWidth: targetRect.width),
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// _buildAppMenuRowContent — בניית שורת תוכן בתפריט
+//
+// שינויים:
+// • הרקע הנבחר ממלא שורה שלמה (ללא borderRadius, ללא גבול)
+// • סימן ✓ תמיד מופיע לפריט נבחר
+// ═══════════════════════════════════════════════════════════════════════════
+
+Widget _buildAppMenuRowContent(
+  BuildContext context,
+  AppMenuMetrics metrics, {
+  required String label,
+  IconData? icon,
+  Widget? trailing,
+  bool isSelected = false,
+  bool isDestructive = false,
+}) {
+  final colorScheme = Theme.of(context).colorScheme;
+  // M3: selectedContainer = primaryContainer (ללא גבול, ממלא שורה שלמה)
+  final selectedBackground =
+      colorScheme.primaryContainer.withValues(alpha: 0.95);
+  final foregroundColor = isDestructive
+      ? colorScheme.error
+      : isSelected
+          ? colorScheme.onPrimaryContainer
+          : colorScheme.onSurface;
+
+  return Container(
+    constraints: BoxConstraints(
+      minWidth: metrics.menuMinWidth,
+      minHeight: metrics.itemHeight,
+    ),
+    // צבע מלא שורה — ללא עיגול פינות וללא גבול
+    color: isSelected ? selectedBackground : null,
+    padding: metrics.itemPadding,
+    alignment: AlignmentDirectional.centerStart,
+    child: Row(
+      mainAxisSize: MainAxisSize.max,
+      children: [
+        if (icon != null) ...[
+          Icon(icon, size: metrics.iconSize, color: foregroundColor),
+          const SizedBox(width: 8),
+        ],
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Roboto',
+              fontSize: metrics.fontSize,
+              fontWeight: isSelected ? FontWeight.w600 : metrics.itemFontWeight,
+              color: foregroundColor,
+            ),
+            overflow: TextOverflow.ellipsis,
+            textDirection: TextDirection.rtl,
+          ),
+        ),
+        // סימן ✓ לפריט נבחר (תמיד, בכל סוג תפריט)
+        if (isSelected) ...[
+          const SizedBox(width: 8),
+          Icon(
+            FluentIcons.checkmark_24_regular,
+            size: metrics.iconSize,
+            color: foregroundColor,
+          ),
+        ] else if (trailing != null) ...[
+          const SizedBox(width: 8),
+          IconTheme.merge(
+            data: IconThemeData(
+              size: metrics.iconSize,
+              color: foregroundColor,
+            ),
+            child: DefaultTextStyle.merge(
+              style: TextStyle(color: foregroundColor),
+              child: trailing,
+            ),
+          ),
+        ],
+      ],
+    ),
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// buildAppPopupMenuItem
+// ═══════════════════════════════════════════════════════════════════════════
+
 PopupMenuEntry<T> buildAppPopupMenuItem<T>(
   BuildContext context,
   AppMenuEntry<T> entry,
   AppMenuMetrics metrics,
   T? selectedValue,
 ) {
-  final colorScheme = Theme.of(context).colorScheme;
   final isSelected = selectedValue != null && entry.value == selectedValue;
-  final foregroundColor = entry.isDestructive
-      ? colorScheme.error
-      : isSelected
-          ? colorScheme.onSecondaryContainer
-          : colorScheme.onSurface;
 
   return PopupMenuItem<T>(
     value: entry.value,
     enabled: entry.enabled,
     height: metrics.itemHeight,
-    padding: metrics.itemPadding,
-    child: ConstrainedBox(
-      constraints: BoxConstraints(minWidth: metrics.menuMinWidth),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: isSelected
-              ? colorScheme.secondaryContainer.withValues(alpha: 0.95)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(metrics.itemBorderRadius),
-        ),
-        child: Row(
-          children: [
-            if (entry.icon != null) ...[
-              Icon(entry.icon, size: metrics.iconSize, color: foregroundColor),
-              const SizedBox(width: 8),
-            ],
-            Expanded(
-              child: Text(
-                entry.label,
-                style: TextStyle(
-                  fontFamily: 'Roboto',
-                  fontSize: metrics.fontSize,
-                  fontWeight:
-                      isSelected ? FontWeight.w700 : metrics.itemFontWeight,
-                  color: foregroundColor,
-                ),
-                overflow: TextOverflow.ellipsis,
-                textDirection: TextDirection.rtl,
-              ),
-            ),
-            if (isSelected) ...[
-              const SizedBox(width: 8),
-              Icon(
-                FluentIcons.checkmark_24_regular,
-                size: metrics.iconSize,
-                color: foregroundColor,
-              ),
-            ] else if (entry.trailing != null) ...[
-              const SizedBox(width: 8),
-              entry.trailing!,
-            ],
-          ],
-        ),
+    // padding: EdgeInsets.zero — הריפוד מנוהל ב-_buildAppMenuRowContent
+    // כדי שהצבע הנבחר יכסה שורה שלמה
+    padding: EdgeInsets.zero,
+    child: _buildAppMenuRowContent(
+      context,
+      metrics,
+      label: entry.label,
+      icon: entry.icon,
+      trailing: entry.trailing,
+      isSelected: isSelected,
+      isDestructive: entry.isDestructive,
+    ),
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// buildAppCustomPopupMenuItem
+// ═══════════════════════════════════════════════════════════════════════════
+
+PopupMenuEntry<T> buildAppCustomPopupMenuItem<T>({
+  required BuildContext context,
+  required AppMenuMetrics metrics,
+  required Widget child,
+  bool enabled = false,
+  double? height,
+  EdgeInsets padding = EdgeInsets.zero,
+}) {
+  return PopupMenuItem<T>(
+    enabled: enabled,
+    height: height ?? metrics.itemHeight,
+    padding: padding,
+    child: child,
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// buildAppSubmenuItemStyle
+// ═══════════════════════════════════════════════════════════════════════════
+
+ButtonStyle buildAppSubmenuItemStyle(
+  BuildContext context,
+  AppMenuMetrics metrics,
+) {
+  final colorScheme = Theme.of(context).colorScheme;
+  return ButtonStyle(
+    padding: WidgetStatePropertyAll(metrics.itemPadding),
+    minimumSize:
+        WidgetStatePropertyAll(Size(metrics.menuMinWidth, metrics.itemHeight)),
+    visualDensity: metrics.visualDensity,
+    shape: WidgetStatePropertyAll(
+      RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(metrics.itemBorderRadius),
+      ),
+    ),
+    alignment: Alignment.centerRight,
+    textStyle: WidgetStatePropertyAll(
+      TextStyle(
+        fontFamily: 'Roboto',
+        fontSize: metrics.fontSize,
+        fontWeight: metrics.itemFontWeight,
+      ),
+    ),
+    foregroundColor: WidgetStateProperty.resolveWith((states) {
+      if (states.contains(WidgetState.disabled)) {
+        return colorScheme.onSurface.withValues(alpha: 0.38);
+      }
+      return colorScheme.onSurface;
+    }),
+    iconColor: WidgetStateProperty.resolveWith((states) {
+      if (states.contains(WidgetState.disabled)) {
+        return colorScheme.onSurface.withValues(alpha: 0.38);
+      }
+      return colorScheme.onSurface;
+    }),
+    overlayColor: WidgetStateProperty.resolveWith((states) {
+      if (states.contains(WidgetState.hovered) ||
+          states.contains(WidgetState.focused)) {
+        return colorScheme.onSurface.withValues(alpha: 0.08);
+      }
+      if (states.contains(WidgetState.pressed)) {
+        return colorScheme.onSurface.withValues(alpha: 0.12);
+      }
+      return null;
+    }),
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// buildAppSubmenuPopupMenuItem
+// ═══════════════════════════════════════════════════════════════════════════
+
+PopupMenuEntry<T> buildAppSubmenuPopupMenuItem<T>({
+  required BuildContext context,
+  required AppMenuMetrics metrics,
+  required String label,
+  IconData? icon,
+  required List<Widget> menuChildren,
+}) {
+  return buildAppCustomPopupMenuItem<T>(
+    context: context,
+    metrics: metrics,
+    child: SubmenuButton(
+      menuChildren: menuChildren,
+      style: buildAppSubmenuItemStyle(context, metrics),
+      menuStyle: const MenuStyle(
+        alignment: AlignmentDirectional(-1.0, -1.0),
+      ),
+      child: _buildAppMenuRowContent(
+        context,
+        metrics,
+        label: label,
+        icon: icon,
       ),
     ),
   );
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// showAppMenu — הצגת תפריט במיקום מוחלט
+// ═══════════════════════════════════════════════════════════════════════════
 
 Future<T?> showAppMenu<T>({
   required BuildContext context,
@@ -282,6 +495,291 @@ Future<T?> showAppMenu<T>({
         .toList(),
   );
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AppContextMenuRegion — תפריט הקשר (right-click) בסגנון האפליקציה
+//
+// שימוש:
+//   AppContextMenuRegion(
+//     menuBuilder: (context) => [
+//       AppContextMenuEntry(label: 'העתק', icon: FluentIcons.copy_24_regular, onTap: ...),
+//       const AppContextMenuEntry.divider(),
+//       AppContextMenuEntry(
+//         label: 'מפרשים',
+//         icon: FluentIcons.book_24_regular,
+//         children: [...],
+//       ),
+//     ],
+//     child: myWidget,
+//   )
+// ═══════════════════════════════════════════════════════════════════════════
+
+class AppContextMenuRegion extends StatelessWidget {
+  final Widget child;
+  final List<AppContextMenuEntry> Function(BuildContext) menuBuilder;
+
+  const AppContextMenuRegion({
+    super.key,
+    required this.child,
+    required this.menuBuilder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (event) {
+        if (event.buttons == 2) {
+          // Secondary mouse button (right-click)
+          _showContextMenu(context, event.position);
+        }
+      },
+      child: child,
+    );
+  }
+
+  Future<void> _showContextMenu(
+      BuildContext context, Offset globalPosition) async {
+    final entries = menuBuilder(context);
+    if (entries.isEmpty) return;
+
+    final metrics = Theme.of(context).extension<AppMenuMetrics>() ??
+        AppMenuMetrics.create(compactMenus: false);
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+
+    await showMenu<_ContextMenuAction>(
+      context: context,
+      position: RelativeRect.fromRect(
+        globalPosition & const Size(1, 1),
+        Offset.zero & overlay.size,
+      ),
+      items: _buildMenuItems(context, entries, metrics),
+    ).then((action) => action?.call());
+  }
+
+  List<PopupMenuEntry<_ContextMenuAction>> _buildMenuItems(
+    BuildContext context,
+    List<AppContextMenuEntry> entries,
+    AppMenuMetrics metrics,
+  ) {
+    // סינון: לא להתחיל/לסיים בהפרד, ולא שני מפרידים רצופים
+    final normalized = _normalizeEntries(entries);
+    return normalized.map((entry) {
+      if (entry.isDivider) {
+        return const PopupMenuDivider();
+      }
+      if (entry.children != null && entry.children!.isNotEmpty) {
+        return _buildSubmenuItem(context, entry, metrics);
+      }
+      return _buildMenuItem(context, entry, metrics);
+    }).toList();
+  }
+
+  List<AppContextMenuEntry> _normalizeEntries(
+      List<AppContextMenuEntry> entries) {
+    final result = <AppContextMenuEntry>[];
+    for (final e in entries) {
+      if (e.isDivider) {
+        if (result.isEmpty || result.last.isDivider) continue;
+        result.add(e);
+      } else {
+        result.add(e);
+      }
+    }
+    while (result.isNotEmpty && result.last.isDivider) {
+      result.removeLast();
+    }
+    return result;
+  }
+
+  PopupMenuEntry<_ContextMenuAction> _buildMenuItem(
+    BuildContext context,
+    AppContextMenuEntry entry,
+    AppMenuMetrics metrics,
+  ) {
+    return PopupMenuItem<_ContextMenuAction>(
+      value: entry.onTap,
+      enabled: entry.enabled,
+      height: metrics.itemHeight,
+      padding: EdgeInsets.zero,
+      child: _buildAppMenuRowContent(
+        context,
+        metrics,
+        label: entry.label ?? '',
+        icon: entry.icon,
+        isDestructive: entry.isDestructive,
+      ),
+    );
+  }
+
+  PopupMenuEntry<_ContextMenuAction> _buildSubmenuItem(
+    BuildContext context,
+    AppContextMenuEntry entry,
+    AppMenuMetrics metrics,
+  ) {
+    final subChildren = entry.children!
+        .where((c) => !c.isDivider)
+        .map((child) => MenuItemButton(
+              leadingIcon: child.icon != null
+                  ? Icon(child.icon, size: metrics.iconSize)
+                  : null,
+              style: buildAppSubmenuItemStyle(context, metrics),
+              onPressed: child.enabled ? child.onTap : null,
+              child: Text(
+                child.label ?? '',
+                textDirection: TextDirection.rtl,
+              ),
+            ))
+        .toList();
+
+    return buildAppCustomPopupMenuItem<_ContextMenuAction>(
+      context: context,
+      metrics: metrics,
+      height: metrics.itemHeight,
+      child: SubmenuButton(
+        menuChildren: subChildren,
+        style: buildAppSubmenuItemStyle(context, metrics),
+        menuStyle: const MenuStyle(
+          // פתיחה בצד — לא מעל התפריט הראשי
+          alignment: AlignmentDirectional(-1.0, -1.0),
+        ),
+        child: _buildAppMenuRowContent(
+          context,
+          metrics,
+          label: entry.label ?? '',
+          icon: entry.icon,
+        ),
+      ),
+    );
+  }
+}
+
+/// טיפוס פנימי — callback של פריט תפריט הקשר
+typedef _ContextMenuAction = VoidCallback?;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AppSelectionField — שדה-בחירה (trigger לתפריט נפתח)
+//
+// עיצוב: זהה ל-OtzariaSearchField אך בחצי הגובה (pill ~20px radius, 40px גובה)
+// • ללא גבול כשלא מסומן
+// • גבול + fill בעת hover / selected
+// ═══════════════════════════════════════════════════════════════════════════
+
+class AppSelectionField extends StatefulWidget {
+  final Widget child;
+  final InputDecoration? decoration;
+  final bool enabled;
+  final VoidCallback? onTap;
+  final Widget? leading;
+  final bool isSelected;
+
+  const AppSelectionField({
+    super.key,
+    required this.child,
+    this.decoration,
+    this.enabled = true,
+    this.onTap,
+    this.leading,
+    this.isSelected = false,
+  });
+
+  @override
+  State<AppSelectionField> createState() => _AppSelectionFieldState();
+}
+
+class _AppSelectionFieldState extends State<AppSelectionField> {
+  bool _isHovering = false;
+
+  // ── קבועי עיצוב (חצי מ-OtzariaSearchField) ────────────────────────────
+  static const double _radius = 20.0; // OtzariaSearchField = 28
+  static const double _fillAlphaIdle = 0.07; // onSurface × 7%
+  static const double _fillAlphaHover = 0.10;
+  static const double _fillAlphaSelected = 0.12; // primary × 12%
+  static const double _borderWidthFocus = 1.4;
+  static const Duration _animDuration = Duration(milliseconds: 120);
+
+  BoxDecoration _buildFieldDecoration(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    if (widget.isSelected && widget.enabled) {
+      return BoxDecoration(
+        color: cs.primary.withValues(alpha: _fillAlphaSelected),
+        borderRadius: BorderRadius.circular(_radius),
+        border: Border.all(
+          color: cs.primary,
+          width: _borderWidthFocus,
+        ),
+      );
+    }
+    if (_isHovering && widget.enabled) {
+      return BoxDecoration(
+        color: cs.onSurface.withValues(alpha: _fillAlphaHover),
+        borderRadius: BorderRadius.circular(_radius),
+        border: Border.all(
+          color: cs.primary.withValues(alpha: 0.40),
+          width: 1.0,
+        ),
+      );
+    }
+    return BoxDecoration(
+      color: cs.onSurface
+          .withValues(alpha: widget.enabled ? _fillAlphaIdle : 0.04),
+      borderRadius: BorderRadius.circular(_radius),
+      // ללא גבול במצב רגיל — כמו OtzariaSearchField
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final contentPadding = widget.decoration?.contentPadding ??
+        const EdgeInsets.symmetric(horizontal: 10, vertical: 5);
+
+    final content = Padding(
+      padding: contentPadding,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (widget.leading != null) ...[
+            widget.leading!,
+            const SizedBox(width: 8),
+          ],
+          Flexible(child: widget.child),
+          // ללא חץ — המראה הוויזואלי של הכרטיס מספיק כ-affordance
+        ],
+      ),
+    );
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovering = true),
+      onExit: (_) => setState(() => _isHovering = false),
+      cursor:
+          widget.enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      child: AnimatedContainer(
+        duration: _animDuration,
+        curve: Curves.easeOut,
+        decoration: _buildFieldDecoration(context),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: widget.enabled ? widget.onTap : null,
+            borderRadius: BorderRadius.circular(_radius),
+            hoverColor: Colors.transparent,
+            splashColor: Colors.transparent,
+            child: content,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AppDropdownField — שדה בחירה עם תפריט נפתח
+//
+// • enableSearch: false → AppSelectionField + popup menu
+// • enableSearch: true  → DropdownMenu עם חיפוש + auto-select בפתיחה
+//   ההבדל היחיד: האם ניתן להקליד ולסנן
+// ═══════════════════════════════════════════════════════════════════════════
 
 class AppDropdownField<T> extends StatefulWidget {
   final T? value;
@@ -344,7 +842,18 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
   }
 
   void _handleFocusChanged() {
-    if (_focusNode.hasFocus) return;
+    if (_focusNode.hasFocus) {
+      // בחירת כל הטקסט אוטומטית בפתיחה — סעיף 6
+      Future.microtask(() {
+        if (mounted && _focusNode.hasFocus) {
+          _controller.selection = TextSelection(
+            baseOffset: 0,
+            extentOffset: _controller.text.length,
+          );
+        }
+      });
+      return;
+    }
     if (widget.enableSearch && _controller.text != _selectedLabel) {
       _restoreSelectedText();
     }
@@ -361,9 +870,7 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
   String get _selectedLabel {
     if (widget.value == null) return '';
     for (final entry in widget.entries) {
-      if (entry.value == widget.value) {
-        return entry.label;
-      }
+      if (entry.value == widget.value) return entry.label;
     }
     if (widget.labelBuilder != null) {
       return widget.labelBuilder!(widget.value as T);
@@ -374,9 +881,7 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
   AppMenuEntry<T>? get _selectedEntry {
     if (widget.value == null) return null;
     for (final entry in widget.entries) {
-      if (entry.value == widget.value) {
-        return entry;
-      }
+      if (entry.value == widget.value) return entry;
     }
     return null;
   }
@@ -386,44 +891,33 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
     AppMenuMetrics metrics,
   ) {
     final cs = Theme.of(context).colorScheme;
-    final decoration = widget.decoration;
-    final radius = decoration?.border is OutlineInputBorder
-        ? ((decoration!.border as OutlineInputBorder)
-                .borderRadius
-                .resolve(Directionality.of(context))
-                .topLeft
-                .x)
-            .clamp(12.0, 28.0)
-        : 20.0;
-    final fillColor = decoration?.fillColor ??
-        cs.onSurface.withValues(alpha: widget.enabled ? 0.07 : 0.04);
-    final contentPadding = decoration?.contentPadding ??
-        const EdgeInsets.symmetric(horizontal: 12, vertical: 8);
-    final enabledBorder = decoration?.enabledBorder ??
-        OutlineInputBorder(
-          borderRadius: BorderRadius.circular(radius),
-          borderSide: BorderSide(
-            color: cs.outlineVariant.withValues(alpha: 0.35),
-          ),
-        );
-    final focusedBorder = decoration?.focusedBorder ??
-        OutlineInputBorder(
-          borderRadius: BorderRadius.circular(radius),
-          borderSide: BorderSide(
-            color: cs.primary.withValues(alpha: 0.8),
-            width: 1.4,
-          ),
-        );
+    const radius = 20.0;
 
     return InputDecorationTheme(
-      filled: decoration?.filled ?? true,
-      fillColor: fillColor,
-      isDense: decoration?.isDense ?? true,
-      contentPadding: contentPadding,
-      border: decoration?.border ?? enabledBorder,
-      enabledBorder: enabledBorder,
-      focusedBorder: focusedBorder,
-      disabledBorder: decoration?.disabledBorder ?? enabledBorder,
+      filled: true,
+      fillColor: cs.onSurface.withValues(alpha: widget.enabled ? 0.07 : 0.04),
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      // ללא גבול כברירת מחדל (כמו OtzariaSearchField)
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(radius),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(radius),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(radius),
+        borderSide: BorderSide(
+          color: cs.primary,
+          width: 1.4,
+        ),
+      ),
+      disabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(radius),
+        borderSide: BorderSide.none,
+      ),
       hintStyle: TextStyle(
         color: cs.onSurfaceVariant,
         fontSize: metrics.fontSize,
@@ -448,80 +942,78 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
                 ? constraints.maxWidth
                 : width;
 
+        // ── מצב ללא חיפוש: AppSelectionField + popup ──────────────────────
         if (!widget.enableSearch) {
           final selectedEntry = _selectedEntry;
-          final displayText = widget.selectedBuilder?.call(context, widget.value) ??
-              Text(
-                _selectedLabel,
-                style: TextStyle(
-                  fontFamily: 'Roboto',
-                  fontSize: metrics.fontSize,
-                  fontWeight: metrics.itemFontWeight,
-                  color: cs.onSurface,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textDirection: TextDirection.rtl,
-              );
+          final displayText =
+              widget.selectedBuilder?.call(context, widget.value) ??
+                  Text(
+                    _selectedLabel,
+                    style: TextStyle(
+                      fontFamily: 'Roboto',
+                      fontSize: metrics.fontSize,
+                      fontWeight: metrics.itemFontWeight,
+                      color: cs.onSurface,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textDirection: TextDirection.rtl,
+                  );
 
-          final field = InputDecorator(
-            isEmpty: widget.value == null,
-            isFocused: false,
-            expands: false,
-            decoration: (widget.decoration ?? const InputDecoration()).copyWith(
-              enabled: effectiveEnabled,
-              suffixIcon: Icon(
-                FluentIcons.chevron_down_24_regular,
-                size: metrics.iconSize,
-              ),
-            ),
-            child: selectedEntry?.icon == null
-                ? displayText
-                : Row(
-                    children: [
-                      Icon(
-                        selectedEntry!.icon,
-                        size: metrics.iconSize,
-                        color: cs.onSurfaceVariant,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(child: displayText),
-                    ],
-                  ),
-          );
+          final fieldContent = selectedEntry?.icon == null
+              ? displayText
+              : Row(
+                  children: [
+                    Icon(
+                      selectedEntry!.icon,
+                      size: metrics.iconSize,
+                      color: cs.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(child: displayText),
+                  ],
+                );
 
           return SizedBox(
             width: resolvedWidth,
             child: AppPopupMenuButton<T>(
               entries: widget.entries,
               enabled: effectiveEnabled,
+              initialValue: widget.value,
               onSelected: widget.onSelected == null
                   ? null
                   : (value) => widget.onSelected!(value),
-              child: SizedBox(
-                width: double.infinity,
-                child: field,
+              child: AppSelectionField(
+                enabled: effectiveEnabled,
+                decoration: widget.decoration,
+                isSelected: widget.value != null,
+                child: SizedBox(
+                  width: double.infinity,
+                  child: fieldContent,
+                ),
               ),
             ),
           );
         }
 
+        // ── מצב עם חיפוש: DropdownMenu ────────────────────────────────────
         return SizedBox(
           width: resolvedWidth,
           child: DropdownMenu<T>(
             controller: _controller,
             focusNode: _focusNode,
             enabled: effectiveEnabled,
-            enableFilter: widget.enableSearch,
-            enableSearch: widget.enableSearch,
-            requestFocusOnTap: widget.enableSearch,
+            enableFilter: true,
+            enableSearch: true,
+            requestFocusOnTap:
+                true, // auto-select בפתיחה (דרך _handleFocusChanged)
             initialSelection: widget.value,
             menuHeight: (metrics.itemHeight * 8) + metrics.menuPadding.vertical,
             width: resolvedWidth,
             textStyle: TextStyle(
               fontFamily: 'Roboto',
               fontSize: metrics.fontSize,
-              fontWeight: FontWeight.w400,
+              fontWeight: metrics.itemFontWeight,
               color: cs.onSurface,
             ),
             inputDecorationTheme: _buildDecorationTheme(context, metrics),
@@ -533,54 +1025,49 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
                   )
                 : widget.decoration?.label,
             leadingIcon: null,
-            trailingIcon: Icon(
-              FluentIcons.chevron_down_24_regular,
-              size: metrics.iconSize,
-            ),
-            selectedTrailingIcon: Icon(
-              FluentIcons.chevron_up_24_regular,
-              size: metrics.iconSize,
-            ),
-            dropdownMenuEntries: widget.entries
-                .map(
-                  (entry) => DropdownMenuEntry<T>(
-                    value: entry.value,
-                    label: entry.label,
-                    enabled: entry.enabled,
-                    leadingIcon: entry.icon != null
-                        ? Icon(entry.icon, size: metrics.iconSize)
-                        : null,
-                    trailingIcon: entry.value == widget.value
-                        ? Icon(
-                            FluentIcons.checkmark_24_regular,
-                            size: metrics.iconSize,
-                            color: cs.onSecondaryContainer,
-                          )
-                        : entry.trailing,
-                    style: entry.value == widget.value
-                        ? ButtonStyle(
-                            foregroundColor: WidgetStatePropertyAll(
-                              cs.onSecondaryContainer,
-                            ),
-                            textStyle: const WidgetStatePropertyAll(
-                              TextStyle(fontWeight: FontWeight.w700),
-                            ),
-                            iconColor: WidgetStatePropertyAll(
-                              cs.onSecondaryContainer,
-                            ),
-                            backgroundColor: WidgetStatePropertyAll(
-                              cs.secondaryContainer.withValues(alpha: 0.95),
-                            ),
-                          )
-                        : null,
-                  ),
-                )
-                .toList(),
+            trailingIcon: const SizedBox.shrink(),
+            selectedTrailingIcon: const SizedBox.shrink(),
+            dropdownMenuEntries: widget.entries.map((entry) {
+              final isSelected = entry.value == widget.value;
+              return DropdownMenuEntry<T>(
+                value: entry.value,
+                label: entry.label,
+                enabled: entry.enabled,
+                leadingIcon: entry.icon != null
+                    ? Icon(entry.icon, size: metrics.iconSize)
+                    : null,
+                // סימן ✓ לפריט נבחר
+                trailingIcon: isSelected
+                    ? Icon(
+                        FluentIcons.checkmark_24_regular,
+                        size: metrics.iconSize,
+                        color: cs.onPrimaryContainer,
+                      )
+                    : entry.trailing,
+                style: isSelected
+                    ? ButtonStyle(
+                        // צבע מלא שורה — ללא גבול
+                        backgroundColor: WidgetStatePropertyAll(
+                          cs.primaryContainer.withValues(alpha: 0.95),
+                        ),
+                        foregroundColor: WidgetStatePropertyAll(
+                          cs.onPrimaryContainer,
+                        ),
+                        textStyle: const WidgetStatePropertyAll(
+                          TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        iconColor: WidgetStatePropertyAll(
+                          cs.onPrimaryContainer,
+                        ),
+                        // ללא גבול סביב הפריט הנבחר
+                        side: const WidgetStatePropertyAll(BorderSide.none),
+                      )
+                    : null,
+              );
+            }).toList(),
             onSelected: (value) {
               if (value == null) {
-                if (widget.enableSearch) {
-                  _restoreSelectedText();
-                }
+                if (widget.enableSearch) _restoreSelectedText();
                 return;
               }
               widget.onSelected?.call(value);

@@ -203,76 +203,41 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
               // אם יש submenuItems, נבנה תת-תפריט
               if (action.submenuItems != null &&
                   action.submenuItems!.isNotEmpty) {
-                return PopupMenuItem<ActionButtonData>(
-                  enabled: false,
-                  height: menuMetrics.itemHeight,
-                  padding: EdgeInsets.zero,
-                  child: SubmenuButton(
-                    menuChildren: action.submenuItems!.map((subAction) {
-                      return MenuItemButton(
-                        leadingIcon: subAction.icon != null
-                            ? Icon(subAction.icon, size: menuMetrics.iconSize)
-                            : null,
-                        style: ButtonStyle(
-                          padding: WidgetStatePropertyAll(
-                            menuMetrics.itemPadding,
-                          ),
-                          minimumSize: WidgetStatePropertyAll(
-                            Size(0, menuMetrics.itemHeight),
-                          ),
-                          visualDensity: menuMetrics.visualDensity,
-                          shape: WidgetStatePropertyAll(
-                            RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(
-                                menuMetrics.itemBorderRadius,
-                              ),
-                            ),
-                          ),
-                        ),
-                        onPressed: () {
-                          Navigator.of(context).pop(); // סוגר את התפריט הראשי
-                          subAction.onPressed?.call();
-                        },
-                        child: Text(subAction.tooltip ?? ''),
-                      );
-                    }).toList(),
-                    child: Padding(
-                      padding: menuMetrics.itemPadding,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (action.icon != null) ...[
-                            Icon(action.icon, size: menuMetrics.iconSize),
-                            const SizedBox(width: 8),
-                          ],
-                          Expanded(child: Text(action.tooltip ?? '')),
-                          Icon(
-                            FluentIcons.arrow_left_24_regular,
-                            size: menuMetrics.iconSize,
-                          ),
-                        ],
+                return buildAppSubmenuPopupMenuItem<ActionButtonData>(
+                  context: context,
+                  metrics: menuMetrics,
+                  label: action.tooltip ?? '',
+                  icon: action.icon,
+                  menuChildren: action.submenuItems!.map((subAction) {
+                    return MenuItemButton(
+                      leadingIcon: subAction.icon != null
+                          ? Icon(subAction.icon, size: menuMetrics.iconSize)
+                          : null,
+                      style: buildAppSubmenuItemStyle(context, menuMetrics),
+                      onPressed: () {
+                        Navigator.of(context).pop(); // סוגר את התפריט הראשי
+                        subAction.onPressed?.call();
+                      },
+                      child: Text(
+                        subAction.tooltip ?? '',
+                        textDirection: TextDirection.rtl,
                       ),
-                    ),
-                  ),
+                    );
+                  }).toList(),
                 );
               }
 
               // פריט רגיל ללא submenu
-              return PopupMenuItem<ActionButtonData>(
-                value: action,
-                enabled: action.onPressed != null,
-                height: menuMetrics.itemHeight,
-                padding: menuMetrics.itemPadding,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (action.icon != null) ...[
-                      Icon(action.icon, size: menuMetrics.iconSize),
-                      const SizedBox(width: 8),
-                    ],
-                    Text(action.tooltip ?? ''),
-                  ],
+              return buildAppPopupMenuItem<ActionButtonData>(
+                context,
+                AppMenuEntry<ActionButtonData>(
+                  value: action,
+                  label: action.tooltip ?? '',
+                  icon: action.icon,
+                  enabled: action.onPressed != null,
                 ),
+                menuMetrics,
+                null,
               );
             }).toList();
           },

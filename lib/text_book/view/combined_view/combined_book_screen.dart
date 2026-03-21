@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_context_menu/flutter_context_menu.dart' as ctx;
+import 'package:otzaria/widgets/app_menu.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
@@ -253,22 +253,20 @@ class _CombinedViewState extends State<CombinedView> {
     }
   }
 
-  /// helper קטן שמחזיר רשימת MenuEntry מקבוצה אחת, כולל כפתור הצג/הסתר הכל
-  List<ctx.MenuItem<Object>> _buildGroup(
+  /// helper קטן שמחזיר רשימת AppContextMenuEntry מקבוצה אחת
+  List<AppContextMenuEntry> _buildGroup(
     String groupName,
     List<String>? group,
     TextBookLoaded st,
   ) {
     if (group == null || group.isEmpty) return const [];
-
     final bool groupActive =
         group.every((title) => st.activeCommentators.contains(title));
-
     return [
-      ctx.MenuItem<Object>(
-        label: Text('הצג את כל $groupName'),
-        icon: groupActive ? const Icon(FluentIcons.checkmark_24_regular) : null,
-        onSelected: (_) {
+      AppContextMenuEntry(
+        label: 'הצג את כל $groupName',
+        icon: groupActive ? FluentIcons.checkmark_24_regular : null,
+        onTap: () {
           final current = List<String>.from(st.activeCommentators);
           final isAdding = !groupActive;
           if (groupActive) {
@@ -284,10 +282,10 @@ class _CombinedViewState extends State<CombinedView> {
       ),
       ...group.map((title) {
         final bool isActive = st.activeCommentators.contains(title);
-        return ctx.MenuItem<Object>(
-          label: Text(title),
-          icon: isActive ? const Icon(FluentIcons.checkmark_24_regular) : null,
-          onSelected: (_) {
+        return AppContextMenuEntry(
+          label: title,
+          icon: isActive ? FluentIcons.checkmark_24_regular : null,
+          onTap: () {
             final current = List<String>.from(st.activeCommentators);
             final isAdding = !current.contains(title);
             current.contains(title)
@@ -301,27 +299,21 @@ class _CombinedViewState extends State<CombinedView> {
     ];
   }
 
-  // בניית תפריט קונטקסט "מקובע" לאינדקס ספציפי של פסקה
-  ctx.ContextMenu<Object> _buildContextMenuForIndex(TextBookLoaded state,
+  // בניית תפריט קונטקסט לאינדקס ספציפי של פסקה
+  List<AppContextMenuEntry> _buildContextMenuForIndex(TextBookLoaded state,
       int paragraphIndex, BuildContext menuContext, String? selectedText) {
-    // אם זה מצב תצוגה מקדימה, החזר תפריט מצומצם
+    // מצב תצוגה מקדימה — תפריט מינימלי
     if (widget.isPreviewMode) {
-      return ctx.ContextMenu<Object>(
-        entries: <ctx.ContextMenuEntry<Object>>[
-          ctx.MenuItem<Object>(
-            label: const Text('העתק'),
-            icon: const Icon(FluentIcons.copy_24_regular),
-            enabled: selectedText != null && selectedText.trim().isNotEmpty,
-            onSelected: (_) => _copyFormattedText(),
-          ),
-        ],
-      );
+      return [
+        AppContextMenuEntry(
+          label: 'העתק',
+          icon: FluentIcons.copy_24_regular,
+          enabled: selectedText != null && selectedText.trim().isNotEmpty,
+          onTap: _copyFormattedText,
+        ),
+      ];
     }
 
-    // 1. קבלת מידע על גודל המסך
-    final screenHeight = MediaQuery.of(context).size.height;
-
-    // 2. זיהוי מפרשים שכבר שויכו לקבוצה
     final groups = state.commentatorGroups;
     final tanachGroup = CommentatorGroup.groupByTitle(groups, 'תורה שבכתב');
     final chazalGroup = CommentatorGroup.groupByTitle(groups, 'חז"ל');
@@ -330,214 +322,133 @@ class _CombinedViewState extends State<CombinedView> {
     final modernGroup = CommentatorGroup.groupByTitle(groups, 'מחברי זמננו');
     final ungroupedGroup = CommentatorGroup.groupByTitle(groups, 'שאר מפרשים');
 
-    // 3. יצירת רשימה של מפרשים שלא שויכו לאף קבוצה
-    final List<String> ungrouped = ungroupedGroup.commentators;
+    final allActive = state.activeCommentators
+        .toSet()
+        .containsAll(state.availableCommentators);
 
-    return ctx.ContextMenu<Object>(
-      maxHeight: screenHeight * 0.9,
-      entries: <ctx.ContextMenuEntry<Object>>[
-        ctx.MenuItem<Object>(
-            label: const Text('חיפוש'),
-            icon: const Icon(FluentIcons.search_24_regular),
-            onSelected: (_) =>
-                widget.openLeftPaneTab(1, searchText: selectedText)),
-        ctx.MenuItem<Object>.submenu(
-          label: const Text('מפרשים'),
-          icon: const Icon(FluentIcons.book_24_regular),
-          enabled: state.availableCommentators.isNotEmpty,
-          items: <ctx.ContextMenuEntry<Object>>[
-            ctx.MenuItem<Object>(
-              label: const Text('הצג את כל המפרשים'),
-              icon: state.activeCommentators
-                      .toSet()
-                      .containsAll(state.availableCommentators)
-                  ? const Icon(FluentIcons.checkmark_24_regular)
-                  : null,
-              onSelected: (_) {
-                final allActive = state.activeCommentators
-                    .toSet()
-                    .containsAll(state.availableCommentators);
-                final isAdding = !allActive;
-                context.read<TextBookBloc>().add(
-                      UpdateCommentators(
-                        allActive
-                            ? <String>[]
-                            : List<String>.from(state.availableCommentators),
-                      ),
-                    );
-                _openCommentatorsPane(isAdding: isAdding);
-              },
-            ),
-            const ctx.MenuDivider(),
-            ..._buildGroup(tanachGroup.title, tanachGroup.commentators, state),
-            if (tanachGroup.commentators.isNotEmpty &&
-                chazalGroup.commentators.isNotEmpty)
-              const ctx.MenuDivider(),
-            ..._buildGroup(chazalGroup.title, chazalGroup.commentators, state),
-            if ((chazalGroup.commentators.isNotEmpty &&
-                    rishonimGroup.commentators.isNotEmpty) ||
-                (chazalGroup.commentators.isEmpty &&
-                    tanachGroup.commentators.isNotEmpty &&
-                    rishonimGroup.commentators.isNotEmpty))
-              const ctx.MenuDivider(),
-            ..._buildGroup(
-                rishonimGroup.title, rishonimGroup.commentators, state),
-            if ((rishonimGroup.commentators.isNotEmpty &&
-                    acharonimGroup.commentators.isNotEmpty) ||
-                (rishonimGroup.commentators.isEmpty &&
-                    chazalGroup.commentators.isNotEmpty &&
-                    acharonimGroup.commentators.isNotEmpty) ||
-                (rishonimGroup.commentators.isEmpty &&
-                    chazalGroup.commentators.isEmpty &&
-                    tanachGroup.commentators.isNotEmpty &&
-                    acharonimGroup.commentators.isNotEmpty))
-              const ctx.MenuDivider(),
-            ..._buildGroup(
-                acharonimGroup.title, acharonimGroup.commentators, state),
-            if ((acharonimGroup.commentators.isNotEmpty &&
-                    modernGroup.commentators.isNotEmpty) ||
-                (acharonimGroup.commentators.isEmpty &&
-                    rishonimGroup.commentators.isNotEmpty &&
-                    modernGroup.commentators.isNotEmpty) ||
-                (acharonimGroup.commentators.isEmpty &&
-                    rishonimGroup.commentators.isEmpty &&
-                    chazalGroup.commentators.isNotEmpty &&
-                    modernGroup.commentators.isNotEmpty) ||
-                (acharonimGroup.commentators.isEmpty &&
-                    rishonimGroup.commentators.isEmpty &&
-                    chazalGroup.commentators.isEmpty &&
-                    tanachGroup.commentators.isNotEmpty &&
-                    modernGroup.commentators.isNotEmpty))
-              const ctx.MenuDivider(),
-            ..._buildGroup(modernGroup.title, modernGroup.commentators, state),
-            if ((tanachGroup.commentators.isNotEmpty ||
-                    chazalGroup.commentators.isNotEmpty ||
-                    rishonimGroup.commentators.isNotEmpty ||
-                    acharonimGroup.commentators.isNotEmpty ||
-                    modernGroup.commentators.isNotEmpty) &&
-                ungrouped.isNotEmpty)
-              const ctx.MenuDivider(),
-            ..._buildGroup(ungroupedGroup.title, ungrouped, state),
-          ],
-        ),
-        ctx.MenuItem<Object>.submenu(
-          label: const Text('קישורים'),
-          icon: const Icon(FluentIcons.link_24_regular),
-          enabled: state.visibleLinks.isNotEmpty,
-          items: state.visibleLinks
-              .map<ctx.ContextMenuEntry<Object>>(
-                (link) => ctx.MenuItem<Object>(
-                  label: FutureBuilder<String>(
-                    future: link.displayReference,
-                    builder: (context, snapshot) {
-                      return Text(
-                        snapshot.data ?? link.fallbackDisplayReference,
-                        textDirection: TextDirection.rtl,
-                      );
-                    },
-                  ),
-                  onSelected: (_) {
-                    widget.openBookCallback(
-                      TextBookTab(
-                        book: TextBook(
-                          title: utils.getTitleFromPath(link.path2),
-                        ),
-                        index: link.index2 - 1,
-                        openLeftPane:
-                            (Settings.getValue<bool>('key-pin-sidebar') ??
-                                    false) ||
-                                (Settings.getValue<bool>(
-                                        'key-default-sidebar-open') ??
-                                    false),
-                      ),
-                    );
-                  },
+    final commentatorChildren = <AppContextMenuEntry>[
+      AppContextMenuEntry(
+        label: 'הצג את כל המפרשים',
+        icon: allActive ? FluentIcons.checkmark_24_regular : null,
+        onTap: () {
+          context.read<TextBookBloc>().add(
+                UpdateCommentators(
+                  allActive
+                      ? <String>[]
+                      : List<String>.from(state.availableCommentators),
                 ),
-              )
-              .toList(),
-        ),
-        ...(() {
-          final dictionaryEntries = buildDictionaryContextMenuEntries(
-            context: context,
-            selectedText: selectedText,
-            repository: _dictionaryLookupRepository,
-          );
-          if (dictionaryEntries.isEmpty) {
-            return const <ctx.ContextMenuEntry<Object>>[];
-          }
+              );
+          _openCommentatorsPane(isAdding: !allActive);
+        },
+      ),
+      const AppContextMenuEntry.divider(),
+      ..._buildGroup(tanachGroup.title, tanachGroup.commentators, state),
+      if (tanachGroup.commentators.isNotEmpty &&
+          chazalGroup.commentators.isNotEmpty)
+        const AppContextMenuEntry.divider(),
+      ..._buildGroup(chazalGroup.title, chazalGroup.commentators, state),
+      if (chazalGroup.commentators.isNotEmpty &&
+          rishonimGroup.commentators.isNotEmpty)
+        const AppContextMenuEntry.divider(),
+      ..._buildGroup(rishonimGroup.title, rishonimGroup.commentators, state),
+      if (rishonimGroup.commentators.isNotEmpty &&
+          acharonimGroup.commentators.isNotEmpty)
+        const AppContextMenuEntry.divider(),
+      ..._buildGroup(acharonimGroup.title, acharonimGroup.commentators, state),
+      if (acharonimGroup.commentators.isNotEmpty &&
+          modernGroup.commentators.isNotEmpty)
+        const AppContextMenuEntry.divider(),
+      ..._buildGroup(modernGroup.title, modernGroup.commentators, state),
+      if ((tanachGroup.commentators.isNotEmpty ||
+              chazalGroup.commentators.isNotEmpty ||
+              rishonimGroup.commentators.isNotEmpty ||
+              acharonimGroup.commentators.isNotEmpty ||
+              modernGroup.commentators.isNotEmpty) &&
+          ungroupedGroup.commentators.isNotEmpty)
+        const AppContextMenuEntry.divider(),
+      ..._buildGroup(ungroupedGroup.title, ungroupedGroup.commentators, state),
+    ];
 
-          return <ctx.ContextMenuEntry<Object>>[
-            const ctx.MenuDivider(),
-            ...dictionaryEntries,
-          ];
-        })(),
-        const ctx.MenuDivider(),
-        // הערות אישיות
-        ctx.MenuItem<Object>(
-          label: const Text('הוסף הערה אישית '),
-          icon: const Icon(FluentIcons.note_add_24_regular),
-          onSelected: (_) => _createNoteForCurrentLine(),
-        ),
-        // דיווח על טעות בספר
-        ctx.MenuItem<Object>(
-          label: const Text('דווח על טעות בספר'),
-          icon: const Icon(FluentIcons.error_circle_24_regular),
-          onSelected: (_) => _openErrorReportDialog(selectedText ?? '',
-              fallbackLineIndex: paragraphIndex),
-        ),
-        const ctx.MenuDivider(),
-        // העתקה
-        ctx.MenuItem<Object>(
-          label: const Text('העתק'),
-          icon: const Icon(FluentIcons.copy_24_regular),
-          enabled: selectedText != null && selectedText.trim().isNotEmpty,
-          onSelected: (_) => _copyFormattedText(),
-        ),
-        ctx.MenuItem<Object>(
-          label: const Text('העתק את כל הפסקה'),
-          icon: const Icon(FluentIcons.document_copy_24_regular),
-          enabled: paragraphIndex >= 0 && paragraphIndex < widget.data.length,
-          onSelected: (_) => _copyParagraphByIndex(paragraphIndex),
-        ),
-        ctx.MenuItem<Object>(
-          label: const Text('העתק את הטקסט המוצג'),
-          icon: const Icon(FluentIcons.copy_select_24_regular),
-          onSelected: (_) => _copyVisibleText(),
-        ),
-        // [EDITING DISABLED]
-        // const ctx.MenuDivider(),
-        // // Edit paragraph option
-        // ctx.MenuItem(
-        //   label: const Text('ערוך פסקה זו'),
-        //   icon: const Icon(FluentIcons.edit_24_regular),
-        //   onSelected: (_) => _editParagraph(paragraphIndex),
-        // ),
-      ],
-    );
+    final linkChildren = state.visibleLinks
+        .map((link) => AppContextMenuEntry(
+              label: link.heRef,
+              onTap: () => widget.openBookCallback(
+                TextBookTab(
+                  book: TextBook(title: utils.getTitleFromPath(link.path2)),
+                  index: link.index2 - 1,
+                  openLeftPane: (Settings.getValue<bool>('key-pin-sidebar') ??
+                          false) ||
+                      (Settings.getValue<bool>('key-default-sidebar-open') ??
+                          false),
+                ),
+              ),
+            ))
+        .toList();
+
+    return [
+      AppContextMenuEntry(
+        label: 'חיפוש',
+        icon: FluentIcons.search_24_regular,
+        onTap: () => widget.openLeftPaneTab(1, searchText: selectedText),
+      ),
+      AppContextMenuEntry(
+        label: 'מפרשים',
+        icon: FluentIcons.book_24_regular,
+        enabled: state.availableCommentators.isNotEmpty,
+        children: commentatorChildren,
+      ),
+      AppContextMenuEntry(
+        label: 'קישורים',
+        icon: FluentIcons.link_24_regular,
+        enabled: state.visibleLinks.isNotEmpty,
+        children: linkChildren,
+      ),
+      ...(() {
+        final dictionaryEntries = buildDictionaryContextMenuEntries(
+          context: context,
+          selectedText: selectedText,
+          repository: _dictionaryLookupRepository,
+        );
+        if (dictionaryEntries.isEmpty) {
+          return const <AppContextMenuEntry>[];
+        }
+        return <AppContextMenuEntry>[
+          const AppContextMenuEntry.divider(),
+          ...dictionaryEntries,
+        ];
+      })(),
+      const AppContextMenuEntry.divider(),
+      AppContextMenuEntry(
+        label: 'הוסף הערה אישית',
+        icon: FluentIcons.note_add_24_regular,
+        onTap: _showNoteEditor,
+      ),
+      AppContextMenuEntry(
+        label: 'דווח על טעות בספר',
+        icon: FluentIcons.error_circle_24_regular,
+        onTap: () => _openErrorReportDialog(selectedText ?? ''),
+      ),
+      const AppContextMenuEntry.divider(),
+      AppContextMenuEntry(
+        label: 'העתק',
+        icon: FluentIcons.copy_24_regular,
+        enabled: selectedText != null && selectedText.trim().isNotEmpty,
+        onTap: _copyFormattedText,
+      ),
+      AppContextMenuEntry(
+        label: 'העתק את כל הפסקה',
+        icon: FluentIcons.document_copy_24_regular,
+        enabled: paragraphIndex >= 0 && paragraphIndex < widget.data.length,
+        onTap: () => _copyParagraphByIndex(paragraphIndex),
+      ),
+      AppContextMenuEntry(
+        label: 'העתק טקסט מוצג',
+        icon: FluentIcons.document_copy_24_regular,
+        onTap: _copyVisibleText,
+      ),
+    ];
   }
 
-  /// יצירת הערה לשורה הנוכחית
-  void _createNoteForCurrentLine() {
-    // לא צריך טקסט נבחר - ההערה חלה על כל השורה
-    _showNoteEditor();
-  }
-
-  /// פתיחת דיאלוג דיווח על טעות בספר
-  void _openErrorReportDialog(String selectedText, {int? fallbackLineIndex}) {
-    final state = _textBookBloc.state;
-    if (state is! TextBookLoaded) return;
-
-    ErrorReportHelper.showErrorReportDialog(
-      context: context,
-      selectedText: selectedText,
-      state: state,
-      fontSize: widget.textSize,
-      bookTitle: widget.tab.book.title,
-      savedSelectedIndex: fallbackLineIndex ?? _savedSelectedIndex.value,
-    );
-  }
-
-  /// העתקת פסקה לפי אינדקס (משתמש ב־widget.data[index] ומייצר גם HTML)
   Future<void> _copyParagraphByIndex(int index) async {
     if (index < 0 || index >= widget.data.length) return;
 
@@ -583,6 +494,21 @@ class _CombinedViewState extends State<CombinedView> {
     item.add(Formats.htmlText(_formatTextAsHtml(finalHtmlText)));
 
     await SystemClipboard.instance?.write([item]);
+  }
+
+  /// פתיחת דיאלוג דיווח על טעות בספר
+  void _openErrorReportDialog(String selectedText) {
+    final state = context.read<TextBookBloc>().state;
+    if (state is! TextBookLoaded) return;
+
+    ErrorReportHelper.showErrorReportDialog(
+      context: context,
+      selectedText: selectedText,
+      state: state,
+      fontSize: state.fontSize,
+      bookTitle: widget.tab.book.title,
+      savedSelectedIndex: _savedSelectedIndex.value,
+    );
   }
 
   /// העתקת הטקסט המוצג במסך ללוח
@@ -1216,9 +1142,9 @@ class _CombinedViewState extends State<CombinedView> {
                 ),
               ),
               builder: (context, selectedText, child) {
-                return ctx.ContextMenuRegion(
-                  contextMenu: _buildContextMenuForIndex(
-                      state, index, context, selectedText),
+                return AppContextMenuRegion(
+                  menuBuilder: (menuCtx) => _buildContextMenuForIndex(
+                      state, index, menuCtx, selectedText),
                   child: child!,
                 );
               },

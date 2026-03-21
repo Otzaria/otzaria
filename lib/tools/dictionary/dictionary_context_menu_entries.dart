@@ -2,23 +2,23 @@ import 'dart:async';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_context_menu/flutter_context_menu.dart' as ctx;
 import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository.dart';
 import 'package:otzaria/tools/dictionary/widgets/aramaic_dictionary_entry_view.dart';
 import 'package:otzaria/widgets/custom_ui_components.dart';
+import 'package:otzaria/widgets/app_menu.dart';
 
 /// בונה פריטי תפריט הקשר למילונים על סמך הטקסט המסומן.
-List<ctx.ContextMenuEntry<Object>> buildDictionaryContextMenuEntries({
+List<AppContextMenuEntry> buildDictionaryContextMenuEntries({
   required BuildContext context,
   required String? selectedText,
   required DictionaryLookupRepository repository,
 }) {
   final trimmed = selectedText?.trim() ?? '';
   if (trimmed.isEmpty) {
-    return const <ctx.ContextMenuEntry<Object>>[];
+    return const <AppContextMenuEntry>[];
   }
 
-  final entries = <ctx.ContextMenuEntry<Object>>[];
+  final entries = <AppContextMenuEntry>[];
   final shouldCheckAcronyms = repository.isLikelyAcronym(trimmed);
 
   if (shouldCheckAcronyms && !repository.areAcronymsLoaded) {
@@ -40,25 +40,15 @@ List<ctx.ContextMenuEntry<Object>> buildDictionaryContextMenuEntries({
     final aramaicMatches = repository.findAramaicMatches(trimmed);
     if (aramaicMatches.isNotEmpty) {
       entries.add(
-        ctx.MenuItem<Object>.submenu(
-          label: const Text(
-            'מילון ארמי-עברי',
-            textDirection: TextDirection.rtl,
-          ),
-          icon: const Icon(FluentIcons.translate_24_regular),
-          items: aramaicMatches
-              .map<ctx.ContextMenuEntry<Object>>(
-                (entry) => ctx.MenuItem<Object>(
-                  label: SizedBox(
-                    width: 320,
-                    child: Text(
+        AppContextMenuEntry(
+          label: 'מילון ארמי-עברי',
+          icon: FluentIcons.translate_24_regular,
+          children: aramaicMatches
+              .map<AppContextMenuEntry>(
+                (entry) => AppContextMenuEntry(
+                  label:
                       '${entry.aramaic} - ${_summarizeAramaicDefinition(entry.hebrew)}',
-                      textDirection: TextDirection.rtl,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  onSelected: (_) => _showMeaningDialog(
+                  onTap: () => _showMeaningDialog(
                     context: context,
                     title: entry.aramaic,
                     content: _buildAramaicDialogContent(entry),
@@ -74,24 +64,16 @@ List<ctx.ContextMenuEntry<Object>> buildDictionaryContextMenuEntries({
   return entries;
 }
 
-ctx.ContextMenuEntry<Object> _buildAcronymSubmenu(
+AppContextMenuEntry _buildAcronymSubmenu(
   BuildContext context,
   List<AcronymDictionaryEntry> acronymEntries,
 ) {
   final items = acronymEntries.length == 1
       ? acronymEntries.single.meanings
-          .map<ctx.ContextMenuEntry<Object>>(
-            (meaning) => ctx.MenuItem<Object>(
-              label: SizedBox(
-                width: 320,
-                child: Text(
-                  _summarizePlainText(meaning),
-                  textDirection: TextDirection.rtl,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              onSelected: (_) => _showMeaningDialog(
+          .map<AppContextMenuEntry>(
+            (meaning) => AppContextMenuEntry(
+              label: _summarizePlainText(meaning),
+              onTap: () => _showMeaningDialog(
                 context: context,
                 title: acronymEntries.single.acronym,
                 content: _buildAcronymDialogContent(meaning),
@@ -100,43 +82,25 @@ ctx.ContextMenuEntry<Object> _buildAcronymSubmenu(
           )
           .toList()
       : acronymEntries
-          .map<ctx.ContextMenuEntry<Object>>(
+          .map<AppContextMenuEntry>(
             (entry) => entry.meanings.length == 1
-                ? ctx.MenuItem<Object>(
-                    label: SizedBox(
-                      width: 320,
-                      child: Text(
+                ? AppContextMenuEntry(
+                    label:
                         '${entry.acronym} - ${_summarizePlainText(entry.meanings.single)}',
-                        textDirection: TextDirection.rtl,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    onSelected: (_) => _showMeaningDialog(
+                    onTap: () => _showMeaningDialog(
                       context: context,
                       title: entry.acronym,
                       content:
                           _buildAcronymDialogContent(entry.meanings.single),
                     ),
                   )
-                : ctx.MenuItem<Object>.submenu(
-                    label: Text(
-                      entry.acronym,
-                      textDirection: TextDirection.rtl,
-                    ),
-                    items: entry.meanings
-                        .map<ctx.ContextMenuEntry<Object>>(
-                          (meaning) => ctx.MenuItem<Object>(
-                            label: SizedBox(
-                              width: 320,
-                              child: Text(
-                                _summarizePlainText(meaning),
-                                textDirection: TextDirection.rtl,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            onSelected: (_) => _showMeaningDialog(
+                : AppContextMenuEntry(
+                    label: entry.acronym,
+                    children: entry.meanings
+                        .map<AppContextMenuEntry>(
+                          (meaning) => AppContextMenuEntry(
+                            label: _summarizePlainText(meaning),
+                            onTap: () => _showMeaningDialog(
                               context: context,
                               title: entry.acronym,
                               content: _buildAcronymDialogContent(meaning),
@@ -148,13 +112,10 @@ ctx.ContextMenuEntry<Object> _buildAcronymSubmenu(
           )
           .toList();
 
-  return ctx.MenuItem<Object>.submenu(
-    label: const Text(
-      'פתיחת ראשי תיבות',
-      textDirection: TextDirection.rtl,
-    ),
-    icon: const Icon(FluentIcons.text_quote_24_regular),
-    items: items,
+  return AppContextMenuEntry(
+    label: 'פתיחת ראשי תיבות',
+    icon: FluentIcons.text_quote_24_regular,
+    children: items,
   );
 }
 
