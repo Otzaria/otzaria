@@ -23,6 +23,7 @@
 //                     label: 'סנכרון')
 // ```
 
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 
 // ── RecommendedActionButton ───────────────────────────────────────────────────
@@ -112,6 +113,68 @@ class NeutralActionButton extends StatelessWidget {
     }
     return FilledButton.tonal(
         onPressed: onPressed, style: style, child: Text(text));
+  }
+}
+
+/// כפתור העתקה קטן עבור כרטיסי תוצאה וכלי עזר.
+class ToolCopyButton extends StatelessWidget {
+  final VoidCallback onPressed;
+  final String tooltip;
+
+  const ToolCopyButton({
+    super.key,
+    required this.onPressed,
+    this.tooltip = 'העתק',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: tooltip,
+      child: IconButton(
+        icon: const Icon(FluentIcons.copy_24_regular, size: 20),
+        onPressed: onPressed,
+        style: IconButton.styleFrom(
+          backgroundColor: cs.secondaryContainer,
+          foregroundColor: cs.onSecondaryContainer,
+          minimumSize: const Size(36, 36),
+          padding: EdgeInsets.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      ),
+    );
+  }
+}
+
+/// כפתור ניווט קטן לפתיחת מקור מכרטיסי תוצאה.
+class ToolNavigateButton extends StatelessWidget {
+  final VoidCallback onPressed;
+  final String tooltip;
+
+  const ToolNavigateButton({
+    super.key,
+    required this.onPressed,
+    this.tooltip = 'פתח מקור',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: tooltip,
+      child: IconButton(
+        icon: const Icon(FluentIcons.open_24_regular, size: 20),
+        onPressed: onPressed,
+        style: IconButton.styleFrom(
+          backgroundColor: cs.primary,
+          foregroundColor: cs.onPrimary,
+          minimumSize: const Size(36, 36),
+          padding: EdgeInsets.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      ),
+    );
   }
 }
 
