@@ -5,7 +5,6 @@ import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
 import 'package:otzaria/indexing/bloc/indexing_event.dart';
 import 'package:otzaria/models/books.dart';
-import 'package:otzaria/models/isar_collections/ref.dart';
 import 'package:otzaria/library/models/library.dart';
 
 /// DataRepository acts as a centralized data access layer that coordinates between different
