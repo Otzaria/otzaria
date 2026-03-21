@@ -5,7 +5,8 @@
 // דיאלוגים M3:
 //   → lib/widgets/dialogs/app_dialogs.dart
 //
-// כפתורי פעולה:
+// כפתורי פעולה (RecommendedActionButton, NeutralActionButton,
+// ToolCopyButton, ToolNavigateButton):
 //   → lib/widgets/buttons/action_buttons.dart
 //
 // Segmented button:
@@ -14,7 +15,7 @@
 // SwitchSettingsTile:
 //   → lib/settings/widgets/switch_settings_tile.dart
 //
-// Tool helpers:
+// toolCardColor, ToolPanelWrapper:
 //   → lib/tools/widgets/tool_ui_helpers.dart
 
 export 'package:otzaria/widgets/dialogs/app_dialogs.dart';

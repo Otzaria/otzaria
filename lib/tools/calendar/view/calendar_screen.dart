@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:kosher_dart/kosher_dart.dart';
+import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/printing/printing_screen.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -86,9 +87,8 @@ class _CalendarWidgetState extends State<CalendarWidget> {
   }
 
   void _requestFocusIfNeeded() {
-    if (mounted && !_keyboardFocusNode.hasFocus) {
-      _keyboardFocusNode.requestFocus();
-    }
+    if (!mounted) return;
+    requestFocusIfNeeded(_keyboardFocusNode);
   }
 
   /// מבקש מחדש את הפוקוס של לוח השנה אחרי מעבר מטאב אחר.

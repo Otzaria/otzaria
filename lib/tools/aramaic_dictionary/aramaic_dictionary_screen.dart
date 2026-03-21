@@ -1,10 +1,13 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/widgets/otzaria_search_field.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/aramaic_dictionary/widgets/aramaic_result_card.dart';
 import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository.dart';
+import 'package:otzaria/widgets/keyboard_list_focus.dart';
+import 'package:otzaria/widgets/tool_empty_state.dart';
 
 class AramaicDictionaryScreen extends StatefulWidget {
   const AramaicDictionaryScreen({super.key});
@@ -18,28 +21,37 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen> {
   final TextEditingController _searchController = TextEditingController();
   final DictionaryLookupRepository _dictionaryRepository =
       DictionaryLookupRepository.instance;
+  final FocusNode _listFocusNode = FocusNode();
+  final ScrollController _scrollController = ScrollController();
+  late final KeyboardListFocusController _keyboardListFocus;
 
   List<Map<String, String>> _dictionaryData = [];
   List<Map<String, String>> _filteredResults = [];
   bool _isLoading = true;
   bool _isHebrewToAramaic = true;
+  int _focusedIndex = -1;
 
   @override
   void initState() {
     super.initState();
+    _keyboardListFocus = KeyboardListFocusController(
+      scrollController: _scrollController,
+      estimatedItemExtent: 52,
+    );
     _loadDictionary();
     _searchController.addListener(_performSearch);
   }
 
   /// מבקש פוקוס לרשימת המילון.
   void requestKeyboardFocus() {
-    if (_listFocusNode.hasFocus) return;
-    _listFocusNode.requestFocus();
+    requestFocusIfNeeded(_listFocusNode);
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _listFocusNode.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -71,7 +83,10 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen> {
   void _performSearch() {
     final query = _searchController.text.trim();
     if (query.isEmpty) {
-      setState(() => _filteredResults = []);
+      setState(() {
+        _filteredResults = [];
+        _focusedIndex = _keyboardListFocus.reset();
+      });
       return;
     }
 
@@ -81,6 +96,10 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen> {
             _isHebrewToAramaic ? entry['hebrew']! : entry['aramaic']!;
         return searchIn.contains(query);
       }).toList();
+      _focusedIndex = _keyboardListFocus.reset(
+        setToFirstWhenNotEmpty: true,
+        itemCount: _filteredResults.length,
+      );
     });
   }
 
@@ -89,6 +108,17 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen> {
       _isHebrewToAramaic = !_isHebrewToAramaic;
       _searchController.clear();
       _filteredResults = [];
+      _focusedIndex = _keyboardListFocus.reset();
+    });
+  }
+
+  void _moveFocus(int delta) {
+    if (_filteredResults.isEmpty) return;
+    setState(() {
+      _focusedIndex = _keyboardListFocus.moveFocus(
+        delta: delta,
+        itemCount: _filteredResults.length,
+      );
     });
   }
 
@@ -184,14 +214,14 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen> {
 
   Widget _buildResultsList() {
     if (_searchController.text.isEmpty) {
-      return const _EmptyHint(
+      return const ToolEmptyState(
         icon: FluentIcons.book_24_regular,
         message: 'הזן מילה לחיפוש במילון',
       );
     }
 
     if (_filteredResults.isEmpty) {
-      return const _EmptyHint(
+      return const ToolEmptyState(
         icon: FluentIcons.search_24_regular,
         message: 'לא נמצאו תוצאות',
       );
@@ -206,47 +236,13 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen> {
           aramaic: entry['aramaic']!,
           hebrew: entry['hebrew']!,
           isHebrewToAramaic: _isHebrewToAramaic,
+          isFocused: _focusedIndex == index,
+          onTap: () => setState(() {
+            _focusedIndex = index;
+            _keyboardListFocus.focusedIndex = index;
+          }),
         );
       },
-    );
-  }
-}
-
-class _EmptyHint extends StatelessWidget {
-  final IconData icon;
-  final String message;
-
-  const _EmptyHint({
-    required this.icon,
-    required this.message,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            icon,
-            size: 64,
-            color:
-                Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
-          ),
-          const SizedBox(height: AppTokens.spaceMD),
-          Text(
-            message,
-            textDirection: TextDirection.rtl,
-            style: TextStyle(
-              fontSize: AppTokens.fontXL,
-              color: Theme.of(context)
-                  .colorScheme
-                  .onSurface
-                  .withValues(alpha: 0.6),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

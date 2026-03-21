@@ -10,6 +10,7 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
+import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/tools/measurement_converter/measurement_data.dart';
 import 'package:otzaria/tools/measurement_converter/measurement_converter_logic.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -91,8 +92,7 @@ class _MeasurementConverterScreenState
 
   /// מבקש פוקוס למסך המרת המידות.
   void requestKeyboardFocus() {
-    if (_screenFocusNode.hasFocus) return;
-    _screenFocusNode.requestFocus();
+    requestFocusIfNeeded(_screenFocusNode);
   }
 
   @override

@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/core/widgets/otzaria_search_field.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/settings_exports.dart';
@@ -21,6 +22,8 @@ import 'package:otzaria/tools/gematria/widgets/gematria_settings_panel.dart';
 import 'package:otzaria/tools/widgets/tool_ui_helpers.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/keyboard_navigator.dart';
+import 'package:otzaria/widgets/keyboard_list_focus.dart';
+import 'package:otzaria/widgets/tool_empty_state.dart';
 
 class GematriaSearchScreen extends StatefulWidget {
   const GematriaSearchScreen({super.key});
@@ -33,6 +36,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _screenFocusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
+  late final KeyboardListFocusController _keyboardListFocus;
 
   List<GematriaSearchResult> _searchResults = [];
   bool _isSearching = false;
@@ -95,13 +99,16 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
   @override
   void initState() {
     super.initState();
+    _keyboardListFocus = KeyboardListFocusController(
+      scrollController: _scrollController,
+      estimatedItemExtent: _cardEstimatedHeight,
+    );
     _searchController.addListener(() => setState(() {}));
   }
 
   /// מבקש פוקוס למסך הגימטריה.
   void requestKeyboardFocus() {
-    if (_screenFocusNode.hasFocus) return;
-    _screenFocusNode.requestFocus();
+    requestFocusIfNeeded(_screenFocusNode);
   }
 
   @override
@@ -131,19 +138,11 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
   // ── ניווט ↑↓ ברשימה ─────────────────────────────────────────────────────
   void _moveFocus(int delta) {
     if (_searchResults.isEmpty) return;
-    final next =
-        (_focusedCardIndex + delta).clamp(0, _searchResults.length - 1);
-    setState(() => _focusedCardIndex = next);
-    // גלילה לכרטיס הנוכחי
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        final offset = next * _cardEstimatedHeight;
-        _scrollController.animateTo(
-          offset.clamp(0.0, _scrollController.position.maxScrollExtent),
-          duration: const Duration(milliseconds: 150),
-          curve: Curves.easeOut,
-        );
-      }
+    setState(() {
+      _focusedCardIndex = _keyboardListFocus.moveFocus(
+        delta: delta,
+        itemCount: _searchResults.length,
+      );
     });
   }
 
@@ -202,7 +201,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
       _searchResults = [];
       _lastGematriaValue = targetGimatria;
       _hasSearched = true;
-      _focusedCardIndex = -1;
+      _focusedCardIndex = _keyboardListFocus.reset();
     });
 
     try {
@@ -380,7 +379,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
                 _searchResults = [];
                 _lastGematriaValue = null;
                 _hasSearched = false;
-                _focusedCardIndex = -1;
+                _focusedCardIndex = _keyboardListFocus.reset();
               }),
               leading: IconButton(
                 icon: const Icon(FluentIcons.search_24_regular),
@@ -446,11 +445,11 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
       return const Center(child: CircularProgressIndicator());
     }
     if (_searchResults.isEmpty && _hasSearched) {
-      return _EmptyState(
+      return const ToolEmptyState(
           icon: FluentIcons.search_24_regular, message: 'לא נמצאו תוצאות');
     }
     if (!_hasSearched) {
-      return _EmptyState(
+      return const ToolEmptyState(
           icon: FluentIcons.calculator_24_regular,
           message: 'הזן ערך לחיפוש גימטריה');
     }
@@ -463,42 +462,10 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
         number: index + 1,
         result: _searchResults[index],
         isFocused: _focusedCardIndex == index,
-        onTap: () => setState(() => _focusedCardIndex = index),
-      ),
-    );
-  }
-}
-
-// ── Empty state ────────────────────────────────────────────────────────────────
-class _EmptyState extends StatelessWidget {
-  final IconData icon;
-  final String message;
-  const _EmptyState({required this.icon, required this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon,
-              size: 64,
-              color: Theme.of(context)
-                  .colorScheme
-                  .onSurface
-                  .withValues(alpha: 0.3)),
-          const SizedBox(height: AppTokens.spaceMD),
-          Text(
-            message,
-            style: TextStyle(
-              fontSize: AppTokens.fontXL,
-              color: Theme.of(context)
-                  .colorScheme
-                  .onSurface
-                  .withValues(alpha: 0.6),
-            ),
-          ),
-        ],
+        onTap: () => setState(() {
+          _focusedCardIndex = index;
+          _keyboardListFocus.focusedIndex = index;
+        }),
       ),
     );
   }

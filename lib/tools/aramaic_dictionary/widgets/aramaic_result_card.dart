@@ -11,6 +11,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/custom_ui_components.dart';
+import 'package:otzaria/widgets/tool_result_card_shell.dart';
 
 class AramaicResultCard extends StatelessWidget {
   final String aramaic;
@@ -43,67 +44,47 @@ class AramaicResultCard extends StatelessWidget {
     final sourceWord = isHebrewToAramaic ? hebrew : aramaic;
     final targetWord = isHebrewToAramaic ? aramaic : hebrew;
 
-    return GestureDetector(
+    return ToolResultCardShell(
+      isFocused: isFocused,
       onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 4),
-        decoration: BoxDecoration(
-          color: isFocused
-              ? cs.primaryContainer.withValues(alpha: 0.45)
-              : toolCardColor(context),
-          borderRadius: BorderRadius.circular(AppTokens.radiusMD),
-          border: isFocused ? Border.all(color: cs.primary, width: 1.5) : null,
-        ),
-        child: SelectionArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppTokens.spaceMD,
-              vertical: AppTokens.spaceSM,
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // ── מקור ──────────────────────────────────────────────────
-                Expanded(
-                  child: SelectableText(
-                    sourceWord,
-                    style: TextStyle(
-                      fontSize: AppTokens.fontLG,
-                      fontWeight: FontWeight.bold,
-                      color: cs.onSurface,
-                    ),
-                    textAlign: TextAlign.right,
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Icon(
-                    isHebrewToAramaic
-                        ? FluentIcons.arrow_left_24_filled
-                        : FluentIcons.arrow_right_24_filled,
-                    size: 16,
-                    color: cs.primary,
-                  ),
-                ),
-                // ── תרגום ─────────────────────────────────────────────────
-                Expanded(
-                  child: SelectableText(
-                    targetWord,
-                    style: TextStyle(
-                      fontSize: AppTokens.fontLG,
-                      fontWeight: FontWeight.w500,
-                      color: cs.onSurface,
-                    ),
-                    textAlign: TextAlign.right,
-                  ),
-                ),
-                const SizedBox(width: AppTokens.spaceXS),
-                // ── כפתור העתקה ─────────────────────────────────────────
-                ToolCopyButton(onPressed: () => _copy(context)),
-              ],
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: SelectableText(
+              sourceWord,
+              style: TextStyle(
+                fontSize: AppTokens.fontLG,
+                fontWeight: FontWeight.bold,
+                color: cs.onSurface,
+              ),
+              textAlign: TextAlign.right,
             ),
           ),
-        ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Icon(
+              isHebrewToAramaic
+                  ? FluentIcons.arrow_left_24_filled
+                  : FluentIcons.arrow_right_24_filled,
+              size: 16,
+              color: cs.primary,
+            ),
+          ),
+          Expanded(
+            child: SelectableText(
+              targetWord,
+              style: TextStyle(
+                fontSize: AppTokens.fontLG,
+                fontWeight: FontWeight.w500,
+                color: cs.onSurface,
+              ),
+              textAlign: TextAlign.right,
+            ),
+          ),
+          const SizedBox(width: AppTokens.spaceXS),
+          ToolCopyButton(onPressed: () => _copy(context)),
+        ],
       ),
     );
   }

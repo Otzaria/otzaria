@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_spinbox/flutter_spinbox.dart';
+import 'package:otzaria/widgets/buttons/action_buttons.dart';
 
 enum ZmanMenuAction { toggle }
 
@@ -97,24 +98,24 @@ class _ZmanAlertDialogState extends State<ZmanAlertDialog> {
       ),
       actions: [
         if (widget.isEnabled)
-          TextButton(
+          NeutralActionButton(
+            text: 'בטל התראה',
             onPressed: () => Navigator.of(context).pop(
               const ZmanAlertDialogResult(minutesBefore: 0, cancelAlert: true),
             ),
-            child: const Text('בטל התראה'),
           ),
-        TextButton(
+        NeutralActionButton(
+          text: 'ביטול',
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('ביטול'),
         ),
-        FilledButton(
+        RecommendedActionButton(
+          text: widget.isEnabled ? 'עדכן' : 'הפעל',
           onPressed: () => Navigator.of(context).pop(
             ZmanAlertDialogResult(
               minutesBefore: totalMinutes,
               cancelAlert: false,
             ),
           ),
-          child: Text(widget.isEnabled ? 'עדכן' : 'הפעל'),
         ),
       ],
     );

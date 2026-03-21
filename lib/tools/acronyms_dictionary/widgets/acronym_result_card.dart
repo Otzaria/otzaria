@@ -7,9 +7,11 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/custom_ui_components.dart';
+import 'package:otzaria/widgets/tool_result_card_shell.dart';
 
 class AcronymResultCard extends StatelessWidget {
   final String acronym;
@@ -39,77 +41,61 @@ class AcronymResultCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    return GestureDetector(
+    return ToolResultCardShell(
+      isFocused: isFocused,
       onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 4),
-        decoration: BoxDecoration(
-          color: isFocused
-              ? cs.primaryContainer.withValues(alpha: 0.45)
-              : toolCardColor(context),
-          borderRadius: BorderRadius.circular(AppTokens.radiusMD),
-          border: isFocused ? Border.all(color: cs.primary, width: 1.5) : null,
-        ),
-        child: SelectionArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppTokens.spaceMD,
-              vertical: AppTokens.spaceSM,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 60,
+            child: SelectableText(
+              acronym,
+              style: TextStyle(
+                fontSize: AppTokens.fontLG,
+                fontWeight: FontWeight.bold,
+                color: cs.onSurface,
+              ),
+              textAlign: TextAlign.right,
             ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // ── ראשי תיבות ────────────────────────────────────────────
-                SizedBox(
-                  width: 60,
-                  child: SelectableText(
-                    acronym,
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Icon(
+              FluentIcons.arrow_left_24_filled,
+              size: 16,
+              color: cs.primary,
+            ),
+          ),
+          Expanded(
+            child: meanings.length == 1
+                ? SelectableText(
+                    meanings.first,
                     style: TextStyle(
-                      fontSize: AppTokens.fontLG,
-                      fontWeight: FontWeight.bold,
+                      fontSize: AppTokens.fontMD,
                       color: cs.onSurface,
                     ),
                     textAlign: TextAlign.right,
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Icon(Icons.arrow_back, size: 16, color: cs.primary),
-                ),
-                // ── פירוש(ים) ────────────────────────────────────────────
-                Expanded(
-                  child: meanings.length == 1
-                      ? SelectableText(
-                          meanings.first,
-                          style: TextStyle(
-                            fontSize: AppTokens.fontMD,
-                            color: cs.onSurface,
-                          ),
-                          textAlign: TextAlign.right,
-                        )
-                      : Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: meanings.asMap().entries.map((e) {
-                            return SelectableText(
-                              '${e.key + 1}. ${e.value}',
-                              style: TextStyle(
-                                fontSize: AppTokens.fontSM,
-                                color: cs.onSurface,
-                                height: 1.4,
-                              ),
-                              textAlign: TextAlign.right,
-                            );
-                          }).toList(),
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: meanings.asMap().entries.map((e) {
+                      return SelectableText(
+                        '${e.key + 1}. ${e.value}',
+                        style: TextStyle(
+                          fontSize: AppTokens.fontSM,
+                          color: cs.onSurface,
+                          height: 1.4,
                         ),
-                ),
-                const SizedBox(width: AppTokens.spaceXS),
-                // ── כפתור העתקה ─────────────────────────────────────────
-                ToolCopyButton(onPressed: () => _copy(context)),
-              ],
-            ),
+                        textAlign: TextAlign.right,
+                      );
+                    }).toList(),
+                  ),
           ),
-        ),
+          const SizedBox(width: AppTokens.spaceXS),
+          ToolCopyButton(onPressed: () => _copy(context)),
+        ],
       ),
     );
   }
