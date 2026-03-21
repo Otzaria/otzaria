@@ -15,7 +15,7 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria/widgets/password_dialog.dart';
 import 'package:otzaria/pdf_book/pdf_scrollbar.dart';
-import 'package:otzaria/widgets/buttons/action_buttons.dart';
+import 'package:otzaria/widgets/custom_ui_components.dart';
 
 /// פאנל תצוגה מקדימה של ספר בספרייה
 /// מציג את תוכן הספר בלי כרטיסיות, בדומה לחלון העיון
@@ -315,69 +315,46 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
         Positioned(
           top: 8,
           left: 8,
-          child: Container(
-            decoration: BoxDecoration(
-              color:
-                  Theme.of(context).colorScheme.surface.withValues(alpha: 0.95),
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: [
-                BoxShadow(
-                  color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.2),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Builder(
-              builder: (context) {
-                final onClose = widget.onClose;
-                return Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ToolbarActionButton(
-                      tooltip: 'הגדל טקסט',
-                      icon: FluentIcons.zoom_in_24_regular,
-                      onPressed: () {
-                        setState(() {
-                          _fontSize = (_fontSize + 2).clamp(10.0, 50.0);
-                        });
-                        _currentTextTab!.bloc.add(
-                          UpdateFontSize(_fontSize),
-                        );
-                      },
-                    ),
-                    const SizedBox(width: 6),
-                    ToolbarActionButton(
-                      tooltip: 'הקטן את גודל הטקסט',
-                      icon: FluentIcons.zoom_out_24_regular,
-                      onPressed: () {
-                        setState(() {
-                          _fontSize = (_fontSize - 2).clamp(10.0, 50.0);
-                        });
-                        _currentTextTab!.bloc.add(
-                          UpdateFontSize(_fontSize),
-                        );
-                      },
-                    ),
-                    const SizedBox(width: 6),
-                    ToolbarActionButton(
-                      tooltip: 'פתח בעיון (או לחץ פעמיים על הספר)',
-                      icon: FluentIcons.open_24_regular,
-                      onPressed: () {
-                        widget.onOpenInReader?.call(_currentTextTab?.index ?? 0);
-                      },
-                    ),
-                    if (onClose != null) const SizedBox(width: 6),
-                    if (onClose != null)
-                      ToolbarActionButton(
-                        tooltip: 'הסתר תצוגה מקדימה',
-                        icon: FluentIcons.dismiss_24_regular,
-                        onPressed: onClose,
-                      ),
-                  ],
-                );
-              },
-            ),
+          child: Builder(
+            builder: (context) {
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _PreviewPanelSecondaryButton(
+                    tooltip: 'הגדל טקסט',
+                    icon: FluentIcons.zoom_in_24_regular,
+                    onPressed: () {
+                      setState(() {
+                        _fontSize = (_fontSize + 2).clamp(10.0, 50.0);
+                      });
+                      _currentTextTab!.bloc.add(
+                        UpdateFontSize(_fontSize),
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 6),
+                  _PreviewPanelSecondaryButton(
+                    tooltip: 'הקטן את גודל הטקסט',
+                    icon: FluentIcons.zoom_out_24_regular,
+                    onPressed: () {
+                      setState(() {
+                        _fontSize = (_fontSize - 2).clamp(10.0, 50.0);
+                      });
+                      _currentTextTab!.bloc.add(
+                        UpdateFontSize(_fontSize),
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 6),
+                  ToolNavigateButton(
+                    tooltip: 'פתח בעיון (או לחץ פעמיים על הספר)',
+                    onPressed: () {
+                      widget.onOpenInReader?.call(_currentTextTab?.index ?? 0);
+                    },
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ],
@@ -433,54 +410,31 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
         Positioned(
           top: 8,
           left: 8,
-          child: Container(
-            key: _pdfPreviewToolbarKey,
-            decoration: BoxDecoration(
-              color:
-                  Theme.of(context).colorScheme.surface.withValues(alpha: 0.95),
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: [
-                BoxShadow(
-                  color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.2),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Builder(
-              builder: (context) {
-                final onClose = widget.onClose;
-                return Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ToolbarActionButton(
-                      tooltip: 'הגדל את גודל הטקסט',
-                      icon: FluentIcons.zoom_in_24_regular,
-                      onPressed: () => _pdfController?.zoomUp(),
-                    ),
-                    const SizedBox(width: 6),
-                    ToolbarActionButton(
-                      tooltip: 'הקטן את גודל הטקסט',
-                      icon: FluentIcons.zoom_out_24_regular,
-                      onPressed: () => _pdfController?.zoomDown(),
-                    ),
-                    const SizedBox(width: 6),
-                    ToolbarActionButton(
-                      tooltip: 'פתח בעיון (או לחץ פעמיים על הספר)',
-                      icon: FluentIcons.open_24_regular,
-                      onPressed: _openCurrentPreviewInReader,
-                    ),
-                    if (onClose != null) const SizedBox(width: 6),
-                    if (onClose != null)
-                      ToolbarActionButton(
-                        tooltip: 'הסתר תצוגה מקדימה',
-                        icon: FluentIcons.dismiss_24_regular,
-                        onPressed: onClose,
-                      ),
-                  ],
-                );
-              },
-            ),
+          child: Builder(
+            builder: (context) {
+              return Row(
+                key: _pdfPreviewToolbarKey,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _PreviewPanelSecondaryButton(
+                    tooltip: 'הגדל את גודל הטקסט',
+                    icon: FluentIcons.zoom_in_24_regular,
+                    onPressed: () => _pdfController?.zoomUp(),
+                  ),
+                  const SizedBox(width: 6),
+                  _PreviewPanelSecondaryButton(
+                    tooltip: 'הקטן את גודל הטקסט',
+                    icon: FluentIcons.zoom_out_24_regular,
+                    onPressed: () => _pdfController?.zoomDown(),
+                  ),
+                  const SizedBox(width: 6),
+                  ToolNavigateButton(
+                    tooltip: 'פתח בעיון (או לחץ פעמיים על הספר)',
+                    onPressed: _openCurrentPreviewInReader,
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ],
@@ -567,6 +521,38 @@ class _SkeletonLine extends StatelessWidget {
       decoration: BoxDecoration(
         color: color,
         borderRadius: BorderRadius.circular(4),
+      ),
+    );
+  }
+}
+
+class _PreviewPanelSecondaryButton extends StatelessWidget {
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  const _PreviewPanelSecondaryButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Tooltip(
+      message: tooltip,
+      child: IconButton(
+        icon: Icon(icon, size: 20),
+        onPressed: onPressed,
+        style: IconButton.styleFrom(
+          backgroundColor: cs.secondaryContainer,
+          foregroundColor: cs.onSecondaryContainer,
+          minimumSize: const Size(36, 36),
+          padding: EdgeInsets.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
       ),
     );
   }
