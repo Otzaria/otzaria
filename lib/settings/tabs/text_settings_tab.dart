@@ -429,9 +429,8 @@ class TextSettingsTab extends StatelessWidget {
               child: AppDropdownField<String>(
                 value: state.copyHeaderFormat,
                 decoration: const InputDecoration(
-                  border: InputBorder.none,
+                  border: OutlineInputBorder(),
                   isDense: true,
-                  contentPadding: EdgeInsets.zero,
                 ),
                 entries: const [
                   AppMenuEntry(
@@ -496,14 +495,10 @@ class TextSettingsTab extends StatelessWidget {
           Padding(
             padding:
                 const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: ElevatedButton.icon(
+            child: NeutralActionButton(
               onPressed: () => _resetPerBookSettings(context),
-              icon: const Icon(FluentIcons.delete_24_regular),
-              label: const Text('אפס את כל הגדרות אלו, בכל הספרים'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.errorContainer,
-                foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
-              ),
+              icon: FluentIcons.delete_24_regular,
+              text: 'אפס את כל הגדרות אלו, בכל הספרים',
             ),
           ),
       ],
@@ -511,23 +506,13 @@ class TextSettingsTab extends StatelessWidget {
   }
 
   Future<void> _resetPerBookSettings(BuildContext context) async {
-    final confirm = await showDialog<bool>(
+    final confirm = await showWarningDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('אישור מחיקה'),
-        content: const Text(
-            'האם אתה בטוח שברצונך למחוק את כל ההגדרות לפי ספר?\nפעולה זו אינה ניתנת לביטול.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('ביטול'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('מחק הכל'),
-          ),
-        ],
-      ),
+      title: 'אישור מחיקה',
+      content: 'האם אתה בטוח שברצונך למחוק את כל ההגדרות לפי ספר?',
+      subtitle: 'פעולה זו אינה ניתנת לביטול.',
+      cancelText: 'ביטול',
+      confirmText: 'מחק הכל',
     );
 
     if (confirm == true && context.mounted) {
