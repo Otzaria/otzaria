@@ -5,22 +5,22 @@ import 'package:kosher_dart/kosher_dart.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
+import 'package:otzaria/tools/calendar/models/city_coordinates.dart';
 import 'package:otzaria/tools/calendar/utils/daf_yomi_navigator.dart';
 import 'package:otzaria/tools/calendar/view/panels/logic/calendar_times_panel_logic.dart';
 import 'package:otzaria/tools/calendar/view/widgets/calendar_zman_alert_dialog.dart';
+import 'package:otzaria/widgets/app_menu.dart';
 import 'package:otzaria/widgets/buttons/action_buttons.dart';
 
 /// פאנל זמני היום.
 class CalendarTimesPanel extends StatefulWidget {
   final CalendarState state;
-  final VoidCallback onCityPressed;
   final Future<void> Function(BuildContext context)
       onOpenCalendarCalculationPage;
 
   const CalendarTimesPanel({
     super.key,
     required this.state,
-    required this.onCityPressed,
     required this.onOpenCalendarCalculationPage,
   });
 
@@ -29,6 +29,17 @@ class CalendarTimesPanel extends StatefulWidget {
 }
 
 class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
+  late final List<String> _cityNames;
+
+  @override
+  void initState() {
+    super.initState();
+    _cityNames = cityCoordinates.values
+        .expand((cities) => cities.keys)
+        .toList()
+      ..sort();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -42,9 +53,9 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
             child: Row(
               children: [
                 const Spacer(),
-                _CityButton(
+                _CityDropdown(
                   cityName: widget.state.selectedCity,
-                  onPressed: widget.onCityPressed,
+                  cityNames: _cityNames,
                 ),
               ],
             ),
@@ -187,21 +198,35 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
   }
 }
 
-class _CityButton extends StatelessWidget {
+class _CityDropdown extends StatelessWidget {
   final String cityName;
-  final VoidCallback onPressed;
+  final List<String> cityNames;
 
-  const _CityButton({
+  const _CityDropdown({
     required this.cityName,
-    required this.onPressed,
+    required this.cityNames,
   });
 
   @override
   Widget build(BuildContext context) {
-    return NeutralActionButton(
-      text: cityName,
-      icon: FluentIcons.chevron_down_24_regular,
-      onPressed: onPressed,
+    return SizedBox(
+      width: 220,
+      child: AppDropdownField<String>(
+        value: cityName,
+        enableSearch: true,
+        decoration: const InputDecoration(
+          labelText: 'עיר',
+          border: OutlineInputBorder(),
+          isDense: true,
+        ),
+        entries: cityNames
+            .map((city) => AppMenuEntry<String>(value: city, label: city))
+            .toList(),
+        onSelected: (value) {
+          if (value == null || value == cityName) return;
+          context.read<CalendarCubit>().changeCity(value);
+        },
+      ),
     );
   }
 }

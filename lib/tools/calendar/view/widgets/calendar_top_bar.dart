@@ -5,6 +5,7 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/view/panels/calendar_side_panel.dart';
 import 'package:otzaria/tools/calendar/view/widgets/calendar_date_formatters.dart';
+import 'package:otzaria/widgets/app_menu.dart';
 import 'package:otzaria/widgets/buttons/action_buttons.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
 import 'package:otzaria/core/widgets/otzaria_search_field.dart';
@@ -63,31 +64,16 @@ class _CalendarTopBarState extends State<CalendarTopBar> {
   }
 
   Future<void> _openJumpPopover() async {
-    final contextBox =
-        _jumpButtonKey.currentContext?.findRenderObject() as RenderBox?;
-    if (contextBox == null) return;
-    final overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox?;
-    if (overlay == null) return;
+    final anchorContext = _jumpButtonKey.currentContext;
+    if (anchorContext == null) return;
 
-    final offset = contextBox.localToGlobal(Offset.zero, ancestor: overlay);
-    final rect = RelativeRect.fromRect(
-      Rect.fromLTWH(
-        offset.dx,
-        offset.dy + contextBox.size.height + 8,
-        contextBox.size.width,
-        0,
-      ),
-      Offset.zero & overlay.size,
-    );
-
-    final selected = await showMenu<DateTime>(
+    final selected = await showAnchoredAppMenu<DateTime>(
       context: context,
-      position: rect,
-      items: [
-        PopupMenuItem<DateTime>(
-          enabled: false,
-          padding: EdgeInsets.zero,
+      anchorContext: anchorContext,
+      itemsBuilder: (metrics) => [
+        buildAppCustomPopupMenuItem<DateTime>(
+          context: context,
+          metrics: metrics,
           child: SizedBox(
             width: 360,
             child: _JumpToDatePopover(

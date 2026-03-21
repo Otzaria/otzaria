@@ -890,7 +890,6 @@ class _CalendarWidgetState extends State<CalendarWidget> {
       onViewChanged: (view) => setState(() => _sidePanelView = view),
       timesPanel: CalendarTimesPanel(
         state: state,
-        onCityPressed: _toggleCalendarSettingsPanel,
         onOpenCalendarCalculationPage: _openCalendarCalculationPage,
       ),
       eventsPanel: CalendarEventsPanel(

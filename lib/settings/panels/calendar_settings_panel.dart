@@ -3,7 +3,6 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/core/ui_snack.dart';
-import 'package:otzaria/core/widgets/otzaria_search_field.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/models/city_coordinates.dart';
 import 'package:otzaria/widgets/dialogs.dart';
@@ -21,7 +20,14 @@ class CalendarSettingsTab extends StatefulWidget {
 }
 
 class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
-  bool _showCitySearch = false;
+  late final List<String> _cityNames;
+
+  @override
+  void initState() {
+    super.initState();
+    _cityNames = cityCoordinates.values.expand((cities) => cities.keys).toList()
+      ..sort();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -61,36 +67,24 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                     },
                   ),
                   // עיר
-                  ListTile(
-                    leading: const Icon(FluentIcons.location_24_regular),
-                    title: const Text('עיר נבחרת', style: kSettingsTitleStyle),
-                    trailing: NeutralActionButton(
-                      text: state.selectedCity,
-                      icon: _showCitySearch
-                          ? FluentIcons.chevron_up_24_regular
-                          : FluentIcons.chevron_down_24_regular,
-                      onPressed: () {
-                        setState(() {
-                          _showCitySearch = !_showCitySearch;
-                        });
-                      },
-                    ),
-                  ),
-                  AnimatedSize(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOut,
-                    child: _showCitySearch
-                        ? Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: _CitySearchWidget(
-                              currentCity: state.selectedCity,
-                              onCitySelected: (city) {
-                                context.read<CalendarCubit>().changeCity(city);
-                                setState(() => _showCitySearch = false);
-                              },
-                            ),
-                          )
-                        : const SizedBox.shrink(),
+                  _buildResponsiveDropdownTile<String>(
+                    icon: FluentIcons.location_24_regular,
+                    title: 'עיר נבחרת',
+                    subtitle: 'בחירת עיר לחישובי זמני היום והלוח',
+                    value: state.selectedCity,
+                    minFieldWidth: 220,
+                    maxFieldWidth: 320,
+                    enableSearch: true,
+                    entries: _cityNames
+                        .map(
+                          (city) =>
+                              AppMenuEntry<String>(value: city, label: city),
+                        )
+                        .toList(),
+                    onSelected: (city) {
+                      if (city == null || city == state.selectedCity) return;
+                      context.read<CalendarCubit>().changeCity(city);
+                    },
                   ),
                 ],
               ),
@@ -127,28 +121,26 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                         },
                       ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: AppDropdownField<int>(
-                        value: state.calendarNotificationTime,
-                        decoration: const InputDecoration(
-                          labelText: 'זמן תזכורת לפני האירוע',
-                          border: OutlineInputBorder(),
-                        ),
-                        entries: const [
-                          AppMenuEntry(value: 60, label: 'שעה'),
-                          AppMenuEntry(value: 720, label: '12 שעות'),
-                          AppMenuEntry(value: 1440, label: 'יום'),
-                          AppMenuEntry(value: 2880, label: 'יומיים'),
-                        ],
-                        onSelected: (value) {
-                          if (value != null) {
-                            context
-                                .read<CalendarCubit>()
-                                .changeCalendarNotificationTime(value);
-                          }
-                        },
-                      ),
+                    _buildResponsiveDropdownTile<int>(
+                      icon: FluentIcons.alert_snooze_24_regular,
+                      title: 'זמן תזכורת לפני האירוע',
+                      subtitle: 'כמה זמן לפני תחילת האירוע תופיע התראה',
+                      value: state.calendarNotificationTime,
+                      minFieldWidth: 180,
+                      maxFieldWidth: 240,
+                      entries: const [
+                        AppMenuEntry(value: 60, label: 'שעה'),
+                        AppMenuEntry(value: 720, label: '12 שעות'),
+                        AppMenuEntry(value: 1440, label: 'יום'),
+                        AppMenuEntry(value: 2880, label: 'יומיים'),
+                      ],
+                      onSelected: (value) {
+                        if (value != null) {
+                          context
+                              .read<CalendarCubit>()
+                              .changeCalendarNotificationTime(value);
+                        }
+                      },
                     ),
                   ],
 
@@ -343,112 +335,82 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
       },
     );
   }
-}
 
-/// Widget לחיפוש ובחירת עיר
-class _CitySearchWidget extends StatefulWidget {
-  final String currentCity;
-  final ValueChanged<String> onCitySelected;
+  Widget _buildResponsiveDropdownTile<T>({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required T? value,
+    required List<AppMenuEntry<T>> entries,
+    required ValueChanged<T?> onSelected,
+    bool enableSearch = false,
+    double minFieldWidth = 220,
+    double maxFieldWidth = 320,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isCompact = constraints.maxWidth < 620;
+          final fieldWidth = isCompact
+              ? constraints.maxWidth
+              : constraints.maxWidth.clamp(minFieldWidth, maxFieldWidth);
 
-  const _CitySearchWidget({
-    required this.currentCity,
-    required this.onCitySelected,
-  });
+          final info = Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(icon),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: kSettingsTitleStyle),
+                      const SizedBox(height: 4),
+                      Text(subtitle, style: kSettingsSubtitleStyle),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
 
-  @override
-  State<_CitySearchWidget> createState() => _CitySearchWidgetState();
-}
+          final field = SizedBox(
+            width: fieldWidth,
+            child: AppDropdownField<T>(
+              value: value,
+              enableSearch: enableSearch,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              entries: entries,
+              onSelected: onSelected,
+            ),
+          );
 
-class _CitySearchWidgetState extends State<_CitySearchWidget> {
-  final TextEditingController _searchController = TextEditingController();
-  late Map<String, Map<String, Map<String, dynamic>>> _filteredCities;
-
-  @override
-  void initState() {
-    super.initState();
-    _filteredCities = cityCoordinates;
-    _searchController.addListener(_filterCities);
-  }
-
-  @override
-  void dispose() {
-    _searchController.removeListener(_filterCities);
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  void _filterCities() {
-    final query = _searchController.text.toLowerCase();
-    setState(() {
-      if (query.isEmpty) {
-        _filteredCities = cityCoordinates;
-      } else {
-        _filteredCities = {};
-        cityCoordinates.forEach((country, cities) {
-          final matchingCities = Map.fromEntries(cities.entries.where(
-              (cityEntry) => cityEntry.key.toLowerCase().contains(query)));
-          if (matchingCities.isNotEmpty) {
-            _filteredCities[country] = matchingCities;
+          if (isCompact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(children: [info]),
+                const SizedBox(height: 12),
+                field,
+              ],
+            );
           }
-        });
-      }
-    });
-  }
 
-  @override
-  Widget build(BuildContext context) {
-    final List<Widget> items = [];
-    _filteredCities.forEach((country, cities) {
-      items.add(
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
-          child: Text(
-            country,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.primary,
-              fontSize: AppTokens.fontLG,
-            ),
-          ),
-        ),
-      );
-      cities.forEach((city, data) {
-        items.add(
-          ListTile(
-            title: Text(city),
-            onTap: () => widget.onCitySelected(city),
-            dense: true,
-          ),
-        );
-      });
-      items.add(const Divider());
-    });
-    if (items.isNotEmpty) items.removeLast();
-
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(AppTokens.radiusSM),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: OtzariaSearchField(
-              controller: _searchController,
-              hintText: 'הקלד שם עיר...',
-              autofocus: true,
-            ),
-          ),
-          const Divider(height: 1),
-          SizedBox(
-            height: 300,
-            child: _filteredCities.isEmpty
-                ? const Center(child: Text('לא נמצאו ערים'))
-                : ListView(children: items),
-          ),
-        ],
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              info,
+              const SizedBox(width: 16),
+              Flexible(
+                  child: Align(alignment: Alignment.centerLeft, child: field)),
+            ],
+          );
+        },
       ),
     );
   }
