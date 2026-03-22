@@ -219,10 +219,10 @@ class _AppTopBarState extends State<AppTopBar>
     final vPad = isCompact ? 4.0 : 8.0;
 
     final mainBar = Material(
-      color: barColor,
-      elevation: 2.0,
-      shadowColor: Colors.black.withValues(alpha: 0.14),
-      surfaceTintColor: Colors.transparent,
+        color: barColor,
+        elevation: 2.0,
+        shadowColor: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.14),
+        surfaceTintColor: Colors.transparent,
       child: SizedBox(
         height: barH,
         child: Padding(
@@ -259,10 +259,11 @@ class _AppTopBarState extends State<AppTopBar>
           child: FadeTransition(
             opacity: _progress,
             child: Material(
-              color: barColor,
-              elevation: 1.0,
-              shadowColor: Colors.black.withValues(alpha: 0.08),
-              surfaceTintColor: Colors.transparent,
+                color: barColor,
+                elevation: 1.0,
+                shadowColor:
+                    Theme.of(context).colorScheme.shadow.withValues(alpha: 0.08),
+                surfaceTintColor: Colors.transparent,
               child: widget.secondaryRow!,
             ),
           ),
