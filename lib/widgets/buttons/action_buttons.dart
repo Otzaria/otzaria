@@ -2,26 +2,12 @@
 //
 // כפתורי פעולה גנריים בסגנון M3.
 //
-// מכיל:
-//  • [RecommendedActionButton] — כפתור פעולה מומלצת (Primary)
-//  • [NeutralActionButton]     — כפתור פעולה ניטרלית (Tonal/SecondaryContainer)
-//  • [ToolbarActionButton]     — כפתור סרגל כלים — תומך ב-2 מצבים:
-//       compact=false (touch):   Pill FilledButton עם/בלי תווית
-//       compact=true  (desktop): IconButton עגול קטן בסגנון Chrome M3
-//
-// **שימוש:**
-// ```dart
-// // Touch (ברירת מחדל):
-// ToolbarActionButton(tooltip: 'הגדרות', icon: Icons.settings, onPressed: _s)
-//
-// // Desktop:
-// ToolbarActionButton(tooltip: 'הגדרות', icon: Icons.settings, onPressed: _s,
-//                     compact: true)
-//
-// // עם תווית (מוצגת רק כאשר label != null — ב-compact: תווית קטנה בתוך pill):
-// ToolbarActionButton(tooltip: '...', icon: Icons.sync, onPressed: _s,
-//                     label: 'סנכרון')
-// ```
+// **שינויים v2:**
+// • ToolbarActionButton — תיקון נראות מצב נבחר (selected) במצב בהיר:
+//   - selected: bg=primary×15%, fg=primary (במקום primaryContainer/onPrimaryContainer)
+//   - unselected: bg=surfaceContainerHighest×60% (גלוי קצת גם כשלא נבחר)
+//   - compact selected: bg=primary×18%, fg=primary
+// • ToolbarActionButton — compact + label: pill קטן עם fg=primary כשנבחר
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
@@ -116,7 +102,8 @@ class NeutralActionButton extends StatelessWidget {
   }
 }
 
-/// כפתור העתקה קטן עבור כרטיסי תוצאה וכלי עזר.
+// ── ToolCopyButton / ToolNavigateButton ──────────────────────────────────────
+
 class ToolCopyButton extends StatelessWidget {
   final VoidCallback onPressed;
   final String tooltip;
@@ -147,7 +134,6 @@ class ToolCopyButton extends StatelessWidget {
   }
 }
 
-/// כפתור ניווט קטן לפתיחת מקור מכרטיסי תוצאה.
 class ToolNavigateButton extends StatelessWidget {
   final VoidCallback onPressed;
   final String tooltip;
@@ -180,20 +166,15 @@ class ToolNavigateButton extends StatelessWidget {
 
 // ── ToolbarActionButton ──────────────────────────────────────────────────────
 
-/// כפתור סרגל כלים בסגנון M3.
+/// כפתור סרגל כלים בסגנון M3 עם נראות מוגברת למצב נבחר.
 ///
 /// **2 מצבים:**
-/// • [compact] = false (touch, ברירת מחדל):
-///     - Pill (StadiumBorder), גודל סטנדרטי
-///     - עם [label]: FilledButton.icon; בלי: FilledButton עם אייקון
-///     - גובה ~40px, אייקון 18px
+/// • [compact] = false (touch):   כפתור עגול/pill גדול, icon 20px
+/// • [compact] = true (desktop):  כפתור עגול/pill קטן, icon 16px
 ///
-/// • [compact] = true (desktop/Chrome-like):
-///     - IconButton עגול קטן (CircleBorder), 32px
-///     - עם [label]: Pill קטן (StadiumBorder), אייקון 16px, טקסט 12px
-///     - גובה ~32px, אייקון 16px
-///
-/// כש-[selected] = true, הכפתור מקבל רקע `primaryContainer`.
+/// **צבעים (תוקן לנראות גם במצב בהיר):**
+/// • selected:    bg = primary×15%, fg = primary — בולט בהיר וכהה
+/// • unselected:  bg = surfaceContainerHighest×60%, fg = onSurfaceVariant
 class ToolbarActionButton extends StatelessWidget {
   final String tooltip;
   final IconData icon;
@@ -201,8 +182,7 @@ class ToolbarActionButton extends StatelessWidget {
   final bool selected;
   final String? label;
 
-  /// true = מצב desktop/עכבר — כפתור קטן ועגול (בסגנון Chrome)
-  /// false = מצב touch — pill גדול (ברירת מחדל)
+  /// true = desktop — כפתור קטן ועגול
   final bool compact;
 
   const ToolbarActionButton({
@@ -215,27 +195,36 @@ class ToolbarActionButton extends StatelessWidget {
     this.compact = false,
   });
 
+  // ── הלוגיקה המשותפת לצבעים ──────────────────────────────────────────────
+
+  /// צבע רקע: נבחר = primary × alpha; לא נבחר = surfaceContainerHighest × alpha
+  Color _bgColor(ColorScheme cs, double selectedAlpha, double unselectedAlpha) {
+    return selected
+        ? cs.primary.withValues(alpha: selectedAlpha)
+        : cs.surfaceContainerHighest.withValues(alpha: unselectedAlpha);
+  }
+
+  /// צבע טקסט/אייקון: נבחר = primary; לא נבחר = onSurfaceVariant
+  Color _fgColor(ColorScheme cs) => selected ? cs.primary : cs.onSurfaceVariant;
+
   @override
   Widget build(BuildContext context) {
     return compact ? _buildCompact(context) : _buildStandard(context);
   }
 
-  // ── מצב touch (סטנדרטי) ─────────────────────────────────────────────────
+  // ── Touch ────────────────────────────────────────────────────────────────
 
   Widget _buildStandard(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final bg = selected ? cs.primaryContainer : Colors.transparent;
-    final fg = selected ? cs.onPrimaryContainer : cs.onSurfaceVariant;
+    final bg = _bgColor(cs, 0.18, 0.65);
+    final fg = _fgColor(cs);
 
     Widget button;
     if (label != null) {
-      // עם תווית: pill גדול
       button = FilledButton.icon(
         onPressed: onPressed,
         style: FilledButton.styleFrom(
-          backgroundColor: bg == Colors.transparent
-              ? cs.surfaceContainerHighest.withValues(alpha: 0.6)
-              : bg,
+          backgroundColor: bg,
           foregroundColor: fg,
           padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 8.0),
           shape: const StadiumBorder(),
@@ -246,7 +235,6 @@ class ToolbarActionButton extends StatelessWidget {
         label: Text(label!, style: const TextStyle(fontSize: 14.0)),
       );
     } else {
-      // ללא תווית: כפתור עגול גדול
       button = IconButton(
         onPressed: onPressed,
         icon: Icon(icon, size: 20),
@@ -256,7 +244,6 @@ class ToolbarActionButton extends StatelessWidget {
           backgroundColor: bg,
           foregroundColor: fg,
           shape: const CircleBorder(),
-          // הוסף overlay בהיר ב-hover
           highlightColor: cs.onSurface.withValues(alpha: 0.08),
         ),
       );
@@ -265,22 +252,19 @@ class ToolbarActionButton extends StatelessWidget {
     return Tooltip(message: tooltip, child: button);
   }
 
-  // ── מצב desktop/compact (בסגנון Chrome) ─────────────────────────────────
+  // ── Desktop ───────────────────────────────────────────────────────────────
 
   Widget _buildCompact(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final bg = selected ? cs.primaryContainer : Colors.transparent;
-    final fg = selected ? cs.onPrimaryContainer : cs.onSurfaceVariant;
+    final bg = _bgColor(cs, 0.16, 0.55);
+    final fg = _fgColor(cs);
 
     Widget button;
     if (label != null) {
-      // עם תווית: pill קטן
       button = FilledButton.icon(
         onPressed: onPressed,
         style: FilledButton.styleFrom(
-          backgroundColor: bg == Colors.transparent
-              ? cs.surfaceContainerHighest.withValues(alpha: 0.6)
-              : bg,
+          backgroundColor: bg,
           foregroundColor: fg,
           padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 5.0),
           shape: const StadiumBorder(),
@@ -291,7 +275,6 @@ class ToolbarActionButton extends StatelessWidget {
         label: Text(label!, style: const TextStyle(fontSize: 12.0)),
       );
     } else {
-      // ללא תווית: כפתור עגול בסגנון Chrome
       button = IconButton(
         onPressed: onPressed,
         icon: Icon(icon, size: 16),
@@ -301,7 +284,6 @@ class ToolbarActionButton extends StatelessWidget {
           backgroundColor: bg,
           foregroundColor: fg,
           shape: const CircleBorder(),
-          // הוסף overlay בהיר ב-hover (אפקט Chrome)
           highlightColor: cs.onSurface.withValues(alpha: 0.08),
         ),
       );
