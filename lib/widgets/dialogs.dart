@@ -19,8 +19,6 @@
 //
 // ─── דיאלוגי בחירה ───────────────────────────────────────────────────────────
 // [SelectionDialog]                                   → selection_dialog.dart
-// [MultiSelectionDialog]                              → multi_selection_dialog.dart
-//
 // ─── מיכל כללי ───────────────────────────────────────────────────────────────
 // [ReusableItemsDialog]                               → reusable_items_dialog.dart
 
@@ -29,4 +27,3 @@ export 'dialogs/app_dialogs.dart';
 export 'input_dialog.dart';
 export 'generic_settings_dialog.dart';
 export 'selection_dialog.dart';
-export 'multi_selection_dialog.dart';

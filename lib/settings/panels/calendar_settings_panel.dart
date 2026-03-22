@@ -3,9 +3,9 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/core/widgets/otzaria_search_field.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/models/city_coordinates.dart';
-import 'package:otzaria/widgets/dialogs.dart';
 import 'package:otzaria/settings/settings_card.dart';
 import 'package:otzaria/widgets/custom_ui_components.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -187,13 +187,13 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                                               .getAvailableCalendars();
                                           if (!context.mounted) return;
                                           final selected =
-                                              await showMultiSelectionDialog<
+                                              await _showCalendarMultiSelectionDialog<
                                                   String>(
                                             context: context,
                                             title: 'בחר לוחות שנה',
                                             items: calendars
                                                 .map((cal) =>
-                                                    MultiSelectionItem<String>(
+                                                    _CalendarMultiSelectionItem<String>(
                                                       label: cal.name,
                                                       value: cal.id,
                                                       subtitle: cal.isPrimary
@@ -248,13 +248,13 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                                         return;
                                       }
                                       final selected =
-                                          await showMultiSelectionDialog<
+                                          await _showCalendarMultiSelectionDialog<
                                               String>(
                                         context: context,
                                         title: 'בחר לוחות שנה',
                                         items: calendars
                                             .map((cal) =>
-                                                MultiSelectionItem<String>(
+                                                _CalendarMultiSelectionItem<String>(
                                                   label: cal.name,
                                                   value: cal.id,
                                                   subtitle: cal.isPrimary
@@ -414,4 +414,180 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
       ),
     );
   }
+}
+
+Future<List<T>?> _showCalendarMultiSelectionDialog<T>({
+  required BuildContext context,
+  required String title,
+  required List<_CalendarMultiSelectionItem<T>> items,
+  List<T> initialSelectedValues = const [],
+  String searchHint = 'חיפוש...',
+  String? emptyMessage,
+  bool barrierDismissible = true,
+}) {
+  return showDialog<List<T>>(
+    context: context,
+    barrierDismissible: barrierDismissible,
+    builder: (context) => _CalendarMultiSelectionDialog<T>(
+      title: title,
+      items: items,
+      initialSelectedValues: initialSelectedValues,
+      searchHint: searchHint,
+      emptyMessage: emptyMessage,
+    ),
+  );
+}
+
+class _CalendarMultiSelectionDialog<T> extends StatefulWidget {
+  final String title;
+  final List<_CalendarMultiSelectionItem<T>> items;
+  final List<T> initialSelectedValues;
+  final String searchHint;
+  final String? emptyMessage;
+
+  const _CalendarMultiSelectionDialog({
+    required this.title,
+    required this.items,
+    this.initialSelectedValues = const [],
+    this.searchHint = 'חיפוש...',
+    this.emptyMessage,
+  });
+
+  @override
+  State<_CalendarMultiSelectionDialog<T>> createState() =>
+      _CalendarMultiSelectionDialogState<T>();
+}
+
+class _CalendarMultiSelectionDialogState<T>
+    extends State<_CalendarMultiSelectionDialog<T>> {
+  late List<_CalendarMultiSelectionItem<T>> filteredItems;
+  late Set<T> selectedValues;
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    filteredItems = widget.items;
+    selectedValues = Set.from(widget.initialSelectedValues);
+    _searchController.addListener(_filterItems);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _filterItems() {
+    final query = _searchController.text.toLowerCase();
+    setState(() {
+      if (query.isEmpty) {
+        filteredItems = widget.items;
+      } else {
+        filteredItems = widget.items.where((item) {
+          return item.label.toLowerCase().contains(query) ||
+              item.searchValue.toLowerCase().contains(query);
+        }).toList();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return AlertDialog(
+      backgroundColor: cs.surfaceContainerHigh,
+      title: Text(widget.title, textDirection: TextDirection.rtl),
+      content: SizedBox(
+        width: double.maxFinite,
+        height: 400,
+        child: Column(
+          children: [
+            OtzariaSearchField(
+              controller: _searchController,
+              hintText: widget.searchHint,
+              autofocus: true,
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: widget.items.isEmpty
+                  ? Center(
+                      child: Text(
+                        widget.emptyMessage ?? 'לא נמצאו פריטים',
+                        style: TextStyle(color: cs.onSurfaceVariant),
+                        textDirection: TextDirection.rtl,
+                      ),
+                    )
+                  : filteredItems.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'לא נמצאו תוצאות',
+                            textDirection: TextDirection.rtl,
+                          ),
+                        )
+                      : ListView.builder(
+                          itemCount: filteredItems.length,
+                          itemBuilder: (context, index) {
+                            final item = filteredItems[index];
+                            final isSelected =
+                                selectedValues.contains(item.value);
+
+                            return CheckboxListTile(
+                              title: Text(
+                                item.label,
+                                textDirection: TextDirection.rtl,
+                              ),
+                              subtitle: item.subtitle != null
+                                  ? Text(
+                                      item.subtitle!,
+                                      textDirection: TextDirection.rtl,
+                                    )
+                                  : null,
+                              value: isSelected,
+                              onChanged: (value) {
+                                setState(() {
+                                  if (value == true) {
+                                    selectedValues.add(item.value);
+                                  } else {
+                                    selectedValues.remove(item.value);
+                                  }
+                                });
+                              },
+                            );
+                          },
+                        ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        NeutralActionButton(
+          text: 'ביטול',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        RecommendedActionButton(
+          text: 'אישור',
+          onPressed: selectedValues.isEmpty
+              ? () {}
+              : () => Navigator.of(context).pop(selectedValues.toList()),
+          isLoading: false,
+        ),
+      ],
+    );
+  }
+}
+
+class _CalendarMultiSelectionItem<T> {
+  final String label;
+  final String searchValue;
+  final T value;
+  final String? subtitle;
+
+  const _CalendarMultiSelectionItem({
+    required this.label,
+    required this.value,
+    String? searchValue,
+    this.subtitle,
+  }) : searchValue = searchValue ?? label;
 }
