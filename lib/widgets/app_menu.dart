@@ -660,10 +660,24 @@ typedef _ContextMenuAction = VoidCallback?;
 // ═══════════════════════════════════════════════════════════════════════════
 // AppSelectionField — שדה-בחירה (trigger לתפריט נפתח)
 //
-// עיצוב: זהה ל-OtzariaSearchField אך בחצי הגובה (pill ~20px radius, 40px גובה)
-// • ללא גבול כשלא מסומן
-// • גבול + fill בעת hover / selected
+// עיצוב: זהה לשורת הטריגר של DropdownMenu עם חיפוש
+// • ללא גבול במצב רגיל
+// • גבול עדין בעת hover
 // ═══════════════════════════════════════════════════════════════════════════
+
+const double _dropdownFieldRadius = 20.0;
+const double _dropdownFieldIdleFillAlpha = 0.07;
+const double _dropdownFieldDisabledFillAlpha = 0.04;
+const double _dropdownFieldHoverFillAlpha = 0.10;
+const double _dropdownFieldBorderWidth = 1.4;
+
+Color _dropdownFieldBorderColor(BuildContext context) {
+  final theme = Theme.of(context);
+  final cs = theme.colorScheme;
+  return theme.brightness == Brightness.light
+      ? cs.primary.withValues(alpha: 0.22)
+      : cs.primary.withValues(alpha: 0.40);
+}
 
 class AppSelectionField extends StatefulWidget {
   final Widget child;
@@ -690,42 +704,24 @@ class AppSelectionField extends StatefulWidget {
 class _AppSelectionFieldState extends State<AppSelectionField> {
   bool _isHovering = false;
 
-  // ── קבועי עיצוב (חצי מ-OtzariaSearchField) ────────────────────────────
-  static const double _radius = 20.0; // OtzariaSearchField = 28
-  static const double _fillAlphaIdle = 0.07; // onSurface × 7%
-  static const double _fillAlphaHover = 0.10;
-  static const double _fillAlphaSelected = 0.12; // primary × 12%
-  static const double _borderWidthFocus = 1.4;
   static const Duration _animDuration = Duration(milliseconds: 120);
 
   BoxDecoration _buildFieldDecoration(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    if (widget.isSelected && widget.enabled) {
-      return BoxDecoration(
-        color: cs.primary.withValues(alpha: _fillAlphaSelected),
-        borderRadius: BorderRadius.circular(_radius),
-        border: Border.all(
-          color: cs.primary,
-          width: _borderWidthFocus,
-        ),
-      );
-    }
     if (_isHovering && widget.enabled) {
       return BoxDecoration(
-        color: cs.onSurface.withValues(alpha: _fillAlphaHover),
-        borderRadius: BorderRadius.circular(_radius),
-        border: Border.all(
-          color: cs.primary.withValues(alpha: 0.40),
-          width: 1.0,
-        ),
+        color: cs.onSurface.withValues(alpha: _dropdownFieldHoverFillAlpha),
+        borderRadius: BorderRadius.circular(_dropdownFieldRadius),
       );
     }
     return BoxDecoration(
-      color: cs.onSurface
-          .withValues(alpha: widget.enabled ? _fillAlphaIdle : 0.04),
-      borderRadius: BorderRadius.circular(_radius),
-      // ללא גבול במצב רגיל — כמו OtzariaSearchField
+      color: cs.onSurface.withValues(
+        alpha: widget.enabled
+            ? _dropdownFieldIdleFillAlpha
+            : _dropdownFieldDisabledFillAlpha,
+      ),
+      borderRadius: BorderRadius.circular(_dropdownFieldRadius),
     );
   }
 
@@ -762,7 +758,7 @@ class _AppSelectionFieldState extends State<AppSelectionField> {
           color: Colors.transparent,
           child: InkWell(
             onTap: widget.enabled ? widget.onTap : null,
-            borderRadius: BorderRadius.circular(_radius),
+            borderRadius: BorderRadius.circular(_dropdownFieldRadius),
             hoverColor: Colors.transparent,
             splashColor: Colors.transparent,
             child: content,
@@ -891,31 +887,35 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
     AppMenuMetrics metrics,
   ) {
     final cs = Theme.of(context).colorScheme;
-    const radius = 20.0;
+    final borderColor = _dropdownFieldBorderColor(context);
 
     return InputDecorationTheme(
       filled: true,
-      fillColor: cs.onSurface.withValues(alpha: widget.enabled ? 0.07 : 0.04),
+      fillColor: cs.onSurface.withValues(
+        alpha: widget.enabled
+            ? _dropdownFieldIdleFillAlpha
+            : _dropdownFieldDisabledFillAlpha,
+      ),
       isDense: true,
       contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       // ללא גבול כברירת מחדל (כמו OtzariaSearchField)
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(radius),
+        borderRadius: BorderRadius.circular(_dropdownFieldRadius),
         borderSide: BorderSide.none,
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(radius),
+        borderRadius: BorderRadius.circular(_dropdownFieldRadius),
         borderSide: BorderSide.none,
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(radius),
+        borderRadius: BorderRadius.circular(_dropdownFieldRadius),
         borderSide: BorderSide(
-          color: cs.primary,
-          width: 1.4,
+          color: borderColor,
+          width: _dropdownFieldBorderWidth,
         ),
       ),
       disabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(radius),
+        borderRadius: BorderRadius.circular(_dropdownFieldRadius),
         borderSide: BorderSide.none,
       ),
       hintStyle: TextStyle(
