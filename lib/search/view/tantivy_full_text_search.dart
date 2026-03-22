@@ -268,7 +268,8 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
                               final width = context
                                   .watch<SettingsBloc>()
                                   .state
-                                  .facetFilteringWidth;
+                                  .facetFilteringWidth
+                                  .clamp(280.0, 600.0);
                               return SizedBox(width: width);
                             },
                           ),

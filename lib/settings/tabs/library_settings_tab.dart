@@ -72,6 +72,33 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
     );
   }
 
+  /// פונקציית בניית ווידג'ט מיקום ספריית אוצריא
+  Widget _buildLibraryLocationWidget(BuildContext context) {
+    final pathStr =
+        Settings.getValue<String>(SettingsRepository.keyLibraryPath);
+    final hasPath = pathStr != null;
+
+    return ListTile(
+      leading: const Icon(FluentIcons.folder_24_regular),
+      title: const Text('מיקום ספריית אוצריא', style: kSettingsTitleStyle),
+      subtitle: Text(
+        hasPath ? pathStr : 'בחר מיקום עבור מאגר הספרים',
+        style: kSettingsSubtitleStyle,
+      ),
+      trailing: RecommendedActionButton(
+        text: hasPath ? 'שנה מיקום' : 'בחר מיקום',
+        icon: FluentIcons.folder_24_regular,
+        onPressed: () async {
+          String? path = await FilePicker.platform.getDirectoryPath();
+          if (path != null && context.mounted) {
+            await _showExtractionDialog(context, path, isLibraryPath: true);
+            if (mounted) setState(() {});
+          }
+        },
+      ),
+    );
+  }
+
   /// פונקציית בניית ווידג'ט מיקום היברובוקס המועברת לפאנל המשותף
   Widget _buildHebrewBooksLocationWidget(BuildContext context) {
     final pathStr =
@@ -113,6 +140,17 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // מאגר הספרים (רק בדסקטופ)
+              if (!(Platform.isAndroid || Platform.isIOS)) ...[
+                SettingsCard(
+                  title: 'מאגר הספרים',
+                  children: [
+                    _buildLibraryLocationWidget(context),
+                  ],
+                ),
+                kSettingsCardSpacing,
+              ],
+
               // הפאנל המשותף (תצוגה + ספרים נוספים) - כעת כולל את תיקיית היברובוקס בתוכו!
               LibrarySettingsPanel(hebrewBooksPathWidget: hebrewPathWidget),
 

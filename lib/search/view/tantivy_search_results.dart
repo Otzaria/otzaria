@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:characters/characters.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
@@ -28,7 +29,36 @@ class TantivySearchResults extends StatefulWidget {
 }
 
 class _TantivySearchResultsState extends State<TantivySearchResults> {
+  static const int _maxUnbrokenWordLength = 12;
   final ScrollController _scrollController = ScrollController();
+
+  String _formatTitleForWrapping(String title) {
+    return title
+        .split(' ')
+        .map(_insertBreakOpportunities)
+        .join(' ');
+  }
+
+  String _insertBreakOpportunities(String word) {
+    if (word.characters.length <= _maxUnbrokenWordLength) {
+      return word;
+    }
+
+    final buffer = StringBuffer();
+    var currentLength = 0;
+
+    for (final character in word.characters) {
+      buffer.write(character);
+      currentLength++;
+
+      if (currentLength >= _maxUnbrokenWordLength) {
+        buffer.write('\u200B');
+        currentLength = 0;
+      }
+    }
+
+    return buffer.toString();
+  }
 
   @override
   void dispose() {
@@ -125,6 +155,7 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
             }
 
             // חישוב רוחב זמין לטקסט
+            final wrappedTitleText = _formatTitleForWrapping(titleText);
             final availableWidth = constrains.maxWidth - 100.0;
 
             // Create the snippet using the new robust function
@@ -282,18 +313,23 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                                     ),
                                   ),
                                 Expanded(
-                                  child: Text(
-                                    titleText,
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w500,
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onSurfaceVariant,
+                                  child: Tooltip(
+                                    message: titleText,
+                                    child: Text(
+                                      wrappedTitleText,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                      ),
+                                      textAlign: TextAlign.right,
+                                      textDirection: TextDirection.rtl,
+                                      softWrap: true,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                    textAlign: TextAlign.right,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                               ],

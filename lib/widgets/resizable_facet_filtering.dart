@@ -15,8 +15,8 @@ class ResizableFacetFiltering extends StatefulWidget {
   const ResizableFacetFiltering({
     super.key,
     required this.tab,
-    this.minWidth = 150,
-    this.maxWidth = 500,
+    this.minWidth = 200,
+    this.maxWidth = 600,
   });
 
   @override
@@ -32,7 +32,7 @@ class _ResizableFacetFilteringState extends State<ResizableFacetFiltering> {
     super.initState();
     // טעינת הרוחב מההגדרות
     final settingsState = context.read<SettingsBloc>().state;
-    _currentWidth = settingsState.facetFilteringWidth;
+    _currentWidth = settingsState.facetFilteringWidth.clamp(widget.minWidth, widget.maxWidth);
   }
 
   @override
@@ -42,7 +42,7 @@ class _ResizableFacetFilteringState extends State<ResizableFacetFiltering> {
         // עדכון הרוחב כאשר ההגדרות משתנות מבחוץ
         if (state.facetFilteringWidth != _currentWidth) {
           setState(() {
-            _currentWidth = state.facetFilteringWidth;
+            _currentWidth = state.facetFilteringWidth.clamp(widget.minWidth, widget.maxWidth);
           });
         }
       },

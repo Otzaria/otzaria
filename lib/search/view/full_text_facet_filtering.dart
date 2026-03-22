@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
@@ -169,49 +170,53 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
         categoryPath ?? FacetHelper.resolveCategoryPath(book);
     final facet = FacetHelper.buildBookFacet(resolvedCategoryPath, book.title);
     final isSelected = state.currentFacets.contains(facet);
-    return InkWell(
-      onTap: () => HardwareKeyboard.instance.isControlPressed
-          ? _handleFacetToggle(context, facet)
-          : _setFacet(context, facet),
-      onDoubleTap: () => _handleFacetToggle(context, facet),
-      onLongPress: () => _handleFacetToggle(context, facet),
-      child: Container(
-        padding: EdgeInsets.only(
-          right: 16.0 + (level * 24.0) + 32.0, // הזחה נוספת לספרים
-          left: 16.0,
-          top: 10.0,
-          bottom: 10.0,
-        ),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? Theme.of(context)
-                  .colorScheme
-                  .primaryContainer
-                  .withValues(alpha: 0.3)
-              : null,
-          border: Border(
-            bottom: BorderSide(
-              color: Theme.of(context).dividerColor,
-              width: 0.5,
-            ),
+    return _IsolatedTooltip(
+      message: book.title,
+      child: InkWell(
+        onTap: () => HardwareKeyboard.instance.isControlPressed
+            ? _handleFacetToggle(context, facet)
+            : _setFacet(context, facet),
+        onDoubleTap: () => _handleFacetToggle(context, facet),
+        onLongPress: () => _handleFacetToggle(context, facet),
+        child: Container(
+          padding: EdgeInsets.only(
+            right: 16.0 + (level * 12.0) + 24.0, // הזחה נוספת לספרים
+            left: 16.0,
+            top: 10.0,
+            bottom: 10.0,
           ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              FluentIcons.book_24_regular,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-              size: 18,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                book.title,
-                style: const TextStyle(fontSize: 14),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? Theme.of(context)
+                    .colorScheme
+                    .primaryContainer
+                    .withValues(alpha: 0.3)
+                : null,
+            border: Border(
+              bottom: BorderSide(
+                color: Theme.of(context).dividerColor,
+                width: 0.5,
               ),
             ),
-            // מספר התוצאות
-            if (count != -1)
+          ),
+          child: Row(
+            children: [
+              Icon(
+                FluentIcons.book_24_regular,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                size: 18,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  book.title,
+                  style: const TextStyle(fontSize: 14),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              // מספר התוצאות
+              if (count != -1)
               Text(
                 '($count)',
                 style: TextStyle(
@@ -225,7 +230,8 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
                 height: 12,
                 child: CircularProgressIndicator(strokeWidth: 1.5),
               ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -281,59 +287,63 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
     return Column(
       children: [
         // שורת הקטגוריה - סגנון ספרייה
-        InkWell(
-          onTap: () {
-            // Ctrl+לחיצה = toggle, לחיצה רגילה = set
-            if (HardwareKeyboard.instance.isControlPressed) {
-              _handleFacetToggle(context, category.path);
-            } else {
-              _setFacet(context, category.path);
-            }
-          },
-          onLongPress: () => _handleFacetToggle(context, category.path),
-          child: Container(
-            padding: EdgeInsets.only(
-              right: 16.0 + (level * 24.0),
-              left: 16.0,
-              top: 12.0,
-              bottom: 12.0,
-            ),
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? Theme.of(context)
-                      .colorScheme
-                      .primaryContainer
-                      .withValues(alpha: 0.3)
-                  : null,
-              border: Border(
-                bottom: BorderSide(
-                  color: Theme.of(context).dividerColor,
-                  width: 0.5,
-                ),
+        _IsolatedTooltip(
+          message: category.title,
+          child: InkWell(
+            onTap: () {
+              // Ctrl+לחיצה = toggle, לחיצה רגילה = set
+              if (HardwareKeyboard.instance.isControlPressed) {
+                _handleFacetToggle(context, category.path);
+              } else {
+                _setFacet(context, category.path);
+              }
+            },
+            onLongPress: () => _handleFacetToggle(context, category.path),
+            child: Container(
+              padding: EdgeInsets.only(
+                right: 16.0 + (level * 12.0),
+                left: 16.0,
+                top: 12.0,
+                bottom: 12.0,
               ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  isExpanded
-                      ? FluentIcons.folder_open_24_regular
-                      : FluentIcons.folder_24_regular,
-                  color: Theme.of(context).colorScheme.primary,
-                  size: 20,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    category.title,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? Theme.of(context)
+                        .colorScheme
+                        .primaryContainer
+                        .withValues(alpha: 0.3)
+                    : null,
+                border: Border(
+                  bottom: BorderSide(
+                    color: Theme.of(context).dividerColor,
+                    width: 0.5,
                   ),
                 ),
-                // מספר התוצאות
-                if (count != -1)
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    isExpanded
+                        ? FluentIcons.folder_open_24_regular
+                        : FluentIcons.folder_24_regular,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      category.title,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  // מספר התוצאות
+                  if (count != -1)
                   Text(
                     '($count)',
                     style: TextStyle(
@@ -366,6 +376,7 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
             ),
           ),
         ),
+      ),
 
         // ילדים
         if (isExpanded)
@@ -515,6 +526,63 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
           child: _buildFacetTree(),
         ),
       ],
+    );
+  }
+}
+
+class _IsolatedTooltip extends StatefulWidget {
+  final String message;
+  final Widget child;
+
+  const _IsolatedTooltip({
+    super.key,
+    required this.message,
+    required this.child,
+  });
+
+  @override
+  State<_IsolatedTooltip> createState() => _IsolatedTooltipState();
+}
+
+class _IsolatedTooltipState extends State<_IsolatedTooltip> {
+  bool _showTooltip = false;
+  Timer? _timer;
+  final GlobalKey<TooltipState> _tooltipKey = GlobalKey<TooltipState>();
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) {
+        _timer?.cancel();
+        _timer = Timer(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            setState(() => _showTooltip = true);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _tooltipKey.currentState?.ensureTooltipVisible();
+            });
+          }
+        });
+      },
+      onExit: (_) {
+        _timer?.cancel();
+        if (_showTooltip && mounted) {
+          setState(() => _showTooltip = false);
+        }
+      },
+      child: _showTooltip
+          ? Tooltip(
+              key: _tooltipKey,
+              message: widget.message,
+              triggerMode: TooltipTriggerMode.manual,
+              child: widget.child,
+            )
+          : widget.child,
     );
   }
 }
