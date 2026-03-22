@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/core/widgets/otzaria_search_field.dart';
+import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/buttons/action_buttons.dart';
+import 'package:otzaria/widgets/tool_empty_state.dart';
 
 class ItemsListView extends StatefulWidget {
   final List<dynamic> items;
@@ -48,7 +52,7 @@ class _ItemsListViewState extends State<ItemsListView> {
 
     // Auto-focus the search field when the screen opens
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _searchFocusNode.requestFocus();
+      requestFocusIfNeeded(_searchFocusNode);
     });
   }
 
@@ -61,8 +65,13 @@ class _ItemsListViewState extends State<ItemsListView> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     if (widget.items.isEmpty) {
-      return Center(child: Text(widget.emptyText));
+      return ToolEmptyState(
+        icon: FluentIcons.text_bullet_list_24_regular,
+        message: widget.emptyText,
+      );
     }
 
     // Filter items based on search query
@@ -90,55 +99,70 @@ class _ItemsListViewState extends State<ItemsListView> {
         ),
         Expanded(
           child: filteredItems.isEmpty
-              ? Center(child: Text(widget.notFoundText))
+              ? ToolEmptyState(
+                  icon: FluentIcons.search_24_regular,
+                  message: widget.notFoundText,
+                )
               : ListView.builder(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppTokens.spaceSM,
+                    vertical: AppTokens.spaceXS,
+                  ),
                   itemCount: filteredItems.length,
                   itemBuilder: (context, index) {
                     final item = filteredItems[index];
                     final originalIndex = widget.items.indexOf(item);
                     final centerText = widget.subtitleBuilder?.call(item);
-                    return InkWell(
-                      onTap: () =>
-                          widget.onItemTap(context, item, originalIndex),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16.0, vertical: 12.0),
-                        child: Row(
-                          children: [
-                            if (widget.leadingIconBuilder?.call(item) != null)
-                              Padding(
-                                padding: const EdgeInsets.only(left: 12.0),
-                                child: widget.leadingIconBuilder!.call(item),
-                              ),
-                            Expanded(
-                              child: Text(
-                                item.ref,
-                                style: const TextStyle(fontSize: 16),
-                                textDirection: TextDirection.rtl,
-                              ),
-                            ),
-                            if (centerText != null)
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16.0),
+                    return Card(
+                      elevation: 0,
+                      margin: const EdgeInsets.only(bottom: AppTokens.spaceXS),
+                      color: AppSurfaces.card(context),
+                      child: InkWell(
+                        borderRadius:
+                            BorderRadius.circular(AppTokens.radiusMD),
+                        onTap: () =>
+                            widget.onItemTap(context, item, originalIndex),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16.0,
+                            vertical: 12.0,
+                          ),
+                          child: Row(
+                            children: [
+                              if (widget.leadingIconBuilder?.call(item) != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 12.0),
+                                  child: widget.leadingIconBuilder!.call(item),
+                                ),
+                              Expanded(
                                 child: Text(
-                                  centerText,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurface
-                                        .withValues(alpha: 0.6),
-                                  ),
+                                  item.ref,
+                                  style: const TextStyle(fontSize: 16),
                                   textDirection: TextDirection.rtl,
                                 ),
                               ),
-                            IconButton(
-                              icon: const Icon(FluentIcons.delete_24_regular),
-                              onPressed: () =>
-                                  widget.onDelete(context, originalIndex),
-                            ),
-                          ],
+                              if (centerText != null)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 16.0),
+                                  child: Text(
+                                    centerText,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: cs.onSurface.withValues(alpha: 0.6),
+                                    ),
+                                    textDirection: TextDirection.rtl,
+                                  ),
+                                ),
+                              IconButton(
+                                icon:
+                                    const Icon(FluentIcons.delete_24_regular),
+                                tooltip: 'מחק',
+                                onPressed: () =>
+                                    widget.onDelete(context, originalIndex),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     );
@@ -147,9 +171,9 @@ class _ItemsListViewState extends State<ItemsListView> {
         ),
         Padding(
           padding: const EdgeInsets.all(8.0),
-          child: ElevatedButton(
+          child: NeutralActionButton(
+            text: widget.clearAllText,
             onPressed: () => widget.onClearAll(context),
-            child: Text(widget.clearAllText),
           ),
         ),
       ],
