@@ -1,6 +1,7 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -670,6 +671,10 @@ const double _dropdownFieldIdleFillAlpha = 0.07;
 const double _dropdownFieldDisabledFillAlpha = 0.04;
 const double _dropdownFieldHoverFillAlpha = 0.10;
 const double _dropdownFieldBorderWidth = 1.4;
+const double _dropdownFieldMinHeight = 40.0;
+const EdgeInsets _dropdownFieldContentPadding =
+    EdgeInsets.symmetric(horizontal: 10, vertical: 5);
+const double _dropdownSearchFieldHeight = 36.0;
 
 Color _dropdownFieldBorderColor(BuildContext context) {
   final theme = Theme.of(context);
@@ -686,6 +691,7 @@ class AppSelectionField extends StatefulWidget {
   final VoidCallback? onTap;
   final Widget? leading;
   final bool isSelected;
+  final FocusNode? focusNode;
 
   const AppSelectionField({
     super.key,
@@ -695,6 +701,7 @@ class AppSelectionField extends StatefulWidget {
     this.onTap,
     this.leading,
     this.isSelected = false,
+    this.focusNode,
   });
 
   @override
@@ -703,12 +710,23 @@ class AppSelectionField extends StatefulWidget {
 
 class _AppSelectionFieldState extends State<AppSelectionField> {
   bool _isHovering = false;
+  bool _isFocused = false;
 
   static const Duration _animDuration = Duration(milliseconds: 120);
 
   BoxDecoration _buildFieldDecoration(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
+    if (_isFocused && widget.enabled) {
+      return BoxDecoration(
+        color: cs.onSurface.withValues(alpha: _dropdownFieldHoverFillAlpha),
+        borderRadius: BorderRadius.circular(_dropdownFieldRadius),
+        border: Border.all(
+          color: _dropdownFieldBorderColor(context),
+          width: _dropdownFieldBorderWidth,
+        ),
+      );
+    }
     if (_isHovering && widget.enabled) {
       return BoxDecoration(
         color: cs.onSurface.withValues(alpha: _dropdownFieldHoverFillAlpha),
@@ -727,8 +745,8 @@ class _AppSelectionFieldState extends State<AppSelectionField> {
 
   @override
   Widget build(BuildContext context) {
-    final contentPadding = widget.decoration?.contentPadding ??
-        const EdgeInsets.symmetric(horizontal: 10, vertical: 5);
+    final contentPadding =
+        widget.decoration?.contentPadding ?? _dropdownFieldContentPadding;
 
     final content = Padding(
       padding: contentPadding,
@@ -758,10 +776,21 @@ class _AppSelectionFieldState extends State<AppSelectionField> {
           color: Colors.transparent,
           child: InkWell(
             onTap: widget.enabled ? widget.onTap : null,
+            focusNode: widget.focusNode,
+            canRequestFocus: widget.enabled,
+            onFocusChange: (isFocused) {
+              if (_isFocused != isFocused) {
+                setState(() => _isFocused = isFocused);
+              }
+            },
             borderRadius: BorderRadius.circular(_dropdownFieldRadius),
             hoverColor: Colors.transparent,
             splashColor: Colors.transparent,
-            child: content,
+            child: ConstrainedBox(
+              constraints:
+                  const BoxConstraints(minHeight: _dropdownFieldMinHeight),
+              child: content,
+            ),
           ),
         ),
       ),
@@ -806,14 +835,22 @@ class AppDropdownField<T> extends StatefulWidget {
 }
 
 class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
+  final GlobalKey _selectionAnchorKey = GlobalKey();
   late final TextEditingController _controller;
   late final FocusNode _focusNode;
+  late final MenuController _menuController;
+  String _menuVisibleText = '';
+  bool _isSyncingControllerText = false;
+  bool _restoreTextAfterNavigation = false;
 
   @override
   void initState() {
     super.initState();
     _controller = TextEditingController(text: _selectedLabel);
+    _controller.addListener(_handleControllerChanged);
     _focusNode = FocusNode()..addListener(_handleFocusChanged);
+    _menuController = MenuController();
+    _menuVisibleText = _controller.text;
   }
 
   @override
@@ -821,20 +858,39 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.value != widget.value ||
         oldWidget.entries != widget.entries) {
-      _controller.value = TextEditingValue(
-        text: _selectedLabel,
-        selection: TextSelection.collapsed(offset: _selectedLabel.length),
-      );
+      _setControllerText(_selectedLabel);
+      _menuVisibleText = _selectedLabel;
     }
   }
 
   @override
   void dispose() {
+    _controller.removeListener(_handleControllerChanged);
     _focusNode
       ..removeListener(_handleFocusChanged)
       ..dispose();
     _controller.dispose();
     super.dispose();
+  }
+
+  void _handleControllerChanged() {
+    if (_isSyncingControllerText) return;
+
+    if (widget.enableSearch &&
+        _restoreTextAfterNavigation &&
+        _menuController.isOpen) {
+      _restoreTextAfterNavigation = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_menuController.isOpen) return;
+        _setControllerText(
+          _menuVisibleText,
+          selection: TextSelection.collapsed(offset: _menuVisibleText.length),
+        );
+      });
+      return;
+    }
+
+    _menuVisibleText = _controller.text;
   }
 
   void _handleFocusChanged() {
@@ -846,21 +902,32 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
             baseOffset: 0,
             extentOffset: _controller.text.length,
           );
+          _menuVisibleText = _controller.text;
         }
       });
       return;
     }
-    if (widget.enableSearch && _controller.text != _selectedLabel) {
+    if (_controller.text != _selectedLabel) {
       _restoreSelectedText();
     }
   }
 
   void _restoreSelectedText() {
     final selectedLabel = _selectedLabel;
+    _setControllerText(selectedLabel);
+    _menuVisibleText = selectedLabel;
+  }
+
+  void _setControllerText(
+    String text, {
+    TextSelection? selection,
+  }) {
+    _isSyncingControllerText = true;
     _controller.value = TextEditingValue(
-      text: selectedLabel,
-      selection: TextSelection.collapsed(offset: selectedLabel.length),
+      text: text,
+      selection: selection ?? TextSelection.collapsed(offset: text.length),
     );
+    _isSyncingControllerText = false;
   }
 
   String get _selectedLabel {
@@ -882,6 +949,82 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
     return null;
   }
 
+  Future<void> _openSelectionMenu() async {
+    if (!widget.enabled ||
+        widget.onSelected == null ||
+        widget.entries.isEmpty) {
+      return;
+    }
+    final anchorContext = _selectionAnchorKey.currentContext;
+    if (anchorContext == null) return;
+
+    final selected = await showAnchoredAppMenu<T>(
+      context: context,
+      anchorContext: anchorContext,
+      itemsBuilder: (metrics) => widget.entries
+          .map<PopupMenuEntry<T>>(
+            (entry) => buildAppPopupMenuItem<T>(
+              context,
+              entry,
+              metrics,
+              widget.value,
+            ),
+          )
+          .toList(),
+    );
+
+    if (!mounted) return;
+
+    _focusNode.requestFocus();
+    if (selected != null) {
+      widget.onSelected?.call(selected);
+    }
+  }
+
+  void _openSearchMenu() {
+    if (!_menuController.isOpen) {
+      _menuVisibleText = _controller.text;
+      _menuController.open();
+    }
+    if (!_focusNode.hasFocus) {
+      _focusNode.requestFocus();
+    }
+  }
+
+  KeyEventResult _handleSearchFieldKeyEvent(FocusNode _, KeyEvent event) {
+    if (event is! KeyDownEvent) {
+      return KeyEventResult.ignored;
+    }
+
+    final key = event.logicalKey;
+    final isActivateKey = key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter;
+
+    if (!_menuController.isOpen &&
+        (key == LogicalKeyboardKey.space || isActivateKey)) {
+      _openSearchMenu();
+      return KeyEventResult.handled;
+    }
+
+    if (_menuController.isOpen &&
+        (key == LogicalKeyboardKey.arrowDown ||
+            key == LogicalKeyboardKey.arrowUp)) {
+      _menuVisibleText = _controller.text;
+      _restoreTextAfterNavigation = true;
+      return KeyEventResult.ignored;
+    }
+
+    if (_menuController.isOpen && key == LogicalKeyboardKey.escape) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _menuController.isOpen) return;
+        _restoreSelectedText();
+        _focusNode.requestFocus();
+      });
+    }
+
+    return KeyEventResult.ignored;
+  }
+
   InputDecorationTheme _buildDecorationTheme(
     BuildContext context,
     AppMenuMetrics metrics,
@@ -897,7 +1040,7 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
             : _dropdownFieldDisabledFillAlpha,
       ),
       isDense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      contentPadding: _dropdownFieldContentPadding,
       // ללא גבול כברירת מחדל (כמו OtzariaSearchField)
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(_dropdownFieldRadius),
@@ -921,6 +1064,58 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
       hintStyle: TextStyle(
         color: cs.onSurfaceVariant,
         fontSize: metrics.fontSize,
+      ),
+    );
+  }
+
+  InputDecoration _buildSearchFieldDecoration(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final hasFocus = _focusNode.hasFocus;
+
+    return InputDecoration(
+      hintText: widget.decoration?.hintText ?? widget.decoration?.labelText,
+      hintStyle: TextStyle(
+        fontSize: 13,
+        color: cs.onSurfaceVariant,
+        height: 1.0,
+      ),
+      filled: true,
+      isDense: true,
+      fillColor: hasFocus
+          ? cs.primary.withValues(alpha: 0.12)
+          : cs.onSurface.withValues(alpha: 0.07),
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: AppTokens.spaceXS, vertical: 0),
+      constraints: const BoxConstraints(minHeight: _dropdownSearchFieldHeight),
+      prefixIcon: Icon(
+        FluentIcons.search_24_regular,
+        size: 18,
+        color: hasFocus ? cs.primary : cs.onSurfaceVariant,
+      ),
+      prefixIconConstraints: const BoxConstraints(
+        minWidth: 36,
+        minHeight: _dropdownSearchFieldHeight,
+      ),
+      suffixIcon: const SizedBox.shrink(),
+      suffixIconConstraints: const BoxConstraints(
+        minWidth: 32,
+        minHeight: _dropdownSearchFieldHeight,
+      ),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(_dropdownFieldRadius),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(_dropdownFieldRadius),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(_dropdownFieldRadius),
+        borderSide: BorderSide.none,
+      ),
+      disabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(_dropdownFieldRadius),
+        borderSide: BorderSide.none,
       ),
     );
   }
@@ -976,15 +1171,12 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
 
           return SizedBox(
             width: resolvedWidth,
-            child: AppPopupMenuButton<T>(
-              entries: widget.entries,
-              enabled: effectiveEnabled,
-              initialValue: widget.value,
-              onSelected: widget.onSelected == null
-                  ? null
-                  : (value) => widget.onSelected!(value),
+            child: KeyedSubtree(
+              key: _selectionAnchorKey,
               child: AppSelectionField(
                 enabled: effectiveEnabled,
+                focusNode: _focusNode,
+                onTap: _openSelectionMenu,
                 decoration: widget.decoration,
                 isSelected: widget.value != null,
                 child: SizedBox(
@@ -999,79 +1191,78 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
         // ── מצב עם חיפוש: DropdownMenu ────────────────────────────────────
         return SizedBox(
           width: resolvedWidth,
-          child: DropdownMenu<T>(
-            controller: _controller,
-            focusNode: _focusNode,
-            enabled: effectiveEnabled,
-            enableFilter: true,
-            enableSearch: true,
-            requestFocusOnTap:
-                true, // auto-select בפתיחה (דרך _handleFocusChanged)
-            initialSelection: widget.value,
-            menuHeight: (metrics.itemHeight * 8) + metrics.menuPadding.vertical,
-            width: resolvedWidth,
-            textStyle: TextStyle(
-              fontFamily: 'Roboto',
-              fontSize: metrics.fontSize,
-              fontWeight: metrics.itemFontWeight,
-              color: cs.onSurface,
+          child: Focus(
+            canRequestFocus: false,
+            onKeyEvent: _handleSearchFieldKeyEvent,
+            child: DropdownMenu<T>(
+              controller: _controller,
+              focusNode: _focusNode,
+              menuController: _menuController,
+              enabled: effectiveEnabled,
+              enableFilter: true,
+              enableSearch: true,
+              requestFocusOnTap:
+                  true, // auto-select בפתיחה (דרך _handleFocusChanged)
+              initialSelection: widget.value,
+              menuHeight:
+                  (metrics.itemHeight * 8) + metrics.menuPadding.vertical,
+              width: resolvedWidth,
+              showTrailingIcon: false,
+              textStyle: TextStyle(
+                fontFamily: 'Roboto',
+                fontSize: 13,
+                fontWeight: metrics.itemFontWeight,
+                color: cs.onSurface,
+                height: 1.0,
+              ),
+              inputDecorationTheme: _buildDecorationTheme(context, metrics),
+              decorationBuilder: (context, _) =>
+                  _buildSearchFieldDecoration(context),
+              leadingIcon: null,
+              trailingIcon: null,
+              selectedTrailingIcon: null,
+              dropdownMenuEntries: widget.entries.map((entry) {
+                final isSelected = entry.value == widget.value;
+                return DropdownMenuEntry<T>(
+                  value: entry.value,
+                  label: entry.label,
+                  labelWidget: _buildAppMenuRowContent(
+                    context,
+                    metrics,
+                    label: entry.label,
+                    icon: entry.icon,
+                    trailing: entry.trailing,
+                    isSelected: isSelected,
+                    isDestructive: entry.isDestructive,
+                  ),
+                  enabled: entry.enabled,
+                  style: ButtonStyle(
+                    padding: const WidgetStatePropertyAll(EdgeInsets.zero),
+                    minimumSize: WidgetStatePropertyAll(
+                      Size(metrics.menuMinWidth, metrics.itemHeight),
+                    ),
+                    shape: const WidgetStatePropertyAll(
+                      RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+                    ),
+                  ),
+                );
+              }).toList(),
+              onSelected: (value) {
+                if (value == null) {
+                  _restoreSelectedText();
+                  return;
+                }
+                final selectedEntry = widget.entries
+                    .where((entry) => entry.value == value)
+                    .firstOrNull;
+                _menuVisibleText = selectedEntry?.label ?? _selectedLabel;
+                widget.onSelected?.call(value);
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted) return;
+                  _focusNode.requestFocus();
+                });
+              },
             ),
-            inputDecorationTheme: _buildDecorationTheme(context, metrics),
-            hintText: widget.decoration?.hintText,
-            label: widget.decoration?.labelText != null
-                ? Text(
-                    widget.decoration!.labelText!,
-                    textDirection: TextDirection.rtl,
-                  )
-                : widget.decoration?.label,
-            leadingIcon: null,
-            trailingIcon: const SizedBox.shrink(),
-            selectedTrailingIcon: const SizedBox.shrink(),
-            dropdownMenuEntries: widget.entries.map((entry) {
-              final isSelected = entry.value == widget.value;
-              return DropdownMenuEntry<T>(
-                value: entry.value,
-                label: entry.label,
-                enabled: entry.enabled,
-                leadingIcon: entry.icon != null
-                    ? Icon(entry.icon, size: metrics.iconSize)
-                    : null,
-                // סימן ✓ לפריט נבחר
-                trailingIcon: isSelected
-                    ? Icon(
-                        FluentIcons.checkmark_24_regular,
-                        size: metrics.iconSize,
-                        color: cs.onPrimaryContainer,
-                      )
-                    : entry.trailing,
-                style: isSelected
-                    ? ButtonStyle(
-                        // צבע מלא שורה — ללא גבול
-                        backgroundColor: WidgetStatePropertyAll(
-                          cs.primaryContainer.withValues(alpha: 0.95),
-                        ),
-                        foregroundColor: WidgetStatePropertyAll(
-                          cs.onPrimaryContainer,
-                        ),
-                        textStyle: const WidgetStatePropertyAll(
-                          TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        iconColor: WidgetStatePropertyAll(
-                          cs.onPrimaryContainer,
-                        ),
-                        // ללא גבול סביב הפריט הנבחר
-                        side: const WidgetStatePropertyAll(BorderSide.none),
-                      )
-                    : null,
-              );
-            }).toList(),
-            onSelected: (value) {
-              if (value == null) {
-                if (widget.enableSearch) _restoreSelectedText();
-                return;
-              }
-              widget.onSelected?.call(value);
-            },
           ),
         );
       },
