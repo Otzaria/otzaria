@@ -8,10 +8,7 @@ import 'package:otzaria/widgets/custom_ui_components.dart';
 
 /// פאנל הגדרות תצוגת ספרייה
 class LibrarySettingsPanel extends StatelessWidget {
-  /// ווידג'ט להצגת מיקום ספרי היברובוקס (מועבר מהטאב הראשי כדי לתמוך בבחירת תיקייה)
-  final Widget? hebrewBooksPathWidget;
-
-  const LibrarySettingsPanel({super.key, this.hebrewBooksPathWidget});
+  const LibrarySettingsPanel({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -71,13 +68,10 @@ class LibrarySettingsPanel extends StatelessWidget {
 
             kSettingsCardSpacing,
 
-            // ספרים נוספים (משלב מיקום היברובוקס וספרים חיצוניים)
+            // ספרים נוספים (ספרים חיצוניים)
             SettingsCard(
               title: 'ספרים נוספים',
               children: [
-                // מיקום היברובוקס (יוצג ראשון במידה והועבר לו ווידג'ט - דסקטופ בלבד)
-                if (hebrewBooksPathWidget != null) hebrewBooksPathWidget!,
-
                 SwitchSettingsTile(
                   leading: const Icon(FluentIcons.globe_24_regular),
                   title: const Text('הצגת ספרים מאתרים חיצוניים',
