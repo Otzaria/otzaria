@@ -74,7 +74,7 @@ Widget buildDayCell(
           child: Material(
             elevation: elevation,
             color: Colors.transparent,
-            shadowColor: Colors.black.withValues(alpha: 0.12),
+            shadowColor: cs.shadow.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(8),
             child: Container(
               margin: const EdgeInsets.all(2),

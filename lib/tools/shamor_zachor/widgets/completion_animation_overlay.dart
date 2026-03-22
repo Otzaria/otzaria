@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 
 /// Overlay widget for showing completion animations
 class CompletionAnimationOverlay {
@@ -73,8 +74,9 @@ class _CompletionAnimationState extends State<_CompletionAnimation>
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Material(
-      color: Colors.black54,
+      color: cs.scrim.withValues(alpha: 0.54),
       child: Center(
         child: AnimatedBuilder(
           animation: _controller,
@@ -87,11 +89,11 @@ class _CompletionAnimationState extends State<_CompletionAnimation>
                   padding: const EdgeInsets.all(24),
                   margin: const EdgeInsets.all(32),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surface,
+                    color: AppSurfaces.card(context),
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.3),
+                        color: cs.shadow.withValues(alpha: 0.24),
                         blurRadius: 10,
                         spreadRadius: 2,
                       ),

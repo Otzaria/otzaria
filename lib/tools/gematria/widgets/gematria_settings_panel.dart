@@ -150,6 +150,7 @@ class _NarrowOverlayPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final screenWidth = MediaQuery.of(context).size.width;
     final effectiveWidth = panelWidth.clamp(0.0, screenWidth * 0.88);
 
@@ -159,8 +160,9 @@ class _NarrowOverlayPanel extends StatelessWidget {
         if (isVisible)
           GestureDetector(
             onTap: onToggle,
-            child: Container(
-              color: Colors.black.withValues(alpha: 0.35),
+            child: ColoredBox(
+              color: cs.scrim.withValues(alpha: 0.35),
+              child: const SizedBox.expand(),
             ),
           ),
         // ── הפאנל עצמו ──────────────────────────────────────────────────────
@@ -174,7 +176,7 @@ class _NarrowOverlayPanel extends StatelessWidget {
             width: effectiveWidth,
             child: Material(
               elevation: 8,
-              color: AppSurfaces.panelBackground(context),
+              color: Theme.of(context).colorScheme.surface,
               child: SafeArea(child: content),
             ),
           ),
