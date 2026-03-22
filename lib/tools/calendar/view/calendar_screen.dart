@@ -1,22 +1,26 @@
-// ignore_for_file: unused_element, unused_element_parameter
+// lib/tools/calendar/view/calendar_screen.dart
+//
+// **שינויים:**
+// • CalendarTopBar עבר מ-appBar ל-body Column (כמו LibraryBrowser)
+//   → מאפשר שימוש ב-AppTopBar ללא PreferredSizeWidget
+// • Layout דסקטופ: Row עם Expanded — ללא SingleChildScrollView
+//   → הלוח ממלא את כל הגובה
+// • Layout מובייל: נשמר SingleChildScrollView
+// • CalendarView.day ו-.week מציגות את לוח החודש (ב-CalendarMainPanel)
+
+// ignore_for_file: unused_element
 
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:kosher_dart/kosher_dart.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/printing/printing_screen.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
-import 'package:otzaria/widgets/buttons/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs.dart';
 import 'package:otzaria/widgets/floating_panel.dart';
-import 'package:otzaria/widgets/inputs/segmented_button_tile.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
-import 'package:otzaria/tools/calendar/view/widgets/calendar_date_formatters.dart';
-import 'package:otzaria/tools/calendar/view/widgets/calendar_day_cell.dart';
 import 'package:otzaria/tools/calendar/view/widgets/calendar_event_dialog.dart';
 import 'package:otzaria/tools/calendar/view/widgets/calendar_print_dialog.dart';
 import 'package:otzaria/tools/calendar/utils/calendar_date_parser.dart';
@@ -42,39 +46,21 @@ class CalendarWidget extends StatefulWidget {
 
 class _CalendarWidgetState extends State<CalendarWidget> {
   late final FocusNode _keyboardFocusNode;
-  late final TextEditingController _searchController;
-  late final FocusNode _searchFocusNode;
   Timer? _keyRepeatTimer;
   LogicalKeyboardKey? _currentPressedKey;
   bool _isJumpToDateDialogOpen = false;
   bool _isCreateEventDialogOpen = false;
   bool _isPrintDialogOpen = false;
   bool _isSidebarVisible = true;
-  bool _isSearchMode = false;
   CalendarSidePanelView _sidePanelView = CalendarSidePanelView.times;
 
-  final List<String> hebrewDays = kHebrewDays;
-  final List<String> hebrewMonths = kHebrewMonths;
-
-  // ─── Lifecycle ─────────────────────────────────────────────────────────────
-
-  void _stopKeyRepeat() {
-    _keyRepeatTimer?.cancel();
-    _keyRepeatTimer = null;
-    _currentPressedKey = null;
-  }
-
-  void _handleFocusChange() {
-    if (!_keyboardFocusNode.hasFocus) _stopKeyRepeat();
-  }
+  // ─── Lifecycle ──────────────────────────────────────────────────────────────
 
   @override
   void initState() {
     super.initState();
     _keyboardFocusNode = FocusNode(skipTraversal: true, canRequestFocus: true);
-    _searchController = TextEditingController();
-    _searchFocusNode = FocusNode(skipTraversal: true, canRequestFocus: true);
-    _keyboardFocusNode.addListener(_handleFocusChange);
+    _keyboardFocusNode.addListener(_onFocusChange);
     WidgetsBinding.instance
         .addPostFrameCallback((_) => _requestFocusIfNeeded());
   }
@@ -86,27 +72,32 @@ class _CalendarWidgetState extends State<CalendarWidget> {
         .addPostFrameCallback((_) => _requestFocusIfNeeded());
   }
 
+  void _onFocusChange() {
+    if (!_keyboardFocusNode.hasFocus) _stopKeyRepeat();
+  }
+
   void _requestFocusIfNeeded() {
     if (!mounted) return;
     requestFocusIfNeeded(_keyboardFocusNode);
   }
 
-  /// מבקש מחדש את הפוקוס של לוח השנה אחרי מעבר מטאב אחר.
-  void requestKeyboardFocus() {
-    _requestFocusIfNeeded();
-  }
+  void requestKeyboardFocus() => _requestFocusIfNeeded();
 
   @override
   void dispose() {
-    _keyboardFocusNode.removeListener(_handleFocusChange);
+    _keyboardFocusNode.removeListener(_onFocusChange);
     _stopKeyRepeat();
     _keyboardFocusNode.dispose();
-    _searchFocusNode.dispose();
-    _searchController.dispose();
     super.dispose();
   }
 
-  // ─── Keyboard ──────────────────────────────────────────────────────────────
+  // ─── Keyboard ───────────────────────────────────────────────────────────────
+
+  void _stopKeyRepeat() {
+    _keyRepeatTimer?.cancel();
+    _keyRepeatTimer = null;
+    _currentPressedKey = null;
+  }
 
   bool _isNavigationKey(LogicalKeyboardKey key) {
     return key == LogicalKeyboardKey.arrowRight ||
@@ -236,77 +227,38 @@ class _CalendarWidgetState extends State<CalendarWidget> {
   void _navigateMonth(BuildContext context, {required bool forward}) {
     final cubit = context.read<CalendarCubit>();
     final newDate = shiftGregorianMonthPreservingDay(
-      cubit.state.selectedGregorianDate,
-      forward: forward,
-    );
+        cubit.state.selectedGregorianDate,
+        forward: forward);
     cubit.jumpToDate(newDate);
   }
 
   void _navigateYear(BuildContext context, {required bool forward}) {
     final cubit = context.read<CalendarCubit>();
     final current = cubit.state.selectedGregorianDate;
-    final newDate = forward
-        ? DateTime(current.year + 1, current.month, current.day)
-        : DateTime(current.year - 1, current.month, current.day);
-    cubit.jumpToDate(newDate);
-  }
-
-  void _openSidePanelIfNeeded(BuildContext context, bool isMobile) {
-    if (!isMobile) return;
-    Scaffold.of(context).openEndDrawer();
+    cubit.jumpToDate(DateTime(
+        current.year + (forward ? 1 : -1), current.month, current.day));
   }
 
   void _toggleSidebar(BuildContext context, bool isMobile) {
     if (isMobile) {
-      _openSidePanelIfNeeded(context, true);
+      Scaffold.of(context).openEndDrawer();
       return;
     }
     setState(() => _isSidebarVisible = !_isSidebarVisible);
   }
 
-  Future<void> _openCalendarCalculationPage(BuildContext context) async {
-    await showSingleActionDialog(
-      context: context,
-      title: 'אודות חישובי הלוח',
-      content:
-          'חישובי הלוח בתוכנה זו מיוסדים על דרכו של הרב ישראל דוד הרפנס, כפי שנתבארה בספרו ישראל והזמנים ובשאר ספריו העוסקים בענייני זמני הלכה. מטרת הדברים איננה להציג חישוב עצמאי חדש, אלא ליישם בצורה מסודרת, מדויקת ובהירה את כללי חשבון הלוח העברי על פי הביאור והסידור שנתפרשו בספריו.\n\nהרב הרפנס, מו"ץ בהתאחדות הרבנים ורב קהילת ישראל והזמנים, נודע במיוחד בבירור סוגיות הזמן בהלכה, וספרו ישראל והזמנים נזכר בקובץ זה כספר היסוד שעל פיו נבנתה תשתית החישוב שבתוכנה. לצד ספר זה, חיבר הרב גם ספרים נוספים בענייני הלכה וזמנים.',
-      confirmText: 'הבנתי',
-    );
-  }
-
-  void _toggleCalendarSettingsPanel() {
-    setState(() {
-      _sidePanelView = _sidePanelView == CalendarSidePanelView.settings
-          ? CalendarSidePanelView.times
-          : CalendarSidePanelView.settings;
-    });
-  }
-
-  // ─── Build ─────────────────────────────────────────────────────────────────
+  // ─── Build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<CalendarCubit, CalendarState>(
       builder: (context, state) {
         final shortcuts = context.watch<SettingsBloc>().state.shortcuts;
-        final navigateTabsShortcut =
-            shortcuts['key-shortcut-calendar-navigate-times'] ?? 'ctrl+e';
-        final todayShortcut =
-            shortcuts['key-shortcut-calendar-today'] ?? 'ctrl+d';
-        final jumpDateShortcut =
-            shortcuts['key-shortcut-calendar-jump-date'] ?? 'ctrl+shift+d';
-        final createEventShortcut =
-            shortcuts['key-shortcut-calendar-create-event'] ?? 'ctrl+n';
-        final toggleViewShortcut =
-            shortcuts['key-shortcut-calendar-toggle-view'] ?? 'ctrl+shift+e';
-        final printShortcut = shortcuts['key-shortcut-print'] ?? 'ctrl+p';
-        final contextSettingsShortcut =
-            shortcuts['key-shortcut-open-context-settings'] ??
-                'ctrl+shift+comma';
 
         return CallbackShortcuts(
           bindings: {
-            _parseShortcut(navigateTabsShortcut): () {
+            _parseShortcut(shortcuts['key-shortcut-calendar-navigate-times'] ??
+                'ctrl+e'): () {
               if (_isTextFieldFocused()) return;
               setState(() {
                 _sidePanelView = _sidePanelView == CalendarSidePanelView.times
@@ -314,11 +266,13 @@ class _CalendarWidgetState extends State<CalendarWidget> {
                     : CalendarSidePanelView.times;
               });
             },
-            _parseShortcut(todayShortcut): () {
+            _parseShortcut(
+                shortcuts['key-shortcut-calendar-today'] ?? 'ctrl+d'): () {
               if (_isTextFieldFocused()) return;
               context.read<CalendarCubit>().jumpToToday();
             },
-            _parseShortcut(jumpDateShortcut): () {
+            _parseShortcut(shortcuts['key-shortcut-calendar-jump-date'] ??
+                'ctrl+shift+d'): () {
               if (_isTextFieldFocused()) return;
               if (_isJumpToDateDialogOpen) {
                 Navigator.of(context).pop();
@@ -327,27 +281,34 @@ class _CalendarWidgetState extends State<CalendarWidget> {
                 _showJumpToDateDialog(context);
               }
             },
-            _parseShortcut(createEventShortcut): () {
+            _parseShortcut(shortcuts['key-shortcut-calendar-create-event'] ??
+                'ctrl+n'): () {
               if (_isTextFieldFocused()) return;
               _showCreateEventDialog(context, state);
             },
-            _parseShortcut(toggleViewShortcut): () {
+            _parseShortcut(shortcuts['key-shortcut-calendar-toggle-view'] ??
+                'ctrl+shift+e'): () {
               if (_isTextFieldFocused()) return;
               final cubit = context.read<CalendarCubit>();
-              final next = switch (state.calendarView) {
+              cubit.changeCalendarView(switch (state.calendarView) {
                 CalendarView.month => CalendarView.week,
                 CalendarView.week => CalendarView.day,
                 CalendarView.day => CalendarView.month,
-              };
-              cubit.changeCalendarView(next);
+              });
             },
-            _parseShortcut(printShortcut): () {
+            _parseShortcut(shortcuts['key-shortcut-print'] ?? 'ctrl+p'): () {
               if (_isTextFieldFocused()) return;
               _togglePrintCalendar(context, state);
             },
-            _parseShortcut(contextSettingsShortcut): () {
+            _parseShortcut(shortcuts['key-shortcut-open-context-settings'] ??
+                'ctrl+shift+comma'): () {
               if (_isTextFieldFocused()) return;
-              _toggleCalendarSettingsPanel();
+              setState(() {
+                _sidePanelView =
+                    _sidePanelView == CalendarSidePanelView.settings
+                        ? CalendarSidePanelView.times
+                        : CalendarSidePanelView.settings;
+              });
             },
             const SingleActivator(LogicalKeyboardKey.arrowLeft, control: true):
                 () {
@@ -380,55 +341,45 @@ class _CalendarWidgetState extends State<CalendarWidget> {
                 builder: (context, constraints) {
                   final isMobile =
                       constraints.maxWidth < LayoutBreakpoints.compact;
-                  if (_searchController.text != state.eventSearchQuery) {
-                    _searchController.text = state.eventSearchQuery;
-                  }
                   return Scaffold(
                     backgroundColor: Colors.transparent,
-                    appBar: CalendarTopBar(
-                      state: state,
-                      isSearchMode: _isSearchMode,
-                      searchController: _searchController,
-                      searchFocusNode: _searchFocusNode,
-                      onSearchChanged: (value) => context
-                          .read<CalendarCubit>()
-                          .setEventSearchQuery(value),
-                      onToggleSearch: () {
-                        setState(() => _isSearchMode = !_isSearchMode);
-                        if (_isSearchMode) {
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            if (mounted) _searchFocusNode.requestFocus();
-                          });
-                        } else {
-                          _searchFocusNode.unfocus();
-                        }
-                      },
-                      onJumpToToday: () =>
-                          context.read<CalendarCubit>().jumpToToday(),
-                      onPreviousPeriod: () =>
-                          context.read<CalendarCubit>().previous(),
-                      onNextPeriod: () => context.read<CalendarCubit>().next(),
-                      onViewChanged: (value) => context
-                          .read<CalendarCubit>()
-                          .changeCalendarView(value),
-                      onSidePanelViewChanged: (value) {
-                        setState(() => _sidePanelView = value);
-                      },
-                      activeSidePanelView: _sidePanelView,
-                      onPrint: () => _togglePrintCalendar(context, state),
-                      onToggleSidebar: () => _toggleSidebar(context, isMobile),
-                      parseInputDate: (input) =>
-                          parseCalendarInputDate(context, input),
-                      onJumpToDateSelected: (date) {
-                        context.read<CalendarCubit>().jumpToDate(date);
-                        setState(() => _isSearchMode = false);
-                      },
-                    ),
                     endDrawer:
                         isMobile ? _buildSidePanelDrawer(context, state) : null,
-                    body: isMobile
-                        ? _buildMobileLayout(context, state)
-                        : _buildDesktopLayout(context, state),
+                    // ── גוף: Topbar + תוכן ──────────────────────────────
+                    body: Column(
+                      children: [
+                        // סרגל עליון חדש (לא appBar)
+                        CalendarTopBar(
+                          state: state,
+                          onJumpToToday: () =>
+                              context.read<CalendarCubit>().jumpToToday(),
+                          onPreviousPeriod: () =>
+                              context.read<CalendarCubit>().previous(),
+                          onNextPeriod: () =>
+                              context.read<CalendarCubit>().next(),
+                          onViewChanged: (v) => context
+                              .read<CalendarCubit>()
+                              .changeCalendarView(v),
+                          onSidePanelViewChanged: (v) =>
+                              setState(() => _sidePanelView = v),
+                          activeSidePanelView: _sidePanelView,
+                          onPrint: () => _togglePrintCalendar(context, state),
+                          onToggleSidebar: () =>
+                              _toggleSidebar(context, isMobile),
+                          parseInputDate: (input) =>
+                              parseCalendarInputDate(context, input),
+                          onJumpToDateSelected: (date) {
+                            context.read<CalendarCubit>().jumpToDate(date);
+                          },
+                        ),
+                        // תוכן
+                        Expanded(
+                          child: isMobile
+                              ? _buildMobileLayout(context, state)
+                              : _buildDesktopLayout(context, state),
+                        ),
+                      ],
+                    ),
                   );
                 },
               ),
@@ -439,89 +390,7 @@ class _CalendarWidgetState extends State<CalendarWidget> {
     );
   }
 
-  // ─── Layouts ───────────────────────────────────────────────────────────────
-
-  PreferredSizeWidget _buildTopAppBar(
-      BuildContext context, CalendarState state, bool isMobile) {
-    return AppBar(
-      backgroundColor: Colors.transparent,
-      surfaceTintColor: Colors.transparent,
-      elevation: 0,
-      scrolledUnderElevation: 0,
-      titleSpacing: AppTokens.spaceMD,
-      centerTitle: true,
-      title: Text(
-        getCurrentMonthYearText(state),
-        textDirection: TextDirection.rtl,
-        style: Theme.of(context)
-            .textTheme
-            .titleMedium
-            ?.copyWith(fontWeight: FontWeight.bold),
-      ),
-      actions: _buildTopBarActions(context, state, isMobile),
-    );
-  }
-
-  List<Widget> _buildTopBarActions(
-      BuildContext context, CalendarState state, bool isMobile) {
-    return [
-      Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            tooltip: 'חודש קודם',
-            onPressed: () => context.read<CalendarCubit>().previous(),
-            icon: const Icon(FluentIcons.chevron_left_24_regular),
-          ),
-          IconButton(
-            tooltip: 'חודש הבא',
-            onPressed: () => context.read<CalendarCubit>().next(),
-            icon: const Icon(FluentIcons.chevron_right_24_regular),
-          ),
-          const SizedBox(width: AppTokens.spaceXS),
-          RecommendedActionButton(
-            text: 'היום',
-            onPressed: () => context.read<CalendarCubit>().jumpToToday(),
-          ),
-          const SizedBox(width: AppTokens.spaceXS),
-          RecommendedActionButton(
-            text: 'מעבר לתאריך',
-            onPressed: () => _showJumpToDateDialog(context),
-          ),
-          const SizedBox(width: AppTokens.spaceMD),
-          AppSegmentedControl<CalendarView>(
-            options: const [
-              SegmentOption(value: CalendarView.day, label: 'יום'),
-              SegmentOption(value: CalendarView.week, label: 'שבוע'),
-              SegmentOption(value: CalendarView.month, label: 'חודש'),
-            ],
-            currentValue: state.calendarView,
-            onChanged: (value) =>
-                context.read<CalendarCubit>().changeCalendarView(value),
-          ),
-          const SizedBox(width: AppTokens.spaceMD),
-          SizedBox(
-            height: 24,
-            child: VerticalDivider(
-              color: Theme.of(context).dividerColor,
-              thickness: 1,
-            ),
-          ),
-          const SizedBox(width: AppTokens.spaceMD),
-          IconButton(
-            tooltip: 'הדפס',
-            icon: const Icon(FluentIcons.print_24_regular),
-            onPressed: () => _togglePrintCalendar(context, state),
-          ),
-          IconButton(
-            tooltip: 'לוח צד',
-            icon: const Icon(FluentIcons.panel_right_24_regular),
-            onPressed: () => _toggleSidebar(context, isMobile),
-          ),
-        ],
-      ),
-    ];
-  }
+  // ─── Layouts ────────────────────────────────────────────────────────────────
 
   Widget _buildDesktopLayout(BuildContext context, CalendarState state) {
     return Padding(
@@ -529,11 +398,16 @@ class _CalendarWidgetState extends State<CalendarWidget> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // ── לוח חודש מלא (Expanded) ────────────────────────────────────
           Expanded(
-            child: SingleChildScrollView(
-              child: _buildCalendar(context, state),
+            child: CalendarMainPanel(
+              state: state,
+              onCreateEvent: ({existingEvent, specificDate}) =>
+                  _showCreateEventDialog(context, state,
+                      existingEvent: existingEvent, specificDate: specificDate),
             ),
           ),
+          // ── לוח צד (AnimatedSize) ────────────────────────────────────────
           AnimatedSize(
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeInOut,
@@ -541,7 +415,7 @@ class _CalendarWidgetState extends State<CalendarWidget> {
                 ? Padding(
                     padding: const EdgeInsets.only(right: AppTokens.spaceMD),
                     child: SizedBox(
-                      width: 360,
+                      width: 340,
                       child: FloatingPanel(
                         child: _buildSidePanel(context, state),
                       ),
@@ -557,7 +431,15 @@ class _CalendarWidgetState extends State<CalendarWidget> {
   Widget _buildMobileLayout(BuildContext context, CalendarState state) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppTokens.spaceMD),
-      child: _buildCalendar(context, state),
+      child: SizedBox(
+        height: MediaQuery.of(context).size.height * 0.75,
+        child: CalendarMainPanel(
+          state: state,
+          onCreateEvent: ({existingEvent, specificDate}) =>
+              _showCreateEventDialog(context, state,
+                  existingEvent: existingEvent, specificDate: specificDate),
+        ),
+      ),
     );
   }
 
@@ -574,320 +456,11 @@ class _CalendarWidgetState extends State<CalendarWidget> {
     );
   }
 
-  // ─── Calendar card ────────────────────────────────────────────────────────
-
-  Widget _buildCalendar(BuildContext context, CalendarState state) {
-    return CalendarMainPanel(
-      state: state,
-      onCreateEvent: ({existingEvent, specificDate}) => _showCreateEventDialog(
-        context,
-        state,
-        existingEvent: existingEvent,
-        specificDate: specificDate,
-      ),
-    );
-  }
-
-  // ─── Calendar grid ────────────────────────────────────────────────────────
-
-  Widget _buildCalendarGrid(BuildContext context, CalendarState state) {
-    switch (state.calendarView) {
-      case CalendarView.month:
-        return _buildMonthView(context, state);
-      case CalendarView.week:
-        return _buildWeekView(context, state);
-      case CalendarView.day:
-        return _buildDayView(context, state);
-    }
-  }
-
-  Widget _buildDayNamesRow(BuildContext context) {
-    return Row(
-      children: hebrewDays
-          .map((day) => Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Text(
-                    day,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ))
-          .toList(),
-    );
-  }
-
-  Widget _buildMonthView(BuildContext context, CalendarState state) {
-    return Column(
-      children: [
-        _buildDayNamesRow(context),
-        const SizedBox(height: 8),
-        _buildCalendarDays(context, state),
-      ],
-    );
-  }
-
-  Widget _buildWeekView(BuildContext context, CalendarState state) {
-    return Column(
-      children: [
-        _buildDayNamesRow(context),
-        const SizedBox(height: 8),
-        _buildWeekDays(context, state),
-      ],
-    );
-  }
-
-  Widget _buildDayView(BuildContext context, CalendarState state) {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      height: 200,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: cs.primaryContainer.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(AppTokens.radiusMD),
-        border:
-            Border.all(color: cs.primary.withValues(alpha: 0.6), width: 1.5),
-      ),
-      child: Stack(
-        children: [
-          Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  hebrewDays[state.selectedGregorianDate.weekday % 7],
-                  style: const TextStyle(
-                      fontSize: 24, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '${formatHebrewDay(state.selectedJewishDate.getJewishDayOfMonth())} ${getHebrewMonthNameFor(state.selectedJewishDate)}',
-                  style: const TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${state.selectedGregorianDate.day} ${getGregorianMonthName(state.selectedGregorianDate.month)} ${state.selectedGregorianDate.year}',
-                  style: TextStyle(fontSize: 16, color: cs.onSurfaceVariant),
-                ),
-              ],
-            ),
-          ),
-          Positioned(
-            top: 8,
-            left: 8,
-            child: Tooltip(
-              message: 'צור אירוע',
-              child: IconButton.filled(
-                icon: const Icon(FluentIcons.add_24_regular, size: 16),
-                onPressed: () => _showCreateEventDialog(context, state),
-                style: IconButton.styleFrom(
-                  minimumSize: const Size(24, 24),
-                  backgroundColor: cs.primaryContainer,
-                  foregroundColor: cs.onPrimaryContainer,
-                  visualDensity: VisualDensity.compact,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCalendarDays(BuildContext context, CalendarState state) {
-    return state.calendarType == CalendarType.gregorian
-        ? _buildGregorianCalendarDays(context, state)
-        : _buildHebrewCalendarDays(context, state);
-  }
-
-  Widget _buildHebrewCalendarDays(BuildContext context, CalendarState state) {
-    final currentJewishDate = state.currentJewishDate;
-    final daysInMonth = currentJewishDate.getDaysInJewishMonth();
-    final firstDayOfMonth = JewishDate()
-      ..setJewishDate(currentJewishDate.getJewishYear(),
-          currentJewishDate.getJewishMonth(), 1);
-    final startingWeekday = firstDayOfMonth.getGregorianCalendar().weekday % 7;
-
-    List<Widget> dayWidgets = [];
-    if (startingWeekday > 0) {
-      final previousMonth = JewishDate()
-        ..setJewishDate(currentJewishDate.getJewishYear(),
-            currentJewishDate.getJewishMonth(), 1);
-      previousMonth.back();
-      final daysInPreviousMonth = previousMonth.getDaysInJewishMonth();
-      for (int i = startingWeekday - 1; i >= 0; i--) {
-        dayWidgets.add(_buildHebrewDayCell(
-            context, state, daysInPreviousMonth - i,
-            isFromOtherMonth: true, monthOffset: -1));
-      }
-    }
-    for (int day = 1; day <= daysInMonth; day++) {
-      dayWidgets.add(_buildHebrewDayCell(context, state, day));
-    }
-    final totalCells = ((dayWidgets.length / 7).ceil()) * 7;
-    for (int day = 1; day <= totalCells - dayWidgets.length; day++) {
-      dayWidgets.add(_buildHebrewDayCell(context, state, day,
-          isFromOtherMonth: true, monthOffset: 1));
-    }
-    return Column(
-      children: [
-        for (int i = 0; i < dayWidgets.length; i += 7)
-          Row(
-            children: dayWidgets
-                .sublist(
-                    i, i + 7 > dayWidgets.length ? dayWidgets.length : i + 7)
-                .map((w) => Expanded(child: w))
-                .toList(),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildGregorianCalendarDays(
-      BuildContext context, CalendarState state) {
-    final current = state.currentGregorianDate;
-    final firstDayOfMonth = DateTime(current.year, current.month, 1);
-    final daysInMonth = DateTime(current.year, current.month + 1, 0).day;
-    final startingWeekday = firstDayOfMonth.weekday % 7;
-
-    List<Widget> dayWidgets = [];
-    if (startingWeekday > 0) {
-      final daysInPreviousMonth = DateTime(current.year, current.month, 0).day;
-      for (int i = startingWeekday - 1; i >= 0; i--) {
-        dayWidgets.add(_buildGregorianDayCell(
-            context, state, daysInPreviousMonth - i,
-            isFromOtherMonth: true, monthOffset: -1));
-      }
-    }
-    for (int day = 1; day <= daysInMonth; day++) {
-      dayWidgets.add(_buildGregorianDayCell(context, state, day));
-    }
-    final totalCells = ((dayWidgets.length / 7).ceil()) * 7;
-    for (int day = 1; day <= totalCells - dayWidgets.length; day++) {
-      dayWidgets.add(_buildGregorianDayCell(context, state, day,
-          isFromOtherMonth: true, monthOffset: 1));
-    }
-    return Column(
-      children: [
-        for (int i = 0; i < dayWidgets.length; i += 7)
-          Row(
-            children: dayWidgets
-                .sublist(
-                    i, i + 7 > dayWidgets.length ? dayWidgets.length : i + 7)
-                .map((w) => Expanded(child: w))
-                .toList(),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildHebrewDayCell(BuildContext context, CalendarState state, int day,
-      {bool isFromOtherMonth = false, int monthOffset = 0}) {
-    final jewishDate = JewishDate()
-      ..setJewishDate(state.currentJewishDate.getJewishYear(),
-          state.currentJewishDate.getJewishMonth(), 1);
-    if (isFromOtherMonth) {
-      if (monthOffset < 0) {
-        jewishDate.back();
-        jewishDate.setJewishDate(
-            jewishDate.getJewishYear(), jewishDate.getJewishMonth(), 1);
-      } else if (monthOffset > 0) {
-        final daysInMonth = jewishDate.getDaysInJewishMonth();
-        jewishDate.setJewishDate(jewishDate.getJewishYear(),
-            jewishDate.getJewishMonth(), daysInMonth);
-        jewishDate.forward();
-      }
-      jewishDate.setJewishDate(
-          jewishDate.getJewishYear(), jewishDate.getJewishMonth(), day);
-    } else {
-      jewishDate.setJewishDate(state.currentJewishDate.getJewishYear(),
-          state.currentJewishDate.getJewishMonth(), day);
-    }
-    final gregorianDate = jewishDate.getGregorianCalendar();
-    return buildDayCell(
-      context,
-      state,
-      gregorianDate,
-      jewishDate,
-      isFromOtherMonth,
-      () {
-        if (isFromOtherMonth) {
-          context.read<CalendarCubit>().jumpToDate(gregorianDate);
-        } else {
-          context.read<CalendarCubit>().selectDate(jewishDate, gregorianDate);
-        }
-      },
-      () => _showCreateEventDialog(context, state, specificDate: gregorianDate),
-    );
-  }
-
-  Widget _buildGregorianDayCell(
-      BuildContext context, CalendarState state, int day,
-      {bool isFromOtherMonth = false, int monthOffset = 0}) {
-    final gregorianDate = DateTime(state.currentGregorianDate.year,
-        state.currentGregorianDate.month + monthOffset, day);
-    final jewishDate = JewishDate.fromDateTime(gregorianDate);
-    return buildDayCell(
-      context,
-      state,
-      gregorianDate,
-      jewishDate,
-      isFromOtherMonth,
-      () {
-        if (isFromOtherMonth) {
-          context.read<CalendarCubit>().jumpToDate(gregorianDate);
-        } else {
-          context.read<CalendarCubit>().selectDate(jewishDate, gregorianDate);
-        }
-      },
-      () => _showCreateEventDialog(context, state, specificDate: gregorianDate),
-    );
-  }
-
-  Widget _buildWeekDays(BuildContext context, CalendarState state) {
-    final selectedDate = state.selectedGregorianDate;
-    final startOfWeek =
-        selectedDate.subtract(Duration(days: selectedDate.weekday % 7));
-    return Row(
-      children: [
-        for (int i = 0; i < 7; i++)
-          Builder(builder: (context) {
-            final dayDate = startOfWeek.add(Duration(days: i));
-            final jewishDate = JewishDate.fromDateTime(dayDate);
-            return Expanded(
-              child: buildDayCell(
-                context,
-                state,
-                dayDate,
-                jewishDate,
-                false,
-                () => context
-                    .read<CalendarCubit>()
-                    .selectDate(jewishDate, dayDate),
-                () => _showCreateEventDialog(
-                    context, context.read<CalendarCubit>().state,
-                    specificDate: dayDate),
-              ),
-            );
-          }),
-      ],
-    );
-  }
-
-  // ─── Side panel ───────────────────────────────────────────────────────────
-
   Widget _buildSidePanel(BuildContext context, CalendarState state) {
     return CalendarSidePanel(
       state: state,
       activeView: _sidePanelView,
-      onViewChanged: (view) => setState(() => _sidePanelView = view),
+      onViewChanged: (v) => setState(() => _sidePanelView = v),
       timesPanel: CalendarTimesPanel(
         state: state,
         onOpenCalendarCalculationPage: _openCalendarCalculationPage,
@@ -895,18 +468,14 @@ class _CalendarWidgetState extends State<CalendarWidget> {
       eventsPanel: CalendarEventsPanel(
         state: state,
         onCreateEvent: ({existingEvent, specificDate}) =>
-            _showCreateEventDialog(
-          context,
-          state,
-          existingEvent: existingEvent,
-          specificDate: specificDate,
-        ),
+            _showCreateEventDialog(context, state,
+                existingEvent: existingEvent, specificDate: specificDate),
       ),
       settingsPanel: const CalendarSettingsPanel(),
     );
   }
 
-  // ─── Dialogs ───────────────────────────────────────────────────────────────
+  // ─── Dialogs ─────────────────────────────────────────────────────────────────
 
   void _showJumpToDateDialog(BuildContext context) {
     _isJumpToDateDialogOpen = true;
@@ -932,7 +501,6 @@ class _CalendarWidgetState extends State<CalendarWidget> {
       _isCreateEventDialogOpen = false;
       return;
     }
-
     _isCreateEventDialogOpen = true;
     showCalendarEventDialog(
       context: context,
@@ -941,15 +509,11 @@ class _CalendarWidgetState extends State<CalendarWidget> {
       specificDate: specificDate,
     ).then((result) {
       _isCreateEventDialogOpen = false;
-      if (result == null || !context.mounted) {
-        return;
-      }
-
+      if (result == null || !context.mounted) return;
       final cubit = context.read<CalendarCubit>();
-      final displayedGregorianDate = existingEvent != null
+      final displayedDate = existingEvent != null
           ? existingEvent.baseGregorianDate
           : (specificDate ?? state.selectedGregorianDate);
-
       if (existingEvent != null) {
         cubit.updateEvent(existingEvent.copyWith(
           title: result.title,
@@ -962,7 +526,7 @@ class _CalendarWidgetState extends State<CalendarWidget> {
         cubit.addEvent(
           title: result.title,
           description: result.description,
-          baseGregorianDate: displayedGregorianDate,
+          baseGregorianDate: displayedDate,
           recurrenceType: result.recurrenceType,
           recurringYears: result.recurringYears,
           eventTime: result.eventTime,
@@ -977,17 +541,13 @@ class _CalendarWidgetState extends State<CalendarWidget> {
       _isPrintDialogOpen = false;
       return;
     }
-
     _isPrintDialogOpen = true;
     showCalendarPrintDialog(
       context: context,
       calendarView: state.calendarView,
     ).then((count) {
       _isPrintDialogOpen = false;
-      if (count == null || !context.mounted) {
-        return;
-      }
-
+      if (count == null || !context.mounted) return;
       Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => PrintingScreen(
           data: Future.value(''),
@@ -997,5 +557,15 @@ class _CalendarWidgetState extends State<CalendarWidget> {
         ),
       ));
     });
+  }
+
+  Future<void> _openCalendarCalculationPage(BuildContext context) async {
+    await showSingleActionDialog(
+      context: context,
+      title: 'אודות חישובי הלוח',
+      content:
+          'חישובי הלוח בתוכנה זו מיוסדים על דרכו של הרב ישראל דוד הרפנס...',
+      confirmText: 'הבנתי',
+    );
   }
 }
