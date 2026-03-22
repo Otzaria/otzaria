@@ -417,7 +417,13 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
       );
     }
 
-    final filteredBooks = category.books.toList();
+    // איחוד ספרים כפולים (למשל PDF וטקסט של אותו ספר) לאותה כותרת
+    final uniqueBooksInCategory = <String, Book>{};
+    for (final book in category.books) {
+      uniqueBooksInCategory[book.title] ??= book;
+    }
+    
+    final filteredBooks = uniqueBooksInCategory.values.toList();
     filteredBooks.sort((a, b) => a.order.compareTo(b.order));
 
     // הוספת ספרים
@@ -444,7 +450,13 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
     final List<Book> allBooks = [];
 
     void collectBooks(Category cat) {
-      final sortedBooks = cat.books.toList();
+      // איחוד ספרים כפולים (למשל PDF וטקסט של אותו ספר) לאותה כותרת
+      final uniqueBooksInCategory = <String, Book>{};
+      for (final book in cat.books) {
+        uniqueBooksInCategory[book.title] ??= book;
+      }
+      
+      final sortedBooks = uniqueBooksInCategory.values.toList();
       sortedBooks.sort((a, b) => a.order.compareTo(b.order));
       allBooks.addAll(sortedBooks);
 
