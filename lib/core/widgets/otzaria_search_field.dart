@@ -36,7 +36,6 @@ abstract class _ST {
 
   static const double fillAlphaUnfocused = 0.07;
   static const double fillAlphaFocused = 0.12;
-  static const double focusBorderWidth = 1.5;
   static const Duration collapseAnim = Duration(milliseconds: 220);
   static const Duration shrinkAnim = Duration(milliseconds: 180);
 }
@@ -337,13 +336,6 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
       borderRadius: BorderRadius.circular(effectiveRadius),
       borderSide: BorderSide.none,
     );
-    final focusBorder = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(effectiveRadius),
-      borderSide: BorderSide(
-        color: cs.primary,
-        width: _ST.focusBorderWidth,
-      ),
-    );
 
     // ── Suffix ────────────────────────────────────────────────────────────
     final List<Widget> suffixChildren = [];
@@ -428,11 +420,11 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
             color: cs.onSurfaceVariant,
             height: 1.0,
           ),
-          border: focusBorder,
+          border: noBorder,
           enabledBorder: noBorder,
-          focusedBorder: focusBorder,
+          focusedBorder: noBorder,
           errorBorder: noBorder,
-          focusedErrorBorder: focusBorder,
+          focusedErrorBorder: noBorder,
           disabledBorder: noBorder,
         ),
       ),
