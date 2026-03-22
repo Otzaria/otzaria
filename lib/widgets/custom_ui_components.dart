@@ -16,13 +16,13 @@
 //   → lib/settings/widgets/switch_settings_tile.dart
 //
 // toolCardColor, ToolPanelWrapper:
-//   → lib/tools/widgets/tool_ui_helpers.dart
+//   → lib/widgets/tool_ui_helpers.dart
 
 export 'package:otzaria/widgets/dialogs/app_dialogs.dart';
 export 'package:otzaria/widgets/buttons/action_buttons.dart';
 export 'package:otzaria/widgets/inputs/segmented_button_tile.dart';
 export 'package:otzaria/settings/widgets/switch_settings_tile.dart';
-export 'package:otzaria/tools/widgets/tool_ui_helpers.dart';
+export 'package:otzaria/widgets/tool_ui_helpers.dart';
 
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';

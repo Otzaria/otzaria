@@ -8,7 +8,7 @@ import 'package:otzaria/settings/services/safer_mode/protected_settings_wrapper.
 import 'package:otzaria/widgets/keyboard_navigator.dart';
 import 'package:otzaria/settings/settings_card.dart';
 import 'package:otzaria/theme/theme_exports.dart';
-import 'package:otzaria/tools/widgets/tool_ui_helpers.dart';
+import 'package:otzaria/widgets/tool_ui_helpers.dart';
 import 'package:otzaria/widgets/rtl_icon.dart';
 import 'package:otzaria/widgets/sidebar_nav_item.dart';
 

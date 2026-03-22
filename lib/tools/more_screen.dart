@@ -10,7 +10,7 @@ import 'package:otzaria/tools/aramaic_dictionary/aramaic_dictionary_screen.dart'
 import 'package:otzaria/tools/acronyms_dictionary/acronyms_dictionary_screen.dart';
 import 'package:otzaria/tools/shamor_zachor/shamor_zachor.dart';
 import 'package:otzaria/tools/calendar/view/calendar_screen.dart';
-import 'package:otzaria/tools/widgets/tool_ui_helpers.dart';
+import 'package:otzaria/widgets/tool_ui_helpers.dart';
 import 'package:otzaria/personal_notes/view/personal_notes_screen.dart';
 import 'package:otzaria/widgets/keyboard_navigator.dart';
 import 'package:otzaria/widgets/rtl_icon.dart';
