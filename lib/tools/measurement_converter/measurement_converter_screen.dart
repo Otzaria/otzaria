@@ -14,9 +14,10 @@ import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/tools/measurement_converter/measurement_data.dart';
 import 'package:otzaria/tools/measurement_converter/measurement_converter_logic.dart';
 import 'package:otzaria/theme/theme_exports.dart';
-import 'package:otzaria/widgets/custom_ui_components.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/widgets/app_menu.dart';
+import 'package:otzaria/widgets/buttons/action_buttons.dart';
+import 'package:otzaria/widgets/rtl_text_field.dart';
 import 'package:otzaria/widgets/sidebar_nav_item.dart';
 
 class MeasurementConverterScreen extends StatefulWidget {
@@ -444,8 +445,9 @@ class _MeasurementConverterScreenState
           Positioned.fill(
             child: GestureDetector(
               onTap: () => setState(() => _narrowShowCategories = false),
-              child: Container(
-                color: Colors.black.withValues(alpha: 0.3),
+              child: ColoredBox(
+                color: Theme.of(context).colorScheme.scrim.withValues(alpha: 0.3),
+                child: const SizedBox.expand(),
               ),
             ),
           ),
@@ -1013,7 +1015,7 @@ class _MeasurementTextField extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 4),
-        TextField(
+        RtlTextField(
           controller: controller,
           focusNode: focusNode,
           enabled: enabled,
@@ -1021,7 +1023,6 @@ class _MeasurementTextField extends StatelessWidget {
           inputFormatters: inputFormatters,
           onChanged: onChanged,
           textAlign: TextAlign.right,
-          textDirection: TextDirection.rtl,
           style: TextStyle(
             fontSize: isResult ? AppTokens.fontXL : AppTokens.fontLG,
             color: enabled ? cs.onSurface : cs.onSurfaceVariant,
