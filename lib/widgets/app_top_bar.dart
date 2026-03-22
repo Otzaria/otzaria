@@ -168,8 +168,7 @@ class _AppTopBarState extends State<AppTopBar>
 
   Color _barColor(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return isDark ? cs.surfaceContainerLow : cs.surfaceContainerHigh;
+    return cs.secondaryContainer;
   }
 
   @override

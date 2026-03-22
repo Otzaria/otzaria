@@ -2,12 +2,10 @@
 //
 // כפתורי פעולה גנריים בסגנון M3.
 //
-// **שינויים v2:**
-// • ToolbarActionButton — תיקון נראות מצב נבחר (selected) במצב בהיר:
-//   - selected: bg=primary×15%, fg=primary (במקום primaryContainer/onPrimaryContainer)
-//   - unselected: bg=surfaceContainerHighest×60% (גלוי קצת גם כשלא נבחר)
-//   - compact selected: bg=primary×18%, fg=primary
-// • ToolbarActionButton — compact + label: pill קטן עם fg=primary כשנבחר
+// **שינויים v4:**
+// • ToolbarActionButton — selected משתמש ב-primary/onPrimary
+//   כדי לבלוט בצורה ברורה על סרגל secondaryContainer.
+// • מצב לא נבחר נשאר שקט יותר עם surface containers.
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
@@ -172,15 +170,19 @@ class ToolNavigateButton extends StatelessWidget {
 /// • [compact] = false (touch):   כפתור עגול/pill גדול, icon 20px
 /// • [compact] = true (desktop):  כפתור עגול/pill קטן, icon 16px
 ///
-/// **צבעים (תוקן לנראות גם במצב בהיר):**
-/// • selected:    bg = primary×15%, fg = primary — בולט בהיר וכהה
-/// • unselected:  bg = surfaceContainerHighest×60%, fg = onSurfaceVariant
+/// **צבעים:**
+/// • selected prominent: primary / onPrimary
+/// • selected subtle:    secondaryContainer / onSecondaryContainer
+/// • unselected:         transparent / onSurfaceVariant
+enum ToolbarActionButtonEmphasis { prominent, subtle }
+
 class ToolbarActionButton extends StatelessWidget {
   final String tooltip;
   final IconData icon;
   final VoidCallback onPressed;
   final bool selected;
   final String? label;
+  final ToolbarActionButtonEmphasis emphasis;
 
   /// true = desktop — כפתור קטן ועגול
   final bool compact;
@@ -193,19 +195,37 @@ class ToolbarActionButton extends StatelessWidget {
     this.selected = false,
     this.label,
     this.compact = false,
+    this.emphasis = ToolbarActionButtonEmphasis.prominent,
   });
 
-  // ── הלוגיקה המשותפת לצבעים ──────────────────────────────────────────────
-
-  /// צבע רקע: נבחר = primary × alpha; לא נבחר = surfaceContainerHighest × alpha
-  Color _bgColor(ColorScheme cs, double selectedAlpha, double unselectedAlpha) {
-    return selected
-        ? cs.primary.withValues(alpha: selectedAlpha)
-        : cs.surfaceContainerHighest.withValues(alpha: unselectedAlpha);
+  Color _bgColor(ColorScheme cs) {
+    if (!selected) return Colors.transparent;
+    return switch (emphasis) {
+      ToolbarActionButtonEmphasis.prominent => cs.primary,
+      ToolbarActionButtonEmphasis.subtle =>
+        cs.secondaryContainer.withValues(alpha: 0.72),
+    };
   }
 
-  /// צבע טקסט/אייקון: נבחר = primary; לא נבחר = onSurfaceVariant
-  Color _fgColor(ColorScheme cs) => selected ? cs.primary : cs.onSurfaceVariant;
+  Color _fgColor(ColorScheme cs) {
+    if (!selected) return cs.onSurfaceVariant;
+    return switch (emphasis) {
+      ToolbarActionButtonEmphasis.prominent => cs.onPrimary,
+      ToolbarActionButtonEmphasis.subtle => cs.onSecondaryContainer,
+    };
+  }
+
+  Color _overlayColor(ColorScheme cs) {
+    if (selected) {
+      return switch (emphasis) {
+        ToolbarActionButtonEmphasis.prominent =>
+          cs.onPrimary.withValues(alpha: 0.10),
+        ToolbarActionButtonEmphasis.subtle =>
+          cs.onSecondaryContainer.withValues(alpha: 0.10),
+      };
+    }
+    return cs.onSurface.withValues(alpha: 0.08);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -216,8 +236,9 @@ class ToolbarActionButton extends StatelessWidget {
 
   Widget _buildStandard(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final bg = _bgColor(cs, 0.18, 0.65);
+    final bg = _bgColor(cs);
     final fg = _fgColor(cs);
+    final overlay = _overlayColor(cs);
 
     Widget button;
     if (label != null) {
@@ -230,6 +251,8 @@ class ToolbarActionButton extends StatelessWidget {
           shape: const StadiumBorder(),
           minimumSize: const Size(0, 40),
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ).copyWith(
+          overlayColor: WidgetStatePropertyAll(overlay),
         ),
         icon: Icon(icon, size: 20),
         label: Text(label!, style: const TextStyle(fontSize: 14.0)),
@@ -244,7 +267,7 @@ class ToolbarActionButton extends StatelessWidget {
           backgroundColor: bg,
           foregroundColor: fg,
           shape: const CircleBorder(),
-          highlightColor: cs.onSurface.withValues(alpha: 0.08),
+          highlightColor: overlay,
         ),
       );
     }
@@ -256,8 +279,9 @@ class ToolbarActionButton extends StatelessWidget {
 
   Widget _buildCompact(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final bg = _bgColor(cs, 0.16, 0.55);
+    final bg = _bgColor(cs);
     final fg = _fgColor(cs);
+    final overlay = _overlayColor(cs);
 
     Widget button;
     if (label != null) {
@@ -270,6 +294,8 @@ class ToolbarActionButton extends StatelessWidget {
           shape: const StadiumBorder(),
           minimumSize: const Size(0, 28),
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ).copyWith(
+          overlayColor: WidgetStatePropertyAll(overlay),
         ),
         icon: Icon(icon, size: 15),
         label: Text(label!, style: const TextStyle(fontSize: 12.0)),
@@ -284,7 +310,7 @@ class ToolbarActionButton extends StatelessWidget {
           backgroundColor: bg,
           foregroundColor: fg,
           shape: const CircleBorder(),
-          highlightColor: cs.onSurface.withValues(alpha: 0.08),
+          highlightColor: overlay,
         ),
       );
     }
