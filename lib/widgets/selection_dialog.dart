@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/core/widgets/otzaria_search_field.dart';
+import 'package:otzaria/widgets/buttons/action_buttons.dart';
+import 'package:otzaria/widgets/tool_empty_state.dart';
 
 /// דיאלוג בחירה עם חיפוש
 class SelectionDialog<T> extends StatefulWidget {
@@ -52,7 +54,7 @@ class _SelectionDialogState<T> extends State<SelectionDialog<T>> {
   Widget build(BuildContext context) {
     return AlertDialog(
       backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
-      title: Text(widget.title),
+      title: Text(widget.title, textDirection: TextDirection.rtl),
       content: SizedBox(
         width: 300,
         height: 400,
@@ -65,32 +67,40 @@ class _SelectionDialogState<T> extends State<SelectionDialog<T>> {
             ),
             const SizedBox(height: 8),
             Expanded(
-              child: ListView.builder(
-                itemCount: filteredItems.length,
-                itemBuilder: (context, index) {
-                  final item = filteredItems[index];
-                  final isSelected = item.value == widget.initialValue;
+              child: filteredItems.isEmpty
+                  ? const ToolEmptyState(
+                      icon: FluentIcons.search_24_regular,
+                      message: 'לא נמצאו תוצאות',
+                    )
+                  : ListView.builder(
+                      itemCount: filteredItems.length,
+                      itemBuilder: (context, index) {
+                        final item = filteredItems[index];
+                        final isSelected = item.value == widget.initialValue;
 
-                  return ListTile(
-                    title: Text(item.label),
-                    selected: isSelected,
-                    trailing: isSelected
-                        ? const Icon(FluentIcons.checkmark_24_regular)
-                        : null,
-                    onTap: () {
-                      Navigator.of(context).pop(item.value);
-                    },
-                  );
-                },
-              ),
+                        return ListTile(
+                          title: Text(
+                            item.label,
+                            textDirection: TextDirection.rtl,
+                          ),
+                          selected: isSelected,
+                          trailing: isSelected
+                              ? const Icon(FluentIcons.checkmark_24_regular)
+                              : null,
+                          onTap: () {
+                            Navigator.of(context).pop(item.value);
+                          },
+                        );
+                      },
+                    ),
             ),
           ],
         ),
       ),
       actions: [
-        TextButton(
+        NeutralActionButton(
+          text: 'ביטול',
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('ביטול'),
         ),
       ],
     );

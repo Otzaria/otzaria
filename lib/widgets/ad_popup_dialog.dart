@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/services/ad_popup_service.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/app_menu.dart';
 
 /// פופאפ פרסומת עם אנימציה מתקדמת
@@ -124,13 +125,16 @@ class _AdPopupDialogState extends State<AdPopupDialog>
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     return SlideTransition(
       position: _slideAnimation,
       child: FadeTransition(
         opacity: _fadeAnimation,
         child: Dialog(
+          backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(AppTokens.radiusXL),
           ),
           child: Container(
             constraints: BoxConstraints(
@@ -160,8 +164,8 @@ class _AdPopupDialogState extends State<AdPopupDialog>
                     icon: const Icon(FluentIcons.dismiss_24_regular),
                     tooltip: 'סגור',
                     style: IconButton.styleFrom(
-                      backgroundColor: Colors.black.withValues(alpha: 0.1),
-                      foregroundColor: Colors.black54,
+                      backgroundColor: cs.surfaceContainerHighest,
+                      foregroundColor: cs.onSurfaceVariant,
                     ),
                   ),
                 ),
@@ -247,6 +251,8 @@ class _AdPopupDialogState extends State<AdPopupDialog>
 
   // שלב 2: הכל מתכווץ למעלה ורשימה מופיעה
   Widget _buildStage2() {
+    final cs = Theme.of(context).colorScheme;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -282,11 +288,11 @@ class _AdPopupDialogState extends State<AdPopupDialog>
                   Flexible(
                     child: Text(
                       widget.title,
-                      style: TextStyle(
-                        fontSize: fontSize,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
+                        style: TextStyle(
+                          fontSize: fontSize,
+                          fontWeight: FontWeight.bold,
+                          color: cs.onSurface,
+                        ),
                       textAlign: TextAlign.center,
                       overflow: TextOverflow.visible,
                     ),
@@ -359,15 +365,40 @@ class _AdPopupDialogState extends State<AdPopupDialog>
                 icon: FluentIcons.prohibited_24_regular,
               ),
             ],
-            child: OutlinedButton.icon(
-              onPressed: null, // הכפתור עצמו לא עושה כלום, רק פותח תפריט
-              style: OutlinedButton.styleFrom(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                side: BorderSide(color: Colors.grey.shade400),
-              ),
-              icon: const Icon(FluentIcons.dismiss_24_regular, size: 18),
-              label: const Text('אל תציג שוב'),
+            child: Builder(
+              builder: (context) {
+                final cs = Theme.of(context).colorScheme;
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: cs.secondaryContainer,
+                    borderRadius: BorderRadius.circular(AppTokens.radiusSM),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        FluentIcons.dismiss_24_regular,
+                        size: 16,
+                        color: cs.onSecondaryContainer,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'אל תציג שוב',
+                        textDirection: TextDirection.rtl,
+                        style: TextStyle(
+                          color: cs.onSecondaryContainer,
+                          fontWeight: FontWeight.w500,
+                          fontSize: AppTokens.fontSM,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
         ),
@@ -670,15 +701,17 @@ class _OrganizationsList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // קווי חירום
-        _buildSectionTitle('קווי חירום', Colors.red),
+        _buildSectionTitle('קווי חירום', cs.error),
         ...emergencyLines.map((org) => _buildOrgCard(context, org, true)),
         const SizedBox(height: 20),
         // ארגוני סיוע
-        _buildSectionTitle('ארגוני סיוע', Colors.blue),
+        _buildSectionTitle('ארגוני סיוע', cs.primary),
         ...supportOrgs.map((org) => _buildOrgCard(context, org, false)),
       ],
     );
@@ -736,20 +769,19 @@ class _ExpandableOrgCard extends StatefulWidget {
 class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
   bool _isExpanded = false;
 
-  static final _defaultDetailsStyle = TextStyle(
-    fontSize: 13,
-    height: 1.6,
-    color: Colors.grey[800],
-  );
-
-  static final _boldDetailsStyle = _defaultDetailsStyle.copyWith(
-    color: Colors.red[700],
-    fontWeight: FontWeight.bold,
-  );
-
   static final _detailsRegex = RegExp(r'\*\*(.*?)\*\*');
 
-  Widget _buildDetailsText(String details) {
+  Widget _buildDetailsText(BuildContext context, String details) {
+    final cs = Theme.of(context).colorScheme;
+    final defaultDetailsStyle = TextStyle(
+      fontSize: 13,
+      height: 1.6,
+      color: cs.onSurface,
+    );
+    final boldDetailsStyle = defaultDetailsStyle.copyWith(
+      color: widget.isEmergency ? cs.error : cs.primary,
+      fontWeight: FontWeight.bold,
+    );
     final spans = <TextSpan>[];
     int lastIndex = 0;
 
@@ -758,14 +790,14 @@ class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
       if (match.start > lastIndex) {
         spans.add(TextSpan(
           text: details.substring(lastIndex, match.start),
-          style: _defaultDetailsStyle,
+          style: defaultDetailsStyle,
         ));
       }
 
       // טקסט מודגש (ללא הכוכביות)
       spans.add(TextSpan(
         text: match.group(1),
-        style: _boldDetailsStyle,
+        style: boldDetailsStyle,
       ));
 
       lastIndex = match.end;
@@ -775,7 +807,7 @@ class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
     if (lastIndex < details.length) {
       spans.add(TextSpan(
         text: details.substring(lastIndex),
-        style: _defaultDetailsStyle,
+        style: defaultDetailsStyle,
       ));
     }
 
@@ -786,15 +818,17 @@ class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final accentColor = widget.isEmergency ? cs.error : cs.primary;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      elevation: 2,
+      elevation: 0,
+      color: AppSurfaces.card(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color: widget.isEmergency
-              ? Colors.red.withValues(alpha: 0.15)
-              : Colors.blue.withValues(alpha: 0.15),
+          color: accentColor.withValues(alpha: 0.15),
           width: 1.5,
         ),
       ),
@@ -812,7 +846,7 @@ class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
                     width: 50,
                     height: 50,
                     decoration: BoxDecoration(
-                      color: Colors.grey[200],
+                      color: cs.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: ClipRRect(
@@ -844,9 +878,7 @@ class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: widget.isEmergency
-                          ? Colors.red.withValues(alpha: 0.8)
-                          : Colors.blue.withValues(alpha: 0.8),
+                      color: accentColor.withValues(alpha: 0.8),
                       letterSpacing: 1.2,
                     ),
                     textDirection: TextDirection.ltr,
@@ -855,9 +887,9 @@ class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
                   // חץ
                   Icon(
                     _isExpanded
-                        ? Icons.keyboard_arrow_up
-                        : Icons.keyboard_arrow_down,
-                    color: Colors.grey[600],
+                        ? FluentIcons.chevron_up_24_regular
+                        : FluentIcons.chevron_down_24_regular,
+                    color: cs.onSurfaceVariant,
                   ),
                 ],
               ),
@@ -869,7 +901,7 @@ class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
-              color: Colors.grey[50],
+              color: cs.surfaceContainerLowest,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -910,7 +942,7 @@ class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    _buildDetailsText(widget.org['details']),
+                    _buildDetailsText(context, widget.org['details']),
                   ],
                 ],
               ),
