@@ -19,7 +19,7 @@ import 'package:otzaria/tools/gematria/models/gematria_search_result.dart';
 import 'package:otzaria/tools/gematria/models/search_result.dart';
 import 'package:otzaria/tools/gematria/widgets/gematria_result_card.dart';
 import 'package:otzaria/tools/gematria/widgets/gematria_settings_panel.dart';
-import 'package:otzaria/tools/widgets/tool_ui_helpers.dart';
+import 'package:otzaria/widgets/tool_ui_helpers.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/keyboard_navigator.dart';
 import 'package:otzaria/widgets/keyboard_list_focus.dart';
