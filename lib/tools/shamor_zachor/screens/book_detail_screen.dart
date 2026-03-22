@@ -13,7 +13,9 @@ import '../widgets/hebrew_utils.dart';
 import '../widgets/completion_animation_overlay.dart';
 import '../widgets/error_boundary.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/widgets/buttons/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
+import 'package:otzaria/widgets/tool_empty_state.dart';
 
 /// Screen for displaying and managing progress for a specific book
 class BookDetailScreen extends StatefulWidget {
@@ -239,6 +241,8 @@ class _BookDetailScreenState extends State<BookDetailScreen>
           child:
               Consumer2<ShamorZachorDataProvider, ShamorZachorProgressProvider>(
             builder: (context, dataProvider, progressProvider, child) {
+              final cs = Theme.of(context).colorScheme;
+
               if (dataProvider.isLoading || progressProvider.isLoading) {
                 return const Center(
                   child: Column(
@@ -257,8 +261,11 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(FluentIcons.error_circle_24_regular,
-                          size: 64, color: Colors.red),
+                      Icon(
+                        FluentIcons.error_circle_24_regular,
+                        size: 64,
+                        color: cs.error,
+                      ),
                       const SizedBox(height: 16),
                       Text(
                         dataProvider.error!.userFriendlyMessage,
@@ -275,9 +282,9 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                       ],
                       const SizedBox(height: 16),
                       if (dataProvider.error!.isRecoverable)
-                        ElevatedButton(
+                        RecommendedActionButton(
+                          text: 'נסה שוב',
                           onPressed: () => dataProvider.retry(),
-                          child: const Text('נסה שוב'),
                         ),
                     ],
                   ),
@@ -298,8 +305,11 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(FluentIcons.book_24_regular,
-                          size: 64, color: Colors.grey),
+                      Icon(
+                        FluentIcons.book_24_regular,
+                        size: 64,
+                        color: cs.onSurfaceVariant,
+                      ),
                       const SizedBox(height: 16),
                       Text(
                         'פרטי הספר "${widget.bookName}" לא נמצאו',
@@ -331,7 +341,10 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     final learnableItems = bookDetails.learnableItems;
 
     if (learnableItems.isEmpty) {
-      return const Center(child: Text('אין פריטים ללימוד בספר זה'));
+      return const ToolEmptyState(
+        icon: FluentIcons.book_24_regular,
+        message: 'אין פריטים ללימוד בספר זה',
+      );
     }
 
     final hasNested = bookDetails.sections != null &&

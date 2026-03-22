@@ -6,6 +6,7 @@ import '../providers/shamor_zachor_data_provider.dart';
 import '../providers/shamor_zachor_progress_provider.dart';
 import '../models/book_model.dart';
 import 'book_card_widget.dart'; // Using the rich card
+import 'package:otzaria/widgets/tool_empty_state.dart';
 
 class CategoryBooksGrid extends StatefulWidget {
   final String? categoryName;
@@ -34,22 +35,13 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     if (widget.category == null &&
         widget.categoryName != 'custom_books_virtual') {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(FluentIcons.library_24_regular,
-                size: 64, color: Colors.grey.withAlpha(100)),
-            const SizedBox(height: 16),
-            Text('בחר קטגוריה כדי לצפות בספרים',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(color: Colors.grey)),
-          ],
-        ),
+      return ToolEmptyState(
+        icon: FluentIcons.library_24_regular,
+        message: 'בחר קטגוריה כדי לצפות בספרים',
       );
     }
 
@@ -89,6 +81,21 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
                     });
                   },
                   showSelectedIcon: false,
+                  style: ButtonStyle(
+                    visualDensity: VisualDensity.compact,
+                    foregroundColor: WidgetStateProperty.resolveWith((states) {
+                      if (states.contains(WidgetState.selected)) {
+                        return cs.onPrimaryContainer;
+                      }
+                      return cs.onSurface;
+                    }),
+                    backgroundColor: WidgetStateProperty.resolveWith((states) {
+                      if (states.contains(WidgetState.selected)) {
+                        return cs.primaryContainer;
+                      }
+                      return cs.surface;
+                    }),
+                  ),
                 ),
               ),
             ],
@@ -198,8 +205,10 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
   }
 
   Widget _buildEmptyState() {
-    return const Center(
-        child: Text('אין ספרים להצגה', style: TextStyle(color: Colors.grey)));
+    return const ToolEmptyState(
+      icon: FluentIcons.book_24_regular,
+      message: 'אין ספרים להצגה',
+    );
   }
 
   Widget _buildSectionHeader(String title) {
