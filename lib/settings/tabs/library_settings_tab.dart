@@ -130,40 +130,26 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
   Widget build(BuildContext context) {
     return BlocBuilder<SettingsBloc, SettingsState>(
       builder: (context, state) {
-        // בניית כפתור בחירת תיקייה רק בדסקטופ והעברה לפאנל
-        final hebrewPathWidget = !(Platform.isAndroid || Platform.isIOS)
-            ? _buildHebrewBooksLocationWidget(context)
-            : null;
-
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // מאגר הספרים (רק בדסקטופ)
+              // מיקומי ספרים (רק בדסקטופ)
               if (!(Platform.isAndroid || Platform.isIOS)) ...[
                 SettingsCard(
-                  title: 'מאגר הספרים',
+                  title: 'מיקומי ספרים',
                   children: [
                     _buildLibraryLocationWidget(context),
+                    _buildHebrewBooksLocationWidget(context),
+                    const CustomFoldersTile(),
                   ],
                 ),
                 kSettingsCardSpacing,
               ],
 
-              // הפאנל המשותף (תצוגה + ספרים נוספים) - כעת כולל את תיקיית היברובוקס בתוכו!
-              LibrarySettingsPanel(hebrewBooksPathWidget: hebrewPathWidget),
-
-              // תיקיות מותאמות אישית (רק בדסקטופ)
-              if (!(Platform.isAndroid || Platform.isIOS)) ...[
-                kSettingsCardSpacing,
-                SettingsCard(
-                  title: 'תיקיות מותאמות אישית',
-                  children: const [
-                    CustomFoldersTile(),
-                  ],
-                ),
-              ],
+              // הפאנל המשותף (תצוגה + ספרים נוספים)
+              LibrarySettingsPanel(hebrewBooksPathWidget: null),
 
               // חיפוש ואינדקס
               kSettingsCardSpacing,
