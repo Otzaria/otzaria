@@ -16,8 +16,8 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('EmptyLibraryBloc', () {
-    test('parseLatestDatabaseAsset מחזיר את asset של seforim.db.zst', () {
-      final asset = EmptyLibraryBloc.parseLatestDatabaseAsset({
+    test('parseLatestLibraryAssets מחזיר את assets של הספרייה', () {
+      final assets = EmptyLibraryBloc.parseLatestLibraryAssets({
         'assets': [
           {
             'name': '1-2.DIFF.zst',
@@ -27,15 +27,21 @@ void main() {
             'name': 'seforim.db.zst',
             'browser_download_url': 'https://example.com/seforim.db.zst',
           },
+          {
+            'name': 'talmud_bavli_latest.tar.zst',
+            'browser_download_url': 'https://example.com/talmud_bavli_latest.tar.zst',
+          },
         ],
       });
 
-      expect(asset, isNotNull);
-      expect(asset!.assetName, 'seforim.db.zst');
-      expect(asset.downloadUrl, 'https://example.com/seforim.db.zst');
+      expect(assets, isNotNull);
+      expect(assets!.dbAssetName, 'seforim.db.zst');
+      expect(assets.dbDownloadUrl, 'https://example.com/seforim.db.zst');
+      expect(assets.talmudAssetName, 'talmud_bavli_latest.tar.zst');
+      expect(assets.talmudDownloadUrl, 'https://example.com/talmud_bavli_latest.tar.zst');
     });
 
-    test('DownloadLibraryRequested מוריד DB מהרליס האחרון ומחלץ אותו',
+    test('DownloadLibraryRequested מוריד DB ותלמוד בבלי מהרליס האחרון ומחלץ אותם',
         () async {
       final tempDir = await Directory.systemTemp.createTemp(
         'otzaria-empty-library-test-',
@@ -53,7 +59,8 @@ void main() {
         '',
       );
 
-      final downloadedBytes = utf8.encode('compressed-db');
+      final downloadedDbBytes = utf8.encode('compressed-db');
+      final downloadedTalmudBytes = utf8.encode('compressed-talmud');
       final client = MockClient((request) async {
         if (request.url.path.endsWith('/releases/latest')) {
           return http.Response(
@@ -69,6 +76,11 @@ void main() {
                   'browser_download_url':
                       'https://example.com/releases/seforim.db.zst',
                 },
+                {
+                  'name': 'talmud_bavli_latest.tar.zst',
+                  'browser_download_url':
+                      'https://example.com/releases/talmud_bavli_latest.tar.zst',
+                },
               ],
             }),
             200,
@@ -78,7 +90,12 @@ void main() {
 
         if (request.url.toString() ==
             'https://example.com/releases/seforim.db.zst') {
-          return http.Response.bytes(downloadedBytes, 200);
+          return http.Response.bytes(downloadedDbBytes, 200);
+        }
+        
+        if (request.url.toString() ==
+            'https://example.com/releases/talmud_bavli_latest.tar.zst') {
+          return http.Response.bytes(downloadedTalmudBytes, 200);
         }
 
         return http.Response('not found', 404);
@@ -91,13 +108,22 @@ void main() {
           // הקובץ הזמני חייב להיות בתיקיית temp של המערכת
           expect(archivePath, startsWith(Directory.systemTemp.path));
           expect(path.basename(archivePath), 'otzaria_seforim.db.zst');
-          expect(await File(archivePath).readAsBytes(), downloadedBytes);
+          expect(await File(archivePath).readAsBytes(), downloadedDbBytes);
           // כתיבת DB לנתיב הפלט הצפוי (תיקיית הספרייה)
           expect(
             outputPath,
             path.join(tempDir.path, DatabaseConstants.databaseFileName),
           );
           await File(outputPath).writeAsBytes(const [1, 2, 3], flush: true);
+        },
+        extractCompressedTarArchive: (archivePath, outputPath) async {
+          expect(archivePath, startsWith(Directory.systemTemp.path));
+          expect(path.basename(archivePath), 'otzaria_talmud_bavli_latest.tar.zst');
+          expect(await File(archivePath).readAsBytes(), downloadedTalmudBytes);
+          expect(
+            outputPath,
+            DatabaseConstants.getTalmudBavliDirectoryPath(tempDir.path, ''),
+          );
         },
       );
       addTearDown(bloc.close);
@@ -122,9 +148,14 @@ void main() {
         Settings.getValue<String>(SettingsRepository.keyLibraryFolderName),
         '',
       );
-      // הקובץ הזמני נמחק אוטומטית
+      // הקבצים הזמניים נמחקו אוטומטית
       expect(
         File(path.join(Directory.systemTemp.path, 'otzaria_seforim.db.zst'))
+            .existsSync(),
+        isFalse,
+      );
+      expect(
+        File(path.join(Directory.systemTemp.path, 'otzaria_talmud_bavli_latest.tar.zst'))
             .existsSync(),
         isFalse,
       );

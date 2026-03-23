@@ -97,7 +97,9 @@ void main() async {
 
     // Skip HardwareKeyboard assertion error - happens when window loses focus while
     // a key is held down; fixed by clearState() in onWindowFocus but filter as fallback
-    if (errorString.contains('!_pressedKeys.containsKey(event.physicalKey)') ||
+    if (errorString.contains('_pressedKeys.containsKey(event.physicalKey)') ||
+        errorString.contains(
+            'A KeyUpEvent is dispatched, but the state shows that the physical key is not pressed') ||
         errorString.contains(
             'A KeyDownEvent is dispatched, but the state shows that the physical key is already pressed')) {
       return; // Silently ignore - handled by HardwareKeyboard.instance.clearState() on focus
@@ -123,7 +125,9 @@ void main() async {
     }
 
     // Skip HardwareKeyboard assertion error - handled by clearState() on window focus
-    if (errorString.contains('!_pressedKeys.containsKey(event.physicalKey)') ||
+    if (errorString.contains('_pressedKeys.containsKey(event.physicalKey)') ||
+        errorString.contains(
+            'A KeyUpEvent is dispatched, but the state shows that the physical key is not pressed') ||
         errorString.contains(
             'A KeyDownEvent is dispatched, but the state shows that the physical key is already pressed')) {
       return true; // Silently ignore
@@ -173,7 +177,9 @@ Future<void> _initializeSentry() async {
           }
           // Filter HardwareKeyboard assertion - handled by clearState() on window focus
           if (exception
-                  .contains('!_pressedKeys.containsKey(event.physicalKey)') ||
+                  .contains('_pressedKeys.containsKey(event.physicalKey)') ||
+              exception.contains(
+                  'A KeyUpEvent is dispatched, but the state shows that the physical key is not pressed') ||
               exception.contains(
                   'A KeyDownEvent is dispatched, but the state shows that the physical key is already pressed')) {
             return null; // Don't send to Sentry

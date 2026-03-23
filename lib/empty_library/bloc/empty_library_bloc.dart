@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:archive/archive.dart';
 import 'package:bloc/bloc.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:file_picker/file_picker.dart';
@@ -20,10 +21,14 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     http.Client? httpClient,
     Future<void> Function(String archivePath, String outputPath)?
         extractCompressedDatabase,
+    Future<void> Function(String archivePath, String outputDirectory)?
+        extractCompressedTarArchive,
     String? defaultLibraryPathOverride,
   })  : _httpClient = httpClient ?? http.Client(),
         _extractCompressedDatabase =
             extractCompressedDatabase ?? _extractZstWithSystemProcess,
+        _extractCompressedTarArchive =
+            extractCompressedTarArchive ?? _extractTarZstWithArchive,
         _defaultLibraryPathOverride = defaultLibraryPathOverride,
         super(EmptyLibraryInitial()) {
     on<PickDirectoryRequested>(_onPickDirectoryRequested);
@@ -36,6 +41,8 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
   final http.Client _httpClient;
   final Future<void> Function(String archivePath, String outputPath)
       _extractCompressedDatabase;
+  final Future<void> Function(String archivePath, String outputDirectory)
+      _extractCompressedTarArchive;
   final String? _defaultLibraryPathOverride;
 
   Future<void> _onPickDirectoryRequested(
@@ -442,55 +449,9 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
 
   Future<void> _onDownloadLibraryRequested(
       DownloadLibraryRequested event, Emitter<EmptyLibraryState> emit) async {
-    File? tempArchive;
+    File? tempDbArchive;
+    File? tempTalmudArchive;
     try {
-      final latestAsset = await _fetchLatestDatabaseAsset();
-
-      // הורדה לתיקיית temp זמנית
-      final tempArchivePath = path.join(
-        Directory.systemTemp.path,
-        'otzaria_${latestAsset.assetName}',
-      );
-      tempArchive = File(tempArchivePath);
-
-      emit(const EmptyLibraryDownloading(
-        progress: 0.0,
-        message: 'מתחבר לשרת...',
-      ));
-
-      final request = http.Request('GET', Uri.parse(latestAsset.downloadUrl));
-      final response = await _httpClient.send(request);
-
-      if (response.statusCode != 200) {
-        emit(EmptyLibraryError(
-          errorMessage: 'שגיאה בהורדה: ${response.statusCode}',
-        ));
-        return;
-      }
-
-      final contentLength = response.contentLength ?? 0;
-      var downloadedBytes = 0;
-      final sink = tempArchive.openWrite();
-
-      try {
-        await for (var chunk in response.stream) {
-          sink.add(chunk);
-          downloadedBytes += chunk.length;
-
-          if (contentLength > 0) {
-            final progress = downloadedBytes / contentLength;
-            final mb = (downloadedBytes / 1024 / 1024).toStringAsFixed(1);
-            final totalMb = (contentLength / 1024 / 1024).toStringAsFixed(1);
-            emit(EmptyLibraryDownloading(
-              progress: progress,
-              message: 'מוריד... $mb MB מתוך $totalMb MB',
-            ));
-          }
-        }
-      } finally {
-        await sink.close();
-      }
-
       // קבלת נתיב ברירת מחדל של הספרייה ויצירתו אם לא קיים
       final libraryPath =
           _defaultLibraryPathOverride ?? await AppPaths.getDefaultLibraryPath();
@@ -499,27 +460,89 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
         await libraryDir.create(recursive: true);
       }
 
+      final assets = await _fetchLatestLibraryAssets();
+
+      // === שלב 1: מסד הנתונים ===
+      final tempDbArchivePath = path.join(
+        Directory.systemTemp.path,
+        'otzaria_${assets.dbAssetName}',
+      );
+      tempDbArchive = File(tempDbArchivePath);
+
+      emit(const EmptyLibraryDownloading(
+        progress: 0.0,
+        message: 'מתחבר לשרת להורדת מסד נתונים...',
+      ));
+
+      await _downloadFile(
+        url: assets.dbDownloadUrl,
+        outputFile: tempDbArchive,
+        onProgress: (progress, downloadedMb, totalMb) {
+          emit(EmptyLibraryDownloading(
+            progress: progress,
+            message: 'מוריד מסד נתונים... $downloadedMb MB מתוך $totalMb MB',
+          ));
+        },
+      );
+
       final outputPath = path.join(
         libraryPath,
         DatabaseConstants.databaseFileName,
       );
 
       emit(EmptyLibraryExtracting(
-        selectedPath: tempArchivePath,
+        selectedPath: tempDbArchivePath,
         progress: 0.0,
-        message: 'מחלץ קובץ DB דחוס...',
+        message: 'מחלץ מסד נתונים...',
       ));
 
-      await _extractCompressedDatabase(tempArchivePath, outputPath);
+      await _extractCompressedDatabase(tempDbArchivePath, outputPath);
 
-      // מחיקת קובץ ה-temp מיד לאחר חילוץ מוצלח
-      await tempArchive.delete();
-      tempArchive = null;
+      // מחיקת קובץ ה-temp של מסד הנתונים מיד לאחר חילוץ מוצלח
+      await tempDbArchive.delete();
+      tempDbArchive = null;
+
+      // === שלב 2: תלמוד בבלי ===
+      final tempTalmudArchivePath = path.join(
+        Directory.systemTemp.path,
+        'otzaria_${assets.talmudAssetName}',
+      );
+      tempTalmudArchive = File(tempTalmudArchivePath);
+
+      emit(const EmptyLibraryDownloading(
+        progress: 0.0,
+        message: 'מתחבר לשרת להורדת תלמוד בבלי...',
+      ));
+
+      await _downloadFile(
+        url: assets.talmudDownloadUrl,
+        outputFile: tempTalmudArchive,
+        onProgress: (progress, downloadedMb, totalMb) {
+          emit(EmptyLibraryDownloading(
+            progress: progress,
+            message: 'מוריד תלמוד בבלי... $downloadedMb MB מתוך $totalMb MB',
+          ));
+        },
+      );
+
+      final talmudOutputPath = DatabaseConstants.getTalmudBavliDirectoryPath(libraryPath, '');
 
       emit(EmptyLibraryExtracting(
-        selectedPath: tempArchivePath,
+        selectedPath: tempTalmudArchivePath,
+        progress: 0.0,
+        message: 'מחלץ תלמוד בבלי...',
+      ));
+
+      await _extractCompressedTarArchive(tempTalmudArchivePath, talmudOutputPath);
+
+      // מחיקת קובץ ה-temp של תלמוד בבלי
+      await tempTalmudArchive.delete();
+      tempTalmudArchive = null;
+
+      emit(EmptyLibraryExtracting(
+        selectedPath: libraryPath,
         progress: 1.0,
-        message: 'החילוץ הושלם',
+        message: 'ההתקנה הושלמה',
       ));
 
       await Settings.setValue(SettingsRepository.keyLibraryPath, libraryPath);
@@ -533,10 +556,46 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
         errorMessage: 'שגיאה בהורדה: $e',
       ));
     } finally {
-      // מחיקת קובץ ה-temp תמיד, גם במקרה שגיאה
-      if (tempArchive != null && await tempArchive.exists()) {
-        await tempArchive.delete();
+      // מחיקת קובצי temp תמיד, גם במקרה שגיאה
+      if (tempDbArchive != null && await tempDbArchive.exists()) {
+        await tempDbArchive.delete();
       }
+      if (tempTalmudArchive != null && await tempTalmudArchive.exists()) {
+        await tempTalmudArchive.delete();
+      }
+    }
+  }
+
+  Future<void> _downloadFile({
+    required String url,
+    required File outputFile,
+    required void Function(double progress, String downloadedMb, String totalMb) onProgress,
+  }) async {
+    final request = http.Request('GET', Uri.parse(url));
+    final response = await _httpClient.send(request);
+
+    if (response.statusCode != 200) {
+      throw Exception('שגיאה בהורדה: ${response.statusCode}');
+    }
+
+    final contentLength = response.contentLength ?? 0;
+    var downloadedBytes = 0;
+    final sink = outputFile.openWrite();
+
+    try {
+      await for (var chunk in response.stream) {
+        sink.add(chunk);
+        downloadedBytes += chunk.length;
+
+        if (contentLength > 0) {
+          final progress = downloadedBytes / contentLength;
+          final mb = (downloadedBytes / 1024 / 1024).toStringAsFixed(1);
+          final totalMb = (contentLength / 1024 / 1024).toStringAsFixed(1);
+          onProgress(progress, mb, totalMb);
+        }
+      }
+    } finally {
+      await sink.close();
     }
   }
 
@@ -559,7 +618,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     }
   }
 
-  Future<DatabaseReleaseAsset> _fetchLatestDatabaseAsset() async {
+  Future<LibraryReleaseAssets> _fetchLatestLibraryAssets() async {
     final response = await _httpClient.get(
       Uri.parse(
         'https://api.github.com/repos/Otzaria/SeforimLibrary/releases/latest',
@@ -579,23 +638,28 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       throw Exception('מבנה תשובת GitHub אינו תקין');
     }
 
-    final asset = parseLatestDatabaseAsset(decoded);
-    if (asset == null) {
-      throw Exception('לא נמצא קובץ seforim.db.zst ברליס האחרון');
+    final assets = parseLatestLibraryAssets(decoded);
+    if (assets == null) {
+      throw Exception('לא נמצאו קבצי הספרייה הנדרשים (seforim.db.zst או talmud_bavli_latest.tar.zst) ברליס האחרון');
     }
 
-    return asset;
+    return assets;
   }
 
   @visibleForTesting
 
-  /// מחלץ מתוך JSON של רליס את קובץ ה-DB הדחוס של הספרייה.
-  static DatabaseReleaseAsset? parseLatestDatabaseAsset(
+  /// מחלץ מתוך JSON של רליס את קובצי הספרייה והתלמוד בבלי.
+  static LibraryReleaseAssets? parseLatestLibraryAssets(
       Map<String, dynamic> releaseJson) {
     final assets = releaseJson['assets'];
     if (assets is! List) {
       return null;
     }
+
+    String dbAssetName = '';
+    String dbDownloadUrl = '';
+    String talmudAssetName = '';
+    String talmudDownloadUrl = '';
 
     for (final asset in assets) {
       if (asset is! Map<String, dynamic>) {
@@ -605,11 +669,21 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       final name = asset['name']?.toString() ?? '';
       final downloadUrl = asset['browser_download_url']?.toString() ?? '';
       if (name == 'seforim.db.zst' && downloadUrl.isNotEmpty) {
-        return DatabaseReleaseAsset(
-          assetName: name,
-          downloadUrl: downloadUrl,
-        );
+        dbAssetName = name;
+        dbDownloadUrl = downloadUrl;
+      } else if (name == 'talmud_bavli_latest.tar.zst' && downloadUrl.isNotEmpty) {
+        talmudAssetName = name;
+        talmudDownloadUrl = downloadUrl;
       }
+    }
+
+    if (dbDownloadUrl.isNotEmpty && talmudDownloadUrl.isNotEmpty) {
+      return LibraryReleaseAssets(
+        dbAssetName: dbAssetName,
+        dbDownloadUrl: dbDownloadUrl,
+        talmudAssetName: talmudAssetName,
+        talmudDownloadUrl: talmudDownloadUrl,
+      );
     }
 
     return null;
@@ -630,15 +704,44 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     }
     await outputFile.writeAsBytes(decompressed, flush: true);
   }
+
+  static Future<void> _extractTarZstWithArchive(
+    String archivePath,
+    String outputDirectory,
+  ) async {
+    final compressedBytes = await File(archivePath).readAsBytes();
+    final decompressed = await Zstandard().decompress(compressedBytes);
+    if (decompressed == null) {
+      throw Exception('חילוץ קובץ ZST נכשל: $archivePath');
+    }
+    
+    final archive = TarDecoder().decodeBytes(decompressed);
+    for (final file in archive) {
+      final filename = file.name;
+      if (file.isFile) {
+        final data = file.content as List<int>;
+        final outputFile = File(path.join(outputDirectory, filename));
+        await outputFile.parent.create(recursive: true);
+        await outputFile.writeAsBytes(data, flush: true);
+      } else {
+        final dir = Directory(path.join(outputDirectory, filename));
+        await dir.create(recursive: true);
+      }
+    }
+  }
 }
 
-/// מייצג asset של DB דחוס מתוך GitHub Release.
-class DatabaseReleaseAsset {
-  const DatabaseReleaseAsset({
-    required this.assetName,
-    required this.downloadUrl,
+/// מייצג assets של הספרייה מתוך GitHub Release.
+class LibraryReleaseAssets {
+  const LibraryReleaseAssets({
+    required this.dbAssetName,
+    required this.dbDownloadUrl,
+    required this.talmudAssetName,
+    required this.talmudDownloadUrl,
   });
 
-  final String assetName;
-  final String downloadUrl;
+  final String dbAssetName;
+  final String dbDownloadUrl;
+  final String talmudAssetName;
+  final String talmudDownloadUrl;
 }
