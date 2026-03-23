@@ -485,23 +485,6 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
         },
       );
 
-      final outputPath = path.join(
-        libraryPath,
-        DatabaseConstants.databaseFileName,
-      );
-
-      emit(EmptyLibraryExtracting(
-        selectedPath: tempDbArchivePath,
-        progress: 0.0,
-        message: 'מחלץ מסד נתונים...',
-      ));
-
-      await _extractCompressedDatabase(tempDbArchivePath, outputPath);
-
-      // מחיקת קובץ ה-temp של מסד הנתונים מיד לאחר חילוץ מוצלח
-      await tempDbArchive.delete();
-      tempDbArchive = null;
-
       // === שלב 2: תלמוד בבלי ===
       final tempTalmudArchivePath = path.join(
         Directory.systemTemp.path,
@@ -525,6 +508,25 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
         },
       );
 
+      // === שלב 3: חילוץ מסד הנתונים ===
+      final outputPath = path.join(
+        libraryPath,
+        DatabaseConstants.databaseFileName,
+      );
+
+      emit(EmptyLibraryExtracting(
+        selectedPath: tempDbArchivePath,
+        progress: 0.0,
+        message: 'מחלץ מסד נתונים...',
+      ));
+
+      await _extractCompressedDatabase(tempDbArchivePath, outputPath);
+
+      // מחיקת קובץ ה-temp של מסד הנתונים מיד לאחר חילוץ מוצלח
+      await tempDbArchive.delete();
+      tempDbArchive = null;
+
+      // === שלב 4: חילוץ תלמוד בבלי ===
       final talmudOutputPath = DatabaseConstants.getTalmudBavliDirectoryPath(libraryPath, '');
 
       emit(EmptyLibraryExtracting(
