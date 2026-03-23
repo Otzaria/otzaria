@@ -27,6 +27,9 @@ void main() {
             'name': 'seforim.db.zst',
             'browser_download_url': 'https://example.com/seforim.db.zst',
           },
+        ],
+      }, {
+        'assets': [
           {
             'name': 'talmud_bavli_latest.tar.zst',
             'browser_download_url': 'https://example.com/talmud_bavli_latest.tar.zst',
@@ -62,7 +65,7 @@ void main() {
       final downloadedDbBytes = utf8.encode('compressed-db');
       final downloadedTalmudBytes = utf8.encode('compressed-talmud');
       final client = MockClient((request) async {
-        if (request.url.path.endsWith('/releases/latest')) {
+        if (request.url.path.endsWith('SeforimLibrary/releases/latest')) {
           return http.Response(
             jsonEncode({
               'assets': [
@@ -76,6 +79,17 @@ void main() {
                   'browser_download_url':
                       'https://example.com/releases/seforim.db.zst',
                 },
+              ],
+            }),
+            200,
+            headers: const {'content-type': 'application/json'},
+          );
+        }
+
+        if (request.url.path.endsWith('otzaria-library/releases/latest')) {
+          return http.Response(
+            jsonEncode({
+              'assets': [
                 {
                   'name': 'talmud_bavli_latest.tar.zst',
                   'browser_download_url':

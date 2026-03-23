@@ -78,7 +78,7 @@ class _EmptyLibraryViewState extends State<_EmptyLibraryView> {
         builder: (context, state) {
           return Center(
             child: Container(
-              constraints: const BoxConstraints(maxWidth: 400),
+              constraints: const BoxConstraints(maxWidth: 600),
               padding: const EdgeInsets.all(16),
               child: _buildContent(context, state),
             ),
@@ -345,16 +345,17 @@ class _EmptyLibraryViewState extends State<_EmptyLibraryView> {
               ),
             ),
           ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+        Wrap(
+          alignment: WrapAlignment.center,
           textDirection: TextDirection.rtl,
+          spacing: 16,
+          runSpacing: 16,
           children: [
             FilledButton.icon(
               onPressed: state.isLoading ? null : () => _pickDirectory(context),
               icon: const Icon(FluentIcons.folder_open_24_regular),
               label: const Text('בחר תיקיית ספרייה'),
             ),
-            const SizedBox(width: 16),
             ElevatedButton.icon(
               onPressed:
                   state.isLoading ? null : () => _pickArchiveFile(context),

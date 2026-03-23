@@ -619,7 +619,8 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
   }
 
   Future<LibraryReleaseAssets> _fetchLatestLibraryAssets() async {
-    final response = await _httpClient.get(
+    // 1. קבלת נתוני מסד הנתונים מ-SeforimLibrary
+    final dbResponse = await _httpClient.get(
       Uri.parse(
         'https://api.github.com/repos/Otzaria/SeforimLibrary/releases/latest',
       ),
@@ -629,16 +630,36 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       },
     );
 
-    if (response.statusCode != 200) {
-      throw Exception('שגיאה בקבלת הרליס האחרון: ${response.statusCode}');
+    if (dbResponse.statusCode != 200) {
+      throw Exception('שגיאה בקבלת הרליס האחרון של מסד הנתונים: ${dbResponse.statusCode}');
     }
 
-    final decoded = jsonDecode(utf8.decode(response.bodyBytes));
-    if (decoded is! Map<String, dynamic>) {
-      throw Exception('מבנה תשובת GitHub אינו תקין');
+    final dbDecoded = jsonDecode(utf8.decode(dbResponse.bodyBytes));
+    if (dbDecoded is! Map<String, dynamic>) {
+      throw Exception('מבנה תשובת GitHub עבור מסד הנתונים אינו תקין');
     }
 
-    final assets = parseLatestLibraryAssets(decoded);
+    // 2. קבלת נתוני התלמוד בבלי מ-otzaria-library
+    final talmudResponse = await _httpClient.get(
+      Uri.parse(
+        'https://api.github.com/repos/Otzaria/otzaria-library/releases/latest',
+      ),
+      headers: const {
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    );
+
+    if (talmudResponse.statusCode != 200) {
+      throw Exception('שגיאה בקבלת הרליס האחרון של תלמוד בבלי: ${talmudResponse.statusCode}');
+    }
+
+    final talmudDecoded = jsonDecode(utf8.decode(talmudResponse.bodyBytes));
+    if (talmudDecoded is! Map<String, dynamic>) {
+      throw Exception('מבנה תשובת GitHub עבור תלמוד בבלי אינו תקין');
+    }
+
+    final assets = parseLatestLibraryAssets(dbDecoded, talmudDecoded);
     if (assets == null) {
       throw Exception('לא נמצאו קבצי הספרייה הנדרשים (seforim.db.zst או talmud_bavli_latest.tar.zst) ברליס האחרון');
     }
@@ -650,9 +671,11 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
 
   /// מחלץ מתוך JSON של רליס את קובצי הספרייה והתלמוד בבלי.
   static LibraryReleaseAssets? parseLatestLibraryAssets(
-      Map<String, dynamic> releaseJson) {
-    final assets = releaseJson['assets'];
-    if (assets is! List) {
+      Map<String, dynamic> dbReleaseJson,
+      Map<String, dynamic> talmudReleaseJson) {
+    final dbAssets = dbReleaseJson['assets'];
+    final talmudAssets = talmudReleaseJson['assets'];
+    if (dbAssets is! List || talmudAssets is! List) {
       return null;
     }
 
@@ -661,7 +684,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     String talmudAssetName = '';
     String talmudDownloadUrl = '';
 
-    for (final asset in assets) {
+    for (final asset in dbAssets) {
       if (asset is! Map<String, dynamic>) {
         continue;
       }
@@ -671,9 +694,21 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       if (name == 'seforim.db.zst' && downloadUrl.isNotEmpty) {
         dbAssetName = name;
         dbDownloadUrl = downloadUrl;
-      } else if (name == 'talmud_bavli_latest.tar.zst' && downloadUrl.isNotEmpty) {
+        break;
+      }
+    }
+
+    for (final asset in talmudAssets) {
+      if (asset is! Map<String, dynamic>) {
+        continue;
+      }
+
+      final name = asset['name']?.toString() ?? '';
+      final downloadUrl = asset['browser_download_url']?.toString() ?? '';
+      if (name == 'talmud_bavli_latest.tar.zst' && downloadUrl.isNotEmpty) {
         talmudAssetName = name;
         talmudDownloadUrl = downloadUrl;
+        break;
       }
     }
 
