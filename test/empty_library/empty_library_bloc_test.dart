@@ -136,7 +136,7 @@ void main() {
           expect(await File(archivePath).readAsBytes(), downloadedTalmudBytes);
           expect(
             outputPath,
-            DatabaseConstants.getTalmudBavliDirectoryPath(tempDir.path, ''),
+            tempDir.path,
           );
         },
       );

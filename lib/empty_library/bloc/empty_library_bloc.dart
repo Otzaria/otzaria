@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'package:archive/archive.dart';
 import 'package:bloc/bloc.dart';
 import 'package:otzaria/core/app_paths.dart';
@@ -527,7 +528,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       tempDbArchive = null;
 
       // === שלב 4: חילוץ תלמוד בבלי ===
-      final talmudOutputPath = DatabaseConstants.getTalmudBavliDirectoryPath(libraryPath, '');
+      final talmudOutputPath = libraryPath;
 
       emit(EmptyLibraryExtracting(
         selectedPath: tempTalmudArchivePath,
@@ -730,41 +731,45 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     String archivePath,
     String outputPath,
   ) async {
-    final compressedBytes = await File(archivePath).readAsBytes();
-    final decompressed = await Zstandard().decompress(compressedBytes);
-    if (decompressed == null) {
-      throw Exception('חילוץ קובץ ZST נכשל: $archivePath');
-    }
-    final outputFile = File(outputPath);
-    if (await outputFile.exists()) {
-      await outputFile.delete();
-    }
-    await outputFile.writeAsBytes(decompressed, flush: true);
+    await Isolate.run(() async {
+      final compressedBytes = await File(archivePath).readAsBytes();
+      final decompressed = await Zstandard().decompress(compressedBytes);
+      if (decompressed == null) {
+        throw Exception('חילוץ קובץ ZST נכשל: $archivePath');
+      }
+      final outputFile = File(outputPath);
+      if (await outputFile.exists()) {
+        await outputFile.delete();
+      }
+      await outputFile.writeAsBytes(decompressed, flush: true);
+    });
   }
 
   static Future<void> _extractTarZstWithArchive(
     String archivePath,
     String outputDirectory,
   ) async {
-    final compressedBytes = await File(archivePath).readAsBytes();
-    final decompressed = await Zstandard().decompress(compressedBytes);
-    if (decompressed == null) {
-      throw Exception('חילוץ קובץ ZST נכשל: $archivePath');
-    }
-    
-    final archive = TarDecoder().decodeBytes(decompressed);
-    for (final file in archive) {
-      final filename = file.name;
-      if (file.isFile) {
-        final data = file.content as List<int>;
-        final outputFile = File(path.join(outputDirectory, filename));
-        await outputFile.parent.create(recursive: true);
-        await outputFile.writeAsBytes(data, flush: true);
-      } else {
-        final dir = Directory(path.join(outputDirectory, filename));
-        await dir.create(recursive: true);
+    await Isolate.run(() async {
+      final compressedBytes = await File(archivePath).readAsBytes();
+      final decompressed = await Zstandard().decompress(compressedBytes);
+      if (decompressed == null) {
+        throw Exception('חילוץ קובץ ZST נכשל: $archivePath');
       }
-    }
+      
+      final archive = TarDecoder().decodeBytes(decompressed);
+      for (final file in archive) {
+        final filename = file.name;
+        if (file.isFile) {
+          final data = file.content as List<int>;
+          final outputFile = File(path.join(outputDirectory, filename));
+          await outputFile.parent.create(recursive: true);
+          await outputFile.writeAsBytes(data, flush: true);
+        } else {
+          final dir = Directory(path.join(outputDirectory, filename));
+          await dir.create(recursive: true);
+        }
+      }
+    });
   }
 }
 
