@@ -185,9 +185,7 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
         categoryPath ?? FacetHelper.resolveCategoryPath(book);
     final facet = FacetHelper.buildBookFacet(resolvedCategoryPath, book.title);
     final isSelected = state.currentFacets.contains(facet);
-    return _IsolatedTooltip(
-      message: book.title,
-      child: InkWell(
+    return InkWell(
         onTap: () => HardwareKeyboard.instance.isControlPressed
             ? _handleFacetToggle(context, facet)
             : _setFacet(context, facet),
@@ -223,11 +221,28 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  book.title,
-                  style: const TextStyle(fontSize: 14),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final textStyle = const TextStyle(fontSize: 14);
+                    final textPainter = TextPainter(
+                      text: TextSpan(text: book.title, style: textStyle),
+                      maxLines: 2,
+                      textDirection: TextDirection.rtl,
+                    )..layout(maxWidth: constraints.maxWidth);
+
+                    final textWidget = Text(
+                      book.title,
+                      style: textStyle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    );
+
+                    if (textPainter.didExceedMaxLines) {
+                      return _IsolatedTooltip(
+                          message: book.title, child: textWidget);
+                    }
+                    return textWidget;
+                  },
                 ),
               ),
               // מספר התוצאות
@@ -247,7 +262,6 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
               ),
             ],
           ),
-        ),
       ),
     );
   }
@@ -302,9 +316,7 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
     return Column(
       children: [
         // שורת הקטגוריה - סגנון ספרייה
-        _IsolatedTooltip(
-          message: category.title,
-          child: InkWell(
+        InkWell(
             onTap: () {
               // Ctrl+לחיצה = toggle, לחיצה רגילה = set
               if (HardwareKeyboard.instance.isControlPressed) {
@@ -346,15 +358,35 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      category.title,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final textStyle = TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Theme.of(context).colorScheme.primary,
+                        );
+                        final textPainter = TextPainter(
+                          text: TextSpan(
+                            text: category.title,
+                            style: textStyle,
+                          ),
+                          maxLines: 2,
+                          textDirection: TextDirection.rtl,
+                        )..layout(maxWidth: constraints.maxWidth);
+
+                        final textWidget = Text(
+                          category.title,
+                          style: textStyle,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        );
+
+                        if (textPainter.didExceedMaxLines) {
+                          return _IsolatedTooltip(
+                              message: category.title, child: textWidget);
+                        }
+                        return textWidget;
+                      },
                     ),
                   ),
                   // מספר התוצאות
@@ -390,7 +422,6 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
               ],
             ),
           ),
-        ),
       ),
 
         // ילדים
