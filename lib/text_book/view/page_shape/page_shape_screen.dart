@@ -976,6 +976,9 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
       ItemPositionsListener.create();
   List<Link> _relevantLinks = [];
   int? _lastSyncedIndex; // האינדקס האחרון שסונכרן
+  int? _lastMainLogicalIndex; // האינדקס הלוגי האחרון שסונכרן מהטקסט הראשי
+  bool _isProgrammaticScroll = false;
+  bool _userScrollDetached = false;
   StreamSubscription<TextBookState>? _blocSubscription;
   Set<int> _highlightedIndices = {}; // אינדקסים להדגשה
   bool _highlightEnabled = false;
@@ -983,6 +986,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
   @override
   void initState() {
     super.initState();
+    _positionsListener.itemPositions.addListener(_onCommentaryScroll);
     // דוחה את הטעינה כדי לוודא שכל ה-providers מוכנים וה-bloc זמין
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -990,6 +994,12 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
         _setupBlocListener();
       }
     });
+  }
+
+  void _onCommentaryScroll() {
+    if (!_isProgrammaticScroll && !_userScrollDetached) {
+      _userScrollDetached = true;
+    }
   }
 
   @override
@@ -1012,6 +1022,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
 
   @override
   void dispose() {
+    _positionsListener.itemPositions.removeListener(_onCommentaryScroll);
     _blocSubscription?.cancel();
     super.dispose();
   }
@@ -1311,35 +1322,58 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
       state.content,
     );
 
-    // מציאת הקישור הטוב ביותר
-    final bestLink = CommentarySyncHelper.findBestLink(
+    // בדיקה האם אנו מנותקים בעקבות גלילה ידנית של המשתמש
+    if (_userScrollDetached) {
+      // חיבור מחדש יתבצע רק אם הטקסט הראשי זז באופן משמעותי (למשל, הצטברות של 3 שורות)
+      if (_lastMainLogicalIndex != null &&
+          (logicalIndex - _lastMainLogicalIndex!).abs() >= 3) {
+        _userScrollDetached = false;
+      } else {
+        // עדיין מנותק. שומרים את עוגן הניתוק הראשוני (אם לא היה קיים), וחוזרים
+        _lastMainLogicalIndex ??= logicalIndex;
+        return;
+      }
+    }
+
+    // חישוב האינדקס היעד במפרש בעזרת מיפוי יציב מרובה עוגנים
+    final targetIndex = CommentarySyncHelper.calculateTargetIndex(
       linksForCommentary: _relevantLinks,
       logicalMainIndex: logicalIndex,
     );
-
-    // חישוב האינדקס היעד במפרש
-    final targetIndex = CommentarySyncHelper.getCommentaryTargetIndex(bestLink);
 
     // אם אין קישור - לא מזיזים את המפרש
     if (targetIndex == null) {
       return;
     }
 
-    // אם כבר סונכרנו לאינדקס הזה - לא צריך לגלול שוב
-    if (targetIndex == _lastSyncedIndex) {
+    // אם לא השתנה האינדקס היעד ולא האינדקס הלוגי, אין צורך לגלול שוב
+    if (targetIndex == _lastSyncedIndex && logicalIndex == _lastMainLogicalIndex) {
       return;
     }
 
-    // גלילה למיקום הנכון במפרש
-    if (targetIndex >= 0 &&
-        targetIndex < _content!.length &&
-        _scrollController.isAttached) {
-      _scrollController.scrollTo(
-        index: targetIndex,
-        duration: const Duration(milliseconds: 300),
-        alignment: 0.0, // בראש החלון
-      );
-      _lastSyncedIndex = targetIndex;
+    _lastMainLogicalIndex = logicalIndex;
+    _lastSyncedIndex = targetIndex;
+    _scrollToIndex(targetIndex);
+  }
+
+  Future<void> _scrollToIndex(int targetIndex) async {
+    if (targetIndex < 0 || targetIndex >= _content!.length) return;
+    _isProgrammaticScroll = true;
+    try {
+      if (_scrollController.isAttached) {
+        await _scrollController.scrollTo(
+          index: targetIndex,
+          duration: const Duration(milliseconds: 300),
+          alignment: 0.0,
+        );
+      }
+    } finally {
+      // מאפשרים לאנימציית הגלילה להסתיים לפני שנחזיר זיהוי של גלילה ידנית
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted) {
+          _isProgrammaticScroll = false;
+        }
+      });
     }
   }
 

@@ -30,61 +30,56 @@ class CommentarySyncHelper {
     return logicalIndex;
   }
 
-  /// מציאת הקישור הטוב ביותר למפרש
-  /// מחזיר null אם אין קישורים כלל
-  static Link? findBestLink({
+  /// מיפוי יציב ודטרמיניסטי של הטקסט הראשי למפרש
+  static int? calculateTargetIndex({
     required List<Link> linksForCommentary,
     required int logicalMainIndex,
   }) {
-    if (linksForCommentary.isEmpty) {
-      return null;
-    }
+    if (linksForCommentary.isEmpty) return null;
 
-    final mainLineNumber = logicalMainIndex + 1; // המרה ל-1-based
+    final targetLine1 = logicalMainIndex + 1;
 
-    // ניסיון למצוא קישור מדויק
-    try {
-      return linksForCommentary.firstWhere(
-        (link) => link.index1 == mainLineNumber,
-      );
-    } catch (e) {
-      // אין קישור מדויק - מחפשים את הקרוב ביותר
-    }
+    // מיון הלינקים לפי index1 ואחר כך לפי index2 כדי להבטיח סריקה יציבה
+    final sortedLinks = List<Link>.from(linksForCommentary)
+      ..sort((a, b) {
+        final cmp = a.index1.compareTo(b.index1);
+        if (cmp != 0) return cmp;
+        return a.index2.compareTo(b.index2);
+      });
 
-    // חיפוש L_before (הקישור הקודם הכי קרוב)
-    Link? lBefore;
-    int minDistanceBefore = double.maxFinite.toInt();
+    Link? exactLink;
+    Link? prevLink;
+    Link? nextLink;
 
-    for (final link in linksForCommentary) {
-      if (link.index1 < mainLineNumber) {
-        final distance = mainLineNumber - link.index1;
-        if (distance < minDistanceBefore) {
-          minDistanceBefore = distance;
-          lBefore = link;
+    for (final link in sortedLinks) {
+      if (link.index1 == targetLine1) {
+        if (exactLink == null) {
+          exactLink = link; // העוגן המדויק הראשון
+        }
+      } else if (link.index1 < targetLine1) {
+        prevLink = link; // עדכון הדרגתי לעוגן האחרון לפני היעד
+      } else if (link.index1 > targetLine1) {
+        if (nextLink == null) {
+          nextLink = link; // העוגן הראשון מיד אחרי היעד
+          break; // אין צורך להמשיך לחפש
         }
       }
     }
 
-    // אם יש קישור קודם - תמיד מעדיפים אותו
-    if (lBefore != null) {
-      return lBefore;
+    Link chosenLink;
+
+    if (exactLink != null) {
+      chosenLink = exactLink;
+    } else if (prevLink != null) {
+      // גם אם קיים nextLink וגם אם לא - הגישה הדטרמיניסטית היא להיצמד לעוגן הקודם
+      chosenLink = prevLink;
+    } else {
+      // אין עוגן קודם, מצב של "תחילת ספר"
+      chosenLink = nextLink ?? sortedLinks.first;
     }
 
-    // אין קישור קודם - מחפשים L_after (הקישור הבא הכי קרוב)
-    Link? lAfter;
-    int minDistanceAfter = double.maxFinite.toInt();
-
-    for (final link in linksForCommentary) {
-      if (link.index1 > mainLineNumber) {
-        final distance = link.index1 - mainLineNumber;
-        if (distance < minDistanceAfter) {
-          minDistanceAfter = distance;
-          lAfter = link;
-        }
-      }
-    }
-
-    return lAfter; // יכול להיות null אם אין גם קישור הבא
+    // משתמשים בפונקציה הקיימת להחזרת אינדקס היעד מהלינק הנבחר
+    return getCommentaryTargetIndex(chosenLink);
   }
 
   /// חישוב האינדקס היעד במפרש
