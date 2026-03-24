@@ -19,7 +19,7 @@ import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:otzaria/utils/context_menu_utils.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
-import 'package:otzaria/core/widgets/otzaria_search_field.dart';
+import 'package:otzaria/widgets/otzaria_search_field.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'package:otzaria/services/commentary_service.dart';

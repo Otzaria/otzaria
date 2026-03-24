@@ -12,7 +12,7 @@ import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
-import 'package:otzaria/core/widgets/otzaria_search_field.dart';
+import 'package:otzaria/widgets/otzaria_search_field.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/thin_divider.dart';
 

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/core/focus_repository.dart';
-import 'package:otzaria/core/widgets/otzaria_search_field.dart';
+import 'package:otzaria/widgets/otzaria_search_field.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/buttons/action_buttons.dart';
 import 'package:otzaria/widgets/tool_empty_state.dart';
@@ -118,8 +118,7 @@ class _ItemsListViewState extends State<ItemsListView> {
                       margin: const EdgeInsets.only(bottom: AppTokens.spaceXS),
                       color: AppSurfaces.card(context),
                       child: InkWell(
-                        borderRadius:
-                            BorderRadius.circular(AppTokens.radiusMD),
+                        borderRadius: BorderRadius.circular(AppTokens.radiusMD),
                         onTap: () =>
                             widget.onItemTap(context, item, originalIndex),
                         child: Padding(
@@ -149,14 +148,14 @@ class _ItemsListViewState extends State<ItemsListView> {
                                     centerText,
                                     style: TextStyle(
                                       fontSize: 14,
-                                      color: cs.onSurface.withValues(alpha: 0.6),
+                                      color:
+                                          cs.onSurface.withValues(alpha: 0.6),
                                     ),
                                     textDirection: TextDirection.rtl,
                                   ),
                                 ),
                               IconButton(
-                                icon:
-                                    const Icon(FluentIcons.delete_24_regular),
+                                icon: const Icon(FluentIcons.delete_24_regular),
                                 tooltip: 'מחק',
                                 onPressed: () =>
                                     widget.onDelete(context, originalIndex),

@@ -9,7 +9,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/utils/ref_helper.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:otzaria/search/search_query_builder.dart';
-import 'package:otzaria/core/widgets/otzaria_search_field.dart';
+import 'package:otzaria/widgets/otzaria_search_field.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:otzaria/text_book/view/toc_filter.dart';

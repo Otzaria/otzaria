@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:otzaria/core/widgets/otzaria_search_field.dart';
+import 'package:otzaria/widgets/otzaria_search_field.dart';
 import 'package:otzaria/widgets/thin_divider.dart';
 import 'package:otzaria/widgets/navigation_tree_tile.dart';
 import '../providers/shamor_zachor_data_provider.dart';
@@ -49,34 +49,34 @@ class _ShamorZachorSidebarState extends State<ShamorZachorSidebar> {
   @override
   Widget build(BuildContext context) {
     return Column(
-        children: [
-          // Search Field
-          _buildSearchField(),
-          const ThinDivider(),
-          // Content Tree
-          Expanded(
-            child: Consumer<ShamorZachorDataProvider>(
-              builder: (context, dataProvider, child) {
-                if (dataProvider.isLoading) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (dataProvider.error != null) {
-                  return Center(
-                    child: Text(
-                      'שגיאה בטעינת נתונים',
-                      style:
-                          TextStyle(color: Theme.of(context).colorScheme.error),
-                    ),
-                  );
-                }
+      children: [
+        // Search Field
+        _buildSearchField(),
+        const ThinDivider(),
+        // Content Tree
+        Expanded(
+          child: Consumer<ShamorZachorDataProvider>(
+            builder: (context, dataProvider, child) {
+              if (dataProvider.isLoading) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (dataProvider.error != null) {
+                return Center(
+                  child: Text(
+                    'שגיאה בטעינת נתונים',
+                    style:
+                        TextStyle(color: Theme.of(context).colorScheme.error),
+                  ),
+                );
+              }
 
-                // Always show category tree, search results will be shown in main area
-                return _buildCategoryTree(dataProvider);
-              },
-            ),
+              // Always show category tree, search results will be shown in main area
+              return _buildCategoryTree(dataProvider);
+            },
           ),
-        ],
-      );
+        ),
+      ],
+    );
   }
 
   Widget _buildSearchField() {

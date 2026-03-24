@@ -4,20 +4,17 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
 
 // ═════════════════════════════════════════════════════════════════════════════
-//  OtzariaSearchField  v4.0
+//  OtzariaSearchField  v4.1
 //  lib/core/widgets/otzaria_search_field.dart
 //
-//  שינויים מ-v3.1:
-//  • נוסף פרמטר [slim] — מצב desktop/עכבר:
-//    - גובה 36px (במקום 48px)
-//    - גופן 13px
-//    - padding פנימי צמוד יותר
-//    - prefix icon קטן יותר (18px)
-//    - בסגנון Chrome address bar
-//  • [isCompact] נשאר ללא שינוי (התכווצות לאייקון עגול)
-//  • [shrinkOnScroll] נשאר ללא שינוי
-//  • נוסף פרמטר [secondaryRow] — שורה נוספת צמודה מתחת לשדה
-//    שנעלמת/מוצגת ע"י [secondaryRowVisible] ValueNotifier
+//  שינויים מ-v4.0:
+//  • אייקון חיפוש בפוקוס:
+//    - slim=true (בסרגל, רקע secondaryContainer): cs.onSecondaryContainer —
+//      ניגודיות תקינה על secondaryContainer בהיר/כהה כאחד.
+//    - slim=false (מחוץ לסרגל, רקע surface): cs.primary —
+//      התנהגות M3 סטנדרטית (prefix icon הופך primary בפוקוס).
+//    ניתן לשאלה: השינוי צבע הוא מכוון לפי הנחיות M3 (מצביע על מצב active),
+//    אך הצבע מותאם לרקע שמאחורי השדה.
 // ═════════════════════════════════════════════════════════════════════════════
 
 abstract class _ST {
@@ -161,9 +158,9 @@ class _ActionButton extends StatelessWidget {
 /// • [isCompact] = true: מתכווץ לאייקון עגול (scroll-hide או כאשר אין מקום)
 /// • [shrinkOnScroll]: מקטין גובה בגלילה (במצב touch רגיל)
 ///
-/// **שורה שניה:**
-/// העבר [secondaryRow] + [secondaryRowVisible] להצגת שורת מידע/סינון
-/// מתחת לשדה שנעלמת/מוצגת על פי הנוטיפייר.
+/// **צבע אייקון חיפוש בפוקוס:**
+/// • slim=true (בסרגל secondaryContainer): onSecondaryContainer — ניגודיות תקינה.
+/// • slim=false (מחוץ לסרגל): primary — התנהגות M3 סטנדרטית.
 class OtzariaSearchField extends StatefulWidget {
   final TextEditingController controller;
   final String hintText;
@@ -364,11 +361,17 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
         : SizedBox(width: isSlim ? 32.0 : 40.0);
 
     // ── Prefix icon ───────────────────────────────────────────────────────
+    // צבע אייקון בפוקוס:
+    //   slim (בסרגל secondaryContainer) → onSecondaryContainer: ניגודיות תקינה בהיר/כהה.
+    //   לא-slim (מחוץ לסרגל, רקע surface) → primary: התנהגות M3 סטנדרטית.
+    final Color focusedIconColor =
+        isSlim ? cs.onSecondaryContainer : cs.primary;
+
     final prefixIcon = widget.leading ??
         Icon(
           FluentIcons.search_24_regular,
           size: prefixIconSize,
-          color: _hasFocus ? cs.primary : cs.onSurfaceVariant,
+          color: _hasFocus ? focusedIconColor : cs.onSurfaceVariant,
         );
 
     // ── ContentPadding ────────────────────────────────────────────────────

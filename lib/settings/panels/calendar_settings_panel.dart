@@ -3,7 +3,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/core/ui_snack.dart';
-import 'package:otzaria/core/widgets/otzaria_search_field.dart';
+import 'package:otzaria/widgets/otzaria_search_field.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/models/city_coordinates.dart';
 import 'package:otzaria/settings/settings_card.dart';
@@ -193,7 +193,8 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                                             title: 'בחר לוחות שנה',
                                             items: calendars
                                                 .map((cal) =>
-                                                    _CalendarMultiSelectionItem<String>(
+                                                    _CalendarMultiSelectionItem<
+                                                        String>(
                                                       label: cal.name,
                                                       value: cal.id,
                                                       subtitle: cal.isPrimary
@@ -254,7 +255,8 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                                         title: 'בחר לוחות שנה',
                                         items: calendars
                                             .map((cal) =>
-                                                _CalendarMultiSelectionItem<String>(
+                                                _CalendarMultiSelectionItem<
+                                                    String>(
                                                   label: cal.name,
                                                   value: cal.id,
                                                   subtitle: cal.isPrimary

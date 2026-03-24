@@ -1,7 +1,7 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:otzaria/core/widgets/otzaria_search_field.dart';
+import 'package:otzaria/widgets/otzaria_search_field.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/view/panels/logic/calendar_events_panel_logic.dart';
@@ -225,7 +225,8 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                               if (event.recurring)
                                 _EventMetaChip(
                                   icon: FluentIcons.arrow_repeat_all_24_regular,
-                                  text: getRecurrenceLabel(event.recurrenceType),
+                                  text:
+                                      getRecurrenceLabel(event.recurrenceType),
                                   backgroundColor: scheme.tertiaryContainer,
                                   foregroundColor: scheme.onTertiaryContainer,
                                 ),
@@ -259,7 +260,9 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                               isDangerous: true,
                             );
                             if (confirmed == true && context.mounted) {
-                              context.read<CalendarCubit>().deleteEvent(event.id);
+                              context
+                                  .read<CalendarCubit>()
+                                  .deleteEvent(event.id);
                             }
                           },
                         ),
