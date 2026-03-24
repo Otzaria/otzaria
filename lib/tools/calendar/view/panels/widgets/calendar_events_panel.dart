@@ -7,7 +7,7 @@ import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/view/panels/logic/calendar_events_panel_logic.dart';
 import 'package:otzaria/tools/calendar/view/widgets/calendar_date_formatters.dart';
 import 'package:otzaria/widgets/buttons/action_buttons.dart';
-import 'package:otzaria/widgets/dialogs/dialogs.dart';
+import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 
 /// פאנל האירועים של לוח השנה.
 class CalendarEventsPanel extends StatefulWidget {
