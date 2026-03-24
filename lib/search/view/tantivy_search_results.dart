@@ -32,10 +32,7 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
   final ScrollController _scrollController = ScrollController();
 
   String _formatTitleForWrapping(String title) {
-    return title
-        .split(' ')
-        .map(_insertBreakOpportunities)
-        .join(' ');
+    return title.split(' ').map(_insertBreakOpportunities).join(' ');
   }
 
   String _insertBreakOpportunities(String word) {
@@ -312,23 +309,20 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                                     ),
                                   ),
                                 Expanded(
-                                  child: Tooltip(
-                                    message: titleText,
-                                    child: Text(
-                                      wrappedTitleText,
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w500,
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .onSurfaceVariant,
-                                      ),
-                                      textAlign: TextAlign.right,
-                                      textDirection: TextDirection.rtl,
-                                      softWrap: true,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
+                                  child: Text(
+                                    wrappedTitleText,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
                                     ),
+                                    textAlign: TextAlign.right,
+                                    textDirection: TextDirection.rtl,
+                                    softWrap: true,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                               ],
