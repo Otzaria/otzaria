@@ -9,7 +9,7 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
 import 'package:otzaria/widgets/confirmation_dialog.dart';
-import 'package:otzaria/widgets/custom_ui_components.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/migration/sync/file_sync_service.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';

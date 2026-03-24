@@ -7,7 +7,7 @@ import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/settings/settings_card.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/app_menu.dart';
-import 'package:otzaria/widgets/custom_ui_components.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 
 /// טאב הגדרות תצוגת ספרים
 /// ניתן להשתמש בו גם כתוכן בתוך דיאלוג וגם כטאב במסך הגדרות

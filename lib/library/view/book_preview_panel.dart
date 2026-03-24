@@ -1,4 +1,3 @@
-
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -15,7 +14,7 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria/widgets/password_dialog.dart';
 import 'package:otzaria/pdf_book/pdf_scrollbar.dart';
-import 'package:otzaria/widgets/custom_ui_components.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 
 /// פאנל תצוגה מקדימה של ספר בספרייה
 /// מציג את תוכן הספר בלי כרטיסיות, בדומה לחלון העיון
@@ -100,10 +99,9 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
 
   void _openCurrentPreviewInReader() {
     if (widget.book is PdfBook) {
-      final currentPage =
-          (_pdfController != null && _pdfController!.isReady)
-              ? (_pdfController!.pageNumber ?? 1)
-              : 1;
+      final currentPage = (_pdfController != null && _pdfController!.isReady)
+          ? (_pdfController!.pageNumber ?? 1)
+          : 1;
       widget.onOpenInReader?.call(currentPage);
       return;
     }
@@ -273,7 +271,8 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                           fontSize: _fontSize,
                           showSplitView: false,
                           removeNikud: settingsState.defaultRemoveNikud,
-                          loadCommentators: false, // אל תטען מפרשים בתצוגה מקדימה
+                          loadCommentators:
+                              false, // אל תטען מפרשים בתצוגה מקדימה
                         ),
                       );
                       return _buildSkeletonLoading();

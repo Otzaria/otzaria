@@ -7,7 +7,7 @@ import 'package:otzaria/widgets/otzaria_search_field.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/models/city_coordinates.dart';
 import 'package:otzaria/settings/settings_card.dart';
-import 'package:otzaria/widgets/custom_ui_components.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/app_menu.dart';
 

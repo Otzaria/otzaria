@@ -1,5 +1,3 @@
-// lib/widgets/custom_ui_components.dart
-//
 // Barrel re-export — כל הווידג'טים שהיו כאן פוצלו לקבצים נפרדים.
 //
 // דיאלוגים M3:

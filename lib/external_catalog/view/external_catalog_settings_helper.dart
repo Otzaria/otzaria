@@ -6,7 +6,7 @@ import 'package:otzaria/external_catalog/repository/external_catalog_repository.
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
-import 'package:otzaria/widgets/custom_ui_components.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 
 class ExternalCatalogSettingsHelper {
   static bool _isAutoSyncInProgress = false;

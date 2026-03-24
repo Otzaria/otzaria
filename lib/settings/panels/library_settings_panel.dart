@@ -4,7 +4,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/external_catalog/view/external_catalog_settings_helper.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
 import 'package:otzaria/settings/settings_card.dart';
-import 'package:otzaria/widgets/custom_ui_components.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 
 /// פאנל הגדרות תצוגת ספרייה
 class LibrarySettingsPanel extends StatelessWidget {

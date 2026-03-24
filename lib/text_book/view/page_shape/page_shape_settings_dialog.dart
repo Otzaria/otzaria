@@ -8,7 +8,7 @@ import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/app_menu.dart';
-import 'package:otzaria/widgets/custom_ui_components.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 
 /// סוג שמירת הגדרות מפרשים
 enum CommentatorSaveScope {

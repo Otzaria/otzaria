@@ -6,7 +6,7 @@ import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/shortcuts/custom_shortcut_dialog.dart';
 import 'package:otzaria/widgets/app_menu.dart';
-import 'package:otzaria/widgets/custom_ui_components.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 
 /// שדה בחירת קיצור דרך שמסנן קיצורים שכבר נמצאים בשימוש.
 class ShortcutDropDownTile extends StatefulWidget {

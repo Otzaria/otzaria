@@ -29,7 +29,7 @@ import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/services/direct_error_report_service.dart';
 import 'package:otzaria/services/data_collection_service.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
-import 'package:otzaria/widgets/custom_ui_components.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/error_report_sender_email_dialog.dart';
 import 'package:otzaria/settings/settings_card.dart';
 import 'package:otzaria/theme/theme_exports.dart';

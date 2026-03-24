@@ -10,7 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/theme/theme_exports.dart';
-import 'package:otzaria/widgets/custom_ui_components.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/tool_result_card_shell.dart';
 
 class AcronymResultCard extends StatelessWidget {
