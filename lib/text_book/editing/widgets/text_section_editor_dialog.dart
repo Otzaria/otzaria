@@ -13,7 +13,7 @@ import '../services/preview_renderer.dart';
 import '../models/editor_settings.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/core/ui_snack.dart';
-import 'package:otzaria/widgets/dialogs.dart';
+import 'package:otzaria/widgets/dialogs/dialogs.dart';
 import 'markdown_toolbar.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
 import 'package:otzaria/settings/services/safer_mode/protected_settings_wrapper.dart';

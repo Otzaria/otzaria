@@ -18,7 +18,7 @@ import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/printing/printing_screen.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
-import 'package:otzaria/widgets/dialogs.dart';
+import 'package:otzaria/widgets/dialogs/dialogs.dart';
 import 'package:otzaria/widgets/floating_panel.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/view/widgets/calendar_event_dialog.dart';
