@@ -20,7 +20,7 @@ import 'package:otzaria/file_sync/file_sync_repository.dart';
 import 'package:otzaria/file_sync/file_sync_state.dart';
 import 'package:otzaria/daf_yomi/daf_yomi.dart';
 import 'package:otzaria/widgets/filter_chips_widget.dart';
-import 'package:otzaria/tools/more_screen.dart' show moreScreenKey;
+import 'package:otzaria/tools/tools_screen.dart' show moreScreenKey;
 import 'package:otzaria/library/view/grid_items.dart';
 import 'package:otzaria/library/view/otzar_book_dialog.dart';
 import 'package:otzaria/library/view/book_preview_panel.dart';
@@ -270,14 +270,54 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                         // האם יש מספיק מקום ל-DafYomi בשורה הראשית?
                         final dafYomiInline =
                             constraints.maxWidth >= _kDafYomiInlineMinWidth;
-                        return Column(
+                        final isCompact = settingsState.compactMenuMode;
+
+                        // גובה הסרגל הראשי (קבוע) — ממנו נגזר ה-padding התחתון
+                        final primaryBarH = AppTopBar.barHeight(isCompact);
+
+                        // גובה השורה השניה המקסימלי (אומדן שמרני)
+                        // זה גורם לתוכן להתחיל מתחת לשורה השניה כשהיא פתוחה,
+                        // ולא לזוז כשהיא נסגרת — מונע reflow של ה-ScrollView.
+                        const double kSecondaryRowMaxH = 52.0;
+                        final hasSecondaryRow = !dafYomiInline ||
+                            (context
+                                    .read<FocusRepository>()
+                                    .librarySearchController
+                                    .text
+                                    .length >
+                                2);
+                        final topPad = hasSecondaryRow
+                            ? primaryBarH + kSecondaryRowMaxH
+                            : primaryBarH;
+
+                        // Stack: תוכן מאחורה עם padding קבוע, סרגל צף מעל
+                        // כך הסרגל לא גורם ל-reflow של ה-ScrollView בגלילה.
+                        return Stack(
                           children: [
-                            _buildAppTopBar(ctx, state, settingsState,
-                                dafYomiInline: dafYomiInline),
-                            Expanded(
-                              child: NotificationListener<ScrollNotification>(
-                                onNotification: _handleScrollNotification,
-                                child: _buildBodyRow(ctx, state, settingsState),
+                            // ── תוכן הספרייה — padding קבוע מלמעלה ──────────
+                            Positioned.fill(
+                              child: Padding(
+                                padding: EdgeInsets.only(top: topPad),
+                                child: NotificationListener<ScrollNotification>(
+                                  onNotification: _handleScrollNotification,
+                                  child: _buildBodyRow(
+                                    ctx,
+                                    state,
+                                    settingsState,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            // ── סרגל עליון — צף, לא משפיע על layout התוכן ──
+                            Positioned(
+                              top: 0,
+                              left: 0,
+                              right: 0,
+                              child: _buildAppTopBar(
+                                ctx,
+                                state,
+                                settingsState,
+                                dafYomiInline: dafYomiInline,
                               ),
                             ),
                           ],
@@ -313,21 +353,23 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
     // DafYomi: בשורה הראשית כשיש מקום, אחרת בשורה שניה
     if (dafYomiInline) {
-      trailingItems.add(AppTopBarItem(
-        widget: DafYomi(
-          compact: isCompact,
-          inlineDate: isCompact, // desktop: date + daf בשורה אחת
-          maxWidth: 240,
-          onDafYomiTap: (tractate, daf) =>
-              openDafYomiBook(context, tractate, ' $daf.'),
-          onCalendarTap: () {
-            (moreScreenKey.currentState as dynamic)?.resetToCalendar();
-            context
-                .read<NavigationBloc>()
-                .add(const NavigateToScreen(Screen.more));
-          },
+      trailingItems.add(
+        AppTopBarItem(
+          widget: DafYomi(
+            compact: isCompact,
+            inlineDate: isCompact, // desktop: date + daf בשורה אחת
+            maxWidth: 240,
+            onDafYomiTap: (tractate, daf) =>
+                openDafYomiBook(context, tractate, ' $daf.'),
+            onCalendarTap: () {
+              (moreScreenKey.currentState as dynamic)?.resetToCalendar();
+              context.read<NavigationBloc>().add(
+                    const NavigateToScreen(Screen.more),
+                  );
+            },
+          ),
         ),
-      ));
+      );
     }
 
     trailingItems.addAll([
@@ -376,9 +418,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       scrollDebounceMs: _kScrollDebounceMs,
       secondaryRowVisible: secondaryRow != null ? _secondaryRowVisible : null,
       leadingItems: [
-        AppTopBarItem(
-          widget: _buildNavActions(context, state, settingsState),
-        ),
+        AppTopBarItem(widget: _buildNavActions(context, state, settingsState)),
       ],
       center: _buildSearchBar(state, isCompact),
       trailingItems: trailingItems,
@@ -403,27 +443,29 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     final children = <Widget>[];
 
     if (showDafYomi) {
-      children.add(Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            DafYomi(
-              compact: isCompact,
-              inlineDate: false,
-              maxWidth: 320,
-              onDafYomiTap: (tractate, daf) =>
-                  openDafYomiBook(context, tractate, ' $daf.'),
-              onCalendarTap: () {
-                (moreScreenKey.currentState as dynamic)?.resetToCalendar();
-                context
-                    .read<NavigationBloc>()
-                    .add(const NavigateToScreen(Screen.more));
-              },
-            ),
-          ],
+      children.add(
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              DafYomi(
+                compact: isCompact,
+                inlineDate: false,
+                maxWidth: 320,
+                onDafYomiTap: (tractate, daf) =>
+                    openDafYomiBook(context, tractate, ' $daf.'),
+                onCalendarTap: () {
+                  (moreScreenKey.currentState as dynamic)?.resetToCalendar();
+                  context.read<NavigationBloc>().add(
+                        const NavigateToScreen(Screen.more),
+                      );
+                },
+              ),
+            ],
+          ),
         ),
-      ));
+      );
     }
 
     if (hasSearch) {
@@ -466,11 +508,19 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
     return ResponsiveActionBar(
       key: ValueKey('action-bar-offline-${settingsState.isOfflineMode}'),
-      actions:
-          _buildPrioritizedActions(context, state, settingsState, isCompact),
+      actions: _buildPrioritizedActions(
+        context,
+        state,
+        settingsState,
+        isCompact,
+      ),
       alwaysInMenu: const [],
-      originalOrder:
-          _buildOriginalOrderActions(context, state, settingsState, isCompact),
+      originalOrder: _buildOriginalOrderActions(
+        context,
+        state,
+        settingsState,
+        isCompact,
+      ),
       maxVisibleButtons: maxButtons,
       overflowOnRight: true,
     );
@@ -584,8 +634,10 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         final previewWidth = settingsState.libraryViewMode == 'list'
             ? screenWidth * 2 / 3
             : screenWidth / 3;
-        final maxPreviewWidth =
-            (screenWidth - 350).clamp(minPreviewWidth, screenWidth);
+        final maxPreviewWidth = (screenWidth - 350).clamp(
+          minPreviewWidth,
+          screenWidth,
+        );
         final panelMode = _effectiveSidePanel(settingsState);
 
         return Row(
@@ -629,10 +681,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .shadow
-                      .withValues(alpha: 0.2),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.shadow.withValues(alpha: 0.2),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -880,20 +931,27 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     filteredBooks.sort((a, b) => a.order.compareTo(b.order));
     if (category is Library) {
       filteredSubCategories.sort(
-          (a, b) => _getTopCategoryOrder(a).compareTo(_getTopCategoryOrder(b)));
+        (a, b) => _getTopCategoryOrder(a).compareTo(_getTopCategoryOrder(b)),
+      );
     } else {
-      filteredSubCategories.sort((a, b) =>
-          _normalizeOrder(a.order).compareTo(_normalizeOrder(b.order)));
+      filteredSubCategories.sort(
+        (a, b) => _normalizeOrder(a.order).compareTo(_normalizeOrder(b.order)),
+      );
     }
 
     if (_depth != 0) {
-      items.add(MyGridView(
-          items: filteredBooks.map((b) => _buildBookItem(b)).toList()));
+      items.add(
+        MyGridView(items: filteredBooks.map((b) => _buildBookItem(b)).toList()),
+      );
       if (filteredBooks.length > 20) {
-        items.add(Center(
+        items.add(
+          Center(
             child: TextButton(
-                onPressed: () => _showAllBooksDialog(filteredBooks),
-                child: Text('הצג עוד ${filteredBooks.length - 20} פריטים'))));
+              onPressed: () => _showAllBooksDialog(filteredBooks),
+              child: Text('הצג עוד ${filteredBooks.length - 20} פריטים'),
+            ),
+          ),
+        );
       }
       for (final sub in filteredSubCategories) {
         final subBooks = sub.books.toList()
@@ -903,16 +961,24 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         items.add(Center(child: HeaderItem(category: sub)));
         final subItems = <Widget>[
           ...subBooks.map((b) => _buildBookItem(b)),
-          ...subCats.map((c) => CategoryGridItem(
-              category: c, onCategoryClickCallback: () => _openCategory(c))),
+          ...subCats.map(
+            (c) => CategoryGridItem(
+              category: c,
+              onCategoryClickCallback: () => _openCategory(c),
+            ),
+          ),
         ];
         items.add(MyGridView(items: subItems));
       }
     } else {
       final allItems = <Widget>[
         ...filteredBooks.map((b) => _buildBookItem(b)),
-        ...filteredSubCategories.map((c) => CategoryGridItem(
-            category: c, onCategoryClickCallback: () => _openCategory(c))),
+        ...filteredSubCategories.map(
+          (c) => CategoryGridItem(
+            category: c,
+            onCategoryClickCallback: () => _openCategory(c),
+          ),
+        ),
       ];
       items.add(MyGridView(items: allItems));
     }
@@ -944,7 +1010,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
             decoration: isSelected
                 ? BoxDecoration(
                     border: Border.all(
-                        color: Theme.of(ctx).colorScheme.primary, width: 2),
+                      color: Theme.of(ctx).colorScheme.primary,
+                      width: 2,
+                    ),
                     borderRadius: BorderRadius.circular(12),
                   )
                 : null,
@@ -996,10 +1064,12 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     final filteredSubs = category.subCategories.toList();
     if (category is Library) {
       filteredSubs.sort(
-          (a, b) => _getTopCategoryOrder(a).compareTo(_getTopCategoryOrder(b)));
+        (a, b) => _getTopCategoryOrder(a).compareTo(_getTopCategoryOrder(b)),
+      );
     } else {
-      filteredSubs.sort((a, b) =>
-          _normalizeOrder(a.order).compareTo(_normalizeOrder(b.order)));
+      filteredSubs.sort(
+        (a, b) => _normalizeOrder(a.order).compareTo(_normalizeOrder(b.order)),
+      );
     }
     for (final sub in filteredSubs) {
       final isExpanded = _expandedCategories.contains(sub.path);
@@ -1011,17 +1081,25 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       widgets.add(_buildListBookItem(filteredBooks[i], level));
     }
     if (filteredBooks.length > limit) {
-      widgets.add(InkWell(
-        onTap: () => _showAllBooksDialog(filteredBooks),
-        child: Padding(
-          padding: EdgeInsets.only(
-              right: 16.0 + level * 24, left: 16, top: 10, bottom: 10),
-          child: Text('הצג עוד ${filteredBooks.length - limit} פריטים',
+      widgets.add(
+        InkWell(
+          onTap: () => _showAllBooksDialog(filteredBooks),
+          child: Padding(
+            padding: EdgeInsets.only(
+              right: 16.0 + level * 24,
+              left: 16,
+              top: 10,
+              bottom: 10,
+            ),
+            child: Text(
+              'הצג עוד ${filteredBooks.length - limit} פריטים',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.primary,
-                  )),
+                  ),
+            ),
+          ),
         ),
-      ));
+      );
     }
     return widgets;
   }
@@ -1037,11 +1115,18 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       }),
       child: Container(
         padding: EdgeInsets.only(
-            right: 16.0 + level * 24, left: 16, top: 12, bottom: 12),
+          right: 16.0 + level * 24,
+          left: 16,
+          top: 12,
+          bottom: 12,
+        ),
         decoration: BoxDecoration(
           border: Border(
-              bottom: BorderSide(
-                  color: Theme.of(context).dividerColor, width: 0.5)),
+            bottom: BorderSide(
+              color: Theme.of(context).dividerColor,
+              width: 0.5,
+            ),
+          ),
         ),
         child: Row(
           textDirection: TextDirection.rtl,
@@ -1106,17 +1191,23 @@ class _LibraryBrowserState extends State<LibraryBrowser>
           onDoubleTap: () => _openBookInReader(book, book is PdfBook ? 1 : 0),
           child: Container(
             padding: EdgeInsets.only(
-                right: 16.0 + level * 24, left: 16, top: 10, bottom: 10),
+              right: 16.0 + level * 24,
+              left: 16,
+              top: 10,
+              bottom: 10,
+            ),
             decoration: BoxDecoration(
               color: isSelected
-                  ? Theme.of(ctx)
-                      .colorScheme
-                      .primaryContainer
-                      .withValues(alpha: 0.3)
+                  ? Theme.of(
+                      ctx,
+                    ).colorScheme.primaryContainer.withValues(alpha: 0.3)
                   : null,
               border: Border(
-                  bottom: BorderSide(
-                      color: Theme.of(ctx).dividerColor, width: 0.5)),
+                bottom: BorderSide(
+                  color: Theme.of(ctx).dividerColor,
+                  width: 0.5,
+                ),
+              ),
             ),
             child: Row(
               textDirection: TextDirection.rtl,
@@ -1273,7 +1364,10 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   }
 
   void _openOtzarBook(ExternalLibraryBook book) {
-    showDialog(context: context, builder: (ctx) => OtzarBookDialog(book: book));
+    showDialog(
+      context: context,
+      builder: (ctx) => OtzarBookDialog(book: book),
+    );
     _refocusSearchBar();
   }
 
@@ -1292,8 +1386,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('סגור')),
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('סגור'),
+          ),
         ],
       ),
     );
@@ -1308,28 +1403,33 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   }
 
   void _update(
-      BuildContext context, LibraryState state, SettingsState settingsState) {
+    BuildContext context,
+    LibraryState state,
+    SettingsState settingsState,
+  ) {
     final searchText =
         context.read<FocusRepository>().librarySearchController.text;
-    context
-        .read<LibraryBloc>()
-        .add(UpdateSearchQuery(searchText.replaceAll('"', '')));
+    context.read<LibraryBloc>().add(
+          UpdateSearchQuery(searchText.replaceAll('"', '')),
+        );
     _searchWithSettings(context, settingsState);
     setState(() {});
     _refocusSearchBar();
   }
 
   void _searchWithSettings(BuildContext context, SettingsState s) {
-    context.read<LibraryBloc>().add(SearchBooks(
-          showHebrewBooks: s.showExternalBooks && s.showHebrewBooks,
-          showOtzarHachochma: s.showExternalBooks && s.showOtzarHachochma,
-        ));
+    context.read<LibraryBloc>().add(
+          SearchBooks(
+            showHebrewBooks: s.showExternalBooks && s.showHebrewBooks,
+            showOtzarHachochma: s.showExternalBooks && s.showOtzarHachochma,
+          ),
+        );
   }
 
   void _refocusSearchBar({bool selectAll = false}) {
-    context
-        .read<FocusRepository>()
-        .requestLibrarySearchFocus(selectAll: selectAll);
+    context.read<FocusRepository>().requestLibrarySearchFocus(
+          selectAll: selectAll,
+        );
   }
 
   bool _focusFirstSearchResult(LibraryState state) {

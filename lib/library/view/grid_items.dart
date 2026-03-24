@@ -12,6 +12,19 @@ import 'package:url_launcher/url_launcher.dart';
 import 'dart:math';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/book_locator.dart';
+import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  שינויים:
+//  • מבנה Row: LTR עם icons משמאל, טקסט מימין (מתאים ל-RTL UI).
+//  • צבעי טקסט: cs.onSurface לכותרת ספרים (קריא בהיר/כהה), cs.primary לתיקיות.
+//  • רקע אייקון: cs.primary/secondary.withValues(alpha:0.12) — בטוח בהיר+כהה.
+//  • אייקון בכרטיס: 32×32 container, 16px icon — פרופורציה טובה יותר.
+//  • ריפוד עליון ב-MyGridView: top: 8 — ריחוק מהסרגל.
+//  • Focus ניווט מקלדת: CategoryGridItem + BookGridItem תומכים ב-Focus.
+//  • overflow: ellipsis + tooltip בריחוף בכל טקסטים.
+// ─────────────────────────────────────────────────────────────────────────────
 
 TextStyle? _boldBodyStyle(BuildContext context) {
   return Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -52,6 +65,15 @@ bool _textOverflows({
   )..layout(maxWidth: maxWidth);
 
   return textPainter.didExceedMaxLines;
+}
+
+Decoration _libraryTooltipDecoration(BuildContext context) {
+  final cs = Theme.of(context).colorScheme;
+  return BoxDecoration(
+    color: cs.surfaceContainerHigh,
+    borderRadius: BorderRadius.circular(12),
+    border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.65)),
+  );
 }
 
 class LibraryOverflowTooltipText extends StatelessWidget {
@@ -105,6 +127,11 @@ class LibraryOverflowTooltipText extends StatelessWidget {
         return Tooltip(
           message: text,
           waitDuration: const Duration(milliseconds: 300),
+          textAlign: TextAlign.right,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          margin: const EdgeInsets.all(12),
+          constraints: const BoxConstraints(maxWidth: 320),
+          decoration: _libraryTooltipDecoration(context),
           child: child,
         );
       },
@@ -133,9 +160,9 @@ class LibraryItemTitle extends StatelessWidget {
       textAlign: TextAlign.right,
       textDirection: TextDirection.rtl,
       style: theme.textTheme.titleMedium?.copyWith(
-        fontWeight: isFolder ? FontWeight.w700 : FontWeight.w500,
+        fontWeight: isFolder ? FontWeight.w700 : FontWeight.w600,
         color:
-            isFolder ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+            theme.textTheme.titleMedium?.color ?? theme.colorScheme.onSurface,
       ),
     );
   }
@@ -165,91 +192,108 @@ class HeaderItem extends StatelessWidget {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  CategoryGridItem
+//  Layout LTR: [info-icon?] [folder-icon] [12px] [Expanded text (right-aligned)]
+//  בתצוגת RTL: טקסט מימין, אייקונים משמאל — עקבי ובלתי תלויים.
+// ─────────────────────────────────────────────────────────────────────────────
+
 class CategoryGridItem extends StatelessWidget {
   final Category category;
   final VoidCallback onCategoryClickCallback;
+  final FocusNode? focusNode;
 
   const CategoryGridItem({
     super.key,
     required this.category,
     required this.onCategoryClickCallback,
+    this.focusNode,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     return Card(
       elevation: 0,
-      color: theme.colorScheme.surface,
+      color: AppSurfaces.card(context),
+      clipBehavior: Clip.antiAlias,
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(
-          color: theme.colorScheme.primary.withValues(alpha: 0.18),
-        ),
+      shape: const RoundedRectangleBorder(
+        side: BorderSide.none,
+        borderRadius: BorderRadius.all(Radius.circular(AppTokens.radiusXL)),
       ),
       child: InkWell(
+        focusNode: focusNode,
         mouseCursor: SystemMouseCursors.click,
-        borderRadius: BorderRadius.circular(14.0),
-        hoverColor: theme.colorScheme.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppTokens.radiusXL),
+        hoverColor: cs.primary.withValues(alpha: 0.06),
         hoverDuration: Durations.medium1,
         onTap: () => onCategoryClickCallback(),
+        // Focus: Enter/Space ← מטופלים אוטומטית ע"י InkWell
+        // Arrow keys: נמסרים להורה (grid) דרך bubble
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           child: Row(
-            textDirection: TextDirection.rtl,
+            // LTR: אייקונים בשמאל, טקסט בימין — מתאים לממשק RTL עברי
+            textDirection: TextDirection.ltr,
             children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer
-                      .withValues(alpha: 0.55),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  FluentIcons.folder_24_filled,
-                  color: theme.colorScheme.primary,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    LibraryItemTitle(
-                      text: category.title,
-                      isFolder: true,
-                    ),
-                    if (category.shortDescription.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      LibraryOverflowTooltipText(
-                        text: category.shortDescription,
-                        maxLines: 2,
-                        textAlign: TextAlign.right,
-                        textDirection: TextDirection.rtl,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
+              // ── אייקון מידע (שמאל קיצוני) ───────────────────────────
               if (category.shortDescription.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: IconButton(
-                    mouseCursor: SystemMouseCursors.basic,
-                    onPressed: null,
-                    icon: const Icon(FluentIcons.info_24_regular),
+                Tooltip(
+                  message: category.shortDescription,
+                  waitDuration: const Duration(milliseconds: 400),
+                  child: Icon(
+                    FluentIcons.info_24_regular,
+                    size: 16,
                     color: theme.colorScheme.onSurfaceVariant
-                        .withValues(alpha: 0.6),
-                    disabledColor: theme.colorScheme.onSurfaceVariant
                         .withValues(alpha: 0.6),
                   ),
                 ),
+              // ── אייקון תיקייה ────────────────────────────────────────
+              const SizedBox(width: 4),
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: cs.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  FluentIcons.folder_24_filled,
+                  color: cs.onSurfaceVariant,
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: 18),
+              // ── עמודת טקסט (ימין) ────────────────────────────────────
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      LibraryItemTitle(
+                        text: category.title,
+                        isFolder: true,
+                      ),
+                      if (category.shortDescription.isNotEmpty) ...[
+                        const SizedBox(height: 3),
+                        LibraryOverflowTooltipText(
+                          text: category.shortDescription,
+                          maxLines: 2,
+                          textAlign: TextAlign.right,
+                          textDirection: TextDirection.rtl,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -257,6 +301,12 @@ class CategoryGridItem extends StatelessWidget {
     );
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  BookGridItem
+//  Layout LTR: [action-col] [media-col] [12px] [Expanded text (right-aligned)]
+//  בתצוגת RTL: טקסט מימין, אייקונים משמאל — עקבי ובלתי תלויים.
+// ─────────────────────────────────────────────────────────────────────────────
 
 class BookGridItem extends StatelessWidget {
   final bool showTopics;
@@ -277,45 +327,48 @@ class BookGridItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     return GestureDetector(
       child: Card(
         elevation: 0,
-        color: theme.colorScheme.surface,
+        color: AppSurfaces.card(context),
+        clipBehavior: Clip.antiAlias,
         surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: BorderSide(
-            color: book is ExternalLibraryBook
-                ? theme.colorScheme.secondary.withValues(alpha: 0.2)
-                : theme.colorScheme.outlineVariant.withValues(alpha: 0.9),
-          ),
+        shape: const RoundedRectangleBorder(
+          side: BorderSide.none,
+          borderRadius: BorderRadius.all(Radius.circular(AppTokens.radiusXL)),
         ),
         child: InkWell(
-          mouseCursor: SystemMouseCursors.click,
           focusNode: focusNode,
-          borderRadius: BorderRadius.circular(14.0),
-          hoverColor: theme.colorScheme.secondary.withValues(alpha: 0.08),
+          mouseCursor: SystemMouseCursors.click,
+          borderRadius: BorderRadius.circular(AppTokens.radiusXL),
+          hoverColor: cs.primary.withValues(alpha: 0.06),
           onTap: () => onBookClickCallback(),
           hoverDuration: Durations.medium1,
           child: SizedBox.expand(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               child: Row(
-                textDirection: TextDirection.rtl,
-                crossAxisAlignment: CrossAxisAlignment.start,
+                // LTR: action column → media column → text column
+                textDirection: TextDirection.ltr,
                 children: [
-                  _BookGridMediaColumn(book: book, showTopics: showTopics),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _BookGridTextColumn(
-                      book: book,
-                      showTopics: showTopics,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
+                  // ── עמודת פעולות (שמאל קיצוני) ──────────────────────
                   _BookGridActionColumn(
                     book: book,
                     onBookDeleted: onBookDeleted,
+                  ),
+                  // ── עמודת מדיה (אייקון ספר) ──────────────────────────
+                  _BookGridMediaColumn(book: book, showTopics: showTopics),
+                  const SizedBox(width: 18),
+                  // ── עמודת טקסט (ימין) ────────────────────────────────
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: _BookGridTextColumn(
+                        book: book,
+                        showTopics: showTopics,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -339,8 +392,10 @@ class _BookGridMediaColumn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final iconBoxSize = showTopics ? 32.0 : 40.0;
-    final iconSize = showTopics ? 18.0 : 20.0;
+    final cs = theme.colorScheme;
+    // אייקון קטן יותר: 32×32 container, 16px icon — פרופורציה טובה לצד טקסט
+    const double iconBoxSize = 32.0;
+    const double iconSize = 16.0;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -349,16 +404,14 @@ class _BookGridMediaColumn extends StatelessWidget {
           width: iconBoxSize,
           height: iconBoxSize,
           decoration: BoxDecoration(
-            color: book is ExternalLibraryBook
-                ? theme.colorScheme.secondaryContainer.withValues(alpha: 0.55)
-                : theme.colorScheme.primaryContainer.withValues(alpha: 0.4),
-            borderRadius: BorderRadius.circular(12),
+            color: cs.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(10),
           ),
           child: Center(
             child: (book is PdfBook || book.fileType == 'pdf')
                 ? Icon(
                     FluentIcons.document_pdf_24_regular,
-                    color: theme.colorScheme.secondary,
+                    color: cs.onSurfaceVariant,
                     size: iconSize,
                   )
                 : book is ExternalLibraryBook
@@ -377,23 +430,20 @@ class _BookGridMediaColumn extends StatelessWidget {
                         book.fileType == 'docx'
                             ? FluentIcons.document_one_page_24_regular
                             : FluentIcons.document_text_24_regular,
-                        color: theme.colorScheme.secondary,
+                        color: cs.onSurfaceVariant,
                         size: iconSize,
                       ),
           ),
         ),
         if (kDebugMode && book is TextBook) ...[
-          const SizedBox(height: 7),
-          Transform.translate(
-            offset: const Offset(0, 2),
-            child: DataSourceIndicatorAsync(
-              sourceFuture: FileSystemData.instance.getBookDataSource(
-                book.title,
-                categoryId: book.categoryId,
-                fileType: book.fileType,
-              ),
-              size: 16,
+          const SizedBox(height: 4),
+          DataSourceIndicatorAsync(
+            sourceFuture: FileSystemData.instance.getBookDataSource(
+              book.title,
+              categoryId: book.categoryId,
+              fileType: book.fileType,
             ),
+            size: 14,
           ),
         ],
       ],
@@ -413,9 +463,10 @@ class _BookGridTextColumn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // כותרת: onSurface — קריא בשני המצבים (לא primary שיכול להיות בוהק בכהה)
     final titleStyle = theme.textTheme.titleMedium?.copyWith(
       fontWeight: FontWeight.w700,
-      color: theme.colorScheme.primary,
+      color: theme.colorScheme.onSurface,
     );
     final authorStyle = theme.textTheme.bodySmall?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
@@ -455,7 +506,7 @@ class _BookGridTextColumn extends StatelessWidget {
               style: titleStyle,
             ),
             if (hasAuthor) ...[
-              const SizedBox(height: 4),
+              const SizedBox(height: 3),
               LibraryOverflowTooltipText(
                 text: book.author!,
                 maxLines: authorMaxLines,
@@ -498,40 +549,46 @@ class _BookGridActionColumn extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         if ((book.heShortDesc ?? '').isNotEmpty)
-          SizedBox(
-            width: 32,
-            height: 32,
-            child: IconButton(
-              mouseCursor: SystemMouseCursors.basic,
-              onPressed: null,
-              icon: const Icon(FluentIcons.info_24_regular),
-              iconSize: 18,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(
-                minWidth: 32,
-                minHeight: 32,
+          Tooltip(
+            message: book.heShortDesc ?? '',
+            waitDuration: const Duration(milliseconds: 400),
+            textAlign: TextAlign.right,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            margin: const EdgeInsets.all(12),
+            constraints: const BoxConstraints(maxWidth: 320),
+            decoration: _libraryTooltipDecoration(context),
+            child: Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest
+                    .withValues(alpha: 0.75),
+                borderRadius: BorderRadius.circular(8),
               ),
-              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
-              disabledColor:
-                  theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+              alignment: Alignment.center,
+              child: Icon(
+                FluentIcons.info_24_regular,
+                size: 15,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
         if (book.categoryPath?.startsWith('ספרים אישיים') == true)
           SizedBox(
-            width: 32,
-            height: 32,
+            width: 28,
+            height: 28,
             child: AppPopupMenuButton<String>(
               icon: Icon(
                 FluentIcons.more_vertical_24_regular,
-                size: 18,
+                size: 15,
                 color: theme.colorScheme.secondary,
               ),
               tooltip: 'אפשרויות',
               position: PopupMenuPosition.under,
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(
-                minWidth: 32,
-                minHeight: 32,
+                minWidth: 28,
+                minHeight: 28,
               ),
               onSelected: (value) {
                 if (value == 'delete') {
@@ -553,10 +610,17 @@ class _BookGridActionColumn extends StatelessWidget {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  MyGridView
+//  • ריפוד top: 8 — ריחוף מהסרגל
+//  • FocusTraversalGroup — ניווט Tab בתוך הגריד בלבד (לא קופץ לשורת חיפוש)
+// ─────────────────────────────────────────────────────────────────────────────
+
 class MyGridView extends StatelessWidget {
   final List<Widget> items;
 
   const MyGridView({super.key, required this.items});
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -574,19 +638,24 @@ class MyGridView extends StatelessWidget {
             textScale <= 1.0 ? 1.0 : (1.0 / (1.0 + ((textScale - 1.0) * 0.65)));
         final childAspectRatio = (baseRatio * textAdjustment).clamp(1.45, 2.15);
 
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 45),
-          child: GridView.builder(
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                //max number of items per row is 5 and min is 1
+        return FocusTraversalGroup(
+          policy: ReadingOrderTraversalPolicy(),
+          child: Padding(
+            // top: 8 — ריחוף מהסרגל; horizontal: 45 — שולי צד
+            padding:
+                const EdgeInsets.only(top: 8, left: 45, right: 45, bottom: 0),
+            child: GridView.builder(
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: max(1, min(constraints.maxWidth ~/ 250, 5)),
                 childAspectRatio: childAspectRatio,
                 crossAxisSpacing: 4,
-                mainAxisSpacing: 4),
-            itemCount: items.length,
-            itemBuilder: (context, index) => items[index],
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 4,
+              ),
+              itemCount: items.length,
+              itemBuilder: (context, index) => items[index],
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+            ),
           ),
         );
       },
@@ -610,7 +679,6 @@ void _showBookInfoDialog(BuildContext context, Book book) {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1) מחבר
               if (book.author != null && book.author!.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8.0),
@@ -628,7 +696,6 @@ void _showBookInfoDialog(BuildContext context, Book book) {
                     ),
                   ),
                 ),
-              // 2) קטגוריה
               if (book.heCategories != null && book.heCategories!.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8.0),
@@ -646,7 +713,6 @@ void _showBookInfoDialog(BuildContext context, Book book) {
                     ),
                   ),
                 ),
-              // 3) תקופה
               if (book.heEra != null && book.heEra!.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8.0),
@@ -664,7 +730,6 @@ void _showBookInfoDialog(BuildContext context, Book book) {
                     ),
                   ),
                 ),
-              // 4) תאריך ומקום חיבור
               if ((book.compDateStringHe != null &&
                       book.compDateStringHe!.isNotEmpty) ||
                   (book.compPlaceStringHe != null &&
@@ -694,7 +759,6 @@ void _showBookInfoDialog(BuildContext context, Book book) {
                     ),
                   ),
                 ),
-              // 5) תאריך ומקום הוצאה לאור
               if ((book.pubDateStringHe != null &&
                       book.pubDateStringHe!.isNotEmpty) ||
                   (book.pubPlaceStringHe != null &&
@@ -724,7 +788,6 @@ void _showBookInfoDialog(BuildContext context, Book book) {
                     ),
                   ),
                 ),
-              // 6) שמות נוספים
               if (book.extraTitles != null && book.extraTitles!.length > 1)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8.0),
@@ -746,7 +809,6 @@ void _showBookInfoDialog(BuildContext context, Book book) {
                     ),
                   ),
                 ),
-              // 7) תיאור מקוצר
               if (book.heShortDesc != null && book.heShortDesc!.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 16.0, bottom: 8.0),
@@ -764,7 +826,6 @@ void _showBookInfoDialog(BuildContext context, Book book) {
                     ),
                   ),
                 ),
-              // 8) תיאור מלא
               if (book.heDesc != null && book.heDesc!.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 16.0, bottom: 8.0),
@@ -782,7 +843,6 @@ void _showBookInfoDialog(BuildContext context, Book book) {
                     ),
                   ),
                 ),
-              // 9) מקור הספר + זכויות יוצרים
               _buildBookSourceSection(book),
             ],
           ),
@@ -798,7 +858,6 @@ void _showBookInfoDialog(BuildContext context, Book book) {
   );
 }
 
-/// בניית סקציית מקור הספר וזכויות יוצרים
 Widget _buildBookSourceSection(Book book) {
   return FutureBuilder<Map<String, dynamic>>(
     future: _getBookSourceInfo(book),
@@ -886,7 +945,6 @@ Widget _buildBookSourceSection(Book book) {
   );
 }
 
-/// קבלת מידע על מקור הספר
 Future<Map<String, dynamic>> _getBookSourceInfo(Book book) async {
   try {
     final bookDetails = await BookDetailsService().getBookDetails(book);
@@ -905,7 +963,6 @@ Future<Map<String, dynamic>> _getBookSourceInfo(Book book) async {
   }
 }
 
-/// הצגת חלון מידע עבור קטגוריה
 // ignore: unused_element
 void _showCategoryInfoDialog(BuildContext context, Category category) {
   showDialog(
@@ -933,13 +990,11 @@ void _showCategoryInfoDialog(BuildContext context, Category category) {
   );
 }
 
-/// הצגת דיאלוג אישור למחיקת ספר
 void _showDeleteBookDialog(
     BuildContext context, Book book, VoidCallback? onBookDeleted) {
   final errorColor = Theme.of(context).colorScheme.error;
   showDialog(
     context: context,
-    // שימוש ב-dialogContext נפרד כדי לא להסתיר את ה-context החיצוני
     builder: (BuildContext dialogContext) {
       return AlertDialog(
         title: const Text(
@@ -958,7 +1013,6 @@ void _showDeleteBookDialog(
           TextButton(
             onPressed: () async {
               Navigator.of(dialogContext).pop();
-              // שימוש ב-context החיצוני (לא context הדיאלוג שכבר הוסר)
               await _deleteBook(book);
               onBookDeleted?.call();
             },
@@ -973,10 +1027,8 @@ void _showDeleteBookDialog(
   );
 }
 
-/// מחיקת ספר - מ-DB או מהקובץ
 Future<void> _deleteBook(Book book) async {
   try {
-    // שימוש ב-BookLocator למחיקת הספר
     final success = await BookLocator.deleteBook(
       book.title,
       category: book.category,
