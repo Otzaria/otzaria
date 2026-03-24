@@ -19,7 +19,7 @@ import 'package:otzaria/find_ref/find_ref_dialog.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/library/view/library_browser.dart';
 import 'package:otzaria/tabs/reading_screen.dart';
-import 'package:otzaria/tools/more_screen.dart';
+import 'package:otzaria/tools/tools_screen.dart';
 import 'dart:async';
 import 'package:otzaria/update/my_updat_widget.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
