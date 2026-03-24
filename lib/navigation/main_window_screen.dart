@@ -23,7 +23,7 @@ import 'package:otzaria/tools/more_screen.dart';
 import 'dart:async';
 import 'package:otzaria/update/my_updat_widget.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
-import 'package:otzaria/widgets/ad_popup_dialog.dart';
+import 'package:otzaria/widgets/promo_dialog.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:otzaria/main.dart' show appWindowListener;
 import 'package:otzaria/navigation/custom_title_bar.dart';
@@ -506,90 +506,59 @@ class MainWindowScreenState extends State<MainWindowScreen>
             return SafeArea(
               child: MyUpdatWidget(
                 child: Scaffold(
-                    resizeToAvoidBottomInset: false,
-                    body: Column(
-                      children: [
-                        const CustomTitleBar(),
-                        Expanded(
-                          child: OrientationBuilder(
-                            builder: (context, orientation) {
-                              _handleOrientationChange(context, orientation);
+                  resizeToAvoidBottomInset: false,
+                  body: Column(
+                    children: [
+                      const CustomTitleBar(),
+                      Expanded(
+                        child: OrientationBuilder(
+                          builder: (context, orientation) {
+                            _handleOrientationChange(context, orientation);
 
-                              final pageView = PageView(
-                                controller: pageController,
-                                scrollDirection:
-                                    orientation == Orientation.landscape
-                                        ? Axis.vertical
-                                        : Axis.horizontal,
-                                physics: const NeverScrollableScrollPhysics(),
-                                children: _pages,
-                              );
+                            final pageView = PageView(
+                              controller: pageController,
+                              scrollDirection:
+                                  orientation == Orientation.landscape
+                                      ? Axis.vertical
+                                      : Axis.horizontal,
+                              physics: const NeverScrollableScrollPhysics(),
+                              children: _pages,
+                            );
 
-                              // ── Desktop: NavRail ──────────────────────
-                              if (orientation == Orientation.landscape) {
-                                return Row(
-                                  children: [
-                                    ColoredBox(
-                                      color:
-                                          AppSurfaces.panelBackground(context),
-                                      child: SizedBox.fromSize(
-                                        size: const Size.fromWidth(74),
-                                        child: Column(
-                                          children: [
-                                            Expanded(
-                                              child: Material(
-                                                color:
-                                                    AppSurfaces.panelBackground(
-                                                        context),
-                                                surfaceTintColor:
-                                                    Colors.transparent,
-                                                child: LayoutBuilder(
-                                                  builder:
-                                                      (context, constraints) {
-                                                    const buttonHeight = 60.0;
-                                                    final totalButtonsHeight =
-                                                        _navData.length *
-                                                            buttonHeight;
-                                                    final needsScroll =
-                                                        totalButtonsHeight +
-                                                                20.0 >
-                                                            constraints
-                                                                .maxHeight;
+                            // ── Desktop: NavRail ──────────────────────
+                            if (orientation == Orientation.landscape) {
+                              return Row(
+                                children: [
+                                  ColoredBox(
+                                    color: AppSurfaces.panelBackground(context),
+                                    child: SizedBox.fromSize(
+                                      size: const Size.fromWidth(74),
+                                      child: Column(
+                                        children: [
+                                          Expanded(
+                                            child: Material(
+                                              color:
+                                                  AppSurfaces.panelBackground(
+                                                      context),
+                                              surfaceTintColor:
+                                                  Colors.transparent,
+                                              child: LayoutBuilder(
+                                                builder:
+                                                    (context, constraints) {
+                                                  const buttonHeight = 60.0;
+                                                  final totalButtonsHeight =
+                                                      _navData.length *
+                                                          buttonHeight;
+                                                  final needsScroll =
+                                                      totalButtonsHeight +
+                                                              20.0 >
+                                                          constraints.maxHeight;
 
-                                                    if (needsScroll) {
-                                                      return SingleChildScrollView(
-                                                        child: Column(
-                                                          children: [
-                                                            for (int i = 0;
-                                                                i <
-                                                                    _navData
-                                                                        .length;
-                                                                i++)
-                                                              _buildNavRailItem(
-                                                                  context,
-                                                                  i,
-                                                                  state
-                                                                      .currentScreen),
-                                                          ],
-                                                        ),
-                                                      );
-                                                    } else {
-                                                      final topCount =
-                                                          _navData.length > 5
-                                                              ? 5
-                                                              : _navData.length;
-                                                      return Column(
+                                                  if (needsScroll) {
+                                                    return SingleChildScrollView(
+                                                      child: Column(
                                                         children: [
                                                           for (int i = 0;
-                                                              i < topCount;
-                                                              i++)
-                                                            _buildNavRailItem(
-                                                                context,
-                                                                i,
-                                                                state
-                                                                    .currentScreen),
-                                                          const Spacer(),
-                                                          for (int i = topCount;
                                                               i <
                                                                   _navData
                                                                       .length;
@@ -600,57 +569,82 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                                                 state
                                                                     .currentScreen),
                                                         ],
-                                                      );
-                                                    }
-                                                  },
-                                                ),
+                                                      ),
+                                                    );
+                                                  } else {
+                                                    final topCount =
+                                                        _navData.length > 5
+                                                            ? 5
+                                                            : _navData.length;
+                                                    return Column(
+                                                      children: [
+                                                        for (int i = 0;
+                                                            i < topCount;
+                                                            i++)
+                                                          _buildNavRailItem(
+                                                              context,
+                                                              i,
+                                                              state
+                                                                  .currentScreen),
+                                                        const Spacer(),
+                                                        for (int i = topCount;
+                                                            i < _navData.length;
+                                                            i++)
+                                                          _buildNavRailItem(
+                                                              context,
+                                                              i,
+                                                              state
+                                                                  .currentScreen),
+                                                      ],
+                                                    );
+                                                  }
+                                                },
                                               ),
                                             ),
-                                          ],
-                                        ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                    const VerticalDivider(
-                                        thickness: 1, width: 1),
-                                    Expanded(child: pageView),
-                                  ],
-                                );
-                              }
-
-                              // ── Mobile: NavigationBar ─────────────────
-                              return Column(
-                                children: [
-                                  Expanded(child: pageView),
-                                  NavigationBar(
-                                    backgroundColor:
-                                        AppSurfaces.panelBackground(context),
-                                    surfaceTintColor: Colors.transparent,
-                                    destinations:
-                                        _buildNavigationDestinations(),
-                                    selectedIndex:
-                                        _getSelectedIndex(state.currentScreen),
-                                    onDestinationSelected: (index) async {
-                                      final currentIndex = _getSelectedIndex(
-                                          state.currentScreen);
-                                      if (index == currentIndex &&
-                                          index != Screen.search.index &&
-                                          index != Screen.find.index) {
-                                        await _syncPageWithState();
-                                        return;
-                                      }
-                                      _onNavTap(
-                                          context, index, state.currentScreen);
-                                    },
                                   ),
+                                  const VerticalDivider(thickness: 1, width: 1),
+                                  Expanded(child: pageView),
                                 ],
                               );
-                            },
-                          ),
+                            }
+
+                            // ── Mobile: NavigationBar ─────────────────
+                            return Column(
+                              children: [
+                                Expanded(child: pageView),
+                                NavigationBar(
+                                  backgroundColor:
+                                      AppSurfaces.panelBackground(context),
+                                  surfaceTintColor: Colors.transparent,
+                                  destinations: _buildNavigationDestinations(),
+                                  selectedIndex:
+                                      _getSelectedIndex(state.currentScreen),
+                                  onDestinationSelected: (index) async {
+                                    final currentIndex =
+                                        _getSelectedIndex(state.currentScreen);
+                                    if (index == currentIndex &&
+                                        index != Screen.search.index &&
+                                        index != Screen.find.index) {
+                                      await _syncPageWithState();
+                                      return;
+                                    }
+                                    _onNavTap(
+                                        context, index, state.currentScreen);
+                                  },
+                                ),
+                              ],
+                            );
+                          },
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
+              ),
             );
           },
         ),
