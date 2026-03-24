@@ -41,11 +41,4 @@ class AppColors {
   // ── Dialogs ────────────────────────────────────────────────────────────
   /// צבע מחסום הדיאלוג (barrier) — חצי שקוף
   static const Color dialogBarrier = Color(0x52000000);
-
-  // ── Menus ──────────────────────────────────────────────────────────────
-  /// רקע תפריטים בהיר בסגנון Chrome — ניטרלי ועדין
-  static const Color menuLightBackground = Color(0xFFF8F9FA);
-
-  /// רקע תפריטים כהה בסגנון Chrome — ניטרלי ולא כבד
-  static const Color menuDarkBackground = Color(0xFF2B2D30);
 }
