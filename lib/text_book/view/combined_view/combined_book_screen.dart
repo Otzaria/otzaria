@@ -583,8 +583,7 @@ class _CombinedViewState extends State<CombinedView> {
       );
     }
 
-    final combinedHtml =
-        finalText.split('\n\n').map(_formatTextAsHtml).join('<br><br>');
+    final combinedHtml = finalText.split('\n\n').map(_formatTextAsHtml).join();
 
     final item = DataWriterItem();
     item.add(Formats.plainText(finalText));
@@ -597,12 +596,11 @@ class _CombinedViewState extends State<CombinedView> {
   String _formatTextAsHtml(String text) {
     final settingsState = context.read<SettingsBloc>().state;
     // ממיר \n ל-<br> ב-HTML
-    final textWithBreaks = text.replaceAll('\n', '<br>');
-    return '''
-<div style="font-family: ${settingsState.fontFamily}; font-size: ${widget.textSize}px; text-align: justify; direction: rtl;">
-$textWithBreaks
-</div>
-''';
+    return CopyUtils.buildStyledHtml(
+      htmlText: text,
+      fontFamily: settingsState.fontFamily,
+      fontSize: widget.textSize,
+    );
   }
 
   /// העתקת טקסט מעוצב (HTML) ללוח
