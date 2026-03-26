@@ -35,11 +35,14 @@ class OtzarBookDialog extends StatelessWidget {
                 color: Theme.of(context).dialogTheme.backgroundColor ??
                     Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(20),
-                boxShadow: const [
+                boxShadow: [
                   BoxShadow(
-                    color: Colors.black26,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .shadow
+                        .withValues(alpha: 0.26),
                     blurRadius: 10.0,
-                    offset: Offset(0.0, 10.0),
+                    offset: const Offset(0.0, 10.0),
                   ),
                 ],
               ),
