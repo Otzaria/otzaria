@@ -4,7 +4,7 @@ import 'package:kosher_dart/kosher_dart.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_state.dart';
 import 'package:otzaria/tools/calendar/models/calendar_event.dart';
-import 'package:otzaria/tools/calendar/view/widgets/calendar_date_formatters.dart';
+import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/app_menu.dart';
 import 'package:otzaria/widgets/buttons/action_buttons.dart';

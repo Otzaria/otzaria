@@ -4,8 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/widgets/otzaria_search_field.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
-import 'package:otzaria/tools/calendar/view/panels/logic/calendar_events_panel_logic.dart';
-import 'package:otzaria/tools/calendar/view/widgets/calendar_date_formatters.dart';
+import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 import 'package:otzaria/widgets/buttons/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 
@@ -27,6 +26,33 @@ class CalendarEventsPanel extends StatefulWidget {
 
 class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
   final TextEditingController _searchController = TextEditingController();
+
+  List<CustomEvent> _resolveVisibleCalendarEvents(
+    CalendarState state,
+    CalendarCubit cubit,
+  ) {
+    if (state.eventSearchQuery.isNotEmpty) {
+      return cubit.getFilteredEvents(state.eventSearchQuery);
+    }
+
+    if (state.showAllEvents) {
+      final events = List<CustomEvent>.from(state.events);
+      events.sort((a, b) => a.baseGregorianDate.compareTo(b.baseGregorianDate));
+      return events;
+    }
+
+    return cubit.eventsForDate(state.selectedGregorianDate);
+  }
+
+  String _resolveEmptyEventsMessage(CalendarState state) {
+    if (state.eventSearchQuery.isNotEmpty) {
+      return 'לא נמצאו אירועים מתאימים';
+    }
+    if (state.showAllEvents) {
+      return 'אין אירועים במערכת';
+    }
+    return 'אין אירועים ביום זה';
+  }
 
   @override
   void initState() {
@@ -133,10 +159,10 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
 
   Widget _buildEventsList(BuildContext context) {
     final cubit = context.read<CalendarCubit>();
-    final events = resolveVisibleCalendarEvents(widget.state, cubit);
+    final events = _resolveVisibleCalendarEvents(widget.state, cubit);
 
     if (events.isEmpty) {
-      return Center(child: Text(resolveEmptyEventsMessage(widget.state)));
+      return Center(child: Text(_resolveEmptyEventsMessage(widget.state)));
     }
 
     final scheme = Theme.of(context).colorScheme;

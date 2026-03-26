@@ -1,4 +1,4 @@
-// lib/tools/calendar/view/widgets/calendar_top_bar.dart
+// lib/tools/calendar/widgets/calendar_top_bar.dart
 //
 // סרגל עליון מחודש ללוח השנה — מבוסס AppTopBar.
 //
@@ -13,11 +13,12 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
-import 'package:otzaria/tools/calendar/view/panels/calendar_side_panel.dart';
-import 'package:otzaria/tools/calendar/view/widgets/calendar_date_formatters.dart';
+import 'package:otzaria/tools/calendar/widgets/calendar_side_panel.dart';
+import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 import 'package:otzaria/widgets/app_menu.dart';
 import 'package:otzaria/widgets/app_top_bar.dart';
 import 'package:otzaria/widgets/buttons/action_buttons.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
 
 class CalendarTopBar extends StatefulWidget {
@@ -316,8 +317,7 @@ class _JumpToDatePopoverState extends State<_JumpToDatePopover> {
     final input = _controller.text.trim();
     final result = input.isEmpty ? _selectedDate : widget.parseInputDate(input);
     if (result == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('לא הצלחנו לפרש את התאריך.')));
+      UiSnack.showError('לא הצלחנו לפרש את התאריך.');
       return;
     }
     widget.onDateSelected(result);

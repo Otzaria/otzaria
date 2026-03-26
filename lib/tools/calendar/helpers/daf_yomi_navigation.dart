@@ -26,7 +26,8 @@ Future<T?> findEntryInTree<T>(
   final entries = await rootEntries;
   for (var entry in entries) {
     if (getText(entry).contains(daf)) return entry;
-    final T? result = await findEntryInTree(getChildren(entry), daf, getText, getChildren);
+    final T? result =
+        await findEntryInTree(getChildren(entry), daf, getText, getChildren);
     if (result != null) return result;
   }
   return null;
@@ -104,8 +105,10 @@ void _openDafYomiBookInCategory(
   if (book != null) {
     await _openBook(context, book, daf);
   } else {
-    final availableBooks = allBooksInCategory.map((b) => b.title).take(5).join(', ');
-    UiSnack.showError('לא נמצא ספר: $tractate ב$categoryName\nספרים זמינים: $availableBooks...');
+    final availableBooks =
+        allBooksInCategory.map((b) => b.title).take(5).join(', ');
+    UiSnack.showError(
+        'לא נמצא ספר: $tractate ב$categoryName\nספרים זמינים: $availableBooks...');
   }
 }
 
@@ -176,12 +179,14 @@ Future<List<PdfOutlineNode>> _loadOutlineFromFile(PdfBook book) async {
 }
 
 /// פותח ספר PDF לפי שם וסימן
-Future<void> openPdfBookFromRef(String bookname, String ref, BuildContext context) async {
+Future<void> openPdfBookFromRef(
+    String bookname, String ref, BuildContext context) async {
   await _openBookFromRefHelper(bookname, ref, context, PdfBook);
 }
 
 /// פותח ספר טקסט לפי שם וסימן
-Future<void> openTextBookFromRef(String bookname, String ref, BuildContext context) async {
+Future<void> openTextBookFromRef(
+    String bookname, String ref, BuildContext context) async {
   await _openBookFromRefHelper(bookname, ref, context, TextBook);
 }
 

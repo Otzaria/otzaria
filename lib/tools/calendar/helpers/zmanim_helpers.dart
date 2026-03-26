@@ -1,5 +1,5 @@
 import 'package:kosher_dart/kosher_dart.dart';
-import 'package:otzaria/tools/calendar/models/city_coordinates.dart';
+import 'package:otzaria/tools/calendar/models/calendar_location.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 /// מחשב את כל הזמנים ההלכתיים ליום נתון ועיר נתונה
@@ -30,18 +30,28 @@ Map<String, String> calculateDailyTimes(DateTime date, String city) {
 
   final Map<String, String> times = {
     'alos': formatZmanTime(zmanimCalendar.getAlosHashachar()!, tzLocation),
-    'alos16point1Degrees': formatZmanTime(zmanimCalendar.getAlos16Point1Degrees()!, tzLocation),
-    'alos19point8Degrees': formatZmanTime(zmanimCalendar.getAlos19Point8Degrees()!, tzLocation),
+    'alos16point1Degrees':
+        formatZmanTime(zmanimCalendar.getAlos16Point1Degrees()!, tzLocation),
+    'alos19point8Degrees':
+        formatZmanTime(zmanimCalendar.getAlos19Point8Degrees()!, tzLocation),
     'sunrise': formatZmanTime(zmanimCalendar.getSunrise()!, tzLocation),
-    'sofZmanShmaMGA': formatZmanTime(zmanimCalendar.getSofZmanShmaMGA()!, tzLocation),
-    'sofZmanShmaGRA': formatZmanTime(zmanimCalendar.getSofZmanShmaGRA()!, tzLocation),
-    'sofZmanTfilaMGA': formatZmanTime(zmanimCalendar.getSofZmanTfilaMGA()!, tzLocation),
-    'sofZmanTfilaGRA': formatZmanTime(zmanimCalendar.getSofZmanTfilaGRA()!, tzLocation),
+    'sofZmanShmaMGA':
+        formatZmanTime(zmanimCalendar.getSofZmanShmaMGA()!, tzLocation),
+    'sofZmanShmaGRA':
+        formatZmanTime(zmanimCalendar.getSofZmanShmaGRA()!, tzLocation),
+    'sofZmanTfilaMGA':
+        formatZmanTime(zmanimCalendar.getSofZmanTfilaMGA()!, tzLocation),
+    'sofZmanTfilaGRA':
+        formatZmanTime(zmanimCalendar.getSofZmanTfilaGRA()!, tzLocation),
     'chatzos': formatZmanTime(zmanimCalendar.getChatzos()!, tzLocation),
-    'chatzosLayla': formatZmanTime(_calculateChatzosLayla(zmanimCalendar), tzLocation),
-    'minchaGedola': formatZmanTime(zmanimCalendar.getMinchaGedola()!, tzLocation),
-    'minchaKetana': formatZmanTime(zmanimCalendar.getMinchaKetana()!, tzLocation),
-    'plagHamincha': formatZmanTime(zmanimCalendar.getPlagHamincha()!, tzLocation),
+    'chatzosLayla':
+        formatZmanTime(_calculateChatzosLayla(zmanimCalendar), tzLocation),
+    'minchaGedola':
+        formatZmanTime(zmanimCalendar.getMinchaGedola()!, tzLocation),
+    'minchaKetana':
+        formatZmanTime(zmanimCalendar.getMinchaKetana()!, tzLocation),
+    'plagHamincha':
+        formatZmanTime(zmanimCalendar.getPlagHamincha()!, tzLocation),
     'sunset': formatZmanTime(zmanimCalendar.getSunset()!, tzLocation),
     'sunsetRT': formatZmanTime(_calculateSunsetRT(zmanimCalendar), tzLocation),
     'tzais': formatZmanTime(zmanimCalendar.getTzais()!, tzLocation),
@@ -78,21 +88,28 @@ void _addSpecialTimes(
   tz.Location tzLocation,
 ) {
   if (jewishCalendar.getYomTovIndex() == JewishCalendar.EREV_PESACH) {
-    final sofZmanAchilasChametzMGA = zmanimCalendar.getSofZmanAchilasChametzMGA72Minutes();
+    final sofZmanAchilasChametzMGA =
+        zmanimCalendar.getSofZmanAchilasChametzMGA72Minutes();
     if (sofZmanAchilasChametzMGA != null) {
-      times['sofZmanAchilasChametzMGA'] = formatZmanTime(sofZmanAchilasChametzMGA, tzLocation);
+      times['sofZmanAchilasChametzMGA'] =
+          formatZmanTime(sofZmanAchilasChametzMGA, tzLocation);
     }
-    final sofZmanAchilasChametzGRA = zmanimCalendar.getSofZmanAchilasChametzGRA();
+    final sofZmanAchilasChametzGRA =
+        zmanimCalendar.getSofZmanAchilasChametzGRA();
     if (sofZmanAchilasChametzGRA != null) {
-      times['sofZmanAchilasChametzGRA'] = formatZmanTime(sofZmanAchilasChametzGRA, tzLocation);
+      times['sofZmanAchilasChametzGRA'] =
+          formatZmanTime(sofZmanAchilasChametzGRA, tzLocation);
     }
-    final sofZmanBiurChametzMGA = zmanimCalendar.getSofZmanBiurChametzMGA72Minutes();
+    final sofZmanBiurChametzMGA =
+        zmanimCalendar.getSofZmanBiurChametzMGA72Minutes();
     if (sofZmanBiurChametzMGA != null) {
-      times['sofZmanBiurChametzMGA'] = formatZmanTime(sofZmanBiurChametzMGA, tzLocation);
+      times['sofZmanBiurChametzMGA'] =
+          formatZmanTime(sofZmanBiurChametzMGA, tzLocation);
     }
     final sofZmanBiurChametzGRA = zmanimCalendar.getSofZmanBiurChametzGRA();
     if (sofZmanBiurChametzGRA != null) {
-      times['sofZmanBiurChametzGRA'] = formatZmanTime(sofZmanBiurChametzGRA, tzLocation);
+      times['sofZmanBiurChametzGRA'] =
+          formatZmanTime(sofZmanBiurChametzGRA, tzLocation);
     }
   }
 
@@ -106,8 +123,12 @@ void _addSpecialTimes(
   if (jewishCalendar.getDayOfWeek() == 7 || jewishCalendar.isYomTov()) {
     final shabbosExitTime1 = _calculateShabbosExitTime1(zmanimCalendar);
     final shabbosExitTime2 = _calculateShabbosExitTime2(zmanimCalendar);
-    if (shabbosExitTime1 != null) times['shabbosExit1'] = formatZmanTime(shabbosExitTime1, tzLocation);
-    if (shabbosExitTime2 != null) times['shabbosExit2'] = formatZmanTime(shabbosExitTime2, tzLocation);
+    if (shabbosExitTime1 != null) {
+      times['shabbosExit1'] = formatZmanTime(shabbosExitTime1, tzLocation);
+    }
+    if (shabbosExitTime2 != null) {
+      times['shabbosExit2'] = formatZmanTime(shabbosExitTime2, tzLocation);
+    }
   }
 
   if (jewishCalendar.getDayOfOmer() != -1) {
@@ -117,35 +138,50 @@ void _addSpecialTimes(
     }
   }
 
-  if (jewishCalendar.isTaanis() && jewishCalendar.getYomTovIndex() != JewishCalendar.YOM_KIPPUR) {
+  if (jewishCalendar.isTaanis() &&
+      jewishCalendar.getYomTovIndex() != JewishCalendar.YOM_KIPPUR) {
     final fastStart = zmanimCalendar.getAlosHashachar();
     final fastEnd = zmanimCalendar.getTzais();
-    if (fastStart != null) times['fastStart'] = formatZmanTime(fastStart, tzLocation);
-    if (fastEnd != null) times['fastEnd'] = formatZmanTime(fastEnd, tzLocation);
+    if (fastStart != null) {
+      times['fastStart'] = formatZmanTime(fastStart, tzLocation);
+    }
+    if (fastEnd != null) {
+      times['fastEnd'] = formatZmanTime(fastEnd, tzLocation);
+    }
   }
 
   if (_isKidushLevanaTime(jewishCalendar)) {
-    final earliest = _calculateKidushLevanaEarliest(jewishCalendar, zmanimCalendar);
+    final earliest =
+        _calculateKidushLevanaEarliest(jewishCalendar, zmanimCalendar);
     final latest = _calculateKidushLevanaLatest(jewishCalendar, zmanimCalendar);
-    if (earliest != null) times['kidushLevanaEarliest'] = formatZmanTime(earliest, tzLocation);
-    if (latest != null) times['kidushLevanaLatest'] = formatZmanTime(latest, tzLocation);
+    if (earliest != null) {
+      times['kidushLevanaEarliest'] = formatZmanTime(earliest, tzLocation);
+    }
+    if (latest != null) {
+      times['kidushLevanaLatest'] = formatZmanTime(latest, tzLocation);
+    }
   }
 
   try {
-    final tchilasKidushLevana = zmanimCalendar.getTchilasZmanKidushLevana3Days();
-    final sofZmanKidushLevana = zmanimCalendar.getSofZmanKidushLevanaBetweenMoldos();
+    final tchilasKidushLevana =
+        zmanimCalendar.getTchilasZmanKidushLevana3Days();
+    final sofZmanKidushLevana =
+        zmanimCalendar.getSofZmanKidushLevanaBetweenMoldos();
     if (tchilasKidushLevana != null) {
-      times['tchilasKidushLevana'] = formatZmanTime(tchilasKidushLevana, tzLocation);
+      times['tchilasKidushLevana'] =
+          formatZmanTime(tchilasKidushLevana, tzLocation);
     }
     if (sofZmanKidushLevana != null) {
-      times['sofZmanKidushLevana'] = formatZmanTime(sofZmanKidushLevana, tzLocation);
+      times['sofZmanKidushLevana'] =
+          formatZmanTime(sofZmanKidushLevana, tzLocation);
     }
   } catch (e) {
     // Ignore errors for certain dates
   }
 }
 
-DateTime? _calculateCandleLightingTime(ComplexZmanimCalendar zmanimCalendar, String city) {
+DateTime? _calculateCandleLightingTime(
+    ComplexZmanimCalendar zmanimCalendar, String city) {
   final sunset = zmanimCalendar.getSunset();
   if (sunset == null) return null;
   int minutesBefore;
@@ -183,12 +219,18 @@ bool _isKidushLevanaTime(JewishCalendar jewishCalendar) {
   return dayOfMonth >= 3 && dayOfMonth <= 15;
 }
 
-DateTime? _calculateKidushLevanaEarliest(JewishCalendar jewishCalendar, ComplexZmanimCalendar zmanimCalendar) {
-  if (jewishCalendar.getJewishDayOfMonth() == 3) return zmanimCalendar.getTzais();
+DateTime? _calculateKidushLevanaEarliest(
+    JewishCalendar jewishCalendar, ComplexZmanimCalendar zmanimCalendar) {
+  if (jewishCalendar.getJewishDayOfMonth() == 3) {
+    return zmanimCalendar.getTzais();
+  }
   return null;
 }
 
-DateTime? _calculateKidushLevanaLatest(JewishCalendar jewishCalendar, ComplexZmanimCalendar zmanimCalendar) {
-  if (jewishCalendar.getJewishDayOfMonth() == 15) return zmanimCalendar.getAlosHashachar();
+DateTime? _calculateKidushLevanaLatest(
+    JewishCalendar jewishCalendar, ComplexZmanimCalendar zmanimCalendar) {
+  if (jewishCalendar.getJewishDayOfMonth() == 15) {
+    return zmanimCalendar.getAlosHashachar();
+  }
   return null;
 }

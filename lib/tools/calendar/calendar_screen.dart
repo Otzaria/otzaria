@@ -1,4 +1,4 @@
-// lib/tools/calendar/view/calendar_screen.dart
+// lib/tools/calendar/calendar_screen.dart
 //
 // **שינויים:**
 // • CalendarTopBar עבר מ-appBar ל-body Column (כמו LibraryBrowser)
@@ -21,18 +21,18 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/floating_panel.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
-import 'package:otzaria/tools/calendar/view/widgets/calendar_event_dialog.dart';
-import 'package:otzaria/tools/calendar/view/widgets/calendar_print_dialog.dart';
-import 'package:otzaria/tools/calendar/utils/calendar_date_parser.dart';
-import 'package:otzaria/tools/calendar/utils/calendar_month_navigation.dart';
-import 'package:otzaria/tools/calendar/view/widgets/jump_to_date_dialog.dart';
-import 'package:otzaria/tools/calendar/view/panels/calendar_side_panel.dart';
-import 'package:otzaria/tools/calendar/view/panels/widgets/calendar_events_panel.dart';
-import 'package:otzaria/tools/calendar/view/panels/widgets/calendar_settings_panel.dart';
-import 'package:otzaria/tools/calendar/view/panels/widgets/calendar_times_panel.dart';
-import 'package:otzaria/tools/calendar/view/widgets/calendar_main_panel.dart';
-import 'package:otzaria/tools/calendar/view/widgets/calendar_top_bar.dart';
-import 'package:otzaria/tools/calendar/view/calendar_print_helper.dart'
+import 'package:otzaria/tools/calendar/dialogs/calendar_event_dialog.dart';
+import 'package:otzaria/tools/calendar/dialogs/calendar_print_dialog.dart';
+import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
+import 'package:otzaria/tools/calendar/helpers/calendar_navigation_helpers.dart';
+import 'package:otzaria/tools/calendar/dialogs/jump_to_date_dialog.dart';
+import 'package:otzaria/tools/calendar/widgets/calendar_side_panel.dart';
+import 'package:otzaria/tools/calendar/widgets/calendar_events_panel.dart';
+import 'package:otzaria/tools/calendar/widgets/calendar_settings_panel.dart';
+import 'package:otzaria/tools/calendar/widgets/calendar_times_panel.dart';
+import 'package:otzaria/tools/calendar/widgets/calendar_main_panel.dart';
+import 'package:otzaria/tools/calendar/widgets/calendar_top_bar.dart';
+import 'package:otzaria/tools/calendar/helpers/calendar_print_helpers.dart'
     as print_helper;
 
 export 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';

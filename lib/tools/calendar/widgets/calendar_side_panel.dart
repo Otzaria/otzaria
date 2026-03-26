@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_state.dart';
-import 'package:otzaria/tools/calendar/view/panels/widgets/calendar_events_panel.dart';
-import 'package:otzaria/tools/calendar/view/panels/widgets/calendar_settings_panel.dart';
-import 'package:otzaria/tools/calendar/view/panels/widgets/calendar_times_panel.dart';
+import 'package:otzaria/tools/calendar/widgets/calendar_events_panel.dart';
+import 'package:otzaria/tools/calendar/widgets/calendar_settings_panel.dart';
+import 'package:otzaria/tools/calendar/widgets/calendar_times_panel.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 
 enum CalendarSidePanelView { times, events, settings }

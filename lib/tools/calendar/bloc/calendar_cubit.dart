@@ -9,12 +9,12 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_state.dart';
 import 'package:otzaria/tools/calendar/models/calendar_event.dart';
-import 'package:otzaria/tools/calendar/models/city_coordinates.dart';
+import 'package:otzaria/tools/calendar/models/calendar_location.dart';
 import 'package:otzaria/tools/calendar/models/google_calendar_info.dart';
 import 'package:otzaria/tools/calendar/services/google_calendar_service.dart';
 import 'package:otzaria/tools/calendar/services/notification_service.dart';
-import 'package:otzaria/tools/calendar/utils/calendar_month_navigation.dart';
-import 'package:otzaria/tools/calendar/utils/zmanim_calculator.dart';
+import 'package:otzaria/tools/calendar/helpers/calendar_navigation_helpers.dart';
+import 'package:otzaria/tools/calendar/helpers/zmanim_helpers.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 export 'package:otzaria/tools/calendar/bloc/calendar_state.dart';

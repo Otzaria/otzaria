@@ -3,7 +3,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:kosher_dart/kosher_dart.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_state.dart';
-import 'package:otzaria/tools/calendar/view/widgets/calendar_date_formatters.dart';
+import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 
 /// מחזיר צבע רקע עדין לשבתות, מועדים ותעניות
 Color? getDayBackgroundColor(

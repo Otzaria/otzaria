@@ -5,12 +5,25 @@ import 'package:kosher_dart/kosher_dart.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
-import 'package:otzaria/tools/calendar/models/city_coordinates.dart';
-import 'package:otzaria/tools/calendar/utils/daf_yomi_navigator.dart';
-import 'package:otzaria/tools/calendar/view/panels/logic/calendar_times_panel_logic.dart';
-import 'package:otzaria/tools/calendar/view/widgets/calendar_zman_alert_dialog.dart';
+import 'package:otzaria/tools/calendar/models/calendar_location.dart';
+import 'package:otzaria/tools/calendar/helpers/daf_yomi_navigation.dart';
+import 'package:otzaria/tools/calendar/dialogs/calendar_zman_alert_dialog.dart';
 import 'package:otzaria/widgets/app_menu.dart';
 import 'package:otzaria/widgets/buttons/action_buttons.dart';
+
+class CalendarTimeEntry {
+  final String id;
+  final String name;
+  final String time;
+  final bool isSpecial;
+
+  const CalendarTimeEntry({
+    required this.id,
+    required this.name,
+    required this.time,
+    required this.isSpecial,
+  });
+}
 
 /// פאנל זמני היום.
 class CalendarTimesPanel extends StatefulWidget {
@@ -31,12 +44,120 @@ class CalendarTimesPanel extends StatefulWidget {
 class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
   late final List<String> _cityNames;
 
+  List<CalendarTimeEntry> _buildCalendarTimeEntries(CalendarState state) {
+    final dailyTimes = state.dailyTimes;
+    final entries = <CalendarTimeEntry>[
+      CalendarTimeEntry(
+        id: 'alos',
+        name: 'עלות השחר',
+        time: dailyTimes['alos'] ?? '',
+        isSpecial: _isSpecialTimeName('עלות השחר'),
+      ),
+      CalendarTimeEntry(
+        id: 'alos16point1Degrees',
+        name: "עלוה\"ש (72 דק') במע'",
+        time: dailyTimes['alos16point1Degrees'] ?? '',
+        isSpecial: _isSpecialTimeName("עלוה\"ש (72 דק') במע'"),
+      ),
+      CalendarTimeEntry(
+        id: 'alos19point8Degrees',
+        name: "עלוה\"ש (90 דק') במע'",
+        time: dailyTimes['alos19point8Degrees'] ?? '',
+        isSpecial: _isSpecialTimeName("עלוה\"ש (90 דק') במע'"),
+      ),
+      CalendarTimeEntry(
+        id: 'sunrise',
+        name: 'זריחה',
+        time: dailyTimes['sunrise'] ?? '',
+        isSpecial: _isSpecialTimeName('זריחה'),
+      ),
+      CalendarTimeEntry(
+        id: 'sofZmanShmaMGA',
+        name: 'סוף זמן ק"ש - מג"א',
+        time: dailyTimes['sofZmanShmaMGA'] ?? '',
+        isSpecial: _isSpecialTimeName('סוף זמן ק"ש - מג"א'),
+      ),
+      CalendarTimeEntry(
+        id: 'sofZmanTfilaMGA',
+        name: 'סוף זמן תפילה - מג"א',
+        time: dailyTimes['sofZmanTfilaMGA'] ?? '',
+        isSpecial: _isSpecialTimeName('סוף זמן תפילה - מג"א'),
+      ),
+      CalendarTimeEntry(
+        id: 'chatzos',
+        name: 'חצות היום',
+        time: dailyTimes['chatzos'] ?? '',
+        isSpecial: _isSpecialTimeName('חצות היום'),
+      ),
+      CalendarTimeEntry(
+        id: 'minchaGedola',
+        name: 'מנחה גדולה',
+        time: dailyTimes['minchaGedola'] ?? '',
+        isSpecial: _isSpecialTimeName('מנחה גדולה'),
+      ),
+      CalendarTimeEntry(
+        id: 'minchaKetana',
+        name: 'מנחה קטנה',
+        time: dailyTimes['minchaKetana'] ?? '',
+        isSpecial: _isSpecialTimeName('מנחה קטנה'),
+      ),
+      CalendarTimeEntry(
+        id: 'plagHaMincha',
+        name: 'פלג המנחה',
+        time: dailyTimes['plagHaMincha'] ?? '',
+        isSpecial: _isSpecialTimeName('פלג המנחה'),
+      ),
+      CalendarTimeEntry(
+        id: 'sunset',
+        name: 'שקיעה',
+        time: dailyTimes['sunset'] ?? '',
+        isSpecial: _isSpecialTimeName('שקיעה'),
+      ),
+      CalendarTimeEntry(
+        id: 'tzeis',
+        name: 'צאת הכוכבים',
+        time: dailyTimes['tzeis'] ?? '',
+        isSpecial: _isSpecialTimeName('צאת הכוכבים'),
+      ),
+    ];
+
+    final jewishCalendar = JewishCalendar.fromDateTime(
+      state.selectedGregorianDate,
+    );
+    if (jewishCalendar.isChanukah()) {
+      final candleLighting = dailyTimes['candleLighting'];
+      if (candleLighting != null && candleLighting.isNotEmpty) {
+        entries.add(
+          CalendarTimeEntry(
+            id: 'candleLighting',
+            name: 'הדלקת נרות',
+            time: candleLighting,
+            isSpecial: _isSpecialTimeName('הדלקת נרות'),
+          ),
+        );
+      }
+    }
+
+    return entries.where((entry) => entry.time.isNotEmpty).toList();
+  }
+
+  bool _isSpecialTimeName(String timeName) {
+    return timeName.contains('חמץ') ||
+        timeName.contains('הדלקת נרות') ||
+        timeName.contains('יציאת') ||
+        timeName.contains('צאת השבת') ||
+        timeName.contains('ספירת העומר') ||
+        timeName.contains('תענית') ||
+        timeName.contains('חנוכה') ||
+        timeName.contains('קידוש לבנה') ||
+        timeName.contains('עלוה"ש') ||
+        timeName.contains('עלות השחר');
+  }
+
   @override
   void initState() {
     super.initState();
-    _cityNames = cityCoordinates.values
-        .expand((cities) => cities.keys)
-        .toList()
+    _cityNames = cityCoordinates.values.expand((cities) => cities.keys).toList()
       ..sort();
   }
 
@@ -66,7 +187,8 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: theme.colorScheme.primaryContainer.withValues(alpha: 0.45),
+                color:
+                    theme.colorScheme.primaryContainer.withValues(alpha: 0.45),
                 borderRadius: BorderRadius.circular(AppTokens.radiusMD),
                 border: Border.all(
                   color: theme.colorScheme.primary.withValues(alpha: 0.35),
@@ -128,7 +250,7 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
   }
 
   Widget _buildTimesGrid(BuildContext context) {
-    final filteredTimesList = buildCalendarTimeEntries(widget.state);
+    final filteredTimesList = _buildCalendarTimeEntries(widget.state);
 
     return Wrap(
       spacing: 8,
