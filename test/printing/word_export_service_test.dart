@@ -88,6 +88,8 @@ void main() {
       expect(documentXml, contains('<w:footnoteReference w:id="2"/>'));
       expect(documentXml, contains('w:orient="landscape"'));
       expect(documentXml, contains('<w:bidi/>'));
+      expect(documentXml, contains('<w:jc w:val="both"/>'));
+      expect(documentXml, contains('<w:jc w:val="right"/>'));
       expect(documentXml, contains('<w:rPr><w:rtl/></w:rPr>'));
       expect(stylesXml, contains('w:bidi'));
       expect(stylesXml, contains('Footnote Text'));

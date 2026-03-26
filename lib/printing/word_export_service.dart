@@ -149,6 +149,7 @@ class WordExportService {
 <w:p>
   <w:pPr>
     <w:pStyle w:val="$styleId"/>
+    ${_paragraphPropertiesXml(styleId)}
   </w:pPr>
 </w:p>''';
     }
@@ -157,6 +158,7 @@ class WordExportService {
 <w:p>
   <w:pPr>
     <w:pStyle w:val="$styleId"/>
+    ${_paragraphPropertiesXml(styleId)}
   </w:pPr>''');
 
     final parts = text.split('\n');
@@ -187,6 +189,16 @@ class WordExportService {
 
     buffer.write('</w:p>');
     return buffer.toString();
+  }
+
+  static String _paragraphPropertiesXml(String styleId) {
+    final jc = switch (styleId) {
+      'Title' || 'Header' || 'Footer' => 'center',
+      'BodyRtl' || 'CommentaryBody' => 'both',
+      _ => 'right',
+    };
+
+    return '<w:bidi/><w:jc w:val="$jc"/>';
   }
 
   static String _buildFootnotesXml(List<_WordFootnote> footnotes) {

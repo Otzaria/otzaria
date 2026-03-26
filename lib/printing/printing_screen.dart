@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:math';
@@ -7,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/navigation/custom_title_bar.dart';
@@ -15,7 +17,10 @@ import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart
 import 'package:otzaria/pdf_book/pdf_page_number_dispaly.dart';
 import 'package:otzaria/pdf_book/pdf_thumbnails_screen.dart';
 import 'package:otzaria/pdf_book/pdf_scrollbar.dart';
+import 'package:otzaria/printing/print_content_models.dart';
+import 'package:otzaria/printing/word_export_service.dart';
 import 'package:otzaria/utils/text_manipulation.dart';
+import 'package:otzaria/widgets/custom_ui_components.dart';
 import 'package:otzaria/widgets/dialogs.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:printing/printing.dart';
@@ -83,6 +88,8 @@ class _PrintingScreenState extends State<PrintingScreen> {
   // הגדרות ניקוד וטעמים - ברירת מחדל לפי תצוגת הספר
   late bool _removeNikud;
   late bool _removeTaamim;
+  static const _defaultWordExtension = 'docx';
+  static const _pdfExtension = 'pdf';
 
   @override
   void initState() {
@@ -542,7 +549,9 @@ class _PrintingScreenState extends State<PrintingScreen> {
         if (notes.isNotEmpty) {
           blocks.add({'kind': 'noteTitle', 'title': 'הערות אישיות'});
           for (final note in notes) {
-            var noteText = note.content;
+            var noteText = note.contentPlain.trim().isNotEmpty
+                ? note.contentPlain
+                : _normalizeLegacyNoteText(note.content);
             if (shouldReplaceHolyNames) {
               noteText = replaceHolyNames(noteText);
             }
@@ -553,6 +562,287 @@ class _PrintingScreenState extends State<PrintingScreen> {
     }
 
     return blocks;
+  }
+
+  Future<PreparedPrintDocument> _prepareWordDocument() async {
+    String dataString = await widget.data;
+
+    if (_removeNikud && _removeTaamim) {
+      dataString = removeVolwels(dataString);
+    } else if (_removeNikud && !_removeTaamim) {
+      dataString = dataString
+          .replaceAll('ײ¾', ' ')
+          .replaceAll('׳€', ' ')
+          .replaceAll('|', ' ')
+          .replaceAll(RegExp(r'[\u05B0-\u05C7]'), '');
+    } else if (!_removeNikud && _removeTaamim) {
+      dataString = removeTeamim(dataString);
+    }
+
+    final shouldReplaceHolyNames =
+        Settings.getValue<bool>('key-replace-holy-names') ?? true;
+    if (shouldReplaceHolyNames) {
+      dataString = replaceHolyNames(dataString);
+    }
+
+    final allLines = stripHtmlIfNeeded(dataString).split('\n').toList();
+    var bookName = allLines.isNotEmpty ? allLines.first : widget.bookId;
+    if (bookName.trim().isEmpty) {
+      bookName = widget.bookId;
+    }
+
+    final selectedStart = startLine.clamp(0, allLines.length);
+    final selectedEnd = endLine.clamp(selectedStart, allLines.length);
+    final personalNotes = _includePersonalNotes
+        ? await _getPersonalNotesForBook(widget.bookId)
+        : const <PersonalNote>[];
+
+    final legacyBlocks = _foldPersonalNoteBlocks(
+      await _buildPrintBlocks(
+        allLines: allLines,
+        selectedStart: selectedStart,
+        selectedEnd: selectedEnd,
+        shouldReplaceHolyNames: shouldReplaceHolyNames,
+        personalNotes: personalNotes,
+      ),
+    );
+
+    return PreparedPrintDocument(
+      bookName: bookName,
+      blocks: legacyBlocks.map(_mapPrintBlock).toList(growable: false),
+    );
+  }
+
+  PrintBlock _mapPrintBlock(Map<String, String> block) {
+    final kindName = block['kind'] ?? 'text';
+    final kind = switch (kindName) {
+      'commentaryTitle' => PrintBlockKind.commentaryTitle,
+      'commentaryGroupTitle' => PrintBlockKind.commentaryGroupTitle,
+      'commentary' => PrintBlockKind.commentary,
+      'heading' => PrintBlockKind.heading,
+      _ => PrintBlockKind.text,
+    };
+
+    return PrintBlock(
+      kind: kind,
+      text: block['text'] ?? block['title'] ?? '',
+      headingLevel: int.tryParse(block['headingLevel'] ?? ''),
+      footnotes: (block['footnotes'] ?? '')
+          .split('\u241E')
+          .where((item) => item.isNotEmpty)
+          .map((item) => PrintFootnote(text: item))
+          .toList(growable: false),
+    );
+  }
+
+  List<Map<String, String>> _foldPersonalNoteBlocks(
+    List<Map<String, String>> blocks,
+  ) {
+    final folded = <Map<String, String>>[];
+    Map<String, String>? currentTarget;
+
+    for (final block in blocks) {
+      final kind = block['kind'];
+      if (kind == 'text' || kind == 'heading') {
+        final copy = Map<String, String>.from(block);
+        folded.add(copy);
+        currentTarget = copy;
+        continue;
+      }
+
+      if (kind == 'noteTitle') {
+        continue;
+      }
+
+      if (kind == 'note' && currentTarget != null) {
+        final normalized = _normalizeLegacyNoteText(block['text'] ?? '');
+        if (normalized.isNotEmpty) {
+          final existing = currentTarget['footnotes'];
+          final combined = <String>[
+            if (existing != null && existing.isNotEmpty)
+              ...existing.split('\u241E').where((item) => item.isNotEmpty),
+            normalized,
+          ];
+          currentTarget['footnotes'] = combined.join('\u241E');
+        }
+        continue;
+      }
+
+      folded.add(Map<String, String>.from(block));
+    }
+
+    return folded;
+  }
+
+  String _normalizeLegacyNoteText(String rawText) {
+    final trimmed = rawText.trim();
+    if (trimmed.isEmpty) return '';
+
+    if (!trimmed.startsWith('[')) {
+      return trimmed;
+    }
+
+    try {
+      final decoded = jsonDecode(trimmed);
+      if (decoded is List) {
+        final buffer = StringBuffer();
+        for (final item in decoded) {
+          if (item is Map && item['insert'] is String) {
+            buffer.write(item['insert'] as String);
+          }
+        }
+        final normalized = buffer.toString().trim();
+        if (normalized.isNotEmpty) {
+          return normalized;
+        }
+      }
+    } catch (_) {
+      // Leave raw text when old note payload is not valid Delta JSON.
+    }
+
+    return trimmed;
+  }
+
+  Future<void> _exportDocument() async {
+    try {
+      final supportsWord = widget.createPdfOverride == null;
+      final selectedFormat =
+          await _pickExportFormat(supportsWord: supportsWord);
+      if (selectedFormat == null) return;
+
+      final selectedExtension = selectedFormat.extension;
+      final path = await FilePicker.platform.saveFile(
+        dialogTitle: 'ייצוא קובץ',
+        fileName: '${_sanitizeFileName(widget.bookId)}.$selectedExtension',
+        type: FileType.custom,
+        allowedExtensions: [selectedExtension],
+      );
+      if (path == null) return;
+
+      final resolvedPath = _normalizeExportPath(
+        path,
+        defaultExtension: selectedExtension,
+      );
+      final file = File(resolvedPath);
+
+      if (selectedFormat == _ExportFormat.word) {
+        final prepared = await _prepareWordDocument();
+        final bytes = WordExportService.createWordDocument(
+          title: prepared.bookName,
+          blocks: prepared.blocks,
+          format: format,
+          isLandscape: orientation == pw.PageOrientation.landscape,
+          pageMargin: pageMargin,
+        );
+        await file.writeAsBytes(bytes);
+        UiSnack.showSuccess('קובץ Word נשמר בהצלחה');
+        return;
+      }
+
+      await file.writeAsBytes(await _createOutputPdf(format));
+      UiSnack.showSuccess('קובץ PDF נשמר בהצלחה');
+    } on FileSystemException catch (e) {
+      if (_isLockedFileException(e)) {
+        UiSnack.showError(
+            'לא ניתן לשמור את הקובץ כי הוא פתוח בתוכנה אחרת. יש לסגור אותו ולנסות שוב.');
+        return;
+      }
+      UiSnack.showError('ייצוא הקובץ נכשל: ${e.message}');
+    } catch (e) {
+      UiSnack.showError('ייצוא הקובץ נכשל: $e');
+    }
+  }
+
+  Future<_ExportFormat?> _pickExportFormat({
+    required bool supportsWord,
+  }) async {
+    if (!supportsWord) {
+      return _ExportFormat.pdf;
+    }
+
+    return showDialog<_ExportFormat>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) {
+        return AlertDialog(
+          titlePadding: const EdgeInsets.fromLTRB(20, 16, 12, 0),
+          contentPadding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          title: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'בחירת סוג קובץ',
+                  textDirection: TextDirection.rtl,
+                  style: Theme.of(dialogContext).textTheme.titleMedium,
+                ),
+              ),
+              IconButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                icon: const Icon(FluentIcons.dismiss_24_regular),
+                tooltip: 'סגור',
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 300,
+            child: Row(
+              children: [
+                Expanded(
+                  child: NeutralActionButton(
+                    text: 'PDF',
+                    onPressed: () {
+                      Navigator.of(dialogContext).pop(_ExportFormat.pdf);
+                    },
+                    icon: FluentIcons.document_pdf_24_regular,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: RecommendedActionButton(
+                    text: 'Word',
+                    onPressed: () {
+                      Navigator.of(dialogContext).pop(_ExportFormat.word);
+                    },
+                    icon: FluentIcons.document_24_regular,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  String _sanitizeFileName(String value) {
+    final sanitized = value.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_').trim();
+    return sanitized.isEmpty ? 'output' : sanitized;
+  }
+
+  String _normalizeExportPath(
+    String path, {
+    required String defaultExtension,
+  }) {
+    final extension = _extensionOf(path);
+    if (extension == _defaultWordExtension || extension == _pdfExtension) {
+      return path;
+    }
+    return '$path.$defaultExtension';
+  }
+
+  String _extensionOf(String path) {
+    final parts = path.split('.');
+    if (parts.length < 2) return '';
+    return parts.last.toLowerCase();
+  }
+
+  bool _isLockedFileException(FileSystemException error) {
+    final message =
+        '${error.message} ${error.osError?.message ?? ''}'.toLowerCase();
+    return message.contains('used by another process') ||
+        message.contains('being used by another process') ||
+        message.contains('access is denied') ||
+        message.contains('permission denied');
   }
 
   Future<String> _getCommentaryContent(
@@ -618,18 +908,9 @@ class _PrintingScreenState extends State<PrintingScreen> {
             centerTitle: true,
             actions: [
               OutlinedButton.icon(
-                onPressed: () async {
-                  final path = await FilePicker.platform.saveFile(
-                    dialogTitle: "שמירת קובץ PDF",
-                    fileName: "output.pdf",
-                  );
-                  if (path != null) {
-                    final file = File(path);
-                    await file.writeAsBytes(await _createOutputPdf(format));
-                  }
-                },
-                icon: const Icon(FluentIcons.save_24_regular),
-                label: const Text('שמירה'),
+                onPressed: _exportDocument,
+                icon: const Icon(FluentIcons.arrow_export_ltr_24_regular),
+                label: const Text('ייצא'),
               ),
               const SizedBox(width: 8),
               FilledButton.icon(
@@ -1679,4 +1960,12 @@ class _PrintingScreenState extends State<PrintingScreen> {
     PdfPageFormat.a5: 'A5',
     PdfPageFormat.a3: 'A3',
   };
+}
+
+enum _ExportFormat {
+  word('docx'),
+  pdf('pdf');
+
+  final String extension;
+  const _ExportFormat(this.extension);
 }
