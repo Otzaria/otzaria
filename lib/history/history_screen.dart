@@ -21,7 +21,12 @@ class HistoryView extends StatelessWidget {
   const HistoryView({super.key});
 
   void _openBook(
-      BuildContext context, Book book, int index, List<String>? commentators) {
+    BuildContext context,
+    Book book,
+    int index,
+    List<String>? commentators, {
+    String? targetTitle,
+  }) {
     final tab = OpenedTab.fromBook(
       book,
       index,
@@ -30,7 +35,9 @@ class HistoryView extends StatelessWidget {
           (Settings.getValue<bool>('key-default-sidebar-open') ?? false),
     );
 
-    context.read<TabsBloc>().add(AddTab(tab));
+    context.read<TabsBloc>().add(
+          OpenOrFocusTab(tab, targetTitle: targetTitle),
+        );
     context.read<NavigationBloc>().add(const NavigateToScreen(Screen.reading));
     // Close the dialog if this view is displayed inside one
     if (Navigator.of(context).canPop()) {
@@ -103,7 +110,13 @@ class HistoryView extends StatelessWidget {
               }
               return;
             }
-            _openBook(ctx, item.book, item.index, item.commentatorsToShow);
+            _openBook(
+              ctx,
+              item.book,
+              item.index,
+              item.commentatorsToShow,
+              targetTitle: item.ref,
+            );
           },
           onDelete: (ctx, originalIndex) {
             ctx.read<HistoryBloc>().add(RemoveHistory(originalIndex));

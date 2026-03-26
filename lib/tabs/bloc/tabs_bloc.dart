@@ -10,6 +10,8 @@ import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
+import 'package:otzaria/tabs/models/text_tab.dart';
+import 'package:otzaria/utils/ref_helper.dart';
 
 class TabsBloc extends Bloc<TabsEvent, TabsState> {
   final TabsRepository _repository;
@@ -88,6 +90,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     on<LoadTabs>(_onLoadTabs);
     on<ReplaceAllTabs>(_onReplaceAllTabs);
     on<AddTab>(_onAddTab);
+    on<OpenOrFocusTab>(_onOpenOrFocusTab);
     on<RemoveTab>(_onRemoveTab);
     on<SetCurrentTab>(_onSetCurrentTab);
     on<CloseAllTabs>(_onCloseAllTabs);
@@ -186,6 +189,213 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       currentTabIndex: newIndex,
       sideBySideMode: newSideBySideMode,
     ));
+  }
+
+  Future<void> _onOpenOrFocusTab(
+      OpenOrFocusTab event, Emitter<TabsState> emit) async {
+    final targetTitle = await _resolveTabLocationTitle(event.tab,
+        explicitTitle: event.targetTitle);
+    final matchingIndex = await _findMatchingTopLevelTabIndex(
+      event.tab,
+      targetTitle,
+    );
+
+    if (matchingIndex != null) {
+      event.tab.dispose();
+      _repository.saveTabs(state.tabs, matchingIndex, state.sideBySideMode);
+      emit(state.copyWith(currentTabIndex: matchingIndex));
+      return;
+    }
+
+    _onAddTab(AddTab(event.tab), emit);
+  }
+
+  Future<int?> _findMatchingTopLevelTabIndex(
+    OpenedTab targetTab,
+    String? normalizedTargetTitle,
+  ) async {
+    for (var index = 0; index < state.tabs.length; index++) {
+      final openTab = state.tabs[index];
+      if (await _topLevelTabMatches(
+          openTab, targetTab, normalizedTargetTitle)) {
+        return index;
+      }
+    }
+    return null;
+  }
+
+  Future<bool> _topLevelTabMatches(
+    OpenedTab openTab,
+    OpenedTab targetTab,
+    String? normalizedTargetTitle,
+  ) async {
+    if (await _singleTabMatches(openTab, targetTab, normalizedTargetTitle)) {
+      return true;
+    }
+
+    if (openTab is CombinedTab) {
+      return await _singleTabMatches(
+            openTab.rightTab,
+            targetTab,
+            normalizedTargetTitle,
+          ) ||
+          await _singleTabMatches(
+            openTab.leftTab,
+            targetTab,
+            normalizedTargetTitle,
+          );
+    }
+
+    return false;
+  }
+
+  Future<bool> _singleTabMatches(
+    OpenedTab openTab,
+    OpenedTab targetTab,
+    String? normalizedTargetTitle,
+  ) async {
+    if (!_isSameBook(openTab, targetTab)) {
+      return false;
+    }
+
+    final normalizedOpenTitle = await _resolveTabLocationTitle(openTab);
+    return _titlesMatch(
+      normalizedOpenTitle: normalizedOpenTitle,
+      normalizedTargetTitle: normalizedTargetTitle,
+      openTab: openTab,
+      targetTab: targetTab,
+    );
+  }
+
+  bool _isSameBook(OpenedTab openTab, OpenedTab targetTab) {
+    if (openTab is TextBookTab && targetTab is TextBookTab) {
+      return _textBookIdentity(openTab) == _textBookIdentity(targetTab);
+    }
+
+    if (openTab is PdfBookTab && targetTab is PdfBookTab) {
+      return openTab.book.path == targetTab.book.path;
+    }
+
+    return false;
+  }
+
+  String _textBookIdentity(TextBookTab tab) {
+    final categoryId = tab.book.categoryId;
+    if (categoryId != null) {
+      return 'category:$categoryId';
+    }
+
+    final filePath = tab.book.filePath;
+    if (filePath != null && filePath.isNotEmpty) {
+      return 'file:$filePath';
+    }
+
+    return 'title:${tab.book.title}';
+  }
+
+  Future<String?> _resolveTabLocationTitle(
+    OpenedTab tab, {
+    String? explicitTitle,
+  }) async {
+    if (tab is TextBookTab) {
+      return _normalizeLocationTitle(
+        tab.book.title,
+        explicitTitle ??
+            await _resolveTextTabLocationTitle(
+              tab,
+            ),
+      );
+    }
+
+    if (tab is PdfBookTab) {
+      return _normalizeLocationTitle(
+        tab.book.title,
+        explicitTitle ??
+            await _resolvePdfTabLocationTitle(
+              tab,
+            ),
+      );
+    }
+
+    return explicitTitle?.trim().isEmpty ?? true ? null : explicitTitle!.trim();
+  }
+
+  Future<String?> _resolveTextTabLocationTitle(TextBookTab tab) async {
+    final currentTitle = tab.currentTitle.value.trim();
+    if (currentTitle.isNotEmpty) {
+      return currentTitle;
+    }
+
+    try {
+      final ref = await refFromIndex(tab.index, tab.book.tableOfContents);
+      return ref.trim().isEmpty ? null : ref;
+    } catch (_) {
+      return 'index:${tab.index}';
+    }
+  }
+
+  Future<String?> _resolvePdfTabLocationTitle(PdfBookTab tab) async {
+    final currentTitle = tab.currentTitle.value.trim();
+    if (currentTitle.isNotEmpty) {
+      return currentTitle;
+    }
+
+    try {
+      final ref = await refFromPageNumber(
+          tab.pageNumber, tab.outline.value, tab.book.title);
+      if (ref.trim().isNotEmpty) {
+        return ref;
+      }
+    } catch (_) {
+      // Fall back to page-based comparison when outline is unavailable.
+    }
+
+    return 'page:${tab.pageNumber}';
+  }
+
+  String? _normalizeLocationTitle(String bookTitle, String? title) {
+    if (title == null) {
+      return null;
+    }
+
+    var normalized = title.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (normalized.isEmpty) {
+      return null;
+    }
+
+    if (normalized.startsWith(bookTitle)) {
+      normalized = normalized.substring(bookTitle.length).trimLeft();
+      if (normalized.startsWith(',')) {
+        normalized = normalized.substring(1).trimLeft();
+      }
+    }
+
+    return normalized.isEmpty ? null : normalized;
+  }
+
+  bool _titlesMatch({
+    required String? normalizedOpenTitle,
+    required String? normalizedTargetTitle,
+    required OpenedTab openTab,
+    required OpenedTab targetTab,
+  }) {
+    if (normalizedOpenTitle != null && normalizedTargetTitle != null) {
+      return normalizedOpenTitle == normalizedTargetTitle;
+    }
+
+    return _fallbackLocationKey(openTab) == _fallbackLocationKey(targetTab);
+  }
+
+  String _fallbackLocationKey(OpenedTab tab) {
+    if (tab is TextBookTab) {
+      return 'index:${tab.index}';
+    }
+
+    if (tab is PdfBookTab) {
+      return 'page:${tab.pageNumber}';
+    }
+
+    return tab.title;
   }
 
   void _onRemoveTab(RemoveTab event, Emitter<TabsState> emit) async {

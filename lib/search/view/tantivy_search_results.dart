@@ -32,10 +32,7 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
   final ScrollController _scrollController = ScrollController();
 
   String _formatTitleForWrapping(String title) {
-    return title
-        .split(' ')
-        .map(_insertBreakOpportunities)
-        .join(' ');
+    return title.split(' ').map(_insertBreakOpportunities).join(' ');
   }
 
   String _insertBreakOpportunities(String word) {
@@ -217,31 +214,12 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
 
                   if (result.isPdf) {
                     final pageNumber = result.segment.toInt() + 1;
-                    context.read<TabsBloc>().add(AddTab(
-                          PdfBookTab(
-                            book: PdfBook(
-                                title: result.title, path: result.filePath),
-                            pageNumber: pageNumber,
-                            searchText: rawQuery,
-                            searchOptions: widget.tab.searchOptions,
-                            alternativeWords: widget.tab.alternativeWords,
-                            spacingValues: widget.tab.spacingValues,
-                            searchMode: inBookMode,
-                            openLeftPane:
-                                (Settings.getValue<bool>('key-pin-sidebar') ??
-                                        false) ||
-                                    (Settings.getValue<bool>(
-                                            'key-default-sidebar-open') ??
-                                        false),
-                          ),
-                        ));
-                  } else {
-                    context.read<TabsBloc>().add(AddTab(
-                          TextBookTab(
-                              book: TextBook(
-                                title: result.title,
-                              ),
-                              index: result.segment.toInt(),
+                    context.read<TabsBloc>().add(
+                          OpenOrFocusTab(
+                            PdfBookTab(
+                              book: PdfBook(
+                                  title: result.title, path: result.filePath),
+                              pageNumber: pageNumber,
                               searchText: rawQuery,
                               searchOptions: widget.tab.searchOptions,
                               alternativeWords: widget.tab.alternativeWords,
@@ -252,8 +230,33 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                                           false) ||
                                       (Settings.getValue<bool>(
                                               'key-default-sidebar-open') ??
-                                          false)),
-                        ));
+                                          false),
+                            ),
+                            targetTitle: result.reference,
+                          ),
+                        );
+                  } else {
+                    context.read<TabsBloc>().add(
+                          OpenOrFocusTab(
+                            TextBookTab(
+                                book: TextBook(
+                                  title: result.title,
+                                ),
+                                index: result.segment.toInt(),
+                                searchText: rawQuery,
+                                searchOptions: widget.tab.searchOptions,
+                                alternativeWords: widget.tab.alternativeWords,
+                                spacingValues: widget.tab.spacingValues,
+                                searchMode: inBookMode,
+                                openLeftPane: (Settings.getValue<bool>(
+                                            'key-pin-sidebar') ??
+                                        false) ||
+                                    (Settings.getValue<bool>(
+                                            'key-default-sidebar-open') ??
+                                        false)),
+                            targetTitle: result.reference,
+                          ),
+                        );
                   }
                 },
                 borderRadius: BorderRadius.circular(12),

@@ -17,6 +17,16 @@ class AddTab extends TabsEvent {
   List<Object?> get props => [tab];
 }
 
+class OpenOrFocusTab extends TabsEvent {
+  final OpenedTab tab;
+  final String? targetTitle;
+
+  const OpenOrFocusTab(this.tab, {this.targetTitle});
+
+  @override
+  List<Object?> get props => [tab, targetTitle];
+}
+
 class ReplaceAllTabs extends TabsEvent {
   final List<OpenedTab> tabs;
   final int currentTabIndex;

@@ -56,7 +56,7 @@ void openBook(BuildContext context, Book book, int index, String searchQuery,
     openLeftPane: shouldOpenLeftPane,
     showPageShapeView: savedViewMode, // העברת העדפת התצוגה השמורה
   );
-  context.read<TabsBloc>().add(AddTab(tab));
+  context.read<TabsBloc>().add(OpenOrFocusTab(tab));
 
   context.read<NavigationBloc>().add(const NavigateToScreen(Screen.reading));
 }

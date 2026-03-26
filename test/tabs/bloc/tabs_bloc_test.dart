@@ -5,6 +5,7 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
+import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
@@ -80,12 +81,107 @@ void main() {
       leftTab.dispose();
     });
   });
+
+  group('TabsBloc open or focus', () {
+    setUp(() async {
+      await Settings.init(cacheProvider: _MemoryCacheProvider());
+    });
+
+    test('ממקד טאב טקסט קיים כשאותו ספר פתוח באותה כותרת', () async {
+      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final firstTab = _createTextTab('ספר א', index: 0)
+        ..currentTitle.value = 'פרק א';
+      final secondTab = _createTextTab('ספר ב', index: 0);
+
+      bloc.add(AddTab(firstTab));
+      bloc.add(AddTab(secondTab));
+      await Future<void>.delayed(Duration.zero);
+
+      final targetTab = _createTextTab('ספר א', index: 12);
+      bloc.add(OpenOrFocusTab(targetTab, targetTitle: 'ספר א, פרק א'));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(bloc.state.tabs, hasLength(2));
+      expect(bloc.state.currentTabIndex, 0);
+
+      await bloc.close();
+      firstTab.dispose();
+      secondTab.dispose();
+    });
+
+    test('פותח טאב חדש כשאותו ספר נפתח בכותרת אחרת', () async {
+      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final existingTab = _createTextTab('ספר א', index: 0)
+        ..currentTitle.value = 'פרק א';
+
+      bloc.add(AddTab(existingTab));
+      await Future<void>.delayed(Duration.zero);
+
+      final targetTab = _createTextTab('ספר א', index: 25);
+      bloc.add(OpenOrFocusTab(targetTab, targetTitle: 'פרק ב'));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(bloc.state.tabs, hasLength(2));
+      expect(bloc.state.currentTabIndex, 1);
+
+      await bloc.close();
+      existingTab.dispose();
+    });
+
+    test('ממקד טאב PDF קיים לפי כותרת גם אם העמוד שונה', () async {
+      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final existingTab = PdfBookTab(
+        book: PdfBook(title: 'ספר PDF', path: 'a.pdf'),
+        pageNumber: 10,
+      )..currentTitle.value = 'שער ראשון';
+
+      bloc.add(AddTab(existingTab));
+      await Future<void>.delayed(Duration.zero);
+
+      final targetTab = PdfBookTab(
+        book: PdfBook(title: 'ספר PDF', path: 'a.pdf'),
+        pageNumber: 14,
+      );
+      bloc.add(OpenOrFocusTab(targetTab, targetTitle: 'ספר PDF, שער ראשון'));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(bloc.state.tabs, hasLength(1));
+      expect(bloc.state.currentTabIndex, 0);
+
+      await bloc.close();
+      existingTab.dispose();
+    });
+
+    test('ממקד CombinedTab כשאחת החלוניות תואמת', () async {
+      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final combinedTab = CombinedTab(
+        rightTab: _createTextTab('ספר ימין', index: 0)
+          ..currentTitle.value = 'פרק א',
+        leftTab: _createTextTab('ספר שמאל', index: 0)
+          ..currentTitle.value = 'פרק ג',
+      );
+
+      bloc.add(AddTab(combinedTab));
+      await Future<void>.delayed(Duration.zero);
+
+      final targetTab = _createTextTab('ספר שמאל', index: 99);
+      bloc.add(OpenOrFocusTab(targetTab, targetTitle: 'ספר שמאל, פרק ג'));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(bloc.state.tabs, hasLength(1));
+      expect(bloc.state.currentTabIndex, 0);
+      expect(bloc.state.currentTab, same(combinedTab));
+
+      await bloc.close();
+      combinedTab.dispose();
+    });
+  });
 }
 
-TextBookTab _createTextTab(String title) {
+TextBookTab _createTextTab(String title, {int index = 0}) {
   return TextBookTab(
     book: TextBook(title: title),
-    index: 0,
+    index: index,
   );
 }
 
