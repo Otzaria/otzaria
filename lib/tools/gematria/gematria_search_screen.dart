@@ -8,6 +8,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/widgets/otzaria_search_field.dart';
@@ -24,6 +25,7 @@ import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/keyboard_navigator.dart';
 import 'package:otzaria/widgets/keyboard_list_focus.dart';
 import 'package:otzaria/widgets/tool_empty_state.dart';
+import 'package:otzaria/widgets/app_top_bar.dart';
 
 class GematriaSearchScreen extends StatefulWidget {
   const GematriaSearchScreen({super.key});
@@ -299,6 +301,43 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
       onToggle: _toggleSettings,
     );
 
+    final topBar = BlocBuilder<SettingsBloc, SettingsState>(
+      builder: (context, settingsState) => AppTopBar(
+      isCompact: settingsState.compactMenuMode,
+      center: OtzariaSearchField(
+        controller: _searchController,
+        hintText: 'חפש גימטריה...',
+        onSubmitted: (_) => _performSearch(),
+        onClear: () => setState(() {
+          _searchResults = [];
+          _lastGematriaValue = null;
+          _hasSearched = false;
+          _focusedCardIndex = _keyboardListFocus.reset();
+        }),
+        leading: IconButton(
+          icon: const Icon(FluentIcons.search_24_regular),
+          onPressed: _performSearch,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+      ),
+      trailingItems: [
+        AppTopBarItem(
+          widget: IconButton(
+            icon: Icon(
+              _showingSettings
+                  ? FluentIcons.panel_right_contract_24_regular
+                  : FluentIcons.settings_24_regular,
+            ),
+            tooltip: _showingSettings
+                ? 'סגור הגדרות (Ctrl+Shift+,)'
+                : 'הגדרות (Ctrl+Shift+,)',
+            onPressed: _toggleSettings,
+          ),
+        ),
+      ],
+    ),
+    );
+
     return KeyboardNavigator(
       currentTabIndex: 0,
       totalTabs: 1,
@@ -320,87 +359,46 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
             }
             return KeyEventResult.ignored;
           },
-          child: isNarrow
-              // ── מסך צר: Stack (overlay) ──────────────────────────────
-              ? Stack(
-                  children: [
-                    Column(
-                      children: [
-                        _buildSearchBar(),
-                        if (_lastGematriaValue != null) _buildStatusBar(),
-                        Expanded(child: _buildResultsList()),
-                      ],
-                    ),
-                    // פאנל הגדרות מצף מהצד
-                    settingsPanel.buildNarrowOverlay(context),
-                  ],
-                )
-              // ── מסך רחב: Row ──────────────────────────────────────────
-              : Row(
-                  children: [
-                    Expanded(
-                      child: ToolPanelWrapper(
-                        centerContent: !_showingSettings,
-                        child: Column(
-                          children: [
-                            _buildSearchBar(),
-                            if (_lastGematriaValue != null) _buildStatusBar(),
-                            Expanded(child: _buildResultsList()),
-                          ],
-                        ),
+          child: Column(
+            children: [
+              topBar,
+              Expanded(
+                child: isNarrow
+                    // ── מסך צר: Stack (overlay) ──────────────────────────
+                    ? Stack(
+                        children: [
+                          Column(
+                            children: [
+                              if (_lastGematriaValue != null) _buildStatusBar(),
+                              Expanded(child: _buildResultsList()),
+                            ],
+                          ),
+                          // פאנל הגדרות מצף מהצד
+                          settingsPanel.buildNarrowOverlay(context),
+                        ],
+                      )
+                    // ── מסך רחב: Row ──────────────────────────────────────
+                    : Row(
+                        children: [
+                          Expanded(
+                            child: ToolPanelWrapper(
+                              centerContent: !_showingSettings,
+                              child: Column(
+                                children: [
+                                  if (_lastGematriaValue != null)
+                                    _buildStatusBar(),
+                                  Expanded(child: _buildResultsList()),
+                                ],
+                              ),
+                            ),
+                          ),
+                          settingsPanel,
+                        ],
                       ),
-                    ),
-                    settingsPanel,
-                  ],
-                ),
-        ),
-      ),
-    );
-  }
-
-  // ── Search bar ─────────────────────────────────────────────────────────────
-  Widget _buildSearchBar() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppTokens.spaceSM,
-        AppTokens.spaceMD,
-        AppTokens.spaceSM,
-        AppTokens.spaceSM,
-      ),
-      child: Row(
-        children: [
-          const SizedBox(width: AppTokens.spaceSM),
-          Expanded(
-            child: OtzariaSearchField(
-              controller: _searchController,
-              hintText: 'חפש גימטריה...',
-              onSubmitted: (_) => _performSearch(),
-              onClear: () => setState(() {
-                _searchResults = [];
-                _lastGematriaValue = null;
-                _hasSearched = false;
-                _focusedCardIndex = _keyboardListFocus.reset();
-              }),
-              leading: IconButton(
-                icon: const Icon(FluentIcons.search_24_regular),
-                onPressed: _performSearch,
-                color: Theme.of(context).colorScheme.primary,
               ),
-            ),
+            ],
           ),
-          const SizedBox(width: AppTokens.spaceSM),
-          IconButton(
-            icon: Icon(
-              _showingSettings
-                  ? FluentIcons.panel_right_contract_24_regular
-                  : FluentIcons.settings_24_regular,
-            ),
-            tooltip: _showingSettings
-                ? 'סגור הגדרות (Ctrl+Shift+,)'
-                : 'הגדרות (Ctrl+Shift+,)',
-            onPressed: _toggleSettings,
-          ),
-        ],
+        ),
       ),
     );
   }

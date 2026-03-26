@@ -10,7 +10,11 @@ import '../widgets/shamor_zachor_sidebar.dart';
 import '../widgets/category_books_grid.dart';
 import '../models/book_model.dart';
 import 'book_detail_screen.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/widgets/buttons/action_buttons.dart';
+import 'package:otzaria/widgets/app_top_bar.dart';
+import 'package:otzaria/widgets/otzaria_search_field.dart';
 
 /// Main screen for Shamor Zachor with Split View (Sidebar + Content)
 class ShamorZachorMainScreen extends StatefulWidget {
@@ -30,7 +34,8 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
   BookCategory? _selectedCategoryObject;
   String? _selectedBookName;
   BookDetails? _selectedBookDetails;
-  String _searchQuery = ''; // Search query from sidebar
+  String _searchQuery = ''; // Search query from top bar
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   bool get wantKeepAlive => true;
@@ -90,7 +95,14 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
       _selectedBookDetails = null;
       _searchQuery = ''; // Clear search when selecting a category
     });
+    _searchController.clear();
     _notifyTitleChange();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   void _onSearchChanged(String query) {
@@ -196,66 +208,83 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
                 );
                 return true;
               },
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+              child: Column(
                 children: [
-                  // 1. Sidebar
-                  SizedBox(
-                    width: sidebarWidth,
-                    child: ShamorZachorSidebar(
-                      onCategorySelected: _onCategorySelected,
-                      onSearchChanged: _onSearchChanged,
-                      selectedCategoryName:
-                          currentTopLevelName == 'all_books_virtual'
-                              ? 'all_books_virtual'
-                              : _selectedCategoryName,
+                  BlocBuilder<SettingsBloc, SettingsState>(
+                    builder: (context, settingsState) => AppTopBar(
+                      isCompact: settingsState.compactMenuMode,
+                      center: OtzariaSearchField(
+                        controller: _searchController,
+                        hintText: 'חפש ספר...',
+                        onChanged: _onSearchChanged,
+                        onClear: () => _onSearchChanged(''),
+                      ),
                     ),
                   ),
-
-                  // Vertical Divider
-                  const VerticalDivider(width: 1),
-
-                  // 2. Main Content Area
                   Expanded(
-                    child: _selectedBookName != null &&
-                            _selectedBookDetails != null
-                        ? Builder(
-                            builder: (context) {
-                              // Debug log
-                              _logger.info(
-                                  'Creating BookDetailScreen: bookName=$_selectedBookName, bookId=${_selectedBookDetails!.id}');
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // 1. Sidebar
+                        SizedBox(
+                          width: sidebarWidth,
+                          child: ShamorZachorSidebar(
+                            onCategorySelected: _onCategorySelected,
+                            selectedCategoryName:
+                                currentTopLevelName == 'all_books_virtual'
+                                    ? 'all_books_virtual'
+                                    : _selectedCategoryName,
+                          ),
+                        ),
 
-                              return KeyedSubtree(
-                                key: ValueKey(
-                                    'Book_${_selectedCategoryName}_$_selectedBookName'),
-                                child: BookDetailScreen(
-                                  topLevelCategoryKey: _selectedTopLevelName ??
-                                      _selectedCategoryName!,
-                                  categoryName: _selectedCategoryName!,
-                                  bookName: _selectedBookName!,
-                                  bookId:
-                                      _selectedBookDetails!.id, // העברת ה-ID
-                                  bookDetails:
-                                      _selectedBookDetails!, // Pass the details directly
-                                  onBack: () {
-                                    setState(() {
-                                      _selectedBookName = null;
-                                      _selectedBookDetails = null;
-                                    });
-                                    _notifyTitleChange();
+                        // Vertical Divider
+                        const VerticalDivider(width: 1),
+
+                        // 2. Main Content Area
+                        Expanded(
+                          child: _selectedBookName != null &&
+                                  _selectedBookDetails != null
+                              ? Builder(
+                                  builder: (context) {
+                                    // Debug log
+                                    _logger.info(
+                                        'Creating BookDetailScreen: bookName=$_selectedBookName, bookId=${_selectedBookDetails!.id}');
+
+                                    return KeyedSubtree(
+                                      key: ValueKey(
+                                          'Book_${_selectedCategoryName}_$_selectedBookName'),
+                                      child: BookDetailScreen(
+                                        topLevelCategoryKey:
+                                            _selectedTopLevelName ??
+                                                _selectedCategoryName!,
+                                        categoryName: _selectedCategoryName!,
+                                        bookName: _selectedBookName!,
+                                        bookId: _selectedBookDetails!
+                                            .id, // העברת ה-ID
+                                        bookDetails:
+                                            _selectedBookDetails!, // Pass the details directly
+                                        onBack: () {
+                                          setState(() {
+                                            _selectedBookName = null;
+                                            _selectedBookDetails = null;
+                                          });
+                                          _notifyTitleChange();
+                                        },
+                                      ),
+                                    );
                                   },
-                                ),
-                              );
-                            },
-                          )
-                        : _searchQuery.length >= 2
-                            ? _buildSearchResults(dataProvider)
-                            : CategoryBooksGrid(
-                                categoryName: currentCategoryName,
-                                category: currentCategoryObject,
-                                topLevelName: currentTopLevelName,
-                                onBookSelected: _navigateToBook,
-                              ),
+                                )
+                              : _searchQuery.length >= 2
+                                  ? _buildSearchResults(dataProvider)
+                                  : CategoryBooksGrid(
+                                      categoryName: currentCategoryName,
+                                      category: currentCategoryObject,
+                                      topLevelName: currentTopLevelName,
+                                      onBookSelected: _navigateToBook,
+                                    ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),

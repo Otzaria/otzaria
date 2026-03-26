@@ -10,12 +10,15 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/focus_repository.dart';
+import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tools/measurement_converter/measurement_data.dart';
 import 'package:otzaria/tools/measurement_converter/measurement_converter_logic.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/widgets/app_menu.dart';
+import 'package:otzaria/widgets/app_top_bar.dart';
 import 'package:otzaria/widgets/buttons/action_buttons.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
 import 'package:otzaria/widgets/sidebar_nav_item.dart';
@@ -39,7 +42,7 @@ class _MeasurementConverterScreenState
   final TextEditingController _resultController = TextEditingController();
   final FocusNode _inputFocusNode = FocusNode();
   final FocusNode _screenFocusNode = FocusNode();
-  bool _showResultField = false;
+  // sidebar state: wide=toggle, narrow=auto panel
   // sidebar state: wide=toggle, narrow=auto panel
   bool _sidebarVisible = true;
   bool _narrowShowCategories = false;
@@ -126,7 +129,6 @@ class _MeasurementConverterScreenState
       }
       _inputController.text = _rememberedInputValues[_selectedCategory] ?? '1';
       _resultController.clear();
-      _showResultField = _inputController.text.isNotEmpty;
     });
     if (_inputController.text.isNotEmpty) _convert();
   }
@@ -204,21 +206,288 @@ class _MeasurementConverterScreenState
   //  BUILD
   // ════════════════════════════════════════════════════════════════════════════
 
+  // ── עיצוב אחיד לשדות הסרגל ──────────────────────────────────────────────
+  InputDecoration _barFieldDecoration(ColorScheme cs, {bool enabled = true}) {
+    return InputDecoration(
+      filled: true,
+      fillColor: cs.onSurface.withValues(alpha: enabled ? 0.07 : 0.04),
+      contentPadding: const EdgeInsets.symmetric(
+          horizontal: AppTokens.spaceSM, vertical: 6),
+      isDense: true,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(AppTokens.radiusMD),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(AppTokens.radiusMD),
+        borderSide: BorderSide.none,
+      ),
+      disabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(AppTokens.radiusMD),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(AppTokens.radiusMD),
+        borderSide: BorderSide(
+          color: cs.primary.withValues(alpha: 0.5),
+          width: 1.5,
+        ),
+      ),
+    );
+  }
+
+  TextStyle _barLabelStyle(ColorScheme cs, {bool muted = false}) => TextStyle(
+        fontSize: AppTokens.fontSM,
+        fontWeight: FontWeight.w500,
+        color: muted
+            ? cs.onSurface.withValues(alpha: 0.3)
+            : cs.onSurfaceVariant,
+      );
+
   @override
   Widget build(BuildContext context) {
     final bgColor = AppSurfaces.panelBackground(context);
+    final cs = Theme.of(context).colorScheme;
+    final showOpinion = _shouldShowOpinionSelector();
+    final hasResult = _resultController.text.isNotEmpty;
 
     return Focus(
       focusNode: _screenFocusNode,
       autofocus: true,
       onKeyEvent: _handleKeyEvent,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isWide = constraints.maxWidth >= 700;
-          return isWide
-              ? _buildWide(bgColor, constraints)
-              : _buildNarrow(bgColor);
-        },
+      child: Column(
+        children: [
+          BlocBuilder<SettingsBloc, SettingsState>(
+            builder: (context, settingsState) => LayoutBuilder(
+            builder: (context, barConstraints) {
+              // כשיש מקום מספיק — תוצאה בשורה הראשונה; אחרת — שורה שנייה
+              final singleRow = barConstraints.maxWidth >= 560;
+
+              // ── ווידג'ט תוצאה (משותף לשני המצבים) ──────────────────
+              Widget resultSection({required bool inPrimaryRow}) => Row(
+                    mainAxisSize:
+                        inPrimaryRow ? MainAxisSize.min : MainAxisSize.max,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      if (inPrimaryRow)
+                        SizedBox(
+                          height: 24,
+                          child: VerticalDivider(
+                            width: AppTokens.spaceMD * 2,
+                            thickness: 1,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .outline
+                                .withValues(alpha: 0.3),
+                          ),
+                        ),
+                      Text('תוצאה',
+                          style: _barLabelStyle(cs, muted: !hasResult)),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Container(
+                          height: 30,
+                          decoration: BoxDecoration(
+                            color: cs.onSurface.withValues(alpha: 0.04),
+                            borderRadius:
+                                BorderRadius.circular(AppTokens.radiusMD),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            hasResult ? _resultController.text : '—',
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: AppTokens.fontMD,
+                              fontWeight: FontWeight.w500,
+                              color: hasResult
+                                  ? cs.onSurface
+                                  : cs.onSurface.withValues(alpha: 0.25),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: AppTokens.spaceSM),
+                      AnimatedOpacity(
+                        opacity: hasResult ? 1.0 : 0.3,
+                        duration: AppTokens.animFast,
+                        child: IgnorePointer(
+                          ignoring: !hasResult,
+                          child: ToolCopyButton(onPressed: _copyResult),
+                        ),
+                      ),
+                    ],
+                  );
+
+              return AppTopBar(
+                isCompact: settingsState.compactMenuMode,
+                leadingItems: [
+                  AppTopBarItem(
+                    widget: IconButton(
+                      icon: AnimatedSwitcher(
+                        duration: AppTokens.animFast,
+                        transitionBuilder: (child, animation) =>
+                            RotationTransition(
+                          turns: Tween<double>(begin: 0.5, end: 0.0)
+                              .animate(animation),
+                          child:
+                              FadeTransition(opacity: animation, child: child),
+                        ),
+                        child: Icon(
+                          _sidebarVisible
+                              ? FluentIcons.panel_right_contract_24_regular
+                              : FluentIcons.panel_right_24_regular,
+                          key: ValueKey(_sidebarVisible),
+                        ),
+                      ),
+                      tooltip:
+                          _sidebarVisible ? 'הסתר קטגוריות' : 'הצג קטגוריות',
+                      onPressed: () =>
+                          setState(() => _sidebarVisible = !_sidebarVisible),
+                    ),
+                  ),
+                ],
+                center: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // ── שיטה ──────────────────────────────────────────────
+                    AnimatedOpacity(
+                      opacity: showOpinion ? 1.0 : 0.35,
+                      duration: AppTokens.animFast,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Text('שיטה',
+                              style:
+                                  _barLabelStyle(cs, muted: !showOpinion)),
+                          const SizedBox(width: 6),
+                          SizedBox(
+                            width: 130,
+                            child: AppDropdownField<String>(
+                              enabled: showOpinion,
+                              value: _selectedOpinion,
+                              decoration: _barFieldDecoration(cs,
+                                  enabled: showOpinion),
+                              entries: _opinions[_selectedCategory]!
+                                  .map((o) =>
+                                      AppMenuEntry(value: o, label: o))
+                                  .toList(),
+                              onSelected: showOpinion
+                                  ? (value) {
+                                      setState(() {
+                                        _selectedOpinion = value;
+                                        if (value != null) {
+                                          _rememberedOpinions[
+                                              _selectedCategory] = value;
+                                        }
+                                        _convert();
+                                      });
+                                      WidgetsBinding.instance
+                                          .addPostFrameCallback((_) =>
+                                              _screenFocusNode.requestFocus());
+                                    }
+                                  : null,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: AppTokens.spaceSM),
+                    // ── ערך להמרה ──────────────────────────────────────────
+                    Expanded(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Text('ערך להמרה', style: _barLabelStyle(cs)),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: RtlTextField(
+                              controller: _inputController,
+                              focusNode: _inputFocusNode,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                      decimal: true),
+                              inputFormatters: [
+                                FilteringTextInputFormatter.allow(
+                                    RegExp(r'^\d*\.?\d*')),
+                              ],
+                              onChanged: (value) {
+                                setState(() {});
+                                if (value.isNotEmpty) {
+                                  _rememberedInputValues[_selectedCategory] =
+                                      value;
+                                } else {
+                                  _rememberedInputValues
+                                      .remove(_selectedCategory);
+                                }
+                                _convert();
+                              },
+                              textAlign: TextAlign.right,
+                              style: TextStyle(
+                                fontSize: AppTokens.fontMD,
+                                color: cs.onSurface,
+                              ),
+                              decoration: _barFieldDecoration(cs).copyWith(
+                                suffixIcon:
+                                    _inputController.text.isNotEmpty
+                                        ? IconButton(
+                                            icon: Icon(
+                                                FluentIcons
+                                                    .dismiss_24_regular,
+                                                size: 15,
+                                                color: cs.onSurfaceVariant),
+                                            onPressed: () {
+                                              setState(() {
+                                                _inputController.clear();
+                                                _resultController.clear();
+                                                _rememberedInputValues
+                                                    .remove(_selectedCategory);
+                                              });
+                                              WidgetsBinding.instance
+                                                  .addPostFrameCallback((_) =>
+                                                      _screenFocusNode
+                                                          .requestFocus());
+                                            },
+                                            padding: EdgeInsets.zero,
+                                            visualDensity:
+                                                VisualDensity.compact,
+                                          )
+                                        : null,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // ── תוצאה בשורה הראשונה (רק כשיש מקום) ───────────────
+                    if (singleRow) Expanded(child: resultSection(inPrimaryRow: true)),
+                  ],
+                ),
+                // ── תוצאה בשורה שנייה (כשאין מקום) ──────────────────────
+                secondaryRow: singleRow
+                    ? null
+                    : Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: AppTokens.spaceMD, vertical: 6),
+                        child: resultSection(inPrimaryRow: false),
+                      ),
+              );
+            },
+          ),
+          ),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isWide = constraints.maxWidth >= 700;
+                return isWide
+                    ? _buildWide(bgColor, constraints)
+                    : _buildNarrow(bgColor);
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -292,69 +561,7 @@ class _MeasurementConverterScreenState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // כפתור לפתיחה/סגירה של ה-sidebar
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: FilledButton.tonal(
-                        onPressed: () =>
-                            setState(() => _sidebarVisible = !_sidebarVisible),
-                        style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppTokens.spaceMD,
-                            vertical: AppTokens.spaceSM,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            AnimatedSwitcher(
-                              duration: AppTokens.animFast,
-                              transitionBuilder: (child, animation) {
-                                return RotationTransition(
-                                  turns: Tween<double>(begin: 0.5, end: 0.0)
-                                      .animate(animation),
-                                  child: FadeTransition(
-                                    opacity: animation,
-                                    child: child,
-                                  ),
-                                );
-                              },
-                              child: Icon(
-                                _sidebarVisible
-                                    ? FluentIcons
-                                        .panel_right_contract_24_regular
-                                    : FluentIcons.panel_right_24_regular,
-                                size: 18,
-                                color: cs.onSurface,
-                                key: ValueKey(_sidebarVisible),
-                              ),
-                            ),
-                            const SizedBox(width: AppTokens.spaceXS),
-                            Text(
-                              'קטגוריה - $_selectedCategory',
-                              style: TextStyle(
-                                fontSize: AppTokens.fontMD,
-                                color: cs.onSurface,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
                     Expanded(child: _buildUnitColumns()),
-                    const SizedBox(height: AppTokens.spaceMD),
-                    _buildOpinionDropdown(),
-                    const SizedBox(height: AppTokens.spaceMD),
-                    _buildInputField(),
-                    if (_showResultField) ...[
-                      const SizedBox(height: AppTokens.spaceMD),
-                      _buildResultDisplay(),
-                      const SizedBox(height: AppTokens.spaceSM),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: ToolCopyButton(onPressed: _copyResult),
-                      ),
-                    ],
                   ],
                 ),
               ),
@@ -370,52 +577,11 @@ class _MeasurementConverterScreenState
   // ─────────────────────────────────────────────────────────────────────────
 
   Widget _buildNarrow(Color bgColor) {
-    final cs = Theme.of(context).colorScheme;
-
     return Stack(
       children: [
         // ── תוכן ראשי ─────────────────────────────────────────────────────
         Column(
           children: [
-            // ── שורת כותרת + כפתור קטגוריות ───────────────────────────────
-            Container(
-              color: bgColor,
-              padding: const EdgeInsets.symmetric(
-                  horizontal: AppTokens.spaceMD, vertical: AppTokens.spaceSM),
-              child: Row(
-                children: [
-                  // כפתור פתיחת סרגל צד
-                  FilledButton.tonal(
-                    onPressed: () => setState(
-                        () => _narrowShowCategories = !_narrowShowCategories),
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppTokens.spaceMD,
-                        vertical: AppTokens.spaceSM,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          FluentIcons.panel_right_24_regular,
-                          size: 18,
-                          color: cs.onSurface,
-                        ),
-                        const SizedBox(width: AppTokens.spaceXS),
-                        Text(
-                          'קטגוריה - $_selectedCategory',
-                          style: TextStyle(
-                            fontSize: AppTokens.fontMD,
-                            color: cs.onSurface,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
             // ── תוכן ───────────────────────────────────────────────────────
             Expanded(
               child: SingleChildScrollView(
@@ -424,16 +590,6 @@ class _MeasurementConverterScreenState
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _buildUnitSectionNarrow(),
-                    const SizedBox(height: AppTokens.spaceMD),
-                    _buildOpinionDropdown(),
-                    const SizedBox(height: AppTokens.spaceMD),
-                    _buildInputField(),
-                    if (_showResultField) ...[
-                      const SizedBox(height: AppTokens.spaceSM),
-                      _buildResultDisplay(),
-                      const SizedBox(height: AppTokens.spaceSM),
-                      _buildResultRow(),
-                    ],
                   ],
                 ),
               ),
@@ -499,134 +655,6 @@ class _MeasurementConverterScreenState
             ),
           ),
       ],
-    );
-  } // ── תצוגת תוצאה פשוטה (narrow) ────────────────────────────────────────────
-
-  Widget _buildResultRow() {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppTokens.spaceMD, vertical: AppTokens.spaceSM),
-      decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: BorderRadius.circular(AppTokens.radiusMD),
-        border: Border.all(color: cs.outline.withValues(alpha: 0.25)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              '${_inputController.text} $_selectedFromUnit = '
-              '${_resultController.text} $_selectedToUnit',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: AppTokens.fontLG,
-                fontWeight: FontWeight.bold,
-                color: cs.onSurface,
-              ),
-            ),
-          ),
-          ToolCopyButton(onPressed: _copyResult),
-        ],
-      ),
-    );
-  }
-
-  // ── Dropdown שיטה ──────────────────────────────────────────────────────────
-  Widget _buildOpinionDropdown() {
-    final cs = Theme.of(context).colorScheme;
-    final opinions = _opinions[_selectedCategory]!;
-    final isEnabled = _shouldShowOpinionSelector();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Text(
-          'שיטה',
-          style: TextStyle(
-            fontSize: AppTokens.fontSM,
-            color: isEnabled
-                ? cs.onSurfaceVariant
-                : cs.onSurface.withValues(alpha: 0.3),
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 4),
-        AppDropdownField<String>(
-          value: _selectedOpinion,
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: isEnabled
-                ? cs.onSurface.withValues(alpha: 0.07)
-                : cs.onSurface.withValues(alpha: 0.04),
-            contentPadding: const EdgeInsets.symmetric(
-                horizontal: AppTokens.spaceMD, vertical: AppTokens.spaceSM),
-            isDense: true,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppTokens.radiusLG),
-              borderSide: BorderSide.none,
-            ),
-            enabled: isEnabled,
-          ),
-          entries: opinions
-              .map((opinion) => AppMenuEntry(value: opinion, label: opinion))
-              .toList(),
-          onSelected: isEnabled
-              ? (value) {
-                  setState(() {
-                    _selectedOpinion = value;
-                    if (value != null) {
-                      _rememberedOpinions[_selectedCategory] = value;
-                    }
-                    _convert();
-                  });
-                  WidgetsBinding.instance.addPostFrameCallback(
-                      (_) => _screenFocusNode.requestFocus());
-                }
-              : null,
-        ),
-      ],
-    );
-  }
-
-  // ── Input field ────────────────────────────────────────────────────────────
-  Widget _buildInputField() {
-    return _MeasurementTextField(
-      controller: _inputController,
-      focusNode: _inputFocusNode,
-      labelText: 'ערך להמרה',
-      onClear: () {
-        setState(() {
-          _inputController.clear();
-          _showResultField = false;
-          _resultController.clear();
-          _rememberedInputValues.remove(_selectedCategory);
-        });
-        WidgetsBinding.instance
-            .addPostFrameCallback((_) => _screenFocusNode.requestFocus());
-      },
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      inputFormatters: [
-        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-      ],
-      onChanged: (value) {
-        setState(() => _showResultField = value.isNotEmpty);
-        if (value.isNotEmpty) {
-          _rememberedInputValues[_selectedCategory] = value;
-        } else {
-          _rememberedInputValues.remove(_selectedCategory);
-        }
-        _convert();
-      },
-    );
-  }
-
-  Widget _buildResultDisplay() {
-    return _MeasurementTextField(
-      controller: _resultController,
-      labelText: 'תוצאה',
-      enabled: false,
-      isResult: true,
     );
   }
 
@@ -937,7 +965,7 @@ class _MeasurementConverterScreenState
         _inputController.text = newText;
         _inputController.selection =
             TextSelection.fromPosition(TextPosition(offset: newText.length));
-        setState(() => _showResultField = newText.isNotEmpty);
+        setState(() {});
         _convert();
       });
       return KeyEventResult.handled;
@@ -953,7 +981,7 @@ class _MeasurementConverterScreenState
           _inputController.text = newText;
           _inputController.selection =
               TextSelection.fromPosition(TextPosition(offset: newText.length));
-          setState(() => _showResultField = newText.isNotEmpty);
+          setState(() {});
           _convert();
         }
       });
@@ -963,96 +991,3 @@ class _MeasurementConverterScreenState
   }
 }
 
-// ── CustomSidebarItem ───────────────────────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════════════════
-//  _MeasurementTextField
-// ═══════════════════════════════════════════════════════════════════════════
-class _MeasurementTextField extends StatelessWidget {
-  final TextEditingController controller;
-  final String labelText;
-  final FocusNode? focusNode;
-  final VoidCallback? onClear;
-  final ValueChanged<String>? onChanged;
-  final bool enabled;
-  final bool isResult;
-  final TextInputType? keyboardType;
-  final List<TextInputFormatter>? inputFormatters;
-
-  const _MeasurementTextField({
-    required this.controller,
-    required this.labelText,
-    this.focusNode,
-    this.onClear,
-    this.onChanged,
-    this.enabled = true,
-    this.isResult = false,
-    this.keyboardType,
-    this.inputFormatters,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final fillColor = enabled
-        ? cs.onSurface.withValues(alpha: 0.07)
-        : cs.onSurface.withValues(alpha: 0.04);
-    final border = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(AppTokens.radiusLG),
-      borderSide: BorderSide.none,
-    );
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Text(
-          labelText,
-          style: TextStyle(
-            fontSize: AppTokens.fontSM,
-            color: enabled
-                ? cs.onSurfaceVariant
-                : cs.onSurface.withValues(alpha: 0.35),
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 4),
-        RtlTextField(
-          controller: controller,
-          focusNode: focusNode,
-          enabled: enabled,
-          keyboardType: keyboardType,
-          inputFormatters: inputFormatters,
-          onChanged: onChanged,
-          textAlign: TextAlign.right,
-          style: TextStyle(
-            fontSize: isResult ? AppTokens.fontXL : AppTokens.fontLG,
-            color: enabled ? cs.onSurface : cs.onSurfaceVariant,
-            fontWeight: isResult ? FontWeight.w500 : FontWeight.w400,
-          ),
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: fillColor,
-            contentPadding: const EdgeInsets.symmetric(
-                horizontal: AppTokens.spaceMD, vertical: AppTokens.spaceSM),
-            isDense: true,
-            suffixIcon: (onClear != null && controller.text.isNotEmpty)
-                ? IconButton(
-                    icon: Icon(FluentIcons.dismiss_24_regular,
-                        size: 17, color: cs.onSurfaceVariant),
-                    onPressed: onClear,
-                    padding: EdgeInsets.zero,
-                    visualDensity: VisualDensity.compact,
-                  )
-                : null,
-            border: border,
-            enabledBorder: border,
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppTokens.radiusLG),
-              borderSide: BorderSide(color: cs.primary, width: 1.5),
-            ),
-            disabledBorder: border,
-          ),
-        ),
-      ],
-    );
-  }
-}

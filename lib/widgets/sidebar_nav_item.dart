@@ -153,6 +153,7 @@ class TopNavItem extends StatelessWidget {
   final bool isSelected;
   final VoidCallback onTap;
   final double? width;
+  final bool compact;
 
   const TopNavItem({
     super.key,
@@ -163,6 +164,7 @@ class TopNavItem extends StatelessWidget {
     required this.isSelected,
     required this.onTap,
     this.width,
+    this.compact = false,
   }) : assert(
           icon != null || imageAsset != null,
           'TopNavItem: חייב לספק icon או imageAsset',
@@ -233,9 +235,9 @@ class TopNavItem extends StatelessWidget {
             return null;
           }),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: 72, minHeight: 56),
+            constraints: BoxConstraints(minWidth: 72, minHeight: compact ? 40 : 56),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: compact ? 4 : 8),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [

@@ -42,6 +42,7 @@ class AppTopBar extends StatefulWidget {
   final List<AppTopBarItem> trailingItems;
   final Widget? secondaryRow;
   final ValueNotifier<bool>? secondaryRowVisible;
+  final ValueNotifier<double>? totalHeightNotifier;
   final bool isCompact;
 
   /// דיבאונס לעדכון השורה השניה (ms) — מונע rebuild חוזר בגלילה מהירה.
@@ -54,6 +55,7 @@ class AppTopBar extends StatefulWidget {
     this.trailingItems = const [],
     this.secondaryRow,
     this.secondaryRowVisible,
+    this.totalHeightNotifier,
     this.isCompact = false,
     this.scrollDebounceMs = 80,
   });
@@ -74,6 +76,7 @@ class _AppTopBarState extends State<AppTopBar>
     with SingleTickerProviderStateMixin {
   late final AnimationController _anim;
   late final Animation<double> _progress;
+  final GlobalKey _secondaryRowKey = GlobalKey();
   Timer? _debounceTimer;
   bool _pendingVisible = true;
 
@@ -84,8 +87,10 @@ class _AppTopBarState extends State<AppTopBar>
     _anim = AnimationController(
         vsync: this, duration: _kAnimDuration, value: initial);
     _progress = CurvedAnimation(parent: _anim, curve: Curves.easeInOut);
+    _anim.addListener(_notifyHeight);
     _pendingVisible = widget.secondaryRowVisible?.value ?? true;
     widget.secondaryRowVisible?.addListener(_onVisibilityChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _notifyHeight());
   }
 
   @override
@@ -96,14 +101,39 @@ class _AppTopBarState extends State<AppTopBar>
       widget.secondaryRowVisible?.addListener(_onVisibilityChanged);
       _syncToNotifier(immediate: true);
     }
+    if (oldWidget.secondaryRow != widget.secondaryRow ||
+        oldWidget.isCompact != widget.isCompact ||
+        oldWidget.totalHeightNotifier != widget.totalHeightNotifier) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _notifyHeight());
+    }
   }
 
   @override
   void dispose() {
     _debounceTimer?.cancel();
     widget.secondaryRowVisible?.removeListener(_onVisibilityChanged);
+    _anim.removeListener(_notifyHeight);
     _anim.dispose();
     super.dispose();
+  }
+
+  void _notifyHeight() {
+    final notifier = widget.totalHeightNotifier;
+    if (notifier == null) return;
+
+    final mainBarHeight = AppTopBar.barHeight(widget.isCompact);
+    double secondaryRowHeight = 0;
+    if (widget.secondaryRow != null) {
+      final renderObject = _secondaryRowKey.currentContext?.findRenderObject();
+      if (renderObject is RenderBox) {
+        secondaryRowHeight = renderObject.size.height;
+      }
+    }
+
+    final totalHeight = mainBarHeight + (secondaryRowHeight * _anim.value);
+    if (notifier.value != totalHeight) {
+      notifier.value = totalHeight;
+    }
   }
 
   void _onVisibilityChanged() {
@@ -203,6 +233,7 @@ class _AppTopBarState extends State<AppTopBar>
           child: FadeTransition(
             opacity: _progress,
             child: Material(
+              key: _secondaryRowKey,
               color: barColor,
               elevation: 1.0,
               shadowColor: cs.shadow.withValues(alpha: 0.08),

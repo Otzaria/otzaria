@@ -10,11 +10,11 @@ import 'package:otzaria/tools/aramaic_dictionary/aramaic_dictionary_screen.dart'
 import 'package:otzaria/tools/acronyms_dictionary/acronyms_dictionary_screen.dart';
 import 'package:otzaria/tools/shamor_zachor/shamor_zachor.dart';
 import 'package:otzaria/tools/calendar/calendar_screen.dart';
-import 'package:otzaria/widgets/tool_ui_helpers.dart';
 import 'package:otzaria/personal_notes/view/personal_notes_screen.dart';
 import 'package:otzaria/widgets/keyboard_navigator.dart';
 import 'package:otzaria/widgets/rtl_icon.dart';
 import 'package:otzaria/core/focus_repository.dart';
+import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/widgets/sidebar_nav_item.dart';
 
 final GlobalKey<MoreScreenState> moreScreenKey = GlobalKey<MoreScreenState>();
@@ -107,15 +107,8 @@ class MoreScreenState extends State<MoreScreen>
   }
 
   Widget _buildDesktopPage(int index) {
-    final centerContent = switch (index) {
-      0 || 1 || 2 || 3 => false,
-      _ => true,
-    };
-
-    return ToolPanelWrapper(
-      centerContent: centerContent,
-      child: _pages[index],
-    );
+    // pages 4–6 have their own AppTopBar and handle internal centering themselves
+    return _pages[index];
   }
 
   void _changeTab(int index) {
@@ -306,12 +299,14 @@ class MoreScreenState extends State<MoreScreen>
                     child: Padding(
                       padding: const EdgeInsets.only(
                         top: AppTokens.spaceXS,
+                        bottom: AppTokens.spaceXS,
                         right: AppTokens.spaceMD,
                         left: AppTokens.spaceMD,
                       ),
                       child: SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
-                        child: Row(
+                        child: BlocBuilder<SettingsBloc, SettingsState>(
+                          builder: (context, settingsState) => Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             for (int index = 0;
@@ -324,11 +319,13 @@ class MoreScreenState extends State<MoreScreen>
                                 label: _tabs[index].label,
                                 isSelected: _selectedIndex == index,
                                 onTap: () => _changeTab(index),
+                                compact: settingsState.compactMenuMode,
                               ),
                               if (index < _tabs.length - 1)
                                 const SizedBox(width: AppTokens.spaceXS),
                             ],
                           ],
+                        ),
                         ),
                       ),
                     ),

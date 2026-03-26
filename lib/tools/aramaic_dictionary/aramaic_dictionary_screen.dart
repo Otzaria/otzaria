@@ -1,6 +1,9 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/focus_repository.dart';
+import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/widgets/otzaria_search_field.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -8,6 +11,8 @@ import 'package:otzaria/tools/aramaic_dictionary/widgets/aramaic_result_card.dar
 import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository.dart';
 import 'package:otzaria/widgets/keyboard_list_focus.dart';
 import 'package:otzaria/widgets/tool_empty_state.dart';
+import 'package:otzaria/widgets/app_top_bar.dart';
+import 'package:otzaria/widgets/tool_ui_helpers.dart';
 
 class AramaicDictionaryScreen extends StatefulWidget {
   const AramaicDictionaryScreen({super.key});
@@ -128,33 +133,45 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return Column(
-      children: [
-        _buildSearchBar(),
-        _buildDirectionToggle(),
-        Expanded(child: _buildResultsList()),
-      ],
-    );
-  }
-
-  Widget _buildSearchBar() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppTokens.spaceSM,
-        AppTokens.spaceMD,
-        AppTokens.spaceSM,
-        AppTokens.spaceSM,
-      ),
-      child: Row(
+    return Focus(
+      focusNode: _listFocusNode,
+      onKeyEvent: (node, event) {
+        if (event is! KeyDownEvent) return KeyEventResult.ignored;
+        if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+          _moveFocus(1);
+          return KeyEventResult.handled;
+        }
+        if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+          _moveFocus(-1);
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Column(
         children: [
-          const SizedBox(width: AppTokens.spaceSM),
+          BlocBuilder<SettingsBloc, SettingsState>(
+            builder: (context, settingsState) => AppTopBar(
+              isCompact: settingsState.compactMenuMode,
+              center: OtzariaSearchField(
+                controller: _searchController,
+                hintText: _isHebrewToAramaic
+                    ? 'חפש מילה בעברית...'
+                    : 'חפש מילה בארמית...',
+                onClear: () => setState(() {
+                  _filteredResults = [];
+                  _focusedIndex = -1;
+                }),
+              ),
+            ),
+          ),
           Expanded(
-            child: OtzariaSearchField(
-              controller: _searchController,
-              hintText: _isHebrewToAramaic
-                  ? 'חפש מילה בעברית...'
-                  : 'חפש מילה בארמית...',
-              onClear: _searchController.clear,
+            child: ToolPanelWrapper(
+              child: Column(
+                children: [
+                  _buildDirectionToggle(),
+                  Expanded(child: _buildResultsList()),
+                ],
+              ),
             ),
           ),
         ],

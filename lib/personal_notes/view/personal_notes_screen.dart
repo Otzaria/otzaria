@@ -27,6 +27,8 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria/widgets/app_top_bar.dart';
 
 class PersonalNotesManagerScreen extends StatefulWidget {
   const PersonalNotesManagerScreen({super.key});
@@ -150,8 +152,10 @@ class _PersonalNotesManagerScreenState
       child: Column(
         children: [
           // שורת כלים עליונה לכל רוחב העמוד
-          _buildTopBar(),
-          Divider(height: 1, color: Colors.grey.withValues(alpha: 0.3)),
+          BlocBuilder<SettingsBloc, SettingsState>(
+            builder: (context, settingsState) =>
+                _buildTopBar(isCompact: settingsState.compactMenuMode),
+          ),
           // תוכן העמוד
           Expanded(
             child: Row(
@@ -185,13 +189,12 @@ class _PersonalNotesManagerScreenState
     );
   }
 
-  Widget _buildTopBar() {
-    return Padding(
-      padding: const EdgeInsets.all(8.0),
-      child: Row(
-        children: [
-          // לחצן סגירה/פתיחה של חלונית הניווט
-          IconButton(
+  Widget _buildTopBar({required bool isCompact}) {
+    return AppTopBar(
+      isCompact: isCompact,
+      leadingItems: [
+        AppTopBarItem(
+          widget: IconButton(
             tooltip: _isNavigationVisible ? 'הסתר ניווט' : 'הצג ניווט',
             onPressed: () {
               setState(() {
@@ -200,44 +203,45 @@ class _PersonalNotesManagerScreenState
             },
             icon: const Icon(FluentIcons.navigation_24_regular),
           ),
-          const SizedBox(width: 8),
-          // חלונית חיפוש באמצע
-          Expanded(
-            child: OtzariaSearchField(
-              controller: _searchController,
-              hintText: 'חפש בהערות...',
-              onChanged: (value) {
-                setState(() {
-                  _searchQuery = value;
-                });
-              },
-              onClear: () {
-                setState(() {
-                  _searchQuery = '';
-                });
-              },
-            ),
-          ),
-          const SizedBox(width: 8),
-          // לחצן ריענון
-          IconButton(
+        ),
+      ],
+      center: OtzariaSearchField(
+        controller: _searchController,
+        hintText: 'חפש בהערות...',
+        onChanged: (value) {
+          setState(() {
+            _searchQuery = value;
+          });
+        },
+        onClear: () {
+          setState(() {
+            _searchQuery = '';
+          });
+        },
+      ),
+      trailingItems: [
+        AppTopBarItem(
+          widget: IconButton(
             tooltip: 'רענן',
             onPressed: _loadBooks,
             icon: const Icon(FluentIcons.arrow_clockwise_24_regular),
           ),
-          const SizedBox(width: 8),
-          IconButton(
+        ),
+        AppTopBarItem(
+          widget: IconButton(
             tooltip: 'ייצוא הערות',
             onPressed: _exportNotes,
             icon: const Icon(FluentIcons.arrow_download_24_regular),
           ),
-          IconButton(
+        ),
+        AppTopBarItem(
+          widget: IconButton(
             tooltip: 'ייבוא הערות',
             onPressed: _importNotes,
             icon: const Icon(FluentIcons.arrow_upload_24_regular),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
