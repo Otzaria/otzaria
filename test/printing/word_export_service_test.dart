@@ -85,6 +85,7 @@ void main() {
       expect(documentXml, contains('<w:pStyle w:val="CommentaryHeading"/>'));
       expect(documentXml, contains('<w:pStyle w:val="CommentarySubheading"/>'));
       expect(documentXml, contains('<w:pStyle w:val="CommentaryBody"/>'));
+      expect(documentXml, contains('\u200F'));
       expect(documentXml, contains('<w:footnoteReference w:id="2"/>'));
       expect(documentXml, contains('w:orient="landscape"'));
       expect(documentXml, contains('<w:bidi/>'));

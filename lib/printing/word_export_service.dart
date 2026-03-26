@@ -130,9 +130,9 @@ class WordExportService {
           registry: footnotes,
         );
       case PrintBlockKind.commentaryTitle:
-        return _paragraphXml(text, 'CommentaryHeading');
+        return _paragraphXml(_rtlPrefix(text), 'CommentaryHeading');
       case PrintBlockKind.commentaryGroupTitle:
-        return _paragraphXml(text, 'CommentarySubheading');
+        return _paragraphXml(_rtlPrefix(text), 'CommentarySubheading');
       case PrintBlockKind.commentary:
         return _paragraphXml(text, 'CommentaryBody');
     }
@@ -193,13 +193,15 @@ class WordExportService {
 
   static String _paragraphPropertiesXml(String styleId) {
     final jc = switch (styleId) {
-      'Title' || 'Header' || 'Footer' => 'center',
-      'BodyRtl' || 'CommentaryBody' => 'both',
-      _ => 'right',
+      'Title' || 'Header' || 'Footer' => '<w:jc w:val="center"/>',
+      'BodyRtl' || 'CommentaryBody' => '<w:jc w:val="both"/>',
+      _ => '',
     };
 
-    return '<w:bidi/><w:jc w:val="$jc"/>';
+    return '<w:bidi/>$jc<w:rPr><w:rtl/></w:rPr>';
   }
+
+  static String _rtlPrefix(String text) => '\u200F$text';
 
   static String _buildFootnotesXml(List<_WordFootnote> footnotes) {
     final buffer =
@@ -342,7 +344,7 @@ const String _numberingXml =
       <w:numFmt w:val="decimal"/>
       <w:lvlText w:val="%1."/>
       <w:lvlJc w:val="right"/>
-      <w:pPr><w:ind w:right="360" w:hanging="360"/><w:bidi/></w:pPr>
+      <w:pPr><w:ind w:left="360" w:hanging="360"/><w:bidi/></w:pPr>
     </w:lvl>
   </w:abstractNum>
   <w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>
@@ -361,7 +363,6 @@ const String _stylesXml =
     <w:pPrDefault>
       <w:pPr>
         <w:bidi/>
-        <w:jc w:val="right"/>
       </w:pPr>
     </w:pPrDefault>
   </w:docDefaults>
@@ -370,7 +371,6 @@ const String _stylesXml =
     <w:qFormat/>
     <w:pPr>
       <w:bidi/>
-      <w:jc w:val="right"/>
       <w:spacing w:after="140" w:line="300" w:lineRule="auto"/>
     </w:pPr>
     <w:rPr>
@@ -398,28 +398,28 @@ const String _stylesXml =
     <w:name w:val="Heading 1"/>
     <w:basedOn w:val="Normal"/>
     <w:qFormat/>
-    <w:pPr><w:bidi/><w:jc w:val="right"/><w:spacing w:before="220" w:after="120"/></w:pPr>
+    <w:pPr><w:bidi/><w:spacing w:before="220" w:after="120"/></w:pPr>
     <w:rPr><w:b/><w:color w:val="1F3B6D"/><w:sz w:val="30"/><w:szCs w:val="30"/></w:rPr>
   </w:style>
   <w:style w:type="paragraph" w:styleId="Heading2">
     <w:name w:val="Heading 2"/>
     <w:basedOn w:val="Normal"/>
     <w:qFormat/>
-    <w:pPr><w:bidi/><w:jc w:val="right"/><w:spacing w:before="180" w:after="100"/></w:pPr>
+    <w:pPr><w:bidi/><w:spacing w:before="180" w:after="100"/></w:pPr>
     <w:rPr><w:b/><w:color w:val="365F91"/><w:sz w:val="28"/><w:szCs w:val="28"/></w:rPr>
   </w:style>
   <w:style w:type="paragraph" w:styleId="Heading3">
     <w:name w:val="Heading 3"/>
     <w:basedOn w:val="Normal"/>
     <w:qFormat/>
-    <w:pPr><w:bidi/><w:jc w:val="right"/><w:spacing w:before="160" w:after="80"/></w:pPr>
+    <w:pPr><w:bidi/><w:spacing w:before="160" w:after="80"/></w:pPr>
     <w:rPr><w:b/><w:color w:val="5A5A5A"/><w:sz w:val="26"/><w:szCs w:val="26"/></w:rPr>
   </w:style>
   <w:style w:type="paragraph" w:styleId="Heading4">
     <w:name w:val="Heading 4"/>
     <w:basedOn w:val="Normal"/>
     <w:qFormat/>
-    <w:pPr><w:bidi/><w:jc w:val="right"/><w:spacing w:before="140" w:after="70"/></w:pPr>
+    <w:pPr><w:bidi/><w:spacing w:before="140" w:after="70"/></w:pPr>
     <w:rPr><w:b/><w:i/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr>
   </w:style>
   <w:style w:type="paragraph" w:styleId="BodyRtl">
@@ -439,25 +439,25 @@ const String _stylesXml =
   <w:style w:type="paragraph" w:styleId="CommentaryHeading">
     <w:name w:val="Commentary Heading"/>
     <w:basedOn w:val="Normal"/>
-    <w:pPr><w:bidi/><w:jc w:val="right"/><w:spacing w:before="180" w:after="80"/></w:pPr>
+    <w:pPr><w:bidi/><w:spacing w:before="180" w:after="80"/></w:pPr>
     <w:rPr><w:b/><w:color w:val="6A4C1F"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr>
   </w:style>
   <w:style w:type="paragraph" w:styleId="CommentarySubheading">
     <w:name w:val="Commentary Subheading"/>
     <w:basedOn w:val="Normal"/>
-    <w:pPr><w:bidi/><w:jc w:val="right"/><w:ind w:right="240"/><w:spacing w:before="80" w:after="60"/></w:pPr>
+    <w:pPr><w:bidi/><w:ind w:left="240"/><w:spacing w:before="80" w:after="60"/></w:pPr>
     <w:rPr><w:b/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr>
   </w:style>
   <w:style w:type="paragraph" w:styleId="CommentaryBody">
     <w:name w:val="Commentary Body"/>
     <w:basedOn w:val="BodyRtl"/>
-    <w:pPr><w:bidi/><w:jc w:val="both"/><w:ind w:right="360"/><w:spacing w:after="100" w:line="300" w:lineRule="auto"/></w:pPr>
+    <w:pPr><w:bidi/><w:jc w:val="both"/><w:ind w:left="360"/><w:spacing w:after="100" w:line="300" w:lineRule="auto"/></w:pPr>
     <w:rPr><w:color w:val="444444"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr>
   </w:style>
   <w:style w:type="paragraph" w:styleId="FootnoteText">
     <w:name w:val="Footnote Text"/>
     <w:basedOn w:val="Normal"/>
-    <w:pPr><w:bidi/><w:jc w:val="right"/><w:spacing w:after="80" w:line="260" w:lineRule="auto"/></w:pPr>
+    <w:pPr><w:bidi/><w:spacing w:after="80" w:line="260" w:lineRule="auto"/></w:pPr>
     <w:rPr><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr>
   </w:style>
   <w:style w:type="paragraph" w:styleId="Header">
