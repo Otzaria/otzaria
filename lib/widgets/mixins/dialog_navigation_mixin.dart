@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:otzaria/widgets/dialog_keyboard_navigator.dart';
+import 'package:otzaria/widgets/keyboard_dialog_navigation.dart';
 
 mixin DialogNavigationMixin<T extends StatefulWidget> on State<T> {
   int focusedButtonIndex = 1; // 0 = Cancel, 1 = Confirm
