@@ -399,15 +399,15 @@ class _CombinedViewState extends State<CombinedView> {
           items: state.visibleLinks
               .map<ctx.ContextMenuEntry<Object>>(
                 (link) => ctx.MenuItem<Object>(
-                    label: FutureBuilder<String>(
-                      future: link.displayReference,
-                      builder: (context, snapshot) {
-                        return Text(
-                          snapshot.data ?? link.fallbackDisplayReference,
-                          textDirection: TextDirection.rtl,
-                        );
-                      },
-                    ),
+                  label: FutureBuilder<String>(
+                    future: link.displayReference,
+                    builder: (context, snapshot) {
+                      return Text(
+                        snapshot.data ?? link.fallbackDisplayReference,
+                        textDirection: TextDirection.rtl,
+                      );
+                    },
+                  ),
                   onSelected: (_) {
                     widget.openBookCallback(
                       TextBookTab(
@@ -583,7 +583,8 @@ class _CombinedViewState extends State<CombinedView> {
       );
     }
 
-    final combinedHtml = finalText.split('\n\n').map(_formatTextAsHtml).join();
+    final combinedHtml =
+        finalText.split('\n\n').map(_formatTextAsHtml).join('<br><br>');
 
     final item = DataWriterItem();
     item.add(Formats.plainText(finalText));
@@ -596,11 +597,12 @@ class _CombinedViewState extends State<CombinedView> {
   String _formatTextAsHtml(String text) {
     final settingsState = context.read<SettingsBloc>().state;
     // ממיר \n ל-<br> ב-HTML
-    return CopyUtils.buildStyledHtml(
-      htmlText: text,
-      fontFamily: settingsState.fontFamily,
-      fontSize: widget.textSize,
-    );
+    final textWithBreaks = text.replaceAll('\n', '<br>');
+    return '''
+<div style="font-family: ${settingsState.fontFamily}; font-size: ${widget.textSize}px; text-align: justify; direction: rtl;">
+$textWithBreaks
+</div>
+''';
   }
 
   /// העתקת טקסט מעוצב (HTML) ללוח
