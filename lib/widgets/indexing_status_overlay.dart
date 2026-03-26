@@ -78,11 +78,13 @@ class _IndexingStatusOverlayState extends State<IndexingStatusOverlay> {
 
         final isRtl = Directionality.of(context) == TextDirection.rtl;
         final isWindows = Theme.of(context).platform == TargetPlatform.windows;
-        final alignment = isWindows ? Alignment.topLeft : (isRtl ? Alignment.topRight : Alignment.topLeft);
+        final alignment = isWindows
+            ? Alignment.bottomLeft
+            : (isRtl ? Alignment.bottomRight : Alignment.bottomLeft);
         final padding = isWindows
-            ? const EdgeInsets.only(top: 56, left: 16, right: 0)
+            ? const EdgeInsets.only(bottom: 24, left: 16, right: 0)
             : EdgeInsets.only(
-                top: 56,
+                bottom: 24,
                 left: isRtl ? 0 : 16,
                 right: isRtl ? 16 : 0,
               );
@@ -95,10 +97,12 @@ class _IndexingStatusOverlayState extends State<IndexingStatusOverlay> {
             padding: padding,
             child: Material(
               color: Colors.transparent,
+              borderRadius: BorderRadius.circular(18),
+              clipBehavior: Clip.antiAlias,
               child: InkWell(
                 onTap: widget.onTap,
                 borderRadius: BorderRadius.circular(18),
-                child: Ink(
+                child: DecoratedBox(
                   decoration: BoxDecoration(
                     color: colorScheme.surface.withValues(alpha: 0.96),
                     borderRadius: BorderRadius.circular(18),
