@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
-import 'package:otzaria/widgets/mixins/dialog_navigation_mixin.dart';
+import 'package:otzaria/widgets/keyboard_dialog_navigation.dart';
 
 /// דיאלוג הזנת טקסט עם תמיכה באנטר וחיצים
 class InputDialog extends StatefulWidget {
