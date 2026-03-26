@@ -1010,15 +1010,17 @@ class _CollapsibleCommentaryGroupState
                 const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
             child: Row(
               children: [
-                Icon(
-                  _isExpanded
-                      ? Icons.keyboard_arrow_down
-                      : Icons.keyboard_arrow_left,
-                  size: 20,
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.6),
+                AnimatedRotation(
+                  turns: _isExpanded ? -0.25 : 0,
+                  duration: const Duration(milliseconds: 200),
+                  child: Icon(
+                    Icons.keyboard_arrow_left,
+                    size: 20,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.6),
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(

@@ -270,6 +270,11 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
 
   Widget _buildExpansionTile(Link link) {
     final keyStr = '${link.path2}_${link.index2}';
+    final restoredExpanded = PageStorage.maybeOf(context)?.readState(
+          context,
+          identifier: keyStr,
+        ) as bool?;
+    final isExpanded = _expanded[keyStr] ?? restoredExpanded ?? false;
     return ctx.ContextMenuRegion(
       contextMenu: ContextMenuUtils.buildCommentaryContextMenu(
         context: context,
@@ -285,7 +290,18 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
       ),
       child: ExpansionTile(
         key: PageStorageKey(keyStr),
+        initiallyExpanded: isExpanded,
         maintainState: true,
+        showTrailingIcon: false,
+        leading: AnimatedRotation(
+          turns: isExpanded ? -0.25 : 0,
+          duration: const Duration(milliseconds: 200),
+          child: Icon(
+            Icons.keyboard_arrow_left,
+            size: 20,
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+        ),
         backgroundColor: Theme.of(context).colorScheme.surface,
         collapsedBackgroundColor: Theme.of(context).colorScheme.surface,
         title: BlocBuilder<SettingsBloc, SettingsState>(
@@ -348,7 +364,7 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
           }
         },
         children: [
-          if (_expanded[keyStr] == true)
+          if (isExpanded)
             Padding(
               padding:
                   const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),

@@ -914,6 +914,19 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
             key: PageStorageKey(keyStr),
             initiallyExpanded: isExpanded,
             maintainState: true,
+            showTrailingIcon: false,
+            leading: AnimatedRotation(
+              turns: isExpanded ? -0.25 : 0,
+              duration: const Duration(milliseconds: 200),
+              child: Icon(
+                Icons.keyboard_arrow_left,
+                size: 20,
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurface
+                    .withValues(alpha: 0.6),
+              ),
+            ),
             backgroundColor: Theme.of(context).colorScheme.surface,
             collapsedBackgroundColor: Theme.of(context).colorScheme.surface,
             title: Text(
@@ -1273,15 +1286,17 @@ class _CollapsibleCommentaryGroupState
                 const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
             child: Row(
               children: [
-                Icon(
-                  widget.isExpanded
-                      ? Icons.keyboard_arrow_down
-                      : Icons.keyboard_arrow_left,
-                  size: 20,
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.6),
+                AnimatedRotation(
+                  turns: widget.isExpanded ? -0.25 : 0,
+                  duration: const Duration(milliseconds: 200),
+                  child: Icon(
+                    Icons.keyboard_arrow_left,
+                    size: 20,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.6),
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
