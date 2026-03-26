@@ -241,6 +241,7 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
                     // שורה אחת פשוטה
                     Container(
                       height: 60,
+                      color: Theme.of(context).colorScheme.surfaceContainer,
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8.0,
                         vertical: 4.0,
@@ -502,6 +503,7 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
   Widget _buildBottomRow(SearchState state) {
     return Container(
       height: 60, // גובה קבוע
+      color: Theme.of(context).colorScheme.surfaceContainer,
       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
       child: Row(
         children: [
