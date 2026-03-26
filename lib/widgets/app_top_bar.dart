@@ -1,25 +1,11 @@
 // lib/widgets/app_top_bar.dart
 //
-// AppTopBar — סרגל עליון בסגנון Chrome/M3.
+// AppTopBar — סרגל עליון בסגנון Chrome / M3.
 //
-// **שינויים v2:**
-// • הוסף [scrollDebounceMs] — דיבאונס לעדכון השורה השניה.
-//   מונע rebuild חוזר בכל event גלילה קטן.
-//   ברירת מחדל: 80ms.
-// • ה-ValueNotifier עדיין משמש לשליטה חיצונית,
-//   אך ה-_AppTopBarState מגן מפני flicker עם timer.
-//
-// **שימוש (ללא שינוי API):**
-// ```dart
-// AppTopBar(
-//   isCompact: settingsState.compactMenuMode,
-//   leadingItems: [...],
-//   center: searchField,
-//   trailingItems: [...],
-//   secondaryRow: dafYomiWidget,
-//   secondaryRowVisible: _secondaryRowVisible,
-// )
-// ```
+// שינויים v3:
+// • תוקן: Colors.black → cs.shadow (לא hardcoded colors, עמידה ב-AGENTS.md)
+// • תוקן: shadowColor משתמש ב-cs.shadow בהתאמה לבהיר/כהה
+// • ללא שינוי ב-API.
 
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -42,6 +28,14 @@ class AppTopBarItem {
 //  AppTopBar
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// סרגל עליון אחיד לכל מסכי האפליקציה.
+///
+/// תכונות:
+/// - שורה ראשית: [leadingItems] | [center] | [trailingItems]
+/// - שורה שניה אופציונלית עם אנימציית גלילה (SizeTransition + FadeTransition)
+/// - [isCompact] – מצב desktop (44px) לעומת touch (56px)
+/// - [secondaryRowVisible] – ValueNotifier חיצוני לשליטה בשורה שניה
+/// - [scrollDebounceMs] – debounce למניעת flicker בגלילה (ברירת מחדל: 80ms)
 class AppTopBar extends StatefulWidget {
   final List<AppTopBarItem> leadingItems;
   final Widget? center;
@@ -50,7 +44,7 @@ class AppTopBar extends StatefulWidget {
   final ValueNotifier<bool>? secondaryRowVisible;
   final bool isCompact;
 
-  /// דיבאונס לעדכון השורה השניה (מס' milliseconds) — מונע rebuild חוזר.
+  /// דיבאונס לעדכון השורה השניה (ms) — מונע rebuild חוזר בגלילה מהירה.
   final int scrollDebounceMs;
 
   const AppTopBar({
@@ -64,6 +58,7 @@ class AppTopBar extends StatefulWidget {
     this.scrollDebounceMs = 80,
   });
 
+  /// גובה הסרגל לפי מצב compact
   static double barHeight(bool isCompact) =>
       isCompact ? _kCompactHeight : _kTouchHeight;
 
@@ -113,11 +108,9 @@ class _AppTopBarState extends State<AppTopBar>
 
   void _onVisibilityChanged() {
     final next = widget.secondaryRowVisible?.value ?? true;
-    // Skip if no change
     if (next == _pendingVisible) return;
     _pendingVisible = next;
 
-    // דיבאונס — עדכן רק אחרי עצירה
     _debounceTimer?.cancel();
     _debounceTimer = Timer(
       Duration(milliseconds: widget.scrollDebounceMs),
@@ -129,11 +122,7 @@ class _AppTopBarState extends State<AppTopBar>
     if (!mounted) return;
     final visible = widget.secondaryRowVisible?.value ?? true;
     if (immediate) {
-      if (visible) {
-        _anim.value = 1.0;
-      } else {
-        _anim.value = 0.0;
-      }
+      _anim.value = visible ? 1.0 : 0.0;
     } else {
       visible ? _anim.animateTo(1.0) : _anim.animateTo(0.0);
     }
@@ -141,7 +130,7 @@ class _AppTopBarState extends State<AppTopBar>
 
   // ── עזרי בנייה ──────────────────────────────────────────────────────────
 
-  Widget _buildDivider() {
+  Widget _buildDivider(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2.0),
       child: SizedBox(
@@ -155,26 +144,25 @@ class _AppTopBarState extends State<AppTopBar>
     );
   }
 
-  List<Widget> _itemsToWidgets(List<AppTopBarItem> items) {
+  List<Widget> _itemsToWidgets(
+      BuildContext context, List<AppTopBarItem> items) {
     final List<Widget> result = [];
     for (final item in items) {
       if (item.dividerBefore && result.isNotEmpty) {
-        result.add(_buildDivider());
+        result.add(_buildDivider(context));
       }
       result.add(item.widget);
     }
     return result;
   }
 
-  Color _barColor(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return cs.secondaryContainer;
-  }
-
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final isCompact = widget.isCompact;
-    final barColor = _barColor(context);
+    // ✅ תוקן: barColor ו-shadowColor משתמשים בצבעי theme
+    final barColor = cs.secondaryContainer;
+    final shadowColor = cs.shadow.withValues(alpha: 0.14);
     final barH = isCompact ? _kCompactHeight : _kTouchHeight;
     final hPad = isCompact ? 6.0 : 8.0;
     final vPad = isCompact ? 4.0 : 8.0;
@@ -182,7 +170,7 @@ class _AppTopBarState extends State<AppTopBar>
     final mainBar = Material(
       color: barColor,
       elevation: 2.0,
-      shadowColor: Colors.black.withValues(alpha: 0.14),
+      shadowColor: shadowColor,
       surfaceTintColor: Colors.transparent,
       child: SizedBox(
         height: barH,
@@ -190,11 +178,11 @@ class _AppTopBarState extends State<AppTopBar>
           padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
           child: Row(
             children: [
-              ..._itemsToWidgets(widget.leadingItems),
+              ..._itemsToWidgets(context, widget.leadingItems),
               if (widget.leadingItems.isNotEmpty) const SizedBox(width: 4.0),
               Expanded(child: widget.center ?? const SizedBox.shrink()),
               if (widget.trailingItems.isNotEmpty) const SizedBox(width: 4.0),
-              ..._itemsToWidgets(widget.trailingItems),
+              ..._itemsToWidgets(context, widget.trailingItems),
             ],
           ),
         ),
@@ -203,6 +191,8 @@ class _AppTopBarState extends State<AppTopBar>
 
     if (widget.secondaryRow == null) return mainBar;
 
+    // שורה שניה עם אנימציה —
+    // SizeTransition מבטיח שהתוכן מתחת לסרגל לא ייחתך ולא יקפוץ
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -215,7 +205,7 @@ class _AppTopBarState extends State<AppTopBar>
             child: Material(
               color: barColor,
               elevation: 1.0,
-              shadowColor: Colors.black.withValues(alpha: 0.08),
+              shadowColor: cs.shadow.withValues(alpha: 0.08),
               surfaceTintColor: Colors.transparent,
               child: widget.secondaryRow!,
             ),
