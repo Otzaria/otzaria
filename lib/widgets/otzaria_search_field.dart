@@ -1,30 +1,30 @@
+// lib/widgets/otzaria_search_field.dart
+//
+// OtzariaSearchField  v5.0
+//
+// שינויים מ-v4:
+// • הוסר shrinkOnScroll / isShrunkenNotifier — הגובה נקבע אך ורק לפי [slim].
+//   פונקציית ה"כיווץ בגלילה" נגרמה לבלבול בין גובה הסרגל לגובה השדה,
+//   ופעלה בצורה שונה על מסכים שונים.
+// • [slim] = null (ברירת מחדל): יורש מ-[compactMenuMode] אם זמין ב-SettingsBloc
+// • [slim] = false (touch / מרווח): גובה 48px, גופן 16px
+// • [slim] = true  (desktop / compact): גובה 36px, גופן 13px
+// • אין גלילה ב-RtlTextField: scrollPhysics = NeverScrollableScrollPhysics
+// • שאר ה-API ללא שינוי; שדות shrinkOnScroll / isShrunkenNotifier הוסרו.
+
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
-
-// ═════════════════════════════════════════════════════════════════════════════
-//  OtzariaSearchField  v4.1
-//  lib/core/widgets/otzaria_search_field.dart
-//
-//  שינויים מ-v4.0:
-//  • אייקון חיפוש בפוקוס:
-//    - slim=true (בסרגל, רקע secondaryContainer): cs.onSecondaryContainer —
-//      ניגודיות תקינה על secondaryContainer בהיר/כהה כאחד.
-//    - slim=false (מחוץ לסרגל, רקע surface): cs.primary —
-//      התנהגות M3 סטנדרטית (prefix icon הופך primary בפוקוס).
-//    ניתן לשאלה: השינוי צבע הוא מכוון לפי הנחיות M3 (מצביע על מצב active),
-//    אך הצבע מותאם לרקע שמאחורי השדה.
-// ═════════════════════════════════════════════════════════════════════════════
 
 abstract class _ST {
   // Touch (standard)
   static const double radius = 28.0;
   static const double height = 48.0;
   static const double heightCompact = 40.0;
-  static const double heightShrunken = 36.0;
   static const double fontSize = AppTokens.fontLG; // 16
-  static const double fontSizeShrunken = AppTokens.fontMD; // 14
 
   // Desktop (slim)
   static const double heightSlim = 36.0;
@@ -34,12 +34,12 @@ abstract class _ST {
   static const double fillAlphaUnfocused = 0.07;
   static const double fillAlphaFocused = 0.12;
   static const Duration collapseAnim = Duration(milliseconds: 220);
-  static const Duration shrinkAnim = Duration(milliseconds: 180);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  OtzariaSearchAction
 // ─────────────────────────────────────────────────────────────────────────────
+
 class OtzariaSearchAction {
   OtzariaSearchAction._();
 
@@ -97,6 +97,7 @@ class OtzariaSearchAction {
 // ─────────────────────────────────────────────────────────────────────────────
 //  כפתורים פנימיים
 // ─────────────────────────────────────────────────────────────────────────────
+
 class _NavButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onPressed;
@@ -150,17 +151,13 @@ class _ActionButton extends StatelessWidget {
 //  OtzariaSearchField
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// שדה חיפוש רב-מצבי של אוצריא.
+/// שדה חיפוש של אוצריא.
 ///
-/// **מצבים:**
-/// • [slim] = false (touch, ברירת מחדל): גובה 48px, גופן 16px
-/// • [slim] = true (desktop/Chrome): גובה 36px, גופן 13px, רדיוס קטן יותר
-/// • [isCompact] = true: מתכווץ לאייקון עגול (scroll-hide או כאשר אין מקום)
-/// • [shrinkOnScroll]: מקטין גובה בגלילה (במצב touch רגיל)
-///
-/// **צבע אייקון חיפוש בפוקוס:**
-/// • slim=true (בסרגל secondaryContainer): onSecondaryContainer — ניגודיות תקינה.
-/// • slim=false (מחוץ לסרגל): primary — התנהגות M3 סטנדרטית.
+/// מצבים:
+/// • [slim] = null: יורש אוטומטית מ-[compactMenuMode] אם זמין
+/// • [slim] = false (touch / מרווח): גובה 48px, גופן 16px
+/// • [slim] = true  (desktop / compact): גובה 36px, גופן 13px
+/// • [isCompact] = true: מתכווץ לאייקון עגול (scroll-hide)
 class OtzariaSearchField extends StatefulWidget {
   final TextEditingController controller;
   final String hintText;
@@ -173,16 +170,13 @@ class OtzariaSearchField extends StatefulWidget {
   final Widget? leading;
   final List<Widget>? trailingActions;
 
-  /// כשאמת — שדה דק בסגנון Chrome/desktop (36px, גופן 13px)
-  final bool slim;
+  /// `null` = יורש אוטומטית מ-compactMenuMode אם זמין.
+  /// `true` = שדה צר, `false` = שדה רחב.
+  final bool? slim;
 
   /// כשאמת — מתכווץ לאייקון עגול (M3 scroll-hide)
   final bool isCompact;
   final VoidCallback? onExpand;
-
-  /// כשאמת — מקטין גובה בגלילה (מ-48 ל-36px)
-  final bool shrinkOnScroll;
-  final ValueNotifier<bool>? isShrunkenNotifier;
 
   const OtzariaSearchField({
     super.key,
@@ -196,11 +190,9 @@ class OtzariaSearchField extends StatefulWidget {
     this.maxWidth,
     this.leading,
     this.trailingActions,
-    this.slim = false,
+    this.slim,
     this.isCompact = false,
     this.onExpand,
-    this.shrinkOnScroll = true,
-    this.isShrunkenNotifier,
   });
 
   @override
@@ -210,7 +202,15 @@ class OtzariaSearchField extends StatefulWidget {
 class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
   late FocusNode _effectiveFocusNode;
   bool _hasFocus = false;
-  late ValueNotifier<bool> _effectiveIsShrunkenNotifier;
+
+  bool _resolveSlim(BuildContext context) {
+    if (widget.slim != null) return widget.slim!;
+    try {
+      return context.read<SettingsBloc>().state.compactMenuMode;
+    } catch (_) {
+      return false;
+    }
+  }
 
   @override
   void initState() {
@@ -219,9 +219,6 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
     _hasFocus = _effectiveFocusNode.hasFocus;
     _effectiveFocusNode.addListener(_onFocusChange);
     widget.controller.addListener(_onTextChange);
-    _effectiveIsShrunkenNotifier =
-        widget.isShrunkenNotifier ?? ValueNotifier<bool>(false);
-    _effectiveIsShrunkenNotifier.addListener(_onShrinkChange);
   }
 
   @override
@@ -237,15 +234,6 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
       oldWidget.controller.removeListener(_onTextChange);
       widget.controller.addListener(_onTextChange);
     }
-    if (oldWidget.isShrunkenNotifier != widget.isShrunkenNotifier) {
-      _effectiveIsShrunkenNotifier.removeListener(_onShrinkChange);
-      if (oldWidget.isShrunkenNotifier == null) {
-        _effectiveIsShrunkenNotifier.dispose();
-      }
-      _effectiveIsShrunkenNotifier =
-          widget.isShrunkenNotifier ?? ValueNotifier<bool>(false);
-      _effectiveIsShrunkenNotifier.addListener(_onShrinkChange);
-    }
   }
 
   @override
@@ -253,33 +241,19 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
     _effectiveFocusNode.removeListener(_onFocusChange);
     if (widget.focusNode == null) _effectiveFocusNode.dispose();
     widget.controller.removeListener(_onTextChange);
-    _effectiveIsShrunkenNotifier.removeListener(_onShrinkChange);
-    if (widget.isShrunkenNotifier == null) {
-      _effectiveIsShrunkenNotifier.dispose();
-    }
     super.dispose();
   }
 
   void _onFocusChange() {
-    if (mounted) {
-      setState(() => _hasFocus = _effectiveFocusNode.hasFocus);
-      if (_hasFocus &&
-          widget.shrinkOnScroll &&
-          _effectiveIsShrunkenNotifier.value) {
-        _effectiveIsShrunkenNotifier.value = false;
-      }
-    }
+    if (mounted) setState(() => _hasFocus = _effectiveFocusNode.hasFocus);
   }
 
   void _onTextChange() {
     if (mounted) setState(() {});
   }
 
-  void _onShrinkChange() {
-    if (mounted) setState(() {});
-  }
-
   // ── מצב compact (אייקון עגול) ────────────────────────────────────────────
+
   Widget _buildCompact(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return AnimatedContainer(
@@ -306,35 +280,30 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
   }
 
   // ── שדה מלא ──────────────────────────────────────────────────────────────
+
   Widget _buildField(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final hasText = widget.controller.text.isNotEmpty;
-    final isSlim = widget.slim;
+    final isSlim = _resolveSlim(context);
 
     // גובה וגופן — slim (desktop) לעומת touch
-    final isShrunken =
-        !isSlim && widget.shrinkOnScroll && _effectiveIsShrunkenNotifier.value;
-
-    final double baseHeight = isSlim ? _ST.heightSlim : _ST.height;
-    final double effectiveHeight = isShrunken ? _ST.heightShrunken : baseHeight;
-    final double effectiveFontSize = isSlim
-        ? _ST.fontSizeSlim
-        : (isShrunken ? _ST.fontSizeShrunken : _ST.fontSize);
+    final double effectiveHeight = isSlim ? _ST.heightSlim : _ST.height;
+    final double effectiveFontSize = isSlim ? _ST.fontSizeSlim : _ST.fontSize;
     final double effectiveRadius = isSlim ? _ST.radiusSlim : _ST.radius;
     final double prefixIconSize = isSlim ? 18.0 : 20.0;
 
-    // ── Fill ──────────────────────────────────────────────────────────────
+    // Fill
     final fillColor = _hasFocus
         ? cs.primary.withValues(alpha: _ST.fillAlphaFocused)
         : cs.onSurface.withValues(alpha: _ST.fillAlphaUnfocused);
 
-    // ── Borders ──────────────────────────────────────────────────────────
+    // Borders
     final noBorder = OutlineInputBorder(
       borderRadius: BorderRadius.circular(effectiveRadius),
       borderSide: BorderSide.none,
     );
 
-    // ── Suffix ────────────────────────────────────────────────────────────
+    // Suffix
     final List<Widget> suffixChildren = [];
     if (widget.trailingActions != null) {
       suffixChildren.addAll(widget.trailingActions!);
@@ -360,10 +329,9 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
         ? Row(mainAxisSize: MainAxisSize.min, children: suffixChildren)
         : SizedBox(width: isSlim ? 32.0 : 40.0);
 
-    // ── Prefix icon ───────────────────────────────────────────────────────
-    // צבע אייקון בפוקוס:
-    //   slim (בסרגל secondaryContainer) → onSecondaryContainer: ניגודיות תקינה בהיר/כהה.
-    //   לא-slim (מחוץ לסרגל, רקע surface) → primary: התנהגות M3 סטנדרטית.
+    // Prefix icon color
+    // slim (בסרגל secondaryContainer) → onSecondaryContainer
+    // לא-slim (רקע surface) → primary (M3 standard)
     final Color focusedIconColor =
         isSlim ? cs.onSecondaryContainer : cs.primary;
 
@@ -374,15 +342,12 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
           color: _hasFocus ? focusedIconColor : cs.onSurfaceVariant,
         );
 
-    // ── ContentPadding ────────────────────────────────────────────────────
-    final contentPadding = isSlim
-        ? const EdgeInsets.symmetric(horizontal: AppTokens.spaceXS, vertical: 0)
-        : const EdgeInsets.symmetric(
-            horizontal: AppTokens.spaceXS, vertical: 0);
+    final contentPadding = EdgeInsets.symmetric(
+      horizontal: AppTokens.spaceXS,
+      vertical: 0,
+    );
 
-    return AnimatedContainer(
-      duration: _ST.shrinkAnim,
-      curve: Curves.easeInOut,
+    return SizedBox(
       height: effectiveHeight,
       child: RtlTextField(
         controller: widget.controller,
@@ -453,23 +418,7 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
         ),
       );
     } else {
-      content = AnimatedSwitcher(
-        duration: _ST.collapseAnim,
-        switchInCurve: Curves.easeOut,
-        switchOutCurve: Curves.easeIn,
-        transitionBuilder: (child, anim) => FadeTransition(
-          opacity: anim,
-          child: SizeTransition(
-            sizeFactor: anim,
-            axis: Axis.horizontal,
-            child: child,
-          ),
-        ),
-        child: KeyedSubtree(
-          key: const ValueKey('full'),
-          child: _buildField(context),
-        ),
-      );
+      content = _buildField(context);
     }
 
     if (widget.maxWidth != null) {
