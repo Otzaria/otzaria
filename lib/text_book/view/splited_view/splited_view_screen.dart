@@ -116,6 +116,7 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
       // סגירת הטור
       setState(() {
         _paneOpen = false;
+        _isHovering = false;
       });
     }
   }
