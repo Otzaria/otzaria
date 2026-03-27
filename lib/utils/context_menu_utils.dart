@@ -105,13 +105,11 @@ class ContextMenuUtils {
         );
       }
 
-      // עיצוב הטקסט כ-HTML
-      final textWithBreaks = finalHtmlText.replaceAll('\n', '<br>');
-      final htmlText = '''
-<div style="font-family: ${settingsState.commentatorsFontFamily}; font-size: ${fontSize}px; text-align: justify; direction: rtl;">
-$textWithBreaks
-</div>
-''';
+      final htmlText = CopyUtils.buildStyledHtml(
+        htmlText: finalHtmlText,
+        fontFamily: settingsState.commentatorsFontFamily,
+        fontSize: fontSize,
+      );
 
       final clipboard = SystemClipboard.instance;
       if (clipboard != null) {
@@ -145,13 +143,11 @@ $textWithBreaks
       if (clipboard != null) {
         final settingsState = context.read<SettingsBloc>().state;
 
-        // עיצוב הטקסט כ-HTML
-        final textWithBreaks = plainText.replaceAll('\n', '<br>');
-        final htmlText = '''
-<div style="font-family: ${settingsState.commentatorsFontFamily}; font-size: ${fontSize}px; text-align: justify; direction: rtl;">
-$textWithBreaks
-</div>
-''';
+        final htmlText = CopyUtils.buildStyledHtml(
+          htmlText: plainText,
+          fontFamily: settingsState.commentatorsFontFamily,
+          fontSize: fontSize,
+        );
 
         final item = DataWriterItem();
         item.add(Formats.plainText(plainText));
