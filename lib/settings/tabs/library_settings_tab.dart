@@ -242,7 +242,7 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
                         }
                       },
                     )
-                  : indexingState is IndexingComplete && (total > 0)
+                  : indexingState is IndexingComplete
                       ? NeutralActionButton(
                           text: 'איפוס',
                           onPressed: () async {

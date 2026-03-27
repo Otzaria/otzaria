@@ -4,18 +4,28 @@ abstract class IndexingState extends Equatable {
   final int? booksProcessed;
   final int? totalBooks;
   final List<String>? booksDone;
+  final bool isCreatingIndex;
 
-  const IndexingState({this.booksProcessed, this.totalBooks, this.booksDone});
+  const IndexingState({
+    this.booksProcessed,
+    this.totalBooks,
+    this.booksDone,
+    this.isCreatingIndex = false,
+  });
 
   @override
-  List<Object?> get props => [booksProcessed, totalBooks, booksDone];
+  List<Object?> get props =>
+      [booksProcessed, totalBooks, booksDone, isCreatingIndex];
 }
 
 class IndexingInitial extends IndexingState {}
 
 class IndexingInProgress extends IndexingState {
   const IndexingInProgress(
-      {super.booksProcessed, super.totalBooks, super.booksDone});
+      {super.booksProcessed,
+      super.totalBooks,
+      super.booksDone,
+      super.isCreatingIndex});
 }
 
 class IndexingComplete extends IndexingState {

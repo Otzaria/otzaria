@@ -28,9 +28,10 @@ class IndexingRepository {
   /// [onProgress] Callback function to report progress
   /// מבצע אינדוקס ומחזיר true אם הסתיים בהצלחה, false אם בוטל
   Future<bool> indexAllBooks(
-    Library library,
-    void Function(int processed, int total) onProgress,
-  ) async {
+    Library library, {
+    void Function()? onActualIndexingStarted,
+    required void Function(int processed, int total) onProgress,
+  }) async {
     _tantivyDataProvider.isIndexing.value = true;
     final isolateService =
         _isolateService ?? await IndexingIsolateService.create();
@@ -39,6 +40,7 @@ class IndexingRepository {
     final allBooks = library.getAllBooks();
     final totalBooks = allBooks.length;
     bool cancelled = false;
+    var didStartActualIndexing = false;
 
     try {
       int processedBooks = 0;
@@ -62,7 +64,17 @@ class IndexingRepository {
             if (!_tantivyDataProvider.booksDone
                 .contains("${book.title}textBook")) {
               debugPrint('📖 מאנדקס ספר טקסט ב-isolate: ${book.title}');
-              await _indexTextBook(book, isolateService);
+              await _indexTextBook(
+                book,
+                isolateService,
+                onActualIndexingStarted: () {
+                  if (didStartActualIndexing) {
+                    return;
+                  }
+                  didStartActualIndexing = true;
+                  onActualIndexingStarted?.call();
+                },
+              );
               _tantivyDataProvider.booksDone.add("${book.title}textBook");
               actuallyIndexed++;
             } else {
@@ -73,7 +85,17 @@ class IndexingRepository {
             if (!_tantivyDataProvider.booksDone
                 .contains("${book.title}pdfBook")) {
               debugPrint('📄 מאנדקס PDF ב-isolate: ${book.title}');
-              await _indexPdfBook(book, isolateService);
+              await _indexPdfBook(
+                book,
+                isolateService,
+                onActualIndexingStarted: () {
+                  if (didStartActualIndexing) {
+                    return;
+                  }
+                  didStartActualIndexing = true;
+                  onActualIndexingStarted?.call();
+                },
+              );
               _tantivyDataProvider.booksDone.add("${book.title}pdfBook");
               actuallyIndexed++;
             } else {
@@ -136,6 +158,7 @@ class IndexingRepository {
     TextBook book,
     IndexingIsolateService isolateService, {
     String? preloadedText,
+    void Function()? onActualIndexingStarted,
   }) async {
     final text = await _loadTextBookText(book, preloadedText: preloadedText);
     if (text == null) {
@@ -147,13 +170,15 @@ class IndexingRepository {
       book: book,
       stream: stream,
       isolateService: isolateService,
+      onActualIndexingStarted: onActualIndexingStarted,
     );
   }
 
   Future<void> _indexPdfBook(
     PdfBook book,
-    IndexingIsolateService isolateService,
-  ) async {
+    IndexingIsolateService isolateService, {
+    void Function()? onActualIndexingStarted,
+  }) async {
     final stream = await isolateService.processPdfBook(
       title: book.title,
       path: book.path,
@@ -162,6 +187,7 @@ class IndexingRepository {
       book: book,
       stream: stream,
       isolateService: isolateService,
+      onActualIndexingStarted: onActualIndexingStarted,
     );
   }
 
@@ -199,6 +225,7 @@ class IndexingRepository {
     required Book book,
     required Stream<IndexingIsolateUpdate> stream,
     required IndexingIsolateService isolateService,
+    void Function()? onActualIndexingStarted,
   }) async {
     try {
       await for (final update in stream) {
@@ -211,7 +238,11 @@ class IndexingRepository {
           continue;
         }
 
-        await _writePreparedBatch(book, update.documents);
+        await _writePreparedBatch(
+          book,
+          update.documents,
+          onActualIndexingStarted: onActualIndexingStarted,
+        );
         await update.acknowledge();
       }
     } catch (e) {
@@ -222,11 +253,14 @@ class IndexingRepository {
 
   Future<void> _writePreparedBatch(
     Book book,
-    List<PreparedIndexDocument> documents,
-  ) async {
+    List<PreparedIndexDocument> documents, {
+    void Function()? onActualIndexingStarted,
+  }) async {
     if (documents.isEmpty) {
       return;
     }
+
+    onActualIndexingStarted?.call();
 
     final index = await _tantivyDataProvider.engine;
     final title = book.title;

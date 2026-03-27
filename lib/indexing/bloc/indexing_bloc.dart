@@ -10,6 +10,7 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
   IndexingBloc(this._repository) : super(IndexingInitial()) {
     on<StartIndexing>(_onStartIndexing);
     on<CancelIndexing>(_onCancelIndexing);
+    on<ActualIndexingStarted>(_onActualIndexingStarted);
     on<UpdateIndexingProgress>(_onUpdateProgress);
     on<ClearIndex>(_onEraseIndex);
   }
@@ -38,12 +39,16 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
       booksProcessed: 0,
       totalBooks: totalBooks,
       booksDone: _repository.getIndexedBooks(),
+      isCreatingIndex: false,
     ));
 
     try {
       final completed = await _repository.indexAllBooks(
         event.library,
-        (processed, total) {
+        onActualIndexingStarted: () {
+          add(ActualIndexingStarted());
+        },
+        onProgress: (processed, total) {
           // Update progress through event
           add(UpdateIndexingProgress(
             processed: processed,
@@ -62,6 +67,23 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
           totalBooks: state.totalBooks,
           booksDone: _repository.getIndexedBooks()));
     }
+  }
+
+  void _onActualIndexingStarted(
+    ActualIndexingStarted event,
+    Emitter<IndexingState> emit,
+  ) {
+    final currentState = state;
+    if (currentState is! IndexingInProgress || currentState.isCreatingIndex) {
+      return;
+    }
+
+    emit(IndexingInProgress(
+      booksProcessed: currentState.booksProcessed,
+      totalBooks: currentState.totalBooks,
+      booksDone: currentState.booksDone,
+      isCreatingIndex: true,
+    ));
   }
 
   /// Handles the CancelIndexing event
@@ -95,6 +117,8 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
       emit(IndexingInProgress(
         booksProcessed: event.processed,
         totalBooks: event.total,
+        booksDone: state.booksDone,
+        isCreatingIndex: state.isCreatingIndex,
       ));
     }
   }

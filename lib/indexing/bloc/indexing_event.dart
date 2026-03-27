@@ -21,6 +21,8 @@ class ClearIndex extends IndexingEvent {}
 
 class CancelIndexing extends IndexingEvent {}
 
+class ActualIndexingStarted extends IndexingEvent {}
+
 class UpdateIndexingProgress extends IndexingEvent {
   final int processed;
   final int total;

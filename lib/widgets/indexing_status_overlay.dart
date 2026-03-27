@@ -1,9 +1,8 @@
-import 'dart:async';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
 import 'package:otzaria/indexing/bloc/indexing_state.dart';
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 class IndexingStatusOverlay extends StatefulWidget {
   const IndexingStatusOverlay({super.key, this.onTap});
@@ -16,26 +15,6 @@ class IndexingStatusOverlay extends StatefulWidget {
 
 class _IndexingStatusOverlayState extends State<IndexingStatusOverlay> {
   bool _hidden = false;
-  bool _delayElapsed = false;
-  Timer? _delayTimer;
-
-  @override
-  void dispose() {
-    _delayTimer?.cancel();
-    super.dispose();
-  }
-
-  void _startDelayTimer() {
-    _delayTimer?.cancel();
-    _delayElapsed = false;
-    _delayTimer = Timer(const Duration(seconds: 13), () {
-      if (mounted) {
-        setState(() {
-          _delayElapsed = true;
-        });
-      }
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,25 +22,16 @@ class _IndexingStatusOverlayState extends State<IndexingStatusOverlay> {
       buildWhen: (previous, current) => previous != current,
       builder: (context, state) {
         final isIndexing = state is IndexingInProgress;
+        final shouldShowOverlay = isIndexing && state.isCreatingIndex;
 
-        // אם האינדוקס התחיל - הפעל טיימר
-        if (isIndexing && _delayTimer == null) {
-          _startDelayTimer();
+        if (!isIndexing && _hidden) {
+          _hidden = false;
         }
 
-        // אם האינדוקס נגמר - אפס הכל
-        if (!isIndexing) {
-          _delayTimer?.cancel();
-          _delayTimer = null;
-          if (_hidden || _delayElapsed) {
-            _hidden = false;
-            _delayElapsed = false;
-          }
-        }
-
-        if (_hidden || !isIndexing || !_delayElapsed) {
+        if (_hidden || !shouldShowOverlay) {
           return const SizedBox.shrink();
         }
+
         final processed = state.booksProcessed ?? 0;
         final total = state.totalBooks ?? 0;
         if (total == 0) {
@@ -88,7 +58,6 @@ class _IndexingStatusOverlayState extends State<IndexingStatusOverlay> {
                 left: isRtl ? 0 : 16,
                 right: isRtl ? 16 : 0,
               );
-        // קובע את מיקום האיקס: תמיד באותו צד של החיווי
         final closeOnRight = alignment == Alignment.topRight;
 
         return Align(
@@ -178,7 +147,7 @@ class _IndexingStatusOverlayState extends State<IndexingStatusOverlay> {
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      'תיתכן איטיות בפעילות התוכנה',
+                                      'ייתכן איטיות בפעילות התוכנה',
                                       textDirection: TextDirection.rtl,
                                       style: Theme.of(context)
                                           .textTheme
@@ -207,7 +176,6 @@ class _IndexingStatusOverlayState extends State<IndexingStatusOverlay> {
                           ),
                         ),
                       ),
-                      // כפתור סגירה
                       Positioned(
                         top: 2,
                         right: closeOnRight ? 2 : null,
