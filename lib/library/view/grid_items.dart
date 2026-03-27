@@ -175,16 +175,14 @@ class BookGridItem extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Text(
-                          book.title,
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.right,
-                          textDirection: TextDirection.rtl,
+                        _OverflowAwareBookTitle(
+                          title: book.title,
+                          fullPath: _getBookTooltipPath(book),
                           style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: Theme.of(context).colorScheme.primary),
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
                         ),
                         if (showTopics)
                           Text(
@@ -323,6 +321,79 @@ class BookGridItem extends StatelessWidget {
       ),
     );
   }
+}
+
+class _OverflowAwareBookTitle extends StatelessWidget {
+  final String title;
+  final String? fullPath;
+  final TextStyle style;
+
+  const _OverflowAwareBookTitle({
+    required this.title,
+    required this.fullPath,
+    required this.style,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final titleWidget = Text(
+          title,
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.right,
+          textDirection: TextDirection.rtl,
+          style: style,
+        );
+
+        if (!constraints.hasBoundedWidth) {
+          return titleWidget;
+        }
+
+        final textPainter = TextPainter(
+          text: TextSpan(text: title, style: style),
+          maxLines: 3,
+          textAlign: TextAlign.right,
+          textDirection: TextDirection.rtl,
+        )..layout(maxWidth: constraints.maxWidth);
+
+        if (!textPainter.didExceedMaxLines) {
+          return titleWidget;
+        }
+
+        final tooltipMessage = (fullPath == null || fullPath!.isEmpty)
+            ? title
+            : '$title\n$fullPath';
+
+        return Tooltip(
+          message: tooltipMessage,
+          waitDuration: Durations.short2,
+          child: titleWidget,
+        );
+      },
+    );
+  }
+}
+
+String? _getBookTooltipPath(Book book) {
+  if (book is FileBook) {
+    return book.path;
+  }
+
+  if (book.filePath != null && book.filePath!.isNotEmpty) {
+    return book.filePath;
+  }
+
+  if (book is ExternalLibraryBook && book.link.isNotEmpty) {
+    return book.link;
+  }
+
+  if (book.categoryPath != null && book.categoryPath!.isNotEmpty) {
+    return book.categoryPath;
+  }
+
+  return null;
 }
 
 class MyGridView extends StatelessWidget {
