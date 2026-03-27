@@ -151,7 +151,6 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen> {
         children: [
           BlocBuilder<SettingsBloc, SettingsState>(
             builder: (context, settingsState) => AppTopBar(
-              isCompact: settingsState.compactMenuMode,
               center: OtzariaSearchField(
                 controller: _searchController,
                 hintText: _isHebrewToAramaic

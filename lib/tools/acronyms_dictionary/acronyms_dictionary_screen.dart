@@ -137,7 +137,6 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen> {
         children: [
           BlocBuilder<SettingsBloc, SettingsState>(
             builder: (context, settingsState) => AppTopBar(
-              isCompact: settingsState.compactMenuMode,
               center: OtzariaSearchField(
                 controller: _searchController,
                 hintText: 'חפש ראשי תיבות...',
