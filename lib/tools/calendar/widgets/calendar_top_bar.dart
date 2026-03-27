@@ -115,16 +115,14 @@ class _CalendarTopBarState extends State<CalendarTopBar> {
       emphasis: ToolbarActionButtonEmphasis.subtle,
       onPressed: widget.onNextPeriod,
     );
-    final dateText = Flexible(
-      child: Text(
-        _dateText,
-        overflow: TextOverflow.ellipsis,
-        maxLines: 1,
-        textDirection: TextDirection.rtl,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-      ),
+    final dateText = Text(
+      _dateText,
+      overflow: TextOverflow.ellipsis,
+      maxLines: 1,
+      textDirection: TextDirection.rtl,
+      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
     );
     final todayBtn = RecommendedActionButton(
       text: 'היום',
@@ -178,16 +176,16 @@ class _CalendarTopBarState extends State<CalendarTopBar> {
       leadingItems: [
         AppTopBarItem(widget: viewSwitcher),
         AppTopBarItem(widget: prevBtn, dividerBefore: true),
-        AppTopBarItem(widget: dateText),
         AppTopBarItem(widget: nextBtn),
         AppTopBarItem(widget: todayBtn, dividerBefore: true),
         AppTopBarItem(widget: jumpBtn),
       ],
+      center: dateText,
       trailingItems: [
-        AppTopBarItem(widget: settingsBtn),
+        AppTopBarItem(widget: printBtn),
+        AppTopBarItem(widget: timesBtn, dividerBefore: true),
         AppTopBarItem(widget: eventsBtn),
-        AppTopBarItem(widget: timesBtn),
-        AppTopBarItem(widget: printBtn, dividerBefore: true),
+        AppTopBarItem(widget: settingsBtn),
       ],
     );
   }

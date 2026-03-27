@@ -29,6 +29,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/widgets/app_top_bar.dart';
+import 'package:otzaria/widgets/buttons/action_buttons.dart';
 
 class PersonalNotesManagerScreen extends StatefulWidget {
   const PersonalNotesManagerScreen({super.key});
@@ -194,14 +195,16 @@ class _PersonalNotesManagerScreenState
       isCompact: isCompact,
       leadingItems: [
         AppTopBarItem(
-          widget: IconButton(
+          widget: ToolbarActionButton(
+            compact: isCompact,
             tooltip: _isNavigationVisible ? 'הסתר ניווט' : 'הצג ניווט',
+            icon: FluentIcons.navigation_24_regular,
+            selected: _isNavigationVisible,
             onPressed: () {
               setState(() {
                 _isNavigationVisible = !_isNavigationVisible;
               });
             },
-            icon: const Icon(FluentIcons.navigation_24_regular),
           ),
         ),
       ],
@@ -221,24 +224,27 @@ class _PersonalNotesManagerScreenState
       ),
       trailingItems: [
         AppTopBarItem(
-          widget: IconButton(
+          widget: ToolbarActionButton(
+            compact: isCompact,
             tooltip: 'רענן',
+            icon: FluentIcons.arrow_clockwise_24_regular,
             onPressed: _loadBooks,
-            icon: const Icon(FluentIcons.arrow_clockwise_24_regular),
           ),
         ),
         AppTopBarItem(
-          widget: IconButton(
+          widget: ToolbarActionButton(
+            compact: isCompact,
             tooltip: 'ייצוא הערות',
+            icon: FluentIcons.arrow_download_24_regular,
             onPressed: _exportNotes,
-            icon: const Icon(FluentIcons.arrow_download_24_regular),
           ),
         ),
         AppTopBarItem(
-          widget: IconButton(
+          widget: ToolbarActionButton(
+            compact: isCompact,
             tooltip: 'ייבוא הערות',
+            icon: FluentIcons.arrow_upload_24_regular,
             onPressed: _importNotes,
-            icon: const Icon(FluentIcons.arrow_upload_24_regular),
           ),
         ),
       ],

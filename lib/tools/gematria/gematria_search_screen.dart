@@ -26,6 +26,7 @@ import 'package:otzaria/widgets/keyboard_navigator.dart';
 import 'package:otzaria/widgets/keyboard_list_focus.dart';
 import 'package:otzaria/widgets/tool_empty_state.dart';
 import 'package:otzaria/widgets/app_top_bar.dart';
+import 'package:otzaria/widgets/buttons/action_buttons.dart';
 
 class GematriaSearchScreen extends StatefulWidget {
   const GematriaSearchScreen({super.key});
@@ -303,39 +304,39 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
 
     final topBar = BlocBuilder<SettingsBloc, SettingsState>(
       builder: (context, settingsState) => AppTopBar(
-      isCompact: settingsState.compactMenuMode,
-      center: OtzariaSearchField(
-        controller: _searchController,
-        hintText: 'חפש גימטריה...',
-        onSubmitted: (_) => _performSearch(),
-        onClear: () => setState(() {
-          _searchResults = [];
-          _lastGematriaValue = null;
-          _hasSearched = false;
-          _focusedCardIndex = _keyboardListFocus.reset();
-        }),
-        leading: IconButton(
-          icon: const Icon(FluentIcons.search_24_regular),
-          onPressed: _performSearch,
-          color: Theme.of(context).colorScheme.primary,
-        ),
-      ),
-      trailingItems: [
-        AppTopBarItem(
-          widget: IconButton(
-            icon: Icon(
-              _showingSettings
-                  ? FluentIcons.panel_right_contract_24_regular
-                  : FluentIcons.settings_24_regular,
-            ),
-            tooltip: _showingSettings
-                ? 'סגור הגדרות (Ctrl+Shift+,)'
-                : 'הגדרות (Ctrl+Shift+,)',
-            onPressed: _toggleSettings,
+        isCompact: settingsState.compactMenuMode,
+        center: OtzariaSearchField(
+          controller: _searchController,
+          hintText: 'חפש גימטריה...',
+          onSubmitted: (_) => _performSearch(),
+          onClear: () => setState(() {
+            _searchResults = [];
+            _lastGematriaValue = null;
+            _hasSearched = false;
+            _focusedCardIndex = _keyboardListFocus.reset();
+          }),
+          leading: IconButton(
+            icon: const Icon(FluentIcons.search_24_regular),
+            onPressed: _performSearch,
+            color: Theme.of(context).colorScheme.primary,
           ),
         ),
-      ],
-    ),
+        trailingItems: [
+          AppTopBarItem(
+            widget: ToolbarActionButton(
+              compact: settingsState.compactMenuMode,
+              tooltip: _showingSettings
+                  ? 'סגור הגדרות (Ctrl+Shift+,)'
+                  : 'הגדרות (Ctrl+Shift+,)',
+              icon: _showingSettings
+                  ? FluentIcons.settings_24_filled
+                  : FluentIcons.settings_24_regular,
+              selected: _showingSettings,
+              onPressed: _toggleSettings,
+            ),
+          ),
+        ],
+      ),
     );
 
     return KeyboardNavigator(
