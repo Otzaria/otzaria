@@ -13,6 +13,7 @@ class CategoryBooksGrid extends StatefulWidget {
   final String? topLevelName;
   final BookCategory? category;
   final Function(String, String, BookDetails) onBookSelected;
+  final String selectedFilter;
 
   const CategoryBooksGrid({
     super.key,
@@ -20,6 +21,7 @@ class CategoryBooksGrid extends StatefulWidget {
     this.topLevelName,
     this.category,
     required this.onBookSelected,
+    this.selectedFilter = 'all',
   });
 
   @override
@@ -29,14 +31,8 @@ class CategoryBooksGrid extends StatefulWidget {
 class _CategoryBooksGridState extends State<CategoryBooksGrid> {
   static final Logger _logger = Logger('CategoryBooksGrid');
 
-  // Using simplified filter enum/string from user request
-  // User wanted "Like it was before" -> "Segmented Button".
-  String _selectedFilter = 'all'; // all, in_progress, completed
-
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
     if (widget.category == null &&
         widget.categoryName != 'custom_books_virtual') {
       return ToolEmptyState(
@@ -47,61 +43,6 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
 
     return Column(
       children: [
-        // Header with Segmented Button (Like Tracking Screen)
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Segmented Button
-              Align(
-                alignment: Alignment.center,
-                child: SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment<String>(
-                      value: 'all',
-                      label: Text('הכל'),
-                      icon: Icon(FluentIcons.library_24_regular),
-                    ),
-                    ButtonSegment<String>(
-                      value: 'in_progress',
-                      label: Text('בתהליך'),
-                      icon: Icon(FluentIcons.hourglass_24_regular),
-                    ),
-                    ButtonSegment<String>(
-                      value: 'completed',
-                      label: Text('הושלם'),
-                      icon: Icon(FluentIcons.checkmark_circle_24_regular),
-                    ),
-                  ],
-                  selected: {_selectedFilter},
-                  onSelectionChanged: (Set<String> newSelection) {
-                    setState(() {
-                      _selectedFilter = newSelection.first;
-                    });
-                  },
-                  showSelectedIcon: false,
-                  style: ButtonStyle(
-                    visualDensity: VisualDensity.compact,
-                    foregroundColor: WidgetStateProperty.resolveWith((states) {
-                      if (states.contains(WidgetState.selected)) {
-                        return cs.onPrimaryContainer;
-                      }
-                      return cs.onSurface;
-                    }),
-                    backgroundColor: WidgetStateProperty.resolveWith((states) {
-                      if (states.contains(WidgetState.selected)) {
-                        return cs.primaryContainer;
-                      }
-                      return cs.surface;
-                    }),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-
         // Grid Content
         Expanded(
           child:
@@ -252,10 +193,10 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
             category, name, details);
       }
 
-      if (_selectedFilter == 'in_progress') {
+      if (widget.selectedFilter == 'in_progress') {
         return isInProgress && !isCompleted;
       }
-      if (_selectedFilter == 'completed') {
+      if (widget.selectedFilter == 'completed') {
         return isCompleted;
       }
       return true;

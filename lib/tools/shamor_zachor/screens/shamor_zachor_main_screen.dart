@@ -14,7 +14,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/widgets/buttons/action_buttons.dart';
 import 'package:otzaria/widgets/app_top_bar.dart';
-import 'package:otzaria/widgets/otzaria_search_field.dart';
+import 'package:otzaria/widgets/inputs/segmented_button_tile.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 /// Main screen for Shamor Zachor with Split View (Sidebar + Content)
 class ShamorZachorMainScreen extends StatefulWidget {
@@ -34,8 +35,8 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
   BookCategory? _selectedCategoryObject;
   String? _selectedBookName;
   BookDetails? _selectedBookDetails;
-  String _searchQuery = ''; // Search query from top bar
-  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = ''; // Search query from sidebar
+  String _selectedFilter = 'all'; // all, in_progress, completed
 
   @override
   bool get wantKeepAlive => true;
@@ -95,14 +96,7 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
       _selectedBookDetails = null;
       _searchQuery = ''; // Clear search when selecting a category
     });
-    _searchController.clear();
     _notifyTitleChange();
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
   }
 
   void _onSearchChanged(String query) {
@@ -212,12 +206,35 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
                 children: [
                   BlocBuilder<SettingsBloc, SettingsState>(
                     builder: (context, settingsState) => AppTopBar(
-                      isCompact: settingsState.compactMenuMode,
-                      center: OtzariaSearchField(
-                        controller: _searchController,
-                        hintText: 'חפש ספר...',
-                        onChanged: _onSearchChanged,
-                        onClear: () => _onSearchChanged(''),
+                      center: Center(
+                        child: SizedBox(
+                          width: 400,
+                          child: AppSegmentedControl<String>(
+                            options: const [
+                              SegmentOption<String>(
+                                value: 'all',
+                                label: 'הכל',
+                                icon: FluentIcons.library_24_regular,
+                              ),
+                              SegmentOption<String>(
+                                value: 'in_progress',
+                                label: 'בתהליך',
+                                icon: FluentIcons.hourglass_24_regular,
+                              ),
+                              SegmentOption<String>(
+                                value: 'completed',
+                                label: 'הושלם',
+                                icon: FluentIcons.checkmark_circle_24_regular,
+                              ),
+                            ],
+                            currentValue: _selectedFilter,
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedFilter = value;
+                              });
+                            },
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -230,6 +247,8 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
                           width: sidebarWidth,
                           child: ShamorZachorSidebar(
                             onCategorySelected: _onCategorySelected,
+                            onSearchChanged: _onSearchChanged,
+                            searchQuery: _searchQuery,
                             selectedCategoryName:
                                 currentTopLevelName == 'all_books_virtual'
                                     ? 'all_books_virtual'
@@ -281,6 +300,7 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
                                       category: currentCategoryObject,
                                       topLevelName: currentTopLevelName,
                                       onBookSelected: _navigateToBook,
+                                      selectedFilter: _selectedFilter,
                                     ),
                         ),
                       ],
@@ -315,6 +335,7 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
       category: searchCategory,
       topLevelName: 'search_results',
       onBookSelected: _navigateToBook,
+      selectedFilter: _selectedFilter,
     );
   }
 }
