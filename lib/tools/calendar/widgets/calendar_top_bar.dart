@@ -12,6 +12,8 @@
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_side_panel.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
@@ -56,7 +58,7 @@ class CalendarTopBar extends StatefulWidget {
 class _CalendarTopBarState extends State<CalendarTopBar> {
   final GlobalKey _jumpButtonKey = GlobalKey();
 
-  String get _dateText {
+  Widget _buildDateText(BuildContext context) {
     final s = widget.state;
     final heb =
         '${formatHebrewDay(s.selectedJewishDate.getJewishDayOfMonth())} '
@@ -64,7 +66,28 @@ class _CalendarTopBarState extends State<CalendarTopBar> {
         '${numberToHebrewWithoutQuotes(s.selectedJewishDate.getJewishYear())}';
     final greg =
         '${s.selectedGregorianDate.day} ${getGregorianMonthName(s.selectedGregorianDate.month)} ${s.selectedGregorianDate.year}';
-    return '$heb  •  $greg';
+
+    final baseStyle = Theme.of(context).textTheme.bodyMedium;
+
+    return RichText(
+      overflow: TextOverflow.ellipsis,
+      maxLines: 1,
+      textDirection: TextDirection.rtl,
+      text: TextSpan(
+        style: baseStyle,
+        children: [
+          TextSpan(
+            text: heb,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          const TextSpan(text: '  •  '),
+          TextSpan(
+            text: greg,
+            style: const TextStyle(fontWeight: FontWeight.normal),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _openJumpPopover() async {
@@ -98,95 +121,112 @@ class _CalendarTopBarState extends State<CalendarTopBar> {
   Widget build(BuildContext context) {
     final state = widget.state;
 
-    // ── Leading (ימין ב-RTL): view switcher + ניווט תאריך + היום + מעבר ──
+    return BlocBuilder<SettingsBloc, SettingsState>(
+      builder: (context, settingsState) {
+        final isCompact = settingsState.compactMenuMode;
 
-    final viewSwitcher = _buildViewSwitcher(state);
-    final prevBtn = ToolbarActionButton(
-      compact: true,
-      tooltip: 'קודם',
-      icon: FluentIcons.chevron_right_24_regular,
-      emphasis: ToolbarActionButtonEmphasis.subtle,
-      onPressed: widget.onPreviousPeriod,
-    );
-    final nextBtn = ToolbarActionButton(
-      compact: true,
-      tooltip: 'הבא',
-      icon: FluentIcons.chevron_left_24_regular,
-      emphasis: ToolbarActionButtonEmphasis.subtle,
-      onPressed: widget.onNextPeriod,
-    );
-    final dateText = Text(
-      _dateText,
-      overflow: TextOverflow.ellipsis,
-      maxLines: 1,
-      textDirection: TextDirection.rtl,
-      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.w600,
+        // ── Leading (ימין ב-RTL): view switcher + ניווט תאריך + היום + מעבר ──
+
+        final viewSwitcher = _buildViewSwitcher(state);
+        final prevBtn = ToolbarActionButton(
+          compact: isCompact,
+          tooltip: 'קודם',
+          icon: FluentIcons.chevron_right_24_regular,
+          emphasis: ToolbarActionButtonEmphasis.subtle,
+          onPressed: widget.onPreviousPeriod,
+        );
+        final nextBtn = ToolbarActionButton(
+          compact: isCompact,
+          tooltip: 'הבא',
+          icon: FluentIcons.chevron_left_24_regular,
+          emphasis: ToolbarActionButtonEmphasis.subtle,
+          onPressed: widget.onNextPeriod,
+        );
+        final dateText = _buildDateText(context);
+        final todayBtn = RecommendedActionButton(
+          text: 'היום',
+          onPressed: widget.onJumpToToday,
+        );
+        final jumpBtn = ToolbarActionButton(
+          key: _jumpButtonKey,
+          compact: isCompact,
+          tooltip: 'מעבר לתאריך',
+          icon: FluentIcons.calendar_search_20_regular,
+          iconWidget: Transform.flip(
+            flipX: true,
+            child: Icon(
+              FluentIcons.calendar_search_20_regular,
+              size: isCompact ? 16 : 20,
+            ),
           ),
-    );
-    final todayBtn = RecommendedActionButton(
-      text: 'היום',
-      onPressed: widget.onJumpToToday,
-    );
-    final jumpBtn = ToolbarActionButton(
-      key: _jumpButtonKey,
-      compact: true,
-      tooltip: 'מעבר לתאריך',
-      icon: FluentIcons.calendar_24_regular,
-      emphasis: ToolbarActionButtonEmphasis.subtle,
-      onPressed: _openJumpPopover,
-    );
+          emphasis: ToolbarActionButtonEmphasis.subtle,
+          onPressed: _openJumpPopover,
+        );
 
-    // ── Trailing (שמאל ב-RTL): הגדרות, אירועים, זמנים | הדפסה ─────────────
+        // ── Trailing (שמאל ב-RTL): הגדרות, אירועים, זמנים | הדפסה ─────────────
 
-    final settingsBtn = ToolbarActionButton(
-      compact: true,
-      tooltip: 'הגדרות לוח שנה',
-      icon: FluentIcons.settings_24_regular,
-      selected: widget.activeSidePanelView == CalendarSidePanelView.settings,
-      onPressed: () =>
-          widget.onSidePanelViewChanged(CalendarSidePanelView.settings),
-    );
-    final eventsBtn = ToolbarActionButton(
-      compact: true,
-      tooltip: 'אירועים',
-      icon: FluentIcons.calendar_ltr_24_regular,
-      selected: widget.activeSidePanelView == CalendarSidePanelView.events,
-      onPressed: () =>
-          widget.onSidePanelViewChanged(CalendarSidePanelView.events),
-    );
-    final timesBtn = ToolbarActionButton(
-      compact: true,
-      tooltip: 'זמנים',
-      icon: FluentIcons.clock_24_regular,
-      selected: widget.activeSidePanelView == CalendarSidePanelView.times,
-      onPressed: () =>
-          widget.onSidePanelViewChanged(CalendarSidePanelView.times),
-    );
-    final printBtn = ToolbarActionButton(
-      compact: true,
-      tooltip: 'הדפסה',
-      icon: FluentIcons.print_24_regular,
-      emphasis: ToolbarActionButtonEmphasis.subtle,
-      onPressed: widget.onPrint,
-    );
+        final settingsBtn = ToolbarActionButton(
+          compact: isCompact,
+          tooltip: 'הגדרות לוח שנה',
+          icon: widget.activeSidePanelView == CalendarSidePanelView.settings
+              ? FluentIcons.settings_24_filled
+              : FluentIcons.settings_24_regular,
+          selected:
+              widget.activeSidePanelView == CalendarSidePanelView.settings,
+          onPressed: () {
+            // סגירה בלחיצה חוזרת
+            if (widget.activeSidePanelView == CalendarSidePanelView.settings) {
+              widget.onSidePanelViewChanged(CalendarSidePanelView.times);
+            } else {
+              widget.onSidePanelViewChanged(CalendarSidePanelView.settings);
+            }
+          },
+        );
+        final eventsBtn = ToolbarActionButton(
+          compact: isCompact,
+          tooltip: 'אירועים',
+          icon: widget.activeSidePanelView == CalendarSidePanelView.events
+              ? FluentIcons.task_list_square_rtl_24_filled
+              : FluentIcons.task_list_square_rtl_24_regular,
+          selected: widget.activeSidePanelView == CalendarSidePanelView.events,
+          onPressed: () =>
+              widget.onSidePanelViewChanged(CalendarSidePanelView.events),
+        );
+        final timesBtn = ToolbarActionButton(
+          compact: isCompact,
+          tooltip: 'זמנים',
+          icon: widget.activeSidePanelView == CalendarSidePanelView.times
+              ? FluentIcons.clock_24_filled
+              : FluentIcons.clock_24_regular,
+          selected: widget.activeSidePanelView == CalendarSidePanelView.times,
+          onPressed: () =>
+              widget.onSidePanelViewChanged(CalendarSidePanelView.times),
+        );
+        final printBtn = ToolbarActionButton(
+          compact: isCompact,
+          tooltip: 'הדפסה',
+          icon: FluentIcons.print_24_regular,
+          emphasis: ToolbarActionButtonEmphasis.subtle,
+          onPressed: widget.onPrint,
+        );
 
-    return AppTopBar(
-      isCompact: true,
-      leadingItems: [
-        AppTopBarItem(widget: viewSwitcher),
-        AppTopBarItem(widget: prevBtn, dividerBefore: true),
-        AppTopBarItem(widget: nextBtn),
-        AppTopBarItem(widget: todayBtn, dividerBefore: true),
-        AppTopBarItem(widget: jumpBtn),
-      ],
-      center: dateText,
-      trailingItems: [
-        AppTopBarItem(widget: printBtn),
-        AppTopBarItem(widget: timesBtn, dividerBefore: true),
-        AppTopBarItem(widget: eventsBtn),
-        AppTopBarItem(widget: settingsBtn),
-      ],
+        return AppTopBar(
+          leadingItems: [
+            AppTopBarItem(widget: viewSwitcher),
+            AppTopBarItem(widget: prevBtn, dividerBefore: true),
+            AppTopBarItem(widget: nextBtn),
+            AppTopBarItem(widget: todayBtn, dividerBefore: true),
+            AppTopBarItem(widget: jumpBtn),
+          ],
+          center: dateText,
+          trailingItems: [
+            AppTopBarItem(widget: printBtn),
+            AppTopBarItem(widget: timesBtn, dividerBefore: true),
+            AppTopBarItem(widget: eventsBtn),
+            AppTopBarItem(widget: settingsBtn, dividerBefore: true),
+          ],
+        );
+      },
     );
   }
 
@@ -198,16 +238,22 @@ class _CalendarTopBarState extends State<CalendarTopBar> {
       children: [
         _ViewBtn(
           label: 'יום',
+          regularIcon: FluentIcons.calendar_day_24_regular,
+          filledIcon: FluentIcons.calendar_day_24_filled,
           selected: state.calendarView == CalendarView.day,
           onPressed: () => widget.onViewChanged(CalendarView.day),
         ),
         _ViewBtn(
           label: 'שבוע',
+          regularIcon: FluentIcons.calendar_week_numbers_24_regular,
+          filledIcon: FluentIcons.calendar_week_numbers_24_filled,
           selected: state.calendarView == CalendarView.week,
           onPressed: () => widget.onViewChanged(CalendarView.week),
         ),
         _ViewBtn(
           label: 'חודש',
+          regularIcon: FluentIcons.calendar_month_24_regular,
+          filledIcon: FluentIcons.calendar_month_24_filled,
           selected: state.calendarView == CalendarView.month,
           onPressed: () => widget.onViewChanged(CalendarView.month),
         ),
@@ -222,11 +268,15 @@ class _ViewBtn extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onPressed;
+  final IconData regularIcon;
+  final IconData filledIcon;
 
   const _ViewBtn({
     required this.label,
     required this.selected,
     required this.onPressed,
+    required this.regularIcon,
+    required this.filledIcon,
   });
 
   @override
@@ -242,9 +292,8 @@ class _ViewBtn extends StatelessWidget {
     final borderColor = selected
         ? cs.outlineVariant.withValues(alpha: 0.38)
         : Colors.transparent;
-    final shadowColor = selected
-        ? cs.shadow.withValues(alpha: 0.08)
-        : Colors.transparent;
+    final shadowColor =
+        selected ? cs.shadow.withValues(alpha: 0.08) : Colors.transparent;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2),
@@ -266,13 +315,24 @@ class _ViewBtn extends StatelessWidget {
               ),
             ],
           ),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: fg,
-              fontSize: 12,
-              fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                selected ? filledIcon : regularIcon,
+                size: 16,
+                color: fg,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  color: fg,
+                  fontSize: 12,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
+                ),
+              ),
+            ],
           ),
         ),
       ),

@@ -395,34 +395,45 @@ class _CalendarWidgetState extends State<CalendarWidget> {
   Widget _buildDesktopLayout(BuildContext context, CalendarState state) {
     return Padding(
       padding: const EdgeInsets.all(AppTokens.spaceMD),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: Stack(
         children: [
-          // ── לוח חודש מלא (Expanded) ────────────────────────────────────
-          Expanded(
-            child: CalendarMainPanel(
-              state: state,
-              onCreateEvent: ({existingEvent, specificDate}) =>
-                  _showCreateEventDialog(context, state,
-                      existingEvent: existingEvent, specificDate: specificDate),
-            ),
+          // ── תוכן ראשי ────────────────────────────────────────────────────
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ── לוח חודש מלא (Expanded) ────────────────────────────────────
+              Expanded(
+                child: CalendarMainPanel(
+                  state: state,
+                  onCreateEvent: ({existingEvent, specificDate}) =>
+                      _showCreateEventDialog(context, state,
+                          existingEvent: existingEvent,
+                          specificDate: specificDate),
+                ),
+              ),
+              // ── לוח צד (AnimatedSize) ────────────────────────────────────────
+              AnimatedSize(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+                child: _isSidebarVisible &&
+                        _sidePanelView != CalendarSidePanelView.settings
+                    ? Padding(
+                        padding:
+                            const EdgeInsets.only(right: AppTokens.spaceMD),
+                        child: SizedBox(
+                          width: 340,
+                          child: FloatingPanel(
+                            child: _buildSidePanel(context, state),
+                          ),
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ],
           ),
-          // ── לוח צד (AnimatedSize) ────────────────────────────────────────
-          AnimatedSize(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-            child: _isSidebarVisible
-                ? Padding(
-                    padding: const EdgeInsets.only(right: AppTokens.spaceMD),
-                    child: SizedBox(
-                      width: 340,
-                      child: FloatingPanel(
-                        child: _buildSidePanel(context, state),
-                      ),
-                    ),
-                  )
-                : const SizedBox.shrink(),
-          ),
+          // ── פאנל הגדרות overlay ──────────────────────────────────────────
+          if (_sidePanelView == CalendarSidePanelView.settings)
+            _buildSettingsOverlay(context, state),
         ],
       ),
     );
@@ -472,6 +483,62 @@ class _CalendarWidgetState extends State<CalendarWidget> {
                 existingEvent: existingEvent, specificDate: specificDate),
       ),
       settingsPanel: const CalendarSettingsPanel(),
+    );
+  }
+
+  Widget _buildSettingsOverlay(BuildContext context, CalendarState state) {
+    final cs = Theme.of(context).colorScheme;
+    return Stack(
+      children: [
+        // ── scrim (רקע שקוף) ──────────────────────────────────────────
+        GestureDetector(
+          onTap: () =>
+              setState(() => _sidePanelView = CalendarSidePanelView.times),
+          child: Container(
+            color: Colors.transparent,
+            width: double.infinity,
+            height: double.infinity,
+          ),
+        ),
+        // ── הפאנל עצמו ──────────────────────────────────────────────────────
+        Positioned(
+          top: 0,
+          bottom: 0,
+          left: 0,
+          child: Material(
+            elevation: 8,
+            color: cs.surfaceContainerHigh,
+            child: SizedBox(
+              width: 400,
+              child: SafeArea(
+                child: Column(
+                  children: [
+                    // ── כותרת ──────────────────────────────────────────────
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                      child: Row(
+                        children: [
+                          Text(
+                            'הגדרות',
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineMedium
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // ── תוכן הפאנל ────────────────────────────────────────────────
+                    const Expanded(
+                      child: CalendarSettingsPanel(),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

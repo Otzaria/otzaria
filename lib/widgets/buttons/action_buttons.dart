@@ -179,6 +179,7 @@ enum ToolbarActionButtonEmphasis { prominent, subtle }
 class ToolbarActionButton extends StatelessWidget {
   final String tooltip;
   final IconData icon;
+  final Widget? iconWidget;
   final VoidCallback onPressed;
   final bool selected;
   final String? label;
@@ -191,6 +192,7 @@ class ToolbarActionButton extends StatelessWidget {
     super.key,
     required this.tooltip,
     required this.icon,
+    this.iconWidget,
     required this.onPressed,
     this.selected = false,
     this.label,
@@ -254,13 +256,13 @@ class ToolbarActionButton extends StatelessWidget {
         ).copyWith(
           overlayColor: WidgetStatePropertyAll(overlay),
         ),
-        icon: Icon(icon, size: 20),
+        icon: iconWidget ?? Icon(icon, size: 20),
         label: Text(label!, style: const TextStyle(fontSize: 14.0)),
       );
     } else {
       button = IconButton(
         onPressed: onPressed,
-        icon: Icon(icon, size: 20),
+        icon: iconWidget ?? Icon(icon, size: 20),
         padding: const EdgeInsets.all(8.0),
         constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
         style: IconButton.styleFrom(
@@ -297,13 +299,13 @@ class ToolbarActionButton extends StatelessWidget {
         ).copyWith(
           overlayColor: WidgetStatePropertyAll(overlay),
         ),
-        icon: Icon(icon, size: 15),
+        icon: iconWidget ?? Icon(icon, size: 15),
         label: Text(label!, style: const TextStyle(fontSize: 12.0)),
       );
     } else {
       button = IconButton(
         onPressed: onPressed,
-        icon: Icon(icon, size: 16),
+        icon: iconWidget ?? Icon(icon, size: 16),
         padding: const EdgeInsets.all(6.0),
         constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
         style: IconButton.styleFrom(
