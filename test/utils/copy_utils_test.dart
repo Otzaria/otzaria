@@ -21,7 +21,8 @@ void main() {
         fontSize: 20,
       );
 
-      expect(html, contains('<div>שורה א</div><div><br></div><div>שורה ב</div>'));
+      expect(
+          html, contains('<div>שורה א</div><div><br></div><div>שורה ב</div>'));
     });
   });
 }

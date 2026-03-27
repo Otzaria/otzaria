@@ -25,6 +25,7 @@ import 'package:otzaria/settings/services/nikud_display_service.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
+import 'package:otzaria/text_book/view/selection/selected_text_copy.dart';
 import 'package:otzaria/text_book/view/selection/selected_text_restore.dart';
 import 'package:otzaria/widgets/custom_ui_components.dart';
 
@@ -486,7 +487,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       // ),
     ]);
 
-    return ctx.ContextMenu<Object>(entries: _normalizeContextMenuEntries(entries));
+    return ctx.ContextMenu<Object>(
+        entries: _normalizeContextMenuEntries(entries));
   }
 
   List<ctx.ContextMenuEntry<Object>> _normalizeContextMenuEntries(
@@ -640,66 +642,19 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     }
 
     try {
-      final clipboard = SystemClipboard.instance;
-      if (clipboard != null) {
-        final settingsState = context.read<SettingsBloc>().state;
-        final textBookState = context.read<TextBookBloc>().state;
+      final settingsState = context.read<SettingsBloc>().state;
+      final textBookState = context.read<TextBookBloc>().state;
+      if (textBookState is! TextBookLoaded) return;
 
-        String htmlContentToUse = plainText;
-
-        // אם יש לנו אינדקס נוכחי, ננסה למצוא את הטקסט המקורי
-        if (_savedSelectedIndex != null &&
-            _savedSelectedIndex! >= 0 &&
-            _savedSelectedIndex! < widget.content.length) {
-          final originalData = widget.content[_savedSelectedIndex!];
-          final plainTextCleaned =
-              plainText.replaceAll(RegExp(r'\s+'), ' ').trim();
-          final originalCleaned = originalData
-              .replaceAll(RegExp(r'<[^>]*>'), '')
-              .replaceAll(RegExp(r'\s+'), ' ')
-              .trim();
-
-          if (originalCleaned.contains(plainTextCleaned) ||
-              plainTextCleaned.contains(originalCleaned)) {
-            htmlContentToUse = originalData;
-          }
-        }
-
-        String finalPlainText = plainText;
-        if (settingsState.copyWithHeaders != 'none' &&
-            textBookState is TextBookLoaded) {
-          final bookName = CopyUtils.extractBookName(textBookState.book);
-          final currentIndex = _savedSelectedIndex ?? 0;
-          final currentPath = await CopyUtils.extractCurrentPath(
-            textBookState.book,
-            currentIndex,
-            bookContent: textBookState.content,
-          );
-
-          finalPlainText = CopyUtils.formatTextWithHeaders(
-            originalText: plainText,
-            copyWithHeaders: settingsState.copyWithHeaders,
-            copyHeaderFormat: settingsState.copyHeaderFormat,
-            bookName: bookName,
-            currentPath: currentPath,
-          );
-
-          htmlContentToUse = CopyUtils.formatTextWithHeaders(
-            originalText: htmlContentToUse,
-            copyWithHeaders: settingsState.copyWithHeaders,
-            copyHeaderFormat: settingsState.copyHeaderFormat,
-            bookName: bookName,
-            currentPath: currentPath,
-          );
-        }
-
-        await CopyUtils.copyStyledToClipboard(
-          plainText: finalPlainText,
-          htmlText: htmlContentToUse,
-          fontFamily: widget.fontFamily ?? settingsState.fontFamily,
-          fontSize: widget.fontSize,
-        );
-      }
+      await copySelectedTextForBook(
+        plainText: plainText,
+        selectedIndex: _savedSelectedIndex,
+        sourceContent: widget.content,
+        textBookState: textBookState,
+        settingsState: settingsState,
+        fontFamily: widget.fontFamily ?? settingsState.fontFamily,
+        fontSize: widget.fontSize,
+      );
     } catch (e) {
       if (mounted) {
         UiSnack.showError('שגיאה בהעתקה מעוצבת: $e',
@@ -893,8 +848,9 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                                 settingsState.defaultRemoveNikud,
                             removeNikudFromTanach:
                                 settingsState.removeNikudFromTanach,
-                            categoryId:
-                                widget.isMainText ? state.book.categoryId : null,
+                            categoryId: widget.isMainText
+                                ? state.book.categoryId
+                                : null,
                             fileType:
                                 widget.isMainText ? state.book.fileType : null,
                           ),

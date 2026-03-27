@@ -27,6 +27,7 @@ import 'package:otzaria/widgets/scrollable_positioned_list_scrollbar.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
 import 'package:otzaria/text_book/view/selection/text_selection_manager.dart';
 import 'package:otzaria/text_book/view/selection/enhanced_gesture_detector.dart';
+import 'package:otzaria/text_book/view/selection/selected_text_copy.dart';
 import 'package:otzaria/text_book/view/selection/selected_text_restore.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
 
@@ -617,78 +618,19 @@ class _CombinedViewState extends State<CombinedView> {
     }
 
     try {
-      final clipboard = SystemClipboard.instance;
-      if (clipboard != null) {
-        // קבלת ההגדרות הנוכחיות לעיצוב
-        final settingsState = context.read<SettingsBloc>().state;
-        final textBookState = context.read<TextBookBloc>().state;
+      final settingsState = context.read<SettingsBloc>().state;
+      final textBookState = context.read<TextBookBloc>().state;
+      if (textBookState is! TextBookLoaded) return;
 
-        // ניסיון למצוא את הטקסט המקורי עם תגי HTML
-        String htmlContentToUse = plainText;
-
-        // אם יש לנו אינדקס נוכחי, ננסה למצוא את החלק הרלוונטי מהטקסט המקורי
-        final selectedIndex = _currentSelectedIndex.value;
-        if (selectedIndex != null &&
-            selectedIndex >= 0 &&
-            selectedIndex < widget.data.length) {
-          final originalData = widget.data[selectedIndex];
-
-          // בדיקה אם הטקסט הפשוט מופיע בטקסט המקורי
-          final plainTextCleaned =
-              plainText.replaceAll(RegExp(r'\s+'), ' ').trim();
-          final originalCleaned = originalData
-              .replaceAll(RegExp(r'<[^>]*>'), '') // הסרת תגי HTML
-              .replaceAll(RegExp(r'\s+'), ' ')
-              .trim();
-
-          // אם הטקסט הפשוט תואם בדיוק לכל הטקסט המקורי, נשתמש במקורי
-          if (plainTextCleaned == originalCleaned) {
-            htmlContentToUse = originalData;
-          } else if (originalCleaned.contains(plainTextCleaned)) {
-            // אם הטקסט הנבחר הוא חלק מהטקסט המקורי, נמצא את החלק הרלוונטי
-            // נשתמש בטקסט הפשוט שנבחר (ללא HTML) כדי לא להעתיק יותר ממה שנבחר
-            htmlContentToUse = plainText;
-          }
-        }
-
-        // הוספת כותרות אם נדרש
-        String finalPlainText = plainText;
-        if (settingsState.copyWithHeaders != 'none' &&
-            textBookState is TextBookLoaded) {
-          final bookName = CopyUtils.extractBookName(textBookState.book);
-          final currentIndex = _currentSelectedIndex.value ?? 0;
-          final currentPath = await CopyUtils.extractCurrentPath(
-            textBookState.book,
-            currentIndex,
-            bookContent: textBookState.content,
-          );
-
-          finalPlainText = CopyUtils.formatTextWithHeaders(
-            originalText: plainText,
-            copyWithHeaders: settingsState.copyWithHeaders,
-            copyHeaderFormat: settingsState.copyHeaderFormat,
-            bookName: bookName,
-            currentPath: currentPath,
-          );
-
-          // גם עדכון ה-HTML עם הכותרות
-          htmlContentToUse = CopyUtils.formatTextWithHeaders(
-            originalText: htmlContentToUse,
-            copyWithHeaders: settingsState.copyWithHeaders,
-            copyHeaderFormat: settingsState.copyHeaderFormat,
-            bookName: bookName,
-            currentPath: currentPath,
-          );
-        }
-
-        // שימוש בפונקציית העזר החדשה להעתקה
-        await CopyUtils.copyStyledToClipboard(
-          plainText: finalPlainText,
-          htmlText: htmlContentToUse,
-          fontFamily: settingsState.fontFamily,
-          fontSize: widget.textSize,
-        );
-      }
+      await copySelectedTextForBook(
+        plainText: plainText,
+        selectedIndex: _currentSelectedIndex.value,
+        sourceContent: widget.data,
+        textBookState: textBookState,
+        settingsState: settingsState,
+        fontFamily: settingsState.fontFamily,
+        fontSize: widget.textSize,
+      );
     } catch (e) {
       if (mounted) {
         UiSnack.showError('שגיאה בהעתקה מעוצבת: $e',

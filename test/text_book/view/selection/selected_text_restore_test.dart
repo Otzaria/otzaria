@@ -50,13 +50,13 @@ void main() {
       );
 
       final restored = restoreSelectedTextLineBreaks(
-        selectedText: 'בראשיתשלום',
+        selectedText: 'בראשיתשלום.',
         visibleLines: [firstLine, secondLine],
       );
 
       expect(firstLine, 'בראשית');
-      expect(secondLine, 'שלום');
-      expect(restored, 'בראשית\nשלום');
+      expect(secondLine, 'שלום.');
+      expect(restored, 'בראשית\nשלום.');
     });
   });
 }

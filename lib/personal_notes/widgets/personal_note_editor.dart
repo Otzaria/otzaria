@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
@@ -211,7 +212,29 @@ class _PersonalNoteToolbar extends StatelessWidget {
   });
 
   void _toggleAttribute(quill.Attribute attribute) {
-    controller.formatSelection(attribute);
+    final selectedAttributes = controller.getSelectionStyle().attributes;
+    final isActive = _isAttributeActive(attribute, selectedAttributes);
+    controller
+      ..skipRequestKeyboard = !attribute.isInline
+      ..formatSelection(
+        isActive ? quill.Attribute.clone(attribute, null) : attribute,
+      );
+  }
+
+  bool _isAttributeActive(
+    quill.Attribute attribute,
+    Map<String, quill.Attribute> selectedAttributes,
+  ) {
+    if (attribute.key == quill.Attribute.list.key ||
+        attribute.key == quill.Attribute.header.key ||
+        attribute.key == quill.Attribute.script.key ||
+        attribute.key == quill.Attribute.align.key ||
+        attribute.key == quill.Attribute.background.key) {
+      final selectedAttribute = selectedAttributes[attribute.key];
+      return selectedAttribute?.value == attribute.value;
+    }
+
+    return selectedAttributes.containsKey(attribute.key);
   }
 
   @override
@@ -221,49 +244,52 @@ class _PersonalNoteToolbar extends StatelessWidget {
       children: [
         IconButton(
           tooltip: 'מודגש',
-          icon: const Icon(Icons.format_bold, size: 18),
+          icon: const Icon(FluentIcons.text_bold_24_regular, size: 18),
           onPressed: () => _toggleAttribute(quill.Attribute.bold),
         ),
         IconButton(
           tooltip: 'נטוי',
-          icon: const Icon(Icons.format_italic, size: 18),
+          icon: const Icon(FluentIcons.text_italic_24_regular, size: 18),
           onPressed: () => _toggleAttribute(quill.Attribute.italic),
         ),
         IconButton(
           tooltip: 'קו תחתי',
-          icon: const Icon(Icons.format_underline, size: 18),
+          icon: const Icon(FluentIcons.text_underline_24_regular, size: 18),
           onPressed: () => _toggleAttribute(quill.Attribute.underline),
         ),
         IconButton(
           tooltip: 'הדגשה',
-          icon: const Icon(Icons.format_color_fill, size: 18),
+          icon: const Icon(FluentIcons.circle_highlight_24_regular, size: 18),
           onPressed: () => _toggleAttribute(
             const quill.BackgroundAttribute('#fff59d'),
           ),
         ),
         IconButton(
           tooltip: 'כותרת',
-          icon: const Icon(Icons.title, size: 18),
+          icon: const Icon(FluentIcons.text_header_2_24_regular, size: 18),
           onPressed: () => _toggleAttribute(quill.Attribute.h2),
         ),
         IconButton(
           tooltip: 'רשימה',
-          icon: const Icon(Icons.format_list_bulleted, size: 18),
+          icon: const Icon(FluentIcons.text_bullet_list_24_regular, size: 18),
           onPressed: () => _toggleAttribute(quill.Attribute.ul),
         ),
         IconButton(
           tooltip: 'רשימה ממוספרת',
-          icon: const Icon(Icons.format_list_numbered, size: 18),
+          icon: const Icon(
+            FluentIcons.text_number_list_rtl_24_regular,
+            size: 18,
+          ),
           onPressed: () => _toggleAttribute(quill.Attribute.ol),
         ),
         IconButton(
           tooltip: 'ציטוט',
-          icon: const Icon(Icons.format_quote, size: 18),
+          icon: const Icon(FluentIcons.text_quote_24_regular, size: 18),
           onPressed: () => _toggleAttribute(quill.Attribute.blockQuote),
         ),
         IconButton(
           tooltip: 'הוסף קישור',
-          icon: const Icon(Icons.link, size: 18),
+          icon: const Icon(FluentIcons.link_24_regular, size: 18),
           onPressed: onInsertLink,
         ),
       ],
