@@ -26,7 +26,7 @@ import 'package:otzaria/library/view/otzar_book_dialog.dart';
 import 'package:otzaria/library/view/book_preview_panel.dart';
 import 'package:otzaria/library/view/library_panel_controller.dart';
 import 'package:otzaria/settings/panels/library_settings_panel.dart';
-import 'package:otzaria/widgets/buttons/action_buttons.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/app_top_bar.dart';
 import 'package:otzaria/widgets/responsive_action_bar.dart';
 import 'package:otzaria/utils/open_book.dart';
@@ -294,7 +294,6 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                         // כך הסרגל לא גורם ל-reflow של ה-ScrollView בגלילה.
                         return Stack(
                           children: [
-                            // ── תוכן הספרייה — padding קבוע מלמעלה ──────────
                             Positioned.fill(
                               child: Padding(
                                 padding: EdgeInsets.only(top: topPad),
@@ -308,7 +307,6 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                                 ),
                               ),
                             ),
-                            // ── סרגל עליון — צף, לא משפיע על layout התוכן ──
                             Positioned(
                               top: 0,
                               left: 0,
@@ -379,7 +377,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
           compact: isCompact,
           tooltip: previewSelected ? 'הסתר תצוגה מקדימה' : 'הצג תצוגה מקדימה',
           icon: previewSelected
-              ? FluentIcons.eye_off_24_regular
+              ? FluentIcons.eye_24_filled
               : FluentIcons.eye_24_regular,
           selected: previewSelected,
           onPressed: () =>
@@ -414,7 +412,6 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     );
 
     return AppTopBar(
-      isCompact: isCompact,
       scrollDebounceMs: _kScrollDebounceMs,
       secondaryRowVisible: secondaryRow != null ? _secondaryRowVisible : null,
       leadingItems: [
@@ -640,6 +637,19 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         );
         final panelMode = _effectiveSidePanel(settingsState);
 
+        // אם זה פאנל הגדרות, נציג אותו כ-overlay
+        if (panelMode == _LibrarySidePanel.settings) {
+          return Stack(
+            children: [
+              // תוכן ראשי
+              _buildContent(state),
+              // פאנל הגדרות overlay
+              _buildSettingsOverlay(ctx, settingsState),
+            ],
+          );
+        }
+
+        // אחרת, תצוגה רגילה עם Row
         return Row(
           children: [
             Expanded(child: _buildContent(state)),
@@ -1543,6 +1553,70 @@ class _LibraryBrowserState extends State<LibraryBrowser>
           _LibrarySidePanel.none => const SizedBox.shrink(),
         },
       ),
+    );
+  }
+
+  Widget _buildSettingsOverlay(
+    BuildContext context,
+    SettingsState settingsState,
+  ) {
+    final cs = Theme.of(context).colorScheme;
+    return Stack(
+      children: [
+        // ── scrim (רקע שקוף) ──────────────────────────────────────────
+        GestureDetector(
+          onTap: () => _hidePreviewPanel(settingsState),
+          child: Container(
+            color: Colors.transparent,
+            width: double.infinity,
+            height: double.infinity,
+          ),
+        ),
+        // ── הפאנל עצמו ──────────────────────────────────────────────────────
+        Positioned(
+          top: 0,
+          bottom: 0,
+          left: 0,
+          child: Material(
+            elevation: 8,
+            color: cs.surfaceContainerHigh,
+            child: SizedBox(
+              width: 400,
+              child: SafeArea(
+                child: Column(
+                  children: [
+                    // ── כותרת ──────────────────────────────────────────────
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                      child: Row(
+                        children: [
+                          Text(
+                            'הגדרות',
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineMedium
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // ── תוכן הפאנל ────────────────────────────────────────────────
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8.0),
+                          child:
+                              LibrarySettingsPanel(hebrewBooksPathWidget: null),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

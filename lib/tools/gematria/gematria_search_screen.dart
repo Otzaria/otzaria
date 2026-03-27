@@ -304,7 +304,6 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
 
     final topBar = BlocBuilder<SettingsBloc, SettingsState>(
       builder: (context, settingsState) => AppTopBar(
-        isCompact: settingsState.compactMenuMode,
         center: OtzariaSearchField(
           controller: _searchController,
           hintText: 'חפש גימטריה...',
@@ -364,38 +363,37 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
             children: [
               topBar,
               Expanded(
-                child: isNarrow
-                    // ── מסך צר: Stack (overlay) ──────────────────────────
-                    ? Stack(
-                        children: [
-                          Column(
+                child: Stack(
+                  children: [
+                    // ── תוכן ראשי ──────────────────────────────────────────
+                    isNarrow
+                        ? Column(
                             children: [
                               if (_lastGematriaValue != null) _buildStatusBar(),
                               Expanded(child: _buildResultsList()),
                             ],
-                          ),
-                          // פאנל הגדרות מצף מהצד
-                          settingsPanel.buildNarrowOverlay(context),
-                        ],
-                      )
-                    // ── מסך רחב: Row ──────────────────────────────────────
-                    : Row(
-                        children: [
-                          Expanded(
-                            child: ToolPanelWrapper(
-                              centerContent: !_showingSettings,
-                              child: Column(
-                                children: [
-                                  if (_lastGematriaValue != null)
-                                    _buildStatusBar(),
-                                  Expanded(child: _buildResultsList()),
-                                ],
+                          )
+                        : Row(
+                            children: [
+                              Expanded(
+                                child: ToolPanelWrapper(
+                                  centerContent: !_showingSettings,
+                                  child: Column(
+                                    children: [
+                                      if (_lastGematriaValue != null)
+                                        _buildStatusBar(),
+                                      Expanded(child: _buildResultsList()),
+                                    ],
+                                  ),
+                                ),
                               ),
-                            ),
+                              if (!_showingSettings) settingsPanel,
+                            ],
                           ),
-                          settingsPanel,
-                        ],
-                      ),
+                    // ── פאנל הגדרות overlay ──────────────────────────────────
+                    if (_showingSettings) _buildSettingsOverlay(context),
+                  ],
+                ),
               ),
             ],
           ),
@@ -466,6 +464,69 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
           _keyboardListFocus.focusedIndex = index;
         }),
       ),
+    );
+  }
+
+  Widget _buildSettingsOverlay(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Stack(
+      children: [
+        // ── scrim (רקע שקוף) ──────────────────────────────────────────
+        GestureDetector(
+          onTap: _toggleSettings,
+          child: Container(
+            color: Colors.transparent,
+            width: double.infinity,
+            height: double.infinity,
+          ),
+        ),
+        // ── הפאנל עצמו ──────────────────────────────────────────────────────
+        Positioned(
+          top: 0,
+          bottom: 0,
+          left: 0,
+          child: Material(
+            elevation: 8,
+            color: cs.surfaceContainerHigh,
+            child: SizedBox(
+              width: 360,
+              child: SafeArea(
+                child: Column(
+                  children: [
+                    // ── כותרת ──────────────────────────────────────────────
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppTokens.spaceMD,
+                        AppTokens.spaceMD,
+                        AppTokens.spaceMD,
+                        0,
+                      ),
+                      child: Row(
+                        children: [
+                          Text(
+                            'הגדרות',
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineMedium
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // ── הגדרות גימטריה ────────────────────────────────────────────────
+                    const Expanded(
+                      child: SingleChildScrollView(
+                        padding: EdgeInsets.all(AppTokens.spaceMD),
+                        child: GematriaSettingsTab(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

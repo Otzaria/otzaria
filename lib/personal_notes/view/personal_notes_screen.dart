@@ -153,10 +153,7 @@ class _PersonalNotesManagerScreenState
       child: Column(
         children: [
           // שורת כלים עליונה לכל רוחב העמוד
-          BlocBuilder<SettingsBloc, SettingsState>(
-            builder: (context, settingsState) =>
-                _buildTopBar(isCompact: settingsState.compactMenuMode),
-          ),
+          _buildTopBar(),
           // תוכן העמוד
           Expanded(
             child: Row(
@@ -190,64 +187,68 @@ class _PersonalNotesManagerScreenState
     );
   }
 
-  Widget _buildTopBar({required bool isCompact}) {
-    return AppTopBar(
-      isCompact: isCompact,
-      leadingItems: [
-        AppTopBarItem(
-          widget: ToolbarActionButton(
-            compact: isCompact,
-            tooltip: _isNavigationVisible ? 'הסתר ניווט' : 'הצג ניווט',
-            icon: FluentIcons.navigation_24_regular,
-            selected: _isNavigationVisible,
-            onPressed: () {
+  Widget _buildTopBar() {
+    return BlocBuilder<SettingsBloc, SettingsState>(
+      builder: (context, settingsState) {
+        final isCompact = settingsState.compactMenuMode;
+        return AppTopBar(
+          leadingItems: [
+            AppTopBarItem(
+              widget: ToolbarActionButton(
+                compact: isCompact,
+                tooltip: _isNavigationVisible ? 'הסתר ניווט' : 'הצג ניווט',
+                icon: FluentIcons.navigation_24_regular,
+                selected: _isNavigationVisible,
+                onPressed: () {
+                  setState(() {
+                    _isNavigationVisible = !_isNavigationVisible;
+                  });
+                },
+              ),
+            ),
+          ],
+          center: OtzariaSearchField(
+            controller: _searchController,
+            hintText: 'חפש בהערות...',
+            onChanged: (value) {
               setState(() {
-                _isNavigationVisible = !_isNavigationVisible;
+                _searchQuery = value;
+              });
+            },
+            onClear: () {
+              setState(() {
+                _searchQuery = '';
               });
             },
           ),
-        ),
-      ],
-      center: OtzariaSearchField(
-        controller: _searchController,
-        hintText: 'חפש בהערות...',
-        onChanged: (value) {
-          setState(() {
-            _searchQuery = value;
-          });
-        },
-        onClear: () {
-          setState(() {
-            _searchQuery = '';
-          });
-        },
-      ),
-      trailingItems: [
-        AppTopBarItem(
-          widget: ToolbarActionButton(
-            compact: isCompact,
-            tooltip: 'רענן',
-            icon: FluentIcons.arrow_clockwise_24_regular,
-            onPressed: _loadBooks,
-          ),
-        ),
-        AppTopBarItem(
-          widget: ToolbarActionButton(
-            compact: isCompact,
-            tooltip: 'ייצוא הערות',
-            icon: FluentIcons.arrow_download_24_regular,
-            onPressed: _exportNotes,
-          ),
-        ),
-        AppTopBarItem(
-          widget: ToolbarActionButton(
-            compact: isCompact,
-            tooltip: 'ייבוא הערות',
-            icon: FluentIcons.arrow_upload_24_regular,
-            onPressed: _importNotes,
-          ),
-        ),
-      ],
+          trailingItems: [
+            AppTopBarItem(
+              widget: ToolbarActionButton(
+                compact: isCompact,
+                tooltip: 'רענן',
+                icon: FluentIcons.arrow_clockwise_24_regular,
+                onPressed: _loadBooks,
+              ),
+            ),
+            AppTopBarItem(
+              widget: ToolbarActionButton(
+                compact: isCompact,
+                tooltip: 'ייצוא הערות',
+                icon: FluentIcons.arrow_download_24_regular,
+                onPressed: _exportNotes,
+              ),
+            ),
+            AppTopBarItem(
+              widget: ToolbarActionButton(
+                compact: isCompact,
+                tooltip: 'ייבוא הערות',
+                icon: FluentIcons.arrow_upload_24_regular,
+                onPressed: _importNotes,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 

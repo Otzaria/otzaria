@@ -8,7 +8,6 @@
 // הקריאה: GematriaSettingsPanel(isVisible, onToggle) — ללא שינוי ב-API.
 
 import 'package:flutter/material.dart';
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 
@@ -90,26 +89,16 @@ class GematriaSettingsPanel extends StatelessWidget {
   Widget _buildPanelContent(BuildContext context) {
     return Column(
       children: [
-        // ── כותרת + כפתור X ──────────────────────────────────────────────
+        // ── כותרת ──────────────────────────────────────────────
         Padding(
           padding: const EdgeInsets.fromLTRB(
-            AppTokens.spaceXS,
+            AppTokens.spaceMD,
             AppTokens.spaceMD,
             AppTokens.spaceMD,
             0,
           ),
           child: Row(
             children: [
-              IconButton(
-                icon: const Icon(FluentIcons.dismiss_24_regular, size: 20),
-                onPressed: onToggle,
-                tooltip: 'סגור',
-                style: IconButton.styleFrom(
-                  padding: EdgeInsets.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-              ),
-              const Spacer(),
               Text(
                 'הגדרות',
                 style: Theme.of(context)
