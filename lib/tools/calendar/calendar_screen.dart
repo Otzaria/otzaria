@@ -1,14 +1,4 @@
 // lib/tools/calendar/calendar_screen.dart
-//
-// **שינויים:**
-// • CalendarTopBar עבר מ-appBar ל-body Column (כמו LibraryBrowser)
-//   → מאפשר שימוש ב-AppTopBar ללא PreferredSizeWidget
-// • Layout דסקטופ: Row עם Expanded — ללא SingleChildScrollView
-//   → הלוח ממלא את כל הגובה
-// • Layout מובייל: נשמר SingleChildScrollView
-// • CalendarView.day ו-.week מציגות את לוח החודש (ב-CalendarMainPanel)
-
-// ignore_for_file: unused_element
 
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -19,7 +9,8 @@ import 'package:otzaria/printing/printing_screen.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
-import 'package:otzaria/widgets/floating_panel.dart';
+import 'package:otzaria/widgets/floating_panel.dart'
+    show FloatingPanel, kSidePanelWidth, kSideBySideMinWidth;
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/dialogs/calendar_event_dialog.dart';
 import 'package:otzaria/tools/calendar/dialogs/calendar_print_dialog.dart';
@@ -292,8 +283,7 @@ class _CalendarWidgetState extends State<CalendarWidget> {
               final cubit = context.read<CalendarCubit>();
               cubit.changeCalendarView(switch (state.calendarView) {
                 CalendarView.month => CalendarView.week,
-                CalendarView.week => CalendarView.day,
-                CalendarView.day => CalendarView.month,
+                CalendarView.week => CalendarView.month,
               });
             },
             _parseShortcut(shortcuts['key-shortcut-print'] ?? 'ctrl+p'): () {
@@ -393,63 +383,90 @@ class _CalendarWidgetState extends State<CalendarWidget> {
   // ─── Layouts ────────────────────────────────────────────────────────────────
 
   Widget _buildDesktopLayout(BuildContext context, CalendarState state) {
-    return Padding(
-      padding: const EdgeInsets.all(AppTokens.spaceMD),
-      child: Stack(
-        children: [
-          // ── תוכן ראשי ────────────────────────────────────────────────────
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // ── לוח חודש מלא (Expanded) ────────────────────────────────────
-              Expanded(
-                child: CalendarMainPanel(
-                  state: state,
-                  onCreateEvent: ({existingEvent, specificDate}) =>
-                      _showCreateEventDialog(context, state,
-                          existingEvent: existingEvent,
-                          specificDate: specificDate),
-                ),
-              ),
-              // ── לוח צד (AnimatedSize) ────────────────────────────────────────
-              AnimatedSize(
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-                child: _isSidebarVisible &&
-                        _sidePanelView != CalendarSidePanelView.settings
-                    ? Padding(
-                        padding:
-                            const EdgeInsets.only(right: AppTokens.spaceMD),
-                        child: SizedBox(
-                          width: 340,
-                          child: FloatingPanel(
-                            child: _buildSidePanel(context, state),
-                          ),
-                        ),
-                      )
-                    : const SizedBox.shrink(),
-              ),
-            ],
-          ),
-          // ── פאנל הגדרות overlay ──────────────────────────────────────────
-          if (_sidePanelView == CalendarSidePanelView.settings)
-            _buildSettingsOverlay(context, state),
-        ],
-      ),
-    );
-  }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // מחשב האם יש מקום לפאנל צד ולוח זה לצד זה
+        final totalPadding = AppTokens.spaceMD * 3;
+        final hasRoomForSideBySide =
+            constraints.maxWidth >= kSideBySideMinWidth + totalPadding;
 
-  Widget _buildMobileLayout(BuildContext context, CalendarState state) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppTokens.spaceMD),
-      child: SizedBox(
-        height: MediaQuery.of(context).size.height * 0.75,
-        child: CalendarMainPanel(
+        final sidePanelVisible = _isSidebarVisible &&
+            _sidePanelView != CalendarSidePanelView.settings;
+
+        final mainPanel = CalendarMainPanel(
           state: state,
           onCreateEvent: ({existingEvent, specificDate}) =>
               _showCreateEventDialog(context, state,
                   existingEvent: existingEvent, specificDate: specificDate),
-        ),
+        );
+
+        final sidePanel = FloatingPanel(
+          child: _buildSidePanel(context, state),
+        );
+
+        return Padding(
+          padding: const EdgeInsets.all(AppTokens.spaceMD),
+          child: Stack(
+            children: [
+              if (hasRoomForSideBySide)
+                // ── מצב רחב: לוח ופאנל צד זה לצד זה ────────────────────────
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(child: mainPanel),
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                      child: sidePanelVisible
+                          ? Padding(
+                              padding: const EdgeInsets.only(
+                                  right: AppTokens.spaceMD),
+                              child: SizedBox(
+                                  width: kSidePanelWidth, child: sidePanel),
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                  ],
+                )
+              else
+                // ── מצב צר: לוח ממלא הכול, פאנל צד מכסה עליו ───────────────
+                Positioned.fill(child: mainPanel),
+
+              if (!hasRoomForSideBySide && sidePanelVisible) ...[
+                // ── scrim לחיץ לסגירת הפאנל ──────────────────────────────────
+                Positioned.fill(
+                  child: GestureDetector(
+                    onTap: () => setState(() => _isSidebarVisible = false),
+                    child: ColoredBox(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .scrim
+                          .withValues(alpha: 0.30),
+                    ),
+                  ),
+                ),
+                // ── פאנל צד כ-overlay כשאין מקום ────────────────────────────
+                Positioned.fill(child: sidePanel),
+              ],
+
+              // ── פאנל הגדרות overlay ──────────────────────────────────────
+              if (_sidePanelView == CalendarSidePanelView.settings)
+                _buildSettingsOverlay(context, state),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMobileLayout(BuildContext context, CalendarState state) {
+    return Padding(
+      padding: const EdgeInsets.all(AppTokens.spaceMD),
+      child: CalendarMainPanel(
+        state: state,
+        onCreateEvent: ({existingEvent, specificDate}) =>
+            _showCreateEventDialog(context, state,
+                existingEvent: existingEvent, specificDate: specificDate),
       ),
     );
   }
@@ -482,7 +499,6 @@ class _CalendarWidgetState extends State<CalendarWidget> {
             _showCreateEventDialog(context, state,
                 existingEvent: existingEvent, specificDate: specificDate),
       ),
-      settingsPanel: const CalendarSettingsPanel(),
     );
   }
 

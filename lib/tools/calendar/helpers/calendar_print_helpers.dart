@@ -4,7 +4,6 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:otzaria/tools/calendar/bloc/calendar_state.dart';
 import 'package:otzaria/tools/calendar/models/calendar_event.dart';
-import 'package:otzaria/tools/calendar/helpers/zmanim_helpers.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 
 /// יוצר PDF של לוח השנה עם האירועים
@@ -23,8 +22,6 @@ Future<Uint8List> createCalendarPdf(
       await _addMonthPages(pdf, state, font, format, count);
     case CalendarView.week:
       await _addWeekPages(pdf, state, font, format, count);
-    case CalendarView.day:
-      await _addDayPages(pdf, state, font, format, count);
   }
 
   return pdf.save();
@@ -96,42 +93,6 @@ Future<void> _addWeekPages(
   }
 }
 
-Future<void> _addDayPages(
-  pw.Document pdf,
-  CalendarState state,
-  pw.Font font,
-  PdfPageFormat format,
-  int count,
-) async {
-  for (int i = 0; i < count; i++) {
-    final dayDate = state.selectedGregorianDate.add(Duration(days: i));
-    final dayState = _stateWithDate(state, dayDate);
-    final times = calculateDailyTimes(dayDate, state.selectedCity);
-
-    pdf.addPage(
-      pw.Page(
-        pageFormat: format,
-        textDirection: pw.TextDirection.rtl,
-        build: (context) => pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-          children: [
-            pw.Text(
-              _getDayText(dayState),
-              style: pw.TextStyle(
-                  font: font, fontSize: 20, fontWeight: pw.FontWeight.bold),
-              textAlign: pw.TextAlign.center,
-            ),
-            pw.SizedBox(height: 16),
-            _buildTimesTable(times, font),
-            pw.SizedBox(height: 16),
-            _buildEventsList(dayState, font),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 // ─── State helpers ─────────────────────────────────────────────────────────
 
 CalendarState _getStateForMonthOffset(CalendarState state, int offset) {
@@ -172,13 +133,6 @@ CalendarState _getStateForWeekOffset(CalendarState state, int offset) {
   );
 }
 
-CalendarState _stateWithDate(CalendarState state, DateTime date) {
-  return state.copyWith(
-    selectedGregorianDate: date,
-    selectedJewishDate: JewishDate.fromDateTime(date),
-  );
-}
-
 // ─── Text helpers ──────────────────────────────────────────────────────────
 
 String _getMonthYearText(CalendarState state) {
@@ -194,11 +148,6 @@ String _getWeekRangeText(CalendarState state) {
   final startDate = state.selectedGregorianDate;
   final endDate = startDate.add(const Duration(days: 6));
   return '${startDate.day}/${startDate.month}/${startDate.year} - ${endDate.day}/${endDate.month}/${endDate.year}';
-}
-
-String _getDayText(CalendarState state) {
-  final jd = state.selectedJewishDate;
-  return '${kHebrewDays[state.selectedGregorianDate.weekday % 7]} ${formatHebrewDay(jd.getJewishDayOfMonth())} ${getHebrewMonthNameFor(jd)} ${formatHebrewYear(jd.getJewishYear())}';
 }
 
 // ─── Grid builders ─────────────────────────────────────────────────────────
@@ -384,52 +333,3 @@ pw.Widget _buildWeekGrid(CalendarState state, pw.Font font) {
   );
 }
 
-pw.Widget _buildTimesTable(Map<String, String> times, pw.Font font) {
-  final timeEntries = times.entries.toList();
-  return pw.GridView(
-    crossAxisCount: 2,
-    childAspectRatio: 3,
-    children: timeEntries.map((entry) {
-      return pw.Container(
-        padding: const pw.EdgeInsets.all(4),
-        decoration: pw.BoxDecoration(
-          border: pw.Border.all(color: PdfColors.grey200, width: 0.5),
-        ),
-        child: pw.Row(
-          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-          children: [
-            pw.Text(entry.value,
-                style: pw.TextStyle(
-                    font: font, fontSize: 9, fontWeight: pw.FontWeight.bold)),
-            pw.Text(entry.key, style: pw.TextStyle(font: font, fontSize: 8)),
-          ],
-        ),
-      );
-    }).toList(),
-  );
-}
-
-pw.Widget _buildEventsList(CalendarState state, pw.Font font) {
-  final date = state.selectedGregorianDate;
-  final events = state.events
-      .where((e) =>
-          e.baseGregorianDate.year == date.year &&
-          e.baseGregorianDate.month == date.month &&
-          e.baseGregorianDate.day == date.day)
-      .toList();
-  if (events.isEmpty) return pw.SizedBox();
-  return pw.Column(
-    crossAxisAlignment: pw.CrossAxisAlignment.end,
-    children: [
-      pw.Text('אירועים:',
-          style: pw.TextStyle(
-              font: font, fontSize: 12, fontWeight: pw.FontWeight.bold)),
-      for (final event in events)
-        pw.Padding(
-          padding: const pw.EdgeInsets.symmetric(vertical: 2),
-          child: pw.Text('• ${event.title}',
-              style: pw.TextStyle(font: font, fontSize: 10)),
-        ),
-    ],
-  );
-}

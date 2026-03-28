@@ -1,20 +1,14 @@
 // lib/tools/calendar/widgets/calendar_main_panel.dart
 //
-// לוח חודש מלא-מסך.
+// לוח חודש/שבוע מלא-מסך.
 //
-// **שינויים:**
-// • כל 3 תצוגות (day/week/month) מציגות את לוח החודש.
-//   - day:   מדגיש את יום הנבחר בצבע primary חזק יותר
-//   - week:  מדגיש את שורת השבוע הנוכחית
-//   - month: תצוגה רגילה
-// • הלוח ממלא את כל הגובה הזמין (Expanded rows).
-// • אספקט ריישיו נשמר — תאים מרובעים יחסית.
-// • הוסרה עטיפת SingleChildScrollView — הלוח לא גולל.
+// **תצוגות:**
+// • month: לוח חודש מלא — כל ימי החודש בגריד שבועי
+// • week:  תצוגת שבוע — 7 תאים בלבד למילוי כל הגובה הזמין
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kosher_dart/kosher_dart.dart';
-import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_day_cell.dart';
@@ -33,6 +27,10 @@ class CalendarMainPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (state.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     return FloatingPanel(
       color: Theme.of(context).colorScheme.surface,
       child: Padding(
@@ -46,7 +44,7 @@ class CalendarMainPanel extends StatelessWidget {
                 duration: const Duration(milliseconds: 280),
                 child: KeyedSubtree(
                   key: ValueKey(
-                      '${state.calendarView}-${state.currentGregorianDate.month}-${state.currentGregorianDate.year}'),
+                      '${state.calendarView}-${state.currentGregorianDate.month}-${state.currentGregorianDate.year}-${state.selectedGregorianDate.day}'),
                   child: _buildCalendarGrid(context, state),
                 ),
               ),
@@ -83,10 +81,45 @@ class CalendarMainPanel extends StatelessWidget {
   // ── Grid ──────────────────────────────────────────────────────────────────
 
   Widget _buildCalendarGrid(BuildContext context, CalendarState state) {
-    // כל 3 תצוגות מציגות לוח חודש — רק ה-highlight mode שונה
+    if (state.calendarView == CalendarView.week) {
+      return _buildWeekView(context, state);
+    }
     return state.calendarType == CalendarType.gregorian
         ? _buildGregorianGrid(context, state)
         : _buildHebrewGrid(context, state);
+  }
+
+  // ── Week view — 7 תאים ממלאים את כל הגובה ────────────────────────────────
+
+  Widget _buildWeekView(BuildContext context, CalendarState state) {
+    final selected = state.selectedGregorianDate;
+    // תחילת השבוע: ראשון (weekday % 7 → 0=ראשון, 1=שני, ..., 6=שבת)
+    final weekStart = selected.subtract(Duration(days: selected.weekday % 7));
+
+    final cells = <_CellData>[];
+    for (int i = 0; i < 7; i++) {
+      final d = weekStart.add(Duration(days: i));
+      cells.add(_CellData(d, JewishDate.fromDateTime(d)));
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: cells.map((cell) {
+        return Expanded(
+          child: buildDayCell(
+            context,
+            state,
+            cell.gregorian,
+            cell.jewish,
+            false,
+            () => context
+                .read<CalendarCubit>()
+                .selectDate(cell.jewish, cell.gregorian),
+            () => onCreateEvent(specificDate: cell.gregorian),
+          ),
+        );
+      }).toList(),
+    );
   }
 
   // ── Gregorian grid ────────────────────────────────────────────────────────
@@ -178,9 +211,6 @@ class CalendarMainPanel extends StatelessWidget {
   Widget _buildRowsFromCells(
       BuildContext context, CalendarState state, List<_CellData> cells) {
     final numRows = cells.length ~/ 7;
-    final selectedDate = state.selectedGregorianDate;
-    final selectedWeekStart =
-        selectedDate.subtract(Duration(days: selectedDate.weekday % 7));
 
     return Column(
       children: [
@@ -190,9 +220,6 @@ class CalendarMainPanel extends StatelessWidget {
               context,
               state,
               cells.sublist(row * 7, (row + 1) * 7),
-              row,
-              selectedDate,
-              selectedWeekStart,
             ),
           ),
       ],
@@ -203,27 +230,9 @@ class CalendarMainPanel extends StatelessWidget {
     BuildContext context,
     CalendarState state,
     List<_CellData> weekCells,
-    int rowIndex,
-    DateTime selectedDate,
-    DateTime weekStart,
   ) {
-    // האם השורה הנוכחית היא שורת השבוע הנבחר?
-    final isSelectedWeekRow = state.calendarView == CalendarView.week &&
-        weekCells.any((c) {
-          final d = c.gregorian;
-          return !d.isBefore(weekStart) &&
-              d.isBefore(weekStart.add(const Duration(days: 7)));
-        });
-
     return Container(
       margin: const EdgeInsets.only(bottom: 2),
-      decoration: isSelectedWeekRow
-          ? BoxDecoration(
-              color:
-                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.07),
-              borderRadius: BorderRadius.circular(AppTokens.radiusSM),
-            )
-          : null,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: weekCells.map((cell) {

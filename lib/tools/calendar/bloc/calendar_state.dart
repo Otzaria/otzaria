@@ -4,7 +4,7 @@ import 'package:otzaria/tools/calendar/models/calendar_event.dart';
 
 enum CalendarType { hebrew, gregorian, combined }
 
-enum CalendarView { month, week, day }
+enum CalendarView { month, week }
 
 /// העדפת התראה לזמן הלכתי ספציפי
 class ZmanAlertPreference extends Equatable {
@@ -62,6 +62,7 @@ class CalendarState extends Equatable {
   final int calendarNotificationTime;
   final bool calendarNotificationSound;
   final Map<String, ZmanAlertPreference> zmanAlerts;
+  final bool isLoading;
   final bool googleCalendarEnabled;
   final bool googleCalendarConnected;
   final List<String> googleCalendarSelectedIds;
@@ -89,6 +90,7 @@ class CalendarState extends Equatable {
     this.calendarNotificationTime = 60,
     this.calendarNotificationSound = true,
     this.zmanAlerts = const {},
+    this.isLoading = false,
     this.googleCalendarEnabled = false,
     this.googleCalendarConnected = false,
     this.googleCalendarSelectedIds = const ['primary'],
@@ -141,6 +143,7 @@ class CalendarState extends Equatable {
     int? calendarNotificationTime,
     bool? calendarNotificationSound,
     Map<String, ZmanAlertPreference>? zmanAlerts,
+    bool? isLoading,
     bool? googleCalendarEnabled,
     bool? googleCalendarConnected,
     List<String>? googleCalendarSelectedIds,
@@ -169,6 +172,7 @@ class CalendarState extends Equatable {
       calendarNotificationTime: calendarNotificationTime ?? this.calendarNotificationTime,
       calendarNotificationSound: calendarNotificationSound ?? this.calendarNotificationSound,
       zmanAlerts: zmanAlerts ?? this.zmanAlerts,
+      isLoading: isLoading ?? this.isLoading,
       googleCalendarEnabled: googleCalendarEnabled ?? this.googleCalendarEnabled,
       googleCalendarConnected: googleCalendarConnected ?? this.googleCalendarConnected,
       googleCalendarSelectedIds: googleCalendarSelectedIds ?? this.googleCalendarSelectedIds,
@@ -205,6 +209,7 @@ class CalendarState extends Equatable {
         calendarNotificationTime,
         calendarNotificationSound,
         zmanAlerts,
+        isLoading,
         googleCalendarEnabled,
         googleCalendarConnected,
         googleCalendarSelectedIds,

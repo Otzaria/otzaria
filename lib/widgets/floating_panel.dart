@@ -55,6 +55,15 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 
+/// רוחב מינימלי של פאנל צד בלוח שנה ובמסכים אחרים
+const double kSidePanelWidth = 340.0;
+
+/// רוחב מינימלי של תוכן ראשי לצד פאנל צד
+const double kMainPanelMinWidth = 500.0;
+
+/// סך הרוחב המינימלי להצגת פאנל צד ותוכן ראשי זה לצד זה
+const double kSideBySideMinWidth = kSidePanelWidth + kMainPanelMinWidth;
+
 /// פאנל צף בסגנון M3 — elevation + shadow + clip.
 ///
 /// בונה [Material] עם [elevation], [shadowColor] ו-[clipBehavior].

@@ -25,7 +25,6 @@ class _CalendarPrintDialogState extends State<CalendarPrintDialog> {
         switch (widget.calendarView) {
       CalendarView.month => ('חודש', 'חודשים', 12),
       CalendarView.week => ('שבוע', 'שבועות', 52),
-      CalendarView.day => ('יום', 'ימים', 365),
     };
 
     return Directionality(

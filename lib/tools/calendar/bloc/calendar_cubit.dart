@@ -69,6 +69,7 @@ class CalendarCubit extends Cubit<CalendarState> {
   }
 
   Future<void> _initializeCalendar() async {
+    emit(state.copyWith(isLoading: true));
     final settings = await _settingsRepository.loadSettings();
     final calendarType =
         _stringToCalendarType(settings['calendarType'] as String);
@@ -117,6 +118,7 @@ class CalendarCubit extends Cubit<CalendarState> {
       calendarNotificationTime: calendarNotificationTime,
       calendarNotificationSound: calendarNotificationSound,
       zmanAlerts: zmanAlerts,
+      isLoading: false,
       googleCalendarEnabled: googleCalendarEnabled,
       googleCalendarSelectedIds: googleCalendarSelectedIds,
       googleCalendarSyncPastDays: googleCalendarSyncPastDays,
@@ -414,27 +416,6 @@ class CalendarCubit extends Cubit<CalendarState> {
     ));
   }
 
-  void _previousDay() {
-    final newDate =
-        state.selectedGregorianDate.subtract(const Duration(days: 1));
-    final newJewishDate = JewishDate.fromDateTime(newDate);
-    emit(state.copyWith(
-      selectedGregorianDate: newDate,
-      selectedJewishDate: newJewishDate,
-      dailyTimes: calculateDailyTimes(newDate, state.selectedCity),
-    ));
-  }
-
-  void _nextDay() {
-    final newDate = state.selectedGregorianDate.add(const Duration(days: 1));
-    final newJewishDate = JewishDate.fromDateTime(newDate);
-    emit(state.copyWith(
-      selectedGregorianDate: newDate,
-      selectedJewishDate: newJewishDate,
-      dailyTimes: calculateDailyTimes(newDate, state.selectedCity),
-    ));
-  }
-
   void changeCalendarView(CalendarView view) {
     emit(state.copyWith(calendarView: view));
   }
@@ -445,8 +426,6 @@ class CalendarCubit extends Cubit<CalendarState> {
         _previousMonth();
       case CalendarView.week:
         _previousWeek();
-      case CalendarView.day:
-        _previousDay();
     }
   }
 
@@ -456,8 +435,6 @@ class CalendarCubit extends Cubit<CalendarState> {
         _nextMonth();
       case CalendarView.week:
         _nextWeek();
-      case CalendarView.day:
-        _nextDay();
     }
   }
 
