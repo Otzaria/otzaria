@@ -94,11 +94,13 @@ class _MeasurementConverterScreenState
         setState(() => _narrowShowCategories = false);
       }
     });
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _focusInputField(selectAll: true));
   }
 
   /// מבקש פוקוס למסך המרת המידות.
   void requestKeyboardFocus() {
-    requestFocusIfNeeded(_screenFocusNode);
+    _focusInputField(selectAll: true);
   }
 
   @override
@@ -202,6 +204,17 @@ class _MeasurementConverterScreenState
         '${_resultController.text} $_selectedToUnit';
     Clipboard.setData(ClipboardData(text: text));
     UiSnack.show(UiSnack.textCopied);
+  }
+
+  void _focusInputField({bool selectAll = false}) {
+    if (!mounted || !_inputFocusNode.canRequestFocus) return;
+    requestFocusIfNeeded(_inputFocusNode);
+    if (selectAll) {
+      _inputController.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: _inputController.text.length,
+      );
+    }
   }
 
   // ════════════════════════════════════════════════════════════════════════════

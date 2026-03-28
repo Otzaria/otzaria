@@ -26,6 +26,7 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen> {
   final TextEditingController _searchController = TextEditingController();
   final DictionaryLookupRepository _dictionaryRepository =
       DictionaryLookupRepository.instance;
+  final FocusNode _searchFocusNode = FocusNode();
   final FocusNode _listFocusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
   late final KeyboardListFocusController _keyboardListFocus;
@@ -45,19 +46,33 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen> {
     );
     _loadDictionary();
     _searchController.addListener(_performSearch);
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _focusSearchField(selectAll: true));
   }
 
   /// מבקש פוקוס לרשימת המילון.
   void requestKeyboardFocus() {
-    requestFocusIfNeeded(_listFocusNode);
+    _focusSearchField(selectAll: true);
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocusNode.dispose();
     _listFocusNode.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _focusSearchField({bool selectAll = false}) {
+    if (!mounted || !_searchFocusNode.canRequestFocus) return;
+    requestFocusIfNeeded(_searchFocusNode);
+    if (selectAll) {
+      _searchController.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: _searchController.text.length,
+      );
+    }
   }
 
   Future<void> _loadDictionary() async {
@@ -153,9 +168,11 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen> {
             builder: (context, settingsState) => AppTopBar(
               center: OtzariaSearchField(
                 controller: _searchController,
+                focusNode: _searchFocusNode,
                 hintText: _isHebrewToAramaic
                     ? 'חפש מילה בעברית...'
                     : 'חפש מילה בארמית...',
+                autofocus: true,
                 onClear: () => setState(() {
                   _filteredResults = [];
                   _focusedIndex = -1;

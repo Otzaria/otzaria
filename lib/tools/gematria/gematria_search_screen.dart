@@ -22,7 +22,6 @@ import 'package:otzaria/tools/gematria/widgets/gematria_result_card.dart';
 import 'package:otzaria/tools/gematria/widgets/gematria_settings_panel.dart';
 import 'package:otzaria/widgets/tool_ui_helpers.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
-import 'package:otzaria/widgets/keyboard_navigator.dart';
 import 'package:otzaria/widgets/keyboard_list_focus.dart';
 import 'package:otzaria/widgets/tool_empty_state.dart';
 import 'package:otzaria/widgets/app_top_bar.dart';
@@ -37,6 +36,7 @@ class GematriaSearchScreen extends StatefulWidget {
 
 class GematriaSearchScreenState extends State<GematriaSearchScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
   final FocusNode _screenFocusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
   late final KeyboardListFocusController _keyboardListFocus;
@@ -107,19 +107,33 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
       estimatedItemExtent: _cardEstimatedHeight,
     );
     _searchController.addListener(() => setState(() {}));
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _focusSearchField(selectAll: true));
   }
 
   /// מבקש פוקוס למסך הגימטריה.
   void requestKeyboardFocus() {
-    requestFocusIfNeeded(_screenFocusNode);
+    _focusSearchField(selectAll: true);
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocusNode.dispose();
     _screenFocusNode.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _focusSearchField({bool selectAll = false}) {
+    if (!mounted || !_searchFocusNode.canRequestFocus) return;
+    requestFocusIfNeeded(_searchFocusNode);
+    if (selectAll) {
+      _searchController.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: _searchController.text.length,
+      );
+    }
   }
 
   void _toggleSettings() =>
@@ -306,7 +320,9 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
       builder: (context, settingsState) => AppTopBar(
         center: OtzariaSearchField(
           controller: _searchController,
+          focusNode: _searchFocusNode,
           hintText: 'חפש גימטריה...',
+          autofocus: true,
           onSubmitted: (_) => _performSearch(),
           onClear: () => setState(() {
             _searchResults = [];
@@ -338,65 +354,61 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
       ),
     );
 
-    return KeyboardNavigator(
-      currentTabIndex: 0,
-      totalTabs: 1,
-      onTabChange: (_) {},
-      child: CallbackShortcuts(
-        bindings: {_settingsShortcut(): _toggleSettings},
-        child: Focus(
-          focusNode: _screenFocusNode,
-          autofocus: true,
-          onKeyEvent: (node, event) {
-            if (event is! KeyDownEvent) return KeyEventResult.ignored;
-            if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-              _moveFocus(1);
-              return KeyEventResult.handled;
-            }
-            if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-              _moveFocus(-1);
-              return KeyEventResult.handled;
-            }
-            return KeyEventResult.ignored;
-          },
-          child: Column(
-            children: [
-              topBar,
-              Expanded(
-                child: Stack(
-                  children: [
-                    // ── תוכן ראשי ──────────────────────────────────────────
-                    isNarrow
-                        ? Column(
-                            children: [
-                              if (_lastGematriaValue != null) _buildStatusBar(),
-                              Expanded(child: _buildResultsList()),
-                            ],
-                          )
-                        : Row(
-                            children: [
-                              Expanded(
-                                child: ToolPanelWrapper(
-                                  centerContent: !_showingSettings,
-                                  child: Column(
-                                    children: [
-                                      if (_lastGematriaValue != null)
-                                        _buildStatusBar(),
-                                      Expanded(child: _buildResultsList()),
-                                    ],
-                                  ),
+    return CallbackShortcuts(
+      bindings: {_settingsShortcut(): _toggleSettings},
+      child: Focus(
+        focusNode: _screenFocusNode,
+        canRequestFocus: false,
+        skipTraversal: true,
+        onKeyEvent: (node, event) {
+          if (event is! KeyDownEvent) return KeyEventResult.ignored;
+          if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+            _moveFocus(1);
+            return KeyEventResult.handled;
+          }
+          if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+            _moveFocus(-1);
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: Column(
+          children: [
+            topBar,
+            Expanded(
+              child: Stack(
+                children: [
+                  // ── תוכן ראשי ──────────────────────────────────────────
+                  isNarrow
+                      ? Column(
+                          children: [
+                            if (_lastGematriaValue != null) _buildStatusBar(),
+                            Expanded(child: _buildResultsList()),
+                          ],
+                        )
+                      : Row(
+                          children: [
+                            Expanded(
+                              child: ToolPanelWrapper(
+                                centerContent: !_showingSettings,
+                                child: Column(
+                                  children: [
+                                    if (_lastGematriaValue != null)
+                                      _buildStatusBar(),
+                                    Expanded(child: _buildResultsList()),
+                                  ],
                                 ),
                               ),
-                              if (!_showingSettings) settingsPanel,
-                            ],
-                          ),
-                    // ── פאנל הגדרות overlay ──────────────────────────────────
-                    if (_showingSettings) _buildSettingsOverlay(context),
-                  ],
-                ),
+                            ),
+                            if (!_showingSettings) settingsPanel,
+                          ],
+                        ),
+                  // ── פאנל הגדרות overlay ──────────────────────────────────
+                  if (_showingSettings) _buildSettingsOverlay(context),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
