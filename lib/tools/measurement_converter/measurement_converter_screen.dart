@@ -24,6 +24,7 @@ import 'package:otzaria/widgets/app_top_bar.dart';
 import 'package:otzaria/widgets/buttons/action_buttons.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
 import 'package:otzaria/widgets/sidebar_nav_item.dart';
+import 'package:otzaria/widgets/inputs/app_input_tokens.dart';
 
 class MeasurementConverterScreen extends StatefulWidget {
   const MeasurementConverterScreen({super.key});
@@ -92,15 +93,23 @@ class _MeasurementConverterScreenState
     _inputFocusNode.addListener(() {
       if (_inputFocusNode.hasFocus) {
         setState(() => _narrowShowCategories = false);
+        if (_inputController.text.isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted || !_inputFocusNode.hasFocus) return;
+            _inputController.selection = TextSelection(
+              baseOffset: 0,
+              extentOffset: _inputController.text.length,
+            );
+          });
+        }
       }
     });
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) => _focusInputField(selectAll: true));
+    WidgetsBinding.instance.addPostFrameCallback((_) => _focusInputField());
   }
 
   /// מבקש פוקוס למסך המרת המידות.
   void requestKeyboardFocus() {
-    _focusInputField(selectAll: true);
+    _focusInputField();
   }
 
   @override
@@ -206,15 +215,9 @@ class _MeasurementConverterScreenState
     UiSnack.show(UiSnack.textCopied);
   }
 
-  void _focusInputField({bool selectAll = false}) {
+  void _focusInputField() {
     if (!mounted || !_inputFocusNode.canRequestFocus) return;
     requestFocusIfNeeded(_inputFocusNode);
-    if (selectAll) {
-      _inputController.selection = TextSelection(
-        baseOffset: 0,
-        extentOffset: _inputController.text.length,
-      );
-    }
   }
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -222,16 +225,23 @@ class _MeasurementConverterScreenState
   // ════════════════════════════════════════════════════════════════════════════
 
   // ── עיצוב אחיד לשדות הסרגל ──────────────────────────────────────────────
-  static const double _fieldRadius = 20.0;
 
-  InputDecoration _barFieldDecoration(ColorScheme cs, {bool enabled = true}) {
+  InputDecoration _barFieldDecoration(
+    ColorScheme cs, {
+    bool enabled = true,
+    bool isCompact = false,
+  }) {
+    final radius = AppInputTokens.radius(isCompact);
     final noBorder = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(_fieldRadius),
+      borderRadius: BorderRadius.circular(radius),
       borderSide: BorderSide.none,
     );
     return InputDecoration(
       filled: true,
-      fillColor: cs.onSurface.withValues(alpha: enabled ? 0.07 : 0.04),
+      fillColor: cs.onSurface.withValues(
+          alpha: enabled
+              ? AppInputTokens.unfocusedAlpha
+              : AppInputTokens.disabledAlpha),
       contentPadding: const EdgeInsets.symmetric(
           horizontal: AppTokens.spaceSM, vertical: 6),
       isDense: true,
@@ -239,7 +249,7 @@ class _MeasurementConverterScreenState
       enabledBorder: noBorder,
       disabledBorder: noBorder,
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(_fieldRadius),
+        borderRadius: BorderRadius.circular(radius),
         borderSide: BorderSide(
           color: cs.primary.withValues(alpha: 0.5),
           width: 1.5,
@@ -275,9 +285,10 @@ class _MeasurementConverterScreenState
                 final singleRow = barConstraints.maxWidth >= 560;
                 final isWideBar = barConstraints.maxWidth >= 700;
                 final isCompact = settingsState.compactMenuMode;
-                // גובה ופונט תלויים במצב קומפקטי — כמו OtzariaSearchField
-                final fieldHeight = isCompact ? 36.0 : 48.0;
-                final fieldFontSize = isCompact ? 13.0 : AppTokens.fontMD;
+                // גובה, פונט ורדיוס תלויים במצב קומפקטי — משתמשים ב-AppInputTokens
+                final fieldHeight = AppInputTokens.height(isCompact);
+                final fieldFontSize = AppInputTokens.fontSize(isCompact);
+                final fieldRadius = AppInputTokens.radius(isCompact);
 
                 // סטטוס הסרגל: רחב=_sidebarVisible, צר=_narrowShowCategories
                 final sidebarOpen =
@@ -309,20 +320,31 @@ class _MeasurementConverterScreenState
                             height: fieldHeight,
                             decoration: BoxDecoration(
                               color: cs.onSurface.withValues(alpha: 0.07),
-                              borderRadius: BorderRadius.circular(_fieldRadius),
+                              borderRadius: BorderRadius.circular(fieldRadius),
                             ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              hasResult ? _resultController.text : '—',
-                              textAlign: TextAlign.center,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: fieldFontSize,
-                                fontWeight: FontWeight.w500,
-                                color: hasResult
-                                    ? cs.onSurface
-                                    : cs.onSurface.withValues(alpha: 0.25),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppTokens.spaceSM,
+                              ),
+                              child: Align(
+                                alignment: Alignment.centerRight,
+                                child: Text(
+                                  hasResult ? _resultController.text : '—',
+                                  textAlign: TextAlign.start,
+                                  textDirection: TextDirection.rtl,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: fieldFontSize + 2,
+                                    fontWeight: FontWeight.w600,
+                                    color: hasResult
+                                        ? cs.onSurface
+                                        : cs.onSurface.withValues(alpha: 0.25),
+                                    height: 1.0,
+                                    leadingDistribution:
+                                        TextLeadingDistribution.even,
+                                  ),
+                                ),
                               ),
                             ),
                           ),
@@ -390,7 +412,7 @@ class _MeasurementConverterScreenState
                                 enabled: showOpinion,
                                 value: _selectedOpinion,
                                 decoration: _barFieldDecoration(cs,
-                                    enabled: showOpinion),
+                                    enabled: showOpinion, isCompact: isCompact),
                                 entries: _opinions[_selectedCategory]!
                                     .map(
                                         (o) => AppMenuEntry(value: o, label: o))
@@ -456,7 +478,9 @@ class _MeasurementConverterScreenState
                                     leadingDistribution:
                                         TextLeadingDistribution.even,
                                   ),
-                                  decoration: _barFieldDecoration(cs).copyWith(
+                                  decoration: _barFieldDecoration(cs,
+                                          isCompact: isCompact)
+                                      .copyWith(
                                     isDense: true,
                                     contentPadding: const EdgeInsets.symmetric(
                                         horizontal: 12),
