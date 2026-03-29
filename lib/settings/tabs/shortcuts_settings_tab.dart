@@ -263,7 +263,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
               ),
               _ShortcutTile(
                 settingKey: 'key-shortcut-calendar-toggle-view',
-                label: 'מעבר בין תצוגות (יום/שבוע/חודש)',
+                label: 'מעבר בין תצוגות (שבוע/חודש)',
                 defaultShortcut: 'ctrl+shift+e',
                 icon: FluentIcons.calendar_ltr_24_regular,
                 allShortcuts: _shortcutsList,
