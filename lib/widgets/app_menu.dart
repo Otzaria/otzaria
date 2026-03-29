@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/inputs/app_input_tokens.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // AppMenuEntry — נתוני פריט בתפריט
@@ -666,15 +667,14 @@ typedef _ContextMenuAction = VoidCallback?;
 // • גבול עדין בעת hover
 // ═══════════════════════════════════════════════════════════════════════════
 
-const double _dropdownFieldRadius = 20.0;
-const double _dropdownFieldIdleFillAlpha = 0.07;
-const double _dropdownFieldDisabledFillAlpha = 0.04;
+const double _dropdownFieldRadius = AppInputTokens.compactRadius;
+const double _dropdownFieldIdleFillAlpha = AppInputTokens.unfocusedAlpha;
+const double _dropdownFieldDisabledFillAlpha = AppInputTokens.disabledAlpha;
 const double _dropdownFieldHoverFillAlpha = 0.10;
 const double _dropdownFieldBorderWidth = 1.4;
 const double _dropdownFieldMinHeight = 40.0;
 const EdgeInsets _dropdownFieldContentPadding =
     EdgeInsets.symmetric(horizontal: 10, vertical: 5);
-const double _dropdownSearchFieldHeight = 36.0;
 
 Color _dropdownFieldBorderColor(BuildContext context) {
   final theme = Theme.of(context);
@@ -693,6 +693,9 @@ class AppSelectionField extends StatefulWidget {
   final bool isSelected;
   final FocusNode? focusNode;
 
+  /// `null` = ברירת מחדל (40px/20px), `true` = compact (36px/20px), `false` = רגיל (48px/28px)
+  final bool? slim;
+
   const AppSelectionField({
     super.key,
     required this.child,
@@ -702,6 +705,7 @@ class AppSelectionField extends StatefulWidget {
     this.leading,
     this.isSelected = false,
     this.focusNode,
+    this.slim,
   });
 
   @override
@@ -714,13 +718,23 @@ class _AppSelectionFieldState extends State<AppSelectionField> {
 
   static const Duration _animDuration = Duration(milliseconds: 120);
 
+  double get _effectiveRadius =>
+      widget.slim == false ? 28.0 : _dropdownFieldRadius;
+
+  double get _effectiveMinHeight {
+    if (widget.slim == false) return 48.0;
+    if (widget.slim == true) return 36.0;
+    return _dropdownFieldMinHeight;
+  }
+
   BoxDecoration _buildFieldDecoration(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final r = _effectiveRadius;
 
     if (_isFocused && widget.enabled) {
       return BoxDecoration(
         color: cs.onSurface.withValues(alpha: _dropdownFieldHoverFillAlpha),
-        borderRadius: BorderRadius.circular(_dropdownFieldRadius),
+        borderRadius: BorderRadius.circular(r),
         border: Border.all(
           color: _dropdownFieldBorderColor(context),
           width: _dropdownFieldBorderWidth,
@@ -730,7 +744,7 @@ class _AppSelectionFieldState extends State<AppSelectionField> {
     if (_isHovering && widget.enabled) {
       return BoxDecoration(
         color: cs.onSurface.withValues(alpha: _dropdownFieldHoverFillAlpha),
-        borderRadius: BorderRadius.circular(_dropdownFieldRadius),
+        borderRadius: BorderRadius.circular(r),
       );
     }
     return BoxDecoration(
@@ -739,7 +753,7 @@ class _AppSelectionFieldState extends State<AppSelectionField> {
             ? _dropdownFieldIdleFillAlpha
             : _dropdownFieldDisabledFillAlpha,
       ),
-      borderRadius: BorderRadius.circular(_dropdownFieldRadius),
+      borderRadius: BorderRadius.circular(r),
     );
   }
 
@@ -783,12 +797,11 @@ class _AppSelectionFieldState extends State<AppSelectionField> {
                 setState(() => _isFocused = isFocused);
               }
             },
-            borderRadius: BorderRadius.circular(_dropdownFieldRadius),
+            borderRadius: BorderRadius.circular(_effectiveRadius),
             hoverColor: Colors.transparent,
             splashColor: Colors.transparent,
             child: ConstrainedBox(
-              constraints:
-                  const BoxConstraints(minHeight: _dropdownFieldMinHeight),
+              constraints: BoxConstraints(minHeight: _effectiveMinHeight),
               child: content,
             ),
           ),
@@ -1031,34 +1044,37 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
   ) {
     final cs = Theme.of(context).colorScheme;
     final borderColor = _dropdownFieldBorderColor(context);
+    final isCompact = metrics.compactMenus;
+    final r = AppInputTokens.radius(isCompact);
+    final minH = AppInputTokens.height(isCompact);
 
     return InputDecorationTheme(
       filled: true,
       fillColor: cs.onSurface.withValues(
         alpha: widget.enabled
-            ? _dropdownFieldIdleFillAlpha
-            : _dropdownFieldDisabledFillAlpha,
+            ? AppInputTokens.unfocusedAlpha
+            : AppInputTokens.disabledAlpha,
       ),
       isDense: true,
       contentPadding: _dropdownFieldContentPadding,
-      // ללא גבול כברירת מחדל (כמו OtzariaSearchField)
+      constraints: BoxConstraints(minHeight: minH),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(_dropdownFieldRadius),
+        borderRadius: BorderRadius.circular(r),
         borderSide: BorderSide.none,
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(_dropdownFieldRadius),
+        borderRadius: BorderRadius.circular(r),
         borderSide: BorderSide.none,
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(_dropdownFieldRadius),
+        borderRadius: BorderRadius.circular(r),
         borderSide: BorderSide(
           color: borderColor,
           width: _dropdownFieldBorderWidth,
         ),
       ),
       disabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(_dropdownFieldRadius),
+        borderRadius: BorderRadius.circular(r),
         borderSide: BorderSide.none,
       ),
       hintStyle: TextStyle(
@@ -1072,49 +1088,61 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
     final cs = Theme.of(context).colorScheme;
     final hasFocus = _focusNode.hasFocus;
 
+    // קבלת metrics כדי לדעת אם compact
+    final metrics = Theme.of(context).extension<AppMenuMetrics>() ??
+        AppMenuMetrics.create(compactMenus: false);
+    final isCompact = metrics.compactMenus;
+
+    // גובה, פונט ורדיוס תלויים ב-compact mode - משתמשים ב-AppInputTokens
+    final fieldHeight = AppInputTokens.height(isCompact);
+    final fieldFontSize = AppInputTokens.fontSize(isCompact);
+    final fieldRadius = AppInputTokens.radius(isCompact);
+    final iconSize = AppInputTokens.iconSize(isCompact);
+    final minWidth = AppInputTokens.prefixMinWidth(isCompact);
+
     return InputDecoration(
       hintText: widget.decoration?.hintText ?? widget.decoration?.labelText,
       hintStyle: TextStyle(
-        fontSize: 13,
+        fontSize: fieldFontSize,
         color: cs.onSurfaceVariant,
         height: 1.0,
       ),
       filled: true,
       isDense: true,
       fillColor: hasFocus
-          ? cs.primary.withValues(alpha: 0.12)
-          : cs.onSurface.withValues(alpha: 0.07),
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: AppTokens.spaceXS, vertical: 0),
-      constraints: const BoxConstraints(minHeight: _dropdownSearchFieldHeight),
+          ? cs.primary.withValues(alpha: AppInputTokens.focusedAlpha)
+          : cs.onSurface.withValues(alpha: AppInputTokens.unfocusedAlpha),
+      contentPadding: const EdgeInsets.symmetric(
+          horizontal: AppTokens.spaceXS, vertical: 0),
+      constraints: BoxConstraints(minHeight: fieldHeight),
       prefixIcon: Icon(
         FluentIcons.search_24_regular,
-        size: 18,
+        size: iconSize,
         color: hasFocus ? cs.primary : cs.onSurfaceVariant,
       ),
-      prefixIconConstraints: const BoxConstraints(
-        minWidth: 36,
-        minHeight: _dropdownSearchFieldHeight,
+      prefixIconConstraints: BoxConstraints(
+        minWidth: minWidth,
+        minHeight: fieldHeight,
       ),
       suffixIcon: const SizedBox.shrink(),
-      suffixIconConstraints: const BoxConstraints(
-        minWidth: 32,
-        minHeight: _dropdownSearchFieldHeight,
+      suffixIconConstraints: BoxConstraints(
+        minWidth: AppInputTokens.suffixMinWidth(isCompact),
+        minHeight: fieldHeight,
       ),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(_dropdownFieldRadius),
+        borderRadius: BorderRadius.circular(fieldRadius),
         borderSide: BorderSide.none,
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(_dropdownFieldRadius),
+        borderRadius: BorderRadius.circular(fieldRadius),
         borderSide: BorderSide.none,
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(_dropdownFieldRadius),
+        borderRadius: BorderRadius.circular(fieldRadius),
         borderSide: BorderSide.none,
       ),
       disabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(_dropdownFieldRadius),
+        borderRadius: BorderRadius.circular(fieldRadius),
         borderSide: BorderSide.none,
       ),
     );
@@ -1124,6 +1152,7 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
   Widget build(BuildContext context) {
     final metrics = Theme.of(context).extension<AppMenuMetrics>() ??
         AppMenuMetrics.create(compactMenus: false);
+    final isCompact = metrics.compactMenus;
     final effectiveEnabled = widget.enabled &&
         widget.onSelected != null &&
         widget.entries.isNotEmpty;
@@ -1179,6 +1208,7 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
                 onTap: _openSelectionMenu,
                 decoration: widget.decoration,
                 isSelected: widget.value != null,
+                slim: isCompact ? true : false,
                 child: SizedBox(
                   width: double.infinity,
                   child: fieldContent,
@@ -1210,7 +1240,7 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
               showTrailingIcon: false,
               textStyle: TextStyle(
                 fontFamily: 'Roboto',
-                fontSize: 13,
+                fontSize: AppInputTokens.fontSize(metrics.compactMenus),
                 fontWeight: metrics.itemFontWeight,
                 color: cs.onSurface,
                 height: 1.0,
