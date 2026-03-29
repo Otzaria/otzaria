@@ -107,13 +107,12 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
       estimatedItemExtent: _cardEstimatedHeight,
     );
     _searchController.addListener(() => setState(() {}));
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) => _focusSearchField(selectAll: true));
+    WidgetsBinding.instance.addPostFrameCallback((_) => _focusSearchField());
   }
 
   /// מבקש פוקוס למסך הגימטריה.
   void requestKeyboardFocus() {
-    _focusSearchField(selectAll: true);
+    _focusSearchField();
   }
 
   @override
@@ -125,15 +124,9 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
     super.dispose();
   }
 
-  void _focusSearchField({bool selectAll = false}) {
+  void _focusSearchField() {
     if (!mounted || !_searchFocusNode.canRequestFocus) return;
     requestFocusIfNeeded(_searchFocusNode);
-    if (selectAll) {
-      _searchController.selection = TextSelection(
-        baseOffset: 0,
-        extentOffset: _searchController.text.length,
-      );
-    }
   }
 
   void _toggleSettings() =>

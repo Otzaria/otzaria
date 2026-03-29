@@ -45,13 +45,12 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen> {
     );
     _loadDictionary();
     _searchController.addListener(_performSearch);
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) => _focusSearchField(selectAll: true));
+    WidgetsBinding.instance.addPostFrameCallback((_) => _focusSearchField());
   }
 
   /// מבקש פוקוס לרשימת ראשי התיבות.
   void requestKeyboardFocus() {
-    _focusSearchField(selectAll: true);
+    _focusSearchField();
   }
 
   @override
@@ -63,15 +62,9 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen> {
     super.dispose();
   }
 
-  void _focusSearchField({bool selectAll = false}) {
+  void _focusSearchField() {
     if (!mounted || !_searchFocusNode.canRequestFocus) return;
     requestFocusIfNeeded(_searchFocusNode);
-    if (selectAll) {
-      _searchController.selection = TextSelection(
-        baseOffset: 0,
-        extentOffset: _searchController.text.length,
-      );
-    }
   }
 
   Future<void> _loadDictionary() async {
