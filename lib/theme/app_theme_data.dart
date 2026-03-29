@@ -453,7 +453,7 @@ class AppMenuMetrics extends ThemeExtension<AppMenuMetrics> {
       menuBorderRadius: 8,
       itemBorderRadius: 4,
       menuMinWidth: 150,
-      itemFontWeight: compactMenus ? FontWeight.w600 : FontWeight.w400,
+      itemFontWeight: FontWeight.w400,
     );
   }
 

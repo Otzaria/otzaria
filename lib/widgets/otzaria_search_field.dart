@@ -18,21 +18,22 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
+import 'package:otzaria/widgets/inputs/app_input_tokens.dart';
 
 abstract class _ST {
   // Touch (standard)
-  static const double radius = 28.0;
-  static const double height = 48.0;
+  static const double radius = AppInputTokens.regularRadius;
+  static const double height = AppInputTokens.regularHeight;
   static const double heightCompact = 40.0;
-  static const double fontSize = AppTokens.fontLG; // 16
+  static const double fontSize = AppInputTokens.regularFontSize;
 
   // Desktop (slim)
-  static const double heightSlim = 36.0;
-  static const double fontSizeSlim = 13.0;
-  static const double radiusSlim = 20.0;
+  static const double heightSlim = AppInputTokens.compactHeight;
+  static const double fontSizeSlim = AppInputTokens.compactFontSize;
+  static const double radiusSlim = AppInputTokens.compactRadius;
 
-  static const double fillAlphaUnfocused = 0.07;
-  static const double fillAlphaFocused = 0.12;
+  static const double fillAlphaUnfocused = AppInputTokens.unfocusedAlpha;
+  static const double fillAlphaFocused = AppInputTokens.focusedAlpha;
   static const Duration collapseAnim = Duration(milliseconds: 220);
 }
 
@@ -177,6 +178,7 @@ class OtzariaSearchField extends StatefulWidget {
   /// כשאמת — מתכווץ לאייקון עגול (M3 scroll-hide)
   final bool isCompact;
   final VoidCallback? onExpand;
+  final bool selectAllOnFocus;
 
   const OtzariaSearchField({
     super.key,
@@ -193,6 +195,7 @@ class OtzariaSearchField extends StatefulWidget {
     this.slim,
     this.isCompact = false,
     this.onExpand,
+    this.selectAllOnFocus = true,
   });
 
   @override
@@ -245,7 +248,20 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
   }
 
   void _onFocusChange() {
-    if (mounted) setState(() => _hasFocus = _effectiveFocusNode.hasFocus);
+    final hasFocus = _effectiveFocusNode.hasFocus;
+    if (hasFocus &&
+        !_hasFocus &&
+        widget.selectAllOnFocus &&
+        widget.controller.text.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_effectiveFocusNode.hasFocus) return;
+        widget.controller.selection = TextSelection(
+          baseOffset: 0,
+          extentOffset: widget.controller.text.length,
+        );
+      });
+    }
+    if (mounted) setState(() => _hasFocus = hasFocus);
   }
 
   void _onTextChange() {
