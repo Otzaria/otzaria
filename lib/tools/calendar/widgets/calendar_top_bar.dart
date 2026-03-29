@@ -28,8 +28,12 @@ import 'package:otzaria/widgets/rtl_text_field.dart';
 
 // הרוחב שמתחתיו עוברים לשורה שנייה
 const double _kTopBarNarrowBreakpoint = 640.0;
-// רוחב קבוע לאזור תצוגת התאריך
-const double _kDateAreaWidth = 220.0;
+const double _kTopRowQuickActionsThreshold = 560.0;
+// רוחב מינימלי לאזור תצוגת התאריך — לא יקוצר מזה גם כשיש לחץ.
+// גדול מספיק לתאריך הכי ארוך (כ״ח מרחשוון תשפ״ז • 20 November 2026)
+const double _kDateAreaWidth = 230.0;
+const double _kDateNavGap = 18.0;
+const double _kQuickActionsOffset = 242.0;
 
 class CalendarTopBar extends StatefulWidget {
   final CalendarState state;
@@ -77,23 +81,26 @@ class _CalendarTopBarState extends State<CalendarTopBar> {
 
     final baseStyle = Theme.of(context).textTheme.bodyMedium;
 
-    return RichText(
-      overflow: TextOverflow.ellipsis,
-      maxLines: 1,
-      textDirection: TextDirection.rtl,
-      text: TextSpan(
-        style: baseStyle,
-        children: [
-          TextSpan(
-            text: heb,
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
-          const TextSpan(text: '  •  '),
-          TextSpan(
-            text: greg,
-            style: const TextStyle(fontWeight: FontWeight.normal),
-          ),
-        ],
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: RichText(
+        overflow: TextOverflow.visible,
+        maxLines: 1,
+        textDirection: TextDirection.rtl,
+        text: TextSpan(
+          style: baseStyle,
+          children: [
+            TextSpan(
+              text: heb,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const TextSpan(text: '  •  '),
+            TextSpan(
+              text: greg,
+              style: const TextStyle(fontWeight: FontWeight.normal),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -137,14 +144,14 @@ class _CalendarTopBarState extends State<CalendarTopBar> {
         final prevBtn = ToolbarActionButton(
           compact: isCompact,
           tooltip: 'קודם',
-          icon: FluentIcons.chevron_right_24_regular,
+          icon: FluentIcons.chevron_left_24_regular,
           emphasis: ToolbarActionButtonEmphasis.subtle,
           onPressed: widget.onPreviousPeriod,
         );
         final nextBtn = ToolbarActionButton(
           compact: isCompact,
           tooltip: 'הבא',
-          icon: FluentIcons.chevron_left_24_regular,
+          icon: FluentIcons.chevron_right_24_regular,
           emphasis: ToolbarActionButtonEmphasis.subtle,
           onPressed: widget.onNextPeriod,
         );
@@ -211,26 +218,51 @@ class _CalendarTopBarState extends State<CalendarTopBar> {
           onPressed: widget.onPrint,
         );
         final viewSwitcher = _buildViewSwitcher(state);
-
-        // ── קבוצת חיצים + תאריך בלבד (שורה 1 תמיד) ────────────────────────
-        final dateNavGroup = Row(
+        final quickActions = Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            prevBtn,
+            todayBtn,
             const SizedBox(width: 2),
-            SizedBox(
-              width: _kDateAreaWidth,
-              child: Center(child: _buildDateText(context)),
-            ),
-            const SizedBox(width: 2),
-            nextBtn,
+            jumpBtn,
           ],
+        );
+        final trailingActions = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            printBtn,
+            _buildTopBarDivider(context, isCompact),
+            timesBtn,
+            eventsBtn,
+            _buildTopBarDivider(context, isCompact),
+            settingsBtn,
+          ],
+        );
+
+        // ── קבוצת חיצים + תאריך, ממורכזת תמיד ──────────────────────────────
+        final dateNavGroup = Directionality(
+          textDirection: TextDirection.rtl,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              prevBtn,
+              SizedBox(width: _kDateNavGap),
+              ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: _kDateAreaWidth),
+                child: IntrinsicWidth(
+                  child: Center(child: _buildDateText(context)),
+                ),
+              ),
+              SizedBox(width: _kDateNavGap),
+              nextBtn,
+            ],
+          ),
         );
 
         return LayoutBuilder(
           builder: (context, constraints) {
-            final isNarrow =
-                constraints.maxWidth < _kTopBarNarrowBreakpoint;
+            final isNarrow = constraints.maxWidth < _kTopBarNarrowBreakpoint;
+            final showQuickActionsInTopRow =
+                constraints.maxWidth >= _kTopRowQuickActionsThreshold;
 
             if (isNarrow) {
               // ── מסך צר: תאריך+חיצים בשורה 1, כל השאר בשורה 2 ───────────
@@ -241,52 +273,79 @@ class _CalendarTopBarState extends State<CalendarTopBar> {
                   children: [
                     viewSwitcher,
                     const SizedBox(width: 6),
-                    todayBtn,
-                    const SizedBox(width: 2),
-                    jumpBtn,
+                    const VerticalDivider(width: 9, thickness: 1),
                     const SizedBox(width: 6),
-                    const VerticalDivider(width: 16, thickness: 1),
-                    printBtn,
-                    const SizedBox(width: 4),
-                    timesBtn,
-                    eventsBtn,
-                    const SizedBox(width: 4),
-                    settingsBtn,
+                    if (!showQuickActionsInTopRow) ...[
+                      quickActions,
+                      const SizedBox(width: 6),
+                      const VerticalDivider(width: 9, thickness: 1),
+                      const SizedBox(width: 6),
+                    ],
+                    trailingActions,
                   ],
                 ),
               );
 
               return AppTopBar(
-                center: dateNavGroup,
+                center: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    dateNavGroup,
+                    if (showQuickActionsInTopRow)
+                      Transform.translate(
+                        offset: const Offset(_kQuickActionsOffset, 0),
+                        child: quickActions,
+                      ),
+                  ],
+                ),
                 secondaryRow: secondaryRow,
               );
             } else {
-              // ── מסך רחב: תאריך+חיצים+היום+מעבר יחד, שאר בצידדים ─────────
+              // ── מסך רחב: התחלה | היום/מעבר | תאריך ממורכז | סוף ──
               return AppTopBar(
-                leadingItems: [
-                  AppTopBarItem(widget: viewSwitcher),
-                ],
-                center: Row(
-                  mainAxisSize: MainAxisSize.min,
+                center: Stack(
+                  alignment: Alignment.center,
                   children: [
                     dateNavGroup,
-                    const SizedBox(width: 6),
-                    todayBtn,
-                    const SizedBox(width: 2),
-                    jumpBtn,
+                    Transform.translate(
+                      offset: const Offset(_kQuickActionsOffset, 0),
+                      child: quickActions,
+                    ),
+                    PositionedDirectional(
+                      start: 0,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          viewSwitcher,
+                          _buildTopBarDivider(context, isCompact),
+                        ],
+                      ),
+                    ),
+                    PositionedDirectional(
+                      end: 0,
+                      child: trailingActions,
+                    ),
                   ],
                 ),
-                trailingItems: [
-                  AppTopBarItem(widget: printBtn),
-                  AppTopBarItem(widget: timesBtn, dividerBefore: true),
-                  AppTopBarItem(widget: eventsBtn),
-                  AppTopBarItem(widget: settingsBtn, dividerBefore: true),
-                ],
               );
             }
           },
         );
       },
+    );
+  }
+
+  Widget _buildTopBarDivider(BuildContext context, bool isCompact) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: SizedBox(
+        height: isCompact ? 18.0 : 24.0,
+        child: VerticalDivider(
+          width: 9.0,
+          thickness: 1.0,
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.32),
+        ),
+      ),
     );
   }
 
