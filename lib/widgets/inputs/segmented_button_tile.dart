@@ -139,6 +139,7 @@ class SegmentedButtonTile<T> extends StatefulWidget {
 class _SegmentedButtonTileState<T> extends State<SegmentedButtonTile<T>> {
   final FocusNode _focusNode = FocusNode();
   int _focusedIndex = 0;
+  bool _hasFocus = false;
 
   @override
   void initState() {
@@ -155,6 +156,43 @@ class _SegmentedButtonTileState<T> extends State<SegmentedButtonTile<T>> {
   }
 
   @override
+  void didUpdateWidget(covariant SegmentedButtonTile<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // כשהערך משתנה מבחוץ ואין פוקוס — סנכרן את הסמן
+    if (!_hasFocus && oldWidget.currentValue != widget.currentValue) {
+      final idx =
+          widget.options.indexWhere((o) => o.value == widget.currentValue);
+      if (idx >= 0) _focusedIndex = idx;
+    }
+  }
+
+  void _moveFocus(int delta) {
+    if (widget.options.isEmpty) return;
+    setState(() {
+      _focusedIndex =
+          (_focusedIndex + delta + widget.options.length) % widget.options.length;
+    });
+  }
+
+  void _selectFocused() {
+    if (widget.options.isEmpty) return;
+    widget.onChanged(widget.options[_focusedIndex].value);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _focusNode.canRequestFocus) _focusNode.requestFocus();
+    });
+  }
+
+  // בחירה דרך עכבר — מעדכן גם את הסמן
+  void _selectByValue(T value) {
+    final idx = widget.options.indexWhere((o) => o.value == value);
+    if (idx >= 0) setState(() => _focusedIndex = idx);
+    widget.onChanged(value);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _focusNode.canRequestFocus) _focusNode.requestFocus();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final hasIcons = widget.options.any((o) => o.icon != null);
@@ -167,10 +205,45 @@ class _SegmentedButtonTileState<T> extends State<SegmentedButtonTile<T>> {
     final totalW = (btnWidth * widget.options.length + _kSegmentGroupPadding)
         .clamp(_kSegmentMinTotalWidth, _kSegmentMaxTotalWidth);
 
+    // הכפתור עצמו עטוף ב-Focus — לא ה-ListTile כולו
+    final focusedButton = Focus(
+      focusNode: _focusNode,
+      onFocusChange: (hasFocus) {
+        if (_hasFocus == hasFocus) return;
+        setState(() {
+          _hasFocus = hasFocus;
+          if (!hasFocus) {
+            final idx = widget.options
+                .indexWhere((o) => o.value == widget.currentValue);
+            if (idx >= 0) _focusedIndex = idx;
+          }
+        });
+      },
+      onKeyEvent: (_, ev) {
+        if (ev is! KeyDownEvent) return KeyEventResult.ignored;
+        if (ev.logicalKey == LogicalKeyboardKey.arrowRight ||
+            ev.logicalKey == LogicalKeyboardKey.arrowDown) {
+          _moveFocus(1);
+          return KeyEventResult.handled;
+        }
+        if (ev.logicalKey == LogicalKeyboardKey.arrowLeft ||
+            ev.logicalKey == LogicalKeyboardKey.arrowUp) {
+          _moveFocus(-1);
+          return KeyEventResult.handled;
+        }
+        if (ev.logicalKey == LogicalKeyboardKey.enter ||
+            ev.logicalKey == LogicalKeyboardKey.space) {
+          _selectFocused();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: _buildButton(cs, hasIcons, totalW),
+    );
+
     return LayoutBuilder(builder: (ctx, constraints) {
       final isNarrow =
           constraints.maxWidth < totalW + _kSegmentNarrowLayoutThreshold;
-      final button = _buildButton(cs, hasIcons, totalW);
 
       if (isNarrow) {
         return Padding(
@@ -197,9 +270,8 @@ class _SegmentedButtonTileState<T> extends State<SegmentedButtonTile<T>> {
                           Text(
                             widget.subtitle!,
                             style: AppTextStyles.settingSubtitle.copyWith(
-                                color: Theme.of(ctx)
-                                    .colorScheme
-                                    .onSurfaceVariant),
+                                color:
+                                    Theme.of(ctx).colorScheme.onSurfaceVariant),
                           ),
                         ],
                       ],
@@ -208,19 +280,20 @@ class _SegmentedButtonTileState<T> extends State<SegmentedButtonTile<T>> {
                 ],
               ),
               const SizedBox(height: 12),
-              Align(alignment: Alignment.centerRight, child: button),
+              Align(alignment: Alignment.centerRight, child: focusedButton),
             ],
           ),
         );
       }
 
+      // wide: ListTile ללא focusNode/onTap — אין hover על השורה כולה
       return ListTile(
         leading: widget.icon != null ? Icon(widget.icon) : null,
         title: _titleWidget(ctx),
         subtitle: widget.subtitle != null
             ? Text(widget.subtitle!, style: AppTextStyles.settingSubtitle)
             : null,
-        trailing: button,
+        trailing: focusedButton,
       );
     });
   }
@@ -231,28 +304,12 @@ class _SegmentedButtonTileState<T> extends State<SegmentedButtonTile<T>> {
   }
 
   Widget _buildButton(ColorScheme cs, bool hasIcons, double totalW) {
-    return Focus(
-      focusNode: _focusNode,
-      onKeyEvent: (_, ev) {
-        if (ev is! KeyDownEvent) return KeyEventResult.ignored;
-        if (ev.logicalKey == LogicalKeyboardKey.arrowRight) {
-          setState(() =>
-              _focusedIndex = (_focusedIndex + 1) % widget.options.length);
-          return KeyEventResult.handled;
-        }
-        if (ev.logicalKey == LogicalKeyboardKey.arrowLeft) {
-          setState(() => _focusedIndex =
-              (_focusedIndex - 1 + widget.options.length) %
-                  widget.options.length);
-          return KeyEventResult.handled;
-        }
-        if (ev.logicalKey == LogicalKeyboardKey.enter ||
-            ev.logicalKey == LogicalKeyboardKey.space) {
-          widget.onChanged(widget.options[_focusedIndex].value);
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      },
+    // מציג את _focusedIndex כשיש פוקוס — משוב ויזואלי לניווט חצים
+    final displayValue = _hasFocus && widget.options.isNotEmpty
+        ? widget.options[_focusedIndex].value
+        : widget.currentValue;
+
+    return ExcludeFocus(
       child: SizedBox(
         width: totalW,
         child: SegmentedButton<T>(
@@ -282,8 +339,8 @@ class _SegmentedButtonTileState<T> extends State<SegmentedButtonTile<T>> {
                     value: o.value,
                     label: FittedBox(
                         fit: BoxFit.scaleDown,
-                        child: Text(o.label,
-                            style: AppTextStyles.settingTitle)),
+                        child:
+                            Text(o.label, style: AppTextStyles.settingTitle)),
                     icon: hasIcons
                         ? (o.icon != null
                             ? Icon(o.icon, size: 18)
@@ -291,8 +348,8 @@ class _SegmentedButtonTileState<T> extends State<SegmentedButtonTile<T>> {
                         : null,
                   ))
               .toList(),
-          selected: {widget.currentValue},
-          onSelectionChanged: (s) => widget.onChanged(s.first),
+          selected: {displayValue},
+          onSelectionChanged: (s) => _selectByValue(s.first),
         ),
       ),
     );

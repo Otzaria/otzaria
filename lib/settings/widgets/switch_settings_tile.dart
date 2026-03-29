@@ -14,6 +14,7 @@
 // ```
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 // ── CustomSwitch ───────────────────────────────────────────────────────────────
 
@@ -79,7 +80,7 @@ class CustomSwitch extends StatelessWidget {
 /// [ListTile] עם [CustomSwitch] — עקבי עם כל שורות on/off בהגדרות.
 ///
 /// tap על ה-ListTile כולו מחליף את הערך (נגישות מלאה).
-class SwitchSettingsTile extends StatelessWidget {
+class SwitchSettingsTile extends StatefulWidget {
   final Widget? leading;
   final Widget title;
   final Widget? subtitle;
@@ -98,17 +99,67 @@ class SwitchSettingsTile extends StatelessWidget {
   });
 
   @override
+  State<SwitchSettingsTile> createState() => _SwitchSettingsTileState();
+}
+
+class _SwitchSettingsTileState extends State<SwitchSettingsTile> {
+  late final FocusNode _tileFocusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _tileFocusNode = FocusNode(debugLabel: 'switch_settings_tile');
+  }
+
+  @override
+  void dispose() {
+    _tileFocusNode.dispose();
+    super.dispose();
+  }
+
+  void _toggle() {
+    if (!widget.enabled || widget.onChanged == null) return;
+    widget.onChanged!(!widget.value);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_tileFocusNode.canRequestFocus) {
+        _tileFocusNode.requestFocus();
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: leading,
-      title: title,
-      subtitle: subtitle,
-      enabled: enabled,
-      trailing: CustomSwitch(
-        value: value,
-        onChanged: enabled ? onChanged : null,
+    return Focus(
+      canRequestFocus: false,
+      skipTraversal: true,
+      onKeyEvent: (_, event) {
+        if (event is! KeyDownEvent) return KeyEventResult.ignored;
+        if (event.logicalKey == LogicalKeyboardKey.enter ||
+            event.logicalKey == LogicalKeyboardKey.space) {
+          _toggle();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: ListTile(
+        focusNode: _tileFocusNode,
+        leading: widget.leading,
+        title: widget.title,
+        subtitle: widget.subtitle,
+        enabled: widget.enabled,
+        trailing: ExcludeFocus(
+          child: CustomSwitch(
+            value: widget.value,
+            onChanged: widget.enabled && widget.onChanged != null
+                ? (_) => _toggle()
+                : null,
+          ),
+        ),
+        onTap: widget.enabled && widget.onChanged != null
+            ? () => _toggle()
+            : null,
       ),
-      onTap: enabled && onChanged != null ? () => onChanged!(!value) : null,
     );
   }
 }
