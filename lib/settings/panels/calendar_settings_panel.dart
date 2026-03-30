@@ -36,60 +36,55 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
         final isOfflineMode =
             context.watch<SettingsBloc>().state.isOfflineMode;
         // [הוסר] SingleChildScrollView — ToolsSettingsTab גולל את כולם
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // ── לוח שנה: סוג לוח + עיר באותו מקטע ──
-              SettingsCard(
-                title: 'לוח שנה',
-                children: [
-                  // סוג לוח
-                  SegmentedSettingsTile<CalendarType>(
-                    icon: FluentIcons.calendar_24_regular,
-                    title: 'סוג לוח שנה',
-                    subtitle: state.calendarType == CalendarType.hebrew
-                        ? 'יוצג לוח השנה היהודי בלבד'
-                        : state.calendarType == CalendarType.gregorian
-                            ? 'יוצג לוח השנה הלועזי בלבד'
-                            : 'יוצגו תאריכים מהלוח העברי והלועזי יחד',
-                    options: const [
-                      SegmentOption(value: CalendarType.hebrew, label: 'עברי'),
-                      SegmentOption(
-                          value: CalendarType.combined, label: 'משולב'),
-                      SegmentOption(
-                          value: CalendarType.gregorian, label: 'לועזי'),
-                    ],
-                    currentValue: state.calendarType,
-                    onChanged: (value) {
-                      context.read<CalendarCubit>().changeCalendarType(value);
-                    },
-                  ),
-                  // עיר
-                  _buildResponsiveDropdownTile<String>(
-                    icon: FluentIcons.location_24_regular,
-                    title: 'עיר נבחרת',
-                    subtitle: 'בחירת עיר לחישובי זמני היום והלוח',
-                    value: state.selectedCity,
-                    minFieldWidth: 220,
-                    maxFieldWidth: 320,
-                    enableSearch: true,
-                    entries: _cityNames
-                        .map(
-                          (city) =>
-                              AppMenuEntry<String>(value: city, label: city),
-                        )
-                        .toList(),
-                    onSelected: (city) {
-                      if (city == null || city == state.selectedCity) return;
-                      context.read<CalendarCubit>().changeCity(city);
-                    },
-                  ),
-                ],
-              ),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ── לוח שנה: סוג לוח + עיר באותו מקטע ──
+            SettingsCard(
+              title: 'לוח שנה',
+              children: [
+                // סוג לוח
+                SegmentedSettingsTile<CalendarType>(
+                  icon: FluentIcons.calendar_24_regular,
+                  title: 'סוג לוח שנה',
+                  subtitle: state.calendarType == CalendarType.hebrew
+                      ? 'יוצג לוח השנה היהודי בלבד'
+                      : state.calendarType == CalendarType.gregorian
+                          ? 'יוצג לוח השנה הלועזי בלבד'
+                          : 'יוצגו תאריכים מהלוח העברי והלועזי יחד',
+                  options: const [
+                    SegmentOption(value: CalendarType.hebrew, label: 'עברי'),
+                    SegmentOption(value: CalendarType.combined, label: 'משולב'),
+                    SegmentOption(value: CalendarType.gregorian, label: 'לועזי'),
+                  ],
+                  currentValue: state.calendarType,
+                  onChanged: (value) {
+                    context.read<CalendarCubit>().changeCalendarType(value);
+                  },
+                ),
+                // עיר
+                _buildResponsiveDropdownTile<String>(
+                  icon: FluentIcons.location_24_regular,
+                  title: 'עיר נבחרת',
+                  subtitle: 'בחירת עיר לחישובי זמני היום והלוח',
+                  value: state.selectedCity,
+                  minFieldWidth: 220,
+                  maxFieldWidth: 320,
+                  enableSearch: true,
+                  entries: _cityNames
+                      .map(
+                        (city) => AppMenuEntry<String>(value: city, label: city),
+                      )
+                      .toList(),
+                  onSelected: (city) {
+                    if (city == null || city == state.selectedCity) return;
+                    context.read<CalendarCubit>().changeCity(city);
+                  },
+                ),
+              ],
+            ),
 
-              kSettingsCardSpacing,
+            kSettingsCardSpacing,
 
               // ── אירועים ותזכורות: התראות + Google Calendar ──
               SettingsCard(
@@ -331,8 +326,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                   ],
                 ],
               ),
-            ],
-          ),
+          ],
         );
       },
     );

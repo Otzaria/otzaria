@@ -46,12 +46,10 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SettingsCard(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SettingsCard(
             title: 'חיפוש גימטריה',
             children: [
               ListTile(
@@ -133,9 +131,9 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
                 },
               ),
             ],
-          ),
-          kSettingsCardSpacing,
-          SettingsCard(
+        ),
+        kSettingsCardSpacing,
+        SettingsCard(
             title: 'שיטת חישוב גימטריה',
             children: [
               SwitchSettingsTile(
@@ -189,9 +187,8 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
                 },
               ),
             ],
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

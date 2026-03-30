@@ -12,7 +12,6 @@ class CalendarSettingsPanel extends StatelessWidget {
     return BlocProvider.value(
       value: context.read<CalendarCubit>(),
       child: const SingleChildScrollView(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: CalendarSettingsTab(),
       ),
     );
