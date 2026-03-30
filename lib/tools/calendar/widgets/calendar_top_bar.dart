@@ -41,8 +41,12 @@ class CalendarTopBar extends StatefulWidget {
   final VoidCallback onPreviousPeriod;
   final VoidCallback onNextPeriod;
   final ValueChanged<CalendarView> onViewChanged;
-  final ValueChanged<CalendarSidePanelView> onSidePanelViewChanged;
   final CalendarSidePanelView activeSidePanelView;
+  final bool isSidePanelVisible;
+  final bool isSettingsPanelOpen;
+  final VoidCallback onToggleTimesPanel;
+  final VoidCallback onToggleEventsPanel;
+  final VoidCallback onToggleSettingsPanel;
   final VoidCallback onPrint;
   final VoidCallback onToggleSidebar;
   final DateTime? Function(String input) parseInputDate;
@@ -55,8 +59,12 @@ class CalendarTopBar extends StatefulWidget {
     required this.onPreviousPeriod,
     required this.onNextPeriod,
     required this.onViewChanged,
-    required this.onSidePanelViewChanged,
     required this.activeSidePanelView,
+    required this.isSidePanelVisible,
+    required this.isSettingsPanelOpen,
+    required this.onToggleTimesPanel,
+    required this.onToggleEventsPanel,
+    required this.onToggleSettingsPanel,
     required this.onPrint,
     required this.onToggleSidebar,
     required this.parseInputDate,
@@ -177,38 +185,33 @@ class _CalendarTopBarState extends State<CalendarTopBar> {
         final settingsBtn = ToolbarActionButton(
           compact: isCompact,
           tooltip: 'הגדרות לוח שנה',
-          icon: widget.activeSidePanelView == CalendarSidePanelView.settings
+          icon: widget.isSettingsPanelOpen
               ? FluentIcons.settings_24_filled
               : FluentIcons.settings_24_regular,
-          selected:
-              widget.activeSidePanelView == CalendarSidePanelView.settings,
-          onPressed: () {
-            if (widget.activeSidePanelView == CalendarSidePanelView.settings) {
-              widget.onSidePanelViewChanged(CalendarSidePanelView.times);
-            } else {
-              widget.onSidePanelViewChanged(CalendarSidePanelView.settings);
-            }
-          },
+          selected: widget.isSettingsPanelOpen,
+          onPressed: widget.onToggleSettingsPanel,
         );
         final eventsBtn = ToolbarActionButton(
           compact: isCompact,
           tooltip: 'אירועים',
-          icon: widget.activeSidePanelView == CalendarSidePanelView.events
+          icon: widget.isSidePanelVisible &&
+                  widget.activeSidePanelView == CalendarSidePanelView.events
               ? FluentIcons.task_list_square_rtl_24_filled
               : FluentIcons.task_list_square_rtl_24_regular,
-          selected: widget.activeSidePanelView == CalendarSidePanelView.events,
-          onPressed: () =>
-              widget.onSidePanelViewChanged(CalendarSidePanelView.events),
+          selected: widget.isSidePanelVisible &&
+              widget.activeSidePanelView == CalendarSidePanelView.events,
+          onPressed: widget.onToggleEventsPanel,
         );
         final timesBtn = ToolbarActionButton(
           compact: isCompact,
           tooltip: 'זמנים',
-          icon: widget.activeSidePanelView == CalendarSidePanelView.times
+          icon: widget.isSidePanelVisible &&
+                  widget.activeSidePanelView == CalendarSidePanelView.times
               ? FluentIcons.clock_24_filled
               : FluentIcons.clock_24_regular,
-          selected: widget.activeSidePanelView == CalendarSidePanelView.times,
-          onPressed: () =>
-              widget.onSidePanelViewChanged(CalendarSidePanelView.times),
+          selected: widget.isSidePanelVisible &&
+              widget.activeSidePanelView == CalendarSidePanelView.times,
+          onPressed: widget.onToggleTimesPanel,
         );
         final printBtn = ToolbarActionButton(
           compact: isCompact,

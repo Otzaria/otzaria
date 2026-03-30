@@ -7,10 +7,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/printing/printing_screen.dart';
 import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/floating_panel.dart'
-    show FloatingPanel, kSidePanelWidth, kSideBySideMinWidth;
+    show kSidePanelWidth, kMainPanelMinWidth;
+import 'package:otzaria/widgets/context_overlay_panel.dart';
+import 'package:otzaria/widgets/adaptive_side_pane.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/dialogs/calendar_event_dialog.dart';
 import 'package:otzaria/tools/calendar/dialogs/calendar_print_dialog.dart';
@@ -42,7 +45,9 @@ class _CalendarWidgetState extends State<CalendarWidget> {
   bool _isJumpToDateDialogOpen = false;
   bool _isCreateEventDialogOpen = false;
   bool _isPrintDialogOpen = false;
-  bool _isSidebarVisible = true;
+  bool _isSidebarVisible = false;
+  bool _isSettingsPanelOpen = false;
+  double _sidePanelWidth = kSidePanelWidth;
   CalendarSidePanelView _sidePanelView = CalendarSidePanelView.times;
 
   // ─── Lifecycle ──────────────────────────────────────────────────────────────
@@ -73,6 +78,19 @@ class _CalendarWidgetState extends State<CalendarWidget> {
   }
 
   void requestKeyboardFocus() => _requestFocusIfNeeded();
+
+  void closeTransientPanels() {
+    if (!_isSettingsPanelOpen) return;
+    setState(() => _isSettingsPanelOpen = false);
+  }
+
+  @override
+  void deactivate() {
+    if (_isSettingsPanelOpen) {
+      _isSettingsPanelOpen = false;
+    }
+    super.deactivate();
+  }
 
   @override
   void dispose() {
@@ -148,71 +166,14 @@ class _CalendarWidgetState extends State<CalendarWidget> {
         w.runtimeType.toString().contains('TextField');
   }
 
-  SingleActivator _parseShortcut(String shortcut) {
-    final parts = shortcut.toLowerCase().split('+');
-    bool ctrl = false, shift = false, alt = false;
-    LogicalKeyboardKey? key;
-    for (final part in parts) {
-      final t = part.trim();
-      if (t == 'ctrl' || t == 'control') {
-        ctrl = true;
-      } else if (t == 'shift') {
-        shift = true;
-      } else if (t == 'alt') {
-        alt = true;
-      } else {
-        key = _mapKeyString(t);
-      }
-    }
-    return SingleActivator(key ?? LogicalKeyboardKey.keyA,
-        control: ctrl, shift: shift, alt: alt);
-  }
-
-  LogicalKeyboardKey _mapKeyString(String s) {
-    const map = {
-      'a': LogicalKeyboardKey.keyA,
-      'b': LogicalKeyboardKey.keyB,
-      'c': LogicalKeyboardKey.keyC,
-      'd': LogicalKeyboardKey.keyD,
-      'e': LogicalKeyboardKey.keyE,
-      'f': LogicalKeyboardKey.keyF,
-      'g': LogicalKeyboardKey.keyG,
-      'h': LogicalKeyboardKey.keyH,
-      'i': LogicalKeyboardKey.keyI,
-      'j': LogicalKeyboardKey.keyJ,
-      'k': LogicalKeyboardKey.keyK,
-      'l': LogicalKeyboardKey.keyL,
-      'm': LogicalKeyboardKey.keyM,
-      'n': LogicalKeyboardKey.keyN,
-      'o': LogicalKeyboardKey.keyO,
-      'p': LogicalKeyboardKey.keyP,
-      'q': LogicalKeyboardKey.keyQ,
-      'r': LogicalKeyboardKey.keyR,
-      's': LogicalKeyboardKey.keyS,
-      't': LogicalKeyboardKey.keyT,
-      'u': LogicalKeyboardKey.keyU,
-      'v': LogicalKeyboardKey.keyV,
-      'w': LogicalKeyboardKey.keyW,
-      'x': LogicalKeyboardKey.keyX,
-      'y': LogicalKeyboardKey.keyY,
-      'z': LogicalKeyboardKey.keyZ,
-      '0': LogicalKeyboardKey.digit0,
-      '1': LogicalKeyboardKey.digit1,
-      '2': LogicalKeyboardKey.digit2,
-      '3': LogicalKeyboardKey.digit3,
-      '4': LogicalKeyboardKey.digit4,
-      '5': LogicalKeyboardKey.digit5,
-      '6': LogicalKeyboardKey.digit6,
-      '7': LogicalKeyboardKey.digit7,
-      '8': LogicalKeyboardKey.digit8,
-      '9': LogicalKeyboardKey.digit9,
-      'comma': LogicalKeyboardKey.comma,
-      'arrowleft': LogicalKeyboardKey.arrowLeft,
-      'arrowright': LogicalKeyboardKey.arrowRight,
-      'arrowup': LogicalKeyboardKey.arrowUp,
-      'arrowdown': LogicalKeyboardKey.arrowDown,
-    };
-    return map[s] ?? LogicalKeyboardKey.keyA;
+  ShortcutActivator _shortcutActivator(
+    Map<String, String> shortcuts,
+    String key,
+    String fallback,
+  ) {
+    return ShortcutHelper.activatorFromShortcut(shortcuts[key] ?? fallback) ??
+        ShortcutHelper.activatorFromShortcut(fallback) ??
+        const SingleActivator(LogicalKeyboardKey.keyA);
   }
 
   void _navigateMonth(BuildContext context, {required bool forward}) {
@@ -231,11 +192,33 @@ class _CalendarWidgetState extends State<CalendarWidget> {
   }
 
   void _toggleSidebar(BuildContext context, bool isMobile) {
-    if (isMobile) {
-      Scaffold.of(context).openEndDrawer();
-      return;
-    }
     setState(() => _isSidebarVisible = !_isSidebarVisible);
+  }
+
+  void _toggleTimesPanel() {
+    setState(() {
+      if (_sidePanelView == CalendarSidePanelView.times && _isSidebarVisible) {
+        _isSidebarVisible = false;
+        return;
+      }
+      _sidePanelView = CalendarSidePanelView.times;
+      _isSidebarVisible = true;
+    });
+  }
+
+  void _toggleEventsPanel() {
+    setState(() {
+      if (_sidePanelView == CalendarSidePanelView.events && _isSidebarVisible) {
+        _isSidebarVisible = false;
+        return;
+      }
+      _sidePanelView = CalendarSidePanelView.events;
+      _isSidebarVisible = true;
+    });
+  }
+
+  void _toggleSettingsPanel() {
+    setState(() => _isSettingsPanelOpen = !_isSettingsPanelOpen);
   }
 
   // ─── Build ──────────────────────────────────────────────────────────────────
@@ -248,22 +231,38 @@ class _CalendarWidgetState extends State<CalendarWidget> {
 
         return CallbackShortcuts(
           bindings: {
-            _parseShortcut(shortcuts['key-shortcut-calendar-navigate-times'] ??
-                'ctrl+e'): () {
+            // Ctrl+E: toggle זמני היום
+            _shortcutActivator(
+              shortcuts,
+              'key-shortcut-calendar-toggle-times',
+              'ctrl+e',
+            ): () {
               if (_isTextFieldFocused()) return;
-              setState(() {
-                _sidePanelView = _sidePanelView == CalendarSidePanelView.times
-                    ? CalendarSidePanelView.events
-                    : CalendarSidePanelView.times;
-              });
+              _toggleTimesPanel();
             },
-            _parseShortcut(
-                shortcuts['key-shortcut-calendar-today'] ?? 'ctrl+d'): () {
+            // Ctrl+N: toggle אירועים
+            _shortcutActivator(
+              shortcuts,
+              'key-shortcut-calendar-toggle-events',
+              'ctrl+n',
+            ): () {
+              if (_isTextFieldFocused()) return;
+              _toggleEventsPanel();
+            },
+            _shortcutActivator(
+              shortcuts,
+              'key-shortcut-calendar-today',
+              'ctrl+d',
+            ): () {
               if (_isTextFieldFocused()) return;
               context.read<CalendarCubit>().jumpToToday();
             },
-            _parseShortcut(shortcuts['key-shortcut-calendar-jump-date'] ??
-                'ctrl+shift+d'): () {
+            // Ctrl+F: חיפוש תאריך (toggle)
+            _shortcutActivator(
+              shortcuts,
+              'key-shortcut-search-current-window',
+              'ctrl+f',
+            ): () {
               if (_isTextFieldFocused()) return;
               if (_isJumpToDateDialogOpen) {
                 Navigator.of(context).pop();
@@ -272,13 +271,20 @@ class _CalendarWidgetState extends State<CalendarWidget> {
                 _showJumpToDateDialog(context);
               }
             },
-            _parseShortcut(shortcuts['key-shortcut-calendar-create-event'] ??
-                'ctrl+n'): () {
+            // Ctrl+Shift+N: יצירת אירוע (toggle)
+            _shortcutActivator(
+              shortcuts,
+              'key-shortcut-calendar-create-event',
+              'ctrl+shift+n',
+            ): () {
               if (_isTextFieldFocused()) return;
               _showCreateEventDialog(context, state);
             },
-            _parseShortcut(shortcuts['key-shortcut-calendar-toggle-view'] ??
-                'ctrl+shift+e'): () {
+            _shortcutActivator(
+              shortcuts,
+              'key-shortcut-calendar-toggle-view',
+              'ctrl+shift+e',
+            ): () {
               if (_isTextFieldFocused()) return;
               final cubit = context.read<CalendarCubit>();
               cubit.changeCalendarView(switch (state.calendarView) {
@@ -286,19 +292,17 @@ class _CalendarWidgetState extends State<CalendarWidget> {
                 CalendarView.week => CalendarView.month,
               });
             },
-            _parseShortcut(shortcuts['key-shortcut-print'] ?? 'ctrl+p'): () {
+            _shortcutActivator(shortcuts, 'key-shortcut-print', 'ctrl+p'): () {
               if (_isTextFieldFocused()) return;
               _togglePrintCalendar(context, state);
             },
-            _parseShortcut(shortcuts['key-shortcut-open-context-settings'] ??
-                'ctrl+shift+comma'): () {
+            _shortcutActivator(
+              shortcuts,
+              'key-shortcut-open-context-settings',
+              'ctrl+shift+comma',
+            ): () {
               if (_isTextFieldFocused()) return;
-              setState(() {
-                _sidePanelView =
-                    _sidePanelView == CalendarSidePanelView.settings
-                        ? CalendarSidePanelView.times
-                        : CalendarSidePanelView.settings;
-              });
+              _toggleSettingsPanel();
             },
             const SingleActivator(LogicalKeyboardKey.arrowLeft, control: true):
                 () {
@@ -333,8 +337,6 @@ class _CalendarWidgetState extends State<CalendarWidget> {
                       constraints.maxWidth < LayoutBreakpoints.compact;
                   return Scaffold(
                     backgroundColor: Colors.transparent,
-                    endDrawer:
-                        isMobile ? _buildSidePanelDrawer(context, state) : null,
                     // ── גוף: Topbar + תוכן ──────────────────────────────
                     body: Column(
                       children: [
@@ -350,9 +352,12 @@ class _CalendarWidgetState extends State<CalendarWidget> {
                           onViewChanged: (v) => context
                               .read<CalendarCubit>()
                               .changeCalendarView(v),
-                          onSidePanelViewChanged: (v) =>
-                              setState(() => _sidePanelView = v),
                           activeSidePanelView: _sidePanelView,
+                          isSidePanelVisible: _isSidebarVisible,
+                          isSettingsPanelOpen: _isSettingsPanelOpen,
+                          onToggleTimesPanel: _toggleTimesPanel,
+                          onToggleEventsPanel: _toggleEventsPanel,
+                          onToggleSettingsPanel: _toggleSettingsPanel,
                           onPrint: () => _togglePrintCalendar(context, state),
                           onToggleSidebar: () =>
                               _toggleSidebar(context, isMobile),
@@ -383,105 +388,75 @@ class _CalendarWidgetState extends State<CalendarWidget> {
   // ─── Layouts ────────────────────────────────────────────────────────────────
 
   Widget _buildDesktopLayout(BuildContext context, CalendarState state) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // מחשב האם יש מקום לפאנל צד ולוח זה לצד זה
-        final totalPadding = AppTokens.spaceMD * 3;
-        final hasRoomForSideBySide =
-            constraints.maxWidth >= kSideBySideMinWidth + totalPadding;
-
-        final sidePanelVisible = _isSidebarVisible &&
-            _sidePanelView != CalendarSidePanelView.settings;
-
-        final mainPanel = CalendarMainPanel(
-          state: state,
-          onCreateEvent: ({existingEvent, specificDate}) =>
-              _showCreateEventDialog(context, state,
-                  existingEvent: existingEvent, specificDate: specificDate),
-        );
-
-        final sidePanel = FloatingPanel(
-          child: _buildSidePanel(context, state),
-        );
-
-        return Padding(
-          padding: const EdgeInsets.all(AppTokens.spaceMD),
-          child: Stack(
+    return Stack(
+      children: [
+        // תוכן ראשי + חלונית צד
+        AdaptiveSidePane(
+          isOpen: _isSidebarVisible,
+          alignment: AlignmentDirectional.centerStart, // שמאל בעברית (RTL)
+          mainContent: CalendarMainPanel(
+            state: state,
+            onCreateEvent: ({existingEvent, specificDate}) =>
+                _showCreateEventDialog(context, state,
+                    existingEvent: existingEvent, specificDate: specificDate),
+          ),
+          paneContent: _buildSidePanel(context, state),
+          paneWidth: _sidePanelWidth,
+          minMainContentWidth: kMainPanelMinWidth,
+          onClose: () => setState(() => _isSidebarVisible = false),
+          onOpen: () => setState(() => _isSidebarVisible = true),
+          paneColor: AppSurfaces.solidPanelBackground(context),
+          isResizable: true,
+          minPaneWidth: 280,
+          maxPaneWidth: 520,
+          onPaneWidthChanged: (nextWidth) {
+            setState(() {
+              _sidePanelWidth = nextWidth;
+            });
+          },
+          narrowPaneBuilder: (context, paneContent) => Material(
+            color: AppSurfaces.solidPanelBackground(context),
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16),
+                child: paneContent,
+              ),
+            ),
+          ),
+        ),
+        // פאנל הגדרות overlay
+        ContextOverlayPanel(
+          isOpen: _isSettingsPanelOpen,
+          onClose: _toggleSettingsPanel,
+          width: 400,
+          child: Column(
             children: [
-              if (hasRoomForSideBySide)
-                // ── מצב רחב: לוח ופאנל צד זה לצד זה ────────────────────────
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
                   children: [
-                    Expanded(child: mainPanel),
-                    AnimatedSize(
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeInOut,
-                      child: sidePanelVisible
-                          ? Padding(
-                              padding: const EdgeInsets.only(
-                                  right: AppTokens.spaceMD),
-                              child: SizedBox(
-                                  width: kSidePanelWidth, child: sidePanel),
-                            )
-                          : const SizedBox.shrink(),
+                    Text(
+                      'הגדרות',
+                      style: Theme.of(context)
+                          .textTheme
+                          .headlineMedium
+                          ?.copyWith(fontWeight: FontWeight.bold),
                     ),
                   ],
-                )
-              else
-                // ── מצב צר: לוח ממלא הכול, פאנל צד מכסה עליו ───────────────
-                Positioned.fill(child: mainPanel),
-
-              if (!hasRoomForSideBySide && sidePanelVisible) ...[
-                // ── scrim לחיץ לסגירת הפאנל ──────────────────────────────────
-                Positioned.fill(
-                  child: GestureDetector(
-                    onTap: () => setState(() => _isSidebarVisible = false),
-                    child: ColoredBox(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .scrim
-                          .withValues(alpha: 0.30),
-                    ),
-                  ),
                 ),
-                // ── פאנל צד כ-overlay כשאין מקום ────────────────────────────
-                Positioned.fill(child: sidePanel),
-              ],
-
-              // ── פאנל הגדרות overlay ──────────────────────────────────────
-              if (_sidePanelView == CalendarSidePanelView.settings)
-                _buildSettingsOverlay(context, state),
+              ),
+              const Expanded(
+                child: CalendarSettingsPanel(),
+              ),
             ],
           ),
-        );
-      },
+        ),
+      ],
     );
   }
 
   Widget _buildMobileLayout(BuildContext context, CalendarState state) {
-    return Padding(
-      padding: const EdgeInsets.all(AppTokens.spaceMD),
-      child: CalendarMainPanel(
-        state: state,
-        onCreateEvent: ({existingEvent, specificDate}) =>
-            _showCreateEventDialog(context, state,
-                existingEvent: existingEvent, specificDate: specificDate),
-      ),
-    );
-  }
-
-  Widget _buildSidePanelDrawer(BuildContext context, CalendarState state) {
-    final cs = Theme.of(context).colorScheme;
-    return Drawer(
-      backgroundColor: cs.surfaceContainerHigh,
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppTokens.spaceMD),
-          child: _buildSidePanel(context, state),
-        ),
-      ),
-    );
+    return _buildDesktopLayout(context, state);
   }
 
   Widget _buildSidePanel(BuildContext context, CalendarState state) {
@@ -499,62 +474,6 @@ class _CalendarWidgetState extends State<CalendarWidget> {
             _showCreateEventDialog(context, state,
                 existingEvent: existingEvent, specificDate: specificDate),
       ),
-    );
-  }
-
-  Widget _buildSettingsOverlay(BuildContext context, CalendarState state) {
-    final cs = Theme.of(context).colorScheme;
-    return Stack(
-      children: [
-        // ── scrim (רקע שקוף) ──────────────────────────────────────────
-        GestureDetector(
-          onTap: () =>
-              setState(() => _sidePanelView = CalendarSidePanelView.times),
-          child: Container(
-            color: Colors.transparent,
-            width: double.infinity,
-            height: double.infinity,
-          ),
-        ),
-        // ── הפאנל עצמו ──────────────────────────────────────────────────────
-        Positioned(
-          top: 0,
-          bottom: 0,
-          left: 0,
-          child: Material(
-            elevation: 8,
-            color: cs.surfaceContainerHigh,
-            child: SizedBox(
-              width: 400,
-              child: SafeArea(
-                child: Column(
-                  children: [
-                    // ── כותרת ──────────────────────────────────────────────
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                      child: Row(
-                        children: [
-                          Text(
-                            'הגדרות',
-                            style: Theme.of(context)
-                                .textTheme
-                                .headlineMedium
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // ── תוכן הפאנל ────────────────────────────────────────────────
-                    const Expanded(
-                      child: CalendarSettingsPanel(),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
     );
   }
 
