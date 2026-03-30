@@ -330,25 +330,25 @@ class MoreScreenState extends State<MoreScreen>
                         scrollDirection: Axis.horizontal,
                         child: BlocBuilder<SettingsBloc, SettingsState>(
                           builder: (context, settingsState) => Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            for (int index = 0;
-                                index < _tabs.length;
-                                index++) ...[
-                              TopNavItem(
-                                icon: _tabs[index].icon,
-                                iconFilled: _tabs[index].iconFilled,
-                                imageAsset: _tabs[index].imageIcon,
-                                label: _tabs[index].label,
-                                isSelected: _selectedIndex == index,
-                                onTap: () => _changeTab(index),
-                                compact: settingsState.compactMenuMode,
-                              ),
-                              if (index < _tabs.length - 1)
-                                const SizedBox(width: AppTokens.spaceXS),
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              for (int index = 0;
+                                  index < _tabs.length;
+                                  index++) ...[
+                                TopNavItem(
+                                  icon: _tabs[index].icon,
+                                  iconFilled: _tabs[index].iconFilled,
+                                  imageAsset: _tabs[index].imageIcon,
+                                  label: _tabs[index].label,
+                                  isSelected: _selectedIndex == index,
+                                  onTap: () => _changeTab(index),
+                                  compact: settingsState.compactMenuMode,
+                                ),
+                                if (index < _tabs.length - 1)
+                                  const SizedBox(width: AppTokens.spaceXS),
+                              ],
                             ],
-                          ],
-                        ),
+                          ),
                         ),
                       ),
                     ),
