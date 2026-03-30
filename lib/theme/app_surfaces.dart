@@ -39,4 +39,12 @@ class AppSurfaces {
         ? Colors.black
         : cs.surfaceContainerHighest.withValues(alpha: 0.28);
   }
+
+  /// גרסה אטומה של רקע מסכי הלוח לשימוש בתוך חלוניות/כרטיסים
+  /// כך שצבע המסגרת או הרקע שמתחת לא ישפיעו על גוון התוכן.
+  static Color solidPanelBackground(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = panelBackground(context);
+    return Color.alphaBlend(color, theme.colorScheme.surface);
+  }
 }
