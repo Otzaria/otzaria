@@ -14,18 +14,20 @@ import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/widgets/otzaria_search_field.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria/shortcuts/shortcut_helper.dart';
+import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/gematria/gematria_search.dart';
 import 'package:otzaria/tools/gematria/models/gematria_search_result.dart';
 import 'package:otzaria/tools/gematria/models/search_result.dart';
 import 'package:otzaria/tools/gematria/widgets/gematria_result_card.dart';
-import 'package:otzaria/tools/gematria/widgets/gematria_settings_panel.dart';
 import 'package:otzaria/widgets/tool_ui_helpers.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/keyboard_list_focus.dart';
 import 'package:otzaria/widgets/tool_empty_state.dart';
 import 'package:otzaria/widgets/app_top_bar.dart';
 import 'package:otzaria/widgets/buttons/action_buttons.dart';
+import 'package:otzaria/widgets/context_overlay_panel.dart';
 
 class GematriaSearchScreen extends StatefulWidget {
   const GematriaSearchScreen({super.key});
@@ -115,6 +117,19 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
     _focusSearchField();
   }
 
+  void closeTransientPanels() {
+    if (!_showingSettings) return;
+    setState(() => _showingSettings = false);
+  }
+
+  @override
+  void deactivate() {
+    if (_showingSettings) {
+      _showingSettings = false;
+    }
+    super.deactivate();
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -131,19 +146,6 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
 
   void _toggleSettings() =>
       setState(() => _showingSettings = !_showingSettings);
-
-  ShortcutActivator _settingsShortcut() {
-    final raw =
-        Settings.getValue<String>('key-shortcut-open-context-settings') ??
-            'ctrl+shift+comma';
-    final parts = raw.toLowerCase().split('+');
-    return SingleActivator(
-      LogicalKeyboardKey.comma,
-      control: parts.contains('ctrl'),
-      shift: parts.contains('shift'),
-      alt: parts.contains('alt'),
-    );
-  }
 
   // ── ניווט ↑↓ ברשימה ─────────────────────────────────────────────────────
   void _moveFocus(int delta) {
@@ -303,12 +305,24 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
   // ── Build ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final isNarrow = MediaQuery.of(context).size.width < 800;
-    final settingsPanel = GematriaSettingsPanel(
-      isVisible: _showingSettings,
-      onToggle: _toggleSettings,
+    final searchShortcutSetting = context.select(
+      (SettingsBloc bloc) =>
+          bloc.state.shortcuts['key-shortcut-search-current-window'] ??
+          ShortcutValidator.defaultShortcuts[
+              'key-shortcut-search-current-window'] ??
+          'ctrl+f',
     );
-
+    final settingsShortcutSetting = context.select(
+      (SettingsBloc bloc) =>
+          bloc.state.shortcuts['key-shortcut-open-context-settings'] ??
+          ShortcutValidator.defaultShortcuts[
+              'key-shortcut-open-context-settings'] ??
+          'ctrl+shift+comma',
+    );
+    final settingsShortcut =
+        ShortcutHelper.activatorFromShortcut(settingsShortcutSetting) ??
+            const SingleActivator(LogicalKeyboardKey.comma,
+                control: true, shift: true);
     final topBar = BlocBuilder<SettingsBloc, SettingsState>(
       builder: (context, settingsState) => AppTopBar(
         center: OtzariaSearchField(
@@ -348,7 +362,13 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
     );
 
     return CallbackShortcuts(
-      bindings: {_settingsShortcut(): _toggleSettings},
+      bindings: {
+        settingsShortcut: _toggleSettings,
+        ShortcutHelper.activatorFromShortcut(searchShortcutSetting) ??
+            const SingleActivator(LogicalKeyboardKey.keyF, control: true): () {
+          _searchFocusNode.requestFocus();
+        },
+      },
       child: Focus(
         focusNode: _screenFocusNode,
         canRequestFocus: false,
@@ -371,33 +391,43 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
             Expanded(
               child: Stack(
                 children: [
-                  // ── תוכן ראשי ──────────────────────────────────────────
-                  isNarrow
-                      ? Column(
-                          children: [
-                            if (_lastGematriaValue != null) _buildStatusBar(),
-                            Expanded(child: _buildResultsList()),
-                          ],
-                        )
-                      : Row(
-                          children: [
-                            Expanded(
-                              child: ToolPanelWrapper(
-                                centerContent: !_showingSettings,
-                                child: Column(
-                                  children: [
-                                    if (_lastGematriaValue != null)
-                                      _buildStatusBar(),
-                                    Expanded(child: _buildResultsList()),
-                                  ],
-                                ),
+                  ToolPanelWrapper(
+                    centerContent: !_showingSettings,
+                    child: Column(
+                      children: [
+                        if (_lastGematriaValue != null) _buildStatusBar(),
+                        Expanded(child: _buildResultsList()),
+                      ],
+                    ),
+                  ),
+                  ContextOverlayPanel(
+                    isOpen: _showingSettings,
+                    onClose: _toggleSettings,
+                    width: 400,
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            children: [
+                              Text(
+                                'הגדרות',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineMedium
+                                    ?.copyWith(fontWeight: FontWeight.bold),
                               ),
-                            ),
-                            if (!_showingSettings) settingsPanel,
-                          ],
+                            ],
+                          ),
                         ),
-                  // ── פאנל הגדרות overlay ──────────────────────────────────
-                  if (_showingSettings) _buildSettingsOverlay(context),
+                        const Expanded(
+                          child: SingleChildScrollView(
+                            child: GematriaSettingsTab(),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -472,66 +502,4 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
     );
   }
 
-  Widget _buildSettingsOverlay(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Stack(
-      children: [
-        // ── scrim (רקע שקוף) ──────────────────────────────────────────
-        GestureDetector(
-          onTap: _toggleSettings,
-          child: Container(
-            color: Colors.transparent,
-            width: double.infinity,
-            height: double.infinity,
-          ),
-        ),
-        // ── הפאנל עצמו ──────────────────────────────────────────────────────
-        Positioned(
-          top: 0,
-          bottom: 0,
-          left: 0,
-          child: Material(
-            elevation: 8,
-            color: cs.surfaceContainerHigh,
-            child: SizedBox(
-              width: 360,
-              child: SafeArea(
-                child: Column(
-                  children: [
-                    // ── כותרת ──────────────────────────────────────────────
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                        AppTokens.spaceMD,
-                        AppTokens.spaceMD,
-                        AppTokens.spaceMD,
-                        0,
-                      ),
-                      child: Row(
-                        children: [
-                          Text(
-                            'הגדרות',
-                            style: Theme.of(context)
-                                .textTheme
-                                .headlineMedium
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // ── הגדרות גימטריה ────────────────────────────────────────────────
-                    const Expanded(
-                      child: SingleChildScrollView(
-                        padding: EdgeInsets.all(AppTokens.spaceMD),
-                        child: GematriaSettingsTab(),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 }
