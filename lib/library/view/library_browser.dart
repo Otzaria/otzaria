@@ -7,7 +7,6 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/external_catalog/view/external_catalog_settings_helper.dart';
-import 'package:otzaria/library/view/resizable_preview_panel.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
@@ -30,6 +29,8 @@ import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/app_top_bar.dart';
 import 'package:otzaria/widgets/responsive_action_bar.dart';
 import 'package:otzaria/utils/open_book.dart';
+import 'package:otzaria/widgets/adaptive_side_pane.dart';
+import 'package:otzaria/widgets/context_overlay_panel.dart';
 
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
@@ -48,8 +49,6 @@ const int _kScrollDebounceMs = 100;
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-enum _LibrarySidePanel { none, preview, settings }
-
 class LibraryBrowser extends StatefulWidget {
   const LibraryBrowser({super.key});
 
@@ -65,8 +64,10 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   final FocusNode _firstSearchResultFocusNode = FocusNode();
   int _depth = 0;
   final Set<String> _expandedCategories = {};
-  _LibrarySidePanel _activeSidePanel = _LibrarySidePanel.none;
+  bool _isSettingsPanelOpen = false;
   bool? _previewPanelOverrideVisible;
+  double? _previewPaneWidthOverride;
+  late final ValueNotifier<double> _topBarTotalHeight;
 
   /// שולט בנראות השורה השניה — מוגן מפני flicker ע"י debounce ב-AppTopBar
   late final ValueNotifier<bool> _secondaryRowVisible;
@@ -108,39 +109,28 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   bool _isPreviewPanelVisible(SettingsState s) =>
       _previewPanelOverrideVisible ?? s.libraryShowPreview;
 
-  _LibrarySidePanel _effectiveSidePanel(SettingsState s) {
-    if (_activeSidePanel == _LibrarySidePanel.settings) {
-      return _LibrarySidePanel.settings;
-    }
-    if (_isPreviewPanelVisible(s)) return _LibrarySidePanel.preview;
-    return _LibrarySidePanel.none;
-  }
-
-  void _openSettingsPanel() =>
-      setState(() => _activeSidePanel = _LibrarySidePanel.settings);
+  void _openSettingsPanel() => setState(() => _isSettingsPanelOpen = true);
 
   void _closeSettingsPanel() {
-    if (_activeSidePanel == _LibrarySidePanel.settings) {
-      setState(() => _activeSidePanel = _LibrarySidePanel.none);
+    if (_isSettingsPanelOpen) {
+      setState(() => _isSettingsPanelOpen = false);
     }
   }
 
   void _showPreviewPanel(SettingsState s) {
     setState(() {
-      _activeSidePanel = _LibrarySidePanel.preview;
       _previewPanelOverrideVisible = s.libraryShowPreview ? null : true;
     });
   }
 
   void _hidePreviewPanel(SettingsState s) {
     setState(() {
-      _activeSidePanel = _LibrarySidePanel.none;
       _previewPanelOverrideVisible = s.libraryShowPreview ? false : null;
     });
   }
 
   void _togglePreviewPanel(SettingsState s) {
-    if (_effectiveSidePanel(s) == _LibrarySidePanel.preview) {
+    if (_isPreviewPanelVisible(s)) {
       _hidePreviewPanel(s);
     } else {
       _showPreviewPanel(s);
@@ -149,7 +139,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
   void _syncLibraryPanelController() {
     LibraryPanelController.register(
-      isSettingsPanelOpen: () => _activeSidePanel == _LibrarySidePanel.settings,
+      isSettingsPanelOpen: () => _isSettingsPanelOpen,
       showSettingsPanel: _openSettingsPanel,
       closeSettingsPanel: _closeSettingsPanel,
       openPreviewPanel: _showPreviewPanel,
@@ -164,6 +154,8 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   void initState() {
     super.initState();
     _secondaryRowVisible = ValueNotifier<bool>(true);
+    _topBarTotalHeight = ValueNotifier<double>(0);
+    _previewPanelOverrideVisible = null;
     context.read<LibraryBloc>().add(LoadLibrary());
     _syncLibraryPanelController();
     _fileSyncBloc = FileSyncBloc(
@@ -175,10 +167,19 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   }
 
   @override
+  void deactivate() {
+    if (_isSettingsPanelOpen) {
+      _isSettingsPanelOpen = false;
+    }
+    super.deactivate();
+  }
+
+  @override
   void dispose() {
     _firstSearchResultFocusNode.dispose();
     _scrollDebounce?.cancel();
     _secondaryRowVisible.dispose();
+    _topBarTotalHeight.dispose();
     LibraryPanelController.unregister();
     _fileSyncBloc.close();
     super.dispose();
@@ -207,6 +208,11 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   }
 
   // ── build ────────────────────────────────────────────────────────────────
+
+  void closeTransientPanels() {
+    if (!_isSettingsPanelOpen) return;
+    setState(() => _isSettingsPanelOpen = false);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -275,9 +281,8 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                         // גובה הסרגל הראשי (קבוע) — ממנו נגזר ה-padding התחתון
                         final primaryBarH = AppTopBar.barHeight(isCompact);
 
-                        // גובה השורה השניה המקסימלי (אומדן שמרני)
-                        // זה גורם לתוכן להתחיל מתחת לשורה השניה כשהיא פתוחה,
-                        // ולא לזוז כשהיא נסגרת — מונע reflow של ה-ScrollView.
+                        // גובה השורה השניה המקסימלי משמש כ-fallback לפני שיש
+                        // מדידה בפועל מה-AppTopBar.
                         const double kSecondaryRowMaxH = 52.0;
                         final hasSecondaryRow = !dafYomiInline ||
                             (context
@@ -295,8 +300,18 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                         return Stack(
                           children: [
                             Positioned.fill(
-                              child: Padding(
-                                padding: EdgeInsets.only(top: topPad),
+                              child: ValueListenableBuilder<double>(
+                                valueListenable: _topBarTotalHeight,
+                                builder: (context, topBarHeight, child) {
+                                  final effectiveTopPad =
+                                      topBarHeight > 0 ? topBarHeight : topPad;
+                                  return AnimatedPadding(
+                                    duration: const Duration(milliseconds: 180),
+                                    curve: Curves.easeOut,
+                                    padding: EdgeInsets.only(top: effectiveTopPad),
+                                    child: child,
+                                  );
+                                },
                                 child: NotificationListener<ScrollNotification>(
                                   onNotification: _handleScrollNotification,
                                   child: _buildBodyRow(
@@ -323,6 +338,18 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                       },
                     ),
                   ),
+                  ValueListenableBuilder<double>(
+                    valueListenable: _topBarTotalHeight,
+                    builder: (context, topBarHeight, _) {
+                      if (!_isSettingsPanelOpen) {
+                        return const SizedBox.shrink();
+                      }
+                      return Positioned.fill(
+                        top: topBarHeight,
+                        child: _buildSettingsOverlay(context, settingsState),
+                      );
+                    },
+                  ),
                   if (state.isLoading) _buildLoadingOverlay(context),
                 ],
               );
@@ -342,9 +369,8 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     required bool dafYomiInline,
   }) {
     final isCompact = settingsState.compactMenuMode;
-    final previewSelected =
-        _effectiveSidePanel(settingsState) == _LibrarySidePanel.preview;
-    final settingsSelected = _activeSidePanel == _LibrarySidePanel.settings;
+    final previewSelected = _isPreviewPanelVisible(settingsState);
+    final settingsSelected = _isSettingsPanelOpen;
 
     // ── Trailing items ────────────────────────────────────────────────────
     final trailingItems = <AppTopBarItem>[];
@@ -412,6 +438,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     );
 
     return AppTopBar(
+      totalHeightNotifier: _topBarTotalHeight,
       scrollDebounceMs: _kScrollDebounceMs,
       secondaryRowVisible: secondaryRow != null ? _secondaryRowVisible : null,
       leadingItems: [
@@ -627,50 +654,54 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     return LayoutBuilder(
       builder: (ctx, constraints) {
         final screenWidth = constraints.maxWidth;
-        const minPreviewWidth = 8.0;
+        const minPreviewWidth = 280.0;
         final previewWidth = settingsState.libraryViewMode == 'list'
-            ? screenWidth * 2 / 3
-            : screenWidth / 3;
+            ? screenWidth * 0.55
+            : screenWidth * 0.36;
         final maxPreviewWidth = (screenWidth - 350).clamp(
           minPreviewWidth,
           screenWidth,
         );
-        final panelMode = _effectiveSidePanel(settingsState);
+        final previewPaneWidth = previewWidth.clamp(
+          minPreviewWidth,
+          maxPreviewWidth,
+        );
+        final effectivePreviewPaneWidth =
+            (_previewPaneWidthOverride ?? previewPaneWidth.toDouble()).clamp(
+          minPreviewWidth,
+          maxPreviewWidth,
+        );
+        final mainContent = _buildContent(state);
 
-        // אם זה פאנל הגדרות, נציג אותו כ-overlay
-        if (panelMode == _LibrarySidePanel.settings) {
-          return Stack(
-            children: [
-              // תוכן ראשי
-              _buildContent(state),
-              // פאנל הגדרות overlay
-              _buildSettingsOverlay(ctx, settingsState),
-            ],
-          );
-        }
-
-        // אחרת, תצוגה רגילה עם Row
-        return Row(
-          children: [
-            Expanded(child: _buildContent(state)),
-            AnimatedSize(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
-              alignment: Alignment.centerRight,
-              child: panelMode == _LibrarySidePanel.none
-                  ? const SizedBox(width: 0)
-                  : Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: ResizablePreviewPanel(
-                        key: ValueKey(panelMode.name),
-                        initialWidth: previewWidth,
-                        minWidth: minPreviewWidth,
-                        maxWidth: maxPreviewWidth,
-                        child: _buildSidePanel(ctx, settingsState, panelMode),
-                      ),
-                    ),
+        return AdaptiveSidePane(
+          isOpen: _isPreviewPanelVisible(settingsState),
+          alignment: AlignmentDirectional.centerStart, // שמאל בעברית (RTL)
+          mainContent: RepaintBoundary(child: mainContent),
+          paneContent: _buildPreviewPane(settingsState),
+          paneWidth: effectivePreviewPaneWidth.toDouble(),
+          minMainContentWidth: 420,
+          onClose: () => _hidePreviewPanel(settingsState),
+          onOpen: () => _showPreviewPanel(settingsState),
+          paneColor: Theme.of(ctx).colorScheme.surface,
+          isResizable: true,
+          minPaneWidth: minPreviewWidth,
+          maxPaneWidth: maxPreviewWidth,
+          onPaneWidthChanged: (nextWidth) {
+            setState(() {
+              _previewPaneWidthOverride = nextWidth;
+            });
+          },
+          wrapPaneInFloatingPanel: false,
+          framePadding: const EdgeInsets.only(left: 10, right: 10, bottom: 10),
+          narrowPaneBuilder: (context, paneContent) => Material(
+            color: Theme.of(context).colorScheme.surface,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16),
+                child: paneContent,
+              ),
             ),
-          ],
+          ),
         );
       },
     );
@@ -1476,7 +1507,6 @@ class _LibraryBrowserState extends State<LibraryBrowser>
             policy: OrderedTraversalPolicy(),
             child: GridView.builder(
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  //max number of items per row is 5 and min is 1
                   crossAxisCount: crossAxisCount,
                   childAspectRatio: 2,
                   crossAxisSpacing: 4,
@@ -1505,53 +1535,24 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     );
   }
 
-  Widget _buildSidePanel(
-    BuildContext context,
-    SettingsState settingsState,
-    _LibrarySidePanel panelMode,
-  ) {
-    final theme = Theme.of(context);
-    final borderColor = theme.colorScheme.outline.withValues(alpha: 0.3);
-    final panelColor = panelMode == _LibrarySidePanel.settings
-        ? AppSurfaces.panelBackground(context)
-        : theme.colorScheme.surface;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: panelColor,
-        border: Border.all(color: borderColor, width: 1.0),
-        borderRadius: BorderRadius.circular(8.0),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(7.0),
-        child: switch (panelMode) {
-          _LibrarySidePanel.settings => SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: LibrarySettingsPanel(hebrewBooksPathWidget: null),
-              ),
-            ),
-          _LibrarySidePanel.preview => BlocBuilder<LibraryBloc, LibraryState>(
-              buildWhen: (p, c) => p.previewBook != c.previewBook,
-              builder: (ctx, previewState) => GestureDetector(
-                onDoubleTap: () {
-                  if (previewState.previewBook != null) {
-                    _openBookInReader(previewState.previewBook!, 0);
-                  }
-                },
-                child: BookPreviewPanel(
-                  book: previewState.previewBook,
-                  onOpenInReader: (i) {
-                    if (previewState.previewBook != null) {
-                      _openBookInReader(previewState.previewBook!, i);
-                    }
-                  },
-                  onClose: () => _hidePreviewPanel(settingsState),
-                ),
-              ),
-            ),
-          _LibrarySidePanel.none => const SizedBox.shrink(),
+  Widget _buildPreviewPane(SettingsState settingsState) {
+    return BlocBuilder<LibraryBloc, LibraryState>(
+      buildWhen: (p, c) => p.previewBook != c.previewBook,
+      builder: (ctx, previewState) => GestureDetector(
+        onDoubleTap: () {
+          if (previewState.previewBook != null) {
+            _openBookInReader(previewState.previewBook!, 0);
+          }
         },
+        child: BookPreviewPanel(
+          book: previewState.previewBook,
+          onOpenInReader: (i) {
+            if (previewState.previewBook != null) {
+              _openBookInReader(previewState.previewBook!, i);
+            }
+          },
+          onClose: () => _hidePreviewPanel(settingsState),
+        ),
       ),
     );
   }
@@ -1560,63 +1561,33 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     BuildContext context,
     SettingsState settingsState,
   ) {
-    final cs = Theme.of(context).colorScheme;
-    return Stack(
-      children: [
-        // ── scrim (רקע שקוף) ──────────────────────────────────────────
-        GestureDetector(
-          onTap: () => _hidePreviewPanel(settingsState),
-          child: Container(
-            color: Colors.transparent,
-            width: double.infinity,
-            height: double.infinity,
-          ),
-        ),
-        // ── הפאנל עצמו ──────────────────────────────────────────────────────
-        Positioned(
-          top: 0,
-          bottom: 0,
-          left: 0,
-          child: Material(
-            elevation: 8,
-            color: cs.surfaceContainerHigh,
-            child: SizedBox(
-              width: 400,
-              child: SafeArea(
-                child: Column(
-                  children: [
-                    // ── כותרת ──────────────────────────────────────────────
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                      child: Row(
-                        children: [
-                          Text(
-                            'הגדרות',
-                            style: Theme.of(context)
-                                .textTheme
-                                .headlineMedium
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // ── תוכן הפאנל ────────────────────────────────────────────────
-                    Expanded(
-                      child: SingleChildScrollView(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8.0),
-                          child:
-                              LibrarySettingsPanel(hebrewBooksPathWidget: null),
-                        ),
-                      ),
-                    ),
-                  ],
+    return ContextOverlayPanel(
+      isOpen: _isSettingsPanelOpen,
+      onClose: _closeSettingsPanel,
+      width: 400,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                Text(
+                  'הגדרות',
+                  style: Theme.of(context)
+                      .textTheme
+                      .headlineMedium
+                      ?.copyWith(fontWeight: FontWeight.bold),
                 ),
-              ),
+              ],
             ),
           ),
-        ),
-      ],
+          const Expanded(
+            child: SingleChildScrollView(
+              child: LibrarySettingsPanel(hebrewBooksPathWidget: null),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
