@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:logging/logging.dart';
 
@@ -12,9 +13,13 @@ import '../models/book_model.dart';
 import 'book_detail_screen.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria/shortcuts/shortcut_helper.dart';
+import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/widgets/buttons/action_buttons.dart';
 import 'package:otzaria/widgets/app_top_bar.dart';
 import 'package:otzaria/widgets/inputs/segmented_button_tile.dart';
+import 'package:otzaria/widgets/adaptive_side_pane.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 /// Main screen for Shamor Zachor with Split View (Sidebar + Content)
@@ -28,6 +33,7 @@ class ShamorZachorMainScreen extends StatefulWidget {
 class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
     with AutomaticKeepAliveClientMixin {
   static final Logger _logger = Logger('ShamorZachorMainScreen');
+  final FocusNode _shortcutFocusNode = FocusNode(skipTraversal: true);
 
   // Navigation State
   String? _selectedCategoryName; // Display name (e.g. Zeraim)
@@ -37,6 +43,8 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
   BookDetails? _selectedBookDetails;
   String _searchQuery = ''; // Search query from sidebar
   String _selectedFilter = 'all'; // all, in_progress, completed
+  bool _isSidebarVisible = true;
+  double _sidebarWidth = 300.0;
 
   @override
   bool get wantKeepAlive => true;
@@ -45,6 +53,11 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
   void initState() {
     super.initState();
     _logger.info('Initialized ShamorZachorMainScreen (Split View)');
+
+    // בקשת פוקוס לאחר הבנייה כדי שקיצורי המקשים יעבדו מיד
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _shortcutFocusNode.requestFocus();
+    });
 
     // Ensure data is loaded when screen is first displayed
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -135,181 +148,254 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
     });
   }
 
+  /// מחזור בין הסינונים: all -> in_progress -> completed -> all
+  void _cycleFilter() {
+    setState(() {
+      _selectedFilter = switch (_selectedFilter) {
+        'all' => 'in_progress',
+        'in_progress' => 'completed',
+        'completed' => 'all',
+        _ => 'all',
+      };
+    });
+  }
+
+  bool _isTextFieldFocused() {
+    final w = FocusManager.instance.primaryFocus?.context?.widget;
+    return w is TextField ||
+        w is EditableText ||
+        w.runtimeType.toString().contains('TextField');
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
 
-    // Define Sidebar Width
-    const double sidebarWidth = 300.0;
+    final cycleFilterShortcutSetting = context.select(
+      (SettingsBloc bloc) =>
+          bloc.state.shortcuts['key-shortcut-shamor-zachor-cycle-filter'] ??
+          ShortcutValidator.defaultShortcuts[
+              'key-shortcut-shamor-zachor-cycle-filter'] ??
+          'ctrl+e',
+    );
 
-    return Scaffold(
-      body: ErrorBoundary(
-        child:
-            Consumer2<ShamorZachorDataProvider, ShamorZachorProgressProvider>(
-          builder: (context, dataProvider, progressProvider, child) {
-            if (dataProvider.isLoading || progressProvider.isLoading) {
-              return const Center(child: CircularProgressIndicator());
-            }
+    final cycleFilterShortcut = ShortcutHelper.activatorFromShortcut(
+          cycleFilterShortcutSetting,
+        ) ??
+        const SingleActivator(LogicalKeyboardKey.keyE, control: true);
 
-            if (dataProvider.error != null || progressProvider.error != null) {
-              return Center(
-                  child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                    const Text('שגיאה בטעינת הנתונים'),
-                    RecommendedActionButton(
-                      text: 'נסה שוב',
-                      onPressed: () {
-                        dataProvider.loadAllData();
-                      },
-                    )
-                  ]));
-            }
+    return CallbackShortcuts(
+      bindings: {
+        cycleFilterShortcut: () {
+          if (_isTextFieldFocused()) return;
+          _cycleFilter();
+        },
+      },
+      child: Focus(
+        focusNode: _shortcutFocusNode,
+        autofocus: true,
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTap: () => _shortcutFocusNode.requestFocus(),
+          child: Scaffold(
+            body: ErrorBoundary(
+            child: Consumer2<ShamorZachorDataProvider, ShamorZachorProgressProvider>(
+            builder: (context, dataProvider, progressProvider, child) {
+              if (dataProvider.isLoading || progressProvider.isLoading) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-            // Default Selection Logic: 'All Books'
-            BookCategory? currentCategoryObject = _selectedCategoryObject;
-            String? currentCategoryName = _selectedCategoryName;
-            String? currentTopLevelName = _selectedTopLevelName;
+              if (dataProvider.error != null ||
+                  progressProvider.error != null) {
+                return Center(
+                    child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                      const Text('שגיאה בטעינת הנתונים'),
+                      RecommendedActionButton(
+                        text: 'נסה שוב',
+                        onPressed: () {
+                          dataProvider.loadAllData();
+                        },
+                      )
+                    ]));
+              }
 
-            if (currentCategoryObject == null &&
-                currentCategoryName == null &&
-                _selectedBookName == null) {
-              // Construct 'All Books' category (same logic as Sidebar)
-              final allCategories = dataProvider.allBookData;
-              // Use natural order from DataProvider (already sorted by orderIndex from DB)
-              final sortedKeys = allCategories.keys.toList();
+              // Default Selection Logic: 'All Books'
+              BookCategory? currentCategoryObject = _selectedCategoryObject;
+              String? currentCategoryName = _selectedCategoryName;
+              String? currentTopLevelName = _selectedTopLevelName;
 
-              currentCategoryName = 'כל הספרים';
-              currentTopLevelName = 'all_books_virtual';
-              currentCategoryObject = BookCategory(
-                  name: 'כל הספרים',
-                  books: {},
-                  subcategories:
-                      sortedKeys.map((key) => allCategories[key]!).toList(),
-                  isCustom: false,
-                  sourceFile: 'virtual',
-                  schemaVersion: 1,
-                  contentType: 'text',
-                  defaultStartPage: 1);
-            }
+              if (currentCategoryObject == null &&
+                  currentCategoryName == null &&
+                  _selectedBookName == null) {
+                // Construct 'All Books' category (same logic as Sidebar)
+                final allCategories = dataProvider.allBookData;
+                // Use natural order from DataProvider (already sorted by orderIndex from DB)
+                final sortedKeys = allCategories.keys.toList();
 
-            return NotificationListener<BookNavigationNotification>(
-              onNotification: (notification) {
-                _navigateToBook(
-                  notification.categoryName,
-                  notification.bookName,
-                  notification.bookDetails,
-                );
-                return true;
-              },
-              child: Column(
-                children: [
-                  BlocBuilder<SettingsBloc, SettingsState>(
-                    builder: (context, settingsState) => AppTopBar(
-                      center: Center(
-                        child: SizedBox(
-                          width: 400,
-                          child: AppSegmentedControl<String>(
-                            options: const [
-                              SegmentOption<String>(
-                                value: 'all',
-                                label: 'הכל',
-                                icon: FluentIcons.library_24_regular,
-                              ),
-                              SegmentOption<String>(
-                                value: 'in_progress',
-                                label: 'בתהליך',
-                                icon: FluentIcons.hourglass_24_regular,
-                              ),
-                              SegmentOption<String>(
-                                value: 'completed',
-                                label: 'הושלם',
-                                icon: FluentIcons.checkmark_circle_24_regular,
-                              ),
-                            ],
-                            currentValue: _selectedFilter,
-                            onChanged: (value) {
-                              setState(() {
-                                _selectedFilter = value;
-                              });
-                            },
+                currentCategoryName = 'כל הספרים';
+                currentTopLevelName = 'all_books_virtual';
+                currentCategoryObject = BookCategory(
+                    name: 'כל הספרים',
+                    books: {},
+                    subcategories:
+                        sortedKeys.map((key) => allCategories[key]!).toList(),
+                    isCustom: false,
+                    sourceFile: 'virtual',
+                    schemaVersion: 1,
+                    contentType: 'text',
+                    defaultStartPage: 1);
+              }
+
+              return NotificationListener<BookNavigationNotification>(
+                onNotification: (notification) {
+                  _navigateToBook(
+                    notification.categoryName,
+                    notification.bookName,
+                    notification.bookDetails,
+                  );
+                  return true;
+                },
+                child: Column(
+                  children: [
+                    BlocBuilder<SettingsBloc, SettingsState>(
+                      builder: (context, settingsState) => AppTopBar(
+                        leadingItems: [
+                          AppTopBarItem(
+                            widget: ToolbarActionButton(
+                              compact: settingsState.compactMenuMode,
+                              tooltip:
+                                  _isSidebarVisible ? 'הסתר ניווט' : 'הצג ניווט',
+                              icon: FluentIcons.navigation_24_regular,
+                              selected: _isSidebarVisible,
+                              onPressed: () {
+                                setState(() {
+                                  _isSidebarVisible = !_isSidebarVisible;
+                                });
+                                _shortcutFocusNode.requestFocus();
+                              },
+                            ),
+                          ),
+                        ],
+                        center: Center(
+                          child: SizedBox(
+                            width: 400,
+                            child: AppSegmentedControl<String>(
+                              options: const [
+                                SegmentOption<String>(
+                                  value: 'all',
+                                  label: 'הכל',
+                                  icon: FluentIcons.library_24_regular,
+                                ),
+                                SegmentOption<String>(
+                                  value: 'in_progress',
+                                  label: 'בתהליך',
+                                  icon: FluentIcons.hourglass_24_regular,
+                                ),
+                                SegmentOption<String>(
+                                  value: 'completed',
+                                  label: 'הושלם',
+                                  icon: FluentIcons.checkmark_circle_24_regular,
+                                ),
+                              ],
+                              currentValue: _selectedFilter,
+                              onChanged: (value) {
+                                setState(() {
+                                  _selectedFilter = value;
+                                });
+                                _shortcutFocusNode.requestFocus();
+                              },
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                  Expanded(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // 1. Sidebar
-                        SizedBox(
-                          width: sidebarWidth,
-                          child: ShamorZachorSidebar(
-                            onCategorySelected: _onCategorySelected,
-                            onSearchChanged: _onSearchChanged,
-                            searchQuery: _searchQuery,
-                            selectedCategoryName:
-                                currentTopLevelName == 'all_books_virtual'
-                                    ? 'all_books_virtual'
-                                    : _selectedCategoryName,
-                          ),
+                    Expanded(
+                      child: AdaptiveSidePane(
+                        isOpen: _isSidebarVisible,
+                        alignment: AlignmentDirectional.centerEnd,
+                        paneWidth: _sidebarWidth,
+                        minMainContentWidth: 320,
+                        onClose: () {
+                          setState(() {
+                            _isSidebarVisible = false;
+                          });
+                        },
+                        onOpen: () {
+                          setState(() {
+                            _isSidebarVisible = true;
+                          });
+                        },
+                        paneColor: AppSurfaces.solidPanelBackground(context),
+                        isResizable: true,
+                        minPaneWidth: 220,
+                        maxPaneWidth: 420,
+                        onPaneWidthChanged: (nextWidth) {
+                          setState(() {
+                            _sidebarWidth = nextWidth;
+                          });
+                        },
+                        paneContent: ShamorZachorSidebar(
+                          onCategorySelected: _onCategorySelected,
+                          onSearchChanged: _onSearchChanged,
+                          searchQuery: _searchQuery,
+                          selectedCategoryName:
+                              currentTopLevelName == 'all_books_virtual'
+                                  ? 'all_books_virtual'
+                                  : _selectedCategoryName,
                         ),
+                        narrowPaneBuilder: (context, paneContent) => Material(
+                          color: AppSurfaces.solidPanelBackground(context),
+                          child: SafeArea(child: paneContent),
+                        ),
+                        mainContent: _selectedBookName != null &&
+                                _selectedBookDetails != null
+                            ? Builder(
+                                builder: (context) {
+                                  _logger.info(
+                                      'Creating BookDetailScreen: bookName=$_selectedBookName, bookId=${_selectedBookDetails!.id}');
 
-                        // Vertical Divider
-                        const VerticalDivider(width: 1),
-
-                        // 2. Main Content Area
-                        Expanded(
-                          child: _selectedBookName != null &&
-                                  _selectedBookDetails != null
-                              ? Builder(
-                                  builder: (context) {
-                                    // Debug log
-                                    _logger.info(
-                                        'Creating BookDetailScreen: bookName=$_selectedBookName, bookId=${_selectedBookDetails!.id}');
-
-                                    return KeyedSubtree(
-                                      key: ValueKey(
-                                          'Book_${_selectedCategoryName}_$_selectedBookName'),
-                                      child: BookDetailScreen(
-                                        topLevelCategoryKey:
-                                            _selectedTopLevelName ??
-                                                _selectedCategoryName!,
-                                        categoryName: _selectedCategoryName!,
-                                        bookName: _selectedBookName!,
-                                        bookId: _selectedBookDetails!
-                                            .id, // העברת ה-ID
-                                        bookDetails:
-                                            _selectedBookDetails!, // Pass the details directly
-                                        onBack: () {
-                                          setState(() {
-                                            _selectedBookName = null;
-                                            _selectedBookDetails = null;
-                                          });
-                                          _notifyTitleChange();
-                                        },
-                                      ),
-                                    );
-                                  },
-                                )
-                              : _searchQuery.length >= 2
-                                  ? _buildSearchResults(dataProvider)
-                                  : CategoryBooksGrid(
-                                      categoryName: currentCategoryName,
-                                      category: currentCategoryObject,
-                                      topLevelName: currentTopLevelName,
-                                      onBookSelected: _navigateToBook,
-                                      selectedFilter: _selectedFilter,
+                                  return KeyedSubtree(
+                                    key: ValueKey(
+                                        'Book_${_selectedCategoryName}_$_selectedBookName'),
+                                    child: BookDetailScreen(
+                                      topLevelCategoryKey:
+                                          _selectedTopLevelName ??
+                                              _selectedCategoryName!,
+                                      categoryName: _selectedCategoryName!,
+                                      bookName: _selectedBookName!,
+                                      bookId: _selectedBookDetails!.id,
+                                      bookDetails: _selectedBookDetails!,
+                                      onBack: () {
+                                        setState(() {
+                                          _selectedBookName = null;
+                                          _selectedBookDetails = null;
+                                        });
+                                        _notifyTitleChange();
+                                      },
                                     ),
-                        ),
-                      ],
+                                  );
+                                },
+                              )
+                            : _searchQuery.length >= 2
+                                ? _buildSearchResults(dataProvider)
+                                : CategoryBooksGrid(
+                                    categoryName: currentCategoryName,
+                                    category: currentCategoryObject,
+                                    topLevelName: currentTopLevelName,
+                                    onBookSelected: _navigateToBook,
+                                    selectedFilter: _selectedFilter,
+                                  ),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            );
-          },
+                  ],
+                ),
+              );
+            },
+          ),
+            ),
+          ),
         ),
       ),
     );
@@ -337,5 +423,11 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
       onBookSelected: _navigateToBook,
       selectedFilter: _selectedFilter,
     );
+  }
+
+  @override
+  void dispose() {
+    _shortcutFocusNode.dispose();
+    super.dispose();
   }
 }
