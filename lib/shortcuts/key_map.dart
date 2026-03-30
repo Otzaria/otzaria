@@ -12,11 +12,36 @@ import 'package:flutter/services.dart';
 class KeyMap {
   KeyMap._();
 
-  // ─── אותיות (א׳–ת׳ / a–z) ──────────────────────────────────────────────────
-  // אותיות מטופלות בנפרד ב-ShortcutHelper לפי key.keyLabel, לא דרך המפה הזו.
-
-  // ─── מקשי ספרות ──────────────────────────────────────────────────────────────
   static const Map<String, LogicalKeyboardKey> nameToKey = {
+    // ─── אותיות ────────────────────────────────────────────────────────────────
+    'a': LogicalKeyboardKey.keyA,
+    'b': LogicalKeyboardKey.keyB,
+    'c': LogicalKeyboardKey.keyC,
+    'd': LogicalKeyboardKey.keyD,
+    'e': LogicalKeyboardKey.keyE,
+    'f': LogicalKeyboardKey.keyF,
+    'g': LogicalKeyboardKey.keyG,
+    'h': LogicalKeyboardKey.keyH,
+    'i': LogicalKeyboardKey.keyI,
+    'j': LogicalKeyboardKey.keyJ,
+    'k': LogicalKeyboardKey.keyK,
+    'l': LogicalKeyboardKey.keyL,
+    'm': LogicalKeyboardKey.keyM,
+    'n': LogicalKeyboardKey.keyN,
+    'o': LogicalKeyboardKey.keyO,
+    'p': LogicalKeyboardKey.keyP,
+    'q': LogicalKeyboardKey.keyQ,
+    'r': LogicalKeyboardKey.keyR,
+    's': LogicalKeyboardKey.keyS,
+    't': LogicalKeyboardKey.keyT,
+    'u': LogicalKeyboardKey.keyU,
+    'v': LogicalKeyboardKey.keyV,
+    'w': LogicalKeyboardKey.keyW,
+    'x': LogicalKeyboardKey.keyX,
+    'y': LogicalKeyboardKey.keyY,
+    'z': LogicalKeyboardKey.keyZ,
+
+    // ─── מקשי ספרות ────────────────────────────────────────────────────────────
     '0': LogicalKeyboardKey.digit0,
     '1': LogicalKeyboardKey.digit1,
     '2': LogicalKeyboardKey.digit2,

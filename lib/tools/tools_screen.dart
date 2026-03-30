@@ -111,11 +111,34 @@ class MoreScreenState extends State<MoreScreen>
     return _pages[index];
   }
 
+  void _closeTransientPanelsForTab(int index) {
+    switch (index) {
+      case 0:
+        final calendarState = _calendarWidgetKey.currentState;
+        if (calendarState != null) {
+          (calendarState as dynamic).closeTransientPanels();
+        }
+        break;
+      case 4:
+        final gematriaState = _gematriaKey.currentState;
+        if (gematriaState != null) {
+          (gematriaState as dynamic).closeTransientPanels();
+        }
+        break;
+    }
+  }
+
+  void closeTransientPanels() {
+    _closeTransientPanelsForTab(_selectedIndex);
+  }
+
   void _changeTab(int index) {
     if (_selectedIndex == index && !_showMobileMenu) {
       _requestFocusForSelectedTab();
       return;
     }
+
+    _closeTransientPanelsForTab(_selectedIndex);
 
     setState(() {
       _selectedIndex = index;

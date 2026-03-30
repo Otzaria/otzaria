@@ -12,6 +12,7 @@ import 'package:otzaria/widgets/widgets_exports.dart';
 class ShortcutDropDownTile extends StatefulWidget {
   final String settingKey;
   final String title;
+  final String? subtitle;
   final String selected;
   final Widget? leading;
   final Map<String, String> allShortcuts;
@@ -20,6 +21,7 @@ class ShortcutDropDownTile extends StatefulWidget {
     super.key,
     required this.settingKey,
     required this.title,
+    this.subtitle,
     required this.selected,
     required this.allShortcuts,
     this.leading,
@@ -34,15 +36,15 @@ class _ShortcutDropDownTileState extends State<ShortcutDropDownTile> {
   Widget build(BuildContext context) {
     // Get current value for this setting
     final currentValue =
-        Settings.getValue<String>(widget.settingKey) ?? widget.selected;
+        ShortcutValidator.getShortcutValue(widget.settingKey) ?? widget.selected;
 
     // Get all shortcuts that are in use by OTHER settings
     final usedShortcuts = <String>{};
     for (final key in ShortcutValidator.shortcutKeys) {
-      if (key != widget.settingKey) {
+      if (key != widget.settingKey &&
+          !ShortcutValidator.canShareShortcut(widget.settingKey, key)) {
         // Don't include current setting
-        final value = Settings.getValue<String>(key) ??
-            ShortcutValidator.defaultShortcuts[key];
+        final value = ShortcutValidator.getShortcutValue(key);
         if (value != null && value.isNotEmpty) {
           usedShortcuts.add(value);
         }
@@ -100,10 +102,24 @@ class _ShortcutDropDownTileState extends State<ShortcutDropDownTile> {
                   const SizedBox(width: 12),
                 ],
                 Expanded(
-                  child: Text(
-                    widget.title,
-                    style: kSettingsTitleStyle,
-                    textDirection: TextDirection.rtl,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.title,
+                        style: kSettingsTitleStyle,
+                        textDirection: TextDirection.rtl,
+                      ),
+                      if (widget.subtitle != null &&
+                          widget.subtitle!.trim().isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          widget.subtitle!,
+                          style: kSettingsSubtitleStyle,
+                          textDirection: TextDirection.rtl,
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ],
@@ -143,7 +159,7 @@ class _ShortcutDropDownTileState extends State<ShortcutDropDownTile> {
     if (newValue == null || !mounted) return;
 
     final currentValue =
-        Settings.getValue<String>(widget.settingKey) ?? widget.selected;
+        ShortcutValidator.getShortcutValue(widget.settingKey) ?? widget.selected;
     final settingsBloc = context.read<SettingsBloc>();
     String? finalValue = newValue;
 

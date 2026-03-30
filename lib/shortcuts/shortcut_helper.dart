@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart' show ShortcutActivator, SingleActivator;
 import 'package:flutter/services.dart';
 import 'package:otzaria/shortcuts/key_map.dart';
 
@@ -63,6 +64,33 @@ class ShortcutHelper {
     // חיפוש ב-KeyMap (ספרות, מקשים מיוחדים, חצים, F-keys וכו׳)
     final expectedKey = KeyMap.keyFor(mainKey);
     return expectedKey != null && event.logicalKey == expectedKey;
+  }
+
+  /// ממיר מחרוזת קיצור (כגון `'ctrl+f'`) ל-[SingleActivator].
+  static ShortcutActivator? activatorFromShortcut(String shortcutSetting) {
+    final parts = shortcutSetting.toLowerCase().split('+');
+    final requiresCtrl = parts.contains('ctrl') || parts.contains('control');
+    final requiresShift = parts.contains('shift');
+    final requiresAlt = parts.contains('alt');
+    final requiresMeta = parts.contains('meta');
+
+    final mainKeyLabel = parts.where((p) => !_modifiers.contains(p)).firstOrNull;
+    if (mainKeyLabel == null || mainKeyLabel.isEmpty) {
+      return null;
+    }
+
+    final mainKey = KeyMap.keyFor(mainKeyLabel.trim());
+    if (mainKey == null) {
+      return null;
+    }
+
+    return SingleActivator(
+      mainKey,
+      control: requiresCtrl,
+      shift: requiresShift,
+      alt: requiresAlt,
+      meta: requiresMeta,
+    );
   }
 
   /// ממיר קבוצה של [LogicalKeyboardKey] למחרוזת קיצור (כגון `'ctrl+shift+f'`).

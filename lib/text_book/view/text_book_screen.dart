@@ -1904,7 +1904,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
   Widget _buildSearchButton(BuildContext context, TextBookLoaded state) {
     final shortcut =
-        Settings.getValue<String>('key-shortcut-search-in-book') ?? 'ctrl+f';
+        Settings.getValue<String>('key-shortcut-search-current-window') ??
+            'ctrl+f';
     return IconButton(
       onPressed: _openSearchFromToolbar,
       icon: const Icon(FluentIcons.search_24_regular),
@@ -2670,7 +2671,8 @@ bool _handleGlobalKeyEvent(KeyEvent event, BuildContext context,
   // final editSectionShortcut =
   //     Settings.getValue<String>('key-shortcut-edit-section') ?? 'ctrl+e';
   final searchInBookShortcut =
-      Settings.getValue<String>('key-shortcut-search-in-book') ?? 'ctrl+f';
+      Settings.getValue<String>('key-shortcut-search-current-window') ??
+          'ctrl+f';
   final printShortcut =
       Settings.getValue<String>('key-shortcut-print') ?? 'ctrl+p';
   final addBookmarkShortcut =

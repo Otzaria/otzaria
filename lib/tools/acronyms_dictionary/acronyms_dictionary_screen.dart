@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria/shortcuts/shortcut_helper.dart';
+import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/widgets/otzaria_search_field.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -127,42 +129,57 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return Focus(
-      focusNode: _listFocusNode,
-      onKeyEvent: (node, event) {
-        if (event is! KeyDownEvent) return KeyEventResult.ignored;
-        if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-          _moveFocus(1);
-          return KeyEventResult.handled;
-        }
-        if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-          _moveFocus(-1);
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
+    final searchShortcutSetting = context.select(
+      (SettingsBloc bloc) =>
+          bloc.state.shortcuts['key-shortcut-search-current-window'] ??
+          ShortcutValidator.defaultShortcuts[
+              'key-shortcut-search-current-window'] ??
+          'ctrl+f',
+    );
+    return CallbackShortcuts(
+      bindings: {
+        ShortcutHelper.activatorFromShortcut(searchShortcutSetting) ??
+            const SingleActivator(LogicalKeyboardKey.keyF, control: true): () {
+          _searchFocusNode.requestFocus();
+        },
       },
-      child: Column(
-        children: [
-          BlocBuilder<SettingsBloc, SettingsState>(
-            builder: (context, settingsState) => AppTopBar(
-              center: OtzariaSearchField(
-                controller: _searchController,
-                focusNode: _searchFocusNode,
-                hintText: 'חפש ראשי תיבות...',
-                autofocus: true,
-                onClear: () => setState(() {
-                  _filteredResults = [];
-                  _focusedIndex = -1;
-                }),
+      child: Focus(
+        focusNode: _listFocusNode,
+        onKeyEvent: (node, event) {
+          if (event is! KeyDownEvent) return KeyEventResult.ignored;
+          if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+            _moveFocus(1);
+            return KeyEventResult.handled;
+          }
+          if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+            _moveFocus(-1);
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: Column(
+          children: [
+            BlocBuilder<SettingsBloc, SettingsState>(
+              builder: (context, settingsState) => AppTopBar(
+                center: OtzariaSearchField(
+                  controller: _searchController,
+                  focusNode: _searchFocusNode,
+                  hintText: 'חפש ראשי תיבות...',
+                  autofocus: true,
+                  onClear: () => setState(() {
+                    _filteredResults = [];
+                    _focusedIndex = -1;
+                  }),
+                ),
               ),
             ),
-          ),
-          Expanded(
-            child: ToolPanelWrapper(
-              child: _buildResultsList(),
+            Expanded(
+              child: ToolPanelWrapper(
+                child: _buildResultsList(),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

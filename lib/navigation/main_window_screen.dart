@@ -48,6 +48,9 @@ class MainWindowScreen extends StatefulWidget {
   MainWindowScreenState createState() => MainWindowScreenState();
 }
 
+final GlobalKey<State<LibraryBrowser>> libraryBrowserKey =
+    GlobalKey<State<LibraryBrowser>>();
+
 class MainWindowScreenState extends State<MainWindowScreen>
     with TickerProviderStateMixin {
   late final PageController pageController;
@@ -73,6 +76,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
 
   bool _isSearchOpen = false;
   bool _isFindRefOpen = false;
+  late Screen _lastScreen;
 
   // ── נתוני פריטי הניווט הראשי ─────────────────────────────────────────────
   // משמש גם ל-NavRailItem (desktop) וגם ל-_buildNavigationDestinations (mobile)
@@ -126,6 +130,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
     super.initState();
     _calendarCubit = CalendarCubit();
     _settingsScreenController = SettingsScreenController();
+    _lastScreen = context.read<NavigationBloc>().state.currentScreen;
     final initialPage = _pageIndexForScreen(
           context.read<NavigationBloc>().state.currentScreen,
         ) ??
@@ -278,6 +283,20 @@ class MainWindowScreenState extends State<MainWindowScreen>
   void _handleNavigationChange(
       BuildContext context, NavigationState state) async {
     if (!mounted || !context.mounted) return;
+    if (state.currentScreen != _lastScreen) {
+      if (_lastScreen == Screen.library) {
+        final libraryState = libraryBrowserKey.currentState;
+        if (libraryState != null) {
+          (libraryState as dynamic).closeTransientPanels();
+        }
+      } else if (_lastScreen == Screen.more) {
+        final moreState = moreScreenKey.currentState;
+        if (moreState != null) {
+          (moreState as dynamic).closeTransientPanels();
+        }
+      }
+      _lastScreen = state.currentScreen;
+    }
     final targetPage = _pageIndexForScreen(state.currentScreen);
     if (targetPage != null && _currentPageIndex != targetPage) {
       setState(() => _currentPageIndex = targetPage);
@@ -486,7 +505,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
               } else {
                 _emptyLibraryBloc?.close();
                 _emptyLibraryBloc = null;
-                _cachedLibraryPage = const LibraryBrowser();
+                _cachedLibraryPage = LibraryBrowser(key: libraryBrowserKey);
               }
               _previousLibraryEmptyState = state.isLibraryEmpty;
             }

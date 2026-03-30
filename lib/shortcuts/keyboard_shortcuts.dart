@@ -81,6 +81,8 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
     // קריאת ערכי הקיצורים מההגדרות
     final libraryShortcut =
         _shortcutSettings['key-shortcut-open-library-browser'] ?? 'ctrl+l';
+    final currentWindowSearchShortcut =
+        _shortcutSettings['key-shortcut-search-current-window'] ?? 'ctrl+f';
     final findRefShortcut =
         _shortcutSettings['key-shortcut-open-find-ref'] ?? 'ctrl+o';
     final closeTabShortcut =
@@ -113,6 +115,17 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
           .read<FocusRepository>()
           .requestLibrarySearchFocus(selectAll: true);
       return KeyEventResult.handled;
+    }
+
+    // מעבר לשדה החיפוש בחלון הנוכחי
+    if (ShortcutHelper.matchesShortcut(event, currentWindowSearchShortcut)) {
+      final currentScreen = context.read<NavigationBloc>().state.currentScreen;
+      if (currentScreen == Screen.library) {
+        context
+            .read<FocusRepository>()
+            .requestLibrarySearchFocus(selectAll: true);
+        return KeyEventResult.handled;
+      }
     }
 
     // איתור

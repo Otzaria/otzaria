@@ -37,6 +37,7 @@ import 'package:otzaria/widgets/password_dialog.dart';
 import 'pdf_thumbnails_screen.dart';
 import 'package:printing/printing.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/utils/page_converter.dart';
 import 'package:flutter/gestures.dart';
 import 'package:otzaria/widgets/responsive_action_bar.dart';
@@ -830,9 +831,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   Widget _buildContent(BuildContext context) {
     return LayoutBuilder(builder: (context, constrains) {
       final wideScreen = (MediaQuery.of(context).size.width >= 600);
+      final currentWindowSearchShortcut =
+          Settings.getValue<String>('key-shortcut-search-current-window') ??
+              'ctrl+f';
       return CallbackShortcuts(
         bindings: <ShortcutActivator, VoidCallback>{
-          LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyF):
+          ShortcutHelper.activatorFromShortcut(currentWindowSearchShortcut) ??
+              const SingleActivator(LogicalKeyboardKey.keyF, control: true):
               _ensureSearchTabIsActive,
           LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.equal):
               _zoomIn,
