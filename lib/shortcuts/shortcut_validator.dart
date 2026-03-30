@@ -2,9 +2,21 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 
 /// Validator for keyboard shortcuts to detect conflicts
 class ShortcutValidator {
+  static const Set<Set<String>> _compatibleShortcutGroups = {
+    {
+      'key-shortcut-add-note',
+      'key-shortcut-calendar-toggle-events',
+    },
+    {
+      'key-shortcut-calendar-toggle-times',
+      'key-shortcut-shamor-zachor-cycle-filter',
+    },
+  };
+
   /// List of all shortcut setting keys
   static const List<String> shortcutKeys = [
     'key-shortcut-open-library-browser',
+    'key-shortcut-search-current-window',
     'key-shortcut-open-find-ref',
     'key-shortcut-close-tab',
     'key-shortcut-close-all-tabs',
@@ -18,22 +30,23 @@ class ShortcutValidator {
     'key-shortcut-switch-workspace',
     'key-shortcut-print',
     // Book view shortcuts
-    'key-shortcut-search-in-book',
     // [EDITING DISABLED] 'key-shortcut-edit-section',
     'key-shortcut-add-bookmark',
     'key-shortcut-add-note',
     'key-shortcut-toggle-pdf-view',
     // Calendar shortcuts
-    'key-shortcut-calendar-navigate-times',
+    'key-shortcut-calendar-toggle-times',
+    'key-shortcut-calendar-toggle-events',
     'key-shortcut-calendar-today',
-    'key-shortcut-calendar-jump-date',
     'key-shortcut-calendar-create-event',
     'key-shortcut-calendar-toggle-view',
+    'key-shortcut-shamor-zachor-cycle-filter',
   ];
 
   /// Default values for shortcuts
   static const Map<String, String> defaultShortcuts = {
     'key-shortcut-open-library-browser': 'ctrl+l',
+    'key-shortcut-search-current-window': 'ctrl+f',
     'key-shortcut-open-find-ref': 'ctrl+o',
     'key-shortcut-close-tab': 'ctrl+w',
     'key-shortcut-close-all-tabs': 'ctrl+shift+w',
@@ -44,7 +57,6 @@ class ShortcutValidator {
     'key-shortcut-open-more': 'ctrl+m',
     'key-shortcut-open-bookmarks': 'ctrl+shift+b',
     'key-shortcut-open-history': 'ctrl+h',
-    'key-shortcut-search-in-book': 'ctrl+f',
     // [EDITING DISABLED] 'key-shortcut-edit-section': 'ctrl+e',
     'key-shortcut-print': 'ctrl+p',
     'key-shortcut-add-bookmark': 'ctrl+b',
@@ -52,16 +64,18 @@ class ShortcutValidator {
     'key-shortcut-switch-workspace': 'ctrl+k',
     'key-shortcut-toggle-pdf-view': 'ctrl+shift+p',
     // Calendar shortcuts
-    'key-shortcut-calendar-navigate-times': 'ctrl+e',
+    'key-shortcut-calendar-toggle-times': 'ctrl+e',
+    'key-shortcut-calendar-toggle-events': 'ctrl+n',
     'key-shortcut-calendar-today': 'ctrl+d',
-    'key-shortcut-calendar-jump-date': 'ctrl+shift+d',
-    'key-shortcut-calendar-create-event': 'ctrl+n',
+    'key-shortcut-calendar-create-event': 'ctrl+shift+n',
     'key-shortcut-calendar-toggle-view': 'ctrl+shift+e',
+    'key-shortcut-shamor-zachor-cycle-filter': 'ctrl+e',
   };
 
   /// Shortcut names for display
   static const Map<String, String> shortcutNames = {
     'key-shortcut-open-library-browser': 'ספרייה',
+    'key-shortcut-search-current-window': 'חיפוש בספר ובחלון הנוכחי',
     'key-shortcut-open-find-ref': 'איתור',
     'key-shortcut-close-tab': 'סגור ספר נוכחי',
     'key-shortcut-close-all-tabs': 'סגור כל הספרים',
@@ -75,18 +89,18 @@ class ShortcutValidator {
     'key-shortcut-switch-workspace': 'החלף שולחן עבודה',
     'key-shortcut-print': 'הדפסה',
     // Book view shortcuts
-    'key-shortcut-search-in-book': 'חיפוש בספר',
     // [EDITING DISABLED] 'key-shortcut-edit-section': 'עריכת קטע',
     'key-shortcut-add-bookmark': 'הוסף סימניה',
     'key-shortcut-add-note': 'הוספת הערה',
     'key-shortcut-toggle-pdf-view': 'החלף מצב תצוגה (PDF/טקסט)',
     // Calendar shortcuts
-    'key-shortcut-calendar-navigate-times':
-        'לוח שנה: מעבר בין זמני היום ואירועים',
+    'key-shortcut-calendar-toggle-times': 'לוח שנה: פתיחה/סגירה זמני היום',
+    'key-shortcut-calendar-toggle-events': 'לוח שנה: פתיחה/סגירה אירועים',
     'key-shortcut-calendar-today': 'לוח שנה: מעבר להיום',
-    'key-shortcut-calendar-jump-date': 'לוח שנה: מעבר לתאריך אחר',
     'key-shortcut-calendar-create-event': 'לוח שנה: יצירת אירוע',
     'key-shortcut-calendar-toggle-view': 'לוח שנה: מעבר בין תצוגות',
+    'key-shortcut-shamor-zachor-cycle-filter':
+        'שמור וזכור: מעבר בין הסינונים',
   };
 
   /// Check for conflicts in current shortcuts
@@ -98,8 +112,7 @@ class ShortcutValidator {
     final Map<String, List<String>> shortcutToKeys = {};
 
     for (final key in shortcutKeys) {
-      final value =
-          Settings.getValue<String>(key) ?? defaultShortcuts[key] ?? '';
+      final value = getShortcutValue(key) ?? '';
       if (value.isNotEmpty) {
         shortcutToKeys.putIfAbsent(value, () => []).add(key);
       }
@@ -107,8 +120,10 @@ class ShortcutValidator {
 
     // Find conflicts (shortcuts used by more than one action)
     for (final entry in shortcutToKeys.entries) {
-      if (entry.value.length > 1) {
-        conflicts[entry.key] = entry.value;
+      final conflictingKeys = entry.value;
+      if (conflictingKeys.length > 1 &&
+          !_isCompatibleGroup(conflictingKeys.toSet())) {
+        conflicts[entry.key] = conflictingKeys;
       }
     }
 
@@ -142,17 +157,41 @@ class ShortcutValidator {
 
   /// Check if a specific shortcut has conflicts
   static bool hasConflict(String settingKey) {
-    final value =
-        Settings.getValue<String>(settingKey) ?? defaultShortcuts[settingKey];
+    final value = getShortcutValue(settingKey);
     if (value == null || value.isEmpty) return false;
 
-    int count = 0;
+    final matchingKeys = <String>{};
     for (final key in shortcutKeys) {
-      final keyValue =
-          Settings.getValue<String>(key) ?? defaultShortcuts[key] ?? '';
+      final keyValue = getShortcutValue(key) ?? '';
       if (keyValue == value) {
-        count++;
-        if (count > 1) return true;
+        matchingKeys.add(key);
+      }
+    }
+
+    return matchingKeys.length > 1 && !_isCompatibleGroup(matchingKeys);
+  }
+
+  /// מחזיר את ערך הקיצור הנוכחי עבור [settingKey] או את ברירת המחדל שלו.
+  static String? getShortcutValue(String settingKey) {
+    return Settings.getValue<String>(settingKey) ?? defaultShortcuts[settingKey];
+  }
+
+  static bool canShareShortcut(String firstKey, String secondKey) {
+    if (firstKey == secondKey) return true;
+
+    for (final group in _compatibleShortcutGroups) {
+      if (group.contains(firstKey) && group.contains(secondKey)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  static bool _isCompatibleGroup(Set<String> keys) {
+    for (final group in _compatibleShortcutGroups) {
+      if (group.containsAll(keys)) {
+        return true;
       }
     }
 
