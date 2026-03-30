@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -19,7 +20,6 @@ import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
-import 'package:otzaria/widgets/resizable_drag_handle.dart';
 import 'package:otzaria/widgets/navigation_tree_tile.dart';
 import 'package:otzaria/utils/open_book.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
@@ -28,8 +28,12 @@ import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria/shortcuts/shortcut_helper.dart';
+import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/widgets/app_top_bar.dart';
 import 'package:otzaria/widgets/buttons/action_buttons.dart';
+import 'package:otzaria/widgets/adaptive_side_pane.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 
 class PersonalNotesManagerScreen extends StatefulWidget {
   const PersonalNotesManagerScreen({super.key});
@@ -53,6 +57,7 @@ class _PersonalNotesManagerScreenState
   final Map<String, bool> _expansionState = {};
   bool _isNavigationVisible = true;
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
   String _searchQuery = '';
   double _navigationWidth = 250.0;
 
@@ -105,6 +110,7 @@ class _PersonalNotesManagerScreenState
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -133,56 +139,71 @@ class _PersonalNotesManagerScreenState
       );
     }
 
-    return BlocListener<PersonalNotesBloc, PersonalNotesState>(
-      listener: (context, state) {
-        // Store the state for each book and trigger rebuild
-        if (state.bookId != null) {
-          setState(() {
-            _bookStates[state.bookId!] = state;
-          });
-
-          // If this is a new book (not in _books list), refresh the books list
-          final bookExists = _books.any((book) => book.bookId == state.bookId);
-          if (!bookExists &&
-              (state.locatedNotes.isNotEmpty ||
-                  state.missingNotes.isNotEmpty)) {
-            _loadBooks();
-          }
-        }
+    final searchShortcutSetting = context.select(
+      (SettingsBloc bloc) =>
+          bloc.state.shortcuts['key-shortcut-search-current-window'] ??
+          ShortcutValidator.defaultShortcuts[
+              'key-shortcut-search-current-window'] ??
+          'ctrl+f',
+    );
+    return CallbackShortcuts(
+      bindings: {
+        ShortcutHelper.activatorFromShortcut(searchShortcutSetting) ??
+            const SingleActivator(LogicalKeyboardKey.keyF, control: true): () {
+          _searchFocusNode.requestFocus();
+        },
       },
-      child: Column(
-        children: [
-          // שורת כלים עליונה לכל רוחב העמוד
-          _buildTopBar(),
-          // תוכן העמוד
-          Expanded(
-            child: Row(
-              children: [
-                // Right sidebar navigation - גובה מלא
-                if (_isNavigationVisible) ...[
-                  SizedBox(
-                    width: _navigationWidth,
-                    child: _buildNotesTree(),
-                  ),
-                  // Resizable divider
-                  ResizableDragHandle(
-                    isVertical: true,
-                    onDragDelta: (delta) {
-                      setState(() {
-                        _navigationWidth =
-                            (_navigationWidth - delta).clamp(150.0, 500.0);
-                      });
-                    },
-                  ),
-                ],
-                // Main content area
-                Expanded(
-                  child: _buildAllNotesList(),
+      child: BlocListener<PersonalNotesBloc, PersonalNotesState>(
+        listener: (context, state) {
+          // Store the state for each book and trigger rebuild
+          if (state.bookId != null) {
+            setState(() {
+              _bookStates[state.bookId!] = state;
+            });
+
+            // If this is a new book (not in _books list), refresh the books list
+            final bookExists =
+                _books.any((book) => book.bookId == state.bookId);
+            if (!bookExists &&
+                (state.locatedNotes.isNotEmpty ||
+                    state.missingNotes.isNotEmpty)) {
+              _loadBooks();
+            }
+          }
+        },
+        child: Column(
+          children: [
+            // שורת כלים עליונה לכל רוחב העמוד
+            _buildTopBar(),
+            // תוכן העמוד
+            Expanded(
+              child: AdaptiveSidePane(
+                isOpen: _isNavigationVisible,
+                alignment: AlignmentDirectional.centerEnd, // ימין בעברית (RTL) - סרגל ניווט
+                mainContent: _buildAllNotesList(),
+                paneWidth: _navigationWidth,
+                minMainContentWidth: 320,
+                onClose: () => setState(() => _isNavigationVisible = false),
+                onOpen: () => setState(() => _isNavigationVisible = true),
+                paneColor: AppSurfaces.solidPanelBackground(context),
+                isResizable: true,
+                minPaneWidth: 150,
+                maxPaneWidth: 500,
+                onPaneWidthChanged: (nextWidth) {
+                  setState(() {
+                    _navigationWidth = nextWidth;
+                  });
+                },
+                paneContent: _buildNotesTree(),
+                wrapPaneInFloatingPanel: true,
+                narrowPaneBuilder: (context, paneContent) => Material(
+                  color: AppSurfaces.solidPanelBackground(context),
+                  child: SafeArea(child: paneContent),
                 ),
-              ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -209,6 +230,7 @@ class _PersonalNotesManagerScreenState
           ],
           center: OtzariaSearchField(
             controller: _searchController,
+            focusNode: _searchFocusNode,
             hintText: 'חפש בהערות...',
             onChanged: (value) {
               setState(() {
