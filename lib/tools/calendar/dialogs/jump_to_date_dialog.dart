@@ -6,10 +6,12 @@ import 'package:otzaria/widgets/rtl_text_field.dart';
 /// דיאלוג מעבר לתאריך בלוח השנה.
 class JumpToDateDialog extends StatefulWidget {
   final DateTime? Function(String input) parseInputDate;
+  final ShortcutActivator? closeShortcut;
 
   const JumpToDateDialog({
     super.key,
     required this.parseInputDate,
+    this.closeShortcut,
   });
 
   @override
@@ -48,7 +50,7 @@ class _JumpToDateDialogState extends State<JumpToDateDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Directionality(
+    final dialog = Directionality(
       textDirection: TextDirection.rtl,
       child: AlertDialog(
         backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
@@ -107,6 +109,17 @@ class _JumpToDateDialogState extends State<JumpToDateDialog> {
         ],
       ),
     );
+
+    if (widget.closeShortcut == null) {
+      return dialog;
+    }
+
+    return CallbackShortcuts(
+      bindings: {
+        widget.closeShortcut!: () => Navigator.of(context).pop(),
+      },
+      child: dialog,
+    );
   }
 }
 
@@ -114,11 +127,13 @@ class _JumpToDateDialogState extends State<JumpToDateDialog> {
 Future<DateTime?> showJumpToDateDialog({
   required BuildContext context,
   required DateTime? Function(String input) parseInputDate,
+  ShortcutActivator? closeShortcut,
 }) {
   return showDialog<DateTime?>(
     context: context,
     builder: (_) => JumpToDateDialog(
       parseInputDate: parseInputDate,
+      closeShortcut: closeShortcut,
     ),
   );
 }
