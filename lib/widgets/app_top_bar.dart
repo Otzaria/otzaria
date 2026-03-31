@@ -241,6 +241,7 @@ class _AppTopBarState extends State<AppTopBar>
         // SizeTransition מבטיח שהתוכן מתחת לסרגל לא ייחתך ולא יקפוץ
         return Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             mainBar,
             SizeTransition(
@@ -248,13 +249,16 @@ class _AppTopBarState extends State<AppTopBar>
               axisAlignment: -1.0,
               child: FadeTransition(
                 opacity: _progress,
-                child: Material(
-                  key: _secondaryRowKey,
-                  color: barColor,
-                  elevation: 1.0,
-                  shadowColor: cs.shadow.withValues(alpha: 0.08),
-                  surfaceTintColor: Colors.transparent,
-                  child: widget.secondaryRow!,
+                child: SizedBox(
+                  width: double.infinity,
+                  child: Material(
+                    key: _secondaryRowKey,
+                    color: barColor,
+                    elevation: 1.0,
+                    shadowColor: cs.shadow.withValues(alpha: 0.08),
+                    surfaceTintColor: Colors.transparent,
+                    child: widget.secondaryRow!,
+                  ),
                 ),
               ),
             ),
