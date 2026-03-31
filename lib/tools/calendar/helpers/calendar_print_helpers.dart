@@ -3,6 +3,7 @@ import 'package:kosher_dart/kosher_dart.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:otzaria/tools/calendar/bloc/calendar_state.dart';
+import 'package:otzaria/tools/calendar/helpers/zmanim_helpers.dart';
 import 'package:otzaria/tools/calendar/models/calendar_event.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 
@@ -126,10 +127,15 @@ CalendarState _getStateForMonthOffset(CalendarState state, int offset) {
 }
 
 CalendarState _getStateForWeekOffset(CalendarState state, int offset) {
-  final newDate = state.selectedGregorianDate.add(Duration(days: offset * 7));
+  final weekStart = state.selectedGregorianDate
+      .subtract(Duration(days: state.selectedGregorianDate.weekday % 7));
+  final newDate = weekStart.add(Duration(days: offset * 7));
+  final newJewishDate = JewishDate.fromDateTime(newDate);
   return state.copyWith(
     selectedGregorianDate: newDate,
-    selectedJewishDate: JewishDate.fromDateTime(newDate),
+    selectedJewishDate: newJewishDate,
+    currentGregorianDate: newDate,
+    currentJewishDate: newJewishDate,
   );
 }
 
@@ -145,9 +151,30 @@ String _getMonthYearText(CalendarState state) {
 }
 
 String _getWeekRangeText(CalendarState state) {
-  final startDate = state.selectedGregorianDate;
+  final startDate = state.selectedGregorianDate
+      .subtract(Duration(days: state.selectedGregorianDate.weekday % 7));
   final endDate = startDate.add(const Duration(days: 6));
-  return '${startDate.day}/${startDate.month}/${startDate.year} - ${endDate.day}/${endDate.month}/${endDate.year}';
+  final startJewish = JewishDate.fromDateTime(startDate);
+  final endJewish = JewishDate.fromDateTime(endDate);
+
+  final sameHebrewMonth = startJewish.getJewishMonth() ==
+          endJewish.getJewishMonth() &&
+      startJewish.getJewishYear() == endJewish.getJewishYear();
+
+  final hebrewRange = sameHebrewMonth
+      ? '${formatHebrewDay(startJewish.getJewishDayOfMonth())}-${formatHebrewDay(endJewish.getJewishDayOfMonth())} '
+          '${getHebrewMonthNameFor(startJewish)} '
+          '${formatHebrewYear(startJewish.getJewishYear())}'
+      : '${formatHebrewDay(startJewish.getJewishDayOfMonth())} ${getHebrewMonthNameFor(startJewish)} '
+          '${formatHebrewYear(startJewish.getJewishYear())}'
+          ' - '
+          '${formatHebrewDay(endJewish.getJewishDayOfMonth())} ${getHebrewMonthNameFor(endJewish)} '
+          '${formatHebrewYear(endJewish.getJewishYear())}';
+
+  final gregorianRange =
+      '${startDate.day}/${startDate.month}/${startDate.year} - ${endDate.day}/${endDate.month}/${endDate.year}';
+
+  return '$hebrewRange • $gregorianRange';
 }
 
 // ─── Grid builders ─────────────────────────────────────────────────────────
@@ -289,13 +316,15 @@ pw.Widget _buildDayCellPdf(String primaryLabel, String secondaryLabel,
 }
 
 pw.Widget _buildWeekGrid(CalendarState state, pw.Font font) {
-  final startDate = state.selectedGregorianDate;
+  final startDate = state.selectedGregorianDate
+      .subtract(Duration(days: state.selectedGregorianDate.weekday % 7));
   final days = List.generate(7, (i) => startDate.add(Duration(days: i)));
 
   return pw.Row(
     crossAxisAlignment: pw.CrossAxisAlignment.start,
     children: days.map((date) {
       final jd = JewishDate.fromDateTime(date);
+      final dailyTimes = calculateDailyTimes(date, state.selectedCity);
       final events = state.events
           .where((e) =>
               e.baseGregorianDate.year == date.year &&
@@ -320,6 +349,16 @@ pw.Widget _buildWeekGrid(CalendarState state, pw.Font font) {
                   style: pw.TextStyle(
                       font: font, fontSize: 8, color: PdfColors.grey600)),
               pw.SizedBox(height: 4),
+              if (dailyTimes['sunrise'] case final sunrise?)
+                pw.Text('זריחה $sunrise',
+                    style: pw.TextStyle(
+                        font: font, fontSize: 7, color: PdfColors.blue800)),
+              if (dailyTimes['sunset'] case final sunset?)
+                pw.Text('שקיעה $sunset',
+                    style: pw.TextStyle(
+                        font: font, fontSize: 7, color: PdfColors.blue800)),
+              if (dailyTimes['sunrise'] != null || dailyTimes['sunset'] != null)
+                pw.SizedBox(height: 4),
               for (final event in events.take(3))
                 pw.Text('• ${event.title}',
                     style: pw.TextStyle(font: font, fontSize: 7),
