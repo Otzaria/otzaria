@@ -52,7 +52,7 @@ class _CalendarWidgetState extends State<CalendarWidget> {
   bool _isSidebarAutoHiddenForNarrow = false;
   bool? _lastHasRoomForSideBySide;
   bool _isSettingsPanelOpen = false;
-  double _sidePanelWidth = 488;
+  double _sidePanelWidth = 360;
   CalendarSidePanelView _sidePanelView = CalendarSidePanelView.times;
 
   // ─── Lifecycle ──────────────────────────────────────────────────────────────
@@ -436,7 +436,6 @@ class _CalendarWidgetState extends State<CalendarWidget> {
           minMainContentWidth: kMainPanelMinWidth,
           onClose: _handleSidebarClosedByUser,
           autoHandleResponsiveVisibility: false,
-          paneColor: AppSurfaces.solidPanelBackground(context),
           isResizable: true,
           minPaneWidth: 280,
           maxPaneWidth: 520,
@@ -509,6 +508,18 @@ class _CalendarWidgetState extends State<CalendarWidget> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+
+      if (previousHasRoomForSideBySide == null) {
+        if (hasRoomForSideBySide &&
+            !_isSidebarVisible &&
+            !_isSidebarExplicitlyClosed) {
+          setState(() {
+            _isSidebarVisible = true;
+            _isSidebarAutoHiddenForNarrow = false;
+          });
+        }
+        return;
+      }
 
       if (previousHasRoomForSideBySide == true &&
           !hasRoomForSideBySide &&
