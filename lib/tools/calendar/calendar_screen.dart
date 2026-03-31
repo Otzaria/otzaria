@@ -1,6 +1,7 @@
 // lib/tools/calendar/calendar_screen.dart
 
 import 'dart:async';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -11,7 +12,7 @@ import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/floating_panel.dart'
-    show kMainPanelMinWidth, kSideBySideMinWidth, kSidePanelWidth;
+    show kMainPanelMinWidth, kSideBySideMinWidth;
 import 'package:otzaria/widgets/context_overlay_panel.dart';
 import 'package:otzaria/widgets/adaptive_side_pane.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
@@ -28,6 +29,7 @@ import 'package:otzaria/tools/calendar/widgets/calendar_main_panel.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_top_bar.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_print_helpers.dart'
     as print_helper;
+import 'package:otzaria/widgets/buttons/action_buttons.dart';
 
 export 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 
@@ -48,8 +50,9 @@ class _CalendarWidgetState extends State<CalendarWidget> {
   bool _isSidebarVisible = false;
   bool _isSidebarExplicitlyClosed = false;
   bool _isSidebarAutoHiddenForNarrow = false;
+  bool? _lastHasRoomForSideBySide;
   bool _isSettingsPanelOpen = false;
-  double _sidePanelWidth = kSidePanelWidth;
+  double _sidePanelWidth = 488;
   CalendarSidePanelView _sidePanelView = CalendarSidePanelView.times;
 
   // ─── Lifecycle ──────────────────────────────────────────────────────────────
@@ -437,7 +440,20 @@ class _CalendarWidgetState extends State<CalendarWidget> {
             child: SafeArea(
               child: Padding(
                 padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16),
-                child: paneContent,
+                child: Column(
+                  children: [
+                    Align(
+                      alignment: AlignmentDirectional.topStart,
+                      child: ToolbarActionButton(
+                        tooltip: 'סגור חלונית',
+                        icon: FluentIcons.dismiss_24_regular,
+                        onPressed: _handleSidebarClosedByUser,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(child: paneContent),
+                  ],
+                ),
               ),
             ),
           ),
@@ -478,10 +494,14 @@ class _CalendarWidgetState extends State<CalendarWidget> {
   }
 
   void _syncSidebarVisibilityForWidth(bool hasRoomForSideBySide) {
+    final previousHasRoomForSideBySide = _lastHasRoomForSideBySide;
+    _lastHasRoomForSideBySide = hasRoomForSideBySide;
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
 
-      if (!hasRoomForSideBySide &&
+      if (previousHasRoomForSideBySide == true &&
+          !hasRoomForSideBySide &&
           _isSidebarVisible &&
           !_isSidebarAutoHiddenForNarrow) {
         setState(() {
@@ -491,7 +511,8 @@ class _CalendarWidgetState extends State<CalendarWidget> {
         return;
       }
 
-      if (hasRoomForSideBySide &&
+      if (previousHasRoomForSideBySide == false &&
+          hasRoomForSideBySide &&
           !_isSidebarVisible &&
           !_isSidebarExplicitlyClosed) {
         setState(() {

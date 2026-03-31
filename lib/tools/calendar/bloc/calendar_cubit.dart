@@ -403,6 +403,8 @@ class CalendarCubit extends Cubit<CalendarState> {
       selectedGregorianDate: newDate,
       selectedJewishDate: newJewishDate,
       dailyTimes: calculateDailyTimes(newDate, state.selectedCity),
+      currentGregorianDate: newDate,
+      currentJewishDate: newJewishDate,
     ));
   }
 
@@ -413,6 +415,8 @@ class CalendarCubit extends Cubit<CalendarState> {
       selectedGregorianDate: newDate,
       selectedJewishDate: newJewishDate,
       dailyTimes: calculateDailyTimes(newDate, state.selectedCity),
+      currentGregorianDate: newDate,
+      currentJewishDate: newJewishDate,
     ));
   }
 
