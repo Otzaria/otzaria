@@ -34,7 +34,7 @@ import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/widgets/app_top_bar.dart';
 import 'package:otzaria/widgets/buttons/action_buttons.dart';
 import 'package:otzaria/widgets/adaptive_side_pane.dart';
-import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 
 class PersonalNotesManagerScreen extends StatefulWidget {
   const PersonalNotesManagerScreen({super.key});
@@ -123,7 +123,8 @@ class _PersonalNotesManagerScreenState
   KeyEventResult _handleWindowKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
     final focusedWidget = FocusManager.instance.primaryFocus?.context?.widget;
-    final isEditing = focusedWidget is EditableText || focusedWidget is TextField;
+    final isEditing =
+        focusedWidget is EditableText || focusedWidget is TextField;
     if (isEditing) return KeyEventResult.ignored;
 
     if (event.logicalKey == LogicalKeyboardKey.space ||
@@ -205,56 +206,56 @@ class _PersonalNotesManagerScreenState
         onKeyEvent: _handleWindowKeyEvent,
         child: BlocListener<PersonalNotesBloc, PersonalNotesState>(
           listener: (context, state) {
-          // Store the state for each book and trigger rebuild
-          if (state.bookId != null) {
-            setState(() {
-              _bookStates[state.bookId!] = state;
-            });
+            // Store the state for each book and trigger rebuild
+            if (state.bookId != null) {
+              setState(() {
+                _bookStates[state.bookId!] = state;
+              });
 
-            // If this is a new book (not in _books list), refresh the books list
-            final bookExists =
-                _books.any((book) => book.bookId == state.bookId);
-            if (!bookExists &&
-                (state.locatedNotes.isNotEmpty ||
-                    state.missingNotes.isNotEmpty)) {
-              _loadBooks();
+              // If this is a new book (not in _books list), refresh the books list
+              final bookExists =
+                  _books.any((book) => book.bookId == state.bookId);
+              if (!bookExists &&
+                  (state.locatedNotes.isNotEmpty ||
+                      state.missingNotes.isNotEmpty)) {
+                _loadBooks();
+              }
             }
-          }
-        },
+          },
           child: Column(
             children: [
-            // שורת כלים עליונה לכל רוחב העמוד
-            _buildTopBar(),
-            // תוכן העמוד
-            Expanded(
-              child: PrimaryScrollController(
-                controller: _contentScrollController,
-                child: AdaptiveSidePane(
-                  isOpen: _isNavigationVisible,
-                  alignment: AlignmentDirectional
-                      .centerEnd, // ימין בעברית (RTL) - סרגל ניווט
-                  mainContent: _buildAllNotesList(),
-                  paneWidth: _navigationWidth,
-                  minMainContentWidth: 320,
-                  onClose: () => setState(() => _isNavigationVisible = false),
-                  onOpen: () => setState(() => _isNavigationVisible = true),
-                  isResizable: true,
-                  minPaneWidth: 150,
-                  maxPaneWidth: 500,
-                  onPaneWidthChanged: (nextWidth) {
-                    setState(() {
-                      _navigationWidth = nextWidth;
-                    });
-                  },
-                  paneContent: _buildNotesTree(),
-                  wrapPaneInFloatingPanel: true,
-                  narrowPaneBuilder: (context, paneContent) => Material(
-                    color: AppSurfaces.solidPanelBackground(context),
-                    child: SafeArea(child: paneContent),
+              // שורת כלים עליונה לכל רוחב העמוד
+              _buildTopBar(),
+              // תוכן העמוד
+              Expanded(
+                child: PrimaryScrollController(
+                  controller: _contentScrollController,
+                  child: AdaptiveSidePane(
+                    isOpen: _isNavigationVisible,
+                    alignment: AlignmentDirectional
+                        .centerEnd, // ימין בעברית (RTL) - סרגל ניווט
+                    mainContent: _buildAllNotesList(),
+                    paneWidth: _navigationWidth,
+                    minMainContentWidth: 320,
+                    onClose: () => setState(() => _isNavigationVisible = false),
+                    onOpen: () => setState(() => _isNavigationVisible = true),
+                    isResizable: true,
+                    minPaneWidth: 150,
+                    maxPaneWidth: 500,
+                    onPaneWidthChanged: (nextWidth) {
+                      setState(() {
+                        _navigationWidth = nextWidth;
+                      });
+                    },
+                    paneContent: _buildNotesTree(),
+                    wrapPaneInFloatingPanel: true,
+                    narrowPaneBuilder: (context, paneContent) => Material(
+                      color: AppSurfaces.solidPanelBackground(context),
+                      child: SafeArea(child: paneContent),
+                    ),
                   ),
                 ),
               ),
-            ),
             ],
           ),
         ),
@@ -269,16 +270,32 @@ class _PersonalNotesManagerScreenState
         return AppTopBar(
           leadingItems: [
             AppTopBarItem(
-              widget: ToolbarActionButton(
-                compact: isCompact,
+              widget: IconButton(
                 tooltip: _isNavigationVisible ? 'הסתר ניווט' : 'הצג ניווט',
-                icon: FluentIcons.navigation_24_regular,
-                selected: _isNavigationVisible,
                 onPressed: () {
                   setState(() {
                     _isNavigationVisible = !_isNavigationVisible;
                   });
                 },
+                icon: AnimatedSwitcher(
+                  duration: AppTokens.animFast,
+                  transitionBuilder: (child, animation) => RotationTransition(
+                    turns:
+                        Tween<double>(begin: 0.5, end: 0.0).animate(animation),
+                    child: FadeTransition(opacity: animation, child: child),
+                  ),
+                  child: Icon(
+                    _isNavigationVisible
+                        ? FluentIcons.panel_right_contract_24_regular
+                        : FluentIcons.panel_right_24_regular,
+                    key: ValueKey(_isNavigationVisible),
+                    size: isCompact ? 20 : 24,
+                  ),
+                ),
+                visualDensity:
+                    isCompact ? VisualDensity.compact : VisualDensity.standard,
+                splashRadius: isCompact ? 18 : 22,
+                color: Theme.of(context).colorScheme.onSecondaryContainer,
               ),
             ),
           ],
