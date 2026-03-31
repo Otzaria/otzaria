@@ -1,7 +1,9 @@
-import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:otzaria/core/widgets/otzaria_search_field.dart';
+import 'package:flutter/material.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/core/widgets/otzaria_search_field.dart';
+import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/tools/acronyms_dictionary/widgets/acronym_result_card.dart';
 import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository.dart';
 
 class AcronymsDictionaryScreen extends StatefulWidget {
@@ -16,6 +18,7 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen> {
   final TextEditingController _searchController = TextEditingController();
   final DictionaryLookupRepository _dictionaryRepository =
       DictionaryLookupRepository.instance;
+
   Map<String, List<String>> _dictionaryData = {};
   List<MapEntry<String, List<String>>> _filteredResults = [];
   bool _isLoading = true;
@@ -45,21 +48,15 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen> {
       });
     } catch (e) {
       if (!mounted) return;
-
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
       UiSnack.showError('שגיאה בטעינת המילון: $e');
     }
   }
 
   void _performSearch() {
     final query = _searchController.text.trim();
-
     if (query.isEmpty) {
-      setState(() {
-        _filteredResults = [];
-      });
+      setState(() => _filteredResults = []);
       return;
     }
 
@@ -92,15 +89,20 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen> {
 
   Widget _buildSearchBar() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8.0, 16.0, 8.0, 8.0),
+      padding: const EdgeInsets.fromLTRB(
+        AppTokens.spaceSM,
+        AppTokens.spaceMD,
+        AppTokens.spaceSM,
+        AppTokens.spaceSM,
+      ),
       child: Row(
         children: [
-          const SizedBox(width: 8),
+          const SizedBox(width: AppTokens.spaceSM),
           Expanded(
             child: OtzariaSearchField(
               controller: _searchController,
               hintText: 'חפש ראשי תיבות...',
-              onClear: () {},
+              onClear: _searchController.clear,
             ),
           ),
         ],
@@ -110,151 +112,66 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen> {
 
   Widget _buildResultsList() {
     if (_searchController.text.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              FluentIcons.text_quote_24_regular,
-              size: 64,
-              color: Theme.of(context)
-                  .colorScheme
-                  .onSurface
-                  .withValues(alpha: 0.3),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'הזן ראשי תיבות לחיפוש במילון',
-              style: TextStyle(
-                fontSize: 18,
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurface
-                    .withValues(alpha: 0.6),
-              ),
-            ),
-          ],
-        ),
+      return const _EmptyHint(
+        icon: FluentIcons.text_quote_24_regular,
+        message: 'הזן ראשי תיבות לחיפוש במילון',
       );
     }
 
     if (_filteredResults.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              FluentIcons.search_24_regular,
-              size: 64,
-              color: Theme.of(context)
-                  .colorScheme
-                  .onSurface
-                  .withValues(alpha: 0.3),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'לא נמצאו תוצאות',
-              style: TextStyle(
-                fontSize: 18,
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurface
-                    .withValues(alpha: 0.6),
-              ),
-            ),
-          ],
-        ),
+      return const _EmptyHint(
+        icon: FluentIcons.search_24_regular,
+        message: 'לא נמצאו תוצאות',
       );
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppTokens.spaceMD),
       itemCount: _filteredResults.length,
       itemBuilder: (context, index) {
-        return _buildResultCard(_filteredResults[index]);
+        final entry = _filteredResults[index];
+        return AcronymResultCard(
+          acronym: entry.key,
+          meanings: entry.value,
+        );
       },
     );
   }
+}
 
-  Widget _buildResultCard(MapEntry<String, List<String>> entry) {
-    final acronym = entry.key;
-    final meanings = entry.value;
+class _EmptyHint extends StatelessWidget {
+  final IconData icon;
+  final String message;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
-          width: 1,
-        ),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'ראשי תיבות:',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    acronym,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.right,
-                  ),
-                ],
-              ),
+  const _EmptyHint({
+    required this.icon,
+    required this.message,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            icon,
+            size: 64,
+            color:
+                Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+          ),
+          const SizedBox(height: AppTokens.spaceMD),
+          Text(
+            message,
+            style: TextStyle(
+              fontSize: AppTokens.fontXL,
+              color: Theme.of(context)
+                  .colorScheme
+                  .onSurface
+                  .withValues(alpha: 0.6),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Icon(
-                FluentIcons.arrow_right_24_regular,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'פירוש:',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  ...meanings.asMap().entries.map((meaningEntry) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Text(
-                        meanings.length > 1
-                            ? '${meaningEntry.key + 1}. ${meaningEntry.value}'
-                            : meaningEntry.value,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.right,
-                      ),
-                    );
-                  }),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
