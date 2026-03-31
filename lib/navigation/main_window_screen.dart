@@ -276,7 +276,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
 
   // ── ניווט ─────────────────────────────────────────────────────────────────
 
-  void _handleNavigationChange(BuildContext context, NavigationState state) async {
+  void _handleNavigationChange(
+      BuildContext context, NavigationState state) async {
     if (!mounted || !context.mounted) return;
     final targetPage = _pageIndexForScreen(state.currentScreen);
     if (targetPage != null && _currentPageIndex != targetPage) {
@@ -290,7 +291,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
       }
     }
     if (state.currentScreen == Screen.library) {
-      context.read<FocusRepository>().requestLibrarySearchFocus(selectAll: true);
+      context
+          .read<FocusRepository>()
+          .requestLibrarySearchFocus(selectAll: true);
     } else if (state.currentScreen == Screen.more) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) context.read<FocusRepository>().requestMoreScreenFocus();
@@ -347,10 +350,14 @@ class MainWindowScreenState extends State<MainWindowScreen>
     } else if (index == Screen.find.index) {
       _handleFindRefOpen(context);
     } else {
-      context.read<NavigationBloc>().add(NavigateToScreen(Screen.values[index]));
+      context
+          .read<NavigationBloc>()
+          .add(NavigateToScreen(Screen.values[index]));
     }
     if (index == Screen.library.index) {
-      context.read<FocusRepository>().requestLibrarySearchFocus(selectAll: true);
+      context
+          .read<FocusRepository>()
+          .requestLibrarySearchFocus(selectAll: true);
     }
   }
 
@@ -360,13 +367,12 @@ class MainWindowScreenState extends State<MainWindowScreen>
     int index,
     Screen currentScreen,
   ) {
-    final isSelected =
-        _getSelectedIndex(currentScreen) == index ||
-            _isDialogButtonSelected(index);
+    final isSelected = _getSelectedIndex(currentScreen) == index ||
+        _isDialogButtonSelected(index);
     final item = _navData[index];
-    final tooltip = (Settings.getValue<String>(item.shortcutKey) ??
-            item.shortcutDefault)
-        .toUpperCase();
+    final tooltip =
+        (Settings.getValue<String>(item.shortcutKey) ?? item.shortcutDefault)
+            .toUpperCase();
 
     return NavRailItem(
       icon: item.icon,
@@ -418,7 +424,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
             if (currentId != null) {
               final workspace =
                   state.workspaces.firstWhere((w) => w.id == currentId);
-              context.read<HistoryBloc>().add(SetCurrentWorkspaceName(workspace.name));
+              context
+                  .read<HistoryBloc>()
+                  .add(SetCurrentWorkspaceName(workspace.name));
             }
           },
         ),
@@ -442,30 +450,13 @@ class MainWindowScreenState extends State<MainWindowScreen>
             );
             _tryStartDeferredStartupWork();
           },
-              previous.isLoading &&
-              !current.isLoading &&
-              current.library != null,
-          listener: (context, state) {
-            _startupWorkGate.markLibraryLoaded();
-            _tryStartDeferredStartupWork();
-          },
-        ),
-        BlocListener<IndexingBloc, IndexingState>(
-          listenWhen: (previous, current) =>
-              (previous is IndexingInProgress) !=
-              (current is IndexingInProgress),
-          listener: (context, state) {
-            _startupWorkGate.markIndexingRunning(
-              state is IndexingInProgress,
-            );
-            _tryStartDeferredStartupWork();
-          },
         ),
         BlocListener<SettingsBloc, SettingsState>(
           listenWhen: (previous, current) {
             final isInitialLoad = previous == SettingsState.initial() &&
                 current != SettingsState.initial();
-            final hasChanged = previous.autoUpdateIndex != current.autoUpdateIndex;
+            final hasChanged =
+                previous.autoUpdateIndex != current.autoUpdateIndex;
             return isInitialLoad || hasChanged;
           },
           listener: (context, state) {
@@ -540,71 +531,89 @@ class MainWindowScreenState extends State<MainWindowScreen>
                               if (orientation == Orientation.landscape) {
                                 return Row(
                                   children: [
-                                    SizedBox.fromSize(
-                                      size: const Size.fromWidth(74),
-                                      child: Column(
-                                        children: [
-                                          Expanded(
-                                            child: Material(
-                                              color:
-                                                  AppSurfaces.panelBackground(
-                                                      context),
-                                              surfaceTintColor:
-                                                  Colors.transparent,
-                                              child: LayoutBuilder(
-                                                builder: (context, constraints) {
-                                                  const buttonHeight = 60.0;
-                                                  final totalButtonsHeight =
-                                                      _navData.length * buttonHeight;
-                                                  final needsScroll =
-                                                      totalButtonsHeight + 20.0 >
-                                                          constraints.maxHeight;
+                                    ColoredBox(
+                                      color:
+                                          AppSurfaces.panelBackground(context),
+                                      child: SizedBox.fromSize(
+                                        size: const Size.fromWidth(74),
+                                        child: Column(
+                                          children: [
+                                            Expanded(
+                                              child: Material(
+                                                color:
+                                                    AppSurfaces.panelBackground(
+                                                        context),
+                                                surfaceTintColor:
+                                                    Colors.transparent,
+                                                child: LayoutBuilder(
+                                                  builder:
+                                                      (context, constraints) {
+                                                    const buttonHeight = 60.0;
+                                                    final totalButtonsHeight =
+                                                        _navData.length *
+                                                            buttonHeight;
+                                                    final needsScroll =
+                                                        totalButtonsHeight +
+                                                                20.0 >
+                                                            constraints
+                                                                .maxHeight;
 
-                                                  if (needsScroll) {
-                                                    return SingleChildScrollView(
-                                                      child: Column(
+                                                    if (needsScroll) {
+                                                      return SingleChildScrollView(
+                                                        child: Column(
+                                                          children: [
+                                                            for (int i = 0;
+                                                                i <
+                                                                    _navData
+                                                                        .length;
+                                                                i++)
+                                                              _buildNavRailItem(
+                                                                  context,
+                                                                  i,
+                                                                  state
+                                                                      .currentScreen),
+                                                          ],
+                                                        ),
+                                                      );
+                                                    } else {
+                                                      final topCount =
+                                                          _navData.length > 5
+                                                              ? 5
+                                                              : _navData.length;
+                                                      return Column(
                                                         children: [
                                                           for (int i = 0;
-                                                              i < _navData.length;
+                                                              i < topCount;
                                                               i++)
                                                             _buildNavRailItem(
                                                                 context,
                                                                 i,
-                                                                state.currentScreen),
+                                                                state
+                                                                    .currentScreen),
+                                                          const Spacer(),
+                                                          for (int i = topCount;
+                                                              i <
+                                                                  _navData
+                                                                      .length;
+                                                              i++)
+                                                            _buildNavRailItem(
+                                                                context,
+                                                                i,
+                                                                state
+                                                                    .currentScreen),
                                                         ],
-                                                      ),
-                                                    );
-                                                  } else {
-                                                    final topCount =
-                                                        _navData.length > 5 ? 5 : _navData.length;
-                                                    return Column(
-                                                      children: [
-                                                        for (int i = 0;
-                                                            i < topCount;
-                                                            i++)
-                                                          _buildNavRailItem(
-                                                              context,
-                                                              i,
-                                                              state.currentScreen),
-                                                        const Spacer(),
-                                                        for (int i = topCount;
-                                                            i < _navData.length;
-                                                            i++)
-                                                          _buildNavRailItem(
-                                                              context,
-                                                              i,
-                                                              state.currentScreen),
-                                                      ],
-                                                    );
-                                                  }
-                                                },
+                                                      );
+                                                    }
+                                                  },
+                                                ),
                                               ),
                                             ),
-                                          ),
-                                        ],
+                                          ],
+                                        ),
                                       ),
                                     ),
-                                    const VerticalDivider(thickness: 1, width: 1),
+                                    const VerticalDivider(
+                                        thickness: 1, width: 1),
                                     Expanded(child: pageView),
                                   ],
                                 );
@@ -618,7 +627,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                     backgroundColor:
                                         AppSurfaces.panelBackground(context),
                                     surfaceTintColor: Colors.transparent,
-                                    destinations: _buildNavigationDestinations(),
+                                    destinations:
+                                        _buildNavigationDestinations(),
                                     selectedIndex:
                                         _getSelectedIndex(state.currentScreen),
                                     onDestinationSelected: (index) async {
@@ -630,7 +640,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                         await _syncPageWithState();
                                         return;
                                       }
-                                      _onNavTap(context, index, state.currentScreen);
+                                      _onNavTap(
+                                          context, index, state.currentScreen);
                                     },
                                   ),
                                 ],
