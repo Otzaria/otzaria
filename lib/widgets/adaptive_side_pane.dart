@@ -31,7 +31,8 @@ class AdaptiveSidePane extends StatefulWidget {
   final Widget Function(BuildContext context, Widget paneContent, double paneWidth)?
       widePaneBuilder;
   final Widget Function(BuildContext context, Widget paneContent)?
-      narrowPaneBuilder;
+     narrowPaneBuilder;
+  final bool autoHandleResponsiveVisibility;
 
   const AdaptiveSidePane({
     super.key,
@@ -54,6 +55,7 @@ class AdaptiveSidePane extends StatefulWidget {
     this.framePadding = const EdgeInsets.all(10),
     this.widePaneBuilder,
     this.narrowPaneBuilder,
+    this.autoHandleResponsiveVisibility = true,
   });
 
   @override
@@ -188,7 +190,9 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
         final hasRoomForSideBySide =
             constraints.maxWidth >= (widget.paneWidth + widget.minMainContentWidth);
 
-        _handleResponsiveAutoClose(hasRoomForSideBySide);
+        if (widget.autoHandleResponsiveVisibility) {
+          _handleResponsiveAutoClose(hasRoomForSideBySide);
+        }
 
         if (hasRoomForSideBySide) {
           final widePaneContent = widget.widePaneBuilder != null

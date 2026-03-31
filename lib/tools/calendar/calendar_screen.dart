@@ -11,7 +11,7 @@ import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/floating_panel.dart'
-    show kSidePanelWidth, kMainPanelMinWidth;
+    show kMainPanelMinWidth, kSideBySideMinWidth, kSidePanelWidth;
 import 'package:otzaria/widgets/context_overlay_panel.dart';
 import 'package:otzaria/widgets/adaptive_side_pane.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
@@ -46,6 +46,8 @@ class _CalendarWidgetState extends State<CalendarWidget> {
   bool _isCreateEventDialogOpen = false;
   bool _isPrintDialogOpen = false;
   bool _isSidebarVisible = false;
+  bool _isSidebarExplicitlyClosed = false;
+  bool _isSidebarAutoHiddenForNarrow = false;
   bool _isSettingsPanelOpen = false;
   double _sidePanelWidth = kSidePanelWidth;
   CalendarSidePanelView _sidePanelView = CalendarSidePanelView.times;
@@ -192,17 +194,27 @@ class _CalendarWidgetState extends State<CalendarWidget> {
   }
 
   void _toggleSidebar(BuildContext context, bool isMobile) {
-    setState(() => _isSidebarVisible = !_isSidebarVisible);
+    setState(() {
+      final nextVisible = !_isSidebarVisible;
+      _isSidebarVisible = nextVisible;
+      _isSidebarExplicitlyClosed = !nextVisible;
+      if (nextVisible) {
+        _isSidebarAutoHiddenForNarrow = false;
+      }
+    });
   }
 
   void _toggleTimesPanel() {
     setState(() {
       if (_sidePanelView == CalendarSidePanelView.times && _isSidebarVisible) {
         _isSidebarVisible = false;
+        _isSidebarExplicitlyClosed = true;
         return;
       }
       _sidePanelView = CalendarSidePanelView.times;
       _isSidebarVisible = true;
+      _isSidebarExplicitlyClosed = false;
+      _isSidebarAutoHiddenForNarrow = false;
     });
   }
 
@@ -210,10 +222,13 @@ class _CalendarWidgetState extends State<CalendarWidget> {
     setState(() {
       if (_sidePanelView == CalendarSidePanelView.events && _isSidebarVisible) {
         _isSidebarVisible = false;
+        _isSidebarExplicitlyClosed = true;
         return;
       }
       _sidePanelView = CalendarSidePanelView.events;
       _isSidebarVisible = true;
+      _isSidebarExplicitlyClosed = false;
+      _isSidebarAutoHiddenForNarrow = false;
     });
   }
 
@@ -335,6 +350,9 @@ class _CalendarWidgetState extends State<CalendarWidget> {
                 builder: (context, constraints) {
                   final isMobile =
                       constraints.maxWidth < LayoutBreakpoints.compact;
+                  final hasRoomForSideBySide =
+                      constraints.maxWidth >= kSideBySideMinWidth;
+                  _syncSidebarVisibilityForWidth(hasRoomForSideBySide);
                   return Scaffold(
                     backgroundColor: Colors.transparent,
                     // ── גוף: Topbar + תוכן ──────────────────────────────
@@ -403,8 +421,8 @@ class _CalendarWidgetState extends State<CalendarWidget> {
           paneContent: _buildSidePanel(context, state),
           paneWidth: _sidePanelWidth,
           minMainContentWidth: kMainPanelMinWidth,
-          onClose: () => setState(() => _isSidebarVisible = false),
-          onOpen: () => setState(() => _isSidebarVisible = true),
+          onClose: _handleSidebarClosedByUser,
+          autoHandleResponsiveVisibility: false,
           paneColor: AppSurfaces.solidPanelBackground(context),
           isResizable: true,
           minPaneWidth: 280,
@@ -457,6 +475,46 @@ class _CalendarWidgetState extends State<CalendarWidget> {
 
   Widget _buildMobileLayout(BuildContext context, CalendarState state) {
     return _buildDesktopLayout(context, state);
+  }
+
+  void _syncSidebarVisibilityForWidth(bool hasRoomForSideBySide) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      if (!hasRoomForSideBySide &&
+          _isSidebarVisible &&
+          !_isSidebarAutoHiddenForNarrow) {
+        setState(() {
+          _isSidebarVisible = false;
+          _isSidebarAutoHiddenForNarrow = true;
+        });
+        return;
+      }
+
+      if (hasRoomForSideBySide &&
+          !_isSidebarVisible &&
+          !_isSidebarExplicitlyClosed) {
+        setState(() {
+          _isSidebarVisible = true;
+          _isSidebarAutoHiddenForNarrow = false;
+        });
+        return;
+      }
+
+      if (hasRoomForSideBySide && _isSidebarAutoHiddenForNarrow) {
+        setState(() {
+          _isSidebarAutoHiddenForNarrow = false;
+        });
+      }
+    });
+  }
+
+  void _handleSidebarClosedByUser() {
+    setState(() {
+      _isSidebarVisible = false;
+      _isSidebarExplicitlyClosed = true;
+      _isSidebarAutoHiddenForNarrow = false;
+    });
   }
 
   Widget _buildSidePanel(BuildContext context, CalendarState state) {
