@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/file_sync/file_sync_event.dart';
 import 'package:otzaria/file_sync/file_sync_state.dart';
 import 'package:otzaria/file_sync/file_sync_repository.dart';
@@ -40,6 +41,9 @@ class FileSyncBloc extends Bloc<FileSyncEvent, FileSyncState> {
       emit(const FileSyncState());
     }
 
+    // Show checking notification
+    UiSnack.showChecking('בודק עדכונים לספרי אוצריא');
+
     emit(state.copyWith(
       status: FileSyncStatus.syncing,
       message: 'מסנכרן...',
@@ -60,26 +64,37 @@ class FileSyncBloc extends Bloc<FileSyncEvent, FileSyncState> {
       final successCount = await repository.syncFiles();
       _progressTimer?.cancel();
 
+      // Hide checking notification
+      UiSnack.hide();
+
       if (successCount > 0) {
+        final message = 'הוחלו $successCount עדכוני DB';
         emit(state.copyWith(
           status: FileSyncStatus.completed,
           hasNewSync: true,
-          message: 'הוחלו $successCount עדכוני DB',
+          message: message,
         ));
+        UiSnack.show(message);
       } else {
         emit(state.copyWith(
           status: FileSyncStatus.completed,
           hasNewSync: false,
           message: 'הספרייה מעודכנת',
         ));
+        UiSnack.show('הספרייה מעודכנת');
       }
     } catch (e) {
       _progressTimer?.cancel();
+
+      // Hide checking notification
+      UiSnack.hide();
+
       emit(state.copyWith(
         status: FileSyncStatus.error,
         message: 'שגיאה בסנכרון: ${e.toString()}',
         errorMessage: e.toString(),
       ));
+      UiSnack.showError('שגיאה בסנכרון: ${e.toString()}');
     }
   }
 

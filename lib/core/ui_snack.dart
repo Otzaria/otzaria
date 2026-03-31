@@ -63,7 +63,7 @@ class UiSnack {
         message: message,
         variant: _SnackVariant.error,
         icon: Icons.error_outline_rounded,
-        duration: duration ?? const Duration(seconds: 5),
+        duration: duration ?? const Duration(seconds: 3),
         enableHaptic: true,
       );
 
@@ -79,7 +79,7 @@ class UiSnack {
         message: message,
         variant: _SnackVariant.warning,
         icon: Icons.warning_amber_rounded,
-        duration: duration ?? const Duration(seconds: 5),
+        duration: duration ?? const Duration(seconds: 3),
         enableHaptic: true,
       );
 
@@ -106,6 +106,28 @@ class UiSnack {
         enableHaptic: false,
       );
 
+  /// בדיקה - חיצים מסתובבים, נשאר עד שמסתירים
+  static void showChecking(String message) => _showOverlay(
+        message: message,
+        variant: _SnackVariant.standard,
+        duration: const Duration(days: 365), // לא נסגר אוטומטית
+        icon: Icons.sync_rounded,
+        enableHaptic: false,
+        showCloseButton: true,
+      );
+
+  /// הורדה - אייקון הורדה, נשאר עד שמסתירים
+  static void showDownloading(String message) => _showOverlay(
+        message: message,
+        variant: _SnackVariant.standard,
+        duration: const Duration(days: 365), // לא נסגר אוטומטית
+        icon: Icons.download_rounded,
+        enableHaptic: false,
+        showCloseButton: true,
+      );
+
+  /// הסתרת ההודעה הנוכחית
+  static void hide() => _removeCurrentOverlay();
   // ── Internal ────────────────────────────────────────────────────────────────
 
   static void _showOverlay({
@@ -116,6 +138,7 @@ class UiSnack {
     String? actionLabel,
     VoidCallback? onAction,
     bool enableHaptic = false,
+    bool showCloseButton = false,
   }) {
     _removeCurrentOverlay();
 
@@ -176,6 +199,7 @@ class UiSnack {
     String? actionLabel,
     VoidCallback? onAction,
     bool enableHaptic = false,
+    bool showCloseButton = false,
   }) {
     if (enableHaptic) HapticFeedback.lightImpact();
 
@@ -187,6 +211,7 @@ class UiSnack {
         icon: icon,
         actionLabel: actionLabel,
         onAction: onAction,
+        showCloseButton: showCloseButton,
         onDismiss: _removeCurrentOverlay,
       ),
     );
@@ -231,12 +256,14 @@ class _SnackToast extends StatefulWidget {
   final IconData? icon;
   final String? actionLabel;
   final VoidCallback? onAction;
+  final bool showCloseButton;
   final VoidCallback onDismiss;
 
   const _SnackToast({
     required this.message,
     required this.variant,
     required this.duration,
+    required this.showCloseButton,
     required this.onDismiss,
     this.icon,
     this.actionLabel,
@@ -388,7 +415,7 @@ class _SnackToastState extends State<_SnackToast>
                                 style: TextStyle(
                                   color: c.fg,
                                   fontSize: _ToastTokens.fontMessage,
-                                  fontWeight: FontWeight.w400, // רגיל, לא מודגש
+                                  fontWeight: FontWeight.w400,
                                   height: 1.4,
                                 ),
                                 textDirection: TextDirection.rtl,
@@ -418,6 +445,18 @@ class _SnackToastState extends State<_SnackToast>
                                       MaterialTapTargetSize.shrinkWrap,
                                 ),
                                 child: Text(widget.actionLabel!),
+                              ),
+                            ],
+                            if (widget.showCloseButton) ...[
+                              const SizedBox(width: AppTokens.spaceSM),
+                              IconButton(
+                                onPressed: _close,
+                                icon: Icon(Icons.close_rounded,
+                                    color: c.fg, size: 18),
+                                visualDensity: VisualDensity.compact,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(
+                                    minWidth: 32, minHeight: 32),
                               ),
                             ],
                           ],

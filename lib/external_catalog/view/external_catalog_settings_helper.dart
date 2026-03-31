@@ -96,12 +96,14 @@ class ExternalCatalogSettingsHelper {
     }
 
     try {
-      UiSnack.show('מוריד את מסד הקטלוגים החיצוני...');
+      UiSnack.showDownloading('מוריד את מסד הקטלוגים החיצוני...');
       await repository.downloadLatestDatabase();
       DataRepository.instance.invalidateExternalBooksCache();
+      UiSnack.hide();
       UiSnack.showSuccess('מסד הקטלוגים הורד בהצלחה');
       return true;
     } catch (e) {
+      UiSnack.hide();
       UiSnack.showError('שגיאה בהורדת מסד הקטלוגים: $e');
       return false;
     }
