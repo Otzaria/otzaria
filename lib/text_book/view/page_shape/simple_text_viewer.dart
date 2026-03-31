@@ -1248,11 +1248,18 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                         }
                       },
                       onLongPress: () {
-                        showSingleActionDialog(
+                        showDialog(
                           context: context,
-                          title: 'הערה לשורה זו',
-                          customContent: PersonalNoteContentView(note: note),
-                          confirmText: 'סגור',
+                          builder: (_) => AlertDialog(
+                            title: const Text('הערה לשורה זו'),
+                            content: PersonalNoteContentView(note: note),
+                            actions: [
+                              FilledButton(
+                                onPressed: () => Navigator.of(context).pop(),
+                                child: const Text('סגור'),
+                              ),
+                            ],
+                          ),
                         );
                       },
                       child: Padding(
