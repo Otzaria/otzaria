@@ -113,7 +113,7 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen> {
     }
   }
 
-  void _performSearch() {
+  void _performSearch({bool moveFocusToResults = false}) {
     final query = _searchController.text.trim();
     if (query.isEmpty) {
       setState(() {
@@ -134,6 +134,10 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen> {
         itemCount: _filteredResults.length,
       );
     });
+
+    if (moveFocusToResults && _filteredResults.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _focusResultsList());
+    }
   }
 
   void _toggleDirection() {
@@ -209,7 +213,7 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen> {
                       ? 'חפש מילה בעברית...'
                       : 'חפש מילה בארמית...',
                   autofocus: true,
-                  onSubmitted: (_) => _focusResultsList(),
+                  onSubmitted: (_) => _performSearch(moveFocusToResults: true),
                   onClear: () => setState(() {
                     _filteredResults = [];
                     _focusedIndex = -1;
@@ -299,6 +303,7 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen> {
     }
 
     return ListView.builder(
+      controller: _scrollController,
       padding: const EdgeInsets.all(AppTokens.spaceMD),
       itemCount: _filteredResults.length,
       itemBuilder: (context, index) {

@@ -104,7 +104,7 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen> {
     }
   }
 
-  void _performSearch() {
+  void _performSearch({bool moveFocusToResults = false}) {
     final query = _searchController.text.trim();
     if (query.isEmpty) {
       setState(() {
@@ -129,6 +129,10 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen> {
         itemCount: _filteredResults.length,
       );
     });
+
+    if (moveFocusToResults && _filteredResults.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _focusResultsList());
+    }
   }
 
   void _moveFocus(int delta) {
@@ -193,7 +197,7 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen> {
                   focusNode: _searchFocusNode,
                   hintText: 'חפש ראשי תיבות...',
                   autofocus: true,
-                  onSubmitted: (_) => _focusResultsList(),
+                  onSubmitted: (_) => _performSearch(moveFocusToResults: true),
                   onClear: () => setState(() {
                     _filteredResults = [];
                     _focusedIndex = -1;
@@ -228,6 +232,7 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen> {
     }
 
     return ListView.builder(
+      controller: _scrollController,
       padding: const EdgeInsets.all(AppTokens.spaceMD),
       itemCount: _filteredResults.length,
       itemBuilder: (context, index) {
