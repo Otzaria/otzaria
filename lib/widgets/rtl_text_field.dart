@@ -125,23 +125,35 @@ class _RtlTextFieldState extends State<RtlTextField> {
     // עטיפה בתיקון חיצים אם RTL
     // שימוש ב-CallbackShortcuts כדי להבטיח קדימות על פני ה-TextField
     if (isRtl) {
-      textField = CallbackShortcuts(
-        bindings: {
-          // חיצים רגילים (ללא Shift)
-          const SingleActivator(LogicalKeyboardKey.arrowLeft): () =>
-              _handleArrowKey(isVisualRight: false, extendSelection: false),
-          const SingleActivator(LogicalKeyboardKey.arrowRight): () =>
-              _handleArrowKey(isVisualRight: true, extendSelection: false),
+      final bindings = <ShortcutActivator, VoidCallback>{
+        // חיצים רגילים (ללא Shift)
+        const SingleActivator(LogicalKeyboardKey.arrowLeft): () =>
+            _handleArrowKey(isVisualRight: false, extendSelection: false),
+        const SingleActivator(LogicalKeyboardKey.arrowRight): () =>
+            _handleArrowKey(isVisualRight: true, extendSelection: false),
 
-          // Shift+חיצים
-          const SingleActivator(LogicalKeyboardKey.arrowLeft, shift: true):
-              () =>
-                  _handleArrowKey(isVisualRight: false, extendSelection: true),
-          const SingleActivator(LogicalKeyboardKey.arrowRight, shift: true):
-              () => _handleArrowKey(isVisualRight: true, extendSelection: true),
-        },
-        child: textField,
-      );
+        // Shift+חיצים
+        const SingleActivator(LogicalKeyboardKey.arrowLeft, shift: true): () =>
+            _handleArrowKey(isVisualRight: false, extendSelection: true),
+        const SingleActivator(LogicalKeyboardKey.arrowRight, shift: true): () =>
+            _handleArrowKey(isVisualRight: true, extendSelection: true),
+      };
+
+      // בשדה חד-שורתי: יירוט arrowUp/arrowDown כדי למנוע assertion של Flutter
+      // ב-VerticalCaretMovementRun.movePrevious (שכשל ב-single-line field)
+      if (widget.maxLines == 1) {
+        bindings[const SingleActivator(LogicalKeyboardKey.arrowUp)] = () {
+          _effectiveController.selection =
+              const TextSelection.collapsed(offset: 0);
+        };
+        bindings[const SingleActivator(LogicalKeyboardKey.arrowDown)] = () {
+          _effectiveController.selection = TextSelection.collapsed(
+            offset: _effectiveController.text.length,
+          );
+        };
+      }
+
+      textField = CallbackShortcuts(bindings: bindings, child: textField);
     }
 
     // עטיפה בטיפול בתפריט הקשר

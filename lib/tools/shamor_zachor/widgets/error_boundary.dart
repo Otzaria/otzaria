@@ -31,23 +31,6 @@ class _ErrorBoundaryState extends State<ErrorBoundary> {
   @override
   void initState() {
     super.initState();
-
-    // Set up global error handler for Flutter errors
-    FlutterError.onError = (FlutterErrorDetails details) {
-      _logger.severe('Flutter error caught by ErrorBoundary', details.exception,
-          details.stack);
-
-      if (mounted) {
-        setState(() {
-          _hasError = true;
-          _error = ShamorZachorError.fromException(
-            details.exception,
-            stackTrace: details.stack,
-            customMessage: 'An unexpected error occurred',
-          );
-        });
-      }
-    };
   }
 
   @override
