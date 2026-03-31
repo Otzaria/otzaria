@@ -116,9 +116,8 @@ class _ShortcutDropDownTileState extends State<ShortcutDropDownTile> {
               .join(', ');
 
           if (conflictingNames.isNotEmpty) {
-            UiSnack.show(
+            UiSnack.showWarning(
               'אזהרה: קיצור זה כבר בשימוש עבור: $conflictingNames',
-              backgroundColor: Colors.orange,
               duration: const Duration(seconds: 3),
             );
           }

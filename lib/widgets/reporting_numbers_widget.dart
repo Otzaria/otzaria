@@ -234,8 +234,7 @@ class ReportingNumbersWidget extends StatelessWidget {
       }
     } catch (e) {
       if (context.mounted) {
-        UiSnack.showError('שגיאה בהעתקה ללוח',
-            backgroundColor: Theme.of(context).colorScheme.error);
+        UiSnack.showError('שגיאה בהעתקה ללוח');
       }
     }
   }
@@ -247,14 +246,12 @@ class ReportingNumbersWidget extends StatelessWidget {
         await launchUrl(phoneUri);
       } else {
         if (context.mounted) {
-          UiSnack.showError('לא ניתן לפתוח את אפליקציית הטלפון',
-              backgroundColor: Theme.of(context).colorScheme.error);
+          UiSnack.showError('לא ניתן לפתוח את אפליקציית הטלפון');
         }
       }
     } catch (e) {
       if (context.mounted) {
-        UiSnack.showError('שגיאה בפתיחת אפליקציית הטלפון',
-            backgroundColor: Theme.of(context).colorScheme.error);
+        UiSnack.showError('שגיאה בפתיחת אפליקציית הטלפון');
       }
     }
   }

@@ -54,15 +54,13 @@ class _EmptyLibraryViewState extends State<_EmptyLibraryView> {
           if (state is EmptyLibraryZipExtracted) {
             UiSnack.showSuccess(
               'הקובץ "${state.extractedFileName}" חולץ בהצלחה!',
-              backgroundColor: Theme.of(context).colorScheme.primary,
             );
           }
           if (state is EmptyLibraryError && state.errorMessage != null) {
             if (state.zipFiles != null && state.zipFiles!.isNotEmpty) {
               _showMultipleZipFilesDialog(context, state.zipFiles!);
             } else {
-              UiSnack.showError(state.errorMessage!,
-                  backgroundColor: Theme.of(context).colorScheme.error);
+              UiSnack.showError(state.errorMessage!);
             }
           }
           if (state is EmptyLibraryAskingDeleteZip) {

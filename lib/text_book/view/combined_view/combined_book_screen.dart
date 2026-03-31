@@ -674,8 +674,7 @@ class _CombinedViewState extends State<CombinedView> {
       );
     } catch (e) {
       if (mounted) {
-        UiSnack.showError('שגיאה בהעתקה מעוצבת: $e',
-            backgroundColor: Theme.of(context).colorScheme.error);
+        UiSnack.showError('שגיאה בהעתקה מעוצבת: $e');
       }
     }
   }

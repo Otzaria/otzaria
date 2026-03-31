@@ -291,8 +291,7 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
               onPressed: () {
                 // Remove the workspace
                 if (isActive) {
-                  UiSnack.showError('לא ניתן למחוק שולחן עבודה פעיל',
-                      backgroundColor: Theme.of(context).colorScheme.error);
+                  UiSnack.showError('לא ניתן למחוק שולחן עבודה פעיל');
                   return;
                 }
                 context

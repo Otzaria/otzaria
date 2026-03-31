@@ -130,13 +130,11 @@ class OtzarBookDialog extends StatelessWidget {
           icon: const Icon(FluentIcons.open_24_regular),
           label: const Text('פתח באתר'),
           onPressed: () async {
-            final errorColor = Theme.of(context).colorScheme.error;
             Navigator.of(context).pop();
             if (await OtzarUtils.launchOtzarWeb(book.link)) {
               // Success
             } else {
-              UiSnack.showError('לא ניתן לפתוח את הקישור בדפדפן',
-                  backgroundColor: errorColor);
+              UiSnack.showError('לא ניתן לפתוח את הקישור בדפדפן');
             }
           },
           style: ElevatedButton.styleFrom(

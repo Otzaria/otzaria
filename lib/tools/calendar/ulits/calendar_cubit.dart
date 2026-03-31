@@ -414,7 +414,6 @@ class CalendarCubit extends Cubit<CalendarState> {
         message: message,
         actionLabel: actionLabel,
         onAction: () {},
-        backgroundColor: Colors.orange,
         duration: const Duration(seconds: 10),
       );
       return;
@@ -1465,7 +1464,6 @@ class CalendarCubit extends Cubit<CalendarState> {
           onAction: () {
             // אפשר להוסיף כאן פתיחת הגדרות האפליקציה בעתיד
           },
-          backgroundColor: Colors.orange,
           duration: const Duration(seconds: 8),
         );
         return;

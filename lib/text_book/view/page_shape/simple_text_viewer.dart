@@ -959,8 +959,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       );
     } catch (e) {
       if (mounted) {
-        UiSnack.showError('שגיאה בהעתקה מעוצבת: $e',
-            backgroundColor: Theme.of(context).colorScheme.error);
+        UiSnack.showError('שגיאה בהעתקה מעוצבת: $e');
       }
     }
   }
