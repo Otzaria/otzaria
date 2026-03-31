@@ -639,12 +639,10 @@ class _ZmanCard extends StatelessWidget {
                           fit: BoxFit.scaleDown,
                           child: SizedBox(
                             width: constraints.maxWidth,
-                            child: Text(
-                              timeData.name,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              textDirection: TextDirection.rtl,
+                            child: _OverflowAwareTooltipText(
+                              text: timeData.name,
                               style: nameStyle,
+                              maxLines: 2,
                             ),
                           ),
                         );
@@ -780,6 +778,90 @@ class _ZmanCard extends StatelessWidget {
       timeId: option.id,
       displayName: option.name,
       minutesBefore: result.minutesBefore,
+    );
+  }
+}
+
+bool _textOverflows({
+  required BuildContext context,
+  required String text,
+  required TextStyle style,
+  required int maxLines,
+  required double maxWidth,
+  required TextDirection textDirection,
+  required TextAlign textAlign,
+}) {
+  final textPainter = TextPainter(
+    text: TextSpan(text: text, style: style),
+    maxLines: maxLines,
+    ellipsis: '…',
+    textDirection: textDirection,
+    textAlign: textAlign,
+    textScaler: MediaQuery.textScalerOf(context),
+  )..layout(maxWidth: maxWidth);
+
+  return textPainter.didExceedMaxLines;
+}
+
+class _OverflowAwareTooltipText extends StatelessWidget {
+  final String text;
+  final TextStyle? style;
+  final int maxLines;
+
+  const _OverflowAwareTooltipText({
+    required this.text,
+    this.style,
+    this.maxLines = 2,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final resolvedStyle = style ?? DefaultTextStyle.of(context).style;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final hasOverflow = constraints.maxWidth.isFinite &&
+            constraints.maxWidth > 0 &&
+            _textOverflows(
+              context: context,
+              text: text,
+              style: resolvedStyle,
+              maxLines: maxLines,
+              maxWidth: constraints.maxWidth,
+              textDirection: TextDirection.rtl,
+              textAlign: TextAlign.right,
+            );
+
+        final child = Text(
+          text,
+          maxLines: maxLines,
+          overflow: TextOverflow.ellipsis,
+          textDirection: TextDirection.rtl,
+          style: resolvedStyle,
+        );
+
+        if (!hasOverflow) {
+          return child;
+        }
+
+        final scheme = Theme.of(context).colorScheme;
+        return Tooltip(
+          message: text,
+          waitDuration: const Duration(milliseconds: 300),
+          textAlign: TextAlign.right,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          margin: const EdgeInsets.all(12),
+          constraints: const BoxConstraints(maxWidth: 320),
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerHigh,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: scheme.outlineVariant.withValues(alpha: 0.65),
+            ),
+          ),
+          child: child,
+        );
+      },
     );
   }
 }
