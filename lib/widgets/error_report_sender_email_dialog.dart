@@ -30,7 +30,7 @@ Future<String?> showErrorReportSenderEmailDialog({
             controller: controller,
             keyboardType: TextInputType.emailAddress,
             textAlign: TextAlign.left,
-            decoration: InputDecoration(
+            decoration: const InputDecoration(
               labelText: 'כתובת דוא"ל',
               hintText: 'name@example.com',
             ),
