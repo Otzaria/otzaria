@@ -79,7 +79,7 @@ Widget buildDayCell(
             borderRadius: BorderRadius.circular(8),
             child: Container(
               margin: const EdgeInsets.all(2),
-              height: 88,
+              constraints: const BoxConstraints(minHeight: 72),
               decoration: BoxDecoration(
                 color: tintedBackground,
                 borderRadius: BorderRadius.circular(8),

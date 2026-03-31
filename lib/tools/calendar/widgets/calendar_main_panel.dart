@@ -173,7 +173,7 @@ class CalendarMainPanel extends StatelessWidget {
     }
 
     // ימים מהחודש הבא
-    final totalCells = ((cells.length / 7).ceil()) * 7;
+    const totalCells = 42;
     for (int day = 1; day <= totalCells - cells.length; day++) {
       final d = DateTime(current.year, current.month + 1, day);
       cells.add(_CellData(d, JewishDate.fromDateTime(d), isOtherMonth: true));
@@ -217,7 +217,7 @@ class CalendarMainPanel extends StatelessWidget {
     }
 
     // ימים מהחודש הבא
-    final totalCells = ((cells.length / 7).ceil()) * 7;
+    const totalCells = 42;
     final lastDay = JewishDate()
       ..setJewishDate(
           currentJD.getJewishYear(), currentJD.getJewishMonth(), daysInMonth);
