@@ -484,6 +484,11 @@ class _CalendarWidgetState extends State<CalendarWidget> {
     showJumpToDateDialog(
       context: context,
       parseInputDate: (input) => parseCalendarInputDate(context, input),
+      closeShortcut: _shortcutActivator(
+        context.read<SettingsBloc>().state.shortcuts,
+        'key-shortcut-search-current-window',
+        'ctrl+f',
+      ),
     ).then((selectedDate) {
       if (selectedDate != null && context.mounted) {
         context.read<CalendarCubit>().jumpToDate(selectedDate);
@@ -547,6 +552,11 @@ class _CalendarWidgetState extends State<CalendarWidget> {
     showCalendarPrintDialog(
       context: context,
       calendarView: state.calendarView,
+      closeShortcut: _shortcutActivator(
+        context.read<SettingsBloc>().state.shortcuts,
+        'key-shortcut-print',
+        'ctrl+p',
+      ),
     ).then((count) {
       _isPrintDialogOpen = false;
       if (count == null || !context.mounted) return;

@@ -1,21 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_state.dart';
 import 'package:otzaria/widgets/buttons/action_buttons.dart';
+import 'package:otzaria/widgets/keyboard_dialog_navigation.dart';
 
 /// דיאלוג לקביעת טווח ההדפסה של לוח השנה.
 class CalendarPrintDialog extends StatefulWidget {
   final CalendarView calendarView;
+  final ShortcutActivator? closeShortcut;
 
   const CalendarPrintDialog({
     super.key,
     required this.calendarView,
+    this.closeShortcut,
   });
 
   @override
   State<CalendarPrintDialog> createState() => _CalendarPrintDialogState();
 }
 
-class _CalendarPrintDialogState extends State<CalendarPrintDialog> {
+class _CalendarPrintDialogState extends State<CalendarPrintDialog>
+    with DialogNavigationMixin {
   int _count = 1;
 
   @override
@@ -27,7 +31,7 @@ class _CalendarPrintDialogState extends State<CalendarPrintDialog> {
       CalendarView.week => ('שבוע', 'שבועות', 52),
     };
 
-    return Directionality(
+    final dialog = Directionality(
       textDirection: TextDirection.rtl,
       child: AlertDialog(
         backgroundColor: cs.surfaceContainerHigh,
@@ -44,6 +48,7 @@ class _CalendarPrintDialogState extends State<CalendarPrintDialog> {
                 children: [
                   Expanded(
                     child: Slider(
+                      autofocus: true,
                       value: _count.toDouble(),
                       min: 1,
                       max: maxCount.toDouble(),
@@ -87,6 +92,22 @@ class _CalendarPrintDialogState extends State<CalendarPrintDialog> {
         ],
       ),
     );
+
+    Widget result = dialog;
+    if (widget.closeShortcut != null) {
+      result = CallbackShortcuts(
+      bindings: {
+        widget.closeShortcut!: () => Navigator.of(context).pop(),
+      },
+        child: result,
+      );
+    }
+
+    return buildKeyboardNavigator(
+      onConfirm: () => Navigator.of(context).pop(_count),
+      onCancel: () => Navigator.of(context).pop(),
+      child: result,
+    );
   }
 }
 
@@ -94,9 +115,13 @@ class _CalendarPrintDialogState extends State<CalendarPrintDialog> {
 Future<int?> showCalendarPrintDialog({
   required BuildContext context,
   required CalendarView calendarView,
+  ShortcutActivator? closeShortcut,
 }) {
   return showDialog<int>(
     context: context,
-    builder: (_) => CalendarPrintDialog(calendarView: calendarView),
+    builder: (_) => CalendarPrintDialog(
+      calendarView: calendarView,
+      closeShortcut: closeShortcut,
+    ),
   );
 }
