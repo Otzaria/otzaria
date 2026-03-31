@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:otzaria/core/app_restart.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/widgets/mixins/dialog_navigation_mixin.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 
@@ -719,6 +719,141 @@ class SwitchSettingsTile extends StatelessWidget {
         onChanged: enabled ? onChanged : null,
       ),
       onTap: enabled && onChanged != null ? () => onChanged!(!value) : null,
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  כלי עזר לתצוגת טאבי הכלים
+// ════════════════════════════════════════════════════════════════════════════
+
+/// צבע רקע כרטיסי תוצאות בכלי האפליקציה — תואם לסגנון SettingsCard
+Color toolCardColor(BuildContext context) {
+  final theme = Theme.of(context);
+  return theme.brightness == Brightness.dark
+      ? theme.colorScheme.surfaceContainer
+      : theme.colorScheme.surface;
+}
+
+// ── כפתורי פעולה לכלים ─────────────────────────────────────────────────────
+
+/// כפתור העתקת תוצאה — בהיר (Tonal/secondaryContainer) עם אייקון העתק.
+///
+/// השימוש: העברת callback שמבצע את הקפיאה ומציג אישור.
+class ToolCopyButton extends StatelessWidget {
+  final VoidCallback onPressed;
+  final String tooltip;
+
+  const ToolCopyButton({
+    super.key,
+    required this.onPressed,
+    this.tooltip = 'העתק',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: tooltip,
+      child: IconButton(
+        icon: const Icon(FluentIcons.copy_24_regular, size: 20),
+        onPressed: onPressed,
+        style: IconButton.styleFrom(
+          backgroundColor: cs.secondaryContainer,
+          foregroundColor: cs.onSecondaryContainer,
+          minimumSize: const Size(36, 36),
+          padding: EdgeInsets.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      ),
+    );
+  }
+}
+
+/// כפתור פתיחת מקור — כהה (primary) עם אייקון פתיחה וריחוף 'פתח מקור'.
+class ToolNavigateButton extends StatelessWidget {
+  final VoidCallback onPressed;
+  final String tooltip;
+
+  const ToolNavigateButton({
+    super.key,
+    required this.onPressed,
+    this.tooltip = 'פתח מקור',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: tooltip,
+      child: IconButton(
+        icon: const Icon(FluentIcons.open_24_regular, size: 20),
+        onPressed: onPressed,
+        style: IconButton.styleFrom(
+          backgroundColor: cs.primary,
+          foregroundColor: cs.onPrimary,
+          minimumSize: const Size(36, 36),
+          padding: EdgeInsets.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      ),
+    );
+  }
+}
+
+// ── ToolPanelWrapper ────────────────────────────────────────────────────────
+
+/// עוטף תוכן כלי ברקע מסך ההגדרות ומרכז אותו אופקית עם הגבלת רוחב.
+///
+/// [hasNavigationBar] = true  → רק רקע, ללא הגבלת רוחב (מתאים כשיש TabBar/Sidebar).
+/// [hasNavigationBar] = false → רקע + Align(topCenter) + maxWidth 860px.
+///
+/// **שימוש:**
+/// ```dart
+/// // מסך עצמאי
+/// return ToolPanelWrapper(child: Column(...));
+///
+/// // מסך עם TabBar
+/// Scaffold(
+///   body: Column(
+///     children: [
+///       TabBar(...),  // מחוץ ל-Wrapper — מלא רוחב
+///       Expanded(
+///         child: ToolPanelWrapper(hasNavigationBar: true, child: TabBarView(...)),
+///       ),
+///     ],
+///   ),
+/// )
+/// ```
+class ToolPanelWrapper extends StatelessWidget {
+  final Widget child;
+  final bool hasNavigationBar;
+
+  const ToolPanelWrapper({
+    super.key,
+    required this.child,
+    this.hasNavigationBar = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor = AppSurfaces.panelBackground(context);
+
+    if (hasNavigationBar) {
+      return ColoredBox(color: bgColor, child: child);
+    }
+
+    return ColoredBox(
+      color: bgColor,
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxWidth: LayoutConstraints.panelContentMaxWidth,
+          ),
+          child: child,
+        ),
+      ),
     );
   }
 }
