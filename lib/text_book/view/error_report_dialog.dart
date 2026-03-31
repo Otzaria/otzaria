@@ -20,6 +20,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
 import 'package:otzaria/utils/ref_helper.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as text_utils;
+import 'package:otzaria/theme/theme_exports.dart';
 
 /// נתוני הדיווח שנאספו מתיבת סימון הטקסט + פירוט הטעות שהמשתמש הקליד.
 class ReportedErrorData {
@@ -916,6 +917,9 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
                 Tab(text: 'שליחת דיווח'),
                 Tab(text: 'דיווח דרך קו אוצריא'),
               ],
+              dividerColor: Colors.transparent,
+              dividerHeight: 0,
+              splashBorderRadius: BorderRadius.circular(AppTokens.radiusMD),
             ),
             Expanded(
               child: TabBarView(

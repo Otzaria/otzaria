@@ -18,7 +18,7 @@ import 'package:otzaria/file_sync/file_sync_state.dart';
 import 'package:otzaria/daf_yomi/daf_yomi.dart';
 import 'package:otzaria/file_sync/file_sync_widget.dart';
 import 'package:otzaria/widgets/filter_chips_widget.dart';
-import 'package:otzaria/navigation/main_window_screen.dart';
+import 'package:otzaria/tools/more_screen.dart' show moreScreenKey;
 import 'package:otzaria/library/view/grid_items.dart';
 import 'package:otzaria/library/view/otzar_book_dialog.dart';
 import 'package:otzaria/library/view/book_preview_panel.dart';

@@ -7,6 +7,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
+import 'package:otzaria/migration/core/models/toc_entry.dart';
 import 'package:otzaria/tools/gematria/models/search_result.dart';
 
 class GimatriaSearch {
@@ -462,6 +463,55 @@ class GimatriaSearch {
     if (lastHeaderByLevel.isEmpty) return '';
     final sortedLevels = lastHeaderByLevel.keys.toList()..sort();
     return sortedLevels.map((l) => lastHeaderByLevel[l]!).join(', ');
+  }
+
+  static String extractPathFromTocEntries({
+    required int currentLineIndex,
+    required String bookTitle,
+    required List<TocEntry> tocEntries,
+  }) {
+    final matchingEntries = tocEntries
+        .where(
+          (entry) =>
+              entry.lineIndex != null && entry.lineIndex! <= currentLineIndex,
+        )
+        .toList()
+      ..sort((a, b) {
+        final lineCompare = (a.lineIndex ?? -1).compareTo(b.lineIndex ?? -1);
+        if (lineCompare != 0) {
+          return lineCompare;
+        }
+        return a.level.compareTo(b.level);
+      });
+
+    if (matchingEntries.isEmpty) {
+      return bookTitle;
+    }
+
+    final currentEntry = matchingEntries.last;
+    final entriesById = {
+      for (final entry in tocEntries) entry.id: entry,
+    };
+    final pathParts = <String>[];
+    TocEntry? cursor = currentEntry;
+
+    while (cursor != null) {
+      final text = _cleanHtml(cursor.text);
+      if (text.isNotEmpty) {
+        pathParts.insert(0, text);
+      }
+      cursor = cursor.parentId != null ? entriesById[cursor.parentId] : null;
+    }
+
+    if (pathParts.isEmpty) {
+      return bookTitle;
+    }
+
+    if (pathParts.first != bookTitle) {
+      pathParts.insert(0, bookTitle);
+    }
+
+    return pathParts.join(', ');
   }
 
   static String _cleanHtml(String s) {

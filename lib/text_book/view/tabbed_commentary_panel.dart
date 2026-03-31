@@ -89,6 +89,35 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
     super.dispose();
   }
 
+  /// בונה טאב עם אנימציית מעבר בין אייקון regular ל-filled
+  Widget _buildAnimatedTab(
+    int index,
+    IconData regular,
+    IconData filled,
+    String label,
+  ) {
+    final isSelected = _tabController.index == index;
+    return Tab(
+      height: 48,
+      iconMargin: const EdgeInsets.only(bottom: 2),
+      icon: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 250),
+        switchInCurve: Curves.easeInOutCubicEmphasized,
+        switchOutCurve: Curves.easeInOutCubicEmphasized,
+        transitionBuilder: (child, animation) => FadeTransition(
+          opacity: animation,
+          child: ScaleTransition(scale: animation, child: child),
+        ),
+        child: Icon(
+          isSelected ? filled : regular,
+          key: ValueKey<bool>(isSelected),
+          size: 18,
+        ),
+      ),
+      child: Text(label, style: const TextStyle(fontSize: 12)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return TextBookStateBuilder(
@@ -110,47 +139,47 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
                 child: Row(
                   children: [
                     Expanded(
-                      child: TabBar(
-                        controller: _tabController,
-                        tabs: [
-                          Tab(
-                            icon: Icon(
+                      child: AnimatedBuilder(
+                        animation: _tabController,
+                        builder: (context, _) => TabBar(
+                          controller: _tabController,
+                          tabs: [
+                            _buildAnimatedTab(
+                              0,
                               widget.showSplitView
                                   ? FluentIcons.book_24_regular
                                   : FluentIcons.settings_24_regular,
-                              size: 18,
-                            ),
-                            iconMargin: const EdgeInsets.only(bottom: 2),
-                            height: 48,
-                            child: Text(
+                              widget.showSplitView
+                                  ? FluentIcons.book_24_filled
+                                  : FluentIcons.settings_24_filled,
                               widget.showSplitView ? 'מפרשים' : 'סינון מפרשים',
-                              style: const TextStyle(fontSize: 12),
                             ),
+                            _buildAnimatedTab(
+                              1,
+                              FluentIcons.link_24_regular,
+                              FluentIcons.link_24_filled,
+                              'קישורים',
+                            ),
+                            _buildAnimatedTab(
+                              2,
+                              FluentIcons.note_24_regular,
+                              FluentIcons.note_24_filled,
+                              'הערות',
+                            ),
+                          ],
+                          unselectedLabelColor:
+                              Theme.of(context).colorScheme.onSurfaceVariant,
+                          dividerColor: Colors.transparent,
+                          dividerHeight: 0,
+                          overlayColor: WidgetStateProperty.all(
+                            Theme.of(context)
+                                .colorScheme
+                                .primary
+                                .withValues(alpha: 0.08),
                           ),
-                          const Tab(
-                            icon: Icon(FluentIcons.link_24_regular, size: 18),
-                            iconMargin: EdgeInsets.only(bottom: 2),
-                            height: 48,
-                            child:
-                                Text('קישורים', style: TextStyle(fontSize: 12)),
-                          ),
-                          const Tab(
-                            icon: Icon(FluentIcons.note_24_regular, size: 18),
-                            iconMargin: EdgeInsets.only(bottom: 2),
-                            height: 48,
-                            child:
-                                Text('הערות', style: TextStyle(fontSize: 12)),
-                          ),
-                        ],
-                        labelColor: Theme.of(context).colorScheme.primary,
-                        unselectedLabelColor: Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withValues(alpha: 0.6),
-                        indicatorColor: Theme.of(context).colorScheme.primary,
-                        dividerColor: Colors.transparent,
-                        splashBorderRadius:
-                            BorderRadius.circular(AppTokens.radiusMD),
+                          splashBorderRadius:
+                              BorderRadius.circular(AppTokens.radiusMD),
+                        ),
                       ),
                     ),
                     // לחצן סגירה

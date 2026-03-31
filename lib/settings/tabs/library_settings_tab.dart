@@ -20,7 +20,6 @@ import 'package:otzaria/settings/settings_card.dart';
 import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
 import 'package:otzaria/indexing/bloc/indexing_event.dart';
 import 'package:otzaria/indexing/bloc/indexing_state.dart';
-import 'package:otzaria/core/ui_snack.dart';
 
 /// טאב הגדרות ספרייה
 class LibrarySettingsTab extends StatefulWidget {

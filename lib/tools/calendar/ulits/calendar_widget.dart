@@ -13,7 +13,7 @@ import 'package:otzaria/widgets/dialogs.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
 import 'package:otzaria/printing/printing_screen.dart';
 import 'package:otzaria/settings/settings_exports.dart';
-import 'package:otzaria/widgets/custom_ui_components.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 import 'calendar_print_helper.dart' as print_helper;
 
 // הפכנו את הווידג'ט ל-Stateful כדי לתמוך בניווט עם מקשי חיצים
@@ -364,7 +364,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
                 _keyboardFocusNode.requestFocus();
               },
               child: Scaffold(
-                // אין צורך ב-AppBar כאן אם הוא מגיע ממסך האב
+                backgroundColor: AppSurfaces.panelBackground(context),
                 body: LayoutBuilder(
                   builder: (context, constraints) {
                     final isWideScreen = constraints.maxWidth > 800;
@@ -647,7 +647,16 @@ class CalendarWidgetState extends State<CalendarWidget> {
   }
 
   Widget _buildCalendar(BuildContext context, CalendarState state) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final cardColor =
+        isDark ? theme.colorScheme.surfaceContainer : theme.colorScheme.surface;
     return Card(
+      elevation: 0,
+      color: cardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(AppTokens.radiusXL)),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -916,15 +925,16 @@ class CalendarWidgetState extends State<CalendarWidget> {
   }
 
   Widget _buildDayView(BuildContext context, CalendarState state) {
+    final csDay = Theme.of(context).colorScheme;
     return Container(
       height: 200,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Theme.of(context).primaryColor.withAlpha(51),
-        borderRadius: BorderRadius.circular(12),
+        color: csDay.primaryContainer.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(AppTokens.radiusMD),
         border: Border.all(
-          color: Theme.of(context).primaryColor,
-          width: 2,
+          color: csDay.primary.withValues(alpha: 0.6),
+          width: 1.5,
         ),
       ),
       child: Stack(
@@ -1394,12 +1404,16 @@ class CalendarWidgetState extends State<CalendarWidget> {
     final gregorianDateStr =
         '${state.selectedGregorianDate.day} ${_getGregorianMonthName(state.selectedGregorianDate.month)} ${state.selectedGregorianDate.year}';
 
+    final cs = Theme.of(context).colorScheme;
+    final isDarkHeader = Theme.of(context).brightness == Brightness.dark;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
-        color: Theme.of(context).primaryColor.withAlpha(25),
-        borderRadius: BorderRadius.circular(8),
+        color: isDarkHeader
+            ? cs.surfaceContainer
+            : cs.surfaceContainerHighest.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(AppTokens.radiusMD),
       ),
       child: Stack(
         alignment: Alignment.center,
@@ -2559,8 +2573,12 @@ class CalendarWidgetState extends State<CalendarWidget> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Theme.of(context).primaryColor.withAlpha(51),
-                          borderRadius: BorderRadius.circular(8),
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primaryContainer
+                              .withValues(alpha: 0.5),
+                          borderRadius:
+                              BorderRadius.circular(AppTokens.radiusMD),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2853,10 +2871,14 @@ class CalendarWidgetState extends State<CalendarWidget> {
           margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Theme.of(context).primaryColor.withAlpha(25),
-            borderRadius: BorderRadius.circular(8),
+            color: Theme.of(context)
+                .colorScheme
+                .primaryContainer
+                .withValues(alpha: 0.35),
+            borderRadius: BorderRadius.circular(AppTokens.radiusMD),
             border: Border.all(
-              color: Theme.of(context).primaryColor.withAlpha(76),
+              color:
+                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
             ),
           ),
           child: Row(
@@ -3099,7 +3121,16 @@ class _TimesAndEventsTabViewState extends State<_TimesAndEventsTabView>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final cardColor =
+        isDark ? theme.colorScheme.surfaceContainer : theme.colorScheme.surface;
     return Card(
+      elevation: 0,
+      color: cardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(AppTokens.radiusXL)),
+      ),
       child: Column(
         children: [
           // שורת הטאבים - גובה מופחת
@@ -3108,7 +3139,7 @@ class _TimesAndEventsTabViewState extends State<_TimesAndEventsTabView>
             decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(
-                  color: Theme.of(context).dividerColor,
+                  color: theme.dividerColor,
                   width: 1,
                 ),
               ),
@@ -3144,13 +3175,18 @@ class _TimesAndEventsTabViewState extends State<_TimesAndEventsTabView>
                         child: Text('אירועים', style: TextStyle(fontSize: 12)),
                       ),
                     ],
-                    labelColor: Theme.of(context).colorScheme.primary,
-                    unselectedLabelColor: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withValues(alpha: 0.6),
-                    indicatorColor: Theme.of(context).colorScheme.primary,
+                    unselectedLabelColor:
+                        Theme.of(context).colorScheme.onSurfaceVariant,
                     dividerColor: Colors.transparent,
+                    dividerHeight: 0,
+                    overlayColor: WidgetStateProperty.all(
+                      Theme.of(context)
+                          .colorScheme
+                          .primary
+                          .withValues(alpha: 0.08),
+                    ),
+                    splashBorderRadius:
+                        BorderRadius.circular(AppTokens.radiusMD),
                   ),
                 ),
                 // כפתור הגדרות בצד ימין
@@ -3195,11 +3231,14 @@ class _TimesAndEventsTabViewState extends State<_TimesAndEventsTabView>
                             width: double.infinity,
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color:
-                                  Theme.of(context).primaryColor.withAlpha(76),
-                              borderRadius: BorderRadius.circular(8),
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .primary
+                                  .withValues(alpha: 0.2),
+                              borderRadius:
+                                  BorderRadius.circular(AppTokens.radiusMD),
                               border: Border.all(
-                                  color: Theme.of(context).primaryColor,
+                                  color: Theme.of(context).colorScheme.primary,
                                   width: 1),
                             ),
                             child: Column(
@@ -3209,7 +3248,8 @@ class _TimesAndEventsTabViewState extends State<_TimesAndEventsTabView>
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
-                                    color: Theme.of(context).primaryColor,
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
                                   ),
                                 ),
                                 const SizedBox(height: 8),
@@ -3230,7 +3270,8 @@ class _TimesAndEventsTabViewState extends State<_TimesAndEventsTabView>
                                             style: TextStyle(
                                               fontSize: 12,
                                               color: Theme.of(context)
-                                                  .primaryColor,
+                                                  .colorScheme
+                                                  .primary,
                                               decoration:
                                                   TextDecoration.underline,
                                             ),

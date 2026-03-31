@@ -24,14 +24,16 @@ import 'package:otzaria/widgets/keyboard_navigator.dart';
 import 'package:otzaria/widgets/rtl_icon.dart';
 import 'package:otzaria/core/focus_repository.dart';
 
+final GlobalKey<MoreScreenState> moreScreenKey = GlobalKey<MoreScreenState>();
+
 class MoreScreen extends StatefulWidget {
   const MoreScreen({super.key});
 
   @override
-  State<MoreScreen> createState() => _MoreScreenState();
+  State<MoreScreen> createState() => MoreScreenState();
 }
 
-class _MoreScreenState extends State<MoreScreen>
+class MoreScreenState extends State<MoreScreen>
     with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   late final TabController _tabController;
   final GlobalKey<GematriaSearchScreenState> _gematriaKey =
@@ -158,13 +160,24 @@ class _MoreScreenState extends State<MoreScreen>
   // ── Tab widget builder ─────────────────────────────────────────────────────
   Widget _buildTabWidget(_TabInfo tab) {
     final isSelected = _tabs.indexOf(tab) == _selectedIndex;
-    final icon = tab.imageIcon != null
+    // אנימציית Active Indicator: scale + fade בין regular ל-filled (M3)
+    final iconWidget = tab.imageIcon != null
         ? ImageIcon(AssetImage(tab.imageIcon!), size: 20)
-        : Icon(
-            isSelected && tab.iconFilled != null ? tab.iconFilled : tab.icon,
-            size: 20,
+        : AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            switchInCurve: Curves.easeInOutCubicEmphasized,
+            switchOutCurve: Curves.easeInOutCubicEmphasized,
+            transitionBuilder: (child, animation) => FadeTransition(
+              opacity: animation,
+              child: ScaleTransition(scale: animation, child: child),
+            ),
+            child: Icon(
+              isSelected && tab.iconFilled != null ? tab.iconFilled : tab.icon,
+              size: 20,
+              key: ValueKey<bool>(isSelected),
+            ),
           );
-    return Tab(text: tab.label, icon: icon);
+    return Tab(text: tab.label, icon: iconWidget);
   }
 
   // ── Mobile menu ────────────────────────────────────────────────────────────
@@ -264,6 +277,8 @@ class _MoreScreenState extends State<MoreScreen>
                   tabAlignment: TabAlignment.center,
                   dividerColor: Colors.transparent,
                   dividerHeight: 0,
+                  labelColor: cs.onSecondaryContainer,
+                  unselectedLabelColor: cs.onSurfaceVariant,
                   indicator: BoxDecoration(
                     borderRadius: BorderRadius.circular(AppTokens.radiusMD),
                     color: cs.secondaryContainer,

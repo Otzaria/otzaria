@@ -28,15 +28,20 @@ import 'package:otzaria/widgets/mixins/dialog_navigation_mixin.dart';
 /// דיאלוג עם פעולה אחת (כפתור אישור בלבד)
 class SingleActionDialog extends StatefulWidget {
   final dynamic title;
-  final String content;
+  final String? content;
+  final Widget? customContent;
   final String confirmText;
 
   const SingleActionDialog({
     super.key,
     required this.title,
-    required this.content,
+    this.content,
+    this.customContent,
     this.confirmText = 'אישור',
-  });
+  }) : assert(
+          content != null || customContent != null,
+          'content או customContent חייבים להיות מוגדרים',
+        );
 
   @override
   State<SingleActionDialog> createState() => _SingleActionDialogState();
@@ -52,7 +57,7 @@ class _SingleActionDialogState extends State<SingleActionDialog>
       onCancel: () => Navigator.of(context).pop(false),
       child: AlertDialog(
         title: widget.title is String ? Text(widget.title) : widget.title,
-        content: Text(widget.content),
+        content: widget.customContent ?? Text(widget.content!),
         actions: [
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
@@ -186,13 +191,19 @@ class _WarningDialogState extends State<WarningDialog>
 Future<bool?> showSingleActionDialog({
   required BuildContext context,
   required String title,
-  required String content,
+  String? content,
+  Widget? customContent,
   String confirmText = 'אישור',
+  bool barrierDismissible = true,
 }) =>
     showDialog<bool>(
       context: context,
+      barrierDismissible: barrierDismissible,
       builder: (_) => SingleActionDialog(
-          title: title, content: content, confirmText: confirmText),
+          title: title,
+          content: content,
+          customContent: customContent,
+          confirmText: confirmText),
     );
 
 Future<bool?> showTwoActionsDialog({
@@ -201,9 +212,11 @@ Future<bool?> showTwoActionsDialog({
   required String content,
   String cancelText = 'ביטול',
   String confirmText = 'אישור',
+  bool barrierDismissible = true,
 }) =>
     showDialog<bool>(
       context: context,
+      barrierDismissible: barrierDismissible,
       builder: (_) => TwoActionsDialog(
           title: title,
           content: content,
@@ -218,9 +231,11 @@ Future<bool?> showWarningDialog({
   String? subtitle,
   String cancelText = 'ביטול',
   String confirmText = 'המשך',
+  bool barrierDismissible = true,
 }) =>
     showDialog<bool>(
       context: context,
+      barrierDismissible: barrierDismissible,
       builder: (_) => WarningDialog(
           title: title,
           content: content,
@@ -228,3 +243,47 @@ Future<bool?> showWarningDialog({
           cancelText: cancelText,
           confirmText: confirmText),
     );
+
+Future<bool?> showRestartRequiredDialog({
+  required BuildContext context,
+  bool barrierDismissible = true,
+}) {
+  return showTwoActionsDialog(
+    context: context,
+    title: 'נדרשת הפעלה מחדש',
+    content:
+        'כדי להשלים את השינוי יש לסגור ולהפעיל מחדש את התוכנה. האם לסגור עכשיו?',
+    cancelText: 'אחר כך',
+    confirmText: 'סגור עכשיו',
+    barrierDismissible: barrierDismissible,
+  );
+}
+
+Future<bool?> showDbCopyRequiredDialog({
+  required BuildContext context,
+  required String sizeText,
+  bool barrierDismissible = true,
+}) {
+  return showDialog<bool>(
+    context: context,
+    barrierDismissible: barrierDismissible,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('נדרשת בחירה כיצד לשמור את מסד הנתונים'),
+      content: Text(
+        'גודל מסד הנתונים הוא $sizeText.\n\n'
+        'ניתן להעביר את הקובץ למיקום החדש, או להעתיק אותו ולהשאיר את המקור.',
+        textDirection: TextDirection.rtl,
+      ),
+      actions: [
+        FilledButton.tonal(
+          onPressed: () => Navigator.of(dialogContext).pop(false),
+          child: const Text('העתק'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(dialogContext).pop(true),
+          child: const Text('העבר'),
+        ),
+      ],
+    ),
+  );
+}

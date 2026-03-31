@@ -489,7 +489,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
             }
 
             _cachedReadingPage ??= const ReadingScreen();
-            _cachedMorePage ??= const MoreScreen();
+            _cachedMorePage ??= MoreScreen(key: moreScreenKey);
             _cachedSettingsPage ??=
                 MySettingsScreen(controller: _settingsScreenController);
 

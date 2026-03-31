@@ -2295,9 +2295,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       commentatorsToShow: state.activeCommentators,
     );
 
-<<<<<<< HEAD
-      UiSnack.showQuick(
-          bookmarkAdded ? 'הסימניה נוספה בהצלחה' : 'הסימניה כבר קיימת');
+    UiSnack.showQuick(
+        bookmarkAdded ? 'הסימניה נוספה בהצלחה' : 'הסימניה כבר קיימת');
   }
 
   Widget _buildBody(
@@ -2530,14 +2529,27 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                                     style: TextStyle(fontSize: 11)),
                               ),
                             ],
-                            labelColor: Theme.of(context).colorScheme.primary,
-                            unselectedLabelColor: Theme.of(context)
+                            labelColor: Theme.of(context)
                                 .colorScheme
-                                .onSurface
-                                .withValues(alpha: 0.6),
-                            indicatorColor:
-                                Theme.of(context).colorScheme.primary,
+                                .onSecondaryContainer,
+                            unselectedLabelColor:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                            indicator: BoxDecoration(
+                              borderRadius:
+                                  BorderRadius.circular(AppTokens.radiusMD),
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .secondaryContainer,
+                            ),
+                            indicatorSize: TabBarIndicatorSize.tab,
                             dividerColor: Colors.transparent,
+                            dividerHeight: 0,
+                            overlayColor: WidgetStateProperty.all(
+                              Theme.of(context)
+                                  .colorScheme
+                                  .primary
+                                  .withValues(alpha: 0.08),
+                            ),
                             splashBorderRadius:
                                 BorderRadius.circular(AppTokens.radiusMD),
                           ),
@@ -2921,9 +2933,8 @@ void _addBookmarkFromKeyboard(
     commentatorsToShow: state.activeCommentators,
   );
 
-<<<<<<< HEAD
-    UiSnack.showQuick(
-        bookmarkAdded ? 'הסימניה נוספה בהצלחה' : 'הסימניה כבר קיימת');
+  UiSnack.showQuick(
+      bookmarkAdded ? 'הסימניה נוספה בהצלחה' : 'הסימניה כבר קיימת');
 }
 
 /// Helper function to add note from keyboard shortcut
