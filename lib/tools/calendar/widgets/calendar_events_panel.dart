@@ -1,12 +1,12 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:otzaria/widgets/otzaria_search_field.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 import 'package:otzaria/widgets/buttons/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
+import 'package:otzaria/widgets/otzaria_search_field.dart';
 
 /// פאנל האירועים של לוח השנה.
 class CalendarEventsPanel extends StatefulWidget {
@@ -81,48 +81,6 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            alignment: WrapAlignment.spaceBetween,
-            children: [
-              RecommendedActionButton(
-                text: 'צור אירוע',
-                icon: FluentIcons.add_24_regular,
-                onPressed: () => widget.onCreateEvent(),
-              ),
-              if (widget.state.googleCalendarEnabled)
-                ToolbarActionButton(
-                  tooltip: widget.state.googleCalendarConnected
-                      ? 'סנכרן Google'
-                      : 'חבר ל-Google',
-                  icon: widget.state.googleCalendarSyncInProgress
-                      ? FluentIcons.arrow_sync_24_regular
-                      : FluentIcons.arrow_sync_24_regular,
-                  selected: widget.state.googleCalendarSyncInProgress,
-                  onPressed: widget.state.googleCalendarSyncInProgress
-                      ? () {}
-                      : () {
-                          final cubit = context.read<CalendarCubit>();
-                          if (widget.state.googleCalendarConnected) {
-                            cubit.syncGoogleCalendar(interactive: true);
-                          } else {
-                            cubit.connectGoogleCalendar();
-                          }
-                        },
-                ),
-              NeutralActionButton(
-                text: widget.state.showAllEvents ? 'הצג יום נוכחי' : 'הצג הכל',
-                icon: widget.state.showAllEvents
-                    ? FluentIcons.calendar_month_24_regular
-                    : FluentIcons.calendar_day_24_regular,
-                onPressed: () => context
-                    .read<CalendarCubit>()
-                    .toggleShowAllEvents(!widget.state.showAllEvents),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
@@ -147,6 +105,46 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                     .read<CalendarCubit>()
                     .toggleSearchInDescriptions(
                         !widget.state.searchInDescriptions),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.spaceBetween,
+            children: [
+              RecommendedActionButton(
+                text: 'צור אירוע',
+                icon: FluentIcons.add_24_regular,
+                onPressed: () => widget.onCreateEvent(),
+              ),
+              if (widget.state.googleCalendarEnabled)
+                ToolbarActionButton(
+                  tooltip: widget.state.googleCalendarConnected
+                      ? 'סנכרן Google'
+                      : 'חבר ל-Google',
+                  icon: FluentIcons.arrow_sync_24_regular,
+                  selected: widget.state.googleCalendarSyncInProgress,
+                  onPressed: widget.state.googleCalendarSyncInProgress
+                      ? () {}
+                      : () {
+                          final cubit = context.read<CalendarCubit>();
+                          if (widget.state.googleCalendarConnected) {
+                            cubit.syncGoogleCalendar(interactive: true);
+                          } else {
+                            cubit.connectGoogleCalendar();
+                          }
+                        },
+                ),
+              NeutralActionButton(
+                text: widget.state.showAllEvents ? 'הצג יום נוכחי' : 'הצג הכל',
+                icon: widget.state.showAllEvents
+                    ? FluentIcons.calendar_month_24_regular
+                    : FluentIcons.calendar_day_24_regular,
+                onPressed: () => context
+                    .read<CalendarCubit>()
+                    .toggleShowAllEvents(!widget.state.showAllEvents),
               ),
             ],
           ),
@@ -177,6 +175,7 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                 final stackActionsBelow = width < 430;
                 final iconOnlyDelete = width < 500;
                 final splitDate = width < 360;
+
                 final deleteAction = _DeleteEventAction(
                   iconOnly: iconOnlyDelete,
                   onPressed: () async {
@@ -224,59 +223,46 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                         ],
                       );
 
-                final content = Column(
+                final titleRow = Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Tooltip(
-                            message: event.title,
-                            child: Text(
-                              event.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textDirection: TextDirection.rtl,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.w700),
-                            ),
-                          ),
-                        ),
-                        if (event.googleEventId != null &&
-                            event.googleEventId!.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 4),
-                            child: Icon(
-                              FluentIcons.arrow_sync_24_regular,
-                              size: 14,
-                              color: scheme.primary,
-                            ),
-                          ),
-                      ],
-                    ),
-                    if (event.description.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Tooltip(
-                        message: event.description,
-                        child: Text(
-                          truncateDescription(event.description),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textDirection: TextDirection.rtl,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: scheme.onSurfaceVariant,
+                    Expanded(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Tooltip(
+                              message: event.title,
+                              child: Text(
+                                event.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textDirection: TextDirection.rtl,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w700),
                               ),
-                        ),
+                            ),
+                          ),
+                          if (event.googleEventId != null &&
+                              event.googleEventId!.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 4),
+                              child: Icon(
+                                FluentIcons.arrow_sync_24_regular,
+                                size: 14,
+                                color: scheme.primary,
+                              ),
+                            ),
+                        ],
                       ),
-                    ],
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _EventMetaChip(
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Align(
+                        alignment: AlignmentDirectional.topEnd,
+                        child: _EventMetaChip(
                           icon: event.eventTime != null
                               ? FluentIcons.clock_24_filled
                               : FluentIcons.calendar_day_24_filled,
@@ -290,6 +276,36 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                               ? scheme.onPrimaryContainer
                               : scheme.onSecondaryContainer,
                         ),
+                      ),
+                    ),
+                  ],
+                );
+
+                final content = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    titleRow,
+                    if (event.description.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Tooltip(
+                        message: event.description,
+                        child: Text(
+                          truncateDescription(event.description),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textDirection: TextDirection.rtl,
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: scheme.onSurfaceVariant,
+                                  ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
                         _EventMetaChip(
                           icon: FluentIcons.calendar_24_regular,
                           text: splitDate
@@ -297,8 +313,8 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                                   .replaceFirst(' • ', '\n')
                               : formatEventDate(event.baseGregorianDate),
                           tooltip: formatEventDate(event.baseGregorianDate),
-                          backgroundColor: AppSurfaces.card(context),
-                          foregroundColor: scheme.onSurfaceVariant,
+                          backgroundColor: scheme.primary,
+                          foregroundColor: scheme.onPrimary,
                           maxLines: splitDate ? 2 : 1,
                         ),
                         if (event.recurring)

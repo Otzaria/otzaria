@@ -16,12 +16,18 @@ class CalendarTimeEntry {
   final String name;
   final String time;
   final bool isHolidaySpecial;
+  final bool isComposite;
+  final String? trailingLabel;
+  final String? leadingLabel;
 
   const CalendarTimeEntry({
     required this.id,
     required this.name,
     required this.time,
     required this.isHolidaySpecial,
+    this.isComposite = false,
+    this.trailingLabel,
+    this.leadingLabel,
   });
 }
 
@@ -130,31 +136,81 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
     'candleLighting',
     'shabbosExit1',
     'shabbosExit2',
-    'omerCounting',
   };
 
   List<CalendarTimeEntry> _buildCalendarTimeEntries(CalendarState state) {
     final dailyTimes = state.dailyTimes;
+    final entries = <CalendarTimeEntry>[];
+    final alosCard = _buildCompositeAlosEntry(dailyTimes);
+    if (alosCard != null) {
+      entries.add(alosCard);
+    }
+
     final definitions = <_CalendarTimeDefinition>[
       ..._kBaseTimeDefinitions,
       ..._kConditionalTimeDefinitions,
-    ];
+    ].where((definition) =>
+        definition.id != 'alos' &&
+        definition.id != 'alos16point1Degrees' &&
+        definition.id != 'alos19point8Degrees' &&
+        definition.id != 'omerCounting');
 
-    return definitions
-        .map(
-          (definition) => CalendarTimeEntry(
-            id: definition.id,
-            name: definition.name,
-            time: dailyTimes[definition.id] ?? '',
-            isHolidaySpecial: _isHolidaySpecialTimeId(definition.id),
-          ),
-        )
-        .where((entry) => entry.time.isNotEmpty)
-        .toList();
+    entries.addAll(
+      definitions
+          .map(
+            (definition) => CalendarTimeEntry(
+              id: definition.id,
+              name: definition.name,
+              time: dailyTimes[definition.id] ?? '',
+              isHolidaySpecial: _isHolidaySpecialTimeId(definition.id),
+            ),
+          )
+          .where((entry) => entry.time.isNotEmpty),
+    );
+
+    entries.sort((a, b) => a.time.compareTo(b.time));
+    return entries;
   }
 
   bool _isHolidaySpecialTimeId(String timeId) {
     return _holidaySpecialIds.contains(timeId);
+  }
+
+  CalendarTimeEntry? _buildCompositeAlosEntry(Map<String, String> dailyTimes) {
+    final alos90 = dailyTimes['alos19point8Degrees'];
+    final alos72 = dailyTimes['alos16point1Degrees'];
+    final regularAlos = dailyTimes['alos'];
+
+    if ((alos90 == null || alos90.isEmpty) &&
+        (alos72 == null || alos72.isEmpty) &&
+        (regularAlos == null || regularAlos.isEmpty)) {
+      return null;
+    }
+
+    final sortTime = alos72?.isNotEmpty == true
+        ? alos72!
+        : (alos90?.isNotEmpty == true ? alos90! : regularAlos ?? '');
+
+    return CalendarTimeEntry(
+      id: 'alosComposite',
+      name: 'עלות השחר (מעלות)',
+      time: sortTime,
+      isHolidaySpecial: false,
+      isComposite: true,
+      trailingLabel: alos90?.isNotEmpty == true
+          ? '90 דק׳ $alos90'
+          : (regularAlos?.isNotEmpty == true ? 'רגיל $regularAlos' : null),
+      leadingLabel: alos72?.isNotEmpty == true ? '72 דק׳ $alos72' : null,
+    );
+  }
+
+  String? _buildOmerInfo(DateTime date) {
+    final jewishCalendar = JewishCalendar.fromDateTime(date);
+    final omerDay = jewishCalendar.getDayOfOmer();
+    if (omerDay == -1) {
+      return null;
+    }
+    return 'היום $omerDay לעומר';
   }
 
   @override
@@ -167,6 +223,7 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final omerInfo = _buildOmerInfo(widget.state.selectedGregorianDate);
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
@@ -184,6 +241,14 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
               ],
             ),
           ),
+          if (omerInfo != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: _buildOmerButton(context, omerInfo),
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Container(
@@ -256,7 +321,7 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
     final filteredTimesList = _buildCalendarTimeEntries(widget.state);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isSingleColumn = constraints.maxWidth < 360;
+        final isSingleColumn = constraints.maxWidth < 290;
         final columnCount = isSingleColumn ? 1 : 2;
         final spacing = 8.0;
         final itemWidth =
@@ -359,6 +424,41 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
               ),
     );
   }
+
+  Widget _buildOmerButton(BuildContext context, String text) {
+    final existingAlert = widget.state.zmanAlerts['omerCounting'];
+    return RecommendedActionButton(
+      text: text,
+      icon: existingAlert != null
+          ? FluentIcons.alert_24_filled
+          : FluentIcons.number_row_24_regular,
+      onPressed: () async {
+        final timeLabel = widget.state.dailyTimes['omerCounting'] ?? '--:--';
+        if (timeLabel == '--:--') {
+          UiSnack.showError('לא ניתן להפעיל התראה לספירת העומר ביום זה');
+          return;
+        }
+        final result = await showZmanAlertDialog(
+          context,
+          zmanName: 'ספירת העומר',
+          timeLabel: timeLabel,
+          initialMinutesBefore: existingAlert?.minutesBefore ?? 60,
+          isEnabled: existingAlert != null,
+        );
+        if (result == null) return;
+        final cubit = context.read<CalendarCubit>();
+        if (result.cancelAlert) {
+          await cubit.cancelZmanAlertPreference(timeId: 'omerCounting');
+          return;
+        }
+        await cubit.setZmanAlertPreference(
+          timeId: 'omerCounting',
+          displayName: 'ספירת העומר',
+          minutesBefore: result.minutesBefore,
+        );
+      },
+    );
+  }
 }
 
 class _CityDropdown extends StatelessWidget {
@@ -412,12 +512,12 @@ class _ZmanCard extends StatelessWidget {
     final bgColor = hasAlert
         ? scheme.errorContainer.withValues(alpha: 0.55)
         : timeData.isHolidaySpecial
-            ? scheme.tertiaryContainer.withValues(alpha: 0.55)
+            ? scheme.secondaryContainer.withValues(alpha: 0.55)
             : AppSurfaces.card(context);
     final borderColor = hasAlert
         ? scheme.error.withValues(alpha: 0.35)
         : timeData.isHolidaySpecial
-            ? scheme.tertiary.withValues(alpha: 0.35)
+            ? scheme.secondary.withValues(alpha: 0.35)
             : scheme.outlineVariant;
 
     return Card(
@@ -428,60 +528,123 @@ class _ZmanCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppTokens.radiusMD),
         side: BorderSide(color: borderColor),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    timeData.name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: hasAlert
-                              ? scheme.onErrorContainer
-                              : timeData.isHolidaySpecial
-                                  ? scheme.onTertiaryContainer
-                                  : scheme.onSurface,
-                        ),
+      child: SizedBox(
+        height: 112,
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final nameStyle = Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              fontSize: timeData.name.length > 18 ? 13 : 15,
+                              color: hasAlert
+                                  ? scheme.onErrorContainer
+                                  : timeData.isHolidaySpecial
+                                      ? scheme.onSecondaryContainer
+                                      : scheme.onSurface,
+                            );
+                        return FittedBox(
+                          alignment: AlignmentDirectional.centerStart,
+                          fit: BoxFit.scaleDown,
+                          child: SizedBox(
+                            width: constraints.maxWidth,
+                            child: Text(
+                              timeData.name,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              textDirection: TextDirection.rtl,
+                              style: nameStyle,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                   ),
+                  const SizedBox(width: 6),
+                  ToolbarActionButton(
+                    tooltip:
+                        hasAlert ? 'מופעלת התראה לזמן זה' : 'הפעל התראה לזמן זה',
+                    icon: FluentIcons.more_vertical_24_regular,
+                    onPressed: onAlertPressed,
+                    selected: hasAlert,
+                  ),
+                ],
+              ),
+              const Spacer(),
+              if (timeData.isComposite)
+                Row(
+                  children: [
+                    if (timeData.trailingLabel != null)
+                      Expanded(
+                        child: Text(
+                          timeData.trailingLabel!,
+                          textAlign: TextAlign.right,
+                          textDirection: TextDirection.rtl,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: scheme.onSurfaceVariant,
+                                fontSize: 12,
+                              ),
+                        ),
+                      ),
+                    if (timeData.trailingLabel != null &&
+                        timeData.leadingLabel != null)
+                      const SizedBox(width: 12),
+                    if (timeData.leadingLabel != null)
+                      Expanded(
+                        child: Text(
+                          timeData.leadingLabel!,
+                          textAlign: TextAlign.left,
+                          textDirection: TextDirection.rtl,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: scheme.onSurfaceVariant,
+                                fontSize: 12,
+                              ),
+                        ),
+                      ),
+                  ],
+                )
+              else
+                Text(
+                  timeData.time,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: hasAlert
+                            ? scheme.onErrorContainer
+                            : timeData.isHolidaySpecial
+                                ? scheme.onSecondaryContainer
+                                : scheme.onSurfaceVariant,
+                      ),
                 ),
-                ToolbarActionButton(
-                  tooltip:
-                      hasAlert ? 'מופעלת התראה לזמן זה' : 'הפעל התראה לזמן זה',
-                  icon: FluentIcons.more_vertical_24_regular,
-                  onPressed: onAlertPressed,
-                  selected: hasAlert,
+              if (hasAlert) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'התראה ${existingAlert!.minutesBefore} דק׳ לפני',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: scheme.onErrorContainer,
+                        fontSize: 11,
+                      ),
                 ),
               ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              timeData.time,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: hasAlert
-                        ? scheme.onErrorContainer
-                        : timeData.isHolidaySpecial
-                            ? scheme.onTertiaryContainer
-                            : scheme.onSurfaceVariant,
-                  ),
-            ),
-            if (hasAlert) ...[
-              const SizedBox(height: 6),
-              Text(
-                'התראה ${existingAlert!.minutesBefore} דק׳ לפני',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: scheme.onErrorContainer,
-                    ),
-              ),
             ],
-          ],
+          ),
         ),
       ),
     );
