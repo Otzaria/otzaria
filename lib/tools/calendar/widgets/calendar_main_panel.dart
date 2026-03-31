@@ -12,7 +12,6 @@ import 'package:kosher_dart/kosher_dart.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_day_cell.dart';
-import 'package:otzaria/widgets/floating_panel.dart';
 
 class CalendarMainPanel extends StatelessWidget {
   final CalendarState state;
@@ -31,28 +30,54 @@ class CalendarMainPanel extends StatelessWidget {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return FloatingPanel(
-      color: Theme.of(context).colorScheme.surface,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-        child: Column(
-          children: [
-            _buildDayNamesRow(context),
-            const SizedBox(height: 4),
-            Expanded(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 280),
-                child: KeyedSubtree(
-                  key: ValueKey(
-                      '${state.calendarView}-${state.currentGregorianDate.month}-${state.currentGregorianDate.year}-${state.selectedGregorianDate.day}'),
-                  child: _buildCalendarGrid(context, state),
-                ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxCalendarWidth = _resolveMaxCalendarWidth(constraints);
+        return Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: maxCalendarWidth,
+              minWidth: 0,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+              child: Column(
+                children: [
+                  _buildDayNamesRow(context),
+                  const SizedBox(height: 4),
+                  Expanded(
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 280),
+                      child: KeyedSubtree(
+                        key: ValueKey(
+                            '${state.calendarView}-${state.currentGregorianDate.month}-${state.currentGregorianDate.year}-${state.selectedGregorianDate.day}'),
+                        child: _buildCalendarGrid(context, state),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
+  }
+
+  double _resolveMaxCalendarWidth(BoxConstraints constraints) {
+    final width = constraints.maxWidth;
+    final height = constraints.maxHeight;
+    if (height <= 0 || width <= 0) {
+      return width;
+    }
+
+    final isTallLayout = height > width * 1.15;
+    if (isTallLayout) {
+      return width;
+    }
+
+    final ratioLimitedWidth = height * 1.52;
+    return ratioLimitedWidth.clamp(0.0, width);
   }
 
   // ── Row של שמות הימים ─────────────────────────────────────────────────────

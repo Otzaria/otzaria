@@ -171,135 +171,207 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
         for (final event in events)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: Card(
-              elevation: 0,
-              color: scheme.surfaceContainerHighest,
-              surfaceTintColor: Colors.transparent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppTokens.radiusMD),
-                side: BorderSide(color: scheme.outlineVariant),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Row(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final width = constraints.maxWidth;
+                final stackActionsBelow = width < 430;
+                final iconOnlyDelete = width < 500;
+                final splitDate = width < 360;
+                final deleteAction = _DeleteEventAction(
+                  iconOnly: iconOnlyDelete,
+                  onPressed: () async {
+                    final confirmed = await showConfirmationDialog(
+                      context: context,
+                      title: 'אישור מחיקה',
+                      content:
+                          'האם אתה בטוח שברצונך למחוק את האירוע "${event.title}"?',
+                      confirmText: 'מחק',
+                      isDangerous: true,
+                    );
+                    if (confirmed == true && context.mounted) {
+                      context.read<CalendarCubit>().deleteEvent(event.id);
+                    }
+                  },
+                );
+
+                final actionButtons = stackActionsBelow
+                    ? Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          ToolbarActionButton(
+                            tooltip: 'ערוך אירוע',
+                            icon: FluentIcons.edit_24_regular,
+                            onPressed: () => widget.onCreateEvent(
+                              existingEvent: event,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          deleteAction,
+                        ],
+                      )
+                    : Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ToolbarActionButton(
+                            tooltip: 'ערוך אירוע',
+                            icon: FluentIcons.edit_24_regular,
+                            onPressed: () => widget.onCreateEvent(
+                              existingEvent: event,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          deleteAction,
+                        ],
+                      );
+
+                final content = Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  event.title,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium
-                                      ?.copyWith(fontWeight: FontWeight.w700),
-                                ),
-                              ),
-                              if (event.googleEventId != null &&
-                                  event.googleEventId!.isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.only(right: 4),
-                                  child: Icon(
-                                    FluentIcons.arrow_sync_24_regular,
-                                    size: 14,
-                                    color: scheme.primary,
-                                  ),
-                                ),
-                            ],
-                          ),
-                          if (event.description.isNotEmpty) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              truncateDescription(event.description),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Tooltip(
+                            message: event.title,
+                            child: Text(
+                              event.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textDirection: TextDirection.rtl,
                               style: Theme.of(context)
                                   .textTheme
-                                  .bodySmall
-                                  ?.copyWith(
-                                    color: scheme.onSurfaceVariant,
-                                  ),
+                                  .titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700),
                             ),
-                          ],
-                          const SizedBox(height: 6),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              _EventMetaChip(
-                                icon: event.eventTime != null
-                                    ? FluentIcons.clock_24_filled
-                                    : FluentIcons.calendar_day_24_filled,
-                                text: event.eventTime != null
-                                    ? '${event.eventTime!.hour.toString().padLeft(2, '0')}:${event.eventTime!.minute.toString().padLeft(2, '0')}'
-                                    : 'כל היום',
-                                backgroundColor: event.eventTime != null
-                                    ? scheme.primaryContainer
-                                    : scheme.secondaryContainer,
-                                foregroundColor: event.eventTime != null
-                                    ? scheme.onPrimaryContainer
-                                    : scheme.onSecondaryContainer,
-                              ),
-                              _EventMetaChip(
-                                icon: FluentIcons.calendar_24_regular,
-                                text: formatEventDate(event.baseGregorianDate),
-                                backgroundColor: scheme.surface,
-                                foregroundColor: scheme.onSurfaceVariant,
-                              ),
-                              if (event.recurring)
-                                _EventMetaChip(
-                                  icon: FluentIcons.arrow_repeat_all_24_regular,
-                                  text:
-                                      getRecurrenceLabel(event.recurrenceType),
-                                  backgroundColor: scheme.tertiaryContainer,
-                                  foregroundColor: scheme.onTertiaryContainer,
-                                ),
-                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                        if (event.googleEventId != null &&
+                            event.googleEventId!.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 4),
+                            child: Icon(
+                              FluentIcons.arrow_sync_24_regular,
+                              size: 14,
+                              color: scheme.primary,
+                            ),
+                          ),
+                      ],
                     ),
-                    const SizedBox(width: 8),
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
+                    if (event.description.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Tooltip(
+                        message: event.description,
+                        child: Text(
+                          truncateDescription(event.description),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textDirection: TextDirection.rtl,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: scheme.onSurfaceVariant,
+                              ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
                       children: [
-                        ToolbarActionButton(
-                          tooltip: 'ערוך אירוע',
-                          icon: FluentIcons.edit_24_regular,
-                          onPressed: () => widget.onCreateEvent(
-                            existingEvent: event,
+                        _EventMetaChip(
+                          icon: event.eventTime != null
+                              ? FluentIcons.clock_24_filled
+                              : FluentIcons.calendar_day_24_filled,
+                          text: event.eventTime != null
+                              ? '${event.eventTime!.hour.toString().padLeft(2, '0')}:${event.eventTime!.minute.toString().padLeft(2, '0')}'
+                              : 'כל היום',
+                          backgroundColor: event.eventTime != null
+                              ? scheme.primaryContainer
+                              : scheme.secondaryContainer,
+                          foregroundColor: event.eventTime != null
+                              ? scheme.onPrimaryContainer
+                              : scheme.onSecondaryContainer,
+                        ),
+                        _EventMetaChip(
+                          icon: FluentIcons.calendar_24_regular,
+                          text: splitDate
+                              ? formatEventDate(event.baseGregorianDate)
+                                  .replaceFirst(' • ', '\n')
+                              : formatEventDate(event.baseGregorianDate),
+                          tooltip: formatEventDate(event.baseGregorianDate),
+                          backgroundColor: AppSurfaces.card(context),
+                          foregroundColor: scheme.onSurfaceVariant,
+                          maxLines: splitDate ? 2 : 1,
+                        ),
+                        if (event.recurring)
+                          _EventMetaChip(
+                            icon: FluentIcons.arrow_repeat_all_24_regular,
+                            text: getRecurrenceLabel(event.recurrenceType),
+                            backgroundColor: scheme.tertiaryContainer,
+                            foregroundColor: scheme.onTertiaryContainer,
                           ),
-                        ),
-                        const SizedBox(height: 6),
-                        NeutralActionButton(
-                          text: 'מחק',
-                          icon: FluentIcons.delete_24_regular,
-                          onPressed: () async {
-                            final confirmed = await showConfirmationDialog(
-                              context: context,
-                              title: 'אישור מחיקה',
-                              content:
-                                  'האם אתה בטוח שברצונך למחוק את האירוע "${event.title}"?',
-                              confirmText: 'מחק',
-                              isDangerous: true,
-                            );
-                            if (confirmed == true && context.mounted) {
-                              context
-                                  .read<CalendarCubit>()
-                                  .deleteEvent(event.id);
-                            }
-                          },
-                        ),
                       ],
                     ),
                   ],
-                ),
-              ),
+                );
+
+                return Card(
+                  elevation: 0,
+                  color: AppSurfaces.card(context),
+                  surfaceTintColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppTokens.radiusMD),
+                    side: BorderSide(color: scheme.outlineVariant),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: stackActionsBelow
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              content,
+                              const SizedBox(height: 10),
+                              actionButtons,
+                            ],
+                          )
+                        : Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: content),
+                              const SizedBox(width: 8),
+                              actionButtons,
+                            ],
+                          ),
+                  ),
+                );
+              },
             ),
           ),
       ],
+    );
+  }
+}
+
+class _DeleteEventAction extends StatelessWidget {
+  final bool iconOnly;
+  final VoidCallback onPressed;
+
+  const _DeleteEventAction({
+    required this.iconOnly,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (iconOnly) {
+      return ToolbarActionButton(
+        tooltip: 'מחק אירוע',
+        icon: FluentIcons.delete_24_regular,
+        onPressed: onPressed,
+      );
+    }
+
+    return NeutralActionButton(
+      text: 'מחק',
+      onPressed: onPressed,
     );
   }
 }
@@ -309,36 +381,48 @@ class _EventMetaChip extends StatelessWidget {
   final String text;
   final Color backgroundColor;
   final Color foregroundColor;
+  final int maxLines;
+  final String? tooltip;
 
   const _EventMetaChip({
     required this.icon,
     required this.text,
     required this.backgroundColor,
     required this.foregroundColor,
+    this.maxLines = 1,
+    this.tooltip,
   });
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 12, color: foregroundColor),
-            const SizedBox(width: 6),
-            Text(
-              text,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: foregroundColor,
-                    fontWeight: FontWeight.w600,
-                  ),
-            ),
-          ],
+    return Tooltip(
+      message: tooltip ?? text,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 12, color: foregroundColor),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  text,
+                  maxLines: maxLines,
+                  overflow: TextOverflow.ellipsis,
+                  textDirection: TextDirection.rtl,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: foregroundColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

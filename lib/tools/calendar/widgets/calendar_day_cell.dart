@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kosher_dart/kosher_dart.dart';
 import 'package:otzaria/theme/theme_exports.dart';
-import 'package:otzaria/tools/calendar/bloc/calendar_state.dart';
+import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 
 /// מחזיר צבע רקע עדין לשבתות, מועדים ותעניות
@@ -49,7 +50,7 @@ Widget buildDayCell(
       gregorianDate.year == today.year;
 
   final cs = Theme.of(context).colorScheme;
-  final baseCellColor = cs.surface;
+  final baseCellColor = AppSurfaces.card(context);
 
   return HoverableDayCell(
     onAdd: onAdd,
@@ -180,6 +181,8 @@ class DayExtras extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cubit = context.read<CalendarCubit>();
+    final events = cubit.eventsForDate(date);
     final List<Widget> lines = [];
     final jc = JewishCalendar.fromDateTime(date)..inIsrael = inIsrael;
 
@@ -192,6 +195,19 @@ class DayExtras extends StatelessWidget {
           fontSize: 11,
           color: Theme.of(context).colorScheme.onSurface,
           fontWeight: FontWeight.w500,
+        ),
+      ));
+    }
+
+    for (final e in events.take(2)) {
+      lines.add(Text(
+        '• ${e.title}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        textDirection: TextDirection.rtl,
+        style: TextStyle(
+          fontSize: 10,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
       ));
     }
