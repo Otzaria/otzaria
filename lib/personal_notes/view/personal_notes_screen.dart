@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/core/focus_repository.dart';
 
 import 'package:otzaria/widgets/otzaria_search_field.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -58,6 +59,8 @@ class _PersonalNotesManagerScreenState
   bool _isNavigationVisible = true;
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
+  final FocusNode _windowFocusNode = FocusNode(skipTraversal: true);
+  final ScrollController _contentScrollController = ScrollController();
   String _searchQuery = '';
   double _navigationWidth = 250.0;
 
@@ -107,10 +110,53 @@ class _PersonalNotesManagerScreenState
     });
   }
 
+  void requestKeyboardFocus() {
+    if (!mounted || !_windowFocusNode.canRequestFocus) return;
+    requestFocusIfNeeded(_windowFocusNode);
+  }
+
+  void _focusSearchField() {
+    if (!mounted || !_searchFocusNode.canRequestFocus) return;
+    requestFocusIfNeeded(_searchFocusNode);
+  }
+
+  KeyEventResult _handleWindowKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    final focusedWidget = FocusManager.instance.primaryFocus?.context?.widget;
+    final isEditing = focusedWidget is EditableText || focusedWidget is TextField;
+    if (isEditing) return KeyEventResult.ignored;
+
+    if (event.logicalKey == LogicalKeyboardKey.space ||
+        event.logicalKey == LogicalKeyboardKey.pageDown) {
+      _scrollContent(forward: true);
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.pageUp) {
+      _scrollContent(forward: false);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  void _scrollContent({required bool forward}) {
+    if (!_contentScrollController.hasClients) return;
+    final position = _contentScrollController.position;
+    final delta = (position.viewportDimension * 0.85) * (forward ? 1 : -1);
+    final target =
+        (position.pixels + delta).clamp(0.0, position.maxScrollExtent);
+    _contentScrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+    );
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
     _searchFocusNode.dispose();
+    _windowFocusNode.dispose();
+    _contentScrollController.dispose();
     super.dispose();
   }
 
@@ -142,19 +188,23 @@ class _PersonalNotesManagerScreenState
     final searchShortcutSetting = context.select(
       (SettingsBloc bloc) =>
           bloc.state.shortcuts['key-shortcut-search-current-window'] ??
-          ShortcutValidator.defaultShortcuts[
-              'key-shortcut-search-current-window'] ??
+          ShortcutValidator
+              .defaultShortcuts['key-shortcut-search-current-window'] ??
           'ctrl+f',
     );
     return CallbackShortcuts(
       bindings: {
         ShortcutHelper.activatorFromShortcut(searchShortcutSetting) ??
             const SingleActivator(LogicalKeyboardKey.keyF, control: true): () {
-          _searchFocusNode.requestFocus();
+          _focusSearchField();
         },
       },
-      child: BlocListener<PersonalNotesBloc, PersonalNotesState>(
-        listener: (context, state) {
+      child: Focus(
+        focusNode: _windowFocusNode,
+        autofocus: true,
+        onKeyEvent: _handleWindowKeyEvent,
+        child: BlocListener<PersonalNotesBloc, PersonalNotesState>(
+          listener: (context, state) {
           // Store the state for each book and trigger rebuild
           if (state.bookId != null) {
             setState(() {
@@ -171,38 +221,43 @@ class _PersonalNotesManagerScreenState
             }
           }
         },
-        child: Column(
-          children: [
+          child: Column(
+            children: [
             // שורת כלים עליונה לכל רוחב העמוד
             _buildTopBar(),
             // תוכן העמוד
             Expanded(
-              child: AdaptiveSidePane(
-                isOpen: _isNavigationVisible,
-                alignment: AlignmentDirectional.centerEnd, // ימין בעברית (RTL) - סרגל ניווט
-                mainContent: _buildAllNotesList(),
-                paneWidth: _navigationWidth,
-                minMainContentWidth: 320,
-                onClose: () => setState(() => _isNavigationVisible = false),
-                onOpen: () => setState(() => _isNavigationVisible = true),
-                paneColor: AppSurfaces.solidPanelBackground(context),
-                isResizable: true,
-                minPaneWidth: 150,
-                maxPaneWidth: 500,
-                onPaneWidthChanged: (nextWidth) {
-                  setState(() {
-                    _navigationWidth = nextWidth;
-                  });
-                },
-                paneContent: _buildNotesTree(),
-                wrapPaneInFloatingPanel: true,
-                narrowPaneBuilder: (context, paneContent) => Material(
-                  color: AppSurfaces.solidPanelBackground(context),
-                  child: SafeArea(child: paneContent),
+              child: PrimaryScrollController(
+                controller: _contentScrollController,
+                child: AdaptiveSidePane(
+                  isOpen: _isNavigationVisible,
+                  alignment: AlignmentDirectional
+                      .centerEnd, // ימין בעברית (RTL) - סרגל ניווט
+                  mainContent: _buildAllNotesList(),
+                  paneWidth: _navigationWidth,
+                  minMainContentWidth: 320,
+                  onClose: () => setState(() => _isNavigationVisible = false),
+                  onOpen: () => setState(() => _isNavigationVisible = true),
+                  paneColor: AppSurfaces.solidPanelBackground(context),
+                  isResizable: true,
+                  minPaneWidth: 150,
+                  maxPaneWidth: 500,
+                  onPaneWidthChanged: (nextWidth) {
+                    setState(() {
+                      _navigationWidth = nextWidth;
+                    });
+                  },
+                  paneContent: _buildNotesTree(),
+                  wrapPaneInFloatingPanel: true,
+                  narrowPaneBuilder: (context, paneContent) => Material(
+                    color: AppSurfaces.solidPanelBackground(context),
+                    child: SafeArea(child: paneContent),
+                  ),
                 ),
               ),
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -232,6 +287,7 @@ class _PersonalNotesManagerScreenState
             controller: _searchController,
             focusNode: _searchFocusNode,
             hintText: 'חפש בהערות...',
+            onSubmitted: (_) => requestKeyboardFocus(),
             onChanged: (value) {
               setState(() {
                 _searchQuery = value;
