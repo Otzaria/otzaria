@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_context_menu/flutter_context_menu.dart';
@@ -100,21 +99,11 @@ class _CustomTitleBarState extends State<CustomTitleBar>
 
   @override
   Widget build(BuildContext context) {
-    final contextSettingsShortcut =
-        Settings.getValue<String>('key-shortcut-open-context-settings') ??
-            'ctrl+shift+comma';
-
     return BlocBuilder<NavigationBloc, NavigationState>(
       builder: (context, navState) {
-        return CallbackShortcuts(
-          bindings: {
-            _parseShortcut(contextSettingsShortcut): () {
-              _handleContextSettings(context, navState);
-            },
-          },
-          child: BlocBuilder<SettingsBloc, SettingsState>(
-            builder: (context, settingsState) {
-              return SizedBox(
+        return BlocBuilder<SettingsBloc, SettingsState>(
+          builder: (context, settingsState) {
+            return SizedBox(
                 height: 40, // גובה הכותרת
                 child: Stack(
                   clipBehavior: Clip.none,
@@ -225,53 +214,9 @@ class _CustomTitleBarState extends State<CustomTitleBar>
                   ],
                 ),
               );
-            },
-          ),
+          },
         );
       },
-    );
-  }
-
-  /// מטפל בקיצור המקשים להגדרות הקשר
-  void _handleContextSettings(BuildContext context, NavigationState navState) {
-    switch (navState.currentScreen) {
-      case Screen.library:
-        showLibrarySettingsDialog(context);
-        break;
-      case Screen.reading:
-      case Screen.search:
-        showReadingSettingsDialog(context);
-        break;
-      default:
-        // אין הגדרות ספציפיות למסכים אחרים
-        break;
-    }
-  }
-
-  /// המרת מחרוזת קיצור מקשים ל-SingleActivator
-  SingleActivator _parseShortcut(String shortcut) {
-    final parts = shortcut.toLowerCase().split('+');
-    final key = parts.last;
-    final hasCtrl = parts.contains('ctrl');
-    final hasShift = parts.contains('shift');
-    final hasAlt = parts.contains('alt');
-
-    LogicalKeyboardKey logicalKey;
-    if (key == 'comma') {
-      logicalKey = LogicalKeyboardKey.comma;
-    } else if (key.length == 1) {
-      logicalKey = LogicalKeyboardKey(
-        LogicalKeyboardKey.keyA.keyId + key.codeUnitAt(0) - 'a'.codeUnitAt(0),
-      );
-    } else {
-      logicalKey = LogicalKeyboardKey.keyA;
-    }
-
-    return SingleActivator(
-      logicalKey,
-      control: hasCtrl,
-      shift: hasShift,
-      alt: hasAlt,
     );
   }
 

@@ -1,13 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
 import 'package:otzaria/settings/tabs/text_settings_tab.dart';
 
 /// פונקציה גלובלית להצגת דיאלוג הגדרות תצוגת הספרים
 /// ניתן לקרוא לה מכל מקום באפליקציה (למשל ממסך העיון)
 void showReadingSettingsDialog(BuildContext context) {
+  final navigator = navigatorKey.currentState;
+  final dialogContext = navigatorKey.currentContext;
+  if (navigator == null || dialogContext == null) {
+    return;
+  }
+
+  if (navigator.canPop()) {
+    navigator.pop();
+    return;
+  }
+
   showDialog(
-    context: context,
+    context: dialogContext,
     builder: (context) => BlocBuilder<SettingsBloc, SettingsState>(
       builder: (context, settingsState) {
         return AlertDialog(

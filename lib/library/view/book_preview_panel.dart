@@ -15,6 +15,7 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria/widgets/password_dialog.dart';
 import 'package:otzaria/pdf_book/pdf_scrollbar.dart';
+import 'package:otzaria/widgets/buttons/action_buttons.dart';
 
 /// פאנל תצוגה מקדימה של ספר בספרייה
 /// מציג את תוכן הספר בלי כרטיסיות, בדומה לחלון העיון
@@ -234,10 +235,10 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
-            ElevatedButton.icon(
+            RecommendedActionButton(
+              text: 'פתח בעיון',
+              icon: FluentIcons.open_24_regular,
               onPressed: () => widget.onOpenInReader?.call(0),
-              icon: const Icon(FluentIcons.open_24_regular),
-              label: const Text('פתח בעיון'),
             ),
           ],
         ),
@@ -321,84 +322,61 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
               borderRadius: BorderRadius.circular(8),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.2),
+                  color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.2),
                   blurRadius: 4,
                   offset: const Offset(0, 2),
                 ),
               ],
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(FluentIcons.zoom_in_24_regular, size: 20),
-                  tooltip: 'הגדל טקסט',
-                  onPressed: () {
-                    setState(() {
-                      _fontSize = (_fontSize + 2).clamp(10.0, 50.0);
-                    });
-                    _currentTextTab!.bloc.add(
-                      UpdateFontSize(_fontSize),
-                    );
-                  },
-                  padding: const EdgeInsets.all(8),
-                  constraints: const BoxConstraints(
-                    minWidth: 36,
-                    minHeight: 36,
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(FluentIcons.zoom_out_24_regular, size: 20),
-                  tooltip: 'הקטן את גודל הטקסט',
-                  onPressed: () {
-                    setState(() {
-                      _fontSize = (_fontSize - 2).clamp(10.0, 50.0);
-                    });
-                    _currentTextTab!.bloc.add(
-                      UpdateFontSize(_fontSize),
-                    );
-                  },
-                  padding: const EdgeInsets.all(8),
-                  constraints: const BoxConstraints(
-                    minWidth: 36,
-                    minHeight: 36,
-                  ),
-                ),
-                Container(
-                  width: 1,
-                  height: 24,
-                  color: Theme.of(context).dividerColor,
-                ),
-                IconButton(
-                  icon: const Icon(FluentIcons.open_24_regular, size: 20),
-                  tooltip: 'פתח בעיון (או לחץ פעמיים על הספר)',
-                  onPressed: () {
-                    widget.onOpenInReader?.call(_currentTextTab?.index ?? 0);
-                  },
-                  padding: const EdgeInsets.all(8),
-                  constraints: const BoxConstraints(
-                    minWidth: 36,
-                    minHeight: 36,
-                  ),
-                ),
-                if (widget.onClose != null)
-                  Container(
-                    width: 1,
-                    height: 24,
-                    color: Theme.of(context).dividerColor,
-                  ),
-                if (widget.onClose != null)
-                  IconButton(
-                    icon: const Icon(FluentIcons.dismiss_24_regular, size: 20),
-                    tooltip: 'הסתר תצוגה מקדימה',
-                    onPressed: widget.onClose,
-                    padding: const EdgeInsets.all(8),
-                    constraints: const BoxConstraints(
-                      minWidth: 36,
-                      minHeight: 36,
+            child: Builder(
+              builder: (context) {
+                final onClose = widget.onClose;
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ToolbarActionButton(
+                      tooltip: 'הגדל טקסט',
+                      icon: FluentIcons.zoom_in_24_regular,
+                      onPressed: () {
+                        setState(() {
+                          _fontSize = (_fontSize + 2).clamp(10.0, 50.0);
+                        });
+                        _currentTextTab!.bloc.add(
+                          UpdateFontSize(_fontSize),
+                        );
+                      },
                     ),
-                  ),
-              ],
+                    const SizedBox(width: 6),
+                    ToolbarActionButton(
+                      tooltip: 'הקטן את גודל הטקסט',
+                      icon: FluentIcons.zoom_out_24_regular,
+                      onPressed: () {
+                        setState(() {
+                          _fontSize = (_fontSize - 2).clamp(10.0, 50.0);
+                        });
+                        _currentTextTab!.bloc.add(
+                          UpdateFontSize(_fontSize),
+                        );
+                      },
+                    ),
+                    const SizedBox(width: 6),
+                    ToolbarActionButton(
+                      tooltip: 'פתח בעיון (או לחץ פעמיים על הספר)',
+                      icon: FluentIcons.open_24_regular,
+                      onPressed: () {
+                        widget.onOpenInReader?.call(_currentTextTab?.index ?? 0);
+                      },
+                    ),
+                    if (onClose != null) const SizedBox(width: 6),
+                    if (onClose != null)
+                      ToolbarActionButton(
+                        tooltip: 'הסתר תצוגה מקדימה',
+                        icon: FluentIcons.dismiss_24_regular,
+                        onPressed: onClose,
+                      ),
+                  ],
+                );
+              },
             ),
           ),
         ),
@@ -463,68 +441,45 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
               borderRadius: BorderRadius.circular(8),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.2),
+                  color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.2),
                   blurRadius: 4,
                   offset: const Offset(0, 2),
                 ),
               ],
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(FluentIcons.zoom_in_24_regular, size: 20),
-                  tooltip: 'הגדל את גודל הטקסט',
-                  onPressed: () => _pdfController?.zoomUp(),
-                  padding: const EdgeInsets.all(8),
-                  constraints: const BoxConstraints(
-                    minWidth: 36,
-                    minHeight: 36,
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(FluentIcons.zoom_out_24_regular, size: 20),
-                  tooltip: 'הקטן את גודל הטקסט',
-                  onPressed: () => _pdfController?.zoomDown(),
-                  padding: const EdgeInsets.all(8),
-                  constraints: const BoxConstraints(
-                    minWidth: 36,
-                    minHeight: 36,
-                  ),
-                ),
-                Container(
-                  width: 1,
-                  height: 24,
-                  color: Theme.of(context).dividerColor,
-                ),
-                IconButton(
-                  icon: const Icon(FluentIcons.open_24_regular, size: 20),
-                  tooltip: 'פתח בעיון (או לחץ פעמיים על הספר)',
-                  onPressed: _openCurrentPreviewInReader,
-                  padding: const EdgeInsets.all(8),
-                  constraints: const BoxConstraints(
-                    minWidth: 36,
-                    minHeight: 36,
-                  ),
-                ),
-                if (widget.onClose != null)
-                  Container(
-                    width: 1,
-                    height: 24,
-                    color: Theme.of(context).dividerColor,
-                  ),
-                if (widget.onClose != null)
-                  IconButton(
-                    icon: const Icon(FluentIcons.dismiss_24_regular, size: 20),
-                    tooltip: 'הסתר תצוגה מקדימה',
-                    onPressed: widget.onClose,
-                    padding: const EdgeInsets.all(8),
-                    constraints: const BoxConstraints(
-                      minWidth: 36,
-                      minHeight: 36,
+            child: Builder(
+              builder: (context) {
+                final onClose = widget.onClose;
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ToolbarActionButton(
+                      tooltip: 'הגדל את גודל הטקסט',
+                      icon: FluentIcons.zoom_in_24_regular,
+                      onPressed: () => _pdfController?.zoomUp(),
                     ),
-                  ),
-              ],
+                    const SizedBox(width: 6),
+                    ToolbarActionButton(
+                      tooltip: 'הקטן את גודל הטקסט',
+                      icon: FluentIcons.zoom_out_24_regular,
+                      onPressed: () => _pdfController?.zoomDown(),
+                    ),
+                    const SizedBox(width: 6),
+                    ToolbarActionButton(
+                      tooltip: 'פתח בעיון (או לחץ פעמיים על הספר)',
+                      icon: FluentIcons.open_24_regular,
+                      onPressed: _openCurrentPreviewInReader,
+                    ),
+                    if (onClose != null) const SizedBox(width: 6),
+                    if (onClose != null)
+                      ToolbarActionButton(
+                        tooltip: 'הסתר תצוגה מקדימה',
+                        icon: FluentIcons.dismiss_24_regular,
+                        onPressed: onClose,
+                      ),
+                  ],
+                );
+              },
             ),
           ),
         ),

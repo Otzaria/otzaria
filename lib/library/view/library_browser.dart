@@ -15,10 +15,10 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/daf_yomi/daf_yomi_helper.dart';
 import 'package:otzaria/file_sync/file_sync_bloc.dart';
+import 'package:otzaria/file_sync/file_sync_event.dart';
 import 'package:otzaria/file_sync/file_sync_repository.dart';
 import 'package:otzaria/file_sync/file_sync_state.dart';
 import 'package:otzaria/daf_yomi/daf_yomi.dart';
-import 'package:otzaria/file_sync/file_sync_widget.dart';
 import 'package:otzaria/widgets/filter_chips_widget.dart';
 import 'package:otzaria/tools/more_screen.dart' show moreScreenKey;
 import 'package:otzaria/library/view/grid_items.dart';
@@ -26,6 +26,7 @@ import 'package:otzaria/library/view/otzar_book_dialog.dart';
 import 'package:otzaria/library/view/book_preview_panel.dart';
 import 'package:otzaria/library/view/library_panel_controller.dart';
 import 'package:otzaria/settings/panels/library_settings_panel.dart';
+import 'package:otzaria/widgets/buttons/action_buttons.dart';
 import 'package:otzaria/widgets/responsive_action_bar.dart';
 import 'package:otzaria/utils/open_book.dart';
 
@@ -50,7 +51,7 @@ class LibraryBrowser extends StatefulWidget {
 }
 
 class _LibraryBrowserState extends State<LibraryBrowser>
-    with AutomaticKeepAliveClientMixin {
+    with AutomaticKeepAliveClientMixin, TickerProviderStateMixin {
   @override
   bool get wantKeepAlive => true;
 
@@ -155,7 +156,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
   void _syncLibraryPanelController() {
     LibraryPanelController.register(
+      isSettingsPanelOpen: () => _activeSidePanel == _LibrarySidePanel.settings,
       showSettingsPanel: _openSettingsPanel,
+      closeSettingsPanel: _closeSettingsPanel,
       openPreviewPanel: _showPreviewPanel,
       closePreviewPanel: _hidePreviewPanel,
       togglePreviewPanel: _togglePreviewPanel,
@@ -292,28 +295,28 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                         ],
                       ),
                       actions: [
-                        IconButton(
-                          icon: Icon(
-                            _effectiveSidePanel(settingsState) ==
-                                    _LibrarySidePanel.preview
-                                ? FluentIcons.eye_off_24_regular
-                                : FluentIcons.eye_24_regular,
-                          ),
+                        ToolbarActionButton(
                           tooltip: _effectiveSidePanel(settingsState) ==
                                   _LibrarySidePanel.preview
                               ? 'הסתר תצוגה מקדימה'
                               : 'הצג תצוגה מקדימה',
+                          icon: _effectiveSidePanel(settingsState) ==
+                                  _LibrarySidePanel.preview
+                              ? FluentIcons.eye_off_24_regular
+                              : FluentIcons.eye_24_regular,
+                          selected: _effectiveSidePanel(settingsState) ==
+                              _LibrarySidePanel.preview,
                           onPressed: () => _togglePreviewPanel(settingsState),
                         ),
-                        IconButton(
-                          icon: Icon(
-                            _activeSidePanel == _LibrarySidePanel.settings
-                                ? FluentIcons.settings_24_filled
-                                : FluentIcons.settings_24_regular,
-                          ),
+                        ToolbarActionButton(
                           tooltip: _activeSidePanel == _LibrarySidePanel.settings
                               ? 'סגור הגדרות ספרייה'
                               : 'הגדרות ספרייה',
+                          icon: _activeSidePanel == _LibrarySidePanel.settings
+                              ? FluentIcons.settings_24_filled
+                              : FluentIcons.settings_24_regular,
+                          selected:
+                              _activeSidePanel == _LibrarySidePanel.settings,
                           onPressed: () {
                             if (_activeSidePanel == _LibrarySidePanel.settings) {
                               _closeSettingsPanel();
@@ -356,23 +359,27 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                                 ],
                               ),
                             ),
-                            if (panelMode != _LibrarySidePanel.none)
-                              Padding(
-                                padding: const EdgeInsets.all(8.0),
-                                child: ResizablePreviewPanel(
-                                  key: ValueKey(
-                                    '${screenWidth}_${panelMode.name}',
-                                  ),
-                                  initialWidth: previewWidth,
-                                  minWidth: minPreviewWidth,
-                                  maxWidth: maxPreviewWidth,
-                                  child: _buildSidePanel(
-                                    context,
-                                    settingsState,
-                                    panelMode,
-                                  ),
-                                ),
-                              ),
+                            AnimatedSize(
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
+                              alignment: Alignment.centerRight,
+                              child: panelMode == _LibrarySidePanel.none
+                                  ? const SizedBox(width: 0)
+                                  : Padding(
+                                      padding: const EdgeInsets.all(8.0),
+                                      child: ResizablePreviewPanel(
+                                        key: ValueKey(panelMode.name),
+                                        initialWidth: previewWidth,
+                                        minWidth: minPreviewWidth,
+                                        maxWidth: maxPreviewWidth,
+                                        child: _buildSidePanel(
+                                          context,
+                                          settingsState,
+                                          panelMode,
+                                        ),
+                                      ),
+                                    ),
+                            ),
                           ],
                         );
                       },
@@ -395,7 +402,10 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                               borderRadius: BorderRadius.circular(16),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.2),
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .shadow
+                                      .withValues(alpha: 0.2),
                                   blurRadius: 10,
                                   offset: const Offset(0, 4),
                                 ),
@@ -840,6 +850,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
           ),
         ),
         child: Row(
+          textDirection: TextDirection.rtl,
           children: [
             Icon(
               isExpanded
@@ -850,11 +861,13 @@ class _LibraryBrowserState extends State<LibraryBrowser>
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(
-                category.title,
+              child: LibraryOverflowTooltipText(
+                text: category.title,
+                maxLines: 1,
                 textDirection: TextDirection.rtl,
+                textAlign: TextAlign.right,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                       color: Theme.of(context).colorScheme.primary,
                     ),
               ),
@@ -928,6 +941,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               ),
             ),
             child: Row(
+              textDirection: TextDirection.rtl,
               children: [
                 Icon(
                   book is PdfBook
@@ -939,22 +953,28 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text(
-                        book.title,
+                      LibraryOverflowTooltipText(
+                        text: book.title,
                         textDirection: TextDirection.rtl,
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              fontWeight: isSelected
-                                  ? FontWeight.w600
-                                  : FontWeight.w400,
+                        maxLines: 1,
+                        textAlign: TextAlign.right,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: Theme.of(context).colorScheme.primary,
                             ),
                       ),
                       if (book.author != null && book.author!.isNotEmpty)
-                        Text(
-                          book.author!,
+                        LibraryOverflowTooltipText(
+                          text: book.author!,
                           textDirection: TextDirection.rtl,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          maxLines: 1,
+                          textAlign: TextAlign.right,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(
                                 color: Theme.of(context)
                                     .colorScheme
                                     .onSurfaceVariant,
@@ -996,6 +1016,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
           ),
         ),
         child: Row(
+          textDirection: TextDirection.rtl,
           children: [
             Image.asset(
               book.link.toString().contains('tablet.otzar.org')
@@ -1008,20 +1029,26 @@ class _LibraryBrowserState extends State<LibraryBrowser>
             const SizedBox(width: 12),
             Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(
-                    book.title,
+                  LibraryOverflowTooltipText(
+                    text: book.title,
                     textDirection: TextDirection.rtl,
-                    style: Theme.of(context).textTheme.titleSmall,
+                    maxLines: 1,
+                    textAlign: TextAlign.right,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
                   ),
                   if (book.author != null && book.author!.isNotEmpty)
-                    Text(
-                      book.author!,
+                    LibraryOverflowTooltipText(
+                      text: book.author!,
                       textDirection: TextDirection.rtl,
+                      maxLines: 1,
+                      textAlign: TextAlign.right,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                     ),
                 ],
@@ -1339,7 +1366,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     return ActionButtonData(
       widget: BlocProvider.value(
         value: _fileSyncBloc,
-        child: BlocListener<FileSyncBloc, FileSyncState>(
+        child: BlocConsumer<FileSyncBloc, FileSyncState>(
           listener: (context, syncState) {
             if ((syncState.status == FileSyncStatus.completed ||
                     syncState.status == FileSyncStatus.error) &&
@@ -1347,13 +1374,49 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               context.read<LibraryBloc>().add(RefreshLibrary());
             }
           },
-          child: const SyncIconButton(),
+          builder: (context, syncState) {
+            final isSyncing = syncState.status == FileSyncStatus.syncing;
+            final icon = switch (syncState.status) {
+              FileSyncStatus.completed => FluentIcons.checkmark_circle_24_regular,
+              FileSyncStatus.error => FluentIcons.arrow_sync_24_regular,
+              FileSyncStatus.syncing => FluentIcons.arrow_sync_24_regular,
+              FileSyncStatus.initial => FluentIcons.arrow_sync_24_regular,
+            };
+            final tooltip = switch (syncState.status) {
+              FileSyncStatus.syncing => 'עצור סינכרון',
+              FileSyncStatus.completed =>
+                syncState.hasNewSync ? 'סנכרון הושלם' : 'אין עדכונים חדשים',
+              FileSyncStatus.error => 'שגיאה בסינכרון - לחץ לנסות שוב',
+              FileSyncStatus.initial => 'סינכרון',
+            };
+
+            return ToolbarActionButton(
+              tooltip: tooltip,
+              icon: icon,
+              selected: isSyncing,
+              onPressed: () {
+                final bloc = context.read<FileSyncBloc>();
+                switch (syncState.status) {
+                  case FileSyncStatus.syncing:
+                    bloc.add(const StopSync());
+                    break;
+                  case FileSyncStatus.completed:
+                  case FileSyncStatus.error:
+                    bloc.add(const ResetState());
+                    break;
+                  case FileSyncStatus.initial:
+                    bloc.add(const StartSync());
+                    break;
+                }
+              },
+            );
+          },
         ),
       ),
       icon: FluentIcons.arrow_sync_24_regular,
       tooltip: 'סינכרון',
       onPressed: () {
-        // הפעולה מטופלת ב-SyncIconButton
+        _fileSyncBloc.add(const StartSync());
       },
     );
   }
@@ -1367,9 +1430,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     return [
       // חזור לתיקיה קודמת (ראשון במסך הרחב)
       ActionButtonData(
-        widget: IconButton(
-          icon: const Icon(FluentIcons.arrow_up_24_regular),
+        widget: ToolbarActionButton(
           tooltip: 'חזרה לתיקיה הקודמת',
+          icon: FluentIcons.arrow_up_24_regular,
           onPressed: () => _navigateUp(context, settingsState),
         ),
         icon: FluentIcons.arrow_up_24_regular,
@@ -1379,13 +1442,13 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
       // חזרה לתיקיה ראשית
       ActionButtonData(
-        widget: IconButton(
-          icon: const Icon(FluentIcons.home_24_regular),
+        widget: ToolbarActionButton(
           tooltip: 'חזרה לתיקיה הראשית',
+          icon: FluentIcons.home_24_regular,
           onPressed: () {
             setState(() {
               _depth = 0;
-              _expandedCategories.clear(); // נקה את העץ הפתוח
+              _expandedCategories.clear();
             });
             context.read<LibraryBloc>().add(LoadLibrary());
             context.read<FocusRepository>().librarySearchController.clear();
@@ -1412,9 +1475,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
       // טעינה מחדש
       ActionButtonData(
-        widget: IconButton(
-          icon: const Icon(FluentIcons.arrow_clockwise_24_regular),
+        widget: ToolbarActionButton(
           tooltip: 'טעינה מחדש של רשימת הספרים',
+          icon: FluentIcons.arrow_clockwise_24_regular,
           onPressed: () {
             context.read<LibraryBloc>().add(RefreshLibrary());
           },
@@ -1437,9 +1500,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     return [
       // 1) חזור לתיקיה קודמת + סינכרון (חייב להיות תמיד מחוץ לתפריט)
       ActionButtonData(
-        widget: IconButton(
-          icon: const Icon(FluentIcons.arrow_up_24_regular),
+        widget: ToolbarActionButton(
           tooltip: 'חזרה לתיקיה הקודמת',
+          icon: FluentIcons.arrow_up_24_regular,
           onPressed: () => _navigateUp(context, settingsState),
         ),
         icon: FluentIcons.arrow_up_24_regular,
@@ -1451,13 +1514,13 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       if (!settingsState.isOfflineMode) _buildSyncActionButton(),
 
       ActionButtonData(
-        widget: IconButton(
-          icon: const Icon(FluentIcons.home_24_regular),
+        widget: ToolbarActionButton(
           tooltip: 'חזרה לתיקיה הראשית',
+          icon: FluentIcons.home_24_regular,
           onPressed: () {
             setState(() {
               _depth = 0;
-              _expandedCategories.clear(); // נקה את העץ הפתוח
+              _expandedCategories.clear();
             });
             context.read<LibraryBloc>().add(LoadLibrary());
             context.read<FocusRepository>().librarySearchController.clear();
@@ -1481,9 +1544,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
       // 5) טעינה מחדש של רשימת הספרים
       ActionButtonData(
-        widget: IconButton(
-          icon: const Icon(FluentIcons.arrow_clockwise_24_regular),
+        widget: ToolbarActionButton(
           tooltip: 'טעינה מחדש של רשימת הספרים',
+          icon: FluentIcons.arrow_clockwise_24_regular,
           onPressed: () {
             context.read<LibraryBloc>().add(RefreshLibrary());
           },
