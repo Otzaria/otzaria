@@ -20,7 +20,6 @@ import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/library/view/library_browser.dart';
 import 'package:otzaria/tabs/reading_screen.dart';
 import 'package:otzaria/tools/more_screen.dart';
-import 'package:otzaria/navigation/about_dialog.dart';
 import 'package:otzaria/shortcuts/keyboard_shortcuts.dart';
 import 'dart:async';
 import 'package:otzaria/update/my_updat_widget.dart';
@@ -83,7 +82,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
   // מצב הדיאלוגים - לניהול מצב selected בסיידבר
   bool _isSearchOpen = false;
   bool _isFindRefOpen = false;
-  bool _isAboutOpen = false;
 
   @override
   void initState() {
@@ -341,11 +339,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
         selectedIcon: const Icon(FluentIcons.settings_24_filled),
         label: 'הגדרות',
       ),
-      NavigationDestination(
-        icon: const Icon(FluentIcons.info_24_regular),
-        selectedIcon: const Icon(FluentIcons.info_24_filled),
-        label: 'אודות',
-      ),
     ];
   }
 
@@ -544,7 +537,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                                   const buttonHeight =
                                                       60.0; // גובה משוער לכפתור + padding
                                                   final totalButtonsHeight =
-                                                      7 * buttonHeight;
+                                                      6 * buttonHeight;
                                                   final minSpacerHeight = 20.0;
                                                   final needsScroll =
                                                       totalButtonsHeight +
@@ -557,7 +550,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                                       child: Column(
                                                         children: [
                                                           for (int i = 0;
-                                                              i < 7;
+                                                              i < 6;
                                                               i++)
                                                             _buildNavButton(
                                                               context,
@@ -589,7 +582,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                                         const Spacer(),
                                                         // כפתורים תחתונים
                                                         for (int i = 5;
-                                                            i < 7;
+                                                            i < 6;
                                                             i++)
                                                           _buildNavButton(
                                                             context,
@@ -641,13 +634,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                           _handleSearchTabOpen(context);
                                         } else if (index == Screen.find.index) {
                                           _handleFindRefOpen(context);
-                                        } else if (index ==
-                                            Screen.about.index) {
-                                          showDialog(
-                                            context: context,
-                                            builder: (context) =>
-                                                const AboutDialogWidget(),
-                                          );
                                         } else {
                                           context.read<NavigationBloc>().add(
                                                 NavigateToScreen(
@@ -774,7 +760,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
       case Screen.settings:
         return 5;
       case Screen.about:
-        return 6;
+        return -1; // לא נבחר
     }
   }
 
@@ -787,7 +773,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
       3 => FluentIcons.search_24_filled, // חיפוש
       4 => FluentIcons.apps_24_filled, // כלים
       5 => FluentIcons.settings_24_filled, // הגדרות
-      6 => FluentIcons.info_24_filled, // אודות
       _ => null,
     };
   }
@@ -797,7 +782,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
     return switch (index) {
       1 => _isFindRefOpen, // איתור
       3 => _isSearchOpen, // חיפוש
-      6 => _isAboutOpen, // אודות
       _ => false,
     };
   }
@@ -846,26 +830,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
                     _handleSearchTabOpen(context);
                   } else if (index == Screen.find.index) {
                     _handleFindRefOpen(context);
-                  } else if (index == Screen.about.index) {
-                    // אם הדיאלוג כבר פתוח, סוגרים אותו
-                    if (_isAboutOpen) {
-                      Navigator.of(context).pop();
-                      return;
-                    }
-
-                    setState(() {
-                      _isAboutOpen = true;
-                    });
-
-                    showDialog(
-                      context: context,
-                      builder: (context) => const AboutDialogWidget(),
-                    ).then((_) {
-                      if (!mounted) return;
-                      setState(() {
-                        _isAboutOpen = false;
-                      });
-                    });
                   } else {
                     context.read<NavigationBloc>().add(
                           NavigateToScreen(Screen.values[index]),
