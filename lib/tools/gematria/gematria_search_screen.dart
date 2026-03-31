@@ -251,9 +251,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
         _searchResults = [];
       });
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('שגיאה בחיפוש: $e')));
+        UiSnack.showError('שגיאה בחיפוש: $e');
       }
     }
   }

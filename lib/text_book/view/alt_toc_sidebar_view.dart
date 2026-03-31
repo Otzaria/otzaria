@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/migration/core/models/alt_toc_entry.dart';
 import 'package:otzaria/migration/core/models/alt_toc_structure.dart';
@@ -336,8 +337,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
       if (links.isNotEmpty) {
         _openLink(links.first);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('לא נמצא קישור לכותרת זו')));
+        UiSnack.show('לא נמצא קישור לכותרת זו');
       }
     } catch (e) {
       debugPrint('Error handling leaf click: $e');
@@ -356,8 +356,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
       // Navigate to the first root entry
       _handleLeafClick(structure.id, roots.first);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('לא נמצאו כותרות למבנה זה')));
+      UiSnack.show('לא נמצאו כותרות למבנה זה');
     }
   }
 

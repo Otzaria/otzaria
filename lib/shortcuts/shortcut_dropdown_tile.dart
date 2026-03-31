@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/shortcuts/custom_shortcut_dialog.dart';
@@ -76,7 +77,6 @@ class _ShortcutDropDownTileState extends State<ShortcutDropDownTile> {
       onChange: (newValue) async {
         if (!mounted) return;
 
-        final scaffoldMessenger = ScaffoldMessenger.of(context);
         final settingsBloc = context.read<SettingsBloc>();
         String? finalValue = newValue;
 
@@ -116,15 +116,10 @@ class _ShortcutDropDownTileState extends State<ShortcutDropDownTile> {
               .join(', ');
 
           if (conflictingNames.isNotEmpty) {
-            scaffoldMessenger.showSnackBar(
-              SnackBar(
-                content: Text(
-                  'אזהרה: קיצור זה כבר בשימוש עבור: $conflictingNames',
-                  textDirection: TextDirection.rtl,
-                ),
-                backgroundColor: Colors.orange,
-                duration: const Duration(seconds: 3),
-              ),
+            UiSnack.show(
+              'אזהרה: קיצור זה כבר בשימוש עבור: $conflictingNames',
+              backgroundColor: Colors.orange,
+              duration: const Duration(seconds: 3),
             );
           }
         }

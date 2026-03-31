@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:path/path.dart' as path;
 
 /// Dialog for adding a personal book to the library
@@ -45,9 +46,7 @@ class _AddPersonalBookDialogState extends State<AddPersonalBookDialog> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('שגיאה בבחירת קובץ: $e')),
-        );
+        UiSnack.showError('שגיאה בבחירת קובץ: $e');
       }
     }
   }
@@ -76,21 +75,11 @@ class _AddPersonalBookDialogState extends State<AddPersonalBookDialog> {
 
       if (mounted) {
         Navigator.of(context).pop(true); // Return true to indicate success
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('הספר האישי נוסף בהצלחה!'),
-            backgroundColor: Theme.of(context).colorScheme.primary,
-          ),
-        );
+        UiSnack.showSuccess('הספר האישי נוסף בהצלחה!');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('שגיאה בהוספת ספר: $e'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
+        UiSnack.showError('שגיאה בהוספת ספר: $e');
       }
     } finally {
       if (mounted) {

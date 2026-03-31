@@ -6,6 +6,7 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart'
     hide SwitchSettingsTile;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
@@ -52,24 +53,14 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
           context.read<NavigationBloc>().add(const CheckLibrary());
 
           if (extractionResult.successfullyExtracted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                    'הקובץ "${extractionResult.extractedFileName}" חולץ בהצלחה!'),
-                backgroundColor: Theme.of(context).colorScheme.primary,
-              ),
-            );
+            UiSnack.showSuccess(
+                'הקובץ "${extractionResult.extractedFileName}" חולץ בהצלחה!');
           }
         }
       },
       onError: (errorMessage) {
         if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMessage),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
+        UiSnack.showError(errorMessage);
       },
     );
   }

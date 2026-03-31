@@ -6,10 +6,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:googleapis/calendar/v3.dart' as cal;
 import 'package:kosher_dart/kosher_dart.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tools/calendar/services/notification_service.dart';
 import 'package:otzaria/tools/calendar/services/google_calendar_service.dart';
-import 'package:otzaria/tools/shamor_zachor/utils/message_utils.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 enum CalendarType { hebrew, gregorian, combined }

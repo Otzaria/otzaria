@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/tools/calendar/ulits/calendar_cubit.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
 import 'package:otzaria/widgets/dialogs.dart';
@@ -257,11 +258,8 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                                           await cubit.getAvailableCalendars();
                                       if (!context.mounted) return;
                                       if (calendars.isEmpty) {
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(const SnackBar(
-                                          content: Text(
-                                              'לא נמצאו לוחות שנה. נסה להתחבר מחדש.'),
-                                        ));
+                                        UiSnack.show(
+                                            'לא נמצאו לוחות שנה. נסה להתחבר מחדש.');
                                         return;
                                       }
                                       final selected =

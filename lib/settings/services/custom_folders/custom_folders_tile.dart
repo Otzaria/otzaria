@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
 
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
 import 'package:otzaria/widgets/confirmation_dialog.dart';
@@ -16,7 +17,6 @@ import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/migration/core/models/category.dart';
 import 'package:otzaria/widgets/zip_extraction_progress_dialog.dart';
-import 'package:otzaria/core/ui_snack.dart';
 
 /// Widget להוספה וניהול תיקיות מותאמות אישית
 class CustomFoldersTile extends StatefulWidget {
@@ -90,12 +90,7 @@ class _CustomFoldersTileState extends State<CustomFoldersTile> {
           },
           onError: (errorMessage) {
             if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(errorMessage),
-                backgroundColor: Theme.of(context).colorScheme.error,
-              ),
-            );
+            UiSnack.showError(errorMessage);
           },
         );
 
@@ -401,10 +396,10 @@ class _CustomFoldersTileState extends State<CustomFoldersTile> {
           : 'הסריקה הושלמה. לא נמצאו ספרים חדשים.';
 
       UiSnack.show(message);
-    } catch (e) {
-      if (!mounted) return;
-      UiSnack.showError('שגיאה בסריקת תיקיות אישיות: $e');
-    } finally {
+      } catch (e) {
+        if (!mounted) return;
+        UiSnack.showError('שגיאה בסריקת תיקיות אישיות: $e');
+      } finally {
       if (mounted) {
         setState(() {
           _isSyncing = false;

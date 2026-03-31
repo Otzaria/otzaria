@@ -88,9 +88,7 @@ class _PersonalNotesManagerScreenState
           _isLoadingBooks = false;
         });
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('שגיאה בטעינת רשימת ההערות: $e')),
-        );
+        UiSnack.showError('שגיאה בטעינת רשימת ההערות: $e');
       }
     }
   }

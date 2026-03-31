@@ -2,11 +2,11 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 
+import 'package:otzaria/core/ui_snack.dart';
 import '../models/progress_model.dart';
 import '../models/book_model.dart';
 import '../models/error_model.dart';
 import '../services/progress_service.dart';
-import '../utils/message_utils.dart';
 
 /// Events emitted when significant progress milestones are reached
 enum CompletionEventType {

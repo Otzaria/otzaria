@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
@@ -26,12 +27,7 @@ class SearchEditPanel extends StatelessWidget {
     final query = tab.queryController.text.trim();
 
     if (query.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('נא להזין טקסט לחיפוש'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      UiSnack.show('נא להזין טקסט לחיפוש');
       return;
     }
 

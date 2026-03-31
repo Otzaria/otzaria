@@ -8,6 +8,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:path/path.dart' as p;
+import '../core/ui_snack.dart';
 import '../settings/engine/settings_repository.dart';
 import '../services/data_collection_service.dart';
 import '../data/repository/data_repository.dart';
@@ -37,9 +38,7 @@ Future<void> openLocalHtmlFile(BuildContext context, String fileName) async {
   final sitePath = await _getOtzariaSitePath();
   if (!context.mounted) return;
   if (sitePath == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('לא נמצאה תיקיית otzaria-site')),
-    );
+    UiSnack.showError('לא נמצאה תיקיית otzaria-site');
     return;
   }
 
@@ -47,9 +46,7 @@ Future<void> openLocalHtmlFile(BuildContext context, String fileName) async {
   final exists = await htmlFile.exists();
   if (!context.mounted) return;
   if (!exists) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('הקובץ $fileName לא נמצא')),
-    );
+    UiSnack.showError('הקובץ $fileName לא נמצא');
     return;
   }
 
@@ -698,9 +695,7 @@ class _AboutScreenState extends State<AboutScreen> {
         Settings.getValue<String>(SettingsRepository.keyLibraryPath) ?? '';
     if (libraryPath.isEmpty) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('נתיב הספרייה לא מוגדר')),
-      );
+      UiSnack.showError('נתיב הספרייה לא מוגדר');
       return;
     }
 

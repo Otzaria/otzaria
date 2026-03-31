@@ -7,10 +7,6 @@ import 'package:flutter/scheduler.dart';
 /// מפתח גלובלי לניווט - חובה לחבר ל-MaterialApp
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
-/// מפתח גלובלי ל-ScaffoldMessenger - נשמר לתאימות לאחור
-final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
-    GlobalKey<ScaffoldMessengerState>();
-
 /// מערכת התראות מודרנית בהשראת Windows 11
 ///
 /// שימוש:
@@ -71,24 +67,6 @@ class UiSnack {
       duration: duration ?? const Duration(seconds: 4),
       backgroundColor: backgroundColor,
       enableHaptic: true,
-    );
-  }
-
-  /// הודעה צפה (תאימות לאחור)
-  static void showFloating(String message,
-      {Duration? duration, Color? backgroundColor}) {
-    show(message,
-        duration: duration ?? const Duration(seconds: 4),
-        backgroundColor: backgroundColor);
-  }
-
-  /// הודעה עם משך זמן מותאם (תאימות לאחור)
-  static void showWithDuration(String message,
-      {Duration? duration, Color? backgroundColor}) {
-    show(
-      message,
-      duration: duration ?? const Duration(seconds: 2),
-      backgroundColor: backgroundColor,
     );
   }
 
