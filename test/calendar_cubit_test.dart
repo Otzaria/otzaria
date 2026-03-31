@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/tools/calendar/ulits/calendar_cubit.dart';
+import 'package:otzaria/tools/calendar/utils/jewish_month_navigation.dart';
 import 'package:kosher_dart/kosher_dart.dart';
 
 void main() {

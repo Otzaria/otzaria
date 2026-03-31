@@ -1,24 +1,3 @@
-import 'package:kosher_dart/kosher_dart.dart';
-
-Daf getDafYomi(DateTime date) {
-  JewishCalendar jewishCalendar = JewishCalendar.fromDateTime(date);
-  return YomiCalculator.getDafYomiBavli(jewishCalendar);
-}
-
-String getHebrewDateFormattedAsString(DateTime dateTime) {
-  final hebrewCalendar = JewishCalendar.fromDateTime(dateTime);
-  HebrewDateFormatter hebrewDateFormatter = HebrewDateFormatter()
-    ..hebrewFormat = true;
-  return hebrewDateFormatter.format(hebrewCalendar);
-}
-
-String getHebrewTimeStamp() {
-  return '${getHebrewDateFormattedAsString(DateTime.now())} ${DateTime.now().hour}:${DateTime.now().minute}:${DateTime.now().second}';
-}
-
-String formatAmud(int amud) {
-  return HebrewDateFormatter()
-      .formatHebrewNumber(amud)
-      .replaceAll('״', '')
-      .replaceAll('׳', '');
-}
+// Re-export — הקובץ הועבר ל-tools/calendar/utils/hebrew_date_utils.dart
+// קובץ זה נשאר לצורך תאימות לאחור עם imports קיימים
+export 'package:otzaria/tools/calendar/utils/hebrew_date_utils.dart';
