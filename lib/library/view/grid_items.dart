@@ -12,6 +12,26 @@ import 'dart:math';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/book_locator.dart';
 
+TextStyle? _boldBodyStyle(BuildContext context) {
+  return Theme.of(context).textTheme.bodyMedium?.copyWith(
+        fontWeight: FontWeight.w600,
+      );
+}
+
+TextStyle? _linkBodyStyle(BuildContext context) {
+  final theme = Theme.of(context);
+  return theme.textTheme.bodyMedium?.copyWith(
+    color: theme.colorScheme.primary,
+    decoration: TextDecoration.underline,
+  );
+}
+
+TextStyle? _mutedBodyStyle(BuildContext context) {
+  return Theme.of(context).textTheme.bodyMedium?.copyWith(
+        color: Theme.of(context).colorScheme.onSurface,
+      );
+}
+
 class HeaderItem extends StatelessWidget {
   final Category category;
 
@@ -22,13 +42,16 @@ class HeaderItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.all(16.0),
-      child: Text(category.title,
-          style: TextStyle(
-            fontSize: 20,
-            color: Theme.of(context).colorScheme.secondary,
-          )),
+      child: Text(
+        category.title,
+        textDirection: TextDirection.rtl,
+        style: theme.textTheme.titleMedium?.copyWith(
+          color: theme.colorScheme.secondary,
+        ),
+      ),
     );
   }
 }
@@ -45,12 +68,13 @@ class CategoryGridItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Card(
+      color: theme.colorScheme.surface,
       child: InkWell(
         mouseCursor: SystemMouseCursors.click,
         borderRadius: BorderRadius.circular(12.0),
-        hoverColor:
-            Theme.of(context).colorScheme.secondary.withValues(alpha: 0.1),
+        hoverColor: theme.colorScheme.secondary.withValues(alpha: 0.1),
         hoverDuration: Durations.medium1,
         onTap: () => onCategoryClickCallback(),
         child: Align(
@@ -66,8 +90,9 @@ class CategoryGridItem extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.right,
                       textDirection: TextDirection.rtl,
-                      style: const TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.bold),
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),
@@ -111,14 +136,15 @@ class BookGridItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return GestureDetector(
       child: Card(
+        color: theme.colorScheme.surface,
         child: InkWell(
           mouseCursor: SystemMouseCursors.click,
           focusNode: focusNode,
           borderRadius: BorderRadius.circular(12.0),
-          hoverColor:
-              Theme.of(context).colorScheme.secondary.withValues(alpha: 0.1),
+          hoverColor: theme.colorScheme.secondary.withValues(alpha: 0.1),
           onTap: () => onBookClickCallback(),
           hoverDuration: Durations.medium1,
           child: Align(
@@ -129,10 +155,8 @@ class BookGridItem extends StatelessWidget {
                     ? Padding(
                         padding: const EdgeInsets.fromLTRB(0, 0, 10, 0),
                         child: Icon(FluentIcons.document_pdf_24_regular,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .secondary
-                                .withValues(alpha: 0.6)),
+                            color:
+                                theme.colorScheme.secondary.withValues(alpha: 0.6)),
                       )
                     : book is ExternalLibraryBook
                         ? Padding(
@@ -146,26 +170,22 @@ class BookGridItem extends StatelessWidget {
                                   : 'assets/logos/hebrew_books.png',
                               width: 20,
                               height: 20,
-                              fit: BoxFit.contain,
-                            ),
-                          )
+                            fit: BoxFit.contain,
+                          ),
+                        )
                         : book.fileType == 'docx'
                             ? Padding(
                                 padding: const EdgeInsets.fromLTRB(0, 0, 10, 0),
                                 child: Icon(
                                     FluentIcons.document_one_page_24_regular,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .secondary
+                                    color: theme.colorScheme.secondary
                                         .withValues(alpha: 0.6)),
                               )
                             : Padding(
                                 padding: const EdgeInsets.fromLTRB(0, 0, 10, 0),
                                 child: Icon(
                                     FluentIcons.document_text_24_regular,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .secondary
+                                    color: theme.colorScheme.secondary
                                         .withValues(alpha: 0.6)),
                               ),
                 Expanded(
@@ -178,12 +198,16 @@ class BookGridItem extends StatelessWidget {
                         _OverflowAwareBookTitle(
                           title: book.title,
                           fullPath: _getBookTooltipPath(book),
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).colorScheme.primary,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: theme.colorScheme.primary,
+                              ) ??
+                              TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: theme.colorScheme.primary,
+                              ),
                           ),
-                        ),
                         if (showTopics)
                           Text(
                             book.topics,
@@ -191,12 +215,10 @@ class BookGridItem extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             textAlign: TextAlign.right,
                             textDirection: TextDirection.rtl,
-                            style: TextStyle(
-                                fontSize: 11,
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .primary
-                                    .withValues(alpha: 0.9)),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.primary
+                                  .withValues(alpha: 0.9),
+                            ),
                           ),
                       ],
                     ),
@@ -208,7 +230,7 @@ class BookGridItem extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.right,
                       textDirection: TextDirection.rtl,
-                      style: const TextStyle(fontSize: 13),
+                      style: theme.textTheme.bodySmall,
                     ),
                   ),
                 ),
@@ -255,13 +277,9 @@ class BookGridItem extends StatelessWidget {
                                   minWidth: 32,
                                   minHeight: 32,
                                 ),
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurface
+                                color: theme.colorScheme.onSurface
                                     .withValues(alpha: 0.3), // אפור
-                                disabledColor: Theme.of(context)
-                                    .colorScheme
-                                    .onSurface
+                                disabledColor: theme.colorScheme.onSurface
                                     .withValues(alpha: 0.3), // אפור
                               ),
                       ),
@@ -275,9 +293,7 @@ class BookGridItem extends StatelessWidget {
                                 icon: Icon(
                                   FluentIcons.more_vertical_24_regular,
                                   size: 18,
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .secondary
+                                  color: theme.colorScheme.secondary
                                       .withValues(alpha: 0.6),
                                 ),
                                 tooltip: 'אפשרויות',
@@ -294,16 +310,20 @@ class BookGridItem extends StatelessWidget {
                                   }
                                 },
                                 itemBuilder: (BuildContext context) => [
-                                  const PopupMenuItem<String>(
+                                  PopupMenuItem<String>(
                                     value: 'delete',
                                     child: Row(
                                       children: [
                                         Icon(FluentIcons.delete_24_regular,
-                                            color: Colors.red),
+                                            color: theme.colorScheme.error),
                                         SizedBox(width: 8),
-                                        Text('מחק ספר זה',
-                                            style:
-                                                TextStyle(color: Colors.red)),
+                                        Text(
+                                          'מחק ספר זה',
+                                          style: theme.textTheme.bodyMedium
+                                              ?.copyWith(
+                                            color: theme.colorScheme.error,
+                                          ),
+                                        ),
                                       ],
                                     ),
                                   ),
@@ -449,9 +469,9 @@ void _showBookInfoDialog(BuildContext context, Book book) {
                     text: TextSpan(
                       style: DefaultTextStyle.of(context).style,
                       children: [
-                        const TextSpan(
+                        TextSpan(
                           text: 'מחבר: ',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                          style: _boldBodyStyle(context),
                         ),
                         TextSpan(text: book.author),
                       ],
@@ -467,9 +487,9 @@ void _showBookInfoDialog(BuildContext context, Book book) {
                     text: TextSpan(
                       style: DefaultTextStyle.of(context).style,
                       children: [
-                        const TextSpan(
+                        TextSpan(
                           text: 'קטגוריה: ',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                          style: _boldBodyStyle(context),
                         ),
                         TextSpan(text: book.heCategories),
                       ],
@@ -485,9 +505,9 @@ void _showBookInfoDialog(BuildContext context, Book book) {
                     text: TextSpan(
                       style: DefaultTextStyle.of(context).style,
                       children: [
-                        const TextSpan(
+                        TextSpan(
                           text: 'תקופה: ',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                          style: _boldBodyStyle(context),
                         ),
                         TextSpan(text: book.heEra),
                       ],
@@ -506,9 +526,9 @@ void _showBookInfoDialog(BuildContext context, Book book) {
                     text: TextSpan(
                       style: DefaultTextStyle.of(context).style,
                       children: [
-                        const TextSpan(
+                        TextSpan(
                           text: 'חיבור: ',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                          style: _boldBodyStyle(context),
                         ),
                         TextSpan(
                           text: [
@@ -536,9 +556,9 @@ void _showBookInfoDialog(BuildContext context, Book book) {
                     text: TextSpan(
                       style: DefaultTextStyle.of(context).style,
                       children: [
-                        const TextSpan(
+                        TextSpan(
                           text: 'הוצאה לאור: ',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                          style: _boldBodyStyle(context),
                         ),
                         TextSpan(
                           text: [
@@ -563,9 +583,9 @@ void _showBookInfoDialog(BuildContext context, Book book) {
                     text: TextSpan(
                       style: DefaultTextStyle.of(context).style,
                       children: [
-                        const TextSpan(
+                        TextSpan(
                           text: 'שמות נוספים: ',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                          style: _boldBodyStyle(context),
                         ),
                         TextSpan(
                           text: book.extraTitles!
@@ -585,9 +605,9 @@ void _showBookInfoDialog(BuildContext context, Book book) {
                     text: TextSpan(
                       style: DefaultTextStyle.of(context).style,
                       children: [
-                        const TextSpan(
+                        TextSpan(
                           text: 'תיאור מקוצר על הספר: ',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                          style: _boldBodyStyle(context),
                         ),
                         TextSpan(text: book.heShortDesc),
                       ],
@@ -603,9 +623,9 @@ void _showBookInfoDialog(BuildContext context, Book book) {
                     text: TextSpan(
                       style: DefaultTextStyle.of(context).style,
                       children: [
-                        const TextSpan(
+                        TextSpan(
                           text: 'תיאור הספר: ',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                          style: _boldBodyStyle(context),
                         ),
                         TextSpan(text: book.heDesc),
                       ],
@@ -654,9 +674,9 @@ Widget _buildBookSourceSection(Book book) {
                     text: TextSpan(
                       style: DefaultTextStyle.of(context).style,
                       children: [
-                        const TextSpan(
+                        TextSpan(
                           text: 'מקור הספר: ',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                          style: _boldBodyStyle(context),
                         ),
                         WidgetSpan(
                           child: InkWell(
@@ -668,11 +688,7 @@ Widget _buildBookSourceSection(Book book) {
                             },
                             child: Text(
                               displayText,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: Colors.blue,
-                                decoration: TextDecoration.underline,
-                              ),
+                              style: _linkBodyStyle(context),
                             ),
                           ),
                         ),
@@ -684,9 +700,9 @@ Widget _buildBookSourceSection(Book book) {
                     text: TextSpan(
                       style: DefaultTextStyle.of(context).style,
                       children: [
-                        const TextSpan(
+                        TextSpan(
                           text: 'מקור הספר: ',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                          style: _boldBodyStyle(context),
                         ),
                         TextSpan(text: displayText),
                       ],
@@ -697,16 +713,18 @@ Widget _buildBookSourceSection(Book book) {
             padding: const EdgeInsets.only(top: 8.0),
             child: RichText(
               textAlign: TextAlign.right,
-              text: const TextSpan(
-                style: TextStyle(fontSize: 14, color: Colors.black87),
+              text: TextSpan(
+                style: _mutedBodyStyle(context),
                 children: [
                   TextSpan(
                     text: 'זכויות יוצרים: ',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                    style: _boldBodyStyle(context),
                   ),
                   TextSpan(
                     text: 'המידע יוגדר בהמשך',
-                    style: TextStyle(fontStyle: FontStyle.italic),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontStyle: FontStyle.italic,
+                        ),
                   ),
                 ],
               ),
@@ -768,6 +786,7 @@ void _showCategoryInfoDialog(BuildContext context, Category category) {
 /// הצגת דיאלוג אישור למחיקת ספר
 void _showDeleteBookDialog(
     BuildContext context, Book book, VoidCallback? onBookDeleted) {
+  final errorColor = Theme.of(context).colorScheme.error;
   showDialog(
     context: context,
     // שימוש ב-dialogContext נפרד כדי לא להסתיר את ה-context החיצוני
@@ -794,7 +813,7 @@ void _showDeleteBookDialog(
               onBookDeleted?.call();
             },
             style: TextButton.styleFrom(
-              foregroundColor: Colors.red,
+              foregroundColor: errorColor,
             ),
             child: const Text('כן, אני רוצה למחוק'),
           ),

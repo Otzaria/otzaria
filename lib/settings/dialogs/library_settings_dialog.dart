@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/library/view/library_panel_controller.dart';
 import 'package:otzaria/settings/panels/library_settings_panel.dart';
 
-/// פונקציה גלובלית להצגת דיאלוג הגדרות ספרייה
-/// ניתן לקרוא לה מכל מקום באפליקציה
+/// פותחת את פאנל הגדרות הספרייה כאשר המסך תומך בכך.
+///
+/// אם הספרייה אינה נטענת כרגע, נשמרת האפשרות ליפול חזרה לדיאלוג הישן.
 void showLibrarySettingsDialog(BuildContext context) {
+  final opened = LibraryPanelController.openSettingsPanel();
+  if (opened) {
+    return;
+  }
+
   showDialog(
     context: context,
     builder: (dialogContext) => AlertDialog(
@@ -16,7 +23,6 @@ void showLibrarySettingsDialog(BuildContext context) {
       content: SizedBox(
         width: 650,
         height: MediaQuery.of(dialogContext).size.height * 0.7,
-        // עטפנו ב-SingleChildScrollView כדי שיהיה ניתן לגלול אם המסך קטן
         child: const SingleChildScrollView(
           child: Padding(
             padding: EdgeInsets.symmetric(vertical: 8.0),
