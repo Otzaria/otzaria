@@ -6,7 +6,7 @@ import 'package:otzaria/empty_library/bloc/empty_library_bloc.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_event.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_state.dart';
 import 'package:otzaria/core/ui_snack.dart';
-import 'package:otzaria/widgets/custom_ui_components.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 
 class EmptyLibraryScreen extends StatelessWidget {
   final VoidCallback onLibraryLoaded;
@@ -96,8 +96,7 @@ class _EmptyLibraryViewState extends State<_EmptyLibraryView> {
 
   /// מציג דיאלוג המסביר למשתמש את מגבלת Android Scoped Storage.
   /// המשתמש בוחר בין העתקה (שמירת מקור) להעברה (מחיקת מקור לפנית מקום).
-  void _showDbCopyDialog(
-      BuildContext context, EmptyLibraryAskingDbCopy state) {
+  void _showDbCopyDialog(BuildContext context, EmptyLibraryAskingDbCopy state) {
     final sizeText = state.dbSizeBytes > 0
         ? '${(state.dbSizeBytes / 1024 / 1024).toStringAsFixed(1)} MB'
         : 'לא ידוע';
