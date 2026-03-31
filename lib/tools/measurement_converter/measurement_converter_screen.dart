@@ -606,7 +606,6 @@ class _MeasurementConverterScreenState
           }
         });
       },
-      paneColor: AppSurfaces.solidPanelBackground(context),
       isResizable: true,
       minPaneWidth: 150,
       maxPaneWidth: 280,

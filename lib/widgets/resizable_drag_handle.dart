@@ -53,10 +53,10 @@ class _ResizableDragHandleState extends State<ResizableDragHandle> {
   @override
   Widget build(BuildContext context) {
     final isEnabled = widget.onDragDelta != null;
-
     final theme = Theme.of(context);
-    final dividerColor = theme.dividerColor.withValues(alpha: 0.65);
-    final activeColor = theme.colorScheme.primary.withValues(alpha: 0.95);
+    final cs = theme.colorScheme;
+    final dividerColor = theme.dividerColor.withValues(alpha: 0.55);
+    final activeColor = cs.primary.withValues(alpha: 0.95);
 
     final targetBlend = !isEnabled
         ? 0.0
@@ -76,7 +76,7 @@ class _ResizableDragHandleState extends State<ResizableDragHandle> {
       onEnter: isEnabled ? (_) => _setHovered(true) : null,
       onExit: isEnabled ? (_) => _setHovered(false) : null,
       child: GestureDetector(
-        behavior: HitTestBehavior.translucent,
+        behavior: HitTestBehavior.opaque,
         onPanStart: !isEnabled
             ? null
             : (_) {
@@ -102,29 +102,40 @@ class _ResizableDragHandleState extends State<ResizableDragHandle> {
           duration: const Duration(milliseconds: 150),
           curve: Curves.easeOut,
           builder: (context, blend, _) {
-            final background =
-                theme.colorScheme.primary.withValues(alpha: 0.14 * blend);
-            final thickness = lerpDouble(1.0, 3.0, blend) ?? 1.0;
-
-            // If showDivider is false, only show line when hovering or dragging
-            final showLine = widget.showDivider || blend > 0;
-            final lineColor = showLine
+            final highlightColor = cs.primary.withValues(alpha: 0.10 * blend);
+            final thickness = lerpDouble(2.0, 4.0, blend) ?? 2.0;
+            final gripLength =
+                lerpDouble(widget.hitSize * 0.55, widget.hitSize * 0.8, blend) ??
+                    widget.hitSize * 0.55;
+            final showGrip = widget.showDivider || blend > 0;
+            final lineColor = showGrip
                 ? (Color.lerp(dividerColor, activeColor, blend) ?? dividerColor)
                 : Colors.transparent;
 
-            return DecoratedBox(
-              decoration: BoxDecoration(color: background),
-              child: widget.isVertical
-                  ? VerticalDivider(
-                      width: widget.hitSize,
-                      thickness: thickness,
-                      color: lineColor,
-                    )
-                  : Divider(
-                      height: widget.hitSize,
-                      thickness: thickness,
-                      color: lineColor,
-                    ),
+            return Container(
+              color: Colors.transparent,
+              alignment: Alignment.center,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                curve: Curves.easeOut,
+                width: widget.isVertical ? thickness + 10 : gripLength,
+                height: widget.isVertical ? gripLength : thickness + 10,
+                decoration: BoxDecoration(
+                  color: highlightColor,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                alignment: Alignment.center,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: lineColor,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: SizedBox(
+                    width: widget.isVertical ? thickness : gripLength,
+                    height: widget.isVertical ? gripLength : thickness,
+                  ),
+                ),
+              ),
             );
           },
         ),

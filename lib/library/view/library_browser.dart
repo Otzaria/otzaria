@@ -699,7 +699,6 @@ class _LibraryBrowserState extends State<LibraryBrowser>
             });
           },
           wrapPaneInFloatingPanel: false,
-          framePadding: const EdgeInsets.only(left: 10, right: 10, bottom: 10),
           narrowPaneBuilder: (context, paneContent) => Material(
             color: Theme.of(context).colorScheme.surface,
             child: SafeArea(

@@ -238,7 +238,6 @@ class _PersonalNotesManagerScreenState
                   minMainContentWidth: 320,
                   onClose: () => setState(() => _isNavigationVisible = false),
                   onOpen: () => setState(() => _isNavigationVisible = true),
-                  paneColor: AppSurfaces.solidPanelBackground(context),
                   isResizable: true,
                   minPaneWidth: 150,
                   maxPaneWidth: 500,

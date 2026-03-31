@@ -7,7 +7,7 @@ import 'package:otzaria/widgets/resizable_drag_handle.dart';
 /// במסך רחב דוחקת תוכן, ובמסך צר נפתחת כ-overlay.
 ///
 /// כללי ברירת מחדל:
-/// - תוכן החלונית מקבל רקע כלים/הגדרות אטום, כדי שצבע המסגרת לא ישפיע עליו.
+/// - תוכן החלונית מקבל שכבת רקע נוספת של חלון (solidPanelBackground).
 /// - מעבר מרוחב רחב למסך צר סוגר אוטומטית את החלונית.
 /// - חלונית ניווט אמורה להיות בצד ימין (`centerEnd`) וחלונית מידע בצד שמאל (`centerStart`).
 class AdaptiveSidePane extends StatefulWidget {
@@ -19,15 +19,12 @@ class AdaptiveSidePane extends StatefulWidget {
   final VoidCallback onClose;
   final VoidCallback? onOpen;
   final Color? paneColor;
-  final Color? frameColor;
-  final bool attachToTopBar;
   final AlignmentDirectional alignment;
   final bool wrapPaneInFloatingPanel;
   final bool isResizable;
   final double minPaneWidth;
   final double? maxPaneWidth;
   final ValueChanged<double>? onPaneWidthChanged;
-  final EdgeInsetsGeometry framePadding;
   final Widget Function(BuildContext context, Widget paneContent, double paneWidth)?
       widePaneBuilder;
   final Widget Function(BuildContext context, Widget paneContent)?
@@ -44,15 +41,12 @@ class AdaptiveSidePane extends StatefulWidget {
     required this.onClose,
     this.onOpen,
     this.paneColor,
-    this.frameColor,
-    this.attachToTopBar = true,
     this.alignment = AlignmentDirectional.centerEnd,
     this.wrapPaneInFloatingPanel = true,
     this.isResizable = false,
     this.minPaneWidth = 220,
     this.maxPaneWidth,
     this.onPaneWidthChanged,
-    this.framePadding = const EdgeInsets.all(10),
     this.widePaneBuilder,
     this.narrowPaneBuilder,
     this.autoHandleResponsiveVisibility = true,
@@ -64,6 +58,14 @@ class AdaptiveSidePane extends StatefulWidget {
 
 class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
   bool? _lastHadRoomForSideBySide;
+  static const double _kWideTopGap = 14;
+  static const double _kWideBottomGap = 10;
+  static const double _kWideOuterSideGap = 10;
+  static const double _kWideInnerSideGap = 12;
+  static const double _kNarrowTopGap = 14;
+  static const double _kNarrowBottomGap = 10;
+  static const double _kNarrowHandleInset = 4;
+  static const double _kHandleHitSize = 36;
 
   Color _effectivePaneColor(BuildContext context) {
     return widget.paneColor ?? AppSurfaces.solidPanelBackground(context);
@@ -111,60 +113,59 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
     required bool paneOnRight,
     required bool isWide,
   }) {
-    final cs = Theme.of(context).colorScheme;
     final paneColor = _effectivePaneColor(context);
     const shellRadius = BorderRadius.all(Radius.circular(18));
+    final shadowColor =
+        Theme.of(context).colorScheme.shadow.withValues(alpha: 0.22);
 
     final shell = widget.wrapPaneInFloatingPanel
         ? FloatingPanel(
             color: paneColor,
+            elevation: 8,
+            shadowColor: shadowColor,
             borderRadius: shellRadius,
             child: child,
           )
         : Material(
             color: paneColor,
+            elevation: 4,
+            shadowColor: shadowColor,
+            surfaceTintColor: Colors.transparent,
             borderRadius: shellRadius,
             clipBehavior: Clip.antiAlias,
             child: child,
           );
 
-    if (!widget.attachToTopBar) {
+    if (!widget.isResizable || widget.onPaneWidthChanged == null) {
       return shell;
     }
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: widget.frameColor ?? cs.secondaryContainer,
-      ),
-      child: Padding(
-        padding: widget.framePadding,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Positioned.fill(child: shell),
-            if (isWide && widget.isResizable && widget.onPaneWidthChanged != null)
-              Positioned(
-                top: 2,
-                bottom: 2,
-                left: paneOnRight ? -10 : null,
-                right: paneOnRight ? null : -10,
-                child: ResizableDragHandle(
-                  isVertical: true,
-                  hitSize: 12,
-                  showDivider: false,
-                  onDragDelta: (delta) {
-                    final effectiveDelta = paneOnRight ? -delta : delta;
-                    final nextWidth = (widget.paneWidth + effectiveDelta).clamp(
-                      widget.minPaneWidth,
-                      widget.maxPaneWidth ?? double.infinity,
-                    );
-                    widget.onPaneWidthChanged?.call(nextWidth.toDouble());
-                  },
-                ),
-              ),
-          ],
+    final handleOffset = _kNarrowHandleInset;
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Positioned.fill(child: shell),
+        Positioned(
+          top: 0,
+          bottom: 0,
+          left: paneOnRight ? handleOffset : null,
+          right: paneOnRight ? null : handleOffset,
+          child: ResizableDragHandle(
+            isVertical: true,
+            hitSize: _kHandleHitSize,
+            showDivider: false,
+            onDragDelta: (delta) {
+              final effectiveDelta = paneOnRight ? -delta : delta;
+              final nextWidth = (widget.paneWidth + effectiveDelta).clamp(
+                widget.minPaneWidth,
+                widget.maxPaneWidth ?? double.infinity,
+              );
+              widget.onPaneWidthChanged?.call(nextWidth.toDouble());
+            },
+          ),
         ),
-      ),
+      ],
     );
   }
 
@@ -187,8 +188,10 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final paneOnRight = _isPaneOnRight(context);
+        final wideOccupiedWidth =
+            widget.paneWidth + _kWideOuterSideGap + _kWideInnerSideGap;
         final hasRoomForSideBySide =
-            constraints.maxWidth >= (widget.paneWidth + widget.minMainContentWidth);
+            constraints.maxWidth >= (wideOccupiedWidth + widget.minMainContentWidth);
 
         if (widget.autoHandleResponsiveVisibility) {
           _handleResponsiveAutoClose(hasRoomForSideBySide);
@@ -212,19 +215,31 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
           final paneSlot = AnimatedContainer(
             duration: const Duration(milliseconds: 250),
             curve: Curves.easeOut,
-            width: widget.isOpen ? widget.paneWidth : 0,
+            width: widget.isOpen ? wideOccupiedWidth : 0,
             child: ClipRect(
               child: Align(
                 alignment:
                     paneOnRight ? Alignment.centerRight : Alignment.centerLeft,
                 child: OverflowBox(
-                  maxWidth: widget.paneWidth,
+                  maxWidth: wideOccupiedWidth,
                   minWidth: 0,
                   alignment:
                       paneOnRight ? Alignment.centerRight : Alignment.centerLeft,
-                  child: SizedBox(
-                    width: widget.paneWidth,
-                    child: widePane,
+                  child: Padding(
+                    padding: EdgeInsetsDirectional.only(
+                      top: _kWideTopGap,
+                      bottom: _kWideBottomGap,
+                      start: paneOnRight
+                          ? _kWideInnerSideGap
+                          : _kWideOuterSideGap,
+                      end: paneOnRight
+                          ? _kWideOuterSideGap
+                          : _kWideInnerSideGap,
+                    ),
+                    child: SizedBox(
+                      width: widget.paneWidth,
+                      child: widePane,
+                    ),
                   ),
                 ),
               ),
@@ -272,8 +287,8 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
                 ),
               ),
             Positioned(
-              top: 0,
-              bottom: 0,
+              top: _kNarrowTopGap,
+              bottom: _kNarrowBottomGap,
               right: paneOnRight ? 0 : null,
               left: paneOnRight ? null : 0,
               width: widget.paneWidth,

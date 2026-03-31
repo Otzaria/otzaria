@@ -87,6 +87,9 @@ class FloatingPanel extends StatelessWidget {
   /// דריסת צבע הפאנל (אופציונלי)
   final Color? color;
 
+  /// דריסת צבע הצל (אופציונלי) — ברירת מחדל: shadow עם 10% אופקסיטי
+  final Color? shadowColor;
+
   const FloatingPanel({
     super.key,
     required this.child,
@@ -94,6 +97,7 @@ class FloatingPanel extends StatelessWidget {
     this.elevation = 2,
     this.padding,
     this.color,
+    this.shadowColor,
   });
 
   @override
@@ -110,8 +114,7 @@ class FloatingPanel extends StatelessWidget {
     return Material(
       color: panelColor,
       elevation: elevation,
-      // M3: shadowColor שקוף-עדין — הצל בא מה-elevation, לא מהצבע
-      shadowColor: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.10),
+      shadowColor: shadowColor ?? Theme.of(context).colorScheme.shadow.withValues(alpha: 0.10),
       // surfaceTintColor: Colors.transparent → מניעים tinting כחול אוטומטי של M3
       surfaceTintColor: Colors.transparent,
       borderRadius: effectiveBorderRadius,

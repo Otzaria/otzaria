@@ -433,7 +433,6 @@ class ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
                           _isSidebarVisible = true;
                         });
                       },
-                      paneColor: AppSurfaces.solidPanelBackground(context),
                       isResizable: true,
                       minPaneWidth: 220,
                       maxPaneWidth: 420,
