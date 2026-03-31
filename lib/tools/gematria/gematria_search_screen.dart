@@ -416,7 +416,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
               child: Stack(
                 children: [
                   ToolPanelWrapper(
-                    centerContent: !_showingSettings,
+                    centerContent: true,
                     child: Column(
                       children: [
                         if (_lastGematriaValue != null) _buildStatusBar(),
