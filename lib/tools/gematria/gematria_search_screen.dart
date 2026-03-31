@@ -39,7 +39,7 @@ class GematriaSearchScreen extends StatefulWidget {
 class GematriaSearchScreenState extends State<GematriaSearchScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
-  final FocusNode _screenFocusNode = FocusNode();
+  final FocusNode _screenFocusNode = FocusNode(skipTraversal: true);
   final ScrollController _scrollController = ScrollController();
   late final KeyboardListFocusController _keyboardListFocus;
 
@@ -147,6 +147,24 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
   void _toggleSettings() =>
       setState(() => _showingSettings = !_showingSettings);
 
+  void _focusResultsSurface() {
+    if (!mounted || !_screenFocusNode.canRequestFocus) return;
+    requestFocusIfNeeded(_screenFocusNode);
+  }
+
+  void _scrollResults({required bool forward}) {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    final delta = (position.viewportDimension * 0.85) * (forward ? 1 : -1);
+    final target =
+        (position.pixels + delta).clamp(0.0, position.maxScrollExtent);
+    _scrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+    );
+  }
+
   // ── ניווט ↑↓ ברשימה ─────────────────────────────────────────────────────
   void _moveFocus(int delta) {
     if (_searchResults.isEmpty) return;
@@ -159,7 +177,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
   }
 
   // ── חיפוש ─────────────────────────────────────────────────────────────────
-  Future<void> _performSearch() async {
+  Future<void> _performSearch({bool moveFocusToResults = false}) async {
     final searchText = _searchController.text.trim();
     if (searchText.isEmpty) return;
 
@@ -293,6 +311,10 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
 
         _isSearching = false;
       });
+      if (moveFocusToResults) {
+        WidgetsBinding.instance
+            .addPostFrameCallback((_) => _focusResultsSurface());
+      }
     } catch (e) {
       setState(() {
         _isSearching = false;
@@ -308,15 +330,15 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
     final searchShortcutSetting = context.select(
       (SettingsBloc bloc) =>
           bloc.state.shortcuts['key-shortcut-search-current-window'] ??
-          ShortcutValidator.defaultShortcuts[
-              'key-shortcut-search-current-window'] ??
+          ShortcutValidator
+              .defaultShortcuts['key-shortcut-search-current-window'] ??
           'ctrl+f',
     );
     final settingsShortcutSetting = context.select(
       (SettingsBloc bloc) =>
           bloc.state.shortcuts['key-shortcut-open-context-settings'] ??
-          ShortcutValidator.defaultShortcuts[
-              'key-shortcut-open-context-settings'] ??
+          ShortcutValidator
+              .defaultShortcuts['key-shortcut-open-context-settings'] ??
           'ctrl+shift+comma',
     );
     final settingsShortcut =
@@ -330,7 +352,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
           focusNode: _searchFocusNode,
           hintText: 'חפש גימטריה...',
           autofocus: true,
-          onSubmitted: (_) => _performSearch(),
+          onSubmitted: (_) => _performSearch(moveFocusToResults: true),
           onClear: () => setState(() {
             _searchResults = [];
             _lastGematriaValue = null;
@@ -371,10 +393,18 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
       },
       child: Focus(
         focusNode: _screenFocusNode,
-        canRequestFocus: false,
         skipTraversal: true,
         onKeyEvent: (node, event) {
           if (event is! KeyDownEvent) return KeyEventResult.ignored;
+          if (event.logicalKey == LogicalKeyboardKey.space ||
+              event.logicalKey == LogicalKeyboardKey.pageDown) {
+            _scrollResults(forward: true);
+            return KeyEventResult.handled;
+          }
+          if (event.logicalKey == LogicalKeyboardKey.pageUp) {
+            _scrollResults(forward: false);
+            return KeyEventResult.handled;
+          }
           if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
             _moveFocus(1);
             return KeyEventResult.handled;
@@ -501,5 +531,4 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
       ),
     );
   }
-
 }

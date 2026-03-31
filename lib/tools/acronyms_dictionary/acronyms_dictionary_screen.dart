@@ -69,6 +69,24 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen> {
     requestFocusIfNeeded(_searchFocusNode);
   }
 
+  void _focusResultsList() {
+    if (!mounted || !_listFocusNode.canRequestFocus) return;
+    requestFocusIfNeeded(_listFocusNode);
+  }
+
+  void _scrollResults({required bool forward}) {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    final delta = (position.viewportDimension * 0.85) * (forward ? 1 : -1);
+    final target =
+        (position.pixels + delta).clamp(0.0, position.maxScrollExtent);
+    _scrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+    );
+  }
+
   Future<void> _loadDictionary() async {
     try {
       await _dictionaryRepository.ensureAcronymsLoaded();
@@ -132,8 +150,8 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen> {
     final searchShortcutSetting = context.select(
       (SettingsBloc bloc) =>
           bloc.state.shortcuts['key-shortcut-search-current-window'] ??
-          ShortcutValidator.defaultShortcuts[
-              'key-shortcut-search-current-window'] ??
+          ShortcutValidator
+              .defaultShortcuts['key-shortcut-search-current-window'] ??
           'ctrl+f',
     );
     return CallbackShortcuts(
@@ -147,6 +165,15 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen> {
         focusNode: _listFocusNode,
         onKeyEvent: (node, event) {
           if (event is! KeyDownEvent) return KeyEventResult.ignored;
+          if (event.logicalKey == LogicalKeyboardKey.space ||
+              event.logicalKey == LogicalKeyboardKey.pageDown) {
+            _scrollResults(forward: true);
+            return KeyEventResult.handled;
+          }
+          if (event.logicalKey == LogicalKeyboardKey.pageUp) {
+            _scrollResults(forward: false);
+            return KeyEventResult.handled;
+          }
           if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
             _moveFocus(1);
             return KeyEventResult.handled;
@@ -166,6 +193,7 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen> {
                   focusNode: _searchFocusNode,
                   hintText: 'חפש ראשי תיבות...',
                   autofocus: true,
+                  onSubmitted: (_) => _focusResultsList(),
                   onClear: () => setState(() {
                     _filteredResults = [];
                     _focusedIndex = -1;

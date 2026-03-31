@@ -277,8 +277,8 @@ class _MeasurementConverterScreenState
     final searchShortcutSetting = context.select(
       (SettingsBloc bloc) =>
           bloc.state.shortcuts['key-shortcut-search-current-window'] ??
-          ShortcutValidator.defaultShortcuts[
-              'key-shortcut-search-current-window'] ??
+          ShortcutValidator
+              .defaultShortcuts['key-shortcut-search-current-window'] ??
           'ctrl+f',
     );
     return CallbackShortcuts(
@@ -491,6 +491,15 @@ class _MeasurementConverterScreenState
                                       }
                                       _convert();
                                     },
+                                    onSubmitted: (_) {
+                                      WidgetsBinding.instance
+                                          .addPostFrameCallback((_) {
+                                        if (mounted &&
+                                            _screenFocusNode.canRequestFocus) {
+                                          _screenFocusNode.requestFocus();
+                                        }
+                                      });
+                                    },
                                     textAlign: TextAlign.right,
                                     style: TextStyle(
                                       fontSize: fieldFontSize,
@@ -575,7 +584,8 @@ class _MeasurementConverterScreenState
   Widget _buildAdaptiveContent(Color bgColor, {required bool isWide}) {
     return AdaptiveSidePane(
       isOpen: isWide ? _sidebarVisible : _narrowShowCategories,
-      alignment: AlignmentDirectional.centerEnd, // ימין בעברית (RTL) - סרגל ניווט
+      alignment:
+          AlignmentDirectional.centerEnd, // ימין בעברית (RTL) - סרגל ניווט
       paneWidth: _categoriesPaneWidth,
       minMainContentWidth: 420,
       onClose: () {
