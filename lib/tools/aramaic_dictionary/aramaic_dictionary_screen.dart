@@ -1,5 +1,6 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:otzaria/core/widgets/otzaria_search_field.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository.dart';
 import 'package:otzaria/tools/dictionary/widgets/aramaic_dictionary_entry_view.dart';
@@ -110,29 +111,12 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen> {
         children: [
           const SizedBox(width: 8),
           Expanded(
-            child: RtlTextField(
+            child: OtzariaSearchField(
               controller: _searchController,
-              textAlign: TextAlign.right,
-              decoration: InputDecoration(
-                border: const OutlineInputBorder(),
-                hintText: _isHebrewToAramaic
-                    ? 'חפש מילה בעברית...'
-                    : 'חפש מילה בארמית...',
-                labelText:
-                    _isHebrewToAramaic ? 'הזן מילה בעברית' : 'הזן מילה בארמית',
-                prefixIcon: Icon(
-                  FluentIcons.search_24_regular,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        tooltip: 'נקה',
-                        icon: const Icon(FluentIcons.dismiss_24_regular),
-                        onPressed: _searchController.clear,
-                      )
-                    : null,
-              ),
-              textInputAction: TextInputAction.search,
+              hintText: _isHebrewToAramaic
+                  ? 'חפש מילה בעברית...'
+                  : 'חפש מילה בארמית...',
+              onClear: _searchController.clear,
             ),
           ),
         ],

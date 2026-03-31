@@ -9,7 +9,7 @@ import 'package:otzaria/text_book/view/combined_view/commentary_content.dart';
 import 'package:otzaria/widgets/progressive_scrolling.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
-import 'package:otzaria/widgets/rtl_text_field.dart';
+import 'package:otzaria/core/widgets/otzaria_search_field.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:flutter/foundation.dart';
 
@@ -143,85 +143,9 @@ class _CommentaryListState extends State<CommentaryList> {
                           return ValueListenableBuilder<int>(
                             valueListenable: _currentSearchIndexNotifier,
                             builder: (context, currentIndex, ___) {
-                              return RtlTextField(
+                              return OtzariaSearchField(
                                 controller: _searchController,
-                                decoration: InputDecoration(
-                                  hintText: 'חפש בתוך המפרשים המוצגים...',
-                                  prefixIcon:
-                                      const Icon(FluentIcons.search_24_regular),
-                                  suffixIcon: query.isNotEmpty
-                                      ? Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            if (total > 1) ...[
-                                              Text(
-                                                '${currentIndex + 1}/$total',
-                                                style: Theme.of(context)
-                                                    .textTheme
-                                                    .bodySmall,
-                                              ),
-                                              const SizedBox(width: 4),
-                                              IconButton(
-                                                icon: const Icon(FluentIcons
-                                                    .chevron_up_24_regular),
-                                                iconSize: 20,
-                                                padding: EdgeInsets.zero,
-                                                constraints:
-                                                    const BoxConstraints(
-                                                  minWidth: 24,
-                                                  minHeight: 24,
-                                                ),
-                                                onPressed: currentIndex > 0
-                                                    ? () {
-                                                        _currentSearchIndexNotifier
-                                                                .value =
-                                                            currentIndex - 1;
-                                                        _scrollToSearchResult();
-                                                      }
-                                                    : null,
-                                              ),
-                                              IconButton(
-                                                icon: const Icon(FluentIcons
-                                                    .chevron_down_24_regular),
-                                                iconSize: 20,
-                                                padding: EdgeInsets.zero,
-                                                constraints:
-                                                    const BoxConstraints(
-                                                  minWidth: 24,
-                                                  minHeight: 24,
-                                                ),
-                                                onPressed: currentIndex <
-                                                        total - 1
-                                                    ? () {
-                                                        _currentSearchIndexNotifier
-                                                                .value =
-                                                            currentIndex + 1;
-                                                        _scrollToSearchResult();
-                                                      }
-                                                    : null,
-                                              ),
-                                            ],
-                                            IconButton(
-                                              icon: const Icon(FluentIcons
-                                                  .dismiss_24_regular),
-                                              onPressed: () {
-                                                _searchController.clear();
-                                                _searchQueryNotifier.value = '';
-                                                _currentSearchIndexNotifier
-                                                    .value = 0;
-                                                _totalSearchResultsNotifier
-                                                    .value = 0;
-                                                _searchResultsPerItem.clear();
-                                              },
-                                            ),
-                                          ],
-                                        )
-                                      : null,
-                                  isDense: true,
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8.0),
-                                  ),
-                                ),
+                                hintText: 'חפש בתוך המפרשים המוצגים...',
                                 onChanged: (value) {
                                   if (_searchQueryNotifier.value != value) {
                                     _searchQueryNotifier.value = value;
@@ -230,6 +154,39 @@ class _CommentaryListState extends State<CommentaryList> {
                                     _searchResultsPerItem.clear();
                                   }
                                 },
+                                onClear: () {
+                                  _searchQueryNotifier.value = '';
+                                  _currentSearchIndexNotifier.value = 0;
+                                  _totalSearchResultsNotifier.value = 0;
+                                  _searchResultsPerItem.clear();
+                                },
+                                trailingActions: [
+                                  OtzariaSearchAction.resultCounter(
+                                    current: currentIndex + 1,
+                                    total: total,
+                                    context: context,
+                                  ),
+                                  if (total > 1) ...[
+                                    OtzariaSearchAction.prevResult(
+                                      onPressed: currentIndex > 0
+                                          ? () {
+                                              _currentSearchIndexNotifier
+                                                  .value = currentIndex - 1;
+                                              _scrollToSearchResult();
+                                            }
+                                          : null,
+                                    ),
+                                    OtzariaSearchAction.nextResult(
+                                      onPressed: currentIndex < total - 1
+                                          ? () {
+                                              _currentSearchIndexNotifier
+                                                  .value = currentIndex + 1;
+                                              _scrollToSearchResult();
+                                            }
+                                          : null,
+                                    ),
+                                  ],
+                                ],
                               );
                             },
                           );

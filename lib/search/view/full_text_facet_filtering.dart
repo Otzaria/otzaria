@@ -12,7 +12,8 @@ import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
-import 'package:otzaria/widgets/rtl_text_field.dart';
+import 'package:otzaria/core/widgets/otzaria_search_field.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/thin_divider.dart';
 
 // Constants
@@ -135,29 +136,21 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
   }
 
   Widget _buildSearchField() {
-    return Container(
-      height: 60, // Same height as the container on the right
-      alignment: Alignment.center, // Vertically centers the RtlTextField
-      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-      child: RtlTextField(
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTokens.spaceSM,
+        vertical: AppTokens.spaceXS,
+      ),
+      child: OtzariaSearchField(
         controller: _filterQuery,
-        decoration: InputDecoration(
-          hintText: 'איתור ספר…',
-          prefixIcon: const Icon(FluentIcons.filter_24_regular),
-          suffixIcon: IconButton(
-            onPressed: _clearFilter,
-            icon: const Icon(FluentIcons.dismiss_24_regular),
-          ),
-          border: InputBorder.none,
-          enabledBorder: InputBorder.none,
-          focusedBorder: UnderlineInputBorder(
-            borderSide: BorderSide(
-              color: Theme.of(context).colorScheme.primary,
-              width: 2,
-            ),
-          ),
+        hintText: 'איתור ספר…',
+        leading: Icon(
+          FluentIcons.filter_24_regular,
+          size: 20,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
         onChanged: _onQueryChanged,
+        onClear: _clearFilter,
       ),
     );
   }

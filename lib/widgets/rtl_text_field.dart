@@ -27,6 +27,7 @@ class RtlTextField extends StatefulWidget {
   final TextAlign textAlign;
   final List<TextInputFormatter>? inputFormatters;
   final bool obscureText;
+  final Color? cursorColor;
 
   const RtlTextField({
     super.key,
@@ -45,6 +46,7 @@ class RtlTextField extends StatefulWidget {
     this.textAlign = TextAlign.start,
     this.inputFormatters,
     this.obscureText = false,
+    this.cursorColor,
   });
 
   @override
@@ -116,6 +118,7 @@ class _RtlTextFieldState extends State<RtlTextField> {
       textAlign: widget.textAlign,
       inputFormatters: widget.inputFormatters,
       obscureText: widget.obscureText,
+      cursorColor: widget.cursorColor,
     );
 
     // עטיפה בתיקון חיצים אם RTL

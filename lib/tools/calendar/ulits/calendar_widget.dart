@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_spinbox/flutter_spinbox.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:kosher_dart/kosher_dart.dart';
+import 'package:otzaria/core/widgets/otzaria_search_field.dart';
 import 'package:otzaria/daf_yomi/daf_yomi_helper.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/widgets/dialogs.dart';
@@ -2945,43 +2946,34 @@ class _TimesAndEventsTabViewState extends State<_TimesAndEventsTabView>
                         ],
                       ),
                       const SizedBox(height: 16),
-                      RtlTextField(
-                        onChanged: (query) => context
-                            .read<CalendarCubit>()
-                            .setEventSearchQuery(query),
-                        decoration: InputDecoration(
-                          hintText: 'חפש אירועים...',
-                          prefixIcon: const Icon(FluentIcons.search_24_regular),
-                          suffixIcon: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (widget.state.eventSearchQuery.isNotEmpty)
-                                IconButton(
-                                  icon: const Icon(
-                                      FluentIcons.dismiss_24_regular),
-                                  tooltip: 'נקה חיפוש',
-                                  onPressed: () {
-                                    context
-                                        .read<CalendarCubit>()
-                                        .setEventSearchQuery('');
-                                  },
-                                ),
-                              IconButton(
-                                icon: Icon(widget.state.searchInDescriptions
-                                    ? FluentIcons.document_text_24_regular
-                                    : FluentIcons.text_t_24_regular),
-                                tooltip: widget.state.searchInDescriptions
-                                    ? 'חפש רק בכותרת'
-                                    : 'חפש גם בתיאור',
-                                onPressed: () => context
-                                    .read<CalendarCubit>()
-                                    .toggleSearchInDescriptions(
-                                        !widget.state.searchInDescriptions),
-                              ),
-                            ],
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OtzariaSearchField(
+                              controller: TextEditingController(
+                                  text: widget.state.eventSearchQuery),
+                              hintText: 'חפש אירועים...',
+                              onChanged: (query) => context
+                                  .read<CalendarCubit>()
+                                  .setEventSearchQuery(query),
+                              onClear: () => context
+                                  .read<CalendarCubit>()
+                                  .setEventSearchQuery(''),
+                            ),
                           ),
-                          border: const OutlineInputBorder(),
-                        ),
+                          IconButton(
+                            icon: Icon(widget.state.searchInDescriptions
+                                ? FluentIcons.document_text_24_regular
+                                : FluentIcons.text_t_24_regular),
+                            tooltip: widget.state.searchInDescriptions
+                                ? 'חפש רק בכותרת'
+                                : 'חפש גם בתיאור',
+                            onPressed: () => context
+                                .read<CalendarCubit>()
+                                .toggleSearchInDescriptions(
+                                    !widget.state.searchInDescriptions),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 16),
                       widget.buildEventsList(context, widget.state,

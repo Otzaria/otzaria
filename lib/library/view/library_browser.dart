@@ -29,7 +29,7 @@ import 'package:otzaria/utils/open_book.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
-import 'package:otzaria/widgets/rtl_text_field.dart';
+import 'package:otzaria/core/widgets/otzaria_search_field.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 
 class LibraryBrowser extends StatefulWidget {
@@ -357,31 +357,20 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               }
             },
           },
-          child: RtlTextField(
+          child: OtzariaSearchField(
             controller: focusRepository.librarySearchController,
-            focusNode: context.read<FocusRepository>().librarySearchFocusNode,
+            focusNode: focusRepository.librarySearchFocusNode,
             autofocus: true,
-            decoration: InputDecoration(
-              constraints: const BoxConstraints(maxWidth: 400),
-              prefixIcon: const Icon(FluentIcons.search_24_regular),
-              suffixIcon: IconButton(
-                onPressed: () {
-                  focusRepository.librarySearchController.clear();
-                  _update(context, state, settingsState);
-                  _refocusSearchBar();
-                },
-                icon: const Icon(FluentIcons.dismiss_24_regular),
-              ),
-              border: const OutlineInputBorder(
-                borderRadius: BorderRadius.all(Radius.circular(8.0)),
-              ),
-              hintText:
-                  'איתור ספר או מחבר ב${state.currentCategory?.title ?? ""}',
-            ),
+            hintText: 'איתור ספר או מחבר ב${state.currentCategory?.title ?? ""}',
+            maxWidth: 400,
             onChanged: (value) {
               context.read<LibraryBloc>().add(UpdateSearchQuery(value));
               context.read<LibraryBloc>().add(const SelectTopics([]));
               _update(context, state, settingsState);
+            },
+            onClear: () {
+              _update(context, state, settingsState);
+              _refocusSearchBar();
             },
           ),
         );
@@ -1424,6 +1413,91 @@ class _LoadingDotsTextState extends State<_LoadingDotsText>
           style: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w500,
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Widget של כפתור יצירת מסד נתונים עם אנימציית הבהוב אדום עדין
+/// מהבהב 5 פעמים ואז נעצר
+class _BlinkingDatabaseButton extends StatefulWidget {
+  final VoidCallback onPressed;
+
+  const _BlinkingDatabaseButton({required this.onPressed});
+
+  @override
+  State<_BlinkingDatabaseButton> createState() =>
+      _BlinkingDatabaseButtonState();
+}
+
+class _BlinkingDatabaseButtonState extends State<_BlinkingDatabaseButton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<Color?> _colorAnimation;
+  int _blinkCount = 0;
+  static const int maxBlinks = 5;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+
+    _controller.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        _blinkCount++;
+        if (_blinkCount < maxBlinks) {
+          _controller.reverse();
+        }
+      } else if (status == AnimationStatus.dismissed) {
+        if (_blinkCount < maxBlinks) {
+          _controller.forward();
+        }
+      }
+    });
+
+    // התחל את האנימציה
+    _controller.forward();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // יצירת אנימציית צבע עדינה מהרקע הרגיל לאדום עדין
+    _colorAnimation = ColorTween(
+      begin: Theme.of(context).colorScheme.surfaceContainerHighest,
+      end: Colors.red.withValues(alpha: 0.3), // אדום עדין מאוד
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeInOut,
+    ));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _colorAnimation,
+      builder: (context, child) {
+        return IconButton(
+          icon: const Icon(FluentIcons.database_arrow_right_24_regular),
+          tooltip: 'יצירת מסד נתונים - לחץ כאן!',
+          onPressed: widget.onPressed,
+          style: IconButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
+            backgroundColor: _colorAnimation.value,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
       },

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:otzaria/widgets/rtl_text_field.dart';
+import 'package:otzaria/core/widgets/otzaria_search_field.dart';
 
 class ItemsListView extends StatefulWidget {
   final List<dynamic> items;
@@ -77,28 +77,15 @@ class _ItemsListViewState extends State<ItemsListView> {
       children: [
         Padding(
           padding: const EdgeInsets.all(8.0),
-          child: RtlTextField(
+          child: OtzariaSearchField(
             controller: _searchController,
             focusNode: _searchFocusNode,
-            decoration: InputDecoration(
-              hintText: widget.hintText,
-              prefixIcon: const Icon(FluentIcons.search_24_regular),
-              suffixIcon: _searchQuery.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(FluentIcons.dismiss_24_regular),
-                      onPressed: () {
-                        _searchController.clear();
-                        setState(() {
-                          _searchQuery = '';
-                        });
-                      },
-                    )
-                  : null,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8.0),
-              ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16.0),
-            ),
+            hintText: widget.hintText,
+            onClear: () {
+              setState(() {
+                _searchQuery = '';
+              });
+            },
           ),
         ),
         Expanded(

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:otzaria/widgets/rtl_text_field.dart';
+import 'package:otzaria/core/widgets/otzaria_search_field.dart';
 
 /// דיאלוג בחירה עם חיפוש
 class SelectionDialog<T> extends StatefulWidget {
@@ -57,13 +57,9 @@ class _SelectionDialogState<T> extends State<SelectionDialog<T>> {
         height: 400,
         child: Column(
           children: [
-            RtlTextField(
+            OtzariaSearchField(
               controller: _searchController,
-              decoration: InputDecoration(
-                labelText: widget.searchHint,
-                prefixIcon: const Icon(FluentIcons.search_24_regular),
-                border: const OutlineInputBorder(),
-              ),
+              hintText: widget.searchHint,
               autofocus: true,
             ),
             const SizedBox(height: 8),

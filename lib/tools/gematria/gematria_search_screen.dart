@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/core/widgets/otzaria_search_field.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tools/gematria/gematria_search.dart';
 import 'package:otzaria/utils/open_book.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
-import 'package:otzaria/widgets/rtl_text_field.dart';
 
 class GematriaSearchScreen extends StatefulWidget {
   const GematriaSearchScreen({super.key});
@@ -327,35 +327,22 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
         children: [
           const SizedBox(width: 8),
           Expanded(
-            child: RtlTextField(
+            child: OtzariaSearchField(
               controller: _searchController,
-              textAlign: TextAlign.right,
-              decoration: InputDecoration(
-                border: const OutlineInputBorder(),
-                hintText: 'חפש גימטריה...',
-                labelText: 'לחיפוש, הכנס אותיות או מספר של ערך החיפוש',
-                prefixIcon: IconButton(
-                  icon: const Icon(FluentIcons.search_24_regular),
-                  onPressed: _performSearch,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        tooltip: 'נקה',
-                        icon: const Icon(FluentIcons.dismiss_24_regular),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() {
-                            _searchResults = [];
-                            _lastGematriaValue = null;
-                            _hasSearched = false;
-                          });
-                        },
-                      )
-                    : null,
-              ),
+              hintText: 'חפש גימטריה...',
               onSubmitted: (_) => _performSearch(),
-              textInputAction: TextInputAction.search,
+              onClear: () {
+                setState(() {
+                  _searchResults = [];
+                  _lastGematriaValue = null;
+                  _hasSearched = false;
+                });
+              },
+              leading: IconButton(
+                icon: const Icon(FluentIcons.search_24_regular),
+                onPressed: _performSearch,
+                color: Theme.of(context).colorScheme.primary,
+              ),
             ),
           ),
           const SizedBox(width: 8),

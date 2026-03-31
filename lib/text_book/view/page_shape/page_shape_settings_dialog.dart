@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/core/widgets/otzaria_search_field.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_commentary_selection.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
-import 'package:otzaria/widgets/rtl_text_field.dart';
 
 /// סוג שמירת הגדרות מפרשים
 enum CommentatorSaveScope {
@@ -1065,26 +1065,11 @@ class _CommentatorPickerDialogState extends State<_CommentatorPickerDialog> {
             const Divider(height: 1),
             Padding(
               padding: const EdgeInsets.all(12.0),
-              child: RtlTextField(
+              child: OtzariaSearchField(
                 controller: _searchController,
-                decoration: InputDecoration(
-                  hintText: "חיפוש מפרש...",
-                  prefixIcon: const Icon(FluentIcons.search_24_regular),
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? IconButton(
-                          onPressed: () {
-                            _searchController.clear();
-                            _updateFilteredList();
-                          },
-                          icon: const Icon(FluentIcons.dismiss_24_regular),
-                        )
-                      : null,
-                  isDense: true,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8.0),
-                  ),
-                ),
+                hintText: "חיפוש מפרש...",
                 onChanged: (_) => _updateFilteredList(),
+                onClear: _updateFilteredList,
               ),
             ),
             Expanded(

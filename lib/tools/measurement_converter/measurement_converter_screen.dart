@@ -2,39 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
 import 'measurement_data.dart';
-import 'package:otzaria/widgets/rtl_text_field.dart';
+import 'measurement_converter_logic.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 
-// START OF ADDITIONS - MODERN UNITS
-const List<String> modernLengthUnits = ['מ"מ', 'ס"מ', 'מטר', 'ק"מ'];
-const List<String> modernAreaUnits = ['ס"מ רבוע', 'מ"ר', 'ק"מ רבוע', 'דונם'];
-const List<String> modernVolumeUnits = [
-  'מ"מ מעוקב',
-  'ס"מ מעוקב',
-  'סמ"ק',
-  'מ"ל',
-  'ליטר',
-  'מטר מעוקב',
-  'קוב'
-];
-const List<String> modernWeightUnits = ['מ"ג', 'גרם', 'ק"ג', 'טון'];
-const List<String> modernTimeUnits = ['שניות', 'חלקים', 'דקות', 'שעות', 'ימים'];
-
-// Basic ancient time units (first row)
-const List<String> basicAncientTimeUnits = [
-  'הילוך אמה',
-  'הילוך מיל',
-  'הילוך פרסה'
-];
-
-// Complex ancient time units (second row) - ordered by size
-const List<String> complexAncientTimeUnits = [
-  'הילוך ארבע אמות',
-  'הילוך מאה אמה',
-  'הילוך שלושה רבעי מיל',
-  'הילוך ארבעה מילים',
-  'הילוך עשרה פרסאות'
-];
-// END OF ADDITIONS
+// ═════════════════════════════════════════════════════════════════════════════
+//  MeasurementConverterScreen
+//  lib/tools/measurement/measurement_converter_screen.dart
+//
+//  • לוגיקת המרה הועברה ל-MeasurementConverterLogic (measurement_converter_logic.dart)
+//  • רקע: AppSurfaces.panelBackground — כמו מסך ההגדרות
+//  • שדות קלט/פלט: _MeasurementTextField — סגנון גלולה, כמו שורת החיפוש
+//  • DropdownButtonFormField לשיטה: InputDecoration אחידה עם AppTokens
+//  • ווידג'טים: דרך SettingsCard / custom_ui_components
+// ═════════════════════════════════════════════════════════════════════════════
 
 class MeasurementConverterScreen extends StatefulWidget {
   const MeasurementConverterScreen({super.key});
@@ -50,19 +30,19 @@ class _MeasurementConverterScreenState
   String? _selectedFromUnit;
   String? _selectedToUnit;
   String? _selectedOpinion;
+
   final TextEditingController _inputController = TextEditingController();
   final TextEditingController _resultController = TextEditingController();
   final FocusNode _inputFocusNode = FocusNode();
   final FocusNode _screenFocusNode = FocusNode();
   bool _showResultField = false;
 
-  // Maps to remember user selections for each category
+  // זכירת בחירות לכל קטגוריה
   final Map<String, String> _rememberedFromUnits = {};
   final Map<String, String> _rememberedToUnits = {};
   final Map<String, String> _rememberedOpinions = {};
   final Map<String, String> _rememberedInputValues = {};
 
-  // Updated to include modern units
   final Map<String, List<String>> _units = {
     'אורך': lengthConversionFactors.keys.toList()..addAll(modernLengthUnits),
     'שטח': areaConversionFactors.keys.toList()..addAll(modernAreaUnits),
@@ -71,7 +51,7 @@ class _MeasurementConverterScreenState
     'זמן': [
       ...basicAncientTimeUnits,
       ...complexAncientTimeUnits,
-      ...modernTimeUnits
+      ...modernTimeUnits,
     ],
   };
 
@@ -83,6 +63,14 @@ class _MeasurementConverterScreenState
     'זמן': modernTimeFactors.keys.toList(),
   };
 
+  final Map<String, List<String>> _modernUnits = {
+    'אורך': modernLengthUnits,
+    'שטח': modernAreaUnits,
+    'נפח': modernVolumeUnits,
+    'משקל': modernWeightUnits,
+    'זמן': modernTimeUnits,
+  };
+
   @override
   void initState() {
     super.initState();
@@ -91,14 +79,16 @@ class _MeasurementConverterScreenState
 
   @override
   void dispose() {
+    _inputController.dispose();
+    _resultController.dispose();
     _inputFocusNode.dispose();
     _screenFocusNode.dispose();
     super.dispose();
   }
 
+  // ── איפוס dropdowns ──────────────────────────────────────────────────────
   void _resetDropdowns() {
     setState(() {
-      // Restore remembered selections or use defaults
       _selectedFromUnit = _rememberedFromUnits[_selectedCategory] ??
           _units[_selectedCategory]!.first;
       _selectedToUnit = _rememberedToUnits[_selectedCategory] ??
@@ -106,7 +96,6 @@ class _MeasurementConverterScreenState
       _selectedOpinion = _rememberedOpinions[_selectedCategory] ??
           _opinions[_selectedCategory]?.first;
 
-      // Validate that remembered selections are still valid for current category
       if (!_units[_selectedCategory]!.contains(_selectedFromUnit)) {
         _selectedFromUnit = _units[_selectedCategory]!.first;
       }
@@ -115,21 +104,17 @@ class _MeasurementConverterScreenState
       }
       if (_opinions[_selectedCategory] != null &&
           !_opinions[_selectedCategory]!.contains(_selectedOpinion)) {
-        _selectedOpinion = _opinions[_selectedCategory]?.first;
+        _selectedOpinion = _opinions[_selectedCategory]!.first;
       }
 
-      // Restore remembered input value or use default '1'
       _inputController.text = _rememberedInputValues[_selectedCategory] ?? '1';
       _resultController.clear();
-
-      // Update result field visibility based on input
       _showResultField = _inputController.text.isNotEmpty;
-
-      // Convert if there's input
-      if (_inputController.text.isNotEmpty) {
-        _convert();
-      }
     });
+
+    if (_inputController.text.isNotEmpty) {
+      _convert();
+    }
   }
 
   void _saveCurrentSelections() {
@@ -142,315 +127,91 @@ class _MeasurementConverterScreenState
     if (_selectedOpinion != null) {
       _rememberedOpinions[_selectedCategory] = _selectedOpinion!;
     }
-    // Save the current input value
-    if (_inputController.text.isNotEmpty) {
-      _rememberedInputValues[_selectedCategory] = _inputController.text;
-    }
   }
 
-  // Helper function to handle small inconsistencies in unit names
-  // e.g., 'אצבעות' vs 'אצבע', 'רביעיות' vs 'רביעית'
-  String _normalizeUnitName(String unit) {
-    const Map<String, String> normalizationMap = {
-      'אצבעות': 'אצבע',
-      'טפחים': 'טפח',
-      'זרתות': 'זרת',
-      'אמות': 'אמה',
-      'קנים': 'קנה',
-      'מילים': 'מיל',
-      'פרסאות': 'פרסה',
-      'בית רובע': 'בית רובע',
-      'בית קב': 'בית קב',
-      'בית סאה': 'בית סאה',
-      'בית סאתיים': 'בית סאתיים',
-      'בית לתך': 'בית לתך',
-      'בית כור': 'בית כור',
-      'רביעיות': 'רביעית',
-      'לוגים': 'לוג',
-      'קבים': 'קב',
-      'עשרונות': 'עשרון',
-      'הינים': 'הין',
-      'סאים': 'סאה',
-      'איפות': 'איפה',
-      'לתכים': 'לתך',
-      'כורים': 'כור',
-      'דינרים': 'דינר',
-      'שקלים': 'שקל',
-      'סלעים': 'סלע',
-      'טרטימרים': 'טרטימר',
-      'מנים': 'מנה',
-      'ככרות': 'כיכר',
-      'קנטרים': 'קנטר',
-    };
-    return normalizationMap[unit] ?? unit;
-  }
-
-  // Core logic to get the conversion factor from any unit to a base modern unit
-  double? _getFactorToBaseUnit(String category, String unit, String opinion) {
-    final normalizedUnit = _normalizeUnitName(unit);
-
-    switch (category) {
-      case 'אורך': // Base unit: cm
-        if (modernLengthUnits.contains(unit)) {
-          if (unit == 'מ"מ') return 0.1;
-          if (unit == 'ס"מ') return 1.0;
-          if (unit == 'מטר') return 100.0;
-          if (unit == 'ק"מ') return 100000.0;
-        } else {
-          if (opinion.isEmpty) {
-            return null; // Opinion required for ancient units
-          }
-          final value = modernLengthFactors[opinion]![normalizedUnit];
-          if (value == null) return null;
-          // Units in data are cm, m, km. Convert all to cm.
-          if (['קנה', 'מיל'].contains(normalizedUnit)) {
-            return value * 100; // m to cm
-          }
-          if (['פרסה'].contains(normalizedUnit)) {
-            return value * 100000; // km to cm
-          }
-          return value; // Already in cm
-        }
-        break;
-      case 'שטח': // Base unit: m^2
-        if (modernAreaUnits.contains(unit)) {
-          if (unit == 'ס"מ רבוע') return 0.0001;
-          if (unit == 'מ"ר') return 1.0;
-          if (unit == 'ק"מ רבוע') return 1000000.0;
-          if (unit == 'דונם') return 1000.0;
-        } else {
-          if (opinion.isEmpty) {
-            return null; // Opinion required for ancient units
-          }
-          final value = modernAreaFactors[opinion]![normalizedUnit];
-          if (value == null) return null;
-          // Units in data are m^2, dunam. Convert all to m^2
-          if (['בית סאתיים', 'בית לתך', 'בית כור'].contains(normalizedUnit) ||
-              (opinion == 'חתם סופר' && normalizedUnit == 'בית סאה')) {
-            return value * 1000; // dunam to m^2
-          }
-          return value; // Already in m^2
-        }
-        break;
-      case 'נפח': // Base unit: cm^3
-        if (modernVolumeUnits.contains(unit)) {
-          if (unit == 'מ"מ מעוקב') return 0.001;
-          if (unit == 'ס"מ מעוקב') return 1.0;
-          if (unit == 'סמ"ק') return 1.0;
-          if (unit == 'מ"ל') return 1.0;
-          if (unit == 'ליטר') return 1000.0;
-          if (unit == 'מטר מעוקב') return 1000000.0;
-          if (unit == 'קוב') return 1000000.0;
-        } else {
-          if (opinion.isEmpty) {
-            return null; // Opinion required for ancient units
-          }
-          final value = modernVolumeFactors[opinion]![normalizedUnit];
-          if (value == null) return null;
-          // Units in data are cm^3, L. Convert all to cm^3
-          if (['קב', 'עשרון', 'הין', 'סאה', 'איפה', 'לתך', 'כור']
-              .contains(normalizedUnit)) {
-            return value * 1000; // L to cm^3
-          }
-          return value; // Already in cm^3
-        }
-        break;
-      case 'משקל': // Base unit: g
-        if (modernWeightUnits.contains(unit)) {
-          if (unit == 'מ"ג') return 0.001;
-          if (unit == 'גרם') return 1.0;
-          if (unit == 'ק"ג') return 1000.0;
-          if (unit == 'טון') return 1000000.0;
-        } else {
-          if (opinion.isEmpty) {
-            return null; // Opinion required for ancient units
-          }
-          final value = modernWeightFactors[opinion]![_normalizeUnitName(unit)];
-          if (value == null) return null;
-          // Units in data are g, kg. Convert all to g
-          if (['כיכר', 'קנטר'].contains(normalizedUnit)) {
-            return value * 1000; // kg to g
-          }
-          return value; // Already in g
-        }
-        break;
-      case 'זמן': // Base unit: seconds
-        if (modernTimeUnits.contains(unit)) {
-          if (unit == 'שניות') return 1.0;
-          if (unit == 'חלקים') {
-            return 10.0 / 3.0; // 3.333... seconds (3 seconds and 1/3)
-          }
-          if (unit == 'דקות') return 60.0;
-          if (unit == 'שעות') return 3600.0;
-          if (unit == 'ימים') return 86400.0;
-        } else {
-          if (opinion.isEmpty) {
-            return null; // Opinion required for ancient units
-          }
-          final value = modernTimeFactors[opinion]![unit];
-          if (value == null) return null;
-          return value; // Already in seconds
-        }
-        break;
-    }
-    return null;
-  }
-
+  // ── המרה ─────────────────────────────────────────────────────────────────
   void _convert() {
     final double? input = double.tryParse(_inputController.text);
     if (input == null ||
         _selectedFromUnit == null ||
         _selectedToUnit == null ||
         _inputController.text.isEmpty) {
-      setState(() {
-        _resultController.clear();
-      });
+      setState(() => _resultController.clear());
       return;
     }
 
-    // Check if both units are ancient
-    final modernUnits = _getModernUnitsForCategory(_selectedCategory);
-    bool fromIsAncient = !modernUnits.contains(_selectedFromUnit);
-    bool toIsAncient = !modernUnits.contains(_selectedToUnit);
-
-    double result = 0.0;
-
-    // ----- CONVERSION LOGIC -----
-    if (fromIsAncient && toIsAncient) {
-      // Case 1: Ancient to Ancient conversion (doesn't need opinion)
-      double conversionFactor = 1.0;
-      switch (_selectedCategory) {
-        case 'אורך':
-          conversionFactor =
-              lengthConversionFactors[_selectedFromUnit]![_selectedToUnit]!;
-          break;
-        case 'שטח':
-          conversionFactor =
-              areaConversionFactors[_selectedFromUnit]![_selectedToUnit]!;
-          break;
-        case 'נפח':
-          conversionFactor =
-              volumeConversionFactors[_selectedFromUnit]![_selectedToUnit]!;
-          break;
-        case 'משקל':
-          conversionFactor =
-              weightConversionFactors[_selectedFromUnit]![_selectedToUnit]!;
-          break;
-        case 'זמן':
-          conversionFactor =
-              timeConversionFactors[_selectedFromUnit]![_selectedToUnit]!;
-          break;
-      }
-      result = input * conversionFactor;
-    } else if (!fromIsAncient && !toIsAncient) {
-      // Case 2: Modern to Modern conversion (doesn't need opinion)
-      // Convert directly using base unit factors
-      final factorFrom =
-          _getFactorToBaseUnit(_selectedCategory, _selectedFromUnit!, '');
-      final factorTo =
-          _getFactorToBaseUnit(_selectedCategory, _selectedToUnit!, '');
-
-      if (factorFrom == null || factorTo == null) {
-        _resultController.clear();
-        return;
-      }
-
-      final valueInBaseUnit = input * factorFrom;
-      result = valueInBaseUnit / factorTo;
-    } else {
-      // Case 3: Conversion between ancient and modern units (requires an opinion)
-      if (_selectedOpinion == null) {
-        _resultController.text = "נא לבחור שיטה";
-        return;
-      }
-
-      // Step 1: Convert input from 'FromUnit' to the base unit (e.g., cm for length)
-      final factorFrom = _getFactorToBaseUnit(
-          _selectedCategory, _selectedFromUnit!, _selectedOpinion!);
-      if (factorFrom == null) {
-        _resultController.clear();
-        return;
-      }
-      final valueInBaseUnit = input * factorFrom;
-
-      // Step 2: Convert the value from the base unit to the 'ToUnit'
-      final factorTo = _getFactorToBaseUnit(
-          _selectedCategory, _selectedToUnit!, _selectedOpinion!);
-      if (factorTo == null) {
-        _resultController.clear();
-        return;
-      }
-      result = valueInBaseUnit / factorTo;
-    }
+    final result = MeasurementConverterLogic.convertMeasurement(
+      category: _selectedCategory,
+      fromUnit: _selectedFromUnit!,
+      toUnit: _selectedToUnit!,
+      input: input,
+      opinion: _selectedOpinion,
+      modernUnitsForCategory:
+          MeasurementConverterLogic.getModernUnitsForCategory(
+              _selectedCategory),
+    );
 
     setState(() {
-      if (result.isNaN || result.isInfinite) {
+      if (result == null) {
         _resultController.clear();
       } else {
-        _resultController.text = result
-            .toStringAsFixed(4)
-            .replaceAll(RegExp(r'([.]*0+)(?!.*\d)'), '');
+        _resultController.text = result;
       }
     });
   }
 
+  bool _shouldShowOpinionSelector() =>
+      MeasurementConverterLogic.shouldShowOpinionSelector(
+        category: _selectedCategory,
+        fromUnit: _selectedFromUnit,
+        toUnit: _selectedToUnit,
+        modernUnitsMap: _modernUnits,
+        opinionsMap: _opinions,
+      );
+
+  List<String> _getModernUnitsForCategory(String category) =>
+      MeasurementConverterLogic.getModernUnitsForCategory(category);
+
+  // ── build ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final bgColor = AppSurfaces.panelBackground(context);
+
     return Scaffold(
+      backgroundColor: bgColor,
       body: Focus(
         focusNode: _screenFocusNode,
         autofocus: true,
         onKeyEvent: (node, event) {
           if (event is KeyDownEvent) {
             final String character = event.character ?? '';
-
-            // Check if the pressed key is a number or decimal point
             if (RegExp(r'[0-9.]').hasMatch(character)) {
-              // Auto-focus the input field and add the character
               if (!_inputFocusNode.hasFocus) {
                 _inputFocusNode.requestFocus();
-                // Add the typed character to the input field
                 WidgetsBinding.instance.addPostFrameCallback((_) {
-                  final currentText = _inputController.text;
-                  final newText = currentText + character;
+                  final newText = _inputController.text + character;
                   _inputController.text = newText;
                   _inputController.selection = TextSelection.fromPosition(
                     TextPosition(offset: newText.length),
                   );
-                  setState(() {
-                    _showResultField = newText.isNotEmpty;
-                  });
+                  setState(() => _showResultField = newText.isNotEmpty);
                   _convert();
                 });
                 return KeyEventResult.handled;
               }
-            }
-            // Check if the pressed key is a delete/backspace key
-            else if (event.logicalKey == LogicalKeyboardKey.backspace ||
+            } else if (event.logicalKey == LogicalKeyboardKey.backspace ||
                 event.logicalKey == LogicalKeyboardKey.delete) {
-              // Auto-focus the input field and handle deletion
               if (!_inputFocusNode.hasFocus) {
                 _inputFocusNode.requestFocus();
                 WidgetsBinding.instance.addPostFrameCallback((_) {
-                  final currentText = _inputController.text;
-                  if (currentText.isNotEmpty) {
-                    String newText;
-                    if (event.logicalKey == LogicalKeyboardKey.backspace) {
-                      // Remove last character
-                      newText =
-                          currentText.substring(0, currentText.length - 1);
-                    } else {
-                      // Delete key - remove first character (or handle as backspace for simplicity)
-                      newText =
-                          currentText.substring(0, currentText.length - 1);
-                    }
+                  final cur = _inputController.text;
+                  if (cur.isNotEmpty) {
+                    final newText = cur.substring(0, cur.length - 1);
                     _inputController.text = newText;
                     _inputController.selection = TextSelection.fromPosition(
                       TextPosition(offset: newText.length),
                     );
-                    setState(() {
-                      _showResultField = newText.isNotEmpty;
-                    });
+                    setState(() => _showResultField = newText.isNotEmpty);
                     _convert();
                   }
                 });
@@ -461,15 +222,13 @@ class _MeasurementConverterScreenState
           return KeyEventResult.ignored;
         },
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(AppTokens.spaceMD),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _buildCategorySelector(),
-              const SizedBox(height: 20),
-              Expanded(
-                child: _buildMainContent(),
-              ),
+              const SizedBox(height: AppTokens.spaceLG),
+              Expanded(child: _buildMainContent()),
             ],
           ),
         ),
@@ -477,6 +236,7 @@ class _MeasurementConverterScreenState
     );
   }
 
+  // ── אייקון קטגוריה ────────────────────────────────────────────────────────
   IconData _getCategoryIcon(String category) {
     switch (category) {
       case 'אורך':
@@ -494,39 +254,37 @@ class _MeasurementConverterScreenState
     }
   }
 
+  // ── בורר קטגוריה ─────────────────────────────────────────────────────────
   Widget _buildCategorySelector() {
-    final categories = ['אורך', 'שטח', 'נפח', 'משקל', 'זמן'];
+    const categories = ['אורך', 'שטח', 'נפח', 'משקל', 'זמן'];
     final screenWidth = MediaQuery.of(context).size.width;
     final isSmallScreen = screenWidth < 600;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: isSmallScreen
-          ? SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: categories
-                    .map((category) => Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                          child: _buildCategoryCard(category, 110.0),
-                        ))
-                    .toList(),
-              ),
-            )
-          : Wrap(
-              spacing: 12.0,
-              runSpacing: 12.0,
-              alignment: WrapAlignment.center,
+    return isSmallScreen
+        ? SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
               children: categories
-                  .map((category) => _buildCategoryCard(category, 140.0))
+                  .map((cat) => Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: _buildCategoryCard(cat, 110.0),
+                      ))
                   .toList(),
             ),
-    );
+          )
+        : Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            alignment: WrapAlignment.center,
+            children: categories
+                .map((cat) => _buildCategoryCard(cat, 140.0))
+                .toList(),
+          );
   }
 
   Widget _buildCategoryCard(String category, double width) {
+    final cs = Theme.of(context).colorScheme;
     final isSelected = _selectedCategory == category;
-    final icon = _getCategoryIcon(category);
 
     return GestureDetector(
       onTap: () {
@@ -536,28 +294,24 @@ class _MeasurementConverterScreenState
             _selectedCategory = category;
             _resetDropdowns();
           });
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _screenFocusNode.requestFocus();
-          });
+          WidgetsBinding.instance
+              .addPostFrameCallback((_) => _screenFocusNode.requestFocus());
         }
       },
       child: Container(
         width: width,
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(AppTokens.spaceMD),
         decoration: BoxDecoration(
-          color: isSelected
-              ? Theme.of(context).colorScheme.primaryContainer
-              : Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(12.0),
+          // צבעי theme — primaryContainer/surface, ללא hard-coded
+          color: isSelected ? cs.primaryContainer : cs.surface,
+          borderRadius: BorderRadius.circular(AppTokens.radiusMD),
           border: Border.all(
-            color: isSelected
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+            color: isSelected ? cs.primary : cs.outline.withValues(alpha: 0.3),
             width: isSelected ? 2.0 : 1.0,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
+              color: cs.shadow.withValues(alpha: 0.05),
               blurRadius: 4,
               offset: const Offset(0, 2),
             ),
@@ -567,25 +321,19 @@ class _MeasurementConverterScreenState
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              icon,
+              _getCategoryIcon(category),
               size: 40,
-              color: isSelected
-                  ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.6),
+              color:
+                  isSelected ? cs.primary : cs.onSurface.withValues(alpha: 0.6),
             ),
             const SizedBox(height: 12),
             Text(
               category,
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: isSelected
-                    ? Theme.of(context).colorScheme.onPrimaryContainer
-                    : Theme.of(context).colorScheme.onSurface,
+                color: isSelected ? cs.onPrimaryContainer : cs.onSurface,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                fontSize: 16.0,
+                fontSize: AppTokens.fontMD,
               ),
             ),
           ],
@@ -594,6 +342,7 @@ class _MeasurementConverterScreenState
     );
   }
 
+  // ── תוכן ראשי ─────────────────────────────────────────────────────────────
   Widget _buildMainContent() {
     final screenWidth = MediaQuery.of(context).size.width;
     final isSmallScreen = screenWidth < 800;
@@ -604,13 +353,13 @@ class _MeasurementConverterScreenState
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _buildOpinionDropdown(),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppTokens.spaceMD),
             _buildInputField(),
             if (_showResultField) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: AppTokens.spaceMD),
               _buildResultDisplay(),
             ],
-            const SizedBox(height: 24),
+            const SizedBox(height: AppTokens.spaceLG),
             _buildUnitColumnsSmall(),
           ],
         ),
@@ -646,70 +395,187 @@ class _MeasurementConverterScreenState
     );
   }
 
-  bool _shouldShowOpinionSelector() {
-    if (!_opinions.containsKey(_selectedCategory) ||
-        _opinions[_selectedCategory]!.isEmpty) {
-      return false;
-    }
+  // ── dropdown שיטה ─────────────────────────────────────────────────────────
+  Widget _buildOpinionDropdown() {
+    final cs = Theme.of(context).colorScheme;
+    final opinions = _opinions[_selectedCategory]!;
+    final isEnabled = _shouldShowOpinionSelector();
 
-    final moderns = _modernUnits[_selectedCategory] ?? [];
-    final bool isFromModern = moderns.contains(_selectedFromUnit);
-    final bool isToModern = moderns.contains(_selectedToUnit);
+    // fill כמו שדות הקלט
+    final fillColor = cs.onSurface.withValues(alpha: 0.07);
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppTokens.radiusLG),
+      borderSide: BorderSide.none,
+    );
+    final focusBorder = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppTokens.radiusLG),
+      borderSide: BorderSide(color: cs.primary, width: 1.5),
+    );
 
-    return (isFromModern || isToModern) && !(isFromModern && isToModern);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text(
+          'שיטה',
+          style: TextStyle(
+            fontSize: AppTokens.fontSM,
+            color: isEnabled
+                ? cs.onSurfaceVariant
+                : cs.onSurface.withValues(alpha: 0.3),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 4),
+        DropdownButtonFormField<String>(
+          initialValue: _selectedOpinion,
+          decoration: InputDecoration(
+            filled: true,
+            fillColor:
+                isEnabled ? fillColor : cs.onSurface.withValues(alpha: 0.04),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: AppTokens.spaceMD,
+              vertical: AppTokens.spaceSM,
+            ),
+            isDense: true,
+            border: border,
+            enabledBorder: border,
+            focusedBorder: focusBorder,
+            disabledBorder: border,
+            enabled: isEnabled,
+          ),
+          isExpanded: true,
+          style: TextStyle(
+            fontSize: AppTokens.fontMD,
+            color:
+                isEnabled ? cs.onSurface : cs.onSurface.withValues(alpha: 0.4),
+          ),
+          items: opinions.map((opinion) {
+            return DropdownMenuItem<String>(
+              value: opinion,
+              child: Text(opinion),
+            );
+          }).toList(),
+          onChanged: isEnabled
+              ? (value) {
+                  setState(() {
+                    _selectedOpinion = value;
+                    if (value != null) {
+                      _rememberedOpinions[_selectedCategory] = value;
+                    }
+                    _convert();
+                  });
+                  WidgetsBinding.instance.addPostFrameCallback(
+                      (_) => _screenFocusNode.requestFocus());
+                }
+              : null,
+        ),
+      ],
+    );
   }
 
+  // ── שדה ערך להמרה ─────────────────────────────────────────────────────────
+  Widget _buildInputField() {
+    return _MeasurementTextField(
+      controller: _inputController,
+      focusNode: _inputFocusNode,
+      labelText: 'ערך להמרה',
+      onClear: () {
+        setState(() {
+          _inputController.clear();
+          _showResultField = false;
+          _resultController.clear();
+          _rememberedInputValues.remove(_selectedCategory);
+        });
+        WidgetsBinding.instance
+            .addPostFrameCallback((_) => _screenFocusNode.requestFocus());
+      },
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      inputFormatters: [
+        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+      ],
+      onChanged: (value) {
+        setState(() => _showResultField = value.isNotEmpty);
+        if (value.isNotEmpty) {
+          _rememberedInputValues[_selectedCategory] = value;
+        } else {
+          _rememberedInputValues.remove(_selectedCategory);
+        }
+        _convert();
+      },
+    );
+  }
+
+  // ── שדה תוצאה ─────────────────────────────────────────────────────────────
+  Widget _buildResultDisplay() {
+    return _MeasurementTextField(
+      controller: _resultController,
+      labelText: 'תוצאה',
+      enabled: false,
+      isResult: true,
+    );
+  }
+
+  // ── כפתורי יחידות — קטן (mobile) ─────────────────────────────────────────
   Widget _buildUnitColumnsSmall() {
+    final cs = Theme.of(context).colorScheme;
     final units = _units[_selectedCategory]!;
     final modernUnits = _getModernUnitsForCategory(_selectedCategory);
-    final ancientUnits =
-        units.where((unit) => !modernUnits.contains(unit)).toList();
+    final ancientUnits = units.where((u) => !modernUnits.contains(u)).toList();
+
+    // wrapper בסגנון SettingsCard
+    Widget unitBox({
+      required IconData icon,
+      required String title,
+      required String? selectedValue,
+      required ValueChanged<String?> onChanged,
+    }) {
+      return Container(
+        padding: const EdgeInsets.all(AppTokens.spaceMD),
+        decoration: BoxDecoration(
+          color: cs.surface,
+          borderRadius: BorderRadius.circular(AppTokens.radiusMD),
+          border: Border.all(
+            color: cs.outline.withValues(alpha: 0.25),
+            width: 1,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 16, color: cs.primary),
+                const SizedBox(width: 8),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: AppTokens.fontMD,
+                    fontWeight: FontWeight.w600,
+                    color: cs.primary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _buildHorizontalUnitList(
+                ancientUnits, modernUnits, selectedValue, onChanged),
+          ],
+        ),
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // From unit
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            border: Border.all(
-              color:
-                  Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
-              width: 1,
-            ),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    FluentIcons.arrow_up_24_regular,
-                    size: 16,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'המר מ:',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              _buildHorizontalUnitList(
-                  ancientUnits, modernUnits, _selectedFromUnit, (val) {
-                setState(() => _selectedFromUnit = val);
-                _rememberedFromUnits[_selectedCategory] = val!;
-                _convert();
-              }),
-            ],
-          ),
+        unitBox(
+          icon: FluentIcons.arrow_up_24_regular,
+          title: 'המר מ:',
+          selectedValue: _selectedFromUnit,
+          onChanged: (val) {
+            setState(() => _selectedFromUnit = val);
+            _rememberedFromUnits[_selectedCategory] = val!;
+            _convert();
+          },
         ),
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
@@ -727,55 +593,21 @@ class _MeasurementConverterScreenState
               },
               tooltip: 'החלף יחידות',
               style: IconButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                foregroundColor:
-                    Theme.of(context).colorScheme.onPrimaryContainer,
+                backgroundColor: cs.primaryContainer,
+                foregroundColor: cs.onPrimaryContainer,
               ),
             ),
           ),
         ),
-        // To unit
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            border: Border.all(
-              color:
-                  Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
-              width: 1,
-            ),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    FluentIcons.arrow_down_24_regular,
-                    size: 16,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'המר ל:',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              _buildHorizontalUnitList(
-                  ancientUnits, modernUnits, _selectedToUnit, (val) {
-                setState(() => _selectedToUnit = val);
-                _rememberedToUnits[_selectedCategory] = val!;
-                _convert();
-              }),
-            ],
-          ),
+        unitBox(
+          icon: FluentIcons.arrow_down_24_regular,
+          title: 'המר ל:',
+          selectedValue: _selectedToUnit,
+          onChanged: (val) {
+            setState(() => _selectedToUnit = val);
+            _rememberedToUnits[_selectedCategory] = val!;
+            _convert();
+          },
         ),
       ],
     );
@@ -787,51 +619,40 @@ class _MeasurementConverterScreenState
     String? selectedValue,
     ValueChanged<String?> onChanged,
   ) {
+    final cs = Theme.of(context).colorScheme;
+
+    Widget label(String text) => Text(
+          text,
+          style: TextStyle(
+            fontSize: AppTokens.fontSM,
+            fontWeight: FontWeight.w600,
+            color: cs.onSurface.withValues(alpha: 0.6),
+          ),
+        );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (ancientUnits.isNotEmpty) ...[
-          Text(
-            'חז"ל',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Theme.of(context)
-                  .colorScheme
-                  .onSurface
-                  .withValues(alpha: 0.7),
-            ),
-          ),
+          label('חז"ל'),
           const SizedBox(height: 6),
           Wrap(
             spacing: 6,
             runSpacing: 6,
             children: ancientUnits
-                .map((unit) => _buildHorizontalUnitButton(
-                    unit, selectedValue == unit, onChanged))
+                .map((u) => _buildUnitChip(u, selectedValue == u, onChanged))
                 .toList(),
           ),
           if (modernUnits.isNotEmpty) const SizedBox(height: 12),
         ],
         if (modernUnits.isNotEmpty) ...[
-          Text(
-            'מודרני',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Theme.of(context)
-                  .colorScheme
-                  .onSurface
-                  .withValues(alpha: 0.7),
-            ),
-          ),
+          label('מודרני'),
           const SizedBox(height: 6),
           Wrap(
             spacing: 6,
             runSpacing: 6,
             children: modernUnits
-                .map((unit) => _buildHorizontalUnitButton(
-                    unit, selectedValue == unit, onChanged))
+                .map((u) => _buildUnitChip(u, selectedValue == u, onChanged))
                 .toList(),
           ),
         ],
@@ -839,46 +660,12 @@ class _MeasurementConverterScreenState
     );
   }
 
-  Widget _buildHorizontalUnitButton(
-    String unit,
-    bool isSelected,
-    ValueChanged<String?> onChanged,
-  ) {
-    return GestureDetector(
-      onTap: () => onChanged(unit),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? Theme.of(context).colorScheme.primaryContainer
-              : Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(8.0),
-          border: Border.all(
-            color: isSelected
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
-            width: isSelected ? 2.0 : 1.0,
-          ),
-        ),
-        child: Text(
-          unit,
-          style: TextStyle(
-            color: isSelected
-                ? Theme.of(context).colorScheme.onPrimaryContainer
-                : Theme.of(context).colorScheme.onSurface,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-            fontSize: 13,
-          ),
-        ),
-      ),
-    );
-  }
-
+  // ── כפתורי יחידות — גדול (desktop) ───────────────────────────────────────
   Widget _buildUnitColumns() {
+    final cs = Theme.of(context).colorScheme;
     final units = _units[_selectedCategory]!;
     final modernUnits = _getModernUnitsForCategory(_selectedCategory);
-    final ancientUnits =
-        units.where((unit) => !modernUnits.contains(unit)).toList();
+    final ancientUnits = units.where((u) => !modernUnits.contains(u)).toList();
 
     final screenHeight = MediaQuery.of(context).size.height;
     final screenWidth = MediaQuery.of(context).size.width;
@@ -886,31 +673,35 @@ class _MeasurementConverterScreenState
     final columnWidth = (screenWidth * 0.18).clamp(240.0, 450.0);
     final iconSize = (screenWidth * 0.025).clamp(32.0, 48.0);
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
+    Widget column(
+      String? selectedValue,
+      ValueChanged<String?> onChanged,
+    ) =>
         Container(
           width: columnWidth,
           height: columnHeight,
           decoration: BoxDecoration(
             border: Border.all(
-              color:
-                  Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+              color: cs.outline.withValues(alpha: 0.25),
               width: 1,
             ),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(AppTokens.radiusSM),
           ),
           child: _buildVerticalUnitList(
-              ancientUnits, modernUnits, _selectedFromUnit, (val) {
-            setState(() => _selectedFromUnit = val);
-            _rememberedFromUnits[_selectedCategory] = val!;
-            _convert();
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              _screenFocusNode.requestFocus();
-            });
-          }),
-        ),
+              ancientUnits, modernUnits, selectedValue, onChanged),
+        );
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        column(_selectedFromUnit, (val) {
+          setState(() => _selectedFromUnit = val);
+          _rememberedFromUnits[_selectedCategory] = val!;
+          _convert();
+          WidgetsBinding.instance
+              .addPostFrameCallback((_) => _screenFocusNode.requestFocus());
+        }),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
           child: IconButton(
@@ -923,34 +714,19 @@ class _MeasurementConverterScreenState
                 _selectedToUnit = temp;
                 _convert();
               });
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                _screenFocusNode.requestFocus();
-              });
+              WidgetsBinding.instance
+                  .addPostFrameCallback((_) => _screenFocusNode.requestFocus());
             },
             tooltip: 'החלף יחידות',
           ),
         ),
-        Container(
-          width: columnWidth,
-          height: columnHeight,
-          decoration: BoxDecoration(
-            border: Border.all(
-              color:
-                  Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
-              width: 1,
-            ),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: _buildVerticalUnitList(
-              ancientUnits, modernUnits, _selectedToUnit, (val) {
-            setState(() => _selectedToUnit = val);
-            _rememberedToUnits[_selectedCategory] = val!;
-            _convert();
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              _screenFocusNode.requestFocus();
-            });
-          }),
-        ),
+        column(_selectedToUnit, (val) {
+          setState(() => _selectedToUnit = val);
+          _rememberedToUnits[_selectedCategory] = val!;
+          _convert();
+          WidgetsBinding.instance
+              .addPostFrameCallback((_) => _screenFocusNode.requestFocus());
+        }),
       ],
     );
   }
@@ -961,35 +737,36 @@ class _MeasurementConverterScreenState
     String? selectedValue,
     ValueChanged<String?> onChanged,
   ) {
+    final cs = Theme.of(context).colorScheme;
+
+    Widget sectionLabel(String text) => Text(
+          text,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: AppTokens.fontSM,
+            fontWeight: FontWeight.w600,
+            color: cs.onSurface.withValues(alpha: 0.6),
+          ),
+        );
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(8.0),
+      padding: const EdgeInsets.all(8),
       child: IntrinsicHeight(
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              flex: 1,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   if (ancientUnits.isNotEmpty) ...[
-                    Text(
-                      'חז"ל',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withValues(alpha: 0.7),
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
+                    sectionLabel('חז"ל'),
                     const SizedBox(height: 6),
-                    ...ancientUnits.map((unit) => Padding(
-                          padding: const EdgeInsets.only(bottom: 4.0),
-                          child: _buildVerticalUnitButton(
-                              unit, selectedValue == unit, onChanged),
+                    ...ancientUnits.map((u) => Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: _buildUnitChip(
+                              u, selectedValue == u, onChanged,
+                              fullWidth: true),
                         )),
                   ],
                 ],
@@ -999,34 +776,20 @@ class _MeasurementConverterScreenState
               Container(
                 width: 1,
                 margin: const EdgeInsets.symmetric(horizontal: 4),
-                color: Theme.of(context)
-                    .colorScheme
-                    .outline
-                    .withValues(alpha: 0.2),
+                color: cs.outline.withValues(alpha: 0.18),
               ),
             Expanded(
-              flex: 1,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   if (modernUnits.isNotEmpty) ...[
-                    Text(
-                      'מודרני',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withValues(alpha: 0.7),
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
+                    sectionLabel('מודרני'),
                     const SizedBox(height: 6),
-                    ...modernUnits.map((unit) => Padding(
-                          padding: const EdgeInsets.only(bottom: 4.0),
-                          child: _buildVerticalUnitButton(
-                              unit, selectedValue == unit, onChanged),
+                    ...modernUnits.map((u) => Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: _buildUnitChip(
+                              u, selectedValue == u, onChanged,
+                              fullWidth: true),
                         )),
                   ],
                 ],
@@ -1038,28 +801,28 @@ class _MeasurementConverterScreenState
     );
   }
 
-  Widget _buildVerticalUnitButton(
+  // ── chip יחידה — משותף לרשימות אופקיות ואנכיות ───────────────────────────
+  Widget _buildUnitChip(
     String unit,
     bool isSelected,
-    ValueChanged<String?> onChanged,
-  ) {
+    ValueChanged<String?> onChanged, {
+    bool fullWidth = false,
+  }) {
+    final cs = Theme.of(context).colorScheme;
     final screenWidth = MediaQuery.of(context).size.width;
-    final fontSize = (screenWidth * 0.009).clamp(13.0, 16.0);
-    final padding = (screenWidth * 0.006).clamp(8.0, 12.0);
+    final fontSize = fullWidth ? (screenWidth * 0.009).clamp(13.0, 16.0) : 13.0;
+    final pad = fullWidth ? (screenWidth * 0.006).clamp(8.0, 12.0) : 8.0;
 
     return GestureDetector(
       onTap: () => onChanged(unit),
       child: Container(
-        padding: EdgeInsets.symmetric(horizontal: padding, vertical: padding),
+        padding: EdgeInsets.symmetric(
+            horizontal: fullWidth ? pad : 12, vertical: pad),
         decoration: BoxDecoration(
-          color: isSelected
-              ? Theme.of(context).colorScheme.primaryContainer
-              : Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(8.0),
+          color: isSelected ? cs.primaryContainer : cs.surface,
+          borderRadius: BorderRadius.circular(AppTokens.radiusSM),
           border: Border.all(
-            color: isSelected
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+            color: isSelected ? cs.primary : cs.outline.withValues(alpha: 0.3),
             width: isSelected ? 2.0 : 1.0,
           ),
         ),
@@ -1067,9 +830,7 @@ class _MeasurementConverterScreenState
           unit,
           textAlign: TextAlign.center,
           style: TextStyle(
-            color: isSelected
-                ? Theme.of(context).colorScheme.onPrimaryContainer
-                : Theme.of(context).colorScheme.onSurface,
+            color: isSelected ? cs.onPrimaryContainer : cs.onSurface,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             fontSize: fontSize,
           ),
@@ -1077,133 +838,114 @@ class _MeasurementConverterScreenState
       ),
     );
   }
+}
 
-  List<String> _getModernUnitsForCategory(String category) {
-    switch (category) {
-      case 'אורך':
-        return modernLengthUnits;
-      case 'שטח':
-        return modernAreaUnits;
-      case 'נפח':
-        return modernVolumeUnits;
-      case 'משקל':
-        return modernWeightUnits;
-      case 'זמן':
-        return modernTimeUnits;
-      default:
-        return [];
-    }
-  }
+// ═════════════════════════════════════════════════════════════════════════════
+//  _MeasurementTextField — שדה קלט/פלט בסגנון גלולת חיפוש
+// ═════════════════════════════════════════════════════════════════════════════
+class _MeasurementTextField extends StatelessWidget {
+  final TextEditingController controller;
+  final String labelText;
+  final FocusNode? focusNode;
+  final VoidCallback? onClear;
+  final ValueChanged<String>? onChanged;
+  final bool enabled;
+  final bool isResult;
+  final TextInputType? keyboardType;
+  final List<TextInputFormatter>? inputFormatters;
 
-  final Map<String, List<String>> _modernUnits = {
-    'אורך': modernLengthUnits,
-    'שטח': modernAreaUnits,
-    'נפח': modernVolumeUnits,
-    'משקל': modernWeightUnits,
-    'זמן': modernTimeUnits,
-  };
+  const _MeasurementTextField({
+    required this.controller,
+    required this.labelText,
+    this.focusNode,
+    this.onClear,
+    this.onChanged,
+    this.enabled = true,
+    this.isResult = false,
+    this.keyboardType,
+    this.inputFormatters,
+  });
 
-  Widget _buildOpinionDropdown() {
-    final opinions = _opinions[_selectedCategory]!;
-    final isEnabled = _shouldShowOpinionSelector();
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
 
-    return DropdownButtonFormField<String>(
-      initialValue: _selectedOpinion,
-      decoration: InputDecoration(
-        labelText: 'שיטה',
-        border: const OutlineInputBorder(),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12.0, vertical: 16.0),
-        enabled: isEnabled,
-      ),
-      isExpanded: true,
-      items: opinions.map((opinion) {
-        return DropdownMenuItem<String>(
-          value: opinion,
-          child: Text(
-            opinion,
-            style: const TextStyle(fontSize: 14.0),
+    // fill — onSurface alpha, תואם לרקע ההגדרות בבהיר ובכהה
+    final fillColor = enabled
+        ? cs.onSurface.withValues(alpha: 0.07)
+        : cs.onSurface.withValues(alpha: 0.04);
+
+    // border — אותו סגנון כמו שורת החיפוש (ללא border ללא פוקוס)
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppTokens.radiusLG), // 16dp
+      borderSide: BorderSide.none,
+    );
+    final focusedBorder = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppTokens.radiusLG),
+      borderSide: BorderSide(color: cs.primary, width: 1.5),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        // תווית מעל השדה — כמו סגנון SettingsCard
+        Text(
+          labelText,
+          style: TextStyle(
+            fontSize: AppTokens.fontSM,
+            color: enabled
+                ? cs.onSurfaceVariant
+                : cs.onSurface.withValues(alpha: 0.35),
+            fontWeight: FontWeight.w500,
           ),
-        );
-      }).toList(),
-      onChanged: isEnabled
-          ? (value) {
-              setState(() {
-                _selectedOpinion = value;
-                if (value != null) {
-                  _rememberedOpinions[_selectedCategory] = value;
-                }
-                _convert();
-              });
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                _screenFocusNode.requestFocus();
-              });
-            }
-          : null,
-    );
-  }
-
-  Widget _buildInputField() {
-    return RtlTextField(
-      controller: _inputController,
-      focusNode: _inputFocusNode,
-      style: const TextStyle(fontSize: 16.0),
-      decoration: InputDecoration(
-        labelText: 'ערך להמרה',
-        border: const OutlineInputBorder(),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12.0, vertical: 16.0),
-        suffixIcon: _inputController.text.isNotEmpty
-            ? IconButton(
-                icon: const Icon(FluentIcons.dismiss_24_regular),
-                onPressed: () {
-                  setState(() {
-                    _inputController.clear();
-                    _showResultField = false;
-                    _resultController.clear();
-                    _rememberedInputValues.remove(_selectedCategory);
-                  });
-                  // Restore focus to the screen after clearing
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    _screenFocusNode.requestFocus();
-                  });
-                },
-              )
-            : null,
-      ),
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      inputFormatters: [
-        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+        ),
+        const SizedBox(height: 4),
+        TextField(
+          controller: controller,
+          focusNode: focusNode,
+          enabled: enabled,
+          keyboardType: keyboardType,
+          inputFormatters: inputFormatters,
+          onChanged: onChanged,
+          textAlign: TextAlign.right,
+          textDirection: TextDirection.rtl,
+          // cursorColor — onSurface כהה, לא primary/אדום
+          cursorColor: cs.onSurface.withValues(alpha: 0.87),
+          style: TextStyle(
+            fontSize: isResult ? AppTokens.fontXL : AppTokens.fontLG,
+            color: enabled ? cs.onSurface : cs.onSurfaceVariant,
+            fontWeight: isResult ? FontWeight.w500 : FontWeight.w400,
+          ),
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: fillColor,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: AppTokens.spaceMD,
+              vertical: AppTokens.spaceSM,
+            ),
+            isDense: true,
+            // suffix ✕ — מוצג רק כשיש טקסט ויש onClear
+            suffixIcon: (onClear != null && controller.text.isNotEmpty)
+                ? IconButton(
+                    icon: Icon(
+                      FluentIcons.dismiss_24_regular,
+                      size: 17,
+                      color: cs.onSurfaceVariant,
+                    ),
+                    onPressed: onClear,
+                    padding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.compact,
+                  )
+                : null,
+            border: border,
+            enabledBorder: border,
+            focusedBorder: focusedBorder,
+            disabledBorder: border,
+            errorBorder: border,
+            focusedErrorBorder: focusedBorder,
+          ),
+        ),
       ],
-      onChanged: (value) {
-        setState(() {
-          // Update result field visibility based on input
-          _showResultField = value.isNotEmpty;
-        });
-
-        // Save the input value when it changes
-        if (value.isNotEmpty) {
-          _rememberedInputValues[_selectedCategory] = value;
-        } else {
-          _rememberedInputValues.remove(_selectedCategory);
-        }
-        _convert();
-      },
-      textAlign: TextAlign.right,
-    );
-  }
-
-  Widget _buildResultDisplay() {
-    return RtlTextField(
-      controller: _resultController,
-      enabled: false,
-      decoration: const InputDecoration(
-        labelText: 'תוצאה',
-        border: OutlineInputBorder(),
-        contentPadding: EdgeInsets.symmetric(horizontal: 12.0, vertical: 16.0),
-      ),
-      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-      textAlign: TextAlign.right,
     );
   }
 }

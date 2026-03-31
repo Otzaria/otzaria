@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'package:otzaria/core/widgets/otzaria_search_field.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
-import 'package:otzaria/widgets/rtl_text_field.dart';
 
 class NotesSearchHeader extends StatefulWidget {
   final String bookId;
@@ -57,32 +57,18 @@ class _NotesSearchHeaderState extends State<NotesSearchHeader> {
               Row(
                 children: [
                   Expanded(
-                    child: RtlTextField(
+                    child: OtzariaSearchField(
                       controller: _searchController,
-                      decoration: InputDecoration(
-                        hintText: 'חפש בהערות...',
-                        prefixIcon: const Icon(FluentIcons.search_24_regular),
-                        suffixIcon: state.searchQuery.isNotEmpty
-                            ? IconButton(
-                                icon:
-                                    const Icon(FluentIcons.dismiss_24_regular),
-                                onPressed: () {
-                                  _searchController.clear();
-                                  context
-                                      .read<PersonalNotesBloc>()
-                                      .add(const UpdateSearchQuery(''));
-                                },
-                              )
-                            : null,
-                        isDense: true,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8.0),
-                        ),
-                      ),
+                      hintText: 'חפש בהערות...',
                       onChanged: (value) {
                         context
                             .read<PersonalNotesBloc>()
                             .add(UpdateSearchQuery(value));
+                      },
+                      onClear: () {
+                        context
+                            .read<PersonalNotesBloc>()
+                            .add(const UpdateSearchQuery(''));
                       },
                     ),
                   ),

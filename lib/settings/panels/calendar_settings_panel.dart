@@ -3,8 +3,8 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/core/widgets/otzaria_search_field.dart';
 import 'package:otzaria/tools/calendar/ulits/calendar_cubit.dart';
-import 'package:otzaria/widgets/rtl_text_field.dart';
 import 'package:otzaria/widgets/dialogs.dart';
 import 'package:otzaria/settings/settings_card.dart';
 import 'package:otzaria/widgets/custom_ui_components.dart';
@@ -456,15 +456,10 @@ class _CitySearchWidgetState extends State<_CitySearchWidget> {
         children: [
           Padding(
             padding: const EdgeInsets.all(8.0),
-            child: RtlTextField(
+            child: OtzariaSearchField(
               controller: _searchController,
+              hintText: 'הקלד שם עיר...',
               autofocus: true,
-              decoration: const InputDecoration(
-                hintText: 'הקלד שם עיר...',
-                prefixIcon: Icon(FluentIcons.search_24_regular),
-                border: OutlineInputBorder(),
-                isDense: true,
-              ),
             ),
           ),
           const Divider(height: 1),

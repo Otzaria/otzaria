@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:otzaria/widgets/rtl_text_field.dart';
+import 'package:otzaria/core/widgets/otzaria_search_field.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository.dart';
 
@@ -97,28 +97,10 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen> {
         children: [
           const SizedBox(width: 8),
           Expanded(
-            child: RtlTextField(
+            child: OtzariaSearchField(
               controller: _searchController,
-              textAlign: TextAlign.right,
-              decoration: InputDecoration(
-                border: const OutlineInputBorder(),
-                hintText: 'חפש ראשי תיבות...',
-                labelText: 'הזן ראשי תיבות או פירוש',
-                prefixIcon: Icon(
-                  FluentIcons.search_24_regular,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        tooltip: 'נקה',
-                        icon: const Icon(FluentIcons.dismiss_24_regular),
-                        onPressed: () {
-                          _searchController.clear();
-                        },
-                      )
-                    : null,
-              ),
-              textInputAction: TextInputAction.search,
+              hintText: 'חפש ראשי תיבות...',
+              onClear: () {},
             ),
           ),
         ],

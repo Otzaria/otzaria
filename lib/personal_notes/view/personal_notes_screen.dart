@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'package:otzaria/core/widgets/otzaria_search_field.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
@@ -18,7 +19,6 @@ import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
-import 'package:otzaria/widgets/rtl_text_field.dart';
 import 'package:otzaria/widgets/resizable_drag_handle.dart';
 import 'package:otzaria/widgets/navigation_tree_tile.dart';
 import 'package:otzaria/utils/open_book.dart';
@@ -203,30 +203,17 @@ class _PersonalNotesManagerScreenState
           const SizedBox(width: 8),
           // חלונית חיפוש באמצע
           Expanded(
-            child: RtlTextField(
+            child: OtzariaSearchField(
               controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'חפש בהערות...',
-                prefixIcon: const Icon(FluentIcons.search_24_regular),
-                suffixIcon: _searchQuery.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(FluentIcons.dismiss_24_regular),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() {
-                            _searchQuery = '';
-                          });
-                        },
-                      )
-                    : null,
-                isDense: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8.0),
-                ),
-              ),
+              hintText: 'חפש בהערות...',
               onChanged: (value) {
                 setState(() {
                   _searchQuery = value;
+                });
+              },
+              onClear: () {
+                setState(() {
+                  _searchQuery = '';
                 });
               },
             ),

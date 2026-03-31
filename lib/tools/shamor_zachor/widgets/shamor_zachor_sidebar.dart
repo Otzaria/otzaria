@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:provider/provider.dart';
-import 'package:otzaria/widgets/rtl_text_field.dart';
+import 'package:otzaria/core/widgets/otzaria_search_field.dart';
 import 'package:otzaria/widgets/thin_divider.dart';
 import 'package:otzaria/widgets/navigation_tree_tile.dart';
 import '../providers/shamor_zachor_data_provider.dart';
@@ -28,7 +27,6 @@ class ShamorZachorSidebar extends StatefulWidget {
 
 class _ShamorZachorSidebarState extends State<ShamorZachorSidebar> {
   final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = '';
   final Map<String, bool> _expansionState = {};
 
   @override
@@ -38,9 +36,6 @@ class _ShamorZachorSidebarState extends State<ShamorZachorSidebar> {
   }
 
   void _onSearchChanged(String value) {
-    setState(() {
-      _searchQuery = value;
-    });
     // Notify parent about search query change
     widget.onSearchChanged?.call(value);
   }
@@ -92,32 +87,13 @@ class _ShamorZachorSidebarState extends State<ShamorZachorSidebar> {
       height: 60,
       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
       alignment: Alignment.center,
-      child: RtlTextField(
+      child: OtzariaSearchField(
         controller: _searchController,
-        decoration: InputDecoration(
-          hintText: 'חפש...',
-          prefixIcon: const Icon(FluentIcons.search_24_regular),
-          suffixIcon: _searchQuery.isNotEmpty
-              ? IconButton(
-                  onPressed: () {
-                    _searchController.clear();
-                    _onSearchChanged('');
-                  },
-                  icon: const Icon(FluentIcons.dismiss_24_regular),
-                )
-              : null,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide.none,
-          ),
-          filled: true,
-          fillColor: Theme.of(context)
-              .colorScheme
-              .surfaceContainerHighest
-              .withAlpha(100),
-        ),
+        hintText: 'חפש...',
         onChanged: _onSearchChanged,
+        onClear: () {
+          _onSearchChanged('');
+        },
       ),
     );
   }
