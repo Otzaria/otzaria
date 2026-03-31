@@ -16,6 +16,7 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:kosher_dart/kosher_dart.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_side_panel.dart';
@@ -27,13 +28,15 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
 
 // הרוחב שמתחתיו עוברים לשורה שנייה
-const double _kTopBarNarrowBreakpoint = 640.0;
-const double _kTopRowQuickActionsThreshold = 560.0;
-// רוחב מינימלי לאזור תצוגת התאריך — לא יקוצר מזה גם כשיש לחץ.
-// גדול מספיק לתאריך הכי ארוך (כ״ח מרחשוון תשפ״ז • 20 November 2026)
-const double _kDateAreaWidth = 230.0;
-const double _kDateNavGap = 18.0;
-const double _kQuickActionsOffset = 242.0;
+const double _kTopBarNarrowBreakpoint = 540.0;
+const double _kTopBarMediumBreakpoint = 860.0;
+const double _kTopBarWideBreakpoint = 1160.0;
+const double _kMonthDateAreaWidth = 252.0;
+const double _kWeekDateAreaWidth = 344.0;
+const double _kMonthDateNavGap = 20.0;
+const double _kWeekDateNavGap = 12.0;
+const double _kWideQuickActionsOffsetMonth = 256.0;
+const double _kWideQuickActionsOffsetWeek = 306.0;
 
 class CalendarTopBar extends StatefulWidget {
   final CalendarState state;
@@ -78,16 +81,64 @@ class CalendarTopBar extends StatefulWidget {
 class _CalendarTopBarState extends State<CalendarTopBar> {
   final GlobalKey _jumpButtonKey = GlobalKey();
 
+  String _formatWeekHebrewRange(CalendarState state) {
+    final selected = state.selectedGregorianDate;
+    final weekStart = selected.subtract(Duration(days: selected.weekday % 7));
+    final weekEnd = weekStart.add(const Duration(days: 6));
+    final startJewish = JewishDate.fromDateTime(weekStart);
+    final endJewish = JewishDate.fromDateTime(weekEnd);
+
+    final sameHebrewMonth =
+        startJewish.getJewishMonth() == endJewish.getJewishMonth() &&
+            startJewish.getJewishYear() == endJewish.getJewishYear();
+
+    if (sameHebrewMonth) {
+      return '${formatHebrewDay(startJewish.getJewishDayOfMonth())}-${formatHebrewDay(endJewish.getJewishDayOfMonth())} '
+          '${getHebrewMonthNameFor(startJewish)} '
+          '${numberToHebrewWithoutQuotes(startJewish.getJewishYear())}';
+    }
+
+    return '${formatHebrewDay(startJewish.getJewishDayOfMonth())} ${getHebrewMonthNameFor(startJewish)} '
+        '${numberToHebrewWithoutQuotes(startJewish.getJewishYear())}'
+        ' - '
+        '${formatHebrewDay(endJewish.getJewishDayOfMonth())} ${getHebrewMonthNameFor(endJewish)} '
+        '${numberToHebrewWithoutQuotes(endJewish.getJewishYear())}';
+  }
+
+  String _formatWeekGregorianRange(CalendarState state) {
+    final selected = state.selectedGregorianDate;
+    final weekStart = selected.subtract(Duration(days: selected.weekday % 7));
+    final weekEnd = weekStart.add(const Duration(days: 6));
+
+    final sameGregorianMonth =
+        weekStart.month == weekEnd.month && weekStart.year == weekEnd.year;
+
+    if (sameGregorianMonth) {
+      return '${weekStart.day}-${weekEnd.day} ${getGregorianMonthName(weekStart.month)} ${weekStart.year}';
+    }
+
+    return '${weekStart.day} ${getGregorianMonthName(weekStart.month)} ${weekStart.year}'
+        ' - '
+        '${weekEnd.day} ${getGregorianMonthName(weekEnd.month)} ${weekEnd.year}';
+  }
+
   Widget _buildDateText(BuildContext context) {
     final s = widget.state;
-    final heb =
-        '${formatHebrewDay(s.selectedJewishDate.getJewishDayOfMonth())} '
-        '${getHebrewMonthNameFor(s.selectedJewishDate)} '
-        '${numberToHebrewWithoutQuotes(s.selectedJewishDate.getJewishYear())}';
-    final greg =
-        '${s.selectedGregorianDate.day} ${getGregorianMonthName(s.selectedGregorianDate.month)} ${s.selectedGregorianDate.year}';
+    final heb = s.calendarView == CalendarView.week
+        ? _formatWeekHebrewRange(s)
+        : '${formatHebrewDay(s.selectedJewishDate.getJewishDayOfMonth())} '
+            '${getHebrewMonthNameFor(s.selectedJewishDate)} '
+            '${numberToHebrewWithoutQuotes(s.selectedJewishDate.getJewishYear())}';
+    final greg = s.calendarView == CalendarView.week
+        ? _formatWeekGregorianRange(s)
+        : '${s.selectedGregorianDate.day} ${getGregorianMonthName(s.selectedGregorianDate.month)} ${s.selectedGregorianDate.year}';
 
-    final baseStyle = Theme.of(context).textTheme.bodyMedium;
+    final defaultStyle = Theme.of(context).textTheme.bodyMedium!;
+    final baseStyle = s.calendarView == CalendarView.week
+        ? defaultStyle.copyWith(
+            fontSize: ((defaultStyle.fontSize ?? 14) - 1).clamp(12.0, 14.0),
+          )
+        : defaultStyle;
 
     return FittedBox(
       fit: BoxFit.scaleDown,
@@ -108,6 +159,87 @@ class _CalendarTopBarState extends State<CalendarTopBar> {
               style: const TextStyle(fontWeight: FontWeight.normal),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGoogleSyncStatus(BuildContext context) {
+    final state = widget.state;
+    if (!state.googleCalendarEnabled) {
+      return const SizedBox.shrink();
+    }
+
+    final scheme = Theme.of(context).colorScheme;
+    final isSyncing = state.googleCalendarSyncInProgress;
+    final hasError = state.googleCalendarSyncError != null &&
+        state.googleCalendarSyncError!.isNotEmpty;
+
+    final backgroundColor = hasError
+        ? scheme.errorContainer.withValues(alpha: 0.75)
+        : isSyncing
+            ? scheme.primaryContainer.withValues(alpha: 0.75)
+            : scheme.secondaryContainer.withValues(alpha: 0.55);
+    final foregroundColor = hasError
+        ? scheme.onErrorContainer
+        : isSyncing
+            ? scheme.onPrimaryContainer
+            : scheme.onSecondaryContainer;
+
+    final tooltip = hasError
+        ? state.googleCalendarSyncError!
+        : isSyncing
+            ? 'סנכרון Google פעיל'
+            : state.googleCalendarConnected
+                ? 'Google Calendar מחובר'
+                : 'Google Calendar מופעל אך לא מחובר';
+
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(end: 4),
+      child: Tooltip(
+        message: tooltip,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: foregroundColor.withValues(alpha: 0.18),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isSyncing)
+                SizedBox(
+                  width: 12,
+                  height: 12,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(foregroundColor),
+                  ),
+                )
+              else
+                Icon(
+                  hasError
+                      ? FluentIcons.warning_24_regular
+                      : state.googleCalendarConnected
+                          ? FluentIcons.arrow_sync_circle_24_filled
+                          : FluentIcons.arrow_sync_24_regular,
+                  size: 14,
+                  color: foregroundColor,
+                ),
+              const SizedBox(width: 6),
+              Text(
+                isSyncing ? 'מסנכרן' : (hasError ? 'שגיאת סנכרון' : 'Google'),
+                textDirection: TextDirection.rtl,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: foregroundColor,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -232,6 +364,7 @@ class _CalendarTopBarState extends State<CalendarTopBar> {
         final trailingActions = Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            _buildGoogleSyncStatus(context),
             printBtn,
             _buildTopBarDivider(context, isCompact),
             timesBtn,
@@ -240,6 +373,15 @@ class _CalendarTopBarState extends State<CalendarTopBar> {
             settingsBtn,
           ],
         );
+        final dateAreaWidth = state.calendarView == CalendarView.week
+            ? _kWeekDateAreaWidth
+            : _kMonthDateAreaWidth;
+        final dateNavGap = state.calendarView == CalendarView.week
+            ? _kWeekDateNavGap
+            : _kMonthDateNavGap;
+        final wideQuickActionsOffset = state.calendarView == CalendarView.week
+            ? _kWideQuickActionsOffsetWeek
+            : _kWideQuickActionsOffsetMonth;
 
         // ── קבוצת חיצים + תאריך, ממורכזת תמיד ──────────────────────────────
         final dateNavGroup = Directionality(
@@ -248,14 +390,14 @@ class _CalendarTopBarState extends State<CalendarTopBar> {
             mainAxisSize: MainAxisSize.min,
             children: [
               prevBtn,
-              SizedBox(width: _kDateNavGap),
+              SizedBox(width: dateNavGap),
               ConstrainedBox(
-                constraints: const BoxConstraints(minWidth: _kDateAreaWidth),
+                constraints: BoxConstraints(minWidth: dateAreaWidth),
                 child: IntrinsicWidth(
                   child: Center(child: _buildDateText(context)),
                 ),
               ),
-              SizedBox(width: _kDateNavGap),
+              SizedBox(width: dateNavGap),
               nextBtn,
             ],
           ),
@@ -264,54 +406,103 @@ class _CalendarTopBarState extends State<CalendarTopBar> {
         return LayoutBuilder(
           builder: (context, constraints) {
             final isNarrow = constraints.maxWidth < _kTopBarNarrowBreakpoint;
-            final showQuickActionsInTopRow =
-                constraints.maxWidth >= _kTopRowQuickActionsThreshold;
+            final isMedium =
+                constraints.maxWidth >= _kTopBarNarrowBreakpoint &&
+                    constraints.maxWidth < _kTopBarMediumBreakpoint;
+            final isWide =
+                constraints.maxWidth >= _kTopBarMediumBreakpoint &&
+                    constraints.maxWidth < _kTopBarWideBreakpoint;
 
             if (isNarrow) {
-              // ── מסך צר: תאריך+חיצים בשורה 1, כל השאר בשורה 2 ───────────
-              final secondaryRow = SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: Row(
+              final secondaryRow = Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                child: Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  runAlignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 10,
+                  runSpacing: 8,
                   children: [
                     viewSwitcher,
-                    const SizedBox(width: 6),
-                    const VerticalDivider(width: 9, thickness: 1),
-                    const SizedBox(width: 6),
-                    if (!showQuickActionsInTopRow) ...[
-                      quickActions,
-                      const SizedBox(width: 6),
-                      const VerticalDivider(width: 9, thickness: 1),
-                      const SizedBox(width: 6),
-                    ],
+                    quickActions,
                     trailingActions,
                   ],
                 ),
               );
 
               return AppTopBar(
-                center: Stack(
+                center: Align(
                   alignment: Alignment.center,
-                  children: [
-                    dateNavGroup,
-                    if (showQuickActionsInTopRow)
-                      Transform.translate(
-                        offset: const Offset(_kQuickActionsOffset, 0),
-                        child: quickActions,
-                      ),
-                  ],
+                  child: FittedBox(
+                    alignment: Alignment.center,
+                    fit: BoxFit.scaleDown,
+                    child: dateNavGroup,
+                  ),
                 ),
                 secondaryRow: secondaryRow,
               );
-            } else {
-              // ── מסך רחב: התחלה | היום/מעבר | תאריך ממורכז | סוף ──
+            }
+
+            if (isMedium) {
+              final secondaryRow = Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                child: Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  runAlignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 10,
+                  runSpacing: 8,
+                  children: [
+                    viewSwitcher,
+                    quickActions,
+                    trailingActions,
+                  ],
+                ),
+              );
+
+              return AppTopBar(
+                center: Align(
+                  alignment: Alignment.center,
+                  child: FittedBox(
+                    alignment: Alignment.center,
+                    fit: BoxFit.scaleDown,
+                    child: dateNavGroup,
+                  ),
+                ),
+                secondaryRow: secondaryRow,
+              );
+            }
+
+            if (isWide) {
+              return AppTopBar(
+                leadingItems: [
+                  AppTopBarItem(widget: viewSwitcher),
+                ],
+                center: Align(
+                  alignment: Alignment.center,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(child: dateNavGroup),
+                      const SizedBox(width: 10),
+                      quickActions,
+                    ],
+                  ),
+                ),
+                trailingItems: [
+                  AppTopBarItem(widget: trailingActions),
+                ],
+              );
+            }
+
+            {
               return AppTopBar(
                 center: Stack(
                   alignment: Alignment.center,
                   children: [
                     dateNavGroup,
                     Transform.translate(
-                      offset: const Offset(_kQuickActionsOffset, 0),
+                      offset: Offset(wideQuickActionsOffset, 0),
                       child: quickActions,
                     ),
                     PositionedDirectional(
