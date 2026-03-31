@@ -503,55 +503,6 @@ class GimatriaSearch {
     return sortedLevels.map((l) => lastHeaderByLevel[l]!).join(', ');
   }
 
-  static String extractPathFromTocEntries({
-    required int currentLineIndex,
-    required String bookTitle,
-    required List<TocEntry> tocEntries,
-  }) {
-    final matchingEntries = tocEntries
-        .where(
-          (entry) =>
-              entry.lineIndex != null && entry.lineIndex! <= currentLineIndex,
-        )
-        .toList()
-      ..sort((a, b) {
-        final lineCompare = (a.lineIndex ?? -1).compareTo(b.lineIndex ?? -1);
-        if (lineCompare != 0) {
-          return lineCompare;
-        }
-        return a.level.compareTo(b.level);
-      });
-
-    if (matchingEntries.isEmpty) {
-      return bookTitle;
-    }
-
-    final currentEntry = matchingEntries.last;
-    final entriesById = {
-      for (final entry in tocEntries) entry.id: entry,
-    };
-    final pathParts = <String>[];
-    TocEntry? cursor = currentEntry;
-
-    while (cursor != null) {
-      final text = _cleanHtml(cursor.text);
-      if (text.isNotEmpty) {
-        pathParts.insert(0, text);
-      }
-      cursor = cursor.parentId != null ? entriesById[cursor.parentId] : null;
-    }
-
-    if (pathParts.isEmpty) {
-      return bookTitle;
-    }
-
-    if (pathParts.first != bookTitle) {
-      pathParts.insert(0, bookTitle);
-    }
-
-    return pathParts.join(', ');
-  }
-
   static String _cleanHtml(String s) {
     var cleaned = s.replaceAll(RegExp(r'<[^>]*>'), '');
     cleaned = cleaned.replaceAll('&nbsp;', ' ');
