@@ -7,6 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:otzaria/navigation/main_window_screen.dart';
+import 'package:otzaria/shortcuts/keyboard_shortcuts.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -59,12 +60,16 @@ class App extends StatelessWidget {
               ? ThemeMode.system
               : (state.isDarkMode ? ThemeMode.dark : ThemeMode.light),
           builder: (context, child) {
-            if (!useVirtualWindowFrame || child == null) {
-              return child ?? const SizedBox.shrink();
+            final wrappedChild = KeyboardShortcuts(
+              child: child ?? const SizedBox.shrink(),
+            );
+
+            if (!useVirtualWindowFrame) {
+              return wrappedChild;
             }
 
             return VirtualWindowFrame(
-              child: child,
+              child: wrappedChild,
             );
           },
           home: const MainWindowScreen(),

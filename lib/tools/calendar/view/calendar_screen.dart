@@ -10,8 +10,8 @@ import 'package:otzaria/printing/printing_screen.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/buttons/action_buttons.dart';
-import 'package:otzaria/widgets/app_floating_panel.dart';
 import 'package:otzaria/widgets/dialogs.dart';
+import 'package:otzaria/widgets/floating_panel.dart';
 import 'package:otzaria/widgets/inputs/segmented_button_tile.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/view/widgets/calendar_date_formatters.dart';
@@ -41,10 +41,15 @@ class CalendarWidget extends StatefulWidget {
 
 class _CalendarWidgetState extends State<CalendarWidget> {
   late final FocusNode _keyboardFocusNode;
+  late final TextEditingController _searchController;
+  late final FocusNode _searchFocusNode;
   Timer? _keyRepeatTimer;
   LogicalKeyboardKey? _currentPressedKey;
   bool _isJumpToDateDialogOpen = false;
+  bool _isCreateEventDialogOpen = false;
+  bool _isPrintDialogOpen = false;
   bool _isSidebarVisible = true;
+  bool _isSearchMode = false;
   CalendarSidePanelView _sidePanelView = CalendarSidePanelView.times;
 
   final List<String> hebrewDays = kHebrewDays;
@@ -66,6 +71,8 @@ class _CalendarWidgetState extends State<CalendarWidget> {
   void initState() {
     super.initState();
     _keyboardFocusNode = FocusNode(skipTraversal: true, canRequestFocus: true);
+    _searchController = TextEditingController();
+    _searchFocusNode = FocusNode(skipTraversal: true, canRequestFocus: true);
     _keyboardFocusNode.addListener(_handleFocusChange);
     WidgetsBinding.instance
         .addPostFrameCallback((_) => _requestFocusIfNeeded());
@@ -84,11 +91,18 @@ class _CalendarWidgetState extends State<CalendarWidget> {
     }
   }
 
+  /// מבקש מחדש את הפוקוס של לוח השנה אחרי מעבר מטאב אחר.
+  void requestKeyboardFocus() {
+    _requestFocusIfNeeded();
+  }
+
   @override
   void dispose() {
     _keyboardFocusNode.removeListener(_handleFocusChange);
     _stopKeyRepeat();
     _keyboardFocusNode.dispose();
+    _searchFocusNode.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -260,6 +274,14 @@ class _CalendarWidgetState extends State<CalendarWidget> {
     );
   }
 
+  void _toggleCalendarSettingsPanel() {
+    setState(() {
+      _sidePanelView = _sidePanelView == CalendarSidePanelView.settings
+          ? CalendarSidePanelView.times
+          : CalendarSidePanelView.settings;
+    });
+  }
+
   // ─── Build ─────────────────────────────────────────────────────────────────
 
   @override
@@ -321,11 +343,11 @@ class _CalendarWidgetState extends State<CalendarWidget> {
             },
             _parseShortcut(printShortcut): () {
               if (_isTextFieldFocused()) return;
-              _printCalendar(context, state);
+              _togglePrintCalendar(context, state);
             },
             _parseShortcut(contextSettingsShortcut): () {
               if (_isTextFieldFocused()) return;
-              setState(() => _sidePanelView = CalendarSidePanelView.settings);
+              _toggleCalendarSettingsPanel();
             },
             const SingleActivator(LogicalKeyboardKey.arrowLeft, control: true):
                 () {
@@ -358,22 +380,49 @@ class _CalendarWidgetState extends State<CalendarWidget> {
                 builder: (context, constraints) {
                   final isMobile =
                       constraints.maxWidth < LayoutBreakpoints.compact;
+                  if (_searchController.text != state.eventSearchQuery) {
+                    _searchController.text = state.eventSearchQuery;
+                  }
                   return Scaffold(
                     backgroundColor: AppSurfaces.panelBackground(context),
                     appBar: CalendarTopBar(
                       state: state,
-                      isMobile: isMobile,
-                      onPreviousMonth: () =>
-                          context.read<CalendarCubit>().previous(),
-                      onNextMonth: () => context.read<CalendarCubit>().next(),
+                      isSearchMode: _isSearchMode,
+                      searchController: _searchController,
+                      searchFocusNode: _searchFocusNode,
+                      onSearchChanged: (value) => context
+                          .read<CalendarCubit>()
+                          .setEventSearchQuery(value),
+                      onToggleSearch: () {
+                        setState(() => _isSearchMode = !_isSearchMode);
+                        if (_isSearchMode) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (mounted) _searchFocusNode.requestFocus();
+                          });
+                        } else {
+                          _searchFocusNode.unfocus();
+                        }
+                      },
                       onJumpToToday: () =>
                           context.read<CalendarCubit>().jumpToToday(),
-                      onJumpToDate: () => _showJumpToDateDialog(context),
-                      onPrint: () => _printCalendar(context, state),
-                      onToggleSidebar: () => _toggleSidebar(context, isMobile),
+                      onPreviousPeriod: () =>
+                          context.read<CalendarCubit>().previous(),
+                      onNextPeriod: () => context.read<CalendarCubit>().next(),
                       onViewChanged: (value) => context
                           .read<CalendarCubit>()
                           .changeCalendarView(value),
+                      onSidePanelViewChanged: (value) {
+                        setState(() => _sidePanelView = value);
+                      },
+                      activeSidePanelView: _sidePanelView,
+                      onPrint: () => _togglePrintCalendar(context, state),
+                      onToggleSidebar: () => _toggleSidebar(context, isMobile),
+                      parseInputDate: (input) =>
+                          parseCalendarInputDate(context, input),
+                      onJumpToDateSelected: (date) {
+                        context.read<CalendarCubit>().jumpToDate(date);
+                        setState(() => _isSearchMode = false);
+                      },
                     ),
                     endDrawer:
                         isMobile ? _buildSidePanelDrawer(context, state) : null,
@@ -462,7 +511,7 @@ class _CalendarWidgetState extends State<CalendarWidget> {
           IconButton(
             tooltip: 'הדפס',
             icon: const Icon(FluentIcons.print_24_regular),
-            onPressed: () => _printCalendar(context, state),
+            onPressed: () => _togglePrintCalendar(context, state),
           ),
           IconButton(
             tooltip: 'לוח צד',
@@ -478,22 +527,28 @@ class _CalendarWidgetState extends State<CalendarWidget> {
     return Padding(
       padding: const EdgeInsets.all(AppTokens.spaceMD),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(
-            flex: 2,
             child: SingleChildScrollView(
               child: _buildCalendar(context, state),
             ),
           ),
-          if (_isSidebarVisible) ...[
-            const SizedBox(width: AppTokens.spaceMD),
-            Expanded(
-              flex: 1,
-              child: AppFloatingPanel(
-                child: _buildSidePanel(context, state),
-              ),
-            ),
-          ],
+          AnimatedSize(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            child: _isSidebarVisible
+                ? Padding(
+                    padding: const EdgeInsets.only(right: AppTokens.spaceMD),
+                    child: SizedBox(
+                      width: 360,
+                      child: FloatingPanel(
+                        child: _buildSidePanel(context, state),
+                      ),
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
         ],
       ),
     );
@@ -835,9 +890,7 @@ class _CalendarWidgetState extends State<CalendarWidget> {
       onViewChanged: (view) => setState(() => _sidePanelView = view),
       timesPanel: CalendarTimesPanel(
         state: state,
-        onCityPressed: () => setState(
-          () => _sidePanelView = CalendarSidePanelView.settings,
-        ),
+        onCityPressed: _toggleCalendarSettingsPanel,
         onOpenCalendarCalculationPage: _openCalendarCalculationPage,
       ),
       eventsPanel: CalendarEventsPanel(
@@ -875,12 +928,20 @@ class _CalendarWidgetState extends State<CalendarWidget> {
     CustomEvent? existingEvent,
     DateTime? specificDate,
   }) {
+    if (_isCreateEventDialogOpen) {
+      Navigator.of(context).pop();
+      _isCreateEventDialogOpen = false;
+      return;
+    }
+
+    _isCreateEventDialogOpen = true;
     showCalendarEventDialog(
       context: context,
       state: state,
       existingEvent: existingEvent,
       specificDate: specificDate,
     ).then((result) {
+      _isCreateEventDialogOpen = false;
       if (result == null || !context.mounted) {
         return;
       }
@@ -911,11 +972,19 @@ class _CalendarWidgetState extends State<CalendarWidget> {
     });
   }
 
-  void _printCalendar(BuildContext context, CalendarState state) {
+  void _togglePrintCalendar(BuildContext context, CalendarState state) {
+    if (_isPrintDialogOpen) {
+      Navigator.of(context).pop();
+      _isPrintDialogOpen = false;
+      return;
+    }
+
+    _isPrintDialogOpen = true;
     showCalendarPrintDialog(
       context: context,
       calendarView: state.calendarView,
     ).then((count) {
+      _isPrintDialogOpen = false;
       if (count == null || !context.mounted) {
         return;
       }

@@ -3,7 +3,6 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kosher_dart/kosher_dart.dart';
 import 'package:otzaria/core/ui_snack.dart';
-import 'package:otzaria/settings/settings_card.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/utils/daf_yomi_navigator.dart';
@@ -35,11 +34,11 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
     final theme = Theme.of(context);
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: SettingsCard(
-        title: 'זמני היום',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            padding: const EdgeInsets.only(bottom: 12),
             child: Row(
               children: [
                 const Spacer(),
@@ -51,15 +50,15 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            padding: const EdgeInsets.only(bottom: 12),
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withValues(alpha: 0.2),
+                color: theme.colorScheme.primaryContainer.withValues(alpha: 0.45),
                 borderRadius: BorderRadius.circular(AppTokens.radiusMD),
                 border: Border.all(
-                  color: theme.colorScheme.primary,
+                  color: theme.colorScheme.primary.withValues(alpha: 0.35),
                   width: 1,
                 ),
               ),
@@ -107,12 +106,9 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
               ),
             ),
           ),
+          _buildTimesGrid(context),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: _buildTimesGrid(context),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            padding: const EdgeInsets.only(top: 12),
             child: _buildDafYomiButtons(context),
           ),
         ],
@@ -122,150 +118,46 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
 
   Widget _buildTimesGrid(BuildContext context) {
     final filteredTimesList = buildCalendarTimeEntries(widget.state);
-    final scheme = Theme.of(context).colorScheme;
 
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 2.2,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-      ),
-      itemCount: filteredTimesList.length,
-      itemBuilder: (context, index) {
-        final timeData = filteredTimesList[index];
-        final timeId = timeData.id;
-        final timeName = timeData.name;
-        final timeLabel = timeData.time;
-        final existingAlert = widget.state.zmanAlerts[timeId];
-        final hasAlert = existingAlert != null;
-        final isSpecialTime = timeData.isSpecial;
-        final bgColor = hasAlert
-            ? scheme.errorContainer
-            : isSpecialTime
-                ? scheme.tertiaryContainer
-                : scheme.surfaceContainerHighest;
-        final border = hasAlert
-            ? Border.all(color: scheme.error, width: 1)
-            : isSpecialTime
-                ? Border.all(color: scheme.tertiary, width: 1)
-                : null;
-        final titleColor = hasAlert
-            ? scheme.onErrorContainer
-            : isSpecialTime
-                ? scheme.onTertiaryContainer
-                : scheme.onSurfaceVariant;
-        final timeColor = hasAlert
-            ? scheme.onErrorContainer
-            : isSpecialTime
-                ? scheme.onTertiaryContainer
-                : scheme.onSurface;
-
-        return LayoutBuilder(builder: (context, itemConstraints) {
-          final isCompact =
-              itemConstraints.maxHeight < 44 || itemConstraints.maxWidth < 110;
-          final titleFontSize = isCompact ? 10.0 : 12.0;
-          final timeFontSize = isCompact ? 12.0 : 14.0;
-          final pad = isCompact ? 4.0 : 8.0;
-          final menuSize = isCompact ? 14.0 : 18.0;
-          final menuIconSize = isCompact ? 12.0 : 16.0;
-
-          return Container(
-            padding: EdgeInsets.all(pad),
-            decoration: BoxDecoration(
-              color: bgColor,
-              borderRadius: BorderRadius.circular(8),
-              border: border,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: isCompact
-                  ? MainAxisAlignment.spaceBetween
-                  : MainAxisAlignment.center,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        timeName,
-                        style: TextStyle(
-                          fontSize: titleFontSize,
-                          fontWeight: FontWeight.w500,
-                          color: titleColor,
-                          height: isCompact ? 1.2 : null,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    PopupMenuButton<ZmanMenuAction>(
-                      tooltip: '',
-                      padding: EdgeInsets.zero,
-                      child: SizedBox.square(
-                        dimension: menuSize,
-                        child: Center(
-                          child: Icon(
-                            FluentIcons.more_vertical_24_regular,
-                            color: titleColor,
-                            size: menuIconSize,
-                          ),
-                        ),
-                      ),
-                      itemBuilder: (_) => [
-                        PopupMenuItem<ZmanMenuAction>(
-                          value: ZmanMenuAction.toggle,
-                          child: Text(hasAlert
-                              ? 'מופעלת התראה לזמן זה'
-                              : 'הפעל התראה לזמן זה'),
-                        ),
-                      ],
-                      onSelected: (_) async {
-                        final cubit = context.read<CalendarCubit>();
-                        if (timeLabel == '--:--') {
-                          UiSnack.showError(
-                              'לא ניתן להפעיל התראה לזמן לא זמין');
-                          return;
-                        }
-                        final result = await showZmanAlertDialog(
-                          context,
-                          zmanName: timeName,
-                          timeLabel: timeLabel,
-                          initialMinutesBefore:
-                              existingAlert?.minutesBefore ?? 60,
-                          isEnabled: hasAlert,
-                        );
-                        if (result == null) return;
-                        if (result.cancelAlert) {
-                          await cubit.cancelZmanAlertPreference(timeId: timeId);
-                          return;
-                        }
-                        await cubit.setZmanAlertPreference(
-                          timeId: timeId,
-                          displayName: timeName,
-                          minutesBefore: result.minutesBefore,
-                        );
-                      },
-                    ),
-                  ],
-                ),
-                if (!isCompact) const SizedBox(height: 2),
-                Text(
-                  timeLabel,
-                  style: TextStyle(
-                    fontSize: timeFontSize,
-                    fontWeight: FontWeight.bold,
-                    color: timeColor,
-                    height: isCompact ? 1.0 : null,
-                  ),
-                ),
-              ],
-            ),
-          );
-        });
-      },
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final timeData in filteredTimesList)
+          _ZmanCard(
+            timeData: timeData,
+            existingAlert: widget.state.zmanAlerts[timeData.id],
+            onAlertPressed: () async {
+              final timeId = timeData.id;
+              final timeName = timeData.name;
+              final timeLabel = timeData.time;
+              final existingAlert = widget.state.zmanAlerts[timeId];
+              final hasAlert = existingAlert != null;
+              final cubit = context.read<CalendarCubit>();
+              if (timeLabel == '--:--') {
+                UiSnack.showError('לא ניתן להפעיל התראה לזמן לא זמין');
+                return;
+              }
+              final result = await showZmanAlertDialog(
+                context,
+                zmanName: timeName,
+                timeLabel: timeLabel,
+                initialMinutesBefore: existingAlert?.minutesBefore ?? 60,
+                isEnabled: hasAlert,
+              );
+              if (result == null) return;
+              if (result.cancelAlert) {
+                await cubit.cancelZmanAlertPreference(timeId: timeId);
+                return;
+              }
+              await cubit.setZmanAlertPreference(
+                timeId: timeId,
+                displayName: timeName,
+                minutesBefore: result.minutesBefore,
+              );
+            },
+          ),
+      ],
     );
   }
 
@@ -287,30 +179,10 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
         .replaceAll('״', '')
         .replaceAll('׳', '');
 
-    return Row(
-      children: [
-        Expanded(
-          child: ElevatedButton.icon(
-            onPressed: () =>
-                openDafYomiBook(context, bavliTractate, ' $dafLabel.'),
-            icon: const Icon(FluentIcons.book_24_regular),
-            label: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'דף היומי בבלי',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                ),
-                Text('$bavliTractate $dafLabel',
-                    style: const TextStyle(fontSize: 10)),
-              ],
-            ),
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-            ),
-          ),
-        ),
-      ],
+    return RecommendedActionButton(
+      text: 'דף היומי בבלי',
+      icon: FluentIcons.book_24_regular,
+      onPressed: () => openDafYomiBook(context, bavliTractate, ' $dafLabel.'),
     );
   }
 }
@@ -330,6 +202,104 @@ class _CityButton extends StatelessWidget {
       text: cityName,
       icon: FluentIcons.chevron_down_24_regular,
       onPressed: onPressed,
+    );
+  }
+}
+
+class _ZmanCard extends StatelessWidget {
+  final CalendarTimeEntry timeData;
+  final ZmanAlertPreference? existingAlert;
+  final VoidCallback onAlertPressed;
+
+  const _ZmanCard({
+    required this.timeData,
+    required this.existingAlert,
+    required this.onAlertPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final hasAlert = existingAlert != null;
+    final bgColor = hasAlert
+        ? scheme.errorContainer.withValues(alpha: 0.55)
+        : timeData.isSpecial
+            ? scheme.tertiaryContainer.withValues(alpha: 0.55)
+            : scheme.surfaceContainerHighest;
+    final borderColor = hasAlert
+        ? scheme.error.withValues(alpha: 0.35)
+        : timeData.isSpecial
+            ? scheme.tertiary.withValues(alpha: 0.35)
+            : scheme.outlineVariant;
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 160, maxWidth: 240),
+      child: Card(
+        elevation: 0,
+        color: bgColor,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTokens.radiusMD),
+          side: BorderSide(color: borderColor),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      timeData.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: hasAlert
+                                ? scheme.onErrorContainer
+                                : timeData.isSpecial
+                                    ? scheme.onTertiaryContainer
+                                    : scheme.onSurface,
+                          ),
+                    ),
+                  ),
+                  ToolbarActionButton(
+                    tooltip: hasAlert
+                        ? 'מופעלת התראה לזמן זה'
+                        : 'הפעל התראה לזמן זה',
+                    icon: FluentIcons.more_vertical_24_regular,
+                    onPressed: onAlertPressed,
+                    selected: hasAlert,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                timeData.time,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: hasAlert
+                          ? scheme.onErrorContainer
+                          : timeData.isSpecial
+                              ? scheme.onTertiaryContainer
+                              : scheme.onSurfaceVariant,
+                    ),
+              ),
+              if (hasAlert) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'התראה ${existingAlert!.minutesBefore} דק׳ לפני',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: scheme.onErrorContainer,
+                      ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

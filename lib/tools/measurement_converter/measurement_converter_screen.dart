@@ -88,6 +88,12 @@ class _MeasurementConverterScreenState
     });
   }
 
+  /// מבקש פוקוס למסך המרת המידות.
+  void requestKeyboardFocus() {
+    if (_screenFocusNode.hasFocus) return;
+    _screenFocusNode.requestFocus();
+  }
+
   @override
   void dispose() {
     _inputController.dispose();

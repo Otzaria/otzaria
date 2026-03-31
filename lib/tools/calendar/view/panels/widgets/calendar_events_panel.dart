@@ -2,7 +2,6 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/widgets/otzaria_search_field.dart';
-import 'package:otzaria/settings/settings_card.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/view/panels/logic/calendar_events_panel_logic.dart';
@@ -53,103 +52,80 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: SettingsCard(
-        title: 'אירועים',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: Row(
-              children: [
-                RecommendedActionButton(
-                  text: 'צור אירוע',
-                  icon: FluentIcons.add_24_regular,
-                  onPressed: () => widget.onCreateEvent(),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.spaceBetween,
+            children: [
+              RecommendedActionButton(
+                text: 'צור אירוע',
+                icon: FluentIcons.add_24_regular,
+                onPressed: () => widget.onCreateEvent(),
+              ),
+              if (widget.state.googleCalendarEnabled)
+                ToolbarActionButton(
+                  tooltip: widget.state.googleCalendarConnected
+                      ? 'סנכרן Google'
+                      : 'חבר ל-Google',
+                  icon: widget.state.googleCalendarSyncInProgress
+                      ? FluentIcons.arrow_sync_24_regular
+                      : FluentIcons.arrow_sync_24_regular,
+                  selected: widget.state.googleCalendarSyncInProgress,
+                  onPressed: widget.state.googleCalendarSyncInProgress
+                      ? () {}
+                      : () {
+                          final cubit = context.read<CalendarCubit>();
+                          if (widget.state.googleCalendarConnected) {
+                            cubit.syncGoogleCalendar(interactive: true);
+                          } else {
+                            cubit.connectGoogleCalendar();
+                          }
+                        },
                 ),
-                if (widget.state.googleCalendarEnabled) ...[
-                  const SizedBox(width: 8),
-                  ElevatedButton.icon(
-                    onPressed: widget.state.googleCalendarSyncInProgress
-                        ? null
-                        : () {
-                            final cubit = context.read<CalendarCubit>();
-                            if (widget.state.googleCalendarConnected) {
-                              cubit.syncGoogleCalendar(interactive: true);
-                            } else {
-                              cubit.connectGoogleCalendar();
-                            }
-                          },
-                    icon: widget.state.googleCalendarSyncInProgress
-                        ? const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(
-                            FluentIcons.arrow_sync_24_regular,
-                            size: 16,
-                          ),
-                    label: Text(
-                      widget.state.googleCalendarConnected
-                          ? 'סנכרן Google'
-                          : 'חבר ל-Google',
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      textStyle: const TextStyle(fontSize: 12),
-                    ),
-                  ),
-                ],
-                const Spacer(),
-                NeutralActionButton(
-                  text:
-                      widget.state.showAllEvents ? 'הצג יום נוכחי' : 'הצג הכל',
-                  icon: widget.state.showAllEvents
-                      ? FluentIcons.calendar_month_24_regular
-                      : FluentIcons.calendar_day_24_regular,
-                  onPressed: () => context
-                      .read<CalendarCubit>()
-                      .toggleShowAllEvents(!widget.state.showAllEvents),
-                ),
-              ],
-            ),
+              NeutralActionButton(
+                text: widget.state.showAllEvents ? 'הצג יום נוכחי' : 'הצג הכל',
+                icon: widget.state.showAllEvents
+                    ? FluentIcons.calendar_month_24_regular
+                    : FluentIcons.calendar_day_24_regular,
+                onPressed: () => context
+                    .read<CalendarCubit>()
+                    .toggleShowAllEvents(!widget.state.showAllEvents),
+              ),
+            ],
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: OtzariaSearchField(
-                    controller: _searchController,
-                    hintText: 'חפש אירועים...',
-                    onChanged: (query) => context
-                        .read<CalendarCubit>()
-                        .setEventSearchQuery(query),
-                    onClear: () =>
-                        context.read<CalendarCubit>().setEventSearchQuery(''),
-                  ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OtzariaSearchField(
+                  controller: _searchController,
+                  hintText: 'חפש אירועים...',
+                  onChanged: (query) =>
+                      context.read<CalendarCubit>().setEventSearchQuery(query),
+                  onClear: () =>
+                      context.read<CalendarCubit>().setEventSearchQuery(''),
                 ),
-                IconButton(
-                  icon: Icon(widget.state.searchInDescriptions
-                      ? FluentIcons.document_text_24_regular
-                      : FluentIcons.text_t_24_regular),
-                  tooltip: widget.state.searchInDescriptions
-                      ? 'חפש רק בכותרת'
-                      : 'חפש גם בתיאור',
-                  onPressed: () => context
-                      .read<CalendarCubit>()
-                      .toggleSearchInDescriptions(
-                          !widget.state.searchInDescriptions),
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 8),
+              ToolbarActionButton(
+                tooltip: widget.state.searchInDescriptions
+                    ? 'חפש רק בכותרת'
+                    : 'חפש גם בתיאור',
+                icon: widget.state.searchInDescriptions
+                    ? FluentIcons.document_text_24_regular
+                    : FluentIcons.text_t_24_regular,
+                onPressed: () => context
+                    .read<CalendarCubit>()
+                    .toggleSearchInDescriptions(
+                        !widget.state.searchInDescriptions),
+              ),
+            ],
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-            child: _buildEventsList(context),
-          ),
+          const SizedBox(height: 12),
+          _buildEventsList(context),
         ],
       ),
     );
@@ -164,170 +140,178 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
     }
 
     final scheme = Theme.of(context).colorScheme;
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: events.length,
-      itemBuilder: (context, index) {
-        final event = events[index];
-        return Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: scheme.primaryContainer.withValues(alpha: 0.35),
-            borderRadius: BorderRadius.circular(AppTokens.radiusMD),
-            border: Border.all(color: scheme.primary.withValues(alpha: 0.3)),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
+    return Column(
+      children: [
+        for (final event in events)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Card(
+              elevation: 0,
+              color: scheme.surfaceContainerHighest,
+              surfaceTintColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppTokens.radiusMD),
+                side: BorderSide(color: scheme.outlineVariant),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            event.title,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                        if (event.googleEventId != null &&
-                            event.googleEventId!.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 4),
-                            child: Icon(
-                              FluentIcons.arrow_sync_24_regular,
-                              size: 14,
-                              color: scheme.primary,
-                            ),
-                          ),
-                      ],
-                    ),
-                    if (event.description.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        truncateDescription(event.description),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: scheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: event.eventTime != null
-                                ? scheme.primary.withValues(alpha: 0.2)
-                                : scheme.secondary.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
                             children: [
-                              Icon(
-                                event.eventTime != null
-                                    ? FluentIcons.clock_24_filled
-                                    : FluentIcons.calendar_day_24_filled,
-                                size: 10,
-                                color: event.eventTime != null
-                                    ? scheme.primary
-                                    : scheme.secondary,
-                              ),
-                              const SizedBox(width: 3),
-                              Text(
-                                event.eventTime != null
-                                    ? '${event.eventTime!.hour.toString().padLeft(2, '0')}:${event.eventTime!.minute.toString().padLeft(2, '0')}'
-                                    : 'כל היום',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: event.eventTime != null
-                                      ? scheme.primary
-                                      : scheme.secondary,
-                                  fontWeight: FontWeight.w600,
+                              Expanded(
+                                child: Text(
+                                  event.title,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.w700),
                                 ),
                               ),
+                              if (event.googleEventId != null &&
+                                  event.googleEventId!.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 4),
+                                  child: Icon(
+                                    FluentIcons.arrow_sync_24_regular,
+                                    size: 14,
+                                    color: scheme.primary,
+                                  ),
+                                ),
                             ],
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            formatEventDate(event.baseGregorianDate),
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: scheme.primary,
-                              fontWeight: FontWeight.w500,
+                          if (event.description.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              truncateDescription(event.description),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    color: scheme.onSurfaceVariant,
+                                  ),
                             ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (event.recurring) ...[
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Icon(
-                            FluentIcons.arrow_repeat_all_24_regular,
-                            size: 12,
-                            color: scheme.primary,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            getRecurrenceLabel(event.recurrenceType),
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: scheme.primary,
-                            ),
+                          ],
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              _EventMetaChip(
+                                icon: event.eventTime != null
+                                    ? FluentIcons.clock_24_filled
+                                    : FluentIcons.calendar_day_24_filled,
+                                text: event.eventTime != null
+                                    ? '${event.eventTime!.hour.toString().padLeft(2, '0')}:${event.eventTime!.minute.toString().padLeft(2, '0')}'
+                                    : 'כל היום',
+                                backgroundColor: event.eventTime != null
+                                    ? scheme.primaryContainer
+                                    : scheme.secondaryContainer,
+                                foregroundColor: event.eventTime != null
+                                    ? scheme.onPrimaryContainer
+                                    : scheme.onSecondaryContainer,
+                              ),
+                              _EventMetaChip(
+                                icon: FluentIcons.calendar_24_regular,
+                                text: formatEventDate(event.baseGregorianDate),
+                                backgroundColor: scheme.surface,
+                                foregroundColor: scheme.onSurfaceVariant,
+                              ),
+                              if (event.recurring)
+                                _EventMetaChip(
+                                  icon: FluentIcons.arrow_repeat_all_24_regular,
+                                  text: getRecurrenceLabel(event.recurrenceType),
+                                  backgroundColor: scheme.tertiaryContainer,
+                                  foregroundColor: scheme.onTertiaryContainer,
+                                ),
+                            ],
                           ),
                         ],
                       ),
-                    ],
+                    ),
+                    const SizedBox(width: 8),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ToolbarActionButton(
+                          tooltip: 'ערוך אירוע',
+                          icon: FluentIcons.edit_24_regular,
+                          onPressed: () => widget.onCreateEvent(
+                            existingEvent: event,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        NeutralActionButton(
+                          text: 'מחק',
+                          icon: FluentIcons.delete_24_regular,
+                          onPressed: () async {
+                            final confirmed = await showConfirmationDialog(
+                              context: context,
+                              title: 'אישור מחיקה',
+                              content:
+                                  'האם אתה בטוח שברצונך למחוק את האירוע "${event.title}"?',
+                              confirmText: 'מחק',
+                              isDangerous: true,
+                            );
+                            if (confirmed == true && context.mounted) {
+                              context.read<CalendarCubit>().deleteEvent(event.id);
+                            }
+                          },
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: const Icon(FluentIcons.edit_24_regular, size: 20),
-                    tooltip: 'ערוך אירוע',
-                    onPressed: () => widget.onCreateEvent(
-                      existingEvent: event,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(FluentIcons.delete_24_regular, size: 20),
-                    tooltip: 'מחק אירוע',
-                    onPressed: () async {
-                      final confirmed = await showConfirmationDialog(
-                        context: context,
-                        title: 'אישור מחיקה',
-                        content:
-                            'האם אתה בטוח שברצונך למחוק את האירוע "${event.title}"?',
-                        confirmText: 'מחק',
-                        isDangerous: true,
-                      );
-                      if (confirmed == true && context.mounted) {
-                        context.read<CalendarCubit>().deleteEvent(event.id);
-                      }
-                    },
-                  ),
-                ],
-              ),
-            ],
+            ),
           ),
-        );
-      },
+      ],
+    );
+  }
+}
+
+class _EventMetaChip extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final Color backgroundColor;
+  final Color foregroundColor;
+
+  const _EventMetaChip({
+    required this.icon,
+    required this.text,
+    required this.backgroundColor,
+    required this.foregroundColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 12, color: foregroundColor),
+            const SizedBox(width: 6),
+            Text(
+              text,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: foregroundColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

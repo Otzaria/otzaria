@@ -20,7 +20,6 @@ import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/library/view/library_browser.dart';
 import 'package:otzaria/tabs/reading_screen.dart';
 import 'package:otzaria/tools/more_screen.dart';
-import 'package:otzaria/shortcuts/keyboard_shortcuts.dart';
 import 'dart:async';
 import 'package:otzaria/update/my_updat_widget.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
@@ -505,9 +504,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
             ];
 
             return SafeArea(
-              child: KeyboardShortcuts(
-                child: MyUpdatWidget(
-                  child: Scaffold(
+              child: MyUpdatWidget(
+                child: Scaffold(
                     resizeToAvoidBottomInset: false,
                     body: Column(
                       children: [
@@ -653,7 +651,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
                     ),
                   ),
                 ),
-              ),
             );
           },
         ),

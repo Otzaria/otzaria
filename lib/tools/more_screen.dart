@@ -1,17 +1,8 @@
-// lib/tools/more_screen.dart
-//
-// שינויים:
-//  • מסך צר: תפריט סגנון הגדרות (SettingsCard קבוצות + ListTile) → tap → תוכן + חזרה
-//  • מסך רחב: Sidebar M3 (כמו settings_screen) — SidebarNavItem, רוחב 210, pill עגול
-//  • IndexedStack שומר מצב כל הכלים (ללא TabController)
-//  • AnimatedSwitcher: מעבר חלק בין wide ↔ narrow
-//  • Ctrl+Tab / Ctrl+Shift+Tab: KeyboardNavigator מכל מקום
-//  • רקע: AppSurfaces.panelBackground
-
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:otzaria/settings/settings_card.dart';
+import 'package:otzaria/settings/services/safer_mode/protected_settings_wrapper.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/measurement_converter/measurement_converter_screen.dart';
 import 'package:otzaria/tools/gematria/gematria_search_screen.dart';
@@ -36,8 +27,11 @@ class MoreScreen extends StatefulWidget {
 
 class MoreScreenState extends State<MoreScreen>
     with AutomaticKeepAliveClientMixin {
-  final GlobalKey<GematriaSearchScreenState> _gematriaKey =
-      GlobalKey<GematriaSearchScreenState>();
+  final GlobalKey _calendarWidgetKey = GlobalKey();
+  final GlobalKey _measurementConverterKey = GlobalKey();
+  final GlobalKey _gematriaKey = GlobalKey();
+  final GlobalKey _aramaicDictionaryKey = GlobalKey();
+  final GlobalKey _acronymsDictionaryKey = GlobalKey();
   late final List<Widget> _pages;
 
   // ── מצב ─────────────────────────────────────────────────────────────────
@@ -46,6 +40,7 @@ class MoreScreenState extends State<MoreScreen>
 
   // ── FocusNode לאזור התוכן ────────────────────────────────────────────────
   final FocusNode _contentFocusNode = FocusNode();
+  final ScrollController _contentScrollController = ScrollController();
 
   // ── הגדרת טאבים ──────────────────────────────────────────────────────────
   final List<_TabInfo> _tabs = [
@@ -99,14 +94,14 @@ class MoreScreenState extends State<MoreScreen>
 
     _pages = [
       BlocBuilder<CalendarCubit, CalendarState>(
-        builder: (context, _) => const CalendarWidget(),
+        builder: (context, _) => CalendarWidget(key: _calendarWidgetKey),
       ),
       ShamorZachorWidget(onTitleChanged: (_) {}),
       const PersonalNotesManagerScreen(),
-      const MeasurementConverterScreen(),
+      MeasurementConverterScreen(key: _measurementConverterKey),
       GematriaSearchScreen(key: _gematriaKey),
-      const AramaicDictionaryScreen(),
-      const AcronymsDictionaryScreen(),
+      AramaicDictionaryScreen(key: _aramaicDictionaryKey),
+      AcronymsDictionaryScreen(key: _acronymsDictionaryKey),
     ];
   }
 
@@ -115,9 +110,7 @@ class MoreScreenState extends State<MoreScreen>
       _selectedIndex = index;
       _showMobileMenu = false;
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _contentFocusNode.requestFocus();
-    });
+    _requestFocusForSelectedTab();
   }
 
   /// Reset to calendar page — public method for external access
@@ -126,18 +119,60 @@ class MoreScreenState extends State<MoreScreen>
       _selectedIndex = 0;
       _showMobileMenu = true;
     });
+    _requestFocusForSelectedTab();
   }
 
   void _onMoreFocusChange() {
     if (FocusRepository().moreScreenFocusNode.hasFocus && mounted) {
-      _contentFocusNode.requestFocus();
+      _requestFocusForSelectedTab();
     }
+  }
+
+  void _requestFocusForSelectedTab() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      FocusManager.instance.primaryFocus?.unfocus();
+      _contentFocusNode.requestFocus();
+      switch (_selectedIndex) {
+        case 0:
+          final calendarState = _calendarWidgetKey.currentState;
+          if (calendarState != null) {
+            (calendarState as dynamic).requestKeyboardFocus();
+          }
+          break;
+        case 3:
+          final measurementState = _measurementConverterKey.currentState;
+          if (measurementState != null) {
+            (measurementState as dynamic).requestKeyboardFocus();
+          }
+          break;
+        case 4:
+          final gematriaState = _gematriaKey.currentState;
+          if (gematriaState != null) {
+            (gematriaState as dynamic).requestKeyboardFocus();
+          }
+          break;
+        case 5:
+          final aramaicState = _aramaicDictionaryKey.currentState;
+          if (aramaicState != null) {
+            (aramaicState as dynamic).requestKeyboardFocus();
+          }
+          break;
+        case 6:
+          final acronymsState = _acronymsDictionaryKey.currentState;
+          if (acronymsState != null) {
+            (acronymsState as dynamic).requestKeyboardFocus();
+          }
+          break;
+      }
+    });
   }
 
   @override
   void dispose() {
     FocusRepository().moreScreenFocusNode.removeListener(_onMoreFocusChange);
     _contentFocusNode.dispose();
+    _contentScrollController.dispose();
     super.dispose();
   }
 
@@ -159,7 +194,7 @@ class MoreScreenState extends State<MoreScreen>
         padding: const EdgeInsets.all(AppTokens.spaceMD),
         children: [
           for (final group in _mobileGroups) ...[
-            SettingsCard(
+            _MobileGroupCard(
               title: group.label,
               children: [
                 for (final idx in group.indices)
@@ -223,60 +258,82 @@ class MoreScreenState extends State<MoreScreen>
       currentTabIndex: _selectedIndex,
       totalTabs: _tabs.length,
       onTabChange: _changeTab,
+      onBack: null,
       child: Scaffold(
         backgroundColor: bgColor,
-        body: Row(
-          children: [
-            // ── Sidebar ────────────────────────────────────────────────────
-            SizedBox(
-              width: 210,
-              child: Container(
-                color: bgColor,
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 28),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: SingleChildScrollView(
-                        child: SettingsCard(
-                          title: 'כלים',
-                          children: [
-                            for (int index = 0; index < _tabs.length; index++)
-                              SidebarNavItem(
-                                icon: _tabs[index].icon,
-                                iconFilled: _tabs[index].iconFilled,
-                                imageAsset: _tabs[index].imageIcon,
-                                label: _tabs[index].label,
-                                isSelected: _selectedIndex == index,
-                                onTap: () => _changeTab(index),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
+        body: Listener(
+          onPointerSignal: (event) {
+            if (event is PointerScrollEvent &&
+                _contentScrollController.hasClients) {
+              final newOffset =
+                  _contentScrollController.offset + event.scrollDelta.dy;
+              _contentScrollController.jumpTo(
+                newOffset.clamp(
+                  0.0,
+                  _contentScrollController.position.maxScrollExtent,
                 ),
-              ),
-            ),
-
-            // ── אזור תוכן — IndexedStack שומר מצב כל הכלים ───────────────
-            Expanded(
-              child: Focus(
-                focusNode: _contentFocusNode,
+              );
+            }
+          },
+          child: Row(
+            children: [
+              // ── Sidebar ────────────────────────────────────────────────────
+              SizedBox(
+                width: 210,
                 child: Container(
                   color: bgColor,
-                  child: IndexedStack(
-                    index: _selectedIndex,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 28),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      for (final page in _pages)
-                        ColoredBox(color: bgColor, child: page),
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          right: 12,
+                          left: 12,
+                          bottom: 20,
+                        ),
+                        child: Text(
+                          'כלים',
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineSmall
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      Expanded(
+                        child: ListView.builder(
+                          itemCount: _tabs.length,
+                          itemBuilder: (context, index) => SidebarNavItem(
+                            icon: _tabs[index].icon,
+                            iconFilled: _tabs[index].iconFilled,
+                            imageAsset: _tabs[index].imageIcon,
+                            label: _tabs[index].label,
+                            isSelected: _selectedIndex == index,
+                            onTap: () => _changeTab(index),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
               ),
-            ),
-          ],
+
+              // ── אזור תוכן פעיל יחיד ────────────────────────────────────────
+              Expanded(
+                child: PrimaryScrollController(
+                  controller: _contentScrollController,
+                  child: _MoreContentPane(
+                    key: ValueKey(_selectedIndex),
+                    label: _tabs[_selectedIndex].label,
+                    bgColor: bgColor,
+                    focusNode: _contentFocusNode,
+                    child: _pages[_selectedIndex],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -286,44 +343,143 @@ class MoreScreenState extends State<MoreScreen>
   Widget build(BuildContext context) {
     super.build(context);
     final bgColor = AppSurfaces.panelBackground(context);
-    final toolsTheme = Theme.of(context).copyWith(
-      scaffoldBackgroundColor: bgColor,
-      canvasColor: bgColor,
+
+    return ProtectedSettingsWrapper(
+      child: Directionality(
+        textDirection: TextDirection.rtl,
+        child: Theme(
+          data: Theme.of(context).copyWith(
+            scaffoldBackgroundColor: bgColor,
+            canvasColor: bgColor,
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isMobile =
+                  constraints.maxWidth < LayoutBreakpoints.compact;
+
+              Widget content;
+              if (isMobile) {
+                content = _showMobileMenu
+                    ? _buildMobileMenu(bgColor)
+                    : _buildMobileContent(bgColor);
+              } else {
+                content = _buildDesktop(bgColor);
+              }
+
+              return AnimatedSwitcher(
+                duration: AppTokens.animNormal,
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: CurvedAnimation(
+                    parent: animation,
+                    curve: Curves.easeInOut,
+                  ),
+                  child: child,
+                ),
+                child: KeyedSubtree(
+                  key: ValueKey(isMobile
+                      ? 'mobile-${_showMobileMenu ? "menu" : "content-$_selectedIndex"}'
+                      : 'desktop'),
+                  child: content,
+                ),
+              );
+            },
+          ),
+        ),
+      ),
     );
+  }
+}
 
-    return Theme(
-      data: toolsTheme,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isMobile = constraints.maxWidth < LayoutBreakpoints.compact;
+class _MoreContentPane extends StatefulWidget {
+  final String label;
+  final Widget child;
+  final Color bgColor;
+  final FocusNode focusNode;
 
-          Widget content;
-          if (isMobile) {
-            content = _showMobileMenu
-                ? _buildMobileMenu(bgColor)
-                : _buildMobileContent(bgColor);
-          } else {
-            content = _buildDesktop(bgColor);
-          }
+  const _MoreContentPane({
+    required this.label,
+    required this.child,
+    required this.bgColor,
+    required this.focusNode,
+    super.key,
+  });
 
-          // ── אנימציה בין wide ↔ narrow ──────────────────────────────────────
-          return AnimatedSwitcher(
-            duration: AppTokens.animNormal,
-            transitionBuilder: (child, animation) => FadeTransition(
-              opacity: CurvedAnimation(
-                parent: animation,
-                curve: Curves.easeInOut,
+  @override
+  State<_MoreContentPane> createState() => _MoreContentPaneState();
+}
+
+class _MoreContentPaneState extends State<_MoreContentPane> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        widget.focusNode.requestFocus();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      focusNode: widget.focusNode,
+      child: Container(
+        color: widget.bgColor,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(
+                top: 28,
+                right: 16,
+                left: 16,
+                bottom: 4,
               ),
-              child: child,
+              child: Text(
+                widget.label,
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
             ),
-            child: KeyedSubtree(
-              key: ValueKey(isMobile
-                  ? 'mobile-${_showMobileMenu ? "menu" : "content-$_selectedIndex"}'
-                  : 'desktop'),
-              child: content,
+            Expanded(child: widget.child),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MobileGroupCard extends StatelessWidget {
+  final String title;
+  final List<Widget> children;
+
+  const _MobileGroupCard({
+    required this.title,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: Theme.of(context).colorScheme.surface,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Text(
+              title,
+              textDirection: TextDirection.rtl,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
             ),
-          );
-        },
+          ),
+          ...children,
+        ],
       ),
     );
   }

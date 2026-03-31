@@ -97,6 +97,12 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
     _searchController.addListener(() => setState(() {}));
   }
 
+  /// מבקש פוקוס למסך הגימטריה.
+  void requestKeyboardFocus() {
+    if (_screenFocusNode.hasFocus) return;
+    _screenFocusNode.requestFocus();
+  }
+
   @override
   void dispose() {
     _searchController.dispose();

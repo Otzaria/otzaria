@@ -30,6 +30,12 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen> {
     _searchController.addListener(_performSearch);
   }
 
+  /// מבקש פוקוס לרשימת ראשי התיבות.
+  void requestKeyboardFocus() {
+    if (_listFocusNode.hasFocus) return;
+    _listFocusNode.requestFocus();
+  }
+
   @override
   void dispose() {
     _searchController.dispose();

@@ -31,6 +31,12 @@ class _AramaicDictionaryScreenState extends State<AramaicDictionaryScreen> {
     _searchController.addListener(_performSearch);
   }
 
+  /// מבקש פוקוס לרשימת המילון.
+  void requestKeyboardFocus() {
+    if (_listFocusNode.hasFocus) return;
+    _listFocusNode.requestFocus();
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
