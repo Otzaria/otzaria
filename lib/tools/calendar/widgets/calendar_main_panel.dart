@@ -48,6 +48,30 @@ class CalendarMainPanel extends StatelessWidget {
                   Expanded(
                     child: AnimatedSwitcher(
                       duration: const Duration(milliseconds: 280),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      transitionBuilder: (child, animation) {
+                        final slideAnimation = Tween<Offset>(
+                          begin: const Offset(0.03, 0),
+                          end: Offset.zero,
+                        ).animate(animation);
+                        return FadeTransition(
+                          opacity: animation,
+                          child: SlideTransition(
+                            position: slideAnimation,
+                            child: child,
+                          ),
+                        );
+                      },
+                      layoutBuilder: (currentChild, previousChildren) {
+                        return Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            ...previousChildren,
+                            if (currentChild != null) currentChild,
+                          ],
+                        );
+                      },
                       child: KeyedSubtree(
                         key: ValueKey(
                             '${state.calendarView}-${state.currentGregorianDate.month}-${state.currentGregorianDate.year}-${state.selectedGregorianDate.day}'),
@@ -130,6 +154,15 @@ class CalendarMainPanel extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: cells.map((cell) {
+        final shortTimes = context.read<CalendarCubit>().shortTimesFor(
+              cell.gregorian,
+            );
+        final additionalInfoLines = <String>[
+          if (shortTimes['sunrise'] case final sunrise?)
+            'זריחה $sunrise',
+          if (shortTimes['sunset'] case final sunset?)
+            'שקיעה $sunset',
+        ];
         return Expanded(
           child: buildDayCell(
             context,
@@ -141,6 +174,7 @@ class CalendarMainPanel extends StatelessWidget {
                 .read<CalendarCubit>()
                 .selectDate(cell.jewish, cell.gregorian),
             () => onCreateEvent(specificDate: cell.gregorian),
+            additionalInfoLines: additionalInfoLines,
           ),
         );
       }).toList(),

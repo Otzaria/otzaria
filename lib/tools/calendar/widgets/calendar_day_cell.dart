@@ -37,6 +37,7 @@ Widget buildDayCell(
   bool isFromOtherMonth,
   VoidCallback onTap,
   VoidCallback onAdd,
+  {List<String> additionalInfoLines = const []}
 ) {
   final isSelected = state.selectedJewishDate.getJewishDayOfMonth() ==
           jewishDate.getJewishDayOfMonth() &&
@@ -79,7 +80,6 @@ Widget buildDayCell(
             borderRadius: BorderRadius.circular(8),
             child: Container(
               margin: const EdgeInsets.all(2),
-              constraints: const BoxConstraints(minHeight: 72),
               decoration: BoxDecoration(
                 color: tintedBackground,
                 borderRadius: BorderRadius.circular(8),
@@ -92,77 +92,101 @@ Widget buildDayCell(
                   width: isToday ? 2 : 1,
                 ),
               ),
-              child: Stack(
-                children: [
-                  // Primary date (ימין)
-                  Positioned(
-                    top: 4,
-                    right: 4,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final compactCell = constraints.maxHeight < 84;
+                  final veryCompactCell = constraints.maxHeight < 64;
+                  final primaryFontSize = state.calendarType ==
+                          CalendarType.combined
+                      ? (compactCell ? 11.0 : 12.0)
+                      : (compactCell ? 12.0 : 14.0);
+                  final secondaryFontSize = compactCell ? 9.0 : 10.0;
+                  final monthLabelFontSize = compactCell ? 7.0 : 8.0;
+
+                  return Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      4,
+                      compactCell ? 3 : 4,
+                      4,
+                      compactCell ? 3 : 4,
+                    ),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text(
-                          (state.calendarType == CalendarType.hebrew ||
-                                  state.calendarType == CalendarType.combined)
-                              ? formatHebrewDay(
-                                  jewishDate.getJewishDayOfMonth())
-                              : '${gregorianDate.day}',
-                          style: TextStyle(
-                            color: isSelected
-                                ? cs.onPrimaryContainer
-                                : cs.onSurface,
-                            fontWeight: isSelected
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                            fontSize:
-                                state.calendarType == CalendarType.combined
-                                    ? 12
-                                    : 14,
-                          ),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (state.calendarType == CalendarType.combined)
+                              Text(
+                                '${gregorianDate.day}',
+                                style: TextStyle(
+                                  color: isSelected
+                                      ? cs.onPrimaryContainer
+                                          .withValues(alpha: 0.85)
+                                      : cs.onSurfaceVariant,
+                                  fontSize: secondaryFontSize,
+                                ),
+                              ),
+                            const Spacer(),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  (state.calendarType == CalendarType.hebrew ||
+                                          state.calendarType ==
+                                              CalendarType.combined)
+                                      ? formatHebrewDay(
+                                          jewishDate.getJewishDayOfMonth())
+                                      : '${gregorianDate.day}',
+                                  style: TextStyle(
+                                    color: isSelected
+                                        ? cs.onPrimaryContainer
+                                        : cs.onSurface,
+                                    fontWeight: isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                    fontSize: primaryFontSize,
+                                  ),
+                                ),
+                                if ((state.calendarType == CalendarType.hebrew ||
+                                        state.calendarType ==
+                                            CalendarType.combined) &&
+                                    jewishDate.isJewishLeapYear() &&
+                                    (jewishDate.getJewishMonth() == 12 ||
+                                        jewishDate.getJewishMonth() == 13) &&
+                                    jewishDate.getJewishDayOfMonth() == 1)
+                                  Text(
+                                    getHebrewMonthNameFor(jewishDate),
+                                    style: TextStyle(
+                                      fontSize: monthLabelFontSize,
+                                      color: isSelected
+                                          ? cs.onPrimaryContainer
+                                          : cs.onSurfaceVariant,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ],
                         ),
-                        // שם חודש עברי בתחילת חודש אדר בשנה מעוברת
-                        if ((state.calendarType == CalendarType.hebrew ||
-                                state.calendarType == CalendarType.combined) &&
-                            jewishDate.isJewishLeapYear() &&
-                            (jewishDate.getJewishMonth() == 12 ||
-                                jewishDate.getJewishMonth() == 13) &&
-                            jewishDate.getJewishDayOfMonth() == 1)
-                          Text(
-                            getHebrewMonthNameFor(jewishDate),
-                            style: TextStyle(
-                              fontSize: 8,
-                              color: isSelected
-                                  ? cs.onPrimaryContainer
-                                  : cs.onSurfaceVariant,
+                        SizedBox(height: compactCell ? 2 : 6),
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.topCenter,
+                            child: DayExtras(
+                              date: gregorianDate,
+                              inIsrael: state.inIsrael,
+                              maxVisibleItems: veryCompactCell
+                                  ? 0
+                                  : (compactCell ? 1 : 2),
+                              compact: compactCell,
+                              additionalInfoLines: additionalInfoLines,
                             ),
                           ),
+                        ),
                       ],
                     ),
-                  ),
-                  // Secondary date (שמאל — תצוגה משולבת)
-                  if (state.calendarType == CalendarType.combined)
-                    Positioned(
-                      top: 4,
-                      left: 4,
-                      child: Text(
-                        '${gregorianDate.day}',
-                        style: TextStyle(
-                          color: isSelected
-                              ? cs.onPrimaryContainer.withValues(alpha: 0.85)
-                              : cs.onSurfaceVariant,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ),
-                  // אירועים ומועדים
-                  Positioned(
-                    top: 30,
-                    left: 4,
-                    right: 4,
-                    child: DayExtras(
-                        date: gregorianDate, inIsrael: state.inIsrael),
-                  ),
-                ],
+                  );
+                },
               ),
             ),
           ),
@@ -176,42 +200,76 @@ Widget buildDayCell(
 class DayExtras extends StatelessWidget {
   final DateTime date;
   final bool inIsrael;
+  final int maxVisibleItems;
+  final bool compact;
+  final List<String> additionalInfoLines;
 
-  const DayExtras({super.key, required this.date, required this.inIsrael});
+  const DayExtras({
+    super.key,
+    required this.date,
+    required this.inIsrael,
+    this.maxVisibleItems = 2,
+    this.compact = false,
+    this.additionalInfoLines = const [],
+  });
 
   @override
   Widget build(BuildContext context) {
+    if (maxVisibleItems <= 0) {
+      return const SizedBox.shrink();
+    }
+
     final cubit = context.read<CalendarCubit>();
     final events = cubit.eventsForDate(date);
     final List<Widget> lines = [];
     final jc = JewishCalendar.fromDateTime(date)..inIsrael = inIsrael;
+    final jewishEvents = _calcJewishEvents(jc);
+    final visibleItems = <Widget>[];
 
-    for (final e in _calcJewishEvents(jc).take(2)) {
-      lines.add(Text(
+    for (final e in jewishEvents.take(maxVisibleItems)) {
+      visibleItems.add(Text(
         e,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
-          fontSize: 11,
+          fontSize: compact ? 10 : 11,
           color: Theme.of(context).colorScheme.onSurface,
           fontWeight: FontWeight.w500,
         ),
       ));
     }
 
-    for (final e in events.take(2)) {
-      lines.add(Text(
+    var remainingSlots = maxVisibleItems - visibleItems.length;
+    for (final e in events.take(remainingSlots.clamp(0, maxVisibleItems))) {
+      visibleItems.add(Text(
         '• ${e.title}',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         textDirection: TextDirection.rtl,
         style: TextStyle(
-          fontSize: 10,
+          fontSize: compact ? 9 : 10,
           color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
       ));
     }
 
+    remainingSlots = maxVisibleItems - visibleItems.length;
+    for (final info in additionalInfoLines
+        .take(remainingSlots.clamp(0, maxVisibleItems))) {
+      visibleItems.add(Text(
+        info,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        textDirection: TextDirection.rtl,
+        style: TextStyle(
+          fontSize: compact ? 9 : 10,
+          color: Theme.of(context).colorScheme.primary,
+          fontWeight: FontWeight.w600,
+        ),
+      ));
+    }
+
+    lines.addAll(visibleItems);
     return Column(mainAxisSize: MainAxisSize.min, children: lines);
   }
 
