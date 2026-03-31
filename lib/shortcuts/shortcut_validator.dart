@@ -98,7 +98,7 @@ class ShortcutValidator {
     'key-shortcut-calendar-toggle-events': 'לוח שנה: פתיחה/סגירה אירועים',
     'key-shortcut-calendar-today': 'לוח שנה: מעבר להיום',
     'key-shortcut-calendar-create-event': 'לוח שנה: יצירת אירוע',
-    'key-shortcut-calendar-toggle-view': 'לוח שנה: מעבר בין תצוגות',
+    'key-shortcut-calendar-toggle-view': 'לוח שנה: מעבר בין תצוגות שבוע/חודש',
     'key-shortcut-shamor-zachor-cycle-filter':
         'שמור וזכור: מעבר בין הסינונים',
   };
