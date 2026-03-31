@@ -9,6 +9,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/settings/settings_exports.dart' hide UpdateFontSize;
@@ -2294,8 +2295,9 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       commentatorsToShow: state.activeCommentators,
     );
 
-    UiSnack.showQuick(
-        bookmarkAdded ? 'הסימניה נוספה בהצלחה' : 'הסימניה כבר קיימת');
+<<<<<<< HEAD
+      UiSnack.showQuick(
+          bookmarkAdded ? 'הסימניה נוספה בהצלחה' : 'הסימניה כבר קיימת');
   }
 
   Widget _buildBody(
@@ -2536,6 +2538,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                             indicatorColor:
                                 Theme.of(context).colorScheme.primary,
                             dividerColor: Colors.transparent,
+                            splashBorderRadius:
+                                BorderRadius.circular(AppTokens.radiusMD),
                           ),
                         ),
                         if (MediaQuery.of(context).size.width >= 600)
@@ -2917,8 +2921,9 @@ void _addBookmarkFromKeyboard(
     commentatorsToShow: state.activeCommentators,
   );
 
-  UiSnack.showQuick(
-      bookmarkAdded ? 'הסימניה נוספה בהצלחה' : 'הסימניה כבר קיימת');
+<<<<<<< HEAD
+    UiSnack.showQuick(
+        bookmarkAdded ? 'הסימניה נוספה בהצלחה' : 'הסימניה כבר קיימת');
 }
 
 /// Helper function to add note from keyboard shortcut

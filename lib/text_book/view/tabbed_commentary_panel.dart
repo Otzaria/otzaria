@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
@@ -148,6 +149,8 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
                             .withValues(alpha: 0.6),
                         indicatorColor: Theme.of(context).colorScheme.primary,
                         dividerColor: Colors.transparent,
+                        splashBorderRadius:
+                            BorderRadius.circular(AppTokens.radiusMD),
                       ),
                     ),
                     // לחצן סגירה

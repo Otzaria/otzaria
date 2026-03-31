@@ -6,6 +6,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_context_menu/flutter_context_menu.dart' as ctx;
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
@@ -1225,6 +1226,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                               .withValues(alpha: 0.6),
                           indicatorColor: Theme.of(context).colorScheme.primary,
                           dividerColor: Colors.transparent,
+                          splashBorderRadius:
+                              BorderRadius.circular(AppTokens.radiusMD),
                           overlayColor:
                               WidgetStateProperty.all(Colors.transparent),
                         ),

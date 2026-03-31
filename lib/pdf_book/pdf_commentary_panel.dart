@@ -3,6 +3,8 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_context_menu/flutter_context_menu.dart' as ctx;
+import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/widgets/commentators_filter_button.dart';
 import 'package:otzaria/widgets/commentators_filter_screen.dart';
 import 'package:otzaria/models/books.dart';
@@ -320,6 +322,7 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
                       .withValues(alpha: 0.6),
                   indicatorColor: Theme.of(context).colorScheme.primary,
                   dividerColor: Colors.transparent,
+                  splashBorderRadius: BorderRadius.circular(AppTokens.radiusMD),
                   onTap: (index) {
                     // אם לוחצים על טאב מפרשים (0) ואנחנו בכפתור סינון, סוגרים אותו
                     if (index == 0 && _showFilterTab) {
@@ -903,10 +906,11 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     return BlocBuilder<SettingsBloc, SettingsState>(
       builder: (context, settingsState) {
         final restoredExpanded = PageStorage.maybeOf(context)?.readState(
-              context,
-              identifier: keyStr,
-            ) as bool?;
-        final isExpanded = _expandedLinkStates[keyStr] ?? restoredExpanded ?? false;
+          context,
+          identifier: keyStr,
+        ) as bool?;
+        final isExpanded =
+            _expandedLinkStates[keyStr] ?? restoredExpanded ?? false;
 
         return ctx.ContextMenuRegion(
           contextMenu: _buildCommentaryContextMenu(link),
