@@ -12,12 +12,12 @@ import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/library/models/library.dart';
-import 'package:otzaria/daf_yomi/daf_yomi_helper.dart';
+import 'package:otzaria/tools/calendar/helpers/daf_yomi_navigation.dart';
 import 'package:otzaria/file_sync/file_sync_bloc.dart';
 import 'package:otzaria/file_sync/file_sync_event.dart';
 import 'package:otzaria/file_sync/file_sync_repository.dart';
 import 'package:otzaria/file_sync/file_sync_state.dart';
-import 'package:otzaria/daf_yomi/daf_yomi.dart';
+import 'package:otzaria/library/view/library_daf_yomi.dart';
 import 'package:otzaria/widgets/filter_chips_widget.dart';
 import 'package:otzaria/tools/tools_screen.dart' show moreScreenKey;
 import 'package:otzaria/library/view/grid_items.dart';
@@ -41,7 +41,7 @@ import 'package:otzaria/theme/app_surfaces.dart';
 
 // ── קבועים ────────────────────────────────────────────────────────────────────
 
-/// רוחב מינימלי להצגת DafYomi בשורה הראשית (לא בשורה שניה)
+/// רוחב מינימלי להצגת LibraryDafYomi בשורה הראשית (לא בשורה שניה)
 const double _kDafYomiInlineMinWidth = 820.0;
 
 /// דיבאונס לגלילה (ms) — מונע rebuild חוזר
@@ -308,7 +308,8 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                                   return AnimatedPadding(
                                     duration: const Duration(milliseconds: 180),
                                     curve: Curves.easeOut,
-                                    padding: EdgeInsets.only(top: effectiveTopPad),
+                                    padding:
+                                        EdgeInsets.only(top: effectiveTopPad),
                                     child: child,
                                   );
                                 },
@@ -375,26 +376,38 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     // ── Trailing items ────────────────────────────────────────────────────
     final trailingItems = <AppTopBarItem>[];
 
-    // DafYomi: בשורה הראשית כשיש מקום, אחרת בשורה שניה
+    // LibraryDafYomi: בשורה הראשית כשיש מקום, אחרת בשורה שניה
     if (dafYomiInline) {
       trailingItems.add(
         AppTopBarItem(
-          widget: DafYomi(
+          widget: LibraryDafYomi(
             compact: isCompact,
             inlineDate: isCompact, // desktop: date + daf בשורה אחת
             maxWidth: 240,
             onDafYomiTap: (tractate, daf) =>
                 openDafYomiBook(context, tractate, ' $daf.'),
-            onCalendarTap: () {
-              (moreScreenKey.currentState as dynamic)?.resetToCalendar();
-              context.read<NavigationBloc>().add(
-                    const NavigateToScreen(Screen.more),
-                  );
-            },
           ),
         ),
       );
     }
+
+    // אייקון לוח שנה — תמיד בשורה העליונה
+    trailingItems.add(
+      AppTopBarItem(
+        widget: ToolbarActionButton(
+          compact: isCompact,
+          tooltip: 'פתח לוח שנה',
+          icon: FluentIcons.calendar_24_regular,
+          emphasis: ToolbarActionButtonEmphasis.subtle,
+          onPressed: () {
+            (moreScreenKey.currentState as dynamic)?.resetToCalendar();
+            context.read<NavigationBloc>().add(
+                  const NavigateToScreen(Screen.more),
+                );
+          },
+        ),
+      ),
+    );
 
     trailingItems.addAll([
       AppTopBarItem(
@@ -473,18 +486,12 @@ class _LibraryBrowserState extends State<LibraryBrowser>
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              DafYomi(
+              LibraryDafYomi(
                 compact: isCompact,
                 inlineDate: false,
                 maxWidth: 320,
                 onDafYomiTap: (tractate, daf) =>
                     openDafYomiBook(context, tractate, ' $daf.'),
-                onCalendarTap: () {
-                  (moreScreenKey.currentState as dynamic)?.resetToCalendar();
-                  context.read<NavigationBloc>().add(
-                        const NavigateToScreen(Screen.more),
-                      );
-                },
               ),
             ],
           ),

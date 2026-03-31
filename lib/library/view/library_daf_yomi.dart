@@ -1,26 +1,22 @@
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:kosher_dart/kosher_dart.dart';
-import 'package:otzaria/daf_yomi/calendar.dart';
-import 'package:otzaria/widgets/buttons/action_buttons.dart';
+import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 
-/// ווידג'ט דף יומי ולוח שנה — 2 מצבי תצוגה.
+/// ווידג'ט דף יומי — 2 מצבי תצוגה.
 ///
 /// • [compact] = false (touch/ברירת מחדל):
-///   שני אזורי לחיצה — טקסט בשתי שורות + אייקון לוח שנה.
+///   אזור לחיצה אחד — טקסט בשתי שורות.
 ///
 /// • [compact] = true (desktop):
 ///   גרסה דחוסה. כשיש מספיק רוחב ([inlineDate] = true) —
 ///   תאריך ודף מוצגים בשורה אחת (" • " ביניהם).
 ///   כשהמסך צר — מוצגים בשתי שורות קצרות.
 ///
-/// **שינויים:**
-/// • הסגנון נלקח מברירות המחדל של AppTopBar.
-/// • כפתור לוח שנה משתמש ב-ToolbarActionButton לאחידות מול שאר הסרגל.
-/// • רק התאריך מודגש; טקסט הדף נשאר רגיל.
-/// • מצב דו־שורי במסך מגע משתמש ב-TextTheme של הסרגל למניעת רינדור מטושטש.
-class DafYomi extends StatelessWidget {
-  final VoidCallback onCalendarTap;
+/// **אחריות:**
+/// • מציג תאריך עברי + דף יומי.
+/// • פתיחת הדף היומי מטופלת דרך [onDafYomiTap].
+/// • ניווט ללוח השנה הוא אחריות של הסרגל המכיל.
+class LibraryDafYomi extends StatelessWidget {
   final Function(String tractate, String daf) onDafYomiTap;
 
   /// true = מצב desktop — גרסה דחוסה
@@ -32,9 +28,8 @@ class DafYomi extends StatelessWidget {
   /// רוחב מקסימלי של הווידג'ט (כדי למנוע overflow)
   final double? maxWidth;
 
-  const DafYomi({
+  const LibraryDafYomi({
     super.key,
-    required this.onCalendarTap,
     required this.onDafYomiTap,
     this.compact = false,
     this.inlineDate = false,
@@ -111,7 +106,6 @@ class DafYomi extends StatelessWidget {
     int dafAmud,
   ) {
     final cs = Theme.of(context).colorScheme;
-    final dividerColor = cs.onSecondaryContainer.withValues(alpha: 0.22);
     final dateStyle =
         _primaryTextStyle(context, isCompact: true, emphasized: true);
     final dafStyle = _secondaryTextStyle(context, isCompact: true);
@@ -121,77 +115,48 @@ class DafYomi extends StatelessWidget {
         color: cs.onSecondaryContainer.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // ── אזור טקסט — פותח דף יומי ──────────────────────────────────
-          Tooltip(
-            message: 'פתח דף יומי',
-            child: InkWell(
-              onTap: () => onDafYomiTap(tractate, formatAmud(dafAmud)),
-              borderRadius: const BorderRadius.only(
-                topRight: Radius.circular(8),
-                bottomRight: Radius.circular(8),
-              ),
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      dateText,
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                      style: dateStyle,
-                      textDirection: TextDirection.rtl,
-                      textHeightBehavior: _toolbarTextHeightBehavior,
-                      strutStyle: StrutStyle.fromTextStyle(
-                        dateStyle,
-                        forceStrutHeight: true,
-                        leading: 0,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      'דף היומי: $dafText',
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                      style: dafStyle,
-                      textDirection: TextDirection.rtl,
-                      textHeightBehavior: _toolbarTextHeightBehavior,
-                      strutStyle: StrutStyle.fromTextStyle(
-                        dafStyle,
-                        forceStrutHeight: true,
-                        leading: 0,
-                      ),
-                    ),
-                  ],
+      child: Tooltip(
+        message: 'פתח דף יומי',
+        child: InkWell(
+          onTap: () => onDafYomiTap(tractate, formatAmud(dafAmud)),
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  dateText,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                  style: dateStyle,
+                  textDirection: TextDirection.rtl,
+                  textHeightBehavior: _toolbarTextHeightBehavior,
+                  strutStyle: StrutStyle.fromTextStyle(
+                    dateStyle,
+                    forceStrutHeight: true,
+                    leading: 0,
+                  ),
                 ),
-              ),
+                const SizedBox(height: 3),
+                Text(
+                  'דף היומי: $dafText',
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                  style: dafStyle,
+                  textDirection: TextDirection.rtl,
+                  textHeightBehavior: _toolbarTextHeightBehavior,
+                  strutStyle: StrutStyle.fromTextStyle(
+                    dafStyle,
+                    forceStrutHeight: true,
+                    leading: 0,
+                  ),
+                ),
+              ],
             ),
           ),
-
-          // ── מפריד ──────────────────────────────────────────────────────
-          Container(
-            width: 1,
-            height: 20,
-            color: dividerColor,
-          ),
-
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: ToolbarActionButton(
-              tooltip: 'פתח לוח שנה',
-              icon: FluentIcons.calendar_24_regular,
-              compact: false,
-              emphasis: ToolbarActionButtonEmphasis.subtle,
-              onPressed: onCalendarTap,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -259,34 +224,16 @@ class DafYomi extends StatelessWidget {
             ],
           );
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // ── טקסט — פותח דף יומי ──────────────────────────────────────
-        Tooltip(
-          message: 'פתח דף יומי: $dafText',
-          child: InkWell(
-            onTap: () => onDafYomiTap(tractate, formatAmud(dafAmud)),
-            borderRadius: BorderRadius.circular(6),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: textWidget,
-            ),
-          ),
+    return Tooltip(
+      message: 'פתח דף יומי: $dafText',
+      child: InkWell(
+        onTap: () => onDafYomiTap(tractate, formatAmud(dafAmud)),
+        borderRadius: BorderRadius.circular(6),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: textWidget,
         ),
-
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 2),
-          child: ToolbarActionButton(
-            tooltip: 'פתח לוח שנה',
-            icon: FluentIcons.calendar_24_regular,
-            compact: true,
-            emphasis: ToolbarActionButtonEmphasis.subtle,
-            onPressed: onCalendarTap,
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
