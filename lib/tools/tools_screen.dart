@@ -29,6 +29,8 @@ class MoreScreen extends StatefulWidget {
 class MoreScreenState extends State<MoreScreen>
     with AutomaticKeepAliveClientMixin {
   final GlobalKey _calendarWidgetKey = GlobalKey();
+  final GlobalKey _shamorZachorKey = GlobalKey();
+  final GlobalKey _personalNotesKey = GlobalKey();
   final GlobalKey _measurementConverterKey = GlobalKey();
   final GlobalKey _gematriaKey = GlobalKey();
   final GlobalKey _aramaicDictionaryKey = GlobalKey();
@@ -97,8 +99,8 @@ class MoreScreenState extends State<MoreScreen>
       BlocBuilder<CalendarCubit, CalendarState>(
         builder: (context, _) => CalendarWidget(key: _calendarWidgetKey),
       ),
-      ShamorZachorWidget(onTitleChanged: (_) {}),
-      const PersonalNotesManagerScreen(),
+      ShamorZachorWidget(key: _shamorZachorKey, onTitleChanged: (_) {}),
+      PersonalNotesManagerScreen(key: _personalNotesKey),
       MeasurementConverterScreen(key: _measurementConverterKey),
       GematriaSearchScreen(key: _gematriaKey),
       AramaicDictionaryScreen(key: _aramaicDictionaryKey),
@@ -172,6 +174,18 @@ class MoreScreenState extends State<MoreScreen>
           final calendarState = _calendarWidgetKey.currentState;
           if (calendarState != null) {
             (calendarState as dynamic).requestKeyboardFocus();
+          }
+          break;
+        case 1:
+          final shamorZachorState = _shamorZachorKey.currentState;
+          if (shamorZachorState != null) {
+            (shamorZachorState as dynamic).requestKeyboardFocus();
+          }
+          break;
+        case 2:
+          final personalNotesState = _personalNotesKey.currentState;
+          if (personalNotesState != null) {
+            (personalNotesState as dynamic).requestKeyboardFocus();
           }
           break;
         case 3:
