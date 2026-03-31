@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:otzaria/theme/app_theme.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 
 /// Divider זהה לסגנון הפנימי של SettingsCard — לשימוש בתוכן מורחב (AnimatedSize וכד')
 ///

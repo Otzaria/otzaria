@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/core/app_restart.dart';
 import 'package:otzaria/widgets/mixins/dialog_navigation_mixin.dart';
-import 'package:otzaria/theme/app_theme.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 
 // ── קבועי סגנון גלובליים ─────────────────────────────────────────────────────
 /// סגנון כותרת בשורת הגדרה — alias ל-[AppTextStyles.settingTitle]

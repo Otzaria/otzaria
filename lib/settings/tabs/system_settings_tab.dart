@@ -32,8 +32,7 @@ import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/widgets/custom_ui_components.dart';
 import 'package:otzaria/widgets/error_report_sender_email_dialog.dart';
 import 'package:otzaria/settings/settings_card.dart';
-import 'package:otzaria/theme/app_theme.dart';
-import 'package:otzaria/theme/layout_tokens.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 
 /// טאב "אוצריא" — גרסאות, נתיב ספרייה, גיבוי, מצב סייפר, איפוס.
 class SystemSettingsTab extends StatefulWidget {

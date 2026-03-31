@@ -9,7 +9,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/core/ui_snack.dart';
-import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/navigation/custom_title_bar.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';

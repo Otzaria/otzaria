@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 
 void main() {
   test('list fonts', () async {

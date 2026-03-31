@@ -3,7 +3,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:otzaria/widgets/custom_ui_components.dart';
 import 'package:otzaria/settings/settings_card.dart';
-import 'package:otzaria/theme/app_theme.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 
 /// טאב "חכמי לב" — אודות, קהילה, תורמים ומפתחים.
 class AboutDevTab extends StatelessWidget {

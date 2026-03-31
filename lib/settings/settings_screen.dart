@@ -7,8 +7,7 @@ import 'package:otzaria/settings/tabs/settings_tabs_exports.dart';
 import 'package:otzaria/settings/services/safer_mode/protected_settings_wrapper.dart';
 import 'package:otzaria/widgets/keyboard_navigator.dart';
 import 'package:otzaria/settings/settings_card.dart';
-import 'package:otzaria/theme/app_surfaces.dart';
-import 'package:otzaria/theme/layout_tokens.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 
 /// רוחב מקסימלי לתוכן ההגדרות — מרכוז על מסכים רחבים
 // kSettingsContentMaxWidth הוסר — משתמשים ב-LayoutConstraints.panelContentMaxWidth מ-layout_tokens.dart

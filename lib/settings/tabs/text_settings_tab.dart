@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/settings/settings_card.dart';
-import 'package:otzaria/theme/layout_tokens.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/custom_ui_components.dart';
 
 /// טאב הגדרות תצוגת ספרים

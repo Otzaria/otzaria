@@ -7,7 +7,7 @@ import 'package:otzaria/widgets/rtl_text_field.dart';
 import 'package:otzaria/widgets/dialogs.dart';
 import 'package:otzaria/settings/settings_card.dart';
 import 'package:otzaria/widgets/custom_ui_components.dart';
-import 'package:otzaria/theme/app_theme.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 
 /// טאב הגדרות לוח שנה
 class CalendarSettingsTab extends StatefulWidget {
