@@ -6,6 +6,9 @@
 //  • [RecommendedActionButton] — כפתור פעולה מומלצת (Primary)
 //  • [NeutralActionButton]     — כפתור פעולה ניטרלית (Tonal/SecondaryContainer)
 //
+// ℹ️ ניווט בסיידבר: ראה SidebarNavItem (lib/widgets/sidebar_nav_item.dart)
+// ℹ️ ניווט ב-NavRail ראשי: ראה NavRailItem (lib/widgets/nav_rail_item.dart)
+//
 // **שימוש:**
 // ```dart
 // RecommendedActionButton(text: 'שמור', onPressed: _save)
@@ -108,75 +111,5 @@ class NeutralActionButton extends StatelessWidget {
     }
     return FilledButton.tonal(
         onPressed: onPressed, style: style, child: Text(text));
-  }
-}
-
-// ── CustomSidebarItem ─────────────────────────────────────────────────────────
-
-/// פריט sidebar גנרי עם תמיכה ב-Material 3 states
-///
-/// - Unselected: אייקון regular, רקע שקוף
-/// - Selected: אייקון filled, רקע secondaryContainer
-/// - Hover: primary.withOpacity(0.08)
-class CustomSidebarItem extends StatelessWidget {
-  final IconData icon;
-  final IconData? selectedIcon; // אייקון filled אופציונלי
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const CustomSidebarItem({
-    super.key,
-    required this.icon,
-    this.selectedIcon,
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final effectiveIcon = isSelected ? (selectedIcon ?? icon) : icon;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      overlayColor: WidgetStateProperty.resolveWith((states) {
-        if (states.contains(WidgetState.hovered)) {
-          return cs.primary.withValues(alpha: 0.08);
-        }
-        return null;
-      }),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? cs.secondaryContainer : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              effectiveIcon,
-              size: 32,
-              color: isSelected ? cs.onSecondaryContainer : cs.onSurfaceVariant,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                color:
-                    isSelected ? cs.onSecondaryContainer : cs.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }

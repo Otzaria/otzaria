@@ -9,9 +9,7 @@ import 'package:otzaria/widgets/keyboard_navigator.dart';
 import 'package:otzaria/settings/settings_card.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/rtl_icon.dart';
-
-/// רוחב מקסימלי לתוכן ההגדרות — מרכוז על מסכים רחבים
-// kSettingsContentMaxWidth הוסר — משתמשים ב-LayoutConstraints.panelContentMaxWidth מ-layout_tokens.dart
+import 'package:otzaria/widgets/sidebar_nav_item.dart';
 
 /// מייצג את לשוניות מסך ההגדרות שניתן לנווט אליהן בקוד.
 enum SettingsTab { design, text, library, tools, shortcuts, system, about }
@@ -160,7 +158,6 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
   ];
 
   // ── קבוצות למובייל ────────────────────────────────────────────────────────
-  // כל קבוצה: (כותרת, רשימת אינדקסים מ-_tabsData)
   static const _mobileGroups = [
     (label: 'תצוגה ותוכן', indices: <int>[0, 1, 2]),
     (label: 'כלים', indices: <int>[3, 4]),
@@ -170,7 +167,6 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    // panelBackground מוגדר ב-AppSurfaces ומשמש גם ספריה, כלים, והגדרות
     final bgColor = AppSurfaces.panelBackground(context);
 
     return ProtectedSettingsWrapper(
@@ -259,7 +255,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
               child: Scaffold(
                 backgroundColor: bgColor,
                 body: Listener(
-                  // [תיקון גלילה] גלגל עכבר מכל מקום (כולל sidebar) גולל את התוכן
+                  // גלגל עכבר מכל מקום (כולל sidebar) גולל את התוכן
                   onPointerSignal: (event) {
                     if (event is PointerScrollEvent &&
                         _contentScrollController.hasClients) {
@@ -299,61 +295,14 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                               Expanded(
                                 child: ListView.builder(
                                   itemCount: _tabsData.length,
-                                  itemBuilder: (context, index) {
-                                    final isSelected = _selectedIndex == index;
-                                    return Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 2),
-                                      child: Material(
-                                        color: isSelected
-                                            ? colorScheme.secondaryContainer
-                                            : Colors.transparent,
-                                        borderRadius: BorderRadius.circular(28),
-                                        child: InkWell(
-                                          onTap: () => _changeTab(index),
-                                          borderRadius:
-                                              BorderRadius.circular(28),
-                                          child: Padding(
-                                            padding: const EdgeInsets.symmetric(
-                                                horizontal: 14, vertical: 10),
-                                            child: Row(
-                                              children: [
-                                                Icon(
-                                                  isSelected
-                                                      ? _tabsData[index]
-                                                          .iconFilled
-                                                      : _tabsData[index].icon,
-                                                  size: 20,
-                                                  color: isSelected
-                                                      ? colorScheme
-                                                          .onSecondaryContainer
-                                                      : colorScheme
-                                                          .onSurfaceVariant,
-                                                ),
-                                                const SizedBox(width: 10),
-                                                Expanded(
-                                                  child: Text(
-                                                    _tabsData[index].label,
-                                                    style: TextStyle(
-                                                      fontSize: 14,
-                                                      fontWeight: isSelected
-                                                          ? FontWeight.bold
-                                                          : FontWeight.normal,
-                                                      color: isSelected
-                                                          ? colorScheme
-                                                              .onSecondaryContainer
-                                                          : colorScheme
-                                                              .onSurfaceVariant,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    );
-                                  },
+                                  itemBuilder: (context, index) =>
+                                      SidebarNavItem(
+                                    icon: _tabsData[index].icon,
+                                    iconFilled: _tabsData[index].iconFilled,
+                                    label: _tabsData[index].label,
+                                    isSelected: _selectedIndex == index,
+                                    onTap: () => _changeTab(index),
+                                  ),
                                 ),
                               ),
                             ],
@@ -387,7 +336,6 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
 }
 
 // ── _SettingsContentPane ───────────────────────────────────────────────────────
-// [שינוי] StatefulWidget — בקשת focus בכניסה לטאב חדש
 class _SettingsContentPane extends StatefulWidget {
   final String label;
   final Widget child;
@@ -410,7 +358,6 @@ class _SettingsContentPaneState extends State<_SettingsContentPane> {
   @override
   void initState() {
     super.initState();
-    // בקשת focus כדי שניווט מקלדת יעבוד מיד
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) widget.focusNode.requestFocus();
     });

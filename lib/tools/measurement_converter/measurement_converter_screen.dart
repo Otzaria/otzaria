@@ -947,6 +947,67 @@ class _MeasurementConverterScreenState
   }
 }
 
+// ── CustomSidebarItem ───────────────────────────────────────────────────────
+class CustomSidebarItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const CustomSidebarItem({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final bgColor =
+        isSelected ? cs.secondaryContainer : cs.surfaceContainerLow;
+    final fgColor =
+        isSelected ? cs.onSecondaryContainer : cs.onSurfaceVariant;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppTokens.radiusSM),
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppTokens.spaceSM,
+            vertical: AppTokens.spaceSM,
+          ),
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(AppTokens.radiusSM),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 18, color: fgColor),
+              const SizedBox(width: AppTokens.spaceXS),
+              Flexible(
+                child: Text(
+                  label,
+                  textDirection: TextDirection.rtl,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: AppTokens.fontSM,
+                    color: fgColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  _MeasurementTextField
 // ═══════════════════════════════════════════════════════════════════════════

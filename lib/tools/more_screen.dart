@@ -2,7 +2,8 @@
 //
 // שינויים:
 //  • מסך צר: תפריט סגנון הגדרות (SettingsCard קבוצות + ListTile) → tap → תוכן + חזרה
-//  • מסך רחב: TabBar M3 ראשי — ללא קו מתחת, אינדיקטור ריבוע מעוגל שקוף
+//  • מסך רחב: Sidebar M3 (כמו settings_screen) — SidebarNavItem, רוחב 210, pill עגול
+//  • IndexedStack שומר מצב כל הכלים (ללא TabController)
 //  • AnimatedSwitcher: מעבר חלק בין wide ↔ narrow
 //  • Ctrl+Tab / Ctrl+Shift+Tab: KeyboardNavigator מכל מקום
 //  • רקע: AppSurfaces.panelBackground
@@ -21,6 +22,7 @@ import 'package:otzaria/tools/calendar/view/calendar_screen.dart';
 import 'package:otzaria/personal_notes/view/personal_notes_screen.dart';
 import 'package:otzaria/widgets/keyboard_navigator.dart';
 import 'package:otzaria/widgets/rtl_icon.dart';
+import 'package:otzaria/widgets/sidebar_nav_item.dart';
 import 'package:otzaria/core/focus_repository.dart';
 
 final GlobalKey<MoreScreenState> moreScreenKey = GlobalKey<MoreScreenState>();
@@ -33,17 +35,16 @@ class MoreScreen extends StatefulWidget {
 }
 
 class MoreScreenState extends State<MoreScreen>
-    with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
-  late final TabController _tabController;
+    with AutomaticKeepAliveClientMixin {
   final GlobalKey<GematriaSearchScreenState> _gematriaKey =
       GlobalKey<GematriaSearchScreenState>();
   late final List<Widget> _pages;
 
-  // ── מצב מובייל ───────────────────────────────────────────────────────────
-  bool _showMobileMenu = true;
+  // ── מצב ─────────────────────────────────────────────────────────────────
   int _selectedIndex = 0;
+  bool _showMobileMenu = true;
 
-  // ── FocusNode לאזור התוכן (מיקוד אוטומטי בעת מעבר טאב) ─────────────────
+  // ── FocusNode לאזור התוכן ────────────────────────────────────────────────
   final FocusNode _contentFocusNode = FocusNode();
 
   // ── הגדרת טאבים ──────────────────────────────────────────────────────────
@@ -55,7 +56,6 @@ class MoreScreenState extends State<MoreScreen>
     ),
     const _TabInfo(
       label: 'שמור וזכור',
-      icon: null,
       imageIcon: 'assets/icon/שמור וזכור שחור ריק.png',
     ),
     const _TabInfo(
@@ -96,13 +96,6 @@ class MoreScreenState extends State<MoreScreen>
   void initState() {
     super.initState();
     FocusRepository().moreScreenFocusNode.addListener(_onMoreFocusChange);
-    _tabController = TabController(length: _tabs.length, vsync: this)
-      ..addListener(() {
-        if (!_tabController.indexIsChanging) {
-          setState(() => _selectedIndex = _tabController.index);
-          _contentFocusNode.requestFocus();
-        }
-      });
 
     _pages = [
       BlocBuilder<CalendarCubit, CalendarState>(
@@ -122,7 +115,6 @@ class MoreScreenState extends State<MoreScreen>
       _selectedIndex = index;
       _showMobileMenu = false;
     });
-    _tabController.animateTo(index);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _contentFocusNode.requestFocus();
     });
@@ -130,13 +122,10 @@ class MoreScreenState extends State<MoreScreen>
 
   /// Reset to calendar page — public method for external access
   void resetToCalendar() {
-    if (_tabController.index != 0) {
-      _tabController.animateTo(0);
-      setState(() {
-        _selectedIndex = 0;
-        _showMobileMenu = true;
-      });
-    }
+    setState(() {
+      _selectedIndex = 0;
+      _showMobileMenu = true;
+    });
   }
 
   void _onMoreFocusChange() {
@@ -148,36 +137,12 @@ class MoreScreenState extends State<MoreScreen>
   @override
   void dispose() {
     FocusRepository().moreScreenFocusNode.removeListener(_onMoreFocusChange);
-    _tabController.dispose();
     _contentFocusNode.dispose();
     super.dispose();
   }
 
   @override
   bool get wantKeepAlive => true;
-
-  // ── Tab widget builder ─────────────────────────────────────────────────────
-  Widget _buildTabWidget(_TabInfo tab) {
-    final isSelected = _tabs.indexOf(tab) == _selectedIndex;
-    // אנימציית Active Indicator: scale + fade בין regular ל-filled (M3)
-    final iconWidget = tab.imageIcon != null
-        ? ImageIcon(AssetImage(tab.imageIcon!), size: 20)
-        : AnimatedSwitcher(
-            duration: const Duration(milliseconds: 250),
-            switchInCurve: Curves.easeInOutCubicEmphasized,
-            switchOutCurve: Curves.easeInOutCubicEmphasized,
-            transitionBuilder: (child, animation) => FadeTransition(
-              opacity: animation,
-              child: ScaleTransition(scale: animation, child: child),
-            ),
-            child: Icon(
-              isSelected && tab.iconFilled != null ? tab.iconFilled : tab.icon,
-              size: 20,
-              key: ValueKey<bool>(isSelected),
-            ),
-          );
-    return Tab(text: tab.label, icon: iconWidget);
-  }
 
   // ── Mobile menu ────────────────────────────────────────────────────────────
   Widget _buildMobileMenu(Color bgColor) {
@@ -249,61 +214,65 @@ class MoreScreenState extends State<MoreScreen>
     );
   }
 
-  // ── Desktop layout ─────────────────────────────────────────────────────────
+  // ── Desktop layout — Sidebar + content ────────────────────────────────────
   Widget _buildDesktop(Color bgColor) {
-    final cs = Theme.of(context).colorScheme;
-
     return KeyboardNavigator(
       currentTabIndex: _selectedIndex,
       totalTabs: _tabs.length,
       onTabChange: _changeTab,
       child: Scaffold(
         backgroundColor: bgColor,
-        body: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        body: Row(
           children: [
-            // ── שורת טאבים M3 ─────────────────────────────────────────────
-            ColoredBox(
-              color: bgColor,
-              child: Padding(
+            // ── Sidebar ────────────────────────────────────────────────────
+            SizedBox(
+              width: 210,
+              child: Container(
+                color: bgColor,
                 padding: const EdgeInsets.symmetric(
-                  horizontal: AppTokens.spaceMD,
-                  vertical: AppTokens.spaceXS,
-                ),
-                child: TabBar(
-                  controller: _tabController,
-                  isScrollable: true,
-                  tabAlignment: TabAlignment.center,
-                  dividerColor: Colors.transparent,
-                  dividerHeight: 0,
-                  labelColor: cs.onSecondaryContainer,
-                  unselectedLabelColor: cs.onSurfaceVariant,
-                  indicator: BoxDecoration(
-                    borderRadius: BorderRadius.circular(AppTokens.radiusMD),
-                    color: cs.secondaryContainer,
-                  ),
-                  indicatorSize: TabBarIndicatorSize.tab,
-                  overlayColor: WidgetStateProperty.resolveWith((states) {
-                    if (states.contains(WidgetState.hovered)) {
-                      return cs.primary.withValues(alpha: 0.08);
-                    }
-                    if (states.contains(WidgetState.pressed)) {
-                      return cs.primary.withValues(alpha: 0.12);
-                    }
-                    return null;
-                  }),
-                  splashBorderRadius: BorderRadius.circular(AppTokens.radiusMD),
-                  tabs: _tabs.map(_buildTabWidget).toList(),
+                    horizontal: 10, vertical: 28),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(
+                          right: 12, left: 12, bottom: 20),
+                      child: Text(
+                        'כלים',
+                        style: Theme.of(context)
+                            .textTheme
+                            .headlineSmall
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: _tabs.length,
+                        itemBuilder: (context, index) => SidebarNavItem(
+                          icon: _tabs[index].icon,
+                          iconFilled: _tabs[index].iconFilled,
+                          imageAsset: _tabs[index].imageIcon,
+                          label: _tabs[index].label,
+                          isSelected: _selectedIndex == index,
+                          onTap: () => _changeTab(index),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-            // ── תוכן טאבים ───────────────────────────────────────────────
+
+            // ── אזור תוכן — IndexedStack שומר מצב כל הכלים ───────────────
             Expanded(
               child: Focus(
                 focusNode: _contentFocusNode,
-                child: TabBarView(
-                  controller: _tabController,
-                  children: _pages,
+                child: Container(
+                  color: bgColor,
+                  child: IndexedStack(
+                    index: _selectedIndex,
+                    children: _pages,
+                  ),
                 ),
               ),
             ),
@@ -317,38 +286,45 @@ class MoreScreenState extends State<MoreScreen>
   Widget build(BuildContext context) {
     super.build(context);
     final bgColor = AppSurfaces.panelBackground(context);
+    final toolsTheme = Theme.of(context).copyWith(
+      scaffoldBackgroundColor: bgColor,
+      canvasColor: bgColor,
+    );
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isMobile = constraints.maxWidth < LayoutBreakpoints.compact;
+    return Theme(
+      data: toolsTheme,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isMobile = constraints.maxWidth < LayoutBreakpoints.compact;
 
-        Widget content;
-        if (isMobile) {
-          content = _showMobileMenu
-              ? _buildMobileMenu(bgColor)
-              : _buildMobileContent(bgColor);
-        } else {
-          content = _buildDesktop(bgColor);
-        }
+          Widget content;
+          if (isMobile) {
+            content = _showMobileMenu
+                ? _buildMobileMenu(bgColor)
+                : _buildMobileContent(bgColor);
+          } else {
+            content = _buildDesktop(bgColor);
+          }
 
-        // ── אנימציה בין wide ↔ narrow ──────────────────────────────────────
-        return AnimatedSwitcher(
-          duration: AppTokens.animNormal,
-          transitionBuilder: (child, animation) => FadeTransition(
-            opacity: CurvedAnimation(
-              parent: animation,
-              curve: Curves.easeInOut,
+          // ── אנימציה בין wide ↔ narrow ──────────────────────────────────────
+          return AnimatedSwitcher(
+            duration: AppTokens.animNormal,
+            transitionBuilder: (child, animation) => FadeTransition(
+              opacity: CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeInOut,
+              ),
+              child: child,
             ),
-            child: child,
-          ),
-          child: KeyedSubtree(
-            key: ValueKey(isMobile
-                ? 'mobile-${_showMobileMenu ? "menu" : "content-$_selectedIndex"}'
-                : 'desktop'),
-            child: content,
-          ),
-        );
-      },
+            child: KeyedSubtree(
+              key: ValueKey(isMobile
+                  ? 'mobile-${_showMobileMenu ? "menu" : "content-$_selectedIndex"}'
+                  : 'desktop'),
+              child: content,
+            ),
+          );
+        },
+      ),
     );
   }
 }

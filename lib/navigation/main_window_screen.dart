@@ -40,6 +40,7 @@ import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/file_sync/file_sync_bloc.dart';
 import 'package:otzaria/file_sync/file_sync_event.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/nav_rail_item.dart'; // ← חדש
 
 class MainWindowScreen extends StatefulWidget {
   const MainWindowScreen({super.key});
@@ -56,22 +57,14 @@ class MainWindowScreenState extends State<MainWindowScreen>
   Orientation? _previousOrientation;
   int _currentPageIndex = 0;
 
-  // Keep the pages list as templates; the actual first page (library)
-  // will be built dynamically in build() to allow showing the
-  // EmptyLibraryScreen inside the library tab while keeping the
-  // rest of the application UI available.
   List<Widget> _pages = [];
 
-  // שמירת הדפים כדי שלא ייבנו מחדש
   Widget? _cachedLibraryPage;
   Widget? _cachedReadingPage;
   Widget? _cachedMorePage;
   Widget? _cachedSettingsPage;
 
-  // שמירת BLoC של EmptyLibrary כדי שלא יאבד את המצב
   EmptyLibraryBloc? _emptyLibraryBloc;
-
-  // שמירת מצב הספרייה הקודם כדי לזהות שינויים
   bool? _previousLibraryEmptyState;
 
   final StartupWorkGate _startupWorkGate = StartupWorkGate();
@@ -79,9 +72,55 @@ class MainWindowScreenState extends State<MainWindowScreen>
   bool _hasRestoredFullscreen = false;
   bool _hasStartedFileSync = false;
 
-  // מצב הדיאלוגים - לניהול מצב selected בסיידבר
   bool _isSearchOpen = false;
   bool _isFindRefOpen = false;
+
+  // ── נתוני פריטי הניווט הראשי ─────────────────────────────────────────────
+  // משמש גם ל-NavRailItem (desktop) וגם ל-_buildNavigationDestinations (mobile)
+  static const _navData = [
+    (
+      icon: FluentIcons.library_24_regular,
+      iconFilled: FluentIcons.library_24_filled,
+      label: 'ספרייה',
+      shortcutKey: 'key-shortcut-open-library-browser',
+      shortcutDefault: 'ctrl+l',
+    ),
+    (
+      icon: FluentIcons.book_search_24_regular,
+      iconFilled: FluentIcons.book_search_24_filled,
+      label: 'איתור',
+      shortcutKey: 'key-shortcut-open-find-ref',
+      shortcutDefault: 'ctrl+o',
+    ),
+    (
+      icon: FluentIcons.book_open_24_regular,
+      iconFilled: FluentIcons.book_open_24_filled,
+      label: 'עיון',
+      shortcutKey: 'key-shortcut-open-reading-screen',
+      shortcutDefault: 'ctrl+r',
+    ),
+    (
+      icon: FluentIcons.search_24_regular,
+      iconFilled: FluentIcons.search_24_filled,
+      label: 'חיפוש',
+      shortcutKey: 'key-shortcut-open-new-search',
+      shortcutDefault: 'ctrl+q',
+    ),
+    (
+      icon: FluentIcons.apps_24_regular,
+      iconFilled: FluentIcons.apps_24_filled,
+      label: 'כלים',
+      shortcutKey: 'key-shortcut-open-more',
+      shortcutDefault: 'ctrl+m',
+    ),
+    (
+      icon: FluentIcons.settings_24_regular,
+      iconFilled: FluentIcons.settings_24_filled,
+      label: 'הגדרות',
+      shortcutKey: 'key-shortcut-open-settings',
+      shortcutDefault: 'ctrl+comma',
+    ),
+  ];
 
   @override
   void initState() {
@@ -132,7 +171,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
   /// This avoids DB lock contention that caused 17s delays.
   void _initializeBackgroundSync() {
     BackgroundSyncInitializer.initializeAfterDelay(
-      delaySeconds: 2, // Small delay to let UI settle after library load
+      delaySeconds: 2,
       onComplete: (result) {
         if (!mounted) return;
         if (result.addedBooks > 0 ||
@@ -140,7 +179,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
             result.addedLinks > 0) {
           debugPrint('📚 סנכרון קבצים הושלם: ${result.addedBooks} ספרים חדשים, '
               '${result.updatedBooks} עודכנו, ${result.addedLinks} קישורים');
-
           // Refresh the library browser to show new books
           try {
             context.read<LibraryBloc>().add(RefreshLibrary());
@@ -160,35 +198,27 @@ class MainWindowScreenState extends State<MainWindowScreen>
     _initializeBackgroundSync();
     _startFileSync();
   }
-
-  /// Setup synchronization between window fullscreen state and settings
   void _setupFullscreenSync() {
     if (kIsWeb ||
         (!Platform.isWindows && !Platform.isLinux && !Platform.isMacOS)) {
       return;
     }
-
-    // Listen for fullscreen changes from the window manager (e.g., user presses F11 in OS)
     appWindowListener?.onFullscreenChanged = (isFullscreen) {
       if (!mounted) return;
       final settingsBloc = context.read<SettingsBloc>();
-      // Only update if the state is different to avoid loops
       if (settingsBloc.state.isFullscreen != isFullscreen) {
         settingsBloc.add(UpdateIsFullscreen(isFullscreen));
       }
     };
   }
 
-  /// Restore fullscreen state from settings when app starts
   Future<void> _restoreFullscreenState(BuildContext context) async {
     if (_hasRestoredFullscreen) return;
     _hasRestoredFullscreen = true;
-
     if (kIsWeb ||
         (!Platform.isWindows && !Platform.isLinux && !Platform.isMacOS)) {
       return;
     }
-
     final settingsState = context.read<SettingsBloc>().state;
     if (settingsState.isFullscreen) {
       await windowManager.setFullScreen(true);
@@ -196,11 +226,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
   }
 
   void _checkAndStartIndexing(BuildContext context) {
-    // Only check once, after settings are loaded
     if (_hasCheckedAutoIndex) return;
     _hasCheckedAutoIndex = true;
-
-    // Check if auto-update is enabled
     if (context.read<SettingsBloc>().state.autoUpdateIndex) {
       DataRepository.instance.library.then((library) {
         if (!mounted || !context.mounted) return;
@@ -211,7 +238,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
 
   @override
   void dispose() {
-    // Clean up fullscreen callback
     appWindowListener?.onFullscreenChanged = null;
     _calendarCubit.close();
     _emptyLibraryBloc?.close();
@@ -223,20 +249,13 @@ class MainWindowScreenState extends State<MainWindowScreen>
     if (_previousOrientation != orientation) {
       _previousOrientation = orientation;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) {
-          return;
-        }
+        if (!mounted) return;
         final currentScreen =
             context.read<NavigationBloc>().state.currentScreen;
         final targetPage = _pageIndexForScreen(currentScreen);
-        if (targetPage == null) {
-          return;
-        }
-
+        if (targetPage == null) return;
         if (_currentPageIndex != targetPage) {
-          setState(() {
-            _currentPageIndex = targetPage;
-          });
+          setState(() => _currentPageIndex = targetPage);
           if (pageController.hasClients) {
             pageController.jumpToPage(targetPage);
           }
@@ -245,117 +264,23 @@ class MainWindowScreenState extends State<MainWindowScreen>
     }
   }
 
-  /// ודאו שה-PageView מסונכרן למצב הניווט הנוכחי גם אם בחרו שוב באותו יעד.
   Future<void> _syncPageWithState() async {
     if (!mounted || !pageController.hasClients) return;
     final currentScreen = context.read<NavigationBloc>().state.currentScreen;
     final targetPage = _pageIndexForScreen(currentScreen);
     if (targetPage == null) return;
     if (_currentPageIndex == targetPage) return;
-
-    setState(() {
-      _currentPageIndex = targetPage;
-    });
+    setState(() => _currentPageIndex = targetPage);
     pageController.jumpToPage(targetPage);
   }
 
-  List<NavigationDestination> _buildNavigationDestinations() {
-    String formatShortcut(String shortcut) => shortcut.toUpperCase();
+  // ── ניווט ─────────────────────────────────────────────────────────────────
 
-    final libraryShortcut =
-        Settings.getValue<String>('key-shortcut-open-library-browser') ??
-            'ctrl+l';
-    final findShortcut =
-        Settings.getValue<String>('key-shortcut-open-find-ref') ?? 'ctrl+o';
-    final browseShortcut =
-        Settings.getValue<String>('key-shortcut-open-reading-screen') ??
-            'ctrl+r';
-    final searchShortcut =
-        Settings.getValue<String>('key-shortcut-open-new-search') ?? 'ctrl+q';
-
-    return [
-      NavigationDestination(
-        tooltip: '',
-        icon: Tooltip(
-          preferBelow: false,
-          message: formatShortcut(libraryShortcut),
-          child: const Icon(FluentIcons.library_24_regular),
-        ),
-        selectedIcon: const Icon(FluentIcons.library_24_filled),
-        label: 'ספרייה',
-      ),
-      NavigationDestination(
-        tooltip: '',
-        icon: Tooltip(
-          preferBelow: false,
-          message: formatShortcut(findShortcut),
-          child: const Icon(FluentIcons.book_search_24_regular),
-        ),
-        selectedIcon: const Icon(FluentIcons.book_search_24_filled),
-        label: 'איתור',
-      ),
-      NavigationDestination(
-        tooltip: '',
-        icon: Tooltip(
-          preferBelow: false,
-          message: formatShortcut(browseShortcut),
-          child: const Icon(FluentIcons.book_open_24_regular),
-        ),
-        selectedIcon: const Icon(FluentIcons.book_open_24_filled),
-        label: 'עיון',
-      ),
-      NavigationDestination(
-        tooltip: '',
-        icon: Tooltip(
-          preferBelow: false,
-          message: formatShortcut(searchShortcut),
-          child: const Icon(FluentIcons.search_24_regular),
-        ),
-        selectedIcon: const Icon(FluentIcons.search_24_filled),
-        label: 'חיפוש',
-      ),
-      NavigationDestination(
-        tooltip: '',
-        icon: Tooltip(
-          preferBelow: false,
-          message: formatShortcut(
-            Settings.getValue<String>('key-shortcut-open-more') ?? 'ctrl+m',
-          ),
-          child: const Icon(FluentIcons.apps_24_regular),
-        ),
-        selectedIcon: const Icon(FluentIcons.apps_24_filled),
-        label: 'כלים',
-      ),
-      NavigationDestination(
-        tooltip: '',
-        icon: Tooltip(
-          preferBelow: false,
-          message: formatShortcut(
-            Settings.getValue<String>('key-shortcut-open-settings') ??
-                'ctrl+comma',
-          ),
-          child: const Icon(FluentIcons.settings_24_regular),
-        ),
-        selectedIcon: const Icon(FluentIcons.settings_24_filled),
-        label: 'הגדרות',
-      ),
-    ];
-  }
-
-  void _handleNavigationChange(
-    BuildContext context,
-    NavigationState state,
-  ) async {
-    if (!mounted || !context.mounted) {
-      return;
-    }
-
+  void _handleNavigationChange(BuildContext context, NavigationState state) async {
+    if (!mounted || !context.mounted) return;
     final targetPage = _pageIndexForScreen(state.currentScreen);
     if (targetPage != null && _currentPageIndex != targetPage) {
-      setState(() {
-        _currentPageIndex = targetPage;
-      });
-      // מעבר עם אנימציה
+      setState(() => _currentPageIndex = targetPage);
       if (pageController.hasClients) {
         pageController.animateToPage(
           targetPage,
@@ -364,27 +289,117 @@ class MainWindowScreenState extends State<MainWindowScreen>
         );
       }
     }
-
     if (state.currentScreen == Screen.library) {
-      context.read<FocusRepository>().requestLibrarySearchFocus(
-            selectAll: true,
-          );
+      context.read<FocusRepository>().requestLibrarySearchFocus(selectAll: true);
     } else if (state.currentScreen == Screen.more) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          context.read<FocusRepository>().requestMoreScreenFocus();
-        }
+        if (mounted) context.read<FocusRepository>().requestMoreScreenFocus();
       });
     } else if (state.currentScreen == Screen.reading) {
-      // בקשת focus לתוכן הספר כשעוברים למסך עיון
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          context.read<FocusRepository>().requestBookContentFocus();
-        }
+        if (mounted) context.read<FocusRepository>().requestBookContentFocus();
       });
     }
   }
 
+  int _getSelectedIndex(Screen currentScreen) {
+    switch (currentScreen) {
+      case Screen.library:
+        return 0;
+      case Screen.find:
+        return -1;
+      case Screen.reading:
+        return 2;
+      case Screen.search:
+        return 3;
+      case Screen.more:
+        return 4;
+      case Screen.settings:
+        return 5;
+      case Screen.about:
+        return -1;
+    }
+  }
+
+  bool _isDialogButtonSelected(int index) {
+    return switch (index) {
+      1 => _isFindRefOpen,
+      3 => _isSearchOpen,
+      _ => false,
+    };
+  }
+
+  // ── onTap handler לכל כפתור ניווט ────────────────────────────────────────
+  Future<void> _onNavTap(
+    BuildContext context,
+    int index,
+    Screen currentScreen,
+  ) async {
+    final currentIndex = _getSelectedIndex(currentScreen);
+    if (index == currentIndex &&
+        index != Screen.search.index &&
+        index != Screen.find.index) {
+      await _syncPageWithState();
+      return;
+    }
+    if (index == Screen.search.index) {
+      _handleSearchTabOpen(context);
+    } else if (index == Screen.find.index) {
+      _handleFindRefOpen(context);
+    } else {
+      context.read<NavigationBloc>().add(NavigateToScreen(Screen.values[index]));
+    }
+    if (index == Screen.library.index) {
+      context.read<FocusRepository>().requestLibrarySearchFocus(selectAll: true);
+    }
+  }
+
+  // ── NavRail (desktop) ─────────────────────────────────────────────────────
+  Widget _buildNavRailItem(
+    BuildContext context,
+    int index,
+    Screen currentScreen,
+  ) {
+    final isSelected =
+        _getSelectedIndex(currentScreen) == index ||
+            _isDialogButtonSelected(index);
+    final item = _navData[index];
+    final tooltip = (Settings.getValue<String>(item.shortcutKey) ??
+            item.shortcutDefault)
+        .toUpperCase();
+
+    return NavRailItem(
+      icon: item.icon,
+      iconFilled: item.iconFilled,
+      label: item.label,
+      isSelected: isSelected,
+      onTap: () => _onNavTap(context, index, currentScreen),
+      tooltip: tooltip,
+    );
+  }
+
+  // ── NavigationBar (mobile) ─────────────────────────────────────────────────
+  List<NavigationDestination> _buildNavigationDestinations() {
+    String fmt(String s) => s.toUpperCase();
+    return [
+      for (final item in _navData)
+        NavigationDestination(
+          tooltip: '',
+          icon: Tooltip(
+            preferBelow: false,
+            message: fmt(
+              Settings.getValue<String>(item.shortcutKey) ??
+                  item.shortcutDefault,
+            ),
+            child: Icon(item.icon),
+          ),
+          selectedIcon: Icon(item.iconFilled),
+          label: item.label,
+        ),
+    ];
+  }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return MultiBlocListener(
@@ -399,14 +414,11 @@ class MainWindowScreenState extends State<MainWindowScreen>
               previous.activeWorkspaceId != current.activeWorkspaceId ||
               (previous.isLoading && !current.isLoading),
           listener: (context, state) {
-            // עדכון שם שולחן העבודה הנוכחי ב-HistoryBloc
             final currentId = state.activeWorkspaceId;
             if (currentId != null) {
               final workspace =
                   state.workspaces.firstWhere((w) => w.id == currentId);
-              context.read<HistoryBloc>().add(
-                    SetCurrentWorkspaceName(workspace.name),
-                  );
+              context.read<HistoryBloc>().add(SetCurrentWorkspaceName(workspace.name));
             }
           },
         ),
@@ -430,25 +442,38 @@ class MainWindowScreenState extends State<MainWindowScreen>
             );
             _tryStartDeferredStartupWork();
           },
+              previous.isLoading &&
+              !current.isLoading &&
+              current.library != null,
+          listener: (context, state) {
+            _startupWorkGate.markLibraryLoaded();
+            _tryStartDeferredStartupWork();
+          },
+        ),
+        BlocListener<IndexingBloc, IndexingState>(
+          listenWhen: (previous, current) =>
+              (previous is IndexingInProgress) !=
+              (current is IndexingInProgress),
+          listener: (context, state) {
+            _startupWorkGate.markIndexingRunning(
+              state is IndexingInProgress,
+            );
+            _tryStartDeferredStartupWork();
+          },
         ),
         BlocListener<SettingsBloc, SettingsState>(
           listenWhen: (previous, current) {
-            // Trigger when settings are loaded for the first time (not initial state anymore)
-            // or when autoUpdateIndex changes
             final isInitialLoad = previous == SettingsState.initial() &&
                 current != SettingsState.initial();
-            final hasChanged =
-                previous.autoUpdateIndex != current.autoUpdateIndex;
+            final hasChanged = previous.autoUpdateIndex != current.autoUpdateIndex;
             return isInitialLoad || hasChanged;
           },
           listener: (context, state) {
-            // When settings are loaded for the first time, check if we should start indexing
             _checkAndStartIndexing(context);
             _startupWorkGate.markIndexingDecisionResolved(
               expectIndexing: state.autoUpdateIndex,
             );
             _tryStartDeferredStartupWork();
-            // Also restore fullscreen state
             _restoreFullscreenState(context);
           },
         ),
@@ -457,25 +482,18 @@ class MainWindowScreenState extends State<MainWindowScreen>
         value: _calendarCubit,
         child: BlocBuilder<NavigationBloc, NavigationState>(
           builder: (context, state) {
-            // Build the pages list here so we can inject the EmptyLibraryScreen
-            // into the library page while keeping the rest of the app visible.
-            // נבנה את הדפים רק פעם אחת ונשמור אותם
-            // אם מצב הספרייה השתנה, נבנה מחדש את דף הספרייה
             if (_cachedLibraryPage == null ||
                 state.isLibraryEmpty !=
                     (_cachedLibraryPage is EmptyLibraryScreen) ||
                 _previousLibraryEmptyState != state.isLibraryEmpty) {
               if (state.isLibraryEmpty) {
-                // יצירת BLoC פעם אחת אם עדיין לא קיים
                 _emptyLibraryBloc ??= EmptyLibraryBloc();
                 _cachedLibraryPage = EmptyLibraryScreen(
                   bloc: _emptyLibraryBloc,
-                  onLibraryLoaded: () {
-                    context.read<NavigationBloc>().refreshLibrary();
-                  },
+                  onLibraryLoaded: () =>
+                      context.read<NavigationBloc>().refreshLibrary(),
                 );
               } else {
-                // אם הספרייה כבר לא ריקה, נסגור את ה-BLoC
                 _emptyLibraryBloc?.close();
                 _emptyLibraryBloc = null;
                 _cachedLibraryPage = const LibraryBrowser();
@@ -518,6 +536,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                 children: _pages,
                               );
 
+                              // ── Desktop: NavRail ──────────────────────
                               if (orientation == Orientation.landscape) {
                                 return Row(
                                   children: [
@@ -530,67 +549,51 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                               color:
                                                   AppSurfaces.panelBackground(
                                                       context),
+                                              surfaceTintColor:
+                                                  Colors.transparent,
                                               child: LayoutBuilder(
-                                                builder:
-                                                    (context, constraints) {
-                                                  // חישוב גובה משוער לכל הכפתורים
-                                                  const buttonHeight =
-                                                      60.0; // גובה משוער לכפתור + padding
+                                                builder: (context, constraints) {
+                                                  const buttonHeight = 60.0;
                                                   final totalButtonsHeight =
-                                                      6 * buttonHeight;
-                                                  final minSpacerHeight = 20.0;
+                                                      _navData.length * buttonHeight;
                                                   final needsScroll =
-                                                      totalButtonsHeight +
-                                                              minSpacerHeight >
+                                                      totalButtonsHeight + 20.0 >
                                                           constraints.maxHeight;
 
                                                   if (needsScroll) {
-                                                    // אם אין מספיק מקום, השתמש בגלילה
                                                     return SingleChildScrollView(
                                                       child: Column(
                                                         children: [
                                                           for (int i = 0;
-                                                              i < 6;
+                                                              i < _navData.length;
                                                               i++)
-                                                            _buildNavButton(
-                                                              context,
-                                                              _buildNavigationDestinations()[
-                                                                  i],
-                                                              i,
-                                                              state
-                                                                  .currentScreen,
-                                                            ),
+                                                            _buildNavRailItem(
+                                                                context,
+                                                                i,
+                                                                state.currentScreen),
                                                         ],
                                                       ),
                                                     );
                                                   } else {
-                                                    // אם יש מספיק מקום, השתמש ב-Spacer
+                                                    final topCount =
+                                                        _navData.length > 5 ? 5 : _navData.length;
                                                     return Column(
                                                       children: [
-                                                        // כפתורים עליונים
                                                         for (int i = 0;
-                                                            i < 5;
+                                                            i < topCount;
                                                             i++)
-                                                          _buildNavButton(
-                                                            context,
-                                                            _buildNavigationDestinations()[
-                                                                i],
-                                                            i,
-                                                            state.currentScreen,
-                                                          ),
-                                                        // רווח גמיש
+                                                          _buildNavRailItem(
+                                                              context,
+                                                              i,
+                                                              state.currentScreen),
                                                         const Spacer(),
-                                                        // כפתורים תחתונים
-                                                        for (int i = 5;
-                                                            i < 6;
+                                                        for (int i = topCount;
+                                                            i < _navData.length;
                                                             i++)
-                                                          _buildNavButton(
-                                                            context,
-                                                            _buildNavigationDestinations()[
-                                                                i],
-                                                            i,
-                                                            state.currentScreen,
-                                                          ),
+                                                          _buildNavRailItem(
+                                                              context,
+                                                              i,
+                                                              state.currentScreen),
                                                       ],
                                                     );
                                                   }
@@ -601,57 +604,37 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                         ],
                                       ),
                                     ),
-                                    const VerticalDivider(
-                                        thickness: 1, width: 1),
+                                    const VerticalDivider(thickness: 1, width: 1),
                                     Expanded(child: pageView),
-                                  ],
-                                );
-                              } else {
-                                return Column(
-                                  children: [
-                                    Expanded(child: pageView),
-                                    NavigationBar(
-                                      backgroundColor:
-                                          AppSurfaces.panelBackground(context),
-                                      surfaceTintColor: Colors.transparent,
-                                      destinations:
-                                          _buildNavigationDestinations(),
-                                      selectedIndex: _getSelectedIndex(
-                                        state.currentScreen,
-                                      ),
-                                      onDestinationSelected: (index) async {
-                                        // אם בחרו שוב באותו היעד – רק סנכרנו את ה-PageView למסך
-                                        final currentIndex = _getSelectedIndex(
-                                            state.currentScreen);
-                                        if (index == currentIndex &&
-                                            index != Screen.search.index &&
-                                            index != Screen.find.index) {
-                                          // סנכרון ידני – שימושי כאשר מסיבה כלשהי ה-PageView סטה מהמצב
-                                          await _syncPageWithState();
-                                          return;
-                                        }
-                                        if (index == Screen.search.index) {
-                                          _handleSearchTabOpen(context);
-                                        } else if (index == Screen.find.index) {
-                                          _handleFindRefOpen(context);
-                                        } else {
-                                          context.read<NavigationBloc>().add(
-                                                NavigateToScreen(
-                                                    Screen.values[index]),
-                                              );
-                                        }
-                                        if (index == Screen.library.index) {
-                                          context
-                                              .read<FocusRepository>()
-                                              .requestLibrarySearchFocus(
-                                                selectAll: true,
-                                              );
-                                        }
-                                      },
-                                    ),
                                   ],
                                 );
                               }
+
+                              // ── Mobile: NavigationBar ─────────────────
+                              return Column(
+                                children: [
+                                  Expanded(child: pageView),
+                                  NavigationBar(
+                                    backgroundColor:
+                                        AppSurfaces.panelBackground(context),
+                                    surfaceTintColor: Colors.transparent,
+                                    destinations: _buildNavigationDestinations(),
+                                    selectedIndex:
+                                        _getSelectedIndex(state.currentScreen),
+                                    onDestinationSelected: (index) async {
+                                      final currentIndex = _getSelectedIndex(
+                                          state.currentScreen);
+                                      if (index == currentIndex &&
+                                          index != Screen.search.index &&
+                                          index != Screen.find.index) {
+                                        await _syncPageWithState();
+                                        return;
+                                      }
+                                      _onNavTap(context, index, state.currentScreen);
+                                    },
+                                  ),
+                                ],
+                              );
                             },
                           ),
                         ),
@@ -685,28 +668,18 @@ class MainWindowScreenState extends State<MainWindowScreen>
   }
 
   void _handleSearchTabOpen(BuildContext context) {
-    // אם הדיאלוג כבר פתוח, סוגרים אותו
     if (_isSearchOpen) {
       Navigator.of(context).pop();
       return;
     }
-
     final navigationBloc = context.read<NavigationBloc>();
-
-    setState(() {
-      _isSearchOpen = true;
-    });
-
+    setState(() => _isSearchOpen = true);
     showDialog(
       context: context,
       builder: (context) => const SearchDialog(existingTab: null),
     ).then((_) {
-      // איפוס המצב כשהדיאלוג נסגר
       if (!mounted) return;
-      setState(() {
-        _isSearchOpen = false;
-      });
-
+      setState(() => _isSearchOpen = false);
       final currentScreen = navigationBloc.state.currentScreen;
       if (currentScreen == Screen.reading || currentScreen == Screen.search) {
         _syncPageWithState();
@@ -715,201 +688,29 @@ class MainWindowScreenState extends State<MainWindowScreen>
   }
 
   void _handleFindRefOpen(BuildContext context) {
-    // אם הדיאלוג כבר פתוח, סוגרים אותו
     if (_isFindRefOpen) {
       Navigator.of(context).pop();
       return;
     }
-
     final navigationBloc = context.read<NavigationBloc>();
-
-    setState(() {
-      _isFindRefOpen = true;
-    });
-
+    setState(() => _isFindRefOpen = true);
     showDialog(
       context: context,
       builder: (context) => FindRefDialog(),
     ).then((_) {
-      // איפוס המצב כשהדיאלוג נסגר
       if (!mounted) return;
-      setState(() {
-        _isFindRefOpen = false;
-      });
-
+      setState(() => _isFindRefOpen = false);
       final currentScreen = navigationBloc.state.currentScreen;
       if (currentScreen == Screen.reading || currentScreen == Screen.search) {
         _syncPageWithState();
       }
     });
   }
-
-  int _getSelectedIndex(Screen currentScreen) {
-    // מיפוי מחדש של האינדקסים כיון שהסרנו את דף האיתור
-    switch (currentScreen) {
-      case Screen.library:
-        return 0;
-      case Screen.find:
-        return -1; // לא נבחר
-      case Screen.reading:
-        return 2;
-      case Screen.search:
-        return 3;
-      case Screen.more:
-        return 4;
-      case Screen.settings:
-        return 5;
-      case Screen.about:
-        return -1; // לא נבחר
-    }
-  }
-
-  /// מחזיר גרסת filled של אייקון כאשר הוא נבחר (M3 standard)
-  IconData? _getFilledIcon(int index) {
-    return switch (index) {
-      0 => FluentIcons.library_24_filled, // ספרייה
-      1 => FluentIcons.book_search_24_filled, // איתור
-      2 => FluentIcons.book_open_24_filled, // עיון
-      3 => FluentIcons.search_24_filled, // חיפוש
-      4 => FluentIcons.apps_24_filled, // כלים
-      5 => FluentIcons.settings_24_filled, // הגדרות
-      _ => null,
-    };
-  }
-
-  /// בודק אם כפתור הדיאלוג צריך להיות במצב selected
-  bool _isDialogButtonSelected(int index) {
-    return switch (index) {
-      1 => _isFindRefOpen, // איתור
-      3 => _isSearchOpen, // חיפוש
-      _ => false,
-    };
-  }
-
-  Widget _buildNavButton(
-    BuildContext context,
-    NavigationDestination destination,
-    int index,
-    Screen currentScreen,
-  ) {
-    final isSelected = _getSelectedIndex(currentScreen) == index ||
-        _isDialogButtonSelected(index);
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Container(
-      width: 74,
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // AnimatedScale לאנימציית ה-Active Indicator (הרקע)
-          AnimatedScale(
-            scale: isSelected ? 1.0 : 0.95,
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeInOutCubicEmphasized,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              curve: Curves.easeInOutCubicEmphasized,
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? colorScheme.secondaryContainer
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: IconButton(
-                onPressed: () async {
-                  // אם בחרו שוב באותו היעד – רק סנכרנו את ה-PageView למסך
-                  final currentIndex = _getSelectedIndex(currentScreen);
-                  if (index == currentIndex &&
-                      index != Screen.search.index &&
-                      index != Screen.find.index) {
-                    await _syncPageWithState();
-                    return;
-                  }
-                  if (index == Screen.search.index) {
-                    _handleSearchTabOpen(context);
-                  } else if (index == Screen.find.index) {
-                    _handleFindRefOpen(context);
-                  } else {
-                    context.read<NavigationBloc>().add(
-                          NavigateToScreen(Screen.values[index]),
-                        );
-                  }
-                  if (index == Screen.library.index) {
-                    context.read<FocusRepository>().requestLibrarySearchFocus(
-                          selectAll: true,
-                        );
-                  }
-                },
-                // AnimatedSwitcher למעבר חלק בין אייקונים regular ל-filled
-                icon: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 250),
-                  switchInCurve: Curves.easeInOutCubicEmphasized,
-                  switchOutCurve: Curves.easeInOutCubicEmphasized,
-                  transitionBuilder: (child, animation) {
-                    return FadeTransition(
-                      opacity: animation,
-                      child: ScaleTransition(
-                        scale: animation,
-                        child: child,
-                      ),
-                    );
-                  },
-                  child: Builder(
-                    key: ValueKey<bool>(isSelected),
-                    builder: (ctx) {
-                      final filledIcon = _getFilledIcon(index);
-                      final iconData =
-                          isSelected && filledIcon != null ? filledIcon : null;
-                      return IconTheme(
-                        data: IconThemeData(
-                          color: isSelected
-                              ? colorScheme.onSecondaryContainer
-                              : colorScheme.onSurfaceVariant,
-                          size: 24,
-                        ),
-                        child: iconData != null
-                            ? Icon(iconData)
-                            : destination.icon,
-                      );
-                    },
-                  ),
-                ),
-                style: IconButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  minimumSize: const Size(56, 25),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 2),
-          // אנימציה לצבע הטקסט
-          AnimatedDefaultTextStyle(
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeInOutCubicEmphasized,
-            style: TextStyle(
-              fontSize: 11,
-              color: isSelected
-                  ? colorScheme.onSecondaryContainer
-                  : colorScheme.onSurfaceVariant,
-            ),
-            child: Text(
-              destination.label,
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
+// ── KeepAlivePage ─────────────────────────────────────────────────────────────
 class KeepAlivePage extends StatefulWidget {
   final Widget child;
-
   const KeepAlivePage({super.key, required this.child});
 
   @override
