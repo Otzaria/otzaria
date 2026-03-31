@@ -172,8 +172,7 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final width = constraints.maxWidth;
-                final stackActionsBelow = width < 430;
-                final iconOnlyDelete = width < 500;
+                final iconOnlyDelete = width < 560;
                 final splitDate = width < 360;
 
                 final deleteAction = _DeleteEventAction(
@@ -193,35 +192,20 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                   },
                 );
 
-                final actionButtons = stackActionsBelow
-                    ? Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          ToolbarActionButton(
-                            tooltip: 'ערוך אירוע',
-                            icon: FluentIcons.edit_24_regular,
-                            onPressed: () => widget.onCreateEvent(
-                              existingEvent: event,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          deleteAction,
-                        ],
-                      )
-                    : Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          ToolbarActionButton(
-                            tooltip: 'ערוך אירוע',
-                            icon: FluentIcons.edit_24_regular,
-                            onPressed: () => widget.onCreateEvent(
-                              existingEvent: event,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          deleteAction,
-                        ],
-                      );
+                final actionButtons = Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ToolbarActionButton(
+                      tooltip: 'ערוך אירוע',
+                      icon: FluentIcons.edit_24_regular,
+                      onPressed: () => widget.onCreateEvent(
+                        existingEvent: event,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    deleteAction,
+                  ],
+                );
 
                 final titleRow = Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -306,17 +290,6 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        _EventMetaChip(
-                          icon: FluentIcons.calendar_24_regular,
-                          text: splitDate
-                              ? formatEventDate(event.baseGregorianDate)
-                                  .replaceFirst(' • ', '\n')
-                              : formatEventDate(event.baseGregorianDate),
-                          tooltip: formatEventDate(event.baseGregorianDate),
-                          backgroundColor: scheme.primary,
-                          foregroundColor: scheme.onPrimary,
-                          maxLines: splitDate ? 2 : 1,
-                        ),
                         if (event.recurring)
                           _EventMetaChip(
                             icon: FluentIcons.arrow_repeat_all_24_regular,
@@ -324,6 +297,30 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                             backgroundColor: scheme.tertiaryContainer,
                             foregroundColor: scheme.onTertiaryContainer,
                           ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: Align(
+                            alignment: AlignmentDirectional.bottomStart,
+                            child: _EventMetaChip(
+                              icon: FluentIcons.calendar_24_regular,
+                              text: splitDate
+                                  ? formatEventDate(event.baseGregorianDate)
+                                      .replaceFirst(' • ', '\n')
+                                  : formatEventDate(event.baseGregorianDate),
+                              tooltip: formatEventDate(event.baseGregorianDate),
+                              backgroundColor: scheme.primary,
+                              foregroundColor: scheme.onPrimary,
+                              maxLines: splitDate ? 2 : 1,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        actionButtons,
                       ],
                     ),
                   ],
@@ -339,23 +336,7 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(12),
-                    child: stackActionsBelow
-                        ? Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              content,
-                              const SizedBox(height: 10),
-                              actionButtons,
-                            ],
-                          )
-                        : Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(child: content),
-                              const SizedBox(width: 8),
-                              actionButtons,
-                            ],
-                          ),
+                    child: content,
                   ),
                 );
               },
