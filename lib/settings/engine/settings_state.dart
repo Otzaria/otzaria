@@ -40,6 +40,13 @@ class SettingsState extends Equatable {
   final bool protectedModeEnabled;
   final bool autoSyncCatalogs;
   final bool compactMenuMode;
+  final int gematriaMaxResults;
+  final bool gematriaFilterDuplicates;
+  final bool gematriaWholeVerseOnly;
+  final bool gematriaTorahOnly;
+  final bool gematriaUseSmall;
+  final bool gematriaUseFinalLetters;
+  final bool gematriaUseWithKolel;
 
   const SettingsState({
     required this.isDarkMode,
@@ -79,6 +86,13 @@ class SettingsState extends Equatable {
     required this.protectedModeEnabled,
     required this.autoSyncCatalogs,
     required this.compactMenuMode,
+    this.gematriaMaxResults = 100,
+    this.gematriaFilterDuplicates = false,
+    this.gematriaWholeVerseOnly = false,
+    this.gematriaTorahOnly = false,
+    this.gematriaUseSmall = false,
+    this.gematriaUseFinalLetters = false,
+    this.gematriaUseWithKolel = false,
   });
 
   factory SettingsState.initial() {
@@ -121,6 +135,13 @@ class SettingsState extends Equatable {
       protectedModeEnabled: false,
       autoSyncCatalogs: false,
       compactMenuMode: false,
+      gematriaMaxResults: 100,
+      gematriaFilterDuplicates: false,
+      gematriaWholeVerseOnly: false,
+      gematriaTorahOnly: false,
+      gematriaUseSmall: false,
+      gematriaUseFinalLetters: false,
+      gematriaUseWithKolel: false,
     );
   }
 
@@ -162,6 +183,13 @@ class SettingsState extends Equatable {
     bool? protectedModeEnabled,
     bool? autoSyncCatalogs,
     bool? compactMenuMode,
+    int? gematriaMaxResults,
+    bool? gematriaFilterDuplicates,
+    bool? gematriaWholeVerseOnly,
+    bool? gematriaTorahOnly,
+    bool? gematriaUseSmall,
+    bool? gematriaUseFinalLetters,
+    bool? gematriaUseWithKolel,
   }) {
     return SettingsState(
       isDarkMode: isDarkMode ?? this.isDarkMode,
@@ -205,6 +233,17 @@ class SettingsState extends Equatable {
       protectedModeEnabled: protectedModeEnabled ?? this.protectedModeEnabled,
       autoSyncCatalogs: autoSyncCatalogs ?? this.autoSyncCatalogs,
       compactMenuMode: compactMenuMode ?? this.compactMenuMode,
+      gematriaMaxResults: gematriaMaxResults ?? this.gematriaMaxResults,
+      gematriaFilterDuplicates:
+          gematriaFilterDuplicates ?? this.gematriaFilterDuplicates,
+      gematriaWholeVerseOnly:
+          gematriaWholeVerseOnly ?? this.gematriaWholeVerseOnly,
+      gematriaTorahOnly: gematriaTorahOnly ?? this.gematriaTorahOnly,
+      gematriaUseSmall: gematriaUseSmall ?? this.gematriaUseSmall,
+      gematriaUseFinalLetters:
+          gematriaUseFinalLetters ?? this.gematriaUseFinalLetters,
+      gematriaUseWithKolel:
+          gematriaUseWithKolel ?? this.gematriaUseWithKolel,
     );
   }
 
@@ -247,5 +286,12 @@ class SettingsState extends Equatable {
         protectedModeEnabled,
         autoSyncCatalogs,
         compactMenuMode,
+        gematriaMaxResults,
+        gematriaFilterDuplicates,
+        gematriaWholeVerseOnly,
+        gematriaTorahOnly,
+        gematriaUseSmall,
+        gematriaUseFinalLetters,
+        gematriaUseWithKolel,
       ];
 }

@@ -361,3 +361,66 @@ class UpdateProtectedModePassword extends SettingsEvent {
   @override
   List<Object?> get props => [password];
 }
+
+class UpdateGematriaMaxResults extends SettingsEvent {
+  final int maxResults;
+
+  const UpdateGematriaMaxResults(this.maxResults);
+
+  @override
+  List<Object?> get props => [maxResults];
+}
+
+class UpdateGematriaFilterDuplicates extends SettingsEvent {
+  final bool enabled;
+
+  const UpdateGematriaFilterDuplicates(this.enabled);
+
+  @override
+  List<Object?> get props => [enabled];
+}
+
+class UpdateGematriaWholeVerseOnly extends SettingsEvent {
+  final bool enabled;
+
+  const UpdateGematriaWholeVerseOnly(this.enabled);
+
+  @override
+  List<Object?> get props => [enabled];
+}
+
+class UpdateGematriaTorahOnly extends SettingsEvent {
+  final bool enabled;
+
+  const UpdateGematriaTorahOnly(this.enabled);
+
+  @override
+  List<Object?> get props => [enabled];
+}
+
+class UpdateGematriaUseSmall extends SettingsEvent {
+  final bool enabled;
+
+  const UpdateGematriaUseSmall(this.enabled);
+
+  @override
+  List<Object?> get props => [enabled];
+}
+
+class UpdateGematriaUseFinalLetters extends SettingsEvent {
+  final bool enabled;
+
+  const UpdateGematriaUseFinalLetters(this.enabled);
+
+  @override
+  List<Object?> get props => [enabled];
+}
+
+class UpdateGematriaUseWithKolel extends SettingsEvent {
+  final bool enabled;
+
+  const UpdateGematriaUseWithKolel(this.enabled);
+
+  @override
+  List<Object?> get props => [enabled];
+}

@@ -53,6 +53,13 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
         _onUpdatePersonalNotesCollapsedByDefault);
     on<UpdateProtectedModeEnabled>(_onUpdateProtectedModeEnabled);
     on<UpdateProtectedModePassword>(_onUpdateProtectedModePassword);
+    on<UpdateGematriaMaxResults>(_onUpdateGematriaMaxResults);
+    on<UpdateGematriaFilterDuplicates>(_onUpdateGematriaFilterDuplicates);
+    on<UpdateGematriaWholeVerseOnly>(_onUpdateGematriaWholeVerseOnly);
+    on<UpdateGematriaTorahOnly>(_onUpdateGematriaTorahOnly);
+    on<UpdateGematriaUseSmall>(_onUpdateGematriaUseSmall);
+    on<UpdateGematriaUseFinalLetters>(_onUpdateGematriaUseFinalLetters);
+    on<UpdateGematriaUseWithKolel>(_onUpdateGematriaUseWithKolel);
   }
 
   Future<void> _onLoadSettings(
@@ -107,6 +114,14 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       personalNotesCollapsedByDefault:
           settings['personalNotesCollapsedByDefault'] ?? true,
       protectedModeEnabled: settings['protectedModeEnabled'] ?? false,
+      gematriaMaxResults: settings['gematriaMaxResults'] ?? 100,
+      gematriaFilterDuplicates:
+          settings['gematriaFilterDuplicates'] ?? false,
+      gematriaWholeVerseOnly: settings['gematriaWholeVerseOnly'] ?? false,
+      gematriaTorahOnly: settings['gematriaTorahOnly'] ?? false,
+      gematriaUseSmall: settings['gematriaUseSmall'] ?? false,
+      gematriaUseFinalLetters: settings['gematriaUseFinalLetters'] ?? false,
+      gematriaUseWithKolel: settings['gematriaUseWithKolel'] ?? false,
     ));
   }
 
@@ -181,6 +196,74 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     Emitter<SettingsState> emit,
   ) async {
     await _repository.updateProtectedModePassword(event.password);
+  }
+
+  Future<void> _onUpdateGematriaMaxResults(
+    UpdateGematriaMaxResults event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateGematriaMaxResults(event.maxResults);
+    emit(state.copyWith(gematriaMaxResults: event.maxResults));
+  }
+
+  Future<void> _onUpdateGematriaFilterDuplicates(
+    UpdateGematriaFilterDuplicates event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateGematriaFilterDuplicates(event.enabled);
+    emit(state.copyWith(gematriaFilterDuplicates: event.enabled));
+  }
+
+  Future<void> _onUpdateGematriaWholeVerseOnly(
+    UpdateGematriaWholeVerseOnly event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateGematriaWholeVerseOnly(event.enabled);
+    emit(state.copyWith(gematriaWholeVerseOnly: event.enabled));
+  }
+
+  Future<void> _onUpdateGematriaTorahOnly(
+    UpdateGematriaTorahOnly event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateGematriaTorahOnly(event.enabled);
+    emit(state.copyWith(gematriaTorahOnly: event.enabled));
+  }
+
+  Future<void> _onUpdateGematriaUseSmall(
+    UpdateGematriaUseSmall event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateGematriaUseSmall(event.enabled);
+    if (event.enabled) {
+      await _repository.updateGematriaUseFinalLetters(false);
+    }
+    emit(state.copyWith(
+      gematriaUseSmall: event.enabled,
+      gematriaUseFinalLetters: event.enabled ? false : state.gematriaUseFinalLetters,
+    ));
+  }
+
+  Future<void> _onUpdateGematriaUseFinalLetters(
+    UpdateGematriaUseFinalLetters event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateGematriaUseFinalLetters(event.enabled);
+    if (event.enabled) {
+      await _repository.updateGematriaUseSmall(false);
+    }
+    emit(state.copyWith(
+      gematriaUseFinalLetters: event.enabled,
+      gematriaUseSmall: event.enabled ? false : state.gematriaUseSmall,
+    ));
+  }
+
+  Future<void> _onUpdateGematriaUseWithKolel(
+    UpdateGematriaUseWithKolel event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateGematriaUseWithKolel(event.enabled);
+    emit(state.copyWith(gematriaUseWithKolel: event.enabled));
   }
 
   Future<void> _onUpdateDarkMode(

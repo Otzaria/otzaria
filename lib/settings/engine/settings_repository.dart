@@ -63,6 +63,17 @@ class SettingsRepository {
   static const String keyEnableHtmlLinks = 'key-enable-html-links';
   static const String keyPersonalNotesCollapsedByDefault =
       'key-personal-notes-collapsed';
+  static const String keyGematriaMaxResults = 'key-gematria-max-results';
+  static const String keyGematriaFilterDuplicates =
+      'key-gematria-filter-duplicates';
+  static const String keyGematriaWholeVerseOnly =
+      'key-gematria-whole-verse-only';
+  static const String keyGematriaTorahOnly = 'key-gematria-torah-only';
+  static const String keyGematriaUseSmall = 'key-gematria-use-small';
+  static const String keyGematriaUseFinalLetters =
+      'key-gematria-use-final-letters';
+  static const String keyGematriaUseWithKolel =
+      'key-gematria-use-with-kolel';
 
   // Protected Mode Settings
   static const String keyProtectedModeEnabled = 'key-protected-mode-enabled';
@@ -249,6 +260,34 @@ class SettingsRepository {
       'personalNotesCollapsedByDefault': _settings.getValue<bool>(
         keyPersonalNotesCollapsedByDefault,
         defaultValue: true,
+      ),
+      'gematriaMaxResults': _settings.getValue<int>(
+        keyGematriaMaxResults,
+        defaultValue: 100,
+      ),
+      'gematriaFilterDuplicates': _settings.getValue<bool>(
+        keyGematriaFilterDuplicates,
+        defaultValue: false,
+      ),
+      'gematriaWholeVerseOnly': _settings.getValue<bool>(
+        keyGematriaWholeVerseOnly,
+        defaultValue: false,
+      ),
+      'gematriaTorahOnly': _settings.getValue<bool>(
+        keyGematriaTorahOnly,
+        defaultValue: false,
+      ),
+      'gematriaUseSmall': _settings.getValue<bool>(
+        keyGematriaUseSmall,
+        defaultValue: false,
+      ),
+      'gematriaUseFinalLetters': _settings.getValue<bool>(
+        keyGematriaUseFinalLetters,
+        defaultValue: false,
+      ),
+      'gematriaUseWithKolel': _settings.getValue<bool>(
+        keyGematriaUseWithKolel,
+        defaultValue: false,
       ),
 
       // Protected Mode
@@ -466,6 +505,34 @@ class SettingsRepository {
     await _settings.setValue(keyPersonalNotesCollapsedByDefault, value);
   }
 
+  Future<void> updateGematriaMaxResults(int value) async {
+    await _settings.setValue(keyGematriaMaxResults, value);
+  }
+
+  Future<void> updateGematriaFilterDuplicates(bool value) async {
+    await _settings.setValue(keyGematriaFilterDuplicates, value);
+  }
+
+  Future<void> updateGematriaWholeVerseOnly(bool value) async {
+    await _settings.setValue(keyGematriaWholeVerseOnly, value);
+  }
+
+  Future<void> updateGematriaTorahOnly(bool value) async {
+    await _settings.setValue(keyGematriaTorahOnly, value);
+  }
+
+  Future<void> updateGematriaUseSmall(bool value) async {
+    await _settings.setValue(keyGematriaUseSmall, value);
+  }
+
+  Future<void> updateGematriaUseFinalLetters(bool value) async {
+    await _settings.setValue(keyGematriaUseFinalLetters, value);
+  }
+
+  Future<void> updateGematriaUseWithKolel(bool value) async {
+    await _settings.setValue(keyGematriaUseWithKolel, value);
+  }
+
   // Protected Mode
   Future<void> updateProtectedModeEnabled(bool value) async {
     await _settings.setValue(keyProtectedModeEnabled, value);
@@ -680,6 +747,13 @@ class SettingsRepository {
     await _settings.setValue(keyCompactMenuMode, false);
     await _settings.setValue(keyAlignTabsToRight, false);
     await _settings.setValue(keyPersonalNotesCollapsedByDefault, true);
+    await _settings.setValue(keyGematriaMaxResults, 100);
+    await _settings.setValue(keyGematriaFilterDuplicates, false);
+    await _settings.setValue(keyGematriaWholeVerseOnly, false);
+    await _settings.setValue(keyGematriaTorahOnly, false);
+    await _settings.setValue(keyGematriaUseSmall, false);
+    await _settings.setValue(keyGematriaUseFinalLetters, false);
+    await _settings.setValue(keyGematriaUseWithKolel, false);
 
     // Calendar Notification Settings
     await _settings.setValue(keyCalendarNotificationsEnabled, true);

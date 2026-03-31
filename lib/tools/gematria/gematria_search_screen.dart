@@ -181,20 +181,14 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
     final searchText = _searchController.text.trim();
     if (searchText.isEmpty) return;
 
-    final useSmallGematria =
-        Settings.getValue<bool>('key-gematria-use-small') ?? false;
-    final useFinalLetters =
-        Settings.getValue<bool>('key-gematria-use-final-letters') ?? false;
-    final useWithKolel =
-        Settings.getValue<bool>('key-gematria-use-with-kolel') ?? false;
-    final maxResults =
-        Settings.getValue<int>('key-gematria-max-results') ?? 100;
-    final filterDuplicates =
-        Settings.getValue<bool>('key-gematria-filter-duplicates') ?? false;
-    final wholeVerseOnly =
-        Settings.getValue<bool>('key-gematria-whole-verse-only') ?? false;
-    final torahOnly =
-        Settings.getValue<bool>('key-gematria-torah-only') ?? false;
+    final settingsState = context.read<SettingsBloc>().state;
+    final useSmallGematria = settingsState.gematriaUseSmall;
+    final useFinalLetters = settingsState.gematriaUseFinalLetters;
+    final useWithKolel = settingsState.gematriaUseWithKolel;
+    final maxResults = settingsState.gematriaMaxResults;
+    final filterDuplicates = settingsState.gematriaFilterDuplicates;
+    final wholeVerseOnly = settingsState.gematriaWholeVerseOnly;
+    final torahOnly = settingsState.gematriaTorahOnly;
 
     String gematriaMethod = 'regular';
     if (useSmallGematria) {

@@ -236,7 +236,18 @@ class _CalendarWidgetState extends State<CalendarWidget> {
   }
 
   void _toggleSettingsPanel() {
-    setState(() => _isSettingsPanelOpen = !_isSettingsPanelOpen);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isNarrowForOverlay = screenWidth < kSideBySideMinWidth;
+
+    setState(() {
+      final nextOpen = !_isSettingsPanelOpen;
+      _isSettingsPanelOpen = nextOpen;
+
+      if (nextOpen && isNarrowForOverlay && _isSidebarVisible) {
+        _isSidebarVisible = false;
+        _isSidebarAutoHiddenForNarrow = true;
+      }
+    });
   }
 
   // ─── Build ──────────────────────────────────────────────────────────────────
@@ -319,7 +330,6 @@ class _CalendarWidgetState extends State<CalendarWidget> {
               'key-shortcut-open-context-settings',
               'ctrl+shift+comma',
             ): () {
-              if (_isTextFieldFocused()) return;
               _toggleSettingsPanel();
             },
             const SingleActivator(LogicalKeyboardKey.arrowLeft, control: true):
