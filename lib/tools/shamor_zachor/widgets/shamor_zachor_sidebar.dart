@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:otzaria/widgets/otzaria_search_field.dart';
 import 'package:otzaria/widgets/thin_divider.dart';
 import 'package:otzaria/widgets/navigation_tree_tile.dart';
 import '../providers/shamor_zachor_data_provider.dart';
@@ -11,15 +10,11 @@ class ShamorZachorSidebar extends StatefulWidget {
   final Function(
           String categoryName, BookCategory category, String topLevelName)
       onCategorySelected;
-  final Function(String searchQuery)? onSearchChanged;
-  final String searchQuery;
   final String? selectedCategoryName;
 
   const ShamorZachorSidebar({
     super.key,
     required this.onCategorySelected,
-    this.onSearchChanged,
-    this.searchQuery = '',
     this.selectedCategoryName,
   });
 
@@ -28,36 +23,7 @@ class ShamorZachorSidebar extends StatefulWidget {
 }
 
 class _ShamorZachorSidebarState extends State<ShamorZachorSidebar> {
-  late final TextEditingController _searchController;
   final Map<String, bool> _expansionState = {};
-
-  @override
-  void initState() {
-    super.initState();
-    _searchController = TextEditingController(text: widget.searchQuery);
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  @override
-  void didUpdateWidget(covariant ShamorZachorSidebar oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.searchQuery == widget.searchQuery) return;
-    if (_searchController.text == widget.searchQuery) return;
-    _searchController.value = TextEditingValue(
-      text: widget.searchQuery,
-      selection: TextSelection.collapsed(offset: widget.searchQuery.length),
-    );
-  }
-
-  void _onSearchChanged(String value) {
-    // Notify parent about search query change
-    widget.onSearchChanged?.call(value);
-  }
 
   void _toggleCategory(String categoryPath) {
     setState(() {
@@ -69,10 +35,7 @@ class _ShamorZachorSidebarState extends State<ShamorZachorSidebar> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // Search Field
-        _buildSearchField(),
         const ThinDivider(),
-        // Content Tree
         Expanded(
           child: Consumer<ShamorZachorDataProvider>(
             builder: (context, dataProvider, child) {
@@ -95,22 +58,6 @@ class _ShamorZachorSidebarState extends State<ShamorZachorSidebar> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildSearchField() {
-    return Container(
-      height: 60,
-      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
-      alignment: Alignment.center,
-      child: OtzariaSearchField(
-        controller: _searchController,
-        hintText: 'חפש...',
-        onChanged: _onSearchChanged,
-        onClear: () {
-          _onSearchChanged('');
-        },
-      ),
     );
   }
 

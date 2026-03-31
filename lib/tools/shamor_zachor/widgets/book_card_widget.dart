@@ -38,6 +38,7 @@ class BookCardWidget extends StatefulWidget {
 
 class _BookCardWidgetState extends State<BookCardWidget> {
   static final Logger _logger = BookCardWidget._logger;
+  final FocusNode _focusNode = FocusNode();
 
   double _learnProgress = 0.0;
   bool _isCompleted = false;
@@ -71,6 +72,7 @@ class _BookCardWidgetState extends State<BookCardWidget> {
   @override
   void dispose() {
     _progressProvider?.removeListener(_recomputeFromProvider);
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -150,75 +152,89 @@ class _BookCardWidgetState extends State<BookCardWidget> {
                   child: CircularProgressIndicator(strokeWidth: 2.0))));
     }
 
-    return Card(
-      elevation: 2,
-      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 0),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => _onCardTap(context),
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Header
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            widget.bookName,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            widget.bookDetails.categoryPath ??
-                                widget.categoryName,
-                            style:
-                                Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onSurface
-                                          .withValues(alpha: 0.7),
-                                    ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
+    return FocusableActionDetector(
+      focusNode: _focusNode,
+      mouseCursor: SystemMouseCursors.click,
+      actions: {
+        ActivateIntent: CallbackAction<ActivateIntent>(
+          onInvoke: (_) {
+            _onCardTap(context);
+            return null;
+          },
+        ),
+      },
+      child: Card(
+        elevation: 2,
+        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 0),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => _onCardTap(context),
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              widget.bookName,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.bold),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              widget.bookDetails.categoryPath ??
+                                  widget.categoryName,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface
+                                        .withValues(alpha: 0.7),
+                                  ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    if (_isCompleted) ...[
-                      const SizedBox(width: 8),
-                      const Icon(FluentIcons.checkmark_circle_24_regular,
-                          color: Colors.green, size: 24),
+                      if (_isCompleted) ...[
+                        const SizedBox(width: 8),
+                        const Icon(FluentIcons.checkmark_circle_24_regular,
+                            color: Colors.green, size: 24),
+                      ],
+                      if (widget.onDelete != null) ...[
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: const Icon(FluentIcons.delete_24_regular),
+                          tooltip: 'הסר ספר',
+                          onPressed: widget.onDelete,
+                        ),
+                      ],
                     ],
-                    if (widget.onDelete != null) ...[
-                      const SizedBox(width: 8),
-                      IconButton(
-                        icon: const Icon(FluentIcons.delete_24_regular),
-                        tooltip: 'הסר ספר',
-                        onPressed: widget.onDelete,
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 12),
-                // Progress / Completion info - מחזורים מרובים
-                _buildCyclesProgressInfo(context),
-                const SizedBox(height: 12),
-                // Additional info
-              ],
+                  ),
+                  const SizedBox(height: 12),
+                  // Progress / Completion info - מחזורים מרובים
+                  _buildCyclesProgressInfo(context),
+                  const SizedBox(height: 12),
+                  // Additional info
+                ],
+              ),
             ),
           ),
         ),

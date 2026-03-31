@@ -206,45 +206,48 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
   Widget _buildBooksGrid(List<Map<String, dynamic>> books,
       ShamorZachorProgressProvider progressProvider,
       {bool shrinkWrap = false}) {
-    return GridView.builder(
-      padding: shrinkWrap ? EdgeInsets.zero : const EdgeInsets.all(16),
-      physics: shrinkWrap ? const NeverScrollableScrollPhysics() : null,
-      shrinkWrap: shrinkWrap,
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 350,
-        childAspectRatio: 1.5,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-        mainAxisExtent: 180,
+    return FocusTraversalGroup(
+      policy: ReadingOrderTraversalPolicy(),
+      child: GridView.builder(
+        padding: shrinkWrap ? EdgeInsets.zero : const EdgeInsets.all(16),
+        physics: shrinkWrap ? const NeverScrollableScrollPhysics() : null,
+        shrinkWrap: shrinkWrap,
+        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: 350,
+          childAspectRatio: 1.5,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          mainAxisExtent: 180,
+        ),
+        itemCount: books.length,
+        itemBuilder: (context, index) {
+          final book = books[index];
+          final name = book['name'] as String;
+          final details = book['details'] as BookDetails;
+          final category = book['category'] as String;
+
+          // השתמש ב-ID אם קיים, אחרת חזור לשיטה הישנה
+          final progressData = details.id != null
+              ? progressProvider.getProgressForBookById(details.id!)
+              : progressProvider.getProgressForBook(category, name);
+          final completionDate = details.id != null
+              ? progressProvider.getCompletionDateSyncById(details.id!)
+              : progressProvider.getCompletionDateSync(category, name);
+          final categoryPath = book['categoryPath'] as String?;
+
+          return BookCardWidget(
+            topLevelCategoryKey: category,
+            categoryName: categoryPath ?? widget.categoryName ?? '',
+            bookName: name,
+            bookDetails: details,
+            bookProgressData: progressData,
+            completionDate: completionDate,
+            onTap: () {
+              widget.onBookSelected(category, name, details);
+            },
+          );
+        },
       ),
-      itemCount: books.length,
-      itemBuilder: (context, index) {
-        final book = books[index];
-        final name = book['name'] as String;
-        final details = book['details'] as BookDetails;
-        final category = book['category'] as String;
-
-        // השתמש ב-ID אם קיים, אחרת חזור לשיטה הישנה
-        final progressData = details.id != null
-            ? progressProvider.getProgressForBookById(details.id!)
-            : progressProvider.getProgressForBook(category, name);
-        final completionDate = details.id != null
-            ? progressProvider.getCompletionDateSyncById(details.id!)
-            : progressProvider.getCompletionDateSync(category, name);
-        final categoryPath = book['categoryPath'] as String?;
-
-        return BookCardWidget(
-          topLevelCategoryKey: category,
-          categoryName: categoryPath ?? widget.categoryName ?? '',
-          bookName: name,
-          bookDetails: details,
-          bookProgressData: progressData,
-          completionDate: completionDate,
-          onTap: () {
-            widget.onBookSelected(category, name, details);
-          },
-        );
-      },
     );
   }
 

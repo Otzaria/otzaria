@@ -30,16 +30,21 @@ class ShamorZachorWidget extends StatefulWidget {
 class _ShamorZachorWidgetState extends State<ShamorZachorWidget>
     with AutomaticKeepAliveClientMixin {
   static final Logger _logger = Logger('ShamorZachorWidget');
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+  final GlobalKey<ShamorZachorMainScreenState> _mainScreenKey =
+      GlobalKey<ShamorZachorMainScreenState>();
 
   @override
   bool get wantKeepAlive => true;
-
-  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
   @override
   void initState() {
     super.initState();
     _logger.info('Initializing ShamorZachorWidget');
+  }
+
+  void requestKeyboardFocus() {
+    _mainScreenKey.currentState?.requestKeyboardFocus();
   }
 
   @override
@@ -110,7 +115,7 @@ class _ShamorZachorWidgetState extends State<ShamorZachorWidget>
     switch (settings.name) {
       case '/':
         return MaterialPageRoute(
-          builder: (context) => const ShamorZachorMainScreen(),
+          builder: (context) => ShamorZachorMainScreen(key: _mainScreenKey),
           settings: settings,
         );
 
