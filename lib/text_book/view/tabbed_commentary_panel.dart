@@ -127,74 +127,66 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
             // שורת הכרטיסיות עם כפתור סגירה
             SizedBox(
               height: 48,
-              child: Container(
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: Theme.of(context).dividerColor,
-                      width: 1,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: AnimatedBuilder(
+                      animation: _tabController,
+                      builder: (context, _) => TabBar(
+                        controller: _tabController,
+                        tabs: [
+                          _buildAnimatedTab(
+                            0,
+                            widget.showSplitView
+                                ? FluentIcons.book_24_regular
+                                : FluentIcons.settings_24_regular,
+                            widget.showSplitView
+                                ? FluentIcons.book_24_filled
+                                : FluentIcons.settings_24_filled,
+                            widget.showSplitView
+                                ? 'מפרשים'
+                                : 'סינון מפרשים',
+                          ),
+                          _buildAnimatedTab(
+                            1,
+                            FluentIcons.link_24_regular,
+                            FluentIcons.link_24_filled,
+                            'קישורים',
+                          ),
+                          _buildAnimatedTab(
+                            2,
+                            FluentIcons.note_24_regular,
+                            FluentIcons.note_24_filled,
+                            'הערות',
+                          ),
+                        ],
+                        unselectedLabelColor:
+                            Theme.of(context).colorScheme.onSurfaceVariant,
+                        dividerColor: Colors.transparent,
+                        dividerHeight: 0,
+                        overlayColor: WidgetStateProperty.all(
+                          Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withValues(alpha: 0.08),
+                        ),
+                        splashBorderRadius:
+                            BorderRadius.circular(AppTokens.radiusMD),
+                      ),
                     ),
                   ),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: AnimatedBuilder(
-                        animation: _tabController,
-                        builder: (context, _) => TabBar(
-                          controller: _tabController,
-                          tabs: [
-                            _buildAnimatedTab(
-                              0,
-                              widget.showSplitView
-                                  ? FluentIcons.book_24_regular
-                                  : FluentIcons.settings_24_regular,
-                              widget.showSplitView
-                                  ? FluentIcons.book_24_filled
-                                  : FluentIcons.settings_24_filled,
-                              widget.showSplitView ? 'מפרשים' : 'סינון מפרשים',
-                            ),
-                            _buildAnimatedTab(
-                              1,
-                              FluentIcons.link_24_regular,
-                              FluentIcons.link_24_filled,
-                              'קישורים',
-                            ),
-                            _buildAnimatedTab(
-                              2,
-                              FluentIcons.note_24_regular,
-                              FluentIcons.note_24_filled,
-                              'הערות',
-                            ),
-                          ],
-                          unselectedLabelColor:
-                              Theme.of(context).colorScheme.onSurfaceVariant,
-                          dividerColor: Colors.transparent,
-                          dividerHeight: 0,
-                          overlayColor: WidgetStateProperty.all(
-                            Theme.of(context)
-                                .colorScheme
-                                .primary
-                                .withValues(alpha: 0.08),
-                          ),
-                          splashBorderRadius:
-                              BorderRadius.circular(AppTokens.radiusMD),
-                        ),
-                      ),
+                  // לחצן סגירה
+                  IconButton(
+                    iconSize: 18,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 40,
+                      minHeight: 40,
                     ),
-                    // לחצן סגירה
-                    IconButton(
-                      iconSize: 18,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(
-                        minWidth: 40,
-                        minHeight: 40,
-                      ),
-                      icon: const Icon(FluentIcons.dismiss_24_regular),
-                      onPressed: widget.onClosePane,
-                    ),
-                  ],
-                ),
+                    icon: const Icon(FluentIcons.dismiss_24_regular),
+                    onPressed: widget.onClosePane,
+                  ),
+                ],
               ),
             ),
             // תוכן הכרטיסיות
