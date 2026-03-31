@@ -9,6 +9,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -34,11 +35,7 @@ class GematriaResultCard extends StatelessWidget {
   void _copy(BuildContext context) {
     Clipboard.setData(
         ClipboardData(text: '${result.internalPath}\n${result.preview}'));
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      content: Text('הועתק ללוח'),
-      duration: Duration(seconds: 1),
-      behavior: SnackBarBehavior.floating,
-    ));
+    UiSnack.show(UiSnack.textCopied);
   }
 
   void _navigate(BuildContext context) {

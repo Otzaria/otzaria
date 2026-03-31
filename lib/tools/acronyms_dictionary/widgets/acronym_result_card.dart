@@ -1,106 +1,116 @@
 // lib/tools/acronyms_dictionary/widgets/acronym_result_card.dart
 //
-// כרטיס תוצאת מילון ראשי תיבות.
-// הוצא מ-acronyms_dictionary_screen.dart לרכיב עצמאי.
+// שינויים:
+//  • שורה דקה: ראשי תיבות | חץ | פירוש(ים) | כפתור העתקה
+//  • SelectionArea → Ctrl+C / תפריט הקשר
+//  • isFocused: הדגשה לניווט מקלדת
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/custom_ui_components.dart';
 
 class AcronymResultCard extends StatelessWidget {
   final String acronym;
   final List<String> meanings;
+  final bool isFocused;
+  final VoidCallback? onTap;
 
   const AcronymResultCard({
     super.key,
     required this.acronym,
     required this.meanings,
+    this.isFocused = false,
+    this.onTap,
   });
+
+  void _copy(BuildContext context) {
+    final meaningsText = meanings
+        .asMap()
+        .entries
+        .map((e) => meanings.length > 1 ? '${e.key + 1}. ${e.value}' : e.value)
+        .join('\n');
+    Clipboard.setData(ClipboardData(text: '$acronym\n$meaningsText'));
+    UiSnack.show(UiSnack.textCopied);
+  }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppTokens.spaceMD - 4),
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: cs.outline.withValues(alpha: 0.3),
-          width: 1,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 4),
+        decoration: BoxDecoration(
+          color: isFocused
+              ? cs.primaryContainer.withValues(alpha: 0.45)
+              : toolCardColor(context),
+          borderRadius: BorderRadius.circular(AppTokens.radiusMD),
+          border: isFocused ? Border.all(color: cs.primary, width: 1.5) : null,
         ),
-        borderRadius: BorderRadius.circular(AppTokens.radiusMD),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(AppTokens.spaceMD),
-        child: Row(
-          children: [
-            Expanded(
-              child: _WordColumn(
-                label: 'ראשי תיבות:',
-                child: Text(
-                  acronym,
-                  style: const TextStyle(
-                    fontSize: AppTokens.fontXL,
-                    fontWeight: FontWeight.bold,
+        child: SelectionArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppTokens.spaceMD,
+              vertical: AppTokens.spaceSM,
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // ── ראשי תיבות ────────────────────────────────────────────
+                SizedBox(
+                  width: 60,
+                  child: SelectableText(
+                    acronym,
+                    style: TextStyle(
+                      fontSize: AppTokens.fontLG,
+                      fontWeight: FontWeight.bold,
+                      color: cs.onSurface,
+                    ),
+                    textAlign: TextAlign.right,
                   ),
-                  textAlign: TextAlign.right,
                 ),
-              ),
-            ),
-            Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: AppTokens.spaceMD),
-              child: Icon(Icons.arrow_back, color: cs.primary),
-            ),
-            Expanded(
-              child: _WordColumn(
-                label: 'פירוש:',
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: meanings.asMap().entries.map((e) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: AppTokens.spaceXS),
-                      child: Text(
-                        meanings.length > 1
-                            ? '${e.key + 1}. ${e.value}'
-                            : e.value,
-                        style: const TextStyle(
-                          fontSize: AppTokens.fontXL,
-                          fontWeight: FontWeight.bold,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Icon(Icons.arrow_back, size: 16, color: cs.primary),
+                ),
+                // ── פירוש(ים) ────────────────────────────────────────────
+                Expanded(
+                  child: meanings.length == 1
+                      ? SelectableText(
+                          meanings.first,
+                          style: TextStyle(
+                            fontSize: AppTokens.fontMD,
+                            color: cs.onSurface,
+                          ),
+                          textAlign: TextAlign.right,
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: meanings.asMap().entries.map((e) {
+                            return SelectableText(
+                              '${e.key + 1}. ${e.value}',
+                              style: TextStyle(
+                                fontSize: AppTokens.fontSM,
+                                color: cs.onSurface,
+                                height: 1.4,
+                              ),
+                              textAlign: TextAlign.right,
+                            );
+                          }).toList(),
                         ),
-                        textAlign: TextAlign.right,
-                      ),
-                    );
-                  }).toList(),
                 ),
-              ),
+                const SizedBox(width: AppTokens.spaceXS),
+                // ── כפתור העתקה ─────────────────────────────────────────
+                ToolCopyButton(onPressed: () => _copy(context)),
+              ],
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _WordColumn extends StatelessWidget {
-  final String label;
-  final Widget child;
-  const _WordColumn({required this.label, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: AppTokens.fontSM,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
-        const SizedBox(height: AppTokens.spaceXS),
-        child,
-      ],
+      ),
     );
   }
 }
