@@ -18,9 +18,9 @@ class TabbedCommentaryPanel extends StatefulWidget {
   final double fontSize;
   final bool showSearch;
   final VoidCallback? onClosePane;
-  final int? initialTabIndex; // אינדקס הכרטיסייה הראשונית
-  final Function(int)? onTabChanged; // callback כשהטאב משתנה
-  final bool showSplitView; // האם במצב מפוצל (true) או מפרשים למטה (false)
+  final int? initialTabIndex;
+  final Function(int)? onTabChanged;
+  final bool showSplitView;
 
   const TabbedCommentaryPanel({
     super.key,
@@ -41,7 +41,6 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  // פונקציה ציבורית לעבור לכרטיסיית הקישורים
   void switchToLinksTab() {
     if (_tabController.index != 1) {
       _tabController.animateTo(1);
@@ -51,15 +50,13 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
   @override
   void initState() {
     super.initState();
-    // וידוא שהאינדקס ההתחלתי תקף (בין 0 ל-2)
     final validInitialIndex = (widget.initialTabIndex ?? 0).clamp(0, 2);
     _tabController = TabController(
-      length: 3, // 3 טאבים: מפרשים, קישורים והערות אישיות
+      length: 3,
       vsync: this,
-      initialIndex: validInitialIndex, // כרטיסייה ראשונית
+      initialIndex: validInitialIndex,
     );
 
-    // מאזין לשינויים בטאב ושומר אותם
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging &&
           _tabController.index >= 0 &&
@@ -72,11 +69,9 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
   @override
   void didUpdateWidget(TabbedCommentaryPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // אם יש אינדקס חדש, עובר אליו (עם וידוא שהוא תקף)
     if (widget.initialTabIndex != null &&
         widget.initialTabIndex != oldWidget.initialTabIndex) {
       final validIndex = widget.initialTabIndex!.clamp(0, 2);
-      // וודא שהאינדקס שונה מהנוכחי לפני שמנסים לעבור אליו
       if (_tabController.index != validIndex) {
         _tabController.animateTo(validIndex);
       }
@@ -89,7 +84,6 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
     super.dispose();
   }
 
-  /// בונה טאב עם אנימציית מעבר בין אייקון regular ל-filled
   Widget _buildAnimatedTab(
     int index,
     IconData regular,
@@ -120,117 +114,130 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return TextBookStateBuilder(
       builder: (context, state) {
-        return Column(
-          children: [
-            // שורת הכרטיסיות עם כפתור סגירה
-            SizedBox(
-              height: 48,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: AnimatedBuilder(
-                      animation: _tabController,
-                      builder: (context, _) => TabBar(
-                        controller: _tabController,
-                        tabs: [
-                          _buildAnimatedTab(
-                            0,
-                            widget.showSplitView
-                                ? FluentIcons.book_24_regular
-                                : FluentIcons.settings_24_regular,
-                            widget.showSplitView
-                                ? FluentIcons.book_24_filled
-                                : FluentIcons.settings_24_filled,
-                            widget.showSplitView
-                                ? 'מפרשים'
-                                : 'סינון מפרשים',
-                          ),
-                          _buildAnimatedTab(
-                            1,
-                            FluentIcons.link_24_regular,
-                            FluentIcons.link_24_filled,
-                            'קישורים',
-                          ),
-                          _buildAnimatedTab(
-                            2,
-                            FluentIcons.note_24_regular,
-                            FluentIcons.note_24_filled,
-                            'הערות',
-                          ),
-                        ],
-                        unselectedLabelColor:
-                            Theme.of(context).colorScheme.onSurfaceVariant,
-                        dividerColor: Colors.transparent,
-                        dividerHeight: 0,
-                        overlayColor: WidgetStateProperty.all(
-                          Theme.of(context)
-                              .colorScheme
-                              .primary
-                              .withValues(alpha: 0.08),
+        return Container(
+          color: cs.surfaceContainerLow,
+          child: Column(
+            children: [
+              SizedBox(
+                height: 48,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: AnimatedBuilder(
+                        animation: _tabController,
+                        builder: (context, _) => TabBar(
+                          controller: _tabController,
+                          tabs: [
+                            _buildAnimatedTab(
+                              0,
+                              widget.showSplitView
+                                  ? FluentIcons.book_24_regular
+                                  : FluentIcons.settings_24_regular,
+                              widget.showSplitView
+                                  ? FluentIcons.book_24_filled
+                                  : FluentIcons.settings_24_filled,
+                              widget.showSplitView
+                                  ? 'מפרשים'
+                                  : 'סינון מפרשים',
+                            ),
+                            _buildAnimatedTab(
+                              1,
+                              FluentIcons.link_24_regular,
+                              FluentIcons.link_24_filled,
+                              'קישורים',
+                            ),
+                            _buildAnimatedTab(
+                              2,
+                              FluentIcons.note_24_regular,
+                              FluentIcons.note_24_filled,
+                              'הערות',
+                            ),
+                          ],
+                          unselectedLabelColor:
+                              Theme.of(context).colorScheme.onSurfaceVariant,
+                          dividerColor: Colors.transparent,
+                          dividerHeight: 0,
+                          overlayColor:
+                              WidgetStateProperty.resolveWith((states) {
+                            if (states.contains(WidgetState.hovered)) {
+                              return Theme.of(context)
+                                  .colorScheme
+                                  .primary
+                                  .withValues(alpha: 0.08);
+                            }
+                            if (states.contains(WidgetState.pressed)) {
+                              return Theme.of(context)
+                                  .colorScheme
+                                  .primary
+                                  .withValues(alpha: 0.12);
+                            }
+                            return null;
+                          }),
+                          splashBorderRadius:
+                              BorderRadius.circular(AppTokens.radiusMD),
                         ),
-                        splashBorderRadius:
-                            BorderRadius.circular(AppTokens.radiusMD),
                       ),
                     ),
-                  ),
-                  // לחצן סגירה
-                  IconButton(
-                    iconSize: 18,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(
-                      minWidth: 40,
-                      minHeight: 40,
+                    IconButton(
+                      iconSize: 18,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 40,
+                        minHeight: 40,
+                      ),
+                      icon: const Icon(FluentIcons.dismiss_24_regular),
+                      onPressed: widget.onClosePane,
                     ),
-                    icon: const Icon(FluentIcons.dismiss_24_regular),
-                    onPressed: widget.onClosePane,
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            // תוכן הכרטיסיות
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  // כרטיסייה ראשונה: מפרשים (מצב מפוצל) או הגדרות מפרשים (מצב למטה)
-                  if (widget.showSplitView)
-                    CommentaryListBase(
-                      key: const ValueKey('commentary_list_tabbed'),
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildFirstTabContent(context, state),
+                    SelectedLineLinksView(
                       openBookCallback: widget.openBookCallback,
                       fontSize: widget.fontSize,
-                      showSearch: widget.showSearch,
-                      selectedCommentatorsOverride: state.activeCommentators,
-                      onSelectedCommentatorsOverrideChanged: (commentators) {
-                        context
-                            .read<TextBookBloc>()
-                            .add(UpdateCommentators(commentators));
-                      },
-                    )
-                  else
-                    const CommentatorsListView(
-                      key: ValueKey('commentators_settings_tabbed'),
+                      showVisibleLinksIfNoSelection: widget.initialTabIndex == 1,
                     ),
-                  // כרטיסיית הקישורים
-                  SelectedLineLinksView(
-                    openBookCallback: widget.openBookCallback,
-                    fontSize: widget.fontSize,
-                    showVisibleLinksIfNoSelection:
-                        widget.initialTabIndex == 1, // אם נפתח ישירות לקישורים
-                  ),
-                  // כרטיסיית ההערות האישיות
-                  PersonalNotesSidebar(
-                    bookId: state.book.title,
-                    onNavigateToLine: (line) =>
-                        _handleNoteNavigation(context, state, line),
-                  ),
-                ],
+                    PersonalNotesSidebar(
+                      bookId: state.book.title,
+                      onNavigateToLine: (line) =>
+                          _handleNoteNavigation(context, state, line),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         );
       },
+    );
+  }
+
+  Widget _buildFirstTabContent(
+    BuildContext context,
+    TextBookLoaded state,
+  ) {
+    if (widget.showSplitView) {
+      return CommentaryListBase(
+        key: const ValueKey('commentary_list_tabbed'),
+        openBookCallback: widget.openBookCallback,
+        fontSize: widget.fontSize,
+        showSearch: widget.showSearch,
+        selectedCommentatorsOverride: state.activeCommentators,
+        onSelectedCommentatorsOverrideChanged: (commentators) {
+          context.read<TextBookBloc>().add(UpdateCommentators(commentators));
+        },
+      );
+    }
+
+    return const CommentatorsListView(
+      key: ValueKey('commentators_settings_tabbed'),
     );
   }
 
@@ -252,8 +259,12 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
       curve: Curves.easeInOut,
     );
 
-    if (!mounted) return;
-    if (!context.mounted) return;
+    if (!mounted) {
+      return;
+    }
+    if (!context.mounted) {
+      return;
+    }
 
     final bloc = context.read<TextBookBloc>();
     bloc.add(UpdateSelectedIndex(targetIndex));

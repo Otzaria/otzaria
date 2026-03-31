@@ -284,6 +284,15 @@ class MoreScreenState extends State<MoreScreen>
                     color: cs.secondaryContainer,
                   ),
                   indicatorSize: TabBarIndicatorSize.tab,
+                  overlayColor: WidgetStateProperty.resolveWith((states) {
+                    if (states.contains(WidgetState.hovered)) {
+                      return cs.primary.withValues(alpha: 0.08);
+                    }
+                    if (states.contains(WidgetState.pressed)) {
+                      return cs.primary.withValues(alpha: 0.12);
+                    }
+                    return null;
+                  }),
                   splashBorderRadius: BorderRadius.circular(AppTokens.radiusMD),
                   tabs: _tabs.map(_buildTabWidget).toList(),
                 ),

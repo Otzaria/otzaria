@@ -154,8 +154,6 @@ class CustomSidebarItem extends StatelessWidget {
         decoration: BoxDecoration(
           color: isSelected ? cs.secondaryContainer : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
-          border:
-              isSelected ? Border.all(color: cs.secondary, width: 1.5) : null,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,

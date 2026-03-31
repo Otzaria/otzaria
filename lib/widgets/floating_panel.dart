@@ -1,0 +1,113 @@
+// lib/widgets/floating_panel.dart
+//
+// FloatingPanel — פאנל צף בסגנון Material 3.
+//
+// משמש ליצירת "משטח צף" — מקביל ל-NavigationDrawer, BottomSheet וה-Cards
+// המוגבהים שמופיעים בהנחיות M3. מספק elevation + shadow + clip + צבע surface.
+//
+// **מתי להשתמש:**
+// • סרגל ניווט / AppBar שצף מעל הרקע
+// • סרגל צד (Sidebar) שצף במסך רחב
+// • כרטיס-מיכל (Container Card) לתוכן מקובץ
+//
+// **Elevation מומלץ (M3 Elevation Levels):**
+// • elevation 1 — שכבה עדינה (SettingsCard, Sidebar)
+// • elevation 2 — AppBar / TabBar (ברירת מחדל)
+// • elevation 4 — Floating Action / Dialog Card
+//
+// **שימוש בסיסי:**
+// ```dart
+// FloatingPanel(
+//   child: TabBar(...),
+// )
+// ```
+//
+// **עם ריפוד ו-borderRadius מותאם:**
+// ```dart
+// FloatingPanel(
+//   elevation: 4,
+//   borderRadius: BorderRadius.circular(AppTokens.radiusLG),
+//   padding: const EdgeInsets.all(AppTokens.spaceMD),
+//   child: Column(...),
+// )
+// ```
+//
+// **הוספת אפקט ריחוף (hover):**
+// FloatingPanel מספק רק את המיכל הצף. כדי להוסיף אפקט ריחוף לפריטים בתוכו,
+// השתמש ב-InkWell עם overlayColor:
+// ```dart
+// InkWell(
+//   onTap: onTap,
+//   borderRadius: BorderRadius.circular(AppTokens.radiusXL),
+//   overlayColor: WidgetStateProperty.resolveWith((states) {
+//     if (states.contains(WidgetState.hovered)) {
+//       return cs.primary.withValues(alpha: 0.08);
+//     }
+//     if (states.contains(WidgetState.pressed)) {
+//       return cs.primary.withValues(alpha: 0.12);
+//     }
+//     return null;
+//   }),
+//   child: ...,
+// )
+// ```
+
+import 'package:flutter/material.dart';
+import 'package:otzaria/theme/theme_exports.dart';
+
+/// פאנל צף בסגנון M3 — elevation + shadow + clip.
+///
+/// בונה [Material] עם [elevation], [shadowColor] ו-[clipBehavior].
+/// צבע הפאנל:
+/// - מצב בהיר: [ColorScheme.surface] (לבן)
+/// - מצב כהה: [ColorScheme.surfaceContainer] (אפור כהה)
+/// ניתן לדרוס עם [color].
+class FloatingPanel extends StatelessWidget {
+  /// התוכן בתוך הפאנל
+  final Widget child;
+
+  /// רדיוס פינות — ברירת מחדל: [AppTokens.radiusMD] (12px)
+  final BorderRadius? borderRadius;
+
+  /// גובה ה-elevation (M3 tonal + shadow) — ברירת מחדל: 2
+  final double elevation;
+
+  /// ריפוד פנימי אופציונלי
+  final EdgeInsetsGeometry? padding;
+
+  /// דריסת צבע הפאנל (אופציונלי)
+  final Color? color;
+
+  const FloatingPanel({
+    super.key,
+    required this.child,
+    this.borderRadius,
+    this.elevation = 2,
+    this.padding,
+    this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final effectiveBorderRadius =
+        borderRadius ?? BorderRadius.circular(AppTokens.radiusMD);
+
+    // M3: panelBackground (כמו settings_screen ו-measurement_converter)
+    final panelColor = color ?? AppSurfaces.panelBackground(context);
+
+    final content =
+        padding != null ? Padding(padding: padding!, child: child) : child;
+
+    return Material(
+      color: panelColor,
+      elevation: elevation,
+      // M3: shadowColor שקוף-עדין — הצל בא מה-elevation, לא מהצבע
+      shadowColor: Colors.black.withValues(alpha: 0.10),
+      // surfaceTintColor: Colors.transparent → מניעים tinting כחול אוטומטי של M3
+      surfaceTintColor: Colors.transparent,
+      borderRadius: effectiveBorderRadius,
+      clipBehavior: Clip.antiAlias,
+      child: content,
+    );
+  }
+}

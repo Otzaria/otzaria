@@ -44,6 +44,7 @@ import 'package:otzaria/utils/fullscreen_helper.dart';
 
 import 'package:otzaria/widgets/responsive_action_bar.dart';
 import 'package:otzaria/widgets/resizable_drag_handle.dart';
+import 'package:otzaria/widgets/floating_panel.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_data_provider.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_progress_provider.dart';
 import 'package:otzaria/tools/shamor_zachor/models/book_model.dart';
@@ -1029,16 +1030,11 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                   final screenWidth = MediaQuery.of(context).size.width;
                   return Scaffold(
                     appBar: AppBar(
-                      backgroundColor:
-                          Theme.of(context).colorScheme.surfaceContainer,
-                      shape: Border(
-                        bottom: BorderSide(
-                          color: Theme.of(context).colorScheme.outlineVariant,
-                          width: 0.3,
-                        ),
-                      ),
-                      elevation: 0,
-                      scrolledUnderElevation: 0,
+                      backgroundColor: Theme.of(context).colorScheme.surface,
+                      surfaceTintColor: Colors.transparent,
+                      shadowColor: Colors.black.withValues(alpha: 0.10),
+                      elevation: 1,
+                      scrolledUnderElevation: 2,
                       centerTitle: false,
                       title: Text(
                         widget.tab.book.title,
@@ -1241,15 +1237,11 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     bool wideScreen,
   ) {
     return AppBar(
-      backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
-      shape: Border(
-        bottom: BorderSide(
-          color: Theme.of(context).colorScheme.outlineVariant,
-          width: 0.3,
-        ),
-      ),
-      elevation: 0,
-      scrolledUnderElevation: 0,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      surfaceTintColor: Colors.transparent,
+      shadowColor: Colors.black.withValues(alpha: 0.10),
+      elevation: 1,
+      scrolledUnderElevation: 2,
       centerTitle: false,
       title: _buildTitle(state),
       leadingWidth:
@@ -2483,139 +2475,154 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         child: SizedBox(
           width: state.showLeftPane ? width : 0,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(1, 0, 4, 0),
-            child: Column(
-              children: [
-                SizedBox(
-                  height: 44,
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TabBar(
-                          controller: tabController,
-                          tabs: [
-                            const Tab(
-                              icon: Icon(FluentIcons.navigation_24_regular,
-                                  size: 16),
-                              iconMargin: EdgeInsets.only(bottom: 1),
-                              height: 44,
-                              child:
-                                  Text('ניווט', style: TextStyle(fontSize: 11)),
-                            ),
-                            if (_hasAltTitles)
+            padding: const EdgeInsets.fromLTRB(1, 4, 4, 4),
+            child: FloatingPanel(
+              elevation: 1,
+              borderRadius: BorderRadius.circular(AppTokens.radiusLG),
+              child: Column(
+                children: [
+                  SizedBox(
+                    height: 44,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TabBar(
+                            controller: tabController,
+                            tabs: [
                               const Tab(
-                                icon:
-                                    Icon(FluentIcons.list_24_regular, size: 16),
+                                icon: Icon(FluentIcons.navigation_24_regular,
+                                    size: 16),
                                 iconMargin: EdgeInsets.only(bottom: 1),
                                 height: 44,
-                                child: Text('כותרות',
+                                child: Text('ניווט',
                                     style: TextStyle(fontSize: 11)),
                               ),
-                            const Tab(
-                              icon:
-                                  Icon(FluentIcons.search_24_regular, size: 16),
-                              iconMargin: EdgeInsets.only(bottom: 1),
-                              height: 44,
-                              child:
-                                  Text('חיפוש', style: TextStyle(fontSize: 11)),
+                              if (_hasAltTitles)
+                                const Tab(
+                                  icon: Icon(FluentIcons.list_24_regular,
+                                      size: 16),
+                                  iconMargin: EdgeInsets.only(bottom: 1),
+                                  height: 44,
+                                  child: Text('כותרות',
+                                      style: TextStyle(fontSize: 11)),
+                                ),
+                              const Tab(
+                                icon: Icon(FluentIcons.search_24_regular,
+                                    size: 16),
+                                iconMargin: EdgeInsets.only(bottom: 1),
+                                height: 44,
+                                child: Text('חיפוש',
+                                    style: TextStyle(fontSize: 11)),
+                              ),
+                            ],
+                            labelColor: Theme.of(context)
+                                .colorScheme
+                                .onSecondaryContainer,
+                            unselectedLabelColor:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                            indicator: BoxDecoration(
+                              borderRadius:
+                                  BorderRadius.circular(AppTokens.radiusMD),
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .secondaryContainer,
                             ),
-                          ],
-                          labelColor: Theme.of(context)
-                              .colorScheme
-                              .onSecondaryContainer,
-                          unselectedLabelColor:
-                              Theme.of(context).colorScheme.onSurfaceVariant,
-                          indicator: BoxDecoration(
-                            borderRadius:
+                            indicatorSize: TabBarIndicatorSize.tab,
+                            dividerColor: Colors.transparent,
+                            dividerHeight: 0,
+                            overlayColor:
+                                WidgetStateProperty.resolveWith((states) {
+                              if (states.contains(WidgetState.hovered)) {
+                                return Theme.of(context)
+                                    .colorScheme
+                                    .primary
+                                    .withValues(alpha: 0.08);
+                              }
+                              if (states.contains(WidgetState.pressed)) {
+                                return Theme.of(context)
+                                    .colorScheme
+                                    .primary
+                                    .withValues(alpha: 0.12);
+                              }
+                              return null;
+                            }),
+                            splashBorderRadius:
                                 BorderRadius.circular(AppTokens.radiusMD),
-                            color: Theme.of(context)
-                                .colorScheme
-                                .secondaryContainer,
                           ),
-                          indicatorSize: TabBarIndicatorSize.tab,
-                          dividerColor: Colors.transparent,
-                          dividerHeight: 0,
-                          overlayColor: WidgetStateProperty.all(
-                            Theme.of(context)
-                                .colorScheme
-                                .primary
-                                .withValues(alpha: 0.08),
-                          ),
-                          splashBorderRadius:
-                              BorderRadius.circular(AppTokens.radiusMD),
                         ),
-                      ),
-                      if (MediaQuery.of(context).size.width >= 600)
-                        IconButton(
-                          onPressed:
-                              (Settings.getValue<bool>('key-pin-sidebar') ??
-                                      false)
-                                  ? null
-                                  : () => context.read<TextBookBloc>().add(
-                                        TogglePinLeftPane(!state.pinLeftPane),
-                                      ),
-                          icon: AnimatedRotation(
-                            turns: (state.pinLeftPane ||
-                                    (Settings.getValue<bool>(
-                                            'key-pin-sidebar') ??
-                                        false))
-                                ? -0.125
-                                : 0.0,
-                            duration: const Duration(milliseconds: 200),
-                            child: Icon(
-                              (state.pinLeftPane ||
+                        if (MediaQuery.of(context).size.width >= 600)
+                          IconButton(
+                            onPressed:
+                                (Settings.getValue<bool>('key-pin-sidebar') ??
+                                        false)
+                                    ? null
+                                    : () => context.read<TextBookBloc>().add(
+                                          TogglePinLeftPane(!state.pinLeftPane),
+                                        ),
+                            icon: AnimatedRotation(
+                              turns: (state.pinLeftPane ||
                                       (Settings.getValue<bool>(
                                               'key-pin-sidebar') ??
                                           false))
-                                  ? FluentIcons.pin_24_filled
-                                  : FluentIcons.pin_24_regular,
+                                  ? -0.125
+                                  : 0.0,
+                              duration: const Duration(milliseconds: 200),
+                              child: Icon(
+                                (state.pinLeftPane ||
+                                        (Settings.getValue<bool>(
+                                                'key-pin-sidebar') ??
+                                            false))
+                                    ? FluentIcons.pin_24_filled
+                                    : FluentIcons.pin_24_regular,
+                              ),
                             ),
+                            color: (state.pinLeftPane ||
+                                    (Settings.getValue<bool>(
+                                            'key-pin-sidebar') ??
+                                        false))
+                                ? Theme.of(context).colorScheme.primary
+                                : null,
+                            isSelected: state.pinLeftPane ||
+                                (Settings.getValue<bool>('key-pin-sidebar') ??
+                                    false),
                           ),
-                          color: (state.pinLeftPane ||
-                                  (Settings.getValue<bool>('key-pin-sidebar') ??
-                                      false))
-                              ? Theme.of(context).colorScheme.primary
-                              : null,
-                          isSelected: state.pinLeftPane ||
-                              (Settings.getValue<bool>('key-pin-sidebar') ??
-                                  false),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                Expanded(
-                  child: TabBarView(
-                    controller: tabController,
-                    children: [
-                      _buildTocViewer(context, state),
-                      if (_hasAltTitles)
-                        AltTocSidebarView(
-                          book: widget.tab.book,
-                          closeLeftPaneCallback: () => context
-                              .read<TextBookBloc>()
-                              .add(const ToggleLeftPane(false)),
-                          scrollController: state.scrollController,
-                        ),
-                      CallbackShortcuts(
-                        bindings: <ShortcutActivator, VoidCallback>{
-                          LogicalKeySet(
-                            LogicalKeyboardKey.control,
-                            LogicalKeyboardKey.keyF,
-                          ): () {
-                            context.read<TextBookBloc>().add(
-                                  const ToggleLeftPane(true),
-                                );
-                            // Adjust index based on whether alt titles are shown
-                            tabController.index = _hasAltTitles ? 2 : 1;
-                            textSearchFocusNode.requestFocus();
+                  Expanded(
+                    child: TabBarView(
+                      controller: tabController,
+                      children: [
+                        _buildTocViewer(context, state),
+                        if (_hasAltTitles)
+                          AltTocSidebarView(
+                            book: widget.tab.book,
+                            closeLeftPaneCallback: () => context
+                                .read<TextBookBloc>()
+                                .add(const ToggleLeftPane(false)),
+                            scrollController: state.scrollController,
+                          ),
+                        CallbackShortcuts(
+                          bindings: <ShortcutActivator, VoidCallback>{
+                            LogicalKeySet(
+                              LogicalKeyboardKey.control,
+                              LogicalKeyboardKey.keyF,
+                            ): () {
+                              context.read<TextBookBloc>().add(
+                                    const ToggleLeftPane(true),
+                                  );
+                              // Adjust index based on whether alt titles are shown
+                              tabController.index = _hasAltTitles ? 2 : 1;
+                              textSearchFocusNode.requestFocus();
+                            },
                           },
-                        },
-                        child: _buildSearchView(context, state),
-                      ),
-                    ],
+                          child: _buildSearchView(context, state),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
