@@ -93,7 +93,7 @@ class GematriaResultCard extends StatelessWidget {
                     maxLines: isNarrow ? null : 1,
                   ),
                   if (result.preview.isNotEmpty) ...[
-                    SizedBox(height: isNarrow ? 3 : 4),
+                    SizedBox(height: isNarrow ? 7 : 9),
                     _InlinePreview(
                       result: result,
                       state: state,

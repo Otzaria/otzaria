@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/rtl_icon.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/tool_result_card_shell.dart';
 
@@ -60,8 +61,11 @@ class AcronymResultCard extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Icon(
+            padding: const EdgeInsetsDirectional.only(
+              start: 10,
+              end: 12,
+            ),
+            child: RtlIcon(
               FluentIcons.arrow_left_24_filled,
               size: 16,
               color: cs.primary,
@@ -76,19 +80,21 @@ class AcronymResultCard extends StatelessWidget {
                       color: cs.onSurface,
                     ),
                     textAlign: TextAlign.right,
+                    textDirection: TextDirection.rtl,
                   )
                 : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     mainAxisSize: MainAxisSize.min,
                     children: meanings.asMap().entries.map((e) {
                       return SelectableText(
                         '${e.key + 1}. ${e.value}',
                         style: TextStyle(
-                          fontSize: AppTokens.fontSM,
+                          fontSize: AppTokens.fontMD,
                           color: cs.onSurface,
                           height: 1.4,
                         ),
                         textAlign: TextAlign.right,
+                        textDirection: TextDirection.rtl,
                       );
                     }).toList(),
                   ),
