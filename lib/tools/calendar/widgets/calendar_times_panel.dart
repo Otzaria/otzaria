@@ -588,19 +588,12 @@ class _ZmanCard extends StatelessWidget {
         : timeData.isHolidaySpecial
             ? scheme.secondaryContainer.withValues(alpha: 0.55)
             : AppSurfaces.card(context);
-    final borderColor = hasAlert
-        ? scheme.error.withValues(alpha: 0.35)
-        : timeData.isHolidaySpecial
-            ? scheme.secondary.withValues(alpha: 0.35)
-            : scheme.outlineVariant;
-
     return Card(
       elevation: 0,
       color: bgColor,
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppTokens.radiusMD),
-        side: BorderSide(color: borderColor),
       ),
       child: SizedBox(
         height: 112,

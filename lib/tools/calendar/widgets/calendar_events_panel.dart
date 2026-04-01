@@ -332,7 +332,6 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                   surfaceTintColor: Colors.transparent,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(AppTokens.radiusMD),
-                    side: BorderSide(color: scheme.outlineVariant),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(12),
