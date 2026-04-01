@@ -25,21 +25,22 @@ class ToolResultCardShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: margin,
-        decoration: BoxDecoration(
-          color: isFocused
-              ? cs.primaryContainer.withValues(alpha: 0.45)
-              : AppSurfaces.card(context),
+    return Container(
+      margin: margin,
+      child: Material(
+        color: AppSurfaces.card(context),
+        borderRadius: BorderRadius.circular(AppTokens.radiusMD),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
           borderRadius: BorderRadius.circular(AppTokens.radiusMD),
-          border: isFocused ? Border.all(color: cs.primary, width: 1.5) : null,
-        ),
-        child: SelectionArea(
-          child: Padding(
-            padding: padding,
-            child: child,
+          hoverColor: cs.surfaceContainerHighest.withValues(alpha: 0.35),
+          focusColor: Colors.transparent,
+          child: SelectionArea(
+            child: Padding(
+              padding: padding,
+              child: child,
+            ),
           ),
         ),
       ),
