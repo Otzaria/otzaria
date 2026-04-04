@@ -224,10 +224,10 @@ class _AppTopBarState extends State<AppTopBar>
                 children: [
                   ..._itemsToWidgets(context, widget.leadingItems),
                   if (widget.leadingItems.isNotEmpty)
-                    const SizedBox(width: 4.0),
+                    const SizedBox(width: 8.0),
                   Expanded(child: widget.center ?? const SizedBox.shrink()),
                   if (widget.trailingItems.isNotEmpty)
-                    const SizedBox(width: 4.0),
+                    const SizedBox(width: 8.0),
                   ..._itemsToWidgets(context, widget.trailingItems),
                 ],
               ),
