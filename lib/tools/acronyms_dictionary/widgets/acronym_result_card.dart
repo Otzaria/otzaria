@@ -48,8 +48,7 @@ class AcronymResultCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          SizedBox(
-            width: 60,
+          Expanded(
             child: SelectableText(
               acronym,
               style: TextStyle(
