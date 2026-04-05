@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:logging/logging.dart';
+import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/buttons/action_buttons.dart';
 import '../models/book_model.dart';
 import '../models/progress_model.dart';
 import '../providers/shamor_zachor_progress_provider.dart';
@@ -164,11 +166,20 @@ class _BookCardWidgetState extends State<BookCardWidget> {
         ),
       },
       child: Card(
-        elevation: 2,
+        elevation: 0,
         margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 0),
+        color: AppSurfaces.card(context),
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTokens.radiusMD),
+        ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: () => _onCardTap(context),
+          hoverColor: Theme.of(context)
+              .colorScheme
+              .surfaceContainerHighest
+              .withValues(alpha: 0.35),
           child: SingleChildScrollView(
             child: Padding(
               padding: const EdgeInsets.all(12.0),
@@ -190,40 +201,53 @@ class _BookCardWidgetState extends State<BookCardWidget> {
                               style: Theme.of(context)
                                   .textTheme
                                   .titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.bold),
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color:
+                                        Theme.of(context).colorScheme.onSurface,
+                                  ),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
+                              textDirection: TextDirection.rtl,
                             ),
-                            const SizedBox(height: 2),
-                            Text(
-                              widget.bookDetails.categoryPath ??
-                                  widget.categoryName,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurface
-                                        .withValues(alpha: 0.7),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                _BookMetaChip(
+                                  icon: FluentIcons.folder_24_regular,
+                                  text: widget.bookDetails.categoryPath ??
+                                      widget.categoryName,
+                                  backgroundColor: Theme.of(context)
+                                      .colorScheme
+                                      .secondaryContainer,
+                                  foregroundColor: Theme.of(context)
+                                      .colorScheme
+                                      .onSecondaryContainer,
+                                ),
+                                if (_isCompleted)
+                                  _BookMetaChip(
+                                    icon:
+                                        FluentIcons.checkmark_circle_24_regular,
+                                    text: 'הושלם',
+                                    backgroundColor:
+                                        Theme.of(context).colorScheme.primary,
+                                    foregroundColor:
+                                        Theme.of(context).colorScheme.onPrimary,
                                   ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                              ],
                             ),
                           ],
                         ),
                       ),
-                      if (_isCompleted) ...[
-                        const SizedBox(width: 8),
-                        const Icon(FluentIcons.checkmark_circle_24_regular,
-                            color: Colors.green, size: 24),
-                      ],
                       if (widget.onDelete != null) ...[
                         const SizedBox(width: 8),
-                        IconButton(
-                          icon: const Icon(FluentIcons.delete_24_regular),
+                        ToolbarActionButton(
                           tooltip: 'הסר ספר',
-                          onPressed: widget.onDelete,
+                          icon: FluentIcons.delete_24_regular,
+                          emphasis: ToolbarActionButtonEmphasis.subtle,
+                          onPressed: widget.onDelete!,
                         ),
                       ],
                     ],
@@ -347,23 +371,25 @@ class _BookCardWidgetState extends State<BookCardWidget> {
     }
 
     // בניית תצוגה - מציג מחזור אם הוא התחיל או אם המחזור הקודם הושלם
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (int i = 0; i < cycles.length; i++)
-            if (i == 0 || cycleProgress[i] > 0.0 || cycleProgress[i - 1] >= 1.0)
-              Padding(
-                padding: EdgeInsets.only(right: i > 0 ? 5 : 0),
-                child: _buildCycleIndicator(
-                  context,
-                  i + 1,
-                  cycleProgress[i],
-                  cycleProgress[i] >= 1.0,
-                ),
-              ),
+    final visibleIndices = [
+      for (int i = 0; i < cycles.length; i++)
+        if (i == 0 || cycleProgress[i] > 0.0 || cycleProgress[i - 1] >= 1.0) i,
+    ];
+
+    return Row(
+      children: [
+        for (int j = 0; j < visibleIndices.length; j++) ...[
+          if (j > 0) const SizedBox(width: 4),
+          Expanded(
+            child: _buildCycleIndicator(
+              context,
+              visibleIndices[j] + 1,
+              cycleProgress[visibleIndices[j]],
+              cycleProgress[visibleIndices[j]] >= 1.0,
+            ),
+          ),
         ],
-      ),
+      ],
     );
   }
 
@@ -390,32 +416,48 @@ class _BookCardWidgetState extends State<BookCardWidget> {
       }
     }
 
+    final cs = Theme.of(context).colorScheme;
+
     if (isCompleted) {
       return Container(
-        width: 50,
-        height: 50,
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
         decoration: BoxDecoration(
-          color: Colors.green.withValues(alpha: 0.1),
+          color: cs.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.green, width: 2),
         ),
-        child: const Icon(FluentIcons.checkmark_24_regular,
-            color: Colors.green, size: 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              FluentIcons.checkmark_24_regular,
+              color: cs.onSurface,
+              size: 20,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              getCycleName(cycleNumber),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontSize: 9,
+                    color: cs.onSurface,
+                  ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
       );
     }
 
-    final totalItems = widget.bookDetails.totalLearnableItems;
-    final completedItems = (progress * totalItems).round();
     final progressPercentage = (progress * 100).round();
 
     return Container(
-      width: 100,
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+          color: cs.outline.withValues(alpha: 0.3),
         ),
       ),
       child: Column(
@@ -425,9 +467,11 @@ class _BookCardWidgetState extends State<BookCardWidget> {
             getCycleName(cycleNumber),
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   fontWeight: FontWeight.bold,
-                  fontSize: 11,
+                  fontSize: 10,
                 ),
             textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 4),
           ClipRRect(
@@ -435,21 +479,15 @@ class _BookCardWidgetState extends State<BookCardWidget> {
             child: LinearProgressIndicator(
               minHeight: 5,
               value: progress,
-              backgroundColor: Theme.of(context)
-                  .colorScheme
-                  .onSurface
-                  .withValues(alpha: 0.08),
+              backgroundColor: cs.onSurface.withValues(alpha: 0.08),
             ),
           ),
           const SizedBox(height: 4),
           Text(
-            '$progressPercentage% • $completedItems/$totalItems',
+            '$progressPercentage%',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   fontSize: 10,
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.7),
+                  color: cs.onSurface.withValues(alpha: 0.7),
                 ),
           ),
         ],
@@ -472,5 +510,51 @@ class _BookCardWidgetState extends State<BookCardWidget> {
       _logger.warning('getBookProgressSummarySync failed', e, st);
       return 'לימוד פעיל';
     }
+  }
+}
+
+class _BookMetaChip extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final Color backgroundColor;
+  final Color foregroundColor;
+
+  const _BookMetaChip({
+    required this.icon,
+    required this.text,
+    required this.backgroundColor,
+    required this.foregroundColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 12, color: foregroundColor),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textDirection: TextDirection.rtl,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: foregroundColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
