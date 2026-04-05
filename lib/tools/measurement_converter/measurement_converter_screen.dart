@@ -397,6 +397,7 @@ class _MeasurementConverterScreenState
                                   ? FluentIcons.panel_right_contract_24_regular
                                   : FluentIcons.panel_right_24_regular,
                               key: ValueKey(sidebarOpen),
+                              size: 24,
                             ),
                           ),
                           tooltip:
@@ -408,6 +409,8 @@ class _MeasurementConverterScreenState
                               _narrowShowCategories = !_narrowShowCategories;
                             }
                           }),
+                          visualDensity: VisualDensity.standard,
+                          splashRadius: 22,
                         ),
                       ),
                     ],
@@ -614,12 +617,12 @@ class _MeasurementConverterScreenState
           _categoriesPaneWidth = nextWidth;
         });
       },
-      wrapPaneInFloatingPanel: false,
+      wrapPaneInFloatingPanel: true,
       mainContent: isWide
           ? Align(
               alignment: Alignment.topCenter,
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 800),
+                constraints: const BoxConstraints(maxWidth: 700),
                 child: Padding(
                   padding: const EdgeInsets.all(AppTokens.spaceMD),
                   child: _buildUnitColumns(),
@@ -639,11 +642,6 @@ class _MeasurementConverterScreenState
         bgColor,
         closeOnSelect: !isWide,
       ),
-      widePaneBuilder: (context, paneContent, paneWidth) => Container(
-        width: paneWidth,
-        color: AppSurfaces.solidPanelBackground(context),
-        child: paneContent,
-      ),
       narrowPaneBuilder: (context, paneContent) => Material(
         color: AppSurfaces.solidPanelBackground(context),
         child: SafeArea(child: paneContent),
@@ -656,7 +654,7 @@ class _MeasurementConverterScreenState
     required bool closeOnSelect,
   }) {
     return Container(
-      color: bgColor,
+      color: AppSurfaces.solidPanelBackground(context),
       padding: const EdgeInsets.symmetric(
         vertical: AppTokens.spaceMD,
         horizontal: AppTokens.spaceSM,
@@ -696,65 +694,86 @@ class _MeasurementConverterScreenState
     );
   }
 
-  // ── עמודות יחידות (wide) ────────────────────────────────────────────────────
+  // ── עמודות יחידות ────────────────────────────────────────────────────────────
   Widget _buildUnitColumns() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Flexible(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 350),
-            child: _buildUnitCard(
-              title: 'המר מ:',
-              icon: FluentIcons.arrow_up_24_regular,
-              selectedValue: _selectedFromUnit,
-              onChanged: (val) {
-                setState(() => _selectedFromUnit = val);
-                _rememberedFromUnits[_selectedCategory] = val!;
-                _convert();
-                WidgetsBinding.instance.addPostFrameCallback(
-                    (_) => _screenFocusNode.requestFocus());
-              },
-            ),
-          ),
-        ),
-        // ── כפתור החלפה ──────────────────────────────────────────────────
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceMD),
-          child: IconButton(
-            iconSize: 32,
-            icon: const Icon(FluentIcons.arrow_swap_24_regular),
-            onPressed: () {
-              setState(() {
-                final temp = _selectedFromUnit;
-                _selectedFromUnit = _selectedToUnit;
-                _selectedToUnit = temp;
-                _convert();
-              });
-              WidgetsBinding.instance
-                  .addPostFrameCallback((_) => _screenFocusNode.requestFocus());
-            },
-            tooltip: 'החלף יחידות',
-          ),
-        ),
-        Flexible(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 350),
-            child: _buildUnitCard(
-              title: 'המר ל:',
-              icon: FluentIcons.arrow_down_24_regular,
-              selectedValue: _selectedToUnit,
-              onChanged: (val) {
-                setState(() => _selectedToUnit = val);
-                _rememberedToUnits[_selectedCategory] = val!;
-                _convert();
-                WidgetsBinding.instance.addPostFrameCallback(
-                    (_) => _screenFocusNode.requestFocus());
-              },
-            ),
-          ),
-        ),
-      ],
+    final swapButton = IconButton(
+      iconSize: 32,
+      icon: const Icon(FluentIcons.arrow_swap_24_regular),
+      onPressed: () {
+        setState(() {
+          final temp = _selectedFromUnit;
+          _selectedFromUnit = _selectedToUnit;
+          _selectedToUnit = temp;
+          _convert();
+        });
+        WidgetsBinding.instance
+            .addPostFrameCallback((_) => _screenFocusNode.requestFocus());
+      },
+      tooltip: 'החלף יחידות',
+    );
+
+    final fromCard = _buildUnitCard(
+      title: 'המר מ:',
+      icon: FluentIcons.arrow_up_24_regular,
+      selectedValue: _selectedFromUnit,
+      onChanged: (val) {
+        setState(() => _selectedFromUnit = val);
+        _rememberedFromUnits[_selectedCategory] = val!;
+        _convert();
+        WidgetsBinding.instance
+            .addPostFrameCallback((_) => _screenFocusNode.requestFocus());
+      },
+    );
+
+    final toCard = _buildUnitCard(
+      title: 'המר ל:',
+      icon: FluentIcons.arrow_down_24_regular,
+      selectedValue: _selectedToUnit,
+      onChanged: (val) {
+        setState(() => _selectedToUnit = val);
+        _rememberedToUnits[_selectedCategory] = val!;
+        _convert();
+        WidgetsBinding.instance
+            .addPostFrameCallback((_) => _screenFocusNode.requestFocus());
+      },
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // מסך רחב: כרטיסים אחד ליד השני
+        // מסך צר: כרטיסים אחד על השני עם חץ ביניהם
+        // הסף מחשב את רוחב הסידרבר (~170px) + ריווחים,
+        // כך שהכרטיסים יישארו זה ליד זה גם אחרי פתיחת הסידרבר
+        final isWide = constraints.maxWidth >= 460;
+
+        if (isWide) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: fromCard),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppTokens.spaceSM,
+                    vertical: AppTokens.spaceMD),
+                child: swapButton,
+              ),
+              Expanded(child: toCard),
+            ],
+          );
+        } else {
+          return Column(
+            children: [
+              fromCard,
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(vertical: AppTokens.spaceSM),
+                child: Center(child: swapButton),
+              ),
+              toCard,
+            ],
+          );
+        }
+      },
     );
   }
 
@@ -780,6 +799,7 @@ class _MeasurementConverterScreenState
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
           // כותרת הכרטיס
           Padding(
