@@ -30,6 +30,14 @@ const Map<String, String> apiCallToPermissionHint = {
   'notifications.cancelAll': 'notifications.system',
   'notifications.checkPermissions': 'notifications.system',
   'notifications.requestPermissions': 'notifications.system',
+
+  // reader.* (new APIs)
+  'reader.addContextMenuItem': 'reader.context_menu',
+  'reader.removeContextMenuItem': 'reader.context_menu',
+  'reader.setHighlight': 'reader.highlight',
+  'reader.getHighlights': 'reader.highlight',
+  'reader.clearHighlight': 'reader.highlight',
+  'reader.clearAllHighlights': 'reader.highlight',
 };
 
 /// רשימת כל ההרשאות התקפות שתוסף יכול לבקש
@@ -58,6 +66,12 @@ const pluginValidPermissions = <String>[
   // ===== קורא =====
   /// פתיחת ספרים במצב קריאה
   'reader.open',
+
+  /// הוספת פריטים לתפריט ההקשר של הקורא
+  'reader.context_menu',
+
+  /// הוספה וניהול של הדגשות צבעוניות בטקסט
+  'reader.highlight',
 
   // ===== ניווט =====
   /// מעבר בין מסכים באפליקציה
@@ -143,4 +157,7 @@ const pluginValidPermissions = <String>[
 
   /// הרשמה לאירועי שינוי הרשאות התוסף
   'events.subscribe:plugin.permissions_changed',
+
+  /// הרשמה לאירועי סימון טקסט בקורא
+  'events.subscribe:reader.selection_changed',
 ];

@@ -115,7 +115,18 @@ class PluginBridgeHandler {
       case 'search':
         return 'search.fulltext.read';
       case 'reader':
-        return 'reader.open';
+        switch (action) {
+          case 'addContextMenuItem':
+          case 'removeContextMenuItem':
+            return 'reader.context_menu';
+          case 'setHighlight':
+          case 'getHighlights':
+          case 'clearHighlight':
+          case 'clearAllHighlights':
+            return 'reader.highlight';
+          default:
+            return 'reader.open';
+        }
       case 'navigation':
         return 'navigation.write';
       case 'notes':

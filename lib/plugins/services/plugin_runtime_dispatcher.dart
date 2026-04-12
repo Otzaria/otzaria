@@ -57,4 +57,25 @@ class PluginRuntimeDispatcher {
       }
     }
   }
+
+  /// שולח event לפלאגין ספציפי בלבד (ללא בדיקת הרשאת subscribe).
+  /// משמש לאירועים ממוקדים כמו reader.context_menu_item_clicked.
+  Future<void> dispatchEventToPlugin(
+    String pluginId,
+    String topic,
+    Map<String, dynamic> payload,
+  ) async {
+    final controller = _controllers[pluginId];
+    if (controller == null) return;
+    try {
+      final isEnabled = await _repository.getIsEnabled(pluginId);
+      if (isEnabled == false) return;
+      final jsonPayload = jsonEncode(payload);
+      await controller.evaluateJavascript(
+        source: "window.dispatchEvent(new CustomEvent('$topic', { detail: $jsonPayload }));",
+      );
+    } catch (e) {
+      debugPrint('Failed to dispatch $topic to plugin $pluginId: $e');
+    }
+  }
 }

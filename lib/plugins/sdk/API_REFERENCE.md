@@ -1232,3 +1232,199 @@ async function scheduleReminder(title, body, dateTime) {
   ]
 }
 ```
+
+
+---
+
+## reader.* — APIs חדשים (v2)
+
+### `reader.addContextMenuItem`
+**הרשאה:** `reader.context_menu`
+
+רישום פריט תפריט הקשר מותאם אישית. הפריט יופיע בתפריט שנפתח בלחיצה ימנית על טקסט בקורא.
+
+```javascript
+await Otzaria.call('reader.addContextMenuItem', {
+  id: 'my-save-item',       // מזהה ייחודי (חובה)
+  label: 'הוסף למראי המקומות שלי',  // טקסט לתצוגה (חובה)
+  icon: 'bookmark'          // שם אייקון (אופציונלי)
+});
+// true
+```
+
+**הערות:**
+- אם פריט עם אותו `id` כבר קיים, הוא יוחלף
+- הפריטים נשמרים בזיכרון בלבד — יש לרשום מחדש בכל `plugin.boot`
+
+---
+
+### `reader.removeContextMenuItem`
+**הרשאה:** `reader.context_menu`
+
+הסרת פריט תפריט הקשר שנרשם קודם.
+
+```javascript
+await Otzaria.call('reader.removeContextMenuItem', {
+  id: 'my-save-item'
+});
+// true
+```
+
+---
+
+### `reader.context_menu_item_clicked` (Event)
+**הרשאה:** אין צורך בהרשאה נוספת — נשלח רק לפלאגין שרשם את הפריט
+
+נורה כאשר המשתמש לוחץ על פריט תפריט שהפלאגין רשם.
+
+```javascript
+Otzaria.on('reader.context_menu_item_clicked', (data) => {
+  console.log('נלחץ פריט:', data.itemId);
+  console.log('טקסט מסומן:', data.selectedText);  // '' אם אין
+  console.log('מיקום:', data.currentRef);
+  console.log('ספר:', data.currentBook);
+});
+// {
+//   itemId: "my-save-item",
+//   selectedText: "ויאמר אלהים",
+//   currentRef: "בראשית פרק א",
+//   currentBook: "בראשית",
+//   currentBookId: "בראשית"
+// }
+```
+
+---
+
+### `reader.selection_changed` (Event)
+**הרשאה:** `events.subscribe:reader.selection_changed`
+
+נורה כאשר המשתמש מסמן טקסט בקורא. **לא** נורה כאשר הסימון מתנקה.
+
+```javascript
+Otzaria.on('reader.selection_changed', (data) => {
+  console.log('טקסט נבחר:', data.text);
+  // הצגת הצעה לשמירה...
+});
+// {
+//   text: "ויאמר אלהים יהי אור",
+//   start: 120,
+//   end: 140,
+//   currentRef: "בראשית פרק א",
+//   currentBook: "בראשית",
+//   currentBookId: "בראשית",
+//   currentIndex: 0
+// }
+```
+
+---
+
+### `reader.setHighlight`
+**הרשאה:** `reader.highlight`
+
+הוספת הדגשה צבעונית לשורה בטקסט.
+
+```javascript
+await Otzaria.call('reader.setHighlight', {
+  bookId: 'בראשית',   // מזהה הספר (חובה)
+  index: 42,           // אינדקס השורה (חובה)
+  color: '#FFFF00',    // צבע CSS (אופציונלי)
+  label: 'שמרתי'      // תווית (אופציונלי)
+});
+// true
+```
+
+---
+
+### `reader.getHighlights`
+**הרשאה:** `reader.highlight`
+
+קבלת כל ההדגשות של ספר מסוים.
+
+```javascript
+const { data } = await Otzaria.call('reader.getHighlights', {
+  bookId: 'בראשית'
+});
+// [
+//   { bookId: "בראשית", index: 42, color: "#FFFF00", label: "שמרתי", pluginId: "my-plugin" },
+//   ...
+// ]
+```
+
+---
+
+### `reader.clearHighlight`
+**הרשאה:** `reader.highlight`
+
+הסרת הדגשה ספציפית. פעולה idempotent — לא תחזיר שגיאה אם ה-index לא קיים.
+
+```javascript
+await Otzaria.call('reader.clearHighlight', {
+  bookId: 'בראשית',
+  index: 42
+});
+// true
+```
+
+---
+
+### `reader.clearAllHighlights`
+**הרשאה:** `reader.highlight`
+
+ניקוי הדגשות — לספר מסוים או לכולן.
+
+```javascript
+// ניקוי ספר ספציפי
+await Otzaria.call('reader.clearAllHighlights', { bookId: 'בראשית' });
+
+// ניקוי כל ההדגשות
+await Otzaria.call('reader.clearAllHighlights', {});
+// true
+```
+
+---
+
+### הרשאות חדשות
+
+```json
+{
+  "permissions": [
+    "reader.context_menu",
+    "reader.highlight",
+    "events.subscribe:reader.selection_changed"
+  ]
+}
+```
+
+### דוגמה — תוסף מראי מקומות
+
+```javascript
+Otzaria.on('plugin.boot', async () => {
+  // רישום פריט תפריט
+  await Otzaria.call('reader.addContextMenuItem', {
+    id: 'save-ref',
+    label: 'שמור מראה מקום'
+  });
+
+  // האזנה לסימון טקסט
+  Otzaria.on('reader.selection_changed', async (data) => {
+    // הצגת הצעה לשמירה
+    showSaveButton(data.text, data.currentRef);
+  });
+
+  // האזנה ללחיצה על פריט התפריט
+  Otzaria.on('reader.context_menu_item_clicked', async (data) => {
+    if (data.itemId !== 'save-ref') return;
+    await saveReference(data.currentRef, data.selectedText);
+    await Otzaria.call('reader.setHighlight', {
+      bookId: data.currentBookId,
+      index: data.currentIndex,
+      color: '#FFFACD',
+      label: 'נשמר'
+    });
+    await Otzaria.call('notifications.showInApp', {
+      message: 'מראה המקום נשמר!',
+      type: 'success'
+    });
+  });
+});
+```

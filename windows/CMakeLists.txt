@@ -2,6 +2,30 @@
 cmake_minimum_required(VERSION 3.14)
 project(otzaria LANGUAGES CXX)
 
+# Help CMake find JNI (required by the jni Flutter plugin on Windows)
+if(NOT DEFINED ENV{JAVA_HOME})
+  if(EXISTS "C:/Program Files/Microsoft/jdk-21.0.10.7-hotspot")
+    set(ENV{JAVA_HOME} "C:/Program Files/Microsoft/jdk-21.0.10.7-hotspot")
+  elseif(EXISTS "C:/Program Files/Eclipse Adoptium/jdk-21.0.10.7-hotspot")
+    set(ENV{JAVA_HOME} "C:/Program Files/Eclipse Adoptium/jdk-21.0.10.7-hotspot")
+  endif()
+endif()
+if(DEFINED ENV{JAVA_HOME})
+  set(JAVA_HOME "$ENV{JAVA_HOME}" CACHE PATH "Java home directory" FORCE)
+  set(JAVA_INCLUDE_PATH "$ENV{JAVA_HOME}/include" CACHE PATH "" FORCE)
+  set(JAVA_INCLUDE_PATH2 "$ENV{JAVA_HOME}/include/win32" CACHE PATH "" FORCE)
+  if(EXISTS "$ENV{JAVA_HOME}/lib/jvm.lib")
+    set(JAVA_JVM_LIBRARY "$ENV{JAVA_HOME}/lib/jvm.lib" CACHE FILEPATH "" FORCE)
+  elseif(EXISTS "$ENV{JAVA_HOME}/lib/server/jvm.lib")
+    set(JAVA_JVM_LIBRARY "$ENV{JAVA_HOME}/lib/server/jvm.lib" CACHE FILEPATH "" FORCE)
+  endif()
+endif()
+
+# Fix parallel PDB writes (C1041) for MSVC
+if(MSVC)
+  add_compile_options(/FS)
+endif()
+
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
 set(BINARY_NAME "otzaria")

@@ -32,6 +32,9 @@ import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/plugins/database/plugin_database_service.dart';
 import 'package:otzaria/plugins/utils/reader_location_resolver.dart';
+import 'package:otzaria/plugins/models/plugin_highlight.dart';
+import 'package:otzaria/plugins/models/plugin_context_menu_item.dart';
+import 'package:otzaria/plugins/services/context_menu_registry.dart';
 
 // ===================================================================
 // Spec-compliant allowlist for settings.get/getMany
@@ -175,6 +178,9 @@ class PluginBridgeAdapter {
         _pluginRepo = pluginRepository ?? PluginRegistryRepository(),
         _notificationService = notificationService ?? NotificationService(),
         _databaseService = databaseService ?? PluginDatabaseService();
+
+  // bookId → index → PluginHighlight (in-memory, per adapter instance)
+  final Map<String, Map<int, PluginHighlight>> _highlights = {};
 
   Future<dynamic> execute(
       String domain, String action, Map<String, dynamic> args) async {
@@ -434,6 +440,60 @@ class PluginBridgeAdapter {
         final currentTab = _dependencies.tabsBloc.state.currentTab;
         final snapshot = await resolveReaderLocation(currentTab);
         return _buildCurrentSelection(currentTab, snapshot?.currentRef);
+      case 'addContextMenuItem':
+        final id = args['id'] as String?;
+        final label = args['label'] as String?;
+        if (id == null || label == null) {
+          throw Exception('error.invalid_params: id and label required');
+        }
+        ContextMenuRegistry.instance.register(
+          plugin.pluginId,
+          PluginContextMenuItem(id: id, label: label, icon: args['icon'] as String?),
+        );
+        return true;
+      case 'removeContextMenuItem':
+        final id = args['id'] as String?;
+        if (id == null) throw Exception('error.invalid_params: id required');
+        ContextMenuRegistry.instance.remove(plugin.pluginId, id);
+        return true;
+      case 'setHighlight':
+        final bookId = args['bookId'] as String?;
+        final index = args['index'] as int?;
+        if (bookId == null || index == null) {
+          throw Exception('error.invalid_params: bookId and index required');
+        }
+        _highlights.putIfAbsent(bookId, () => {})[index] = PluginHighlight(
+          bookId: bookId,
+          index: index,
+          color: args['color'] as String?,
+          label: args['label'] as String?,
+          pluginId: plugin.pluginId,
+        );
+        return true;
+      case 'getHighlights':
+        final bookId = args['bookId'] as String?;
+        if (bookId == null) {
+          throw Exception('error.invalid_params: bookId required');
+        }
+        return (_highlights[bookId]?.values.toList() ?? [])
+            .map((h) => h.toJson())
+            .toList();
+      case 'clearHighlight':
+        final bookId = args['bookId'] as String?;
+        final index = args['index'] as int?;
+        if (bookId == null || index == null) {
+          throw Exception('error.invalid_params: bookId and index required');
+        }
+        _highlights[bookId]?.remove(index); // idempotent
+        return true;
+      case 'clearAllHighlights':
+        final bookId = args['bookId'] as String?;
+        if (bookId != null) {
+          _highlights.remove(bookId);
+        } else {
+          _highlights.clear();
+        }
+        return true;
       default:
         throw Exception('Unknown action in reader: $action');
     }
