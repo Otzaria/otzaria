@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
+import 'package:otzaria/localization/app_localizations.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -79,7 +80,7 @@ class HistoryView extends StatelessWidget {
             if (item.isSearch) {
               final tabsBloc = ctx.read<TabsBloc>();
               // Always create a new search tab instead of reusing existing one
-              final searchTab = SearchingTab('חיפוש', null);
+              final searchTab = SearchingTab(context.trLiteral('חיפוש'), null);
               tabsBloc.add(AddTab(searchTab));
 
               // Restore search query and options

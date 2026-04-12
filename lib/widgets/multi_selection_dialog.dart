@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/localization/app_localizations.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
 
 /// דיאלוג בחירה מרובה עם חיפוש
@@ -60,7 +61,7 @@ class _MultiSelectionDialogState<T> extends State<MultiSelectionDialog<T>> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.title),
+      title: Text(context.trLiteral(widget.title)),
       content: SizedBox(
         width: double.maxFinite,
         height: 400,
@@ -69,7 +70,7 @@ class _MultiSelectionDialogState<T> extends State<MultiSelectionDialog<T>> {
             RtlTextField(
               controller: _searchController,
               decoration: InputDecoration(
-                labelText: widget.searchHint,
+                labelText: context.trLiteral(widget.searchHint),
                 prefixIcon: const Icon(FluentIcons.search_24_regular),
                 border: const OutlineInputBorder(),
               ),
@@ -80,14 +81,17 @@ class _MultiSelectionDialogState<T> extends State<MultiSelectionDialog<T>> {
               child: widget.items.isEmpty
                   ? Center(
                       child: Text(
-                        widget.emptyMessage ?? 'לא נמצאו פריטים',
+                        widget.emptyMessage == null
+                            ? context.trLiteral('לא נמצאו פריטים')
+                            : context.trLiteral(widget.emptyMessage!),
                         style: TextStyle(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     )
                   : filteredItems.isEmpty
-                      ? const Center(child: Text('לא נמצאו תוצאות'))
+                      ? Center(
+                          child: Text(context.trLiteral('לא נמצאו תוצאות')))
                       : ListView.builder(
                           itemCount: filteredItems.length,
                           itemBuilder: (context, index) {
@@ -96,9 +100,9 @@ class _MultiSelectionDialogState<T> extends State<MultiSelectionDialog<T>> {
                                 selectedValues.contains(item.value);
 
                             return CheckboxListTile(
-                              title: Text(item.label),
+                              title: Text(context.trLiteral(item.label)),
                               subtitle: item.subtitle != null
-                                  ? Text(item.subtitle!)
+                                  ? Text(context.trLiteral(item.subtitle!))
                                   : null,
                               value: isSelected,
                               onChanged: (value) {
@@ -120,13 +124,13 @@ class _MultiSelectionDialogState<T> extends State<MultiSelectionDialog<T>> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('ביטול'),
+          child: Text(context.trLiteral('ביטול')),
         ),
         ElevatedButton(
           onPressed: selectedValues.isEmpty
               ? null
               : () => Navigator.of(context).pop(selectedValues.toList()),
-          child: const Text('אישור'),
+          child: Text(context.trLiteral('אישור')),
         ),
       ],
     );

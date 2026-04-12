@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/localization/app_localizations.dart';
 import 'package:otzaria/theme/app_theme.dart';
 
 /// Divider זהה לסגנון הפנימי של SettingsCard — לשימוש בתוכן מורחב (AnimatedSize וכד')
@@ -48,7 +49,7 @@ class SettingsCard extends StatelessWidget {
             children: [
               title is String
                   ? Text(
-                      title as String,
+                      context.trLiteral(title as String),
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: theme.colorScheme.primary,
@@ -65,7 +66,7 @@ class SettingsCard extends StatelessWidget {
               if (subtitle != null) ...[
                 const SizedBox(height: 4),
                 Text(
-                  subtitle!,
+                  context.trLiteral(subtitle!),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),

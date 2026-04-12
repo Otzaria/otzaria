@@ -2,6 +2,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:otzaria/localization/app_localizations.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/inputs/app_input_tokens.dart';
 
@@ -180,8 +181,9 @@ class _AppPopupMenuButtonState<T> extends State<AppPopupMenuButton<T>> {
         onPressed: widget.enabled ? _showAdaptiveMenu : null,
         icon: widget.icon ?? const Icon(FluentIcons.more_vertical_24_regular),
         label: Text(
-          widget.tooltip!,
-          textDirection: TextDirection.rtl,
+          context.trLiteral(widget.tooltip!),
+          textDirection:
+              context.isEnglishMode ? TextDirection.ltr : TextDirection.rtl,
         ),
       );
     } else {
@@ -189,7 +191,8 @@ class _AppPopupMenuButtonState<T> extends State<AppPopupMenuButton<T>> {
         onPressed: widget.enabled ? _showAdaptiveMenu : null,
         padding: widget.padding ?? EdgeInsets.zero,
         constraints: widget.constraints,
-        tooltip: widget.tooltip,
+        tooltip:
+            widget.tooltip == null ? null : context.trLiteral(widget.tooltip!),
         icon: widget.icon ?? const Icon(FluentIcons.more_vertical_24_regular),
       );
     }
@@ -313,7 +316,8 @@ Widget _buildAppMenuRowContent(
         ],
         Expanded(
           child: Directionality(
-            textDirection: TextDirection.rtl,
+            textDirection:
+                context.isEnglishMode ? TextDirection.ltr : TextDirection.rtl,
             child: DefaultTextStyle.merge(
               style: TextStyle(
                 fontFamily: 'Roboto',
@@ -324,9 +328,11 @@ Widget _buildAppMenuRowContent(
               ),
               child: labelWidget ??
                   Text(
-                    label,
+                    context.trLiteral(label),
                     overflow: TextOverflow.ellipsis,
-                    textDirection: TextDirection.rtl,
+                    textDirection: context.isEnglishMode
+                        ? TextDirection.ltr
+                        : TextDirection.rtl,
                   ),
             ),
           ),
@@ -649,7 +655,8 @@ class AppContextMenuRegion extends StatelessWidget {
     AppMenuMetrics metrics,
   ) {
     final normalizedChildren = _normalizeEntries(entry.children!);
-    final hasEnabledChildren = normalizedChildren.any((child) => !child.isDivider);
+    final hasEnabledChildren =
+        normalizedChildren.any((child) => !child.isDivider);
     if (!entry.enabled || !hasEnabledChildren) {
       return PopupMenuItem<_ContextMenuAction>(
         enabled: false,
@@ -1297,7 +1304,7 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
           final displayText =
               widget.selectedBuilder?.call(context, widget.value) ??
                   Text(
-                    _selectedLabel,
+                    context.trLiteral(_selectedLabel),
                     style: TextStyle(
                       fontFamily: 'Roboto',
                       fontSize: metrics.fontSize,
@@ -1380,7 +1387,7 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
                 final isSelected = entry.value == widget.value;
                 return DropdownMenuEntry<T>(
                   value: entry.value,
-                  label: entry.label,
+                  label: context.trLiteral(entry.label),
                   labelWidget: _buildAppMenuRowContent(
                     context,
                     metrics,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/core/app_restart.dart';
+import 'package:otzaria/localization/app_localizations.dart';
 import 'package:otzaria/widgets/mixins/dialog_navigation_mixin.dart';
 import 'package:otzaria/theme/app_theme.dart';
 
@@ -66,14 +67,17 @@ class _SingleActionDialogState extends State<SingleActionDialog>
       onConfirm: () => Navigator.of(context).pop(true),
       onCancel: () => Navigator.of(context).pop(false),
       child: AlertDialog(
-        title: widget.title is String ? Text(widget.title) : widget.title,
-        content: widget.customContent ?? Text(widget.content),
+        title: widget.title is String
+            ? Text(context.trLiteral(widget.title as String))
+            : widget.title,
+        content:
+            widget.customContent ?? Text(context.trLiteral(widget.content)),
         actions: [
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: FilledButton.styleFrom(
                 backgroundColor: cs.primary, foregroundColor: cs.onPrimary),
-            child: Text(widget.confirmText),
+            child: Text(context.trLiteral(widget.confirmText)),
           ),
         ],
       ),
@@ -111,8 +115,11 @@ class _TwoActionsDialogState extends State<TwoActionsDialog>
       onConfirm: () => Navigator.of(context).pop(true),
       onCancel: () => Navigator.of(context).pop(false),
       child: AlertDialog(
-        title: widget.title is String ? Text(widget.title) : widget.title,
-        content: widget.customContent ?? Text(widget.content),
+        title: widget.title is String
+            ? Text(context.trLiteral(widget.title as String))
+            : widget.title,
+        content:
+            widget.customContent ?? Text(context.trLiteral(widget.content)),
         actions: [
           // כפתור ביטול — tonal
           FilledButton.tonal(
@@ -120,14 +127,14 @@ class _TwoActionsDialogState extends State<TwoActionsDialog>
             style: FilledButton.styleFrom(
                 backgroundColor: cs.secondaryContainer,
                 foregroundColor: cs.onSecondaryContainer),
-            child: Text(widget.cancelText),
+            child: Text(context.trLiteral(widget.cancelText)),
           ),
           // כפתור אישור — primary
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: FilledButton.styleFrom(
                 backgroundColor: cs.primary, foregroundColor: cs.onPrimary),
-            child: Text(widget.confirmText),
+            child: Text(context.trLiteral(widget.confirmText)),
           ),
         ],
       ),
@@ -165,15 +172,17 @@ class _WarningDialogState extends State<WarningDialog>
       onConfirm: () => Navigator.of(context).pop(true),
       onCancel: () => Navigator.of(context).pop(false),
       child: AlertDialog(
-        title: widget.title is String ? Text(widget.title) : widget.title,
+        title: widget.title is String
+            ? Text(context.trLiteral(widget.title as String))
+            : widget.title,
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(widget.content),
+            Text(context.trLiteral(widget.content)),
             if (widget.subtitle != null) ...[
               const SizedBox(height: 8),
-              Text(widget.subtitle!,
+              Text(context.trLiteral(widget.subtitle!),
                   style: TextStyle(color: cs.error, fontSize: 13)),
             ],
           ],
@@ -184,13 +193,13 @@ class _WarningDialogState extends State<WarningDialog>
             onPressed: () => Navigator.of(context).pop(false),
             style: FilledButton.styleFrom(
                 backgroundColor: cs.primary, foregroundColor: cs.onPrimary),
-            child: Text(widget.cancelText),
+            child: Text(context.trLiteral(widget.cancelText)),
           ),
           // אישור — שקוף אדום (מסוכן)
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: TextButton.styleFrom(foregroundColor: cs.error),
-            child: Text(widget.confirmText),
+            child: Text(context.trLiteral(widget.confirmText)),
           ),
         ],
       ),
@@ -235,9 +244,12 @@ class RecommendedActionButton extends StatelessWidget {
           onPressed: onPressed,
           style: style,
           icon: Icon(icon),
-          label: Text(text));
+          label: Text(context.trLiteral(text)));
     }
-    return FilledButton(onPressed: onPressed, style: style, child: Text(text));
+    return FilledButton(
+        onPressed: onPressed,
+        style: style,
+        child: Text(context.trLiteral(text)));
   }
 }
 
@@ -277,10 +289,12 @@ class NeutralActionButton extends StatelessWidget {
           onPressed: onPressed,
           style: style,
           icon: Icon(icon),
-          label: Text(text));
+          label: Text(context.trLiteral(text)));
     }
     return FilledButton.tonal(
-        onPressed: onPressed, style: style, child: Text(text));
+        onPressed: onPressed,
+        style: style,
+        child: Text(context.trLiteral(text)));
   }
 }
 
@@ -366,36 +380,45 @@ Future<bool?> showDbCopyRequiredDialog({
   required BuildContext context,
   required String sizeText,
   bool barrierDismissible = false,
-}) =>
-    showTwoActionsDialog(
-      context: context,
-      title: 'נדרשת העתקה של קובץ הספרייה',
-      content: '',
-      barrierDismissible: barrierDismissible,
-      cancelText: 'העתק (שמור מקור)',
-      confirmText: 'העתק + נסה מחק מקור',
-      customContent: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'לא ניתן לגשת ישירות לקובץ seforim.db (גודל: $sizeText) מכיוון שהוא נמצא באחסון חיצוני ב-Android.',
-            textDirection: TextDirection.rtl,
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            'לחץ על כפתור למטה, נווט לאותה תיקייה ובחר את הקובץ seforim.db — האפליקציה תעתיק אותו לאחסון הפנימי.',
-            textDirection: TextDirection.rtl,
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            '(אפשרות "נסה מחק מקור" — ניסיון למחוק לאחר העתקה. עשויה שלא להצליח בכל גרסאות Android.)',
-            style: TextStyle(fontSize: 12),
-            textDirection: TextDirection.rtl,
-          ),
-        ],
-      ),
-    );
+}) {
+  final textDirection =
+      context.isEnglishMode ? TextDirection.ltr : TextDirection.rtl;
+  final accessMessage = context.isEnglishMode
+      ? 'Cannot access seforim.db directly (size: $sizeText) because it is stored in external Android storage.'
+      : 'לא ניתן לגשת ישירות לקובץ seforim.db (גודל: $sizeText) מכיוון שהוא נמצא באחסון חיצוני ב-Android.';
+
+  return showTwoActionsDialog(
+    context: context,
+    title: 'נדרשת העתקה של קובץ הספרייה',
+    content: '',
+    barrierDismissible: barrierDismissible,
+    cancelText: 'העתק (שמור מקור)',
+    confirmText: 'העתק + נסה מחק מקור',
+    customContent: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          accessMessage,
+          textDirection: textDirection,
+        ),
+        const SizedBox(height: 12),
+        Text(
+          context.trLiteral(
+              'לחץ על כפתור למטה, נווט לאותה תיקייה ובחר את הקובץ seforim.db — האפליקציה תעתיק אותו לאחסון הפנימי.'),
+          textDirection: textDirection,
+        ),
+        const SizedBox(height: 6),
+        Text(
+          context.trLiteral(
+              '(אפשרות "נסה מחק מקור" — ניסיון למחוק לאחר העתקה. עשויה שלא להצליח בכל גרסאות Android.)'),
+          style: const TextStyle(fontSize: 12),
+          textDirection: textDirection,
+        ),
+      ],
+    ),
+  );
+}
 
 // ── SegmentedSettingsTile ─────────────────────────────────────────────────────
 
@@ -465,7 +488,7 @@ class _SegmentedSettingsTileState<T> extends State<SegmentedSettingsTile<T>> {
     final cs = Theme.of(context).colorScheme;
     final hasIcons = widget.options.any((o) => o.icon != null);
     final maxLen = widget.options
-        .map((o) => o.label.length)
+        .map((o) => context.trLiteral(o.label).length)
         .reduce((a, b) => a > b ? a : b);
     final btnWidth =
         (hasIcons ? _kSegmentBaseWidthWithIcon : _kSegmentBaseWidthNoIcon) +
@@ -503,7 +526,7 @@ class _SegmentedSettingsTileState<T> extends State<SegmentedSettingsTile<T>> {
                         if (widget.subtitle != null) ...[
                           const SizedBox(height: 4),
                           Text(
-                            widget.subtitle!,
+                            context.trLiteral(widget.subtitle!),
                             style: kSettingsSubtitleStyle.copyWith(
                                 color:
                                     Theme.of(ctx).colorScheme.onSurfaceVariant),
@@ -528,7 +551,8 @@ class _SegmentedSettingsTileState<T> extends State<SegmentedSettingsTile<T>> {
         leading: widget.icon != null ? Icon(widget.icon) : null,
         title: _titleOnlyWidget(ctx),
         subtitle: widget.subtitle != null
-            ? Text(widget.subtitle!, style: kSettingsSubtitleStyle)
+            ? Text(context.trLiteral(widget.subtitle!),
+                style: kSettingsSubtitleStyle)
             : null,
         trailing: button,
       );
@@ -539,7 +563,8 @@ class _SegmentedSettingsTileState<T> extends State<SegmentedSettingsTile<T>> {
   /// נדרש כדי למנוע כפילות ב-ListTile שמציג subtitle בעצמו.
   Widget _titleOnlyWidget(BuildContext context) {
     if (widget.title is! String) return widget.title as Widget;
-    return Text(widget.title as String, style: kSettingsTitleStyle);
+    return Text(context.trLiteral(widget.title as String),
+        style: kSettingsTitleStyle);
   }
 
   // M3 SegmentedButton: secondaryContainer = selected, surface = unselected
@@ -598,7 +623,8 @@ class _SegmentedSettingsTileState<T> extends State<SegmentedSettingsTile<T>> {
                     value: o.value,
                     label: FittedBox(
                         fit: BoxFit.scaleDown,
-                        child: Text(o.label, style: kSettingsTitleStyle)),
+                        child: Text(context.trLiteral(o.label),
+                            style: kSettingsTitleStyle)),
                     icon: hasIcons
                         ? (o.icon != null
                             ? Icon(o.icon, size: 18)
@@ -711,8 +737,9 @@ class SwitchSettingsTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       leading: leading,
-      title: title,
-      subtitle: subtitle,
+      title: context.translateTextWidget(title),
+      subtitle:
+          subtitle == null ? null : context.translateTextWidget(subtitle!),
       enabled: enabled,
       trailing: CustomSwitch(
         value: value,

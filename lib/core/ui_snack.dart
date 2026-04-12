@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:otzaria/localization/app_localizations.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
@@ -397,14 +398,16 @@ class _SnackToastState extends State<_SnackToast>
                             ],
                             Flexible(
                               child: Text(
-                                widget.message,
+                                context.trLiteral(widget.message),
                                 style: TextStyle(
                                   color: c.fg,
                                   fontSize: _ToastTokens.fontMessage,
                                   fontWeight: FontWeight.w400,
                                   height: 1.4,
                                 ),
-                                textDirection: TextDirection.rtl,
+                                textDirection: context.isEnglishMode
+                                    ? TextDirection.ltr
+                                    : TextDirection.rtl,
                                 maxLines: messageMaxLines,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -431,7 +434,8 @@ class _SnackToastState extends State<_SnackToast>
                                   tapTargetSize:
                                       MaterialTapTargetSize.shrinkWrap,
                                 ),
-                                child: Text(widget.actionLabel!),
+                                child: Text(
+                                    context.trLiteral(widget.actionLabel!)),
                               ),
                             ],
                           ],

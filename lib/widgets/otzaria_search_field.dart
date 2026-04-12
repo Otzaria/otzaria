@@ -15,6 +15,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/localization/app_localizations.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
@@ -290,7 +291,7 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
           color: cs.onSurfaceVariant,
         ),
         onPressed: widget.onExpand,
-        tooltip: widget.hintText,
+        tooltip: context.trLiteral(widget.hintText),
       ),
     );
   }
@@ -398,7 +399,7 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
                 : (isSlim ? 32.0 : 40.0),
             minHeight: effectiveHeight,
           ),
-          hintText: widget.hintText,
+          hintText: context.trLiteral(widget.hintText),
           hintStyle: TextStyle(
             fontSize: effectiveFontSize,
             color: cs.onSurfaceVariant,

@@ -9,6 +9,7 @@
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:otzaria/localization/app_localizations.dart';
 
 // ── RecommendedActionButton ───────────────────────────────────────────────────
 
@@ -51,9 +52,12 @@ class RecommendedActionButton extends StatelessWidget {
           onPressed: onPressed,
           style: style,
           icon: leading,
-          label: Text(text));
+          label: Text(context.trLiteral(text)));
     }
-    return FilledButton(onPressed: onPressed, style: style, child: Text(text));
+    return FilledButton(
+        onPressed: onPressed,
+        style: style,
+        child: Text(context.trLiteral(text)));
   }
 }
 
@@ -96,10 +100,12 @@ class NeutralActionButton extends StatelessWidget {
           onPressed: onPressed,
           style: style,
           icon: Icon(icon),
-          label: Text(text));
+          label: Text(context.trLiteral(text)));
     }
     return FilledButton.tonal(
-        onPressed: onPressed, style: style, child: Text(text));
+        onPressed: onPressed,
+        style: style,
+        child: Text(context.trLiteral(text)));
   }
 }
 
@@ -119,7 +125,7 @@ class ToolCopyButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Tooltip(
-      message: tooltip,
+      message: context.trLiteral(tooltip),
       child: IconButton(
         icon: const Icon(FluentIcons.copy_24_regular, size: 20),
         onPressed: onPressed,
@@ -149,7 +155,7 @@ class ToolNavigateButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Tooltip(
-      message: tooltip,
+      message: context.trLiteral(tooltip),
       child: IconButton(
         icon: const Icon(FluentIcons.open_24_regular, size: 20),
         onPressed: onPressed,
@@ -260,7 +266,8 @@ class ToolbarActionButton extends StatelessWidget {
           overlayColor: WidgetStatePropertyAll(overlay),
         ),
         icon: iconWidget ?? Icon(icon, size: 20),
-        label: Text(label!, style: const TextStyle(fontSize: 14.0)),
+        label: Text(context.trLiteral(label!),
+            style: const TextStyle(fontSize: 14.0)),
       );
     } else {
       button = IconButton(
@@ -277,7 +284,7 @@ class ToolbarActionButton extends StatelessWidget {
       );
     }
 
-    return Tooltip(message: tooltip, child: button);
+    return Tooltip(message: context.trLiteral(tooltip), child: button);
   }
 
   // ── Desktop ───────────────────────────────────────────────────────────────
@@ -303,7 +310,8 @@ class ToolbarActionButton extends StatelessWidget {
           overlayColor: WidgetStatePropertyAll(overlay),
         ),
         icon: iconWidget ?? Icon(icon, size: 15),
-        label: Text(label!, style: const TextStyle(fontSize: 12.0)),
+        label: Text(context.trLiteral(label!),
+            style: const TextStyle(fontSize: 12.0)),
       );
     } else {
       button = IconButton(
@@ -320,6 +328,6 @@ class ToolbarActionButton extends StatelessWidget {
       );
     }
 
-    return Tooltip(message: tooltip, child: button);
+    return Tooltip(message: context.trLiteral(tooltip), child: button);
   }
 }

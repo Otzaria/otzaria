@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/localization/app_localizations.dart';
 import 'package:otzaria/widgets/mixins/dialog_navigation_mixin.dart';
 
 /// דיאלוג אישור עם תמיכה באנטר וחיצים
@@ -32,8 +33,8 @@ class _ConfirmationDialogState extends State<ConfirmationDialog>
       onConfirm: () => Navigator.of(context).pop(true),
       onCancel: () => Navigator.of(context).pop(false),
       child: AlertDialog(
-        title: Text(widget.title),
-        content: Text(widget.content),
+        title: Text(context.trLiteral(widget.title)),
+        content: Text(context.trLiteral(widget.content)),
         actions: [
           _buildButton(
             text: widget.cancelText,
@@ -71,7 +72,7 @@ class _ConfirmationDialogState extends State<ConfirmationDialog>
         foregroundColor: color,
       ),
       child: Text(
-        text,
+        context.trLiteral(text),
         style: TextStyle(
           fontWeight: isFocused ? FontWeight.bold : FontWeight.normal,
         ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/localization/app_localizations.dart';
 import 'package:otzaria/widgets/buttons/action_buttons.dart';
 import 'package:otzaria/widgets/otzaria_search_field.dart';
 
@@ -67,8 +68,9 @@ class _ItemsListViewState extends State<ItemsListView> {
     if (widget.items.isEmpty) {
       return Center(
         child: Text(
-          widget.emptyText,
-          textDirection: TextDirection.rtl,
+          context.trLiteral(widget.emptyText),
+          textDirection:
+              context.isEnglishMode ? TextDirection.ltr : TextDirection.rtl,
         ),
       );
     }
@@ -88,7 +90,7 @@ class _ItemsListViewState extends State<ItemsListView> {
           child: OtzariaSearchField(
             controller: _searchController,
             focusNode: _searchFocusNode,
-            hintText: widget.hintText,
+            hintText: context.trLiteral(widget.hintText),
             onClear: () {
               setState(() {
                 _searchQuery = '';
@@ -100,8 +102,10 @@ class _ItemsListViewState extends State<ItemsListView> {
           child: filteredItems.isEmpty
               ? Center(
                   child: Text(
-                    widget.notFoundText,
-                    textDirection: TextDirection.rtl,
+                    context.trLiteral(widget.notFoundText),
+                    textDirection: context.isEnglishMode
+                        ? TextDirection.ltr
+                        : TextDirection.rtl,
                   ),
                 )
               : ListView.builder(
@@ -134,12 +138,14 @@ class _ItemsListViewState extends State<ItemsListView> {
                             ),
                             if (centerText != null)
                               Tooltip(
-                                message: centerTooltip ?? '',
+                                message: centerTooltip == null
+                                    ? ''
+                                    : context.trLiteral(centerTooltip),
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 16.0),
                                   child: Text(
-                                    centerText,
+                                    context.trLiteral(centerText),
                                     style: TextStyle(
                                       fontSize: 14,
                                       color: Theme.of(context)
@@ -147,13 +153,15 @@ class _ItemsListViewState extends State<ItemsListView> {
                                           .onSurface
                                           .withValues(alpha: 0.6),
                                     ),
-                                    textDirection: TextDirection.rtl,
+                                    textDirection: context.isEnglishMode
+                                        ? TextDirection.ltr
+                                        : TextDirection.rtl,
                                   ),
                                 ),
                               ),
                             IconButton(
                               icon: const Icon(FluentIcons.delete_24_regular),
-                              tooltip: 'מחק',
+                              tooltip: context.trLiteral('מחק'),
                               onPressed: () =>
                                   widget.onDelete(context, originalIndex),
                             ),

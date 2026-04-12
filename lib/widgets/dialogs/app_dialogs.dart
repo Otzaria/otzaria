@@ -21,6 +21,7 @@
 // ```
 
 import 'package:flutter/material.dart';
+import 'package:otzaria/localization/app_localizations.dart';
 import 'package:otzaria/widgets/keyboard_dialog_navigation.dart';
 
 // ── SingleActionDialog ────────────────────────────────────────────────────────
@@ -57,14 +58,17 @@ class _SingleActionDialogState extends State<SingleActionDialog>
       onCancel: () => Navigator.of(context).pop(false),
       child: AlertDialog(
         backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
-        title: widget.title is String ? Text(widget.title) : widget.title,
-        content: widget.customContent ?? Text(widget.content!),
+        title: widget.title is String
+            ? Text(context.trLiteral(widget.title as String))
+            : widget.title,
+        content:
+            widget.customContent ?? Text(context.trLiteral(widget.content!)),
         actions: [
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: FilledButton.styleFrom(
                 backgroundColor: cs.primary, foregroundColor: cs.onPrimary),
-            child: Text(widget.confirmText),
+            child: Text(context.trLiteral(widget.confirmText)),
           ),
         ],
       ),
@@ -103,21 +107,23 @@ class _TwoActionsDialogState extends State<TwoActionsDialog>
       onCancel: () => Navigator.of(context).pop(false),
       child: AlertDialog(
         backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
-        title: widget.title is String ? Text(widget.title) : widget.title,
-        content: Text(widget.content),
+        title: widget.title is String
+            ? Text(context.trLiteral(widget.title as String))
+            : widget.title,
+        content: Text(context.trLiteral(widget.content)),
         actions: [
           FilledButton.tonal(
             onPressed: () => Navigator.of(context).pop(false),
             style: FilledButton.styleFrom(
                 backgroundColor: cs.secondaryContainer,
                 foregroundColor: cs.onSecondaryContainer),
-            child: Text(widget.cancelText),
+            child: Text(context.trLiteral(widget.cancelText)),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: FilledButton.styleFrom(
                 backgroundColor: cs.primary, foregroundColor: cs.onPrimary),
-            child: Text(widget.confirmText),
+            child: Text(context.trLiteral(widget.confirmText)),
           ),
         ],
       ),
@@ -158,15 +164,17 @@ class _WarningDialogState extends State<WarningDialog>
       onCancel: () => Navigator.of(context).pop(false),
       child: AlertDialog(
         backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
-        title: widget.title is String ? Text(widget.title) : widget.title,
+        title: widget.title is String
+            ? Text(context.trLiteral(widget.title as String))
+            : widget.title,
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(widget.content),
+            Text(context.trLiteral(widget.content)),
             if (widget.subtitle != null) ...[
               const SizedBox(height: 8),
-              Text(widget.subtitle!,
+              Text(context.trLiteral(widget.subtitle!),
                   style: TextStyle(color: cs.error, fontSize: 13)),
             ],
           ],
@@ -176,12 +184,12 @@ class _WarningDialogState extends State<WarningDialog>
             onPressed: () => Navigator.of(context).pop(false),
             style: FilledButton.styleFrom(
                 backgroundColor: cs.primary, foregroundColor: cs.onPrimary),
-            child: Text(widget.cancelText),
+            child: Text(context.trLiteral(widget.cancelText)),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: TextButton.styleFrom(foregroundColor: cs.error),
-            child: Text(widget.confirmText),
+            child: Text(context.trLiteral(widget.confirmText)),
           ),
         ],
       ),
@@ -271,20 +279,22 @@ Future<bool?> showDbCopyRequiredDialog({
     context: context,
     barrierDismissible: barrierDismissible,
     builder: (dialogContext) => AlertDialog(
-      title: const Text('נדרשת בחירה כיצד לשמור את מסד הנתונים'),
+      title: Text(context.trLiteral('נדרשת בחירה כיצד לשמור את מסד הנתונים')),
       content: Text(
-        'גודל מסד הנתונים הוא $sizeText.\n\n'
-        'ניתן להעביר את הקובץ למיקום החדש, או להעתיק אותו ולהשאיר את המקור.',
-        textDirection: TextDirection.rtl,
+        context.isEnglishMode
+            ? 'The database size is $sizeText.\n\nYou can move the file to the new location, or copy it and keep the original.'
+            : 'גודל מסד הנתונים הוא $sizeText.\n\nניתן להעביר את הקובץ למיקום החדש, או להעתיק אותו ולהשאיר את המקור.',
+        textDirection:
+            context.isEnglishMode ? TextDirection.ltr : TextDirection.rtl,
       ),
       actions: [
         FilledButton.tonal(
           onPressed: () => Navigator.of(dialogContext).pop(false),
-          child: const Text('העתק'),
+          child: Text(context.trLiteral('העתק')),
         ),
         FilledButton(
           onPressed: () => Navigator.of(dialogContext).pop(true),
-          child: const Text('העבר'),
+          child: Text(context.trLiteral('העבר')),
         ),
       ],
     ),

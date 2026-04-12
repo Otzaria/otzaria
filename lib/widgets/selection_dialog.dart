@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/localization/app_localizations.dart';
 import 'package:otzaria/widgets/buttons/action_buttons.dart';
 import 'package:otzaria/widgets/mixins/dialog_navigation_mixin.dart';
 import 'package:otzaria/widgets/otzaria_search_field.dart';
@@ -72,8 +73,9 @@ class _SelectionDialogState<T> extends State<SelectionDialog<T>>
       child: AlertDialog(
         backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
         title: Text(
-          widget.title,
-          textDirection: TextDirection.rtl,
+          context.trLiteral(widget.title),
+          textDirection:
+              context.isEnglishMode ? TextDirection.ltr : TextDirection.rtl,
         ),
         content: SizedBox(
           width: 300,
@@ -83,15 +85,15 @@ class _SelectionDialogState<T> extends State<SelectionDialog<T>>
               OtzariaSearchField(
                 controller: _searchController,
                 focusNode: _searchFocusNode,
-                hintText: widget.searchHint,
+                hintText: context.trLiteral(widget.searchHint),
                 autofocus: true,
               ),
               const SizedBox(height: 8),
               Expanded(
                 child: filteredItems.isEmpty
-                    ? const ToolEmptyState(
+                    ? ToolEmptyState(
                         icon: FluentIcons.search_24_regular,
-                        message: 'לא נמצאו תוצאות',
+                        message: context.trLiteral('לא נמצאו תוצאות'),
                       )
                     : ListView.builder(
                         itemCount: filteredItems.length,
@@ -101,8 +103,10 @@ class _SelectionDialogState<T> extends State<SelectionDialog<T>>
 
                           return ListTile(
                             title: Text(
-                              item.label,
-                              textDirection: TextDirection.rtl,
+                              context.trLiteral(item.label),
+                              textDirection: context.isEnglishMode
+                                  ? TextDirection.ltr
+                                  : TextDirection.rtl,
                             ),
                             selected: isSelected,
                             trailing: isSelected

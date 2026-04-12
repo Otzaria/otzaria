@@ -220,7 +220,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                     appBar: AppBar(
                       backgroundColor: bgColor,
                       elevation: 0,
-                      title: const Text('הגדרות'),
+                      title: Text(context.t('settings.title')),
                     ),
                     body: ListView(
                       padding: const EdgeInsets.all(12),
@@ -316,7 +316,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                                 padding: const EdgeInsets.only(
                                     right: 12, left: 12, bottom: 20),
                                 child: Text(
-                                  'הגדרות',
+                                  context.t('settings.title'),
                                   style: Theme.of(context)
                                       .textTheme
                                       .headlineSmall
@@ -453,7 +453,7 @@ class _SettingsContentPaneState extends State<_SettingsContentPane> {
                 padding: const EdgeInsets.only(
                     top: 28, right: 16, left: 16, bottom: 4),
                 child: Text(
-                  widget.label,
+                  context.trLiteral(widget.label),
                   style: Theme.of(context)
                       .textTheme
                       .headlineMedium

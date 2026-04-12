@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/localization/app_localizations.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
 import 'package:otzaria/widgets/mixins/dialog_navigation_mixin.dart';
 
@@ -65,7 +66,7 @@ class _InputDialogState extends State<InputDialog> with DialogNavigationMixin {
       onCancel: () => Navigator.of(context).pop(),
       textFieldFocusNode: _textFieldFocusNode,
       child: AlertDialog(
-        title: Text(widget.title),
+        title: Text(context.trLiteral(widget.title)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -74,7 +75,7 @@ class _InputDialogState extends State<InputDialog> with DialogNavigationMixin {
               Padding(
                 padding: const EdgeInsets.only(bottom: 8.0),
                 child: Text(
-                  widget.subtitle!,
+                  context.trLiteral(widget.subtitle!),
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ),
@@ -84,8 +85,10 @@ class _InputDialogState extends State<InputDialog> with DialogNavigationMixin {
               keyboardType: widget.keyboardType,
               obscureText: widget.obscureText,
               decoration: InputDecoration(
-                labelText: widget.labelText,
-                hintText: widget.hintText,
+                labelText: context.trLiteral(widget.labelText),
+                hintText: widget.hintText == null
+                    ? null
+                    : context.trLiteral(widget.hintText!),
               ),
               onSubmitted: (_) => _submit(),
             ),
@@ -128,7 +131,7 @@ class _InputDialogState extends State<InputDialog> with DialogNavigationMixin {
               ? (color ?? Theme.of(context).primaryColor).withValues(alpha: 0.9)
               : null,
         ),
-        child: Text(text),
+        child: Text(context.trLiteral(text)),
       );
     } else {
       return TextButton(
@@ -138,7 +141,7 @@ class _InputDialogState extends State<InputDialog> with DialogNavigationMixin {
               ? Theme.of(context).primaryColor.withValues(alpha: 0.1)
               : null,
         ),
-        child: Text(text),
+        child: Text(context.trLiteral(text)),
       );
     }
   }
