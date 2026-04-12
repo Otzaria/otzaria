@@ -65,6 +65,8 @@ class SettingsRepository {
   static const String keyPersonalNotesCollapsedByDefault =
       'key-personal-notes-collapsed';
   static const String keyCompactMenuMode = 'key-compact-menu-mode';
+  static const String keyLanguageCode = 'key-language-code';
+  static const String keyShowEnglishBookNames = 'key-show-english-book-names';
 
   // Protected Mode Settings
   static const String keyProtectedModeEnabled = 'key-protected-mode-enabled';
@@ -254,6 +256,14 @@ class SettingsRepository {
       ),
       'compactMenuMode': _settings.getValue<bool>(
         keyCompactMenuMode,
+        defaultValue: false,
+      ),
+      'languageCode': _settings.getValue<String>(
+        keyLanguageCode,
+        defaultValue: 'he',
+      ),
+      'showEnglishBookNames': _settings.getValue<bool>(
+        keyShowEnglishBookNames,
         defaultValue: false,
       ),
 
@@ -474,6 +484,14 @@ class SettingsRepository {
 
   Future<void> updateCompactMenuMode(bool value) async {
     await _settings.setValue(keyCompactMenuMode, value);
+  }
+
+  Future<void> updateLanguageCode(String value) async {
+    await _settings.setValue(keyLanguageCode, value);
+  }
+
+  Future<void> updateShowEnglishBookNames(bool value) async {
+    await _settings.setValue(keyShowEnglishBookNames, value);
   }
 
   // Protected Mode
@@ -726,6 +744,9 @@ class SettingsRepository {
     await _settings.setValue(keyQueueErrorReportsWhenOffline, true);
     await _settings.setValue(keyAlignTabsToRight, false);
     await _settings.setValue(keyPersonalNotesCollapsedByDefault, true);
+    await _settings.setValue(keyCompactMenuMode, false);
+    await _settings.setValue(keyLanguageCode, 'he');
+    await _settings.setValue(keyShowEnglishBookNames, false);
 
     // Calendar Notification Settings
     await _settings.setValue(keyCalendarNotificationsEnabled, true);

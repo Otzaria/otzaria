@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/tools/calendar/ulits/calendar_cubit.dart';
+import 'package:otzaria/localization/app_localizations.dart';
 import 'package:otzaria/settings/tabs/settings_tabs_exports.dart';
 import 'package:otzaria/settings/services/safer_mode/protected_settings_wrapper.dart';
 import 'package:otzaria/widgets/keyboard_navigator.dart';
@@ -149,6 +150,28 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
     ),
   ];
 
+  List<({String label, IconData icon, Widget Function() pageBuilder})>
+      _localizedTabsData(BuildContext context) {
+    final labels = [
+      'settings.tab.design',
+      'settings.tab.text',
+      'settings.tab.library',
+      'settings.tab.tools',
+      'settings.tab.shortcuts',
+      'settings.tab.system',
+      'settings.tab.about',
+    ];
+
+    return [
+      for (var i = 0; i < _tabsData.length; i++)
+        (
+          label: context.t(labels[i]),
+          icon: _tabsData[i].icon,
+          pageBuilder: _tabsData[i].pageBuilder,
+        ),
+    ];
+  }
+
   // ── קבוצות למובייל ────────────────────────────────────────────────────────
   // כל קבוצה: (כותרת, רשימת אינדקסים מ-_tabsData)
   static const _mobileGroups = [
@@ -160,12 +183,26 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final tabsData = _localizedTabsData(context);
+    final mobileGroupLabels = [
+      'settings.group.displayContent',
+      'settings.group.tools',
+      'settings.group.system',
+    ];
+    final mobileGroups = [
+      for (var i = 0; i < _mobileGroups.length; i++)
+        (
+          label: context.t(mobileGroupLabels[i]),
+          indices: _mobileGroups[i].indices,
+        ),
+    ];
     // panelBackground מוגדר ב-AppSurfaces ומשמש גם ספריה, כלים, והגדרות
     final bgColor = AppSurfaces.panelBackground(context);
 
     return ProtectedSettingsWrapper(
       child: Directionality(
-        textDirection: TextDirection.rtl,
+        textDirection:
+            context.isEnglishMode ? TextDirection.ltr : TextDirection.rtl,
         child: LayoutBuilder(
           builder: (context, constraints) {
             final isMobile = constraints.maxWidth < LayoutBreakpoints.compact;
@@ -175,7 +212,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
               if (_showMobileMenu) {
                 return KeyboardNavigator(
                   currentTabIndex: _selectedIndex,
-                  totalTabs: _tabsData.length,
+                  totalTabs: tabsData.length,
                   onTabChange: (i) => setState(() => _selectedIndex = i),
                   onBack: null,
                   child: Scaffold(
@@ -188,15 +225,15 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                     body: ListView(
                       padding: const EdgeInsets.all(12),
                       children: [
-                        for (final group in _mobileGroups) ...[
+                        for (final group in mobileGroups) ...[
                           SettingsCard(
                             title: group.label,
                             children: [
                               for (final idx in group.indices)
                                 ListTile(
-                                  leading: Icon(_tabsData[idx].icon,
+                                  leading: Icon(tabsData[idx].icon,
                                       color: colorScheme.primary),
-                                  title: Text(_tabsData[idx].label),
+                                  title: Text(tabsData[idx].label),
                                   trailing: const Icon(Icons.chevron_left),
                                   onTap: () {
                                     setState(() {
@@ -216,7 +253,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
               } else {
                 return KeyboardNavigator(
                   currentTabIndex: _selectedIndex,
-                  totalTabs: _tabsData.length,
+                  totalTabs: tabsData.length,
                   onTabChange: _changeTab,
                   onBack: () => setState(() => _showMobileMenu = true),
                   child: Scaffold(
@@ -224,7 +261,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                     appBar: AppBar(
                       backgroundColor: bgColor,
                       elevation: 0,
-                      title: Text(_tabsData[_selectedIndex].label),
+                      title: Text(tabsData[_selectedIndex].label),
                       leading: Tooltip(
                         message: 'חזור (Backspace)',
                         child: IconButton(
@@ -234,7 +271,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                         ),
                       ),
                     ),
-                    body: _tabsData[_selectedIndex].pageBuilder(),
+                    body: tabsData[_selectedIndex].pageBuilder(),
                   ),
                 );
               }
@@ -243,7 +280,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
             // ── מצב דסקטופ: KeyboardNavigator + sidebar + תוכן ──────────
             return KeyboardNavigator(
               currentTabIndex: _selectedIndex,
-              totalTabs: _tabsData.length,
+              totalTabs: tabsData.length,
               onTabChange: _changeTab,
               onBack: null,
               child: Scaffold(
@@ -288,7 +325,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                               ),
                               Expanded(
                                 child: ListView.builder(
-                                  itemCount: _tabsData.length,
+                                  itemCount: tabsData.length,
                                   itemBuilder: (context, index) {
                                     final isSelected = _selectedIndex == index;
                                     return Padding(
@@ -310,7 +347,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                                             child: Row(
                                               children: [
                                                 Icon(
-                                                  _tabsData[index].icon,
+                                                  tabsData[index].icon,
                                                   size: 20,
                                                   color: isSelected
                                                       ? colorScheme.primary
@@ -320,7 +357,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                                                 const SizedBox(width: 10),
                                                 Expanded(
                                                   child: Text(
-                                                    _tabsData[index].label,
+                                                    tabsData[index].label,
                                                     style: TextStyle(
                                                       fontSize: 14,
                                                       fontWeight: isSelected
@@ -353,10 +390,10 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                           controller: _contentScrollController,
                           child: _SettingsContentPane(
                             key: ValueKey(_selectedIndex),
-                            label: _tabsData[_selectedIndex].label,
+                            label: tabsData[_selectedIndex].label,
                             bgColor: bgColor,
                             focusNode: _contentFocusNode,
-                            child: _tabsData[_selectedIndex].pageBuilder(),
+                            child: tabsData[_selectedIndex].pageBuilder(),
                           ),
                         ),
                       ),

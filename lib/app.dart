@@ -6,6 +6,7 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:otzaria/localization/app_localizations.dart';
 import 'package:otzaria/navigation/main_window_screen.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:window_manager/window_manager.dart';
@@ -51,14 +52,16 @@ class App extends StatelessWidget {
           navigatorKey: navigatorKey,
           scaffoldMessengerKey: scaffoldMessengerKey,
           localizationsDelegates: const [
+            AppLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
           ],
-          supportedLocales: const [
-            Locale("he", "IL"),
-          ],
-          locale: const Locale("he", "IL"),
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: state.languageCode == 'en'
+              ? const Locale('en', 'US')
+              : const Locale('he', 'IL'),
+          onGenerateTitle: (context) => context.t('app.title'),
           title: 'אוצריא',
           theme: AppThemeData.light(lightColorScheme,
               compactMenuMode: state.compactMenuMode),

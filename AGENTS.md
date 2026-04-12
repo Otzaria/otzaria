@@ -497,7 +497,8 @@ if (Platform.isAndroid || Platform.isIOS) {
 12. **Test coverage** - Add/update tests for every code change
 13. **Documentation** - Document all public APIs in Hebrew
 14. **Cross-platform** - Code must work on all supported platforms
-15. **Pre-commit trinity** - `analyze` + `test` + `format` = mandatory
+15. **Translations** - Every new user-facing text must be added to the ARB translation files in `lib/l10n/` and used through the generated localization layer
+16. **Pre-commit trinity** - `analyze` + `test` + `format` = mandatory
 
 ### Common Mistakes to Avoid
 - Fixing a bug by adding code instead of finding and removing the root cause
@@ -513,6 +514,7 @@ if (Platform.isAndroid || Platform.isIOS) {
 - Using hardcoded colors instead of `Theme.of(context).colorScheme`
 - Not removing hover effects from ListTile rows with action buttons
 - Forgetting `textDirection: TextDirection.rtl` on Hebrew text
+- Adding user-facing text without updating the matching ARB translations in `lib/l10n/`
 - Skipping `flutter analyze` before committing
 - Running full test suite instead of relevant tests
 - Formatting entire project instead of modified files

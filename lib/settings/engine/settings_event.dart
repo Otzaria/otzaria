@@ -353,6 +353,24 @@ class UpdateCompactMenuMode extends SettingsEvent {
   List<Object?> get props => [compactMenuMode];
 }
 
+class UpdateLanguageCode extends SettingsEvent {
+  final String languageCode;
+
+  const UpdateLanguageCode(this.languageCode);
+
+  @override
+  List<Object?> get props => [languageCode];
+}
+
+class UpdateShowEnglishBookNames extends SettingsEvent {
+  final bool showEnglishBookNames;
+
+  const UpdateShowEnglishBookNames(this.showEnglishBookNames);
+
+  @override
+  List<Object?> get props => [showEnglishBookNames];
+}
+
 class UpdateProtectedModeEnabled extends SettingsEvent {
   final bool enabled;
 

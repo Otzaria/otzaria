@@ -146,6 +146,34 @@ void main() {
       );
     });
 
+    group('UpdateLanguageCode', () {
+      blocTest<SettingsBloc, SettingsState>(
+        'emits updated state when UpdateLanguageCode is added',
+        build: () => settingsBloc,
+        act: (bloc) => bloc.add(const UpdateLanguageCode('en')),
+        expect: () => [
+          settingsBloc.state.copyWith(languageCode: 'en'),
+        ],
+        verify: (_) {
+          verify(mockRepository.updateLanguageCode('en')).called(1);
+        },
+      );
+    });
+
+    group('UpdateShowEnglishBookNames', () {
+      blocTest<SettingsBloc, SettingsState>(
+        'emits updated state when UpdateShowEnglishBookNames is added',
+        build: () => settingsBloc,
+        act: (bloc) => bloc.add(const UpdateShowEnglishBookNames(true)),
+        expect: () => [
+          settingsBloc.state.copyWith(showEnglishBookNames: true),
+        ],
+        verify: (_) {
+          verify(mockRepository.updateShowEnglishBookNames(true)).called(1);
+        },
+      );
+    });
+
     group('UpdateFollowSystemTheme', () {
       blocTest<SettingsBloc, SettingsState>(
         'emits updated state when UpdateFollowSystemTheme is added',

@@ -54,6 +54,8 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     on<UpdatePersonalNotesCollapsedByDefault>(
         _onUpdatePersonalNotesCollapsedByDefault);
     on<UpdateCompactMenuMode>(_onUpdateCompactMenuMode);
+    on<UpdateLanguageCode>(_onUpdateLanguageCode);
+    on<UpdateShowEnglishBookNames>(_onUpdateShowEnglishBookNames);
     on<UpdateProtectedModeEnabled>(_onUpdateProtectedModeEnabled);
     on<UpdateProtectedModePassword>(_onUpdateProtectedModePassword);
   }
@@ -111,6 +113,8 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       personalNotesCollapsedByDefault:
           settings['personalNotesCollapsedByDefault'] ?? true,
       compactMenuMode: settings['compactMenuMode'] ?? false,
+      languageCode: settings['languageCode'] ?? 'he',
+      showEnglishBookNames: settings['showEnglishBookNames'] ?? false,
       protectedModeEnabled: settings['protectedModeEnabled'] ?? false,
     ));
   }
@@ -179,6 +183,22 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   ) async {
     await _repository.updateCompactMenuMode(event.compactMenuMode);
     emit(state.copyWith(compactMenuMode: event.compactMenuMode));
+  }
+
+  Future<void> _onUpdateLanguageCode(
+    UpdateLanguageCode event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateLanguageCode(event.languageCode);
+    emit(state.copyWith(languageCode: event.languageCode));
+  }
+
+  Future<void> _onUpdateShowEnglishBookNames(
+    UpdateShowEnglishBookNames event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateShowEnglishBookNames(event.showEnglishBookNames);
+    emit(state.copyWith(showEnglishBookNames: event.showEnglishBookNames));
   }
 
   Future<void> _onUpdateProtectedModeEnabled(

@@ -1,0 +1,23 @@
+{
+  "@@locale": "he",
+  "appTitle": "אוצריא",
+  "settingsTitle": "הגדרות",
+  "settingsBack": "חזור (Backspace)",
+  "settingsTabDesign": "מראה",
+  "settingsTabText": "כתב",
+  "settingsTabLibrary": "ספריה",
+  "settingsTabTools": "כלים",
+  "settingsTabShortcuts": "קיצורים",
+  "settingsTabSystem": "מערכת",
+  "settingsTabAbout": "אודות",
+  "settingsGroupDisplayContent": "תצוגה ותוכן",
+  "settingsGroupTools": "כלים",
+  "settingsGroupSystem": "מערכת",
+  "settingsLanguageCardTitle": "שפה",
+  "settingsLanguageTitle": "שפת ממשק",
+  "settingsLanguageSubtitleHe": "הממשק מוצג בעברית",
+  "settingsLanguageSubtitleEn": "הממשק מוצג באנגלית",
+  "settingsLanguageHebrew": "עברית",
+  "settingsLanguageEnglish": "English",
+  "settingsLanguageRestartHint": "חלק מהמסכים יתעדכנו מיד, וטקסטים שעדיין לא הועברו לקובץ התרגום יישארו בעברית."
+}

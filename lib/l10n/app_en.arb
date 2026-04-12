@@ -1,0 +1,23 @@
+{
+  "@@locale": "en",
+  "appTitle": "Otzaria",
+  "settingsTitle": "Settings",
+  "settingsBack": "Back (Backspace)",
+  "settingsTabDesign": "Appearance",
+  "settingsTabText": "Text",
+  "settingsTabLibrary": "Library",
+  "settingsTabTools": "Tools",
+  "settingsTabShortcuts": "Shortcuts",
+  "settingsTabSystem": "System",
+  "settingsTabAbout": "About",
+  "settingsGroupDisplayContent": "Display and Content",
+  "settingsGroupTools": "Tools",
+  "settingsGroupSystem": "System",
+  "settingsLanguageCardTitle": "Language",
+  "settingsLanguageTitle": "Interface Language",
+  "settingsLanguageSubtitleHe": "The interface is shown in Hebrew",
+  "settingsLanguageSubtitleEn": "The interface is shown in English",
+  "settingsLanguageHebrew": "עברית",
+  "settingsLanguageEnglish": "English",
+  "settingsLanguageRestartHint": "Some screens update immediately. Text that has not been moved to localization yet will stay in Hebrew."
+}

@@ -14,6 +14,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
+import 'package:otzaria/localization/app_localizations.dart';
 import 'package:otzaria/settings/services/safer_mode/password_verification_dialog.dart';
 import 'package:otzaria/settings/services/safer_mode/protected_settings_wrapper.dart';
 import 'package:otzaria/settings/services/backup_service.dart';
@@ -297,6 +298,8 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // 1. גרסאות + נתיב ספרייה
+                _buildLanguageSection(context, state),
+                kSettingsCardSpacing,
                 _buildVersionAndPathSection(context, state),
 
                 // 2. עדכוני מערכת (רשת + עדכון מפתחים)
@@ -324,6 +327,42 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
   // ════════════════════════════════════════════════════════════════════════════
   //  2. עדכוני מערכת (רשת + עדכון מפתחים)
   // ════════════════════════════════════════════════════════════════════════════
+
+  Widget _buildLanguageSection(BuildContext context, SettingsState state) {
+    return SettingsCard(
+      title: context.t('settings.language.cardTitle'),
+      children: [
+        SegmentedSettingsTile<String>(
+          icon: FluentIcons.local_language_24_regular,
+          title: context.t('settings.language.title'),
+          subtitle: state.languageCode == 'en'
+              ? context.t('settings.language.subtitle.en')
+              : context.t('settings.language.subtitle.he'),
+          options: [
+            SegmentOption<String>(
+              value: 'he',
+              label: context.t('settings.language.hebrew'),
+            ),
+            SegmentOption<String>(
+              value: 'en',
+              label: context.t('settings.language.english'),
+            ),
+          ],
+          currentValue: state.languageCode,
+          onChanged: (value) {
+            context.read<SettingsBloc>().add(UpdateLanguageCode(value));
+          },
+        ),
+        ListTile(
+          leading: const Icon(FluentIcons.info_24_regular),
+          title: Text(
+            context.t('settings.language.restartHint'),
+            style: kSettingsSubtitleStyle,
+          ),
+        ),
+      ],
+    );
+  }
 
   Widget _buildSystemUpdatesSection(BuildContext context, SettingsState state) {
     return SettingsCard(
