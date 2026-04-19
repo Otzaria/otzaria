@@ -1,0 +1,219 @@
+name: Deploy Android to Google Play
+
+on:
+  workflow_dispatch:
+    inputs:
+      git_ref:
+        description: Git ref to build and publish to Google Play (branch or tag)
+        required: false
+        default: main
+        type: string
+
+  release:
+    types:
+      - published
+
+permissions:
+  contents: read
+
+concurrency:
+  group: google-play-production-${{ github.event.inputs.git_ref || github.event.release.tag_name || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy_play:
+    name: Build and publish to Google Play production
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      RUSTUP_HOME: ${{ github.workspace }}/.rustup
+      CARGO_HOME: ${{ github.workspace }}/.cargo
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.git_ref || github.event.release.tag_name || github.ref }}
+
+      - name: Free up disk space
+        run: |
+          echo "Disk space before cleanup:"
+          df -h
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          echo "Disk space after cleanup:"
+          df -h
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Add cargo to PATH & verify toolchain
+        run: |
+          echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
+          rustc -Vv
+          cargo -V
+          rustup show
+
+      - name: Cache Rust
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.CARGO_HOME }}/registry
+            ${{ env.CARGO_HOME }}/git
+            ${{ env.RUSTUP_HOME }}
+          key: ${{ runner.os }}-rust-android-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-rust-android-
+
+      - name: Pre-install Android Rust targets (with retry)
+        run: |
+          set -e
+          install_target_with_retry() {
+            local target=$1
+            local max_attempts=3
+            local attempt=1
+
+            while [ $attempt -le $max_attempts ]; do
+              echo "Installing $target (attempt $attempt/$max_attempts)..."
+              if rustup target add --toolchain stable "$target"; then
+                echo "Successfully installed $target"
+                return 0
+              fi
+
+              echo "Failed to install $target, cleaning up..."
+              rm -rf ~/.rustup/downloads/*.partial || true
+              rm -rf ~/.rustup/tmp/* || true
+
+              attempt=$((attempt + 1))
+              if [ $attempt -le $max_attempts ]; then
+                echo "Waiting 10 seconds before retry..."
+                sleep 10
+              fi
+            done
+
+            echo "::error::Failed to install $target after $max_attempts attempts"
+            return 1
+          }
+
+          install_target_with_retry "armv7-linux-androideabi"
+          install_target_with_retry "aarch64-linux-android"
+          install_target_with_retry "x86_64-linux-android"
+          install_target_with_retry "i686-linux-android"
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Cache Pub
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      - name: Create Google Calendar Credentials
+        shell: bash
+        run: |
+          CLIENT_ID='${{ secrets.GOOGLE_CALENDAR_CLIENT_ID }}'
+          CLIENT_SECRET='${{ secrets.GOOGLE_CALENDAR_CLIENT_SECRET }}'
+          if [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ]; then
+            echo "::error::Google Calendar secrets are missing. Please set GOOGLE_CALENDAR_CLIENT_ID and GOOGLE_CALENDAR_CLIENT_SECRET."
+            exit 1
+          fi
+          cat > lib/tools/calendar/services/google_calendar_credentials.dart << EOF
+          class GoogleCalendarCredentials {
+            static const String clientId = '$CLIENT_ID';
+            static const String clientSecret = '$CLIENT_SECRET';
+          }
+          EOF
+          echo "Google Calendar credentials file created"
+
+      - name: Setup Android signing
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/android/app/keystore/otzaria-keystore.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -e
+          mkdir -p android/app/keystore
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/keystore/otzaria-keystore.jks
+          chmod 600 android/app/keystore/otzaria-keystore.jks
+
+          if [ ! -f android/app/keystore/otzaria-keystore.jks ]; then
+            echo "::error::Keystore file was not created!"
+            exit 1
+          fi
+
+          echo "Keystore prepared successfully"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+
+      - name: Gradle performance flags
+        run: |
+          mkdir -p ~/.gradle
+          cat >> ~/.gradle/gradle.properties << 'EOF'
+          org.gradle.daemon=true
+          org.gradle.parallel=true
+          org.gradle.caching=true
+          org.gradle.jvmargs=-Xmx4g -Dfile.encoding=UTF-8
+          kotlin.incremental=true
+          EOF
+
+      - name: Ensure Android SDK Platform 36
+        run: |
+          set -e
+          if [ ! -d "${ANDROID_SDK_ROOT}/platforms/android-36" ]; then
+            ${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-36"
+          fi
+          if [ ! -d "${ANDROID_SDK_ROOT}/build-tools/36.0.0" ]; then
+            ${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager --install "build-tools;36.0.0"
+          fi
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Remove PDFium WASM modules
+        run: dart run pdfrx:remove_wasm_modules
+
+      - name: Build Android App Bundle
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/android/app/keystore/otzaria-keystore.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: flutter build appbundle --release
+
+      - name: Upload to Google Play Production
+        uses: r0adkll/upload-google-play@v1.1.3
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: org.otzaria.otzaria
+          releaseFiles: build/app/outputs/bundle/release/app-release.aab
+          tracks: production
+          status: completed
