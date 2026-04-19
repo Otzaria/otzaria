@@ -2,12 +2,6 @@ name: Deploy Android to Google Play
 
 on:
   workflow_dispatch:
-    inputs:
-      git_ref:
-        description: Git ref to build and publish to Google Play (branch or tag)
-        required: false
-        default: main
-        type: string
 
   release:
     types:
@@ -17,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: google-play-production-${{ github.event.inputs.git_ref || github.event.release.tag_name || github.ref }}
+  group: google-play-production-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -32,7 +26,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.git_ref || github.event.release.tag_name || github.ref }}
+          ref: ${{ github.ref }}
 
       - name: Free up disk space
         run: |
@@ -215,5 +209,5 @@ jobs:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: org.otzaria.otzaria
           releaseFiles: build/app/outputs/bundle/release/app-release.aab
-          tracks: production
+          track: production
           status: completed
