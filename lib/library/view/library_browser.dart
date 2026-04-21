@@ -28,14 +28,12 @@ import 'package:otzaria/library/view/grid_items.dart';
 import 'package:otzaria/library/view/otzar_book_dialog.dart';
 import 'package:otzaria/library/view/book_preview_panel.dart';
 import 'package:otzaria/library/view/library_panel_controller.dart';
-import 'package:otzaria/settings/panels/library_settings_panel.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/app_top_bar.dart';
 import 'package:otzaria/widgets/responsive_action_bar.dart';
 import 'package:otzaria/utils/open_book.dart';
 import 'package:otzaria/widgets/adaptive_side_pane.dart';
 import 'package:otzaria/widgets/context_overlay_panel.dart';
-
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
@@ -138,7 +136,6 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       togglePreviewPanel: _togglePreviewPanel,
     );
   }
-
 
   @override
   void initState() {
@@ -736,44 +733,44 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   ActionButtonData _buildSyncActionButton({required bool compact}) {
     return ActionButtonData(
       widget: BlocConsumer<FileSyncBloc, FileSyncState>(
-          listener: (ctx, s) {
-            if ((s.status == FileSyncStatus.completed ||
-                    s.status == FileSyncStatus.error) &&
-                s.hasNewSync) {
-              ctx.read<LibraryBloc>().add(RefreshLibrary());
-            }
-          },
-          builder: (ctx, syncState) {
-            final isSyncing = syncState.status == FileSyncStatus.syncing;
-            final icon = syncState.status == FileSyncStatus.completed
-                ? FluentIcons.checkmark_circle_24_regular
-                : FluentIcons.arrow_sync_24_regular;
-            final tooltip = switch (syncState.status) {
-              FileSyncStatus.syncing => 'עצור סינכרון',
-              FileSyncStatus.completed =>
-                syncState.hasNewSync ? 'סנכרון הושלם' : 'אין עדכונים חדשים',
-              FileSyncStatus.error => 'שגיאה בסינכרון - לחץ לנסות שוב',
-              FileSyncStatus.initial => 'סינכרון',
-            };
-            return ToolbarActionButton(
-              compact: compact,
-              tooltip: tooltip,
-              icon: icon,
-              selected: isSyncing,
-              onPressed: () {
-                final b = ctx.read<FileSyncBloc>();
-                switch (syncState.status) {
-                  case FileSyncStatus.syncing:
-                    b.add(const StopSync());
-                  case FileSyncStatus.completed:
-                  case FileSyncStatus.error:
-                    b.add(const ResetState());
-                  case FileSyncStatus.initial:
-                    b.add(const StartSync());
-                }
-              },
-            );
-          },
+        listener: (ctx, s) {
+          if ((s.status == FileSyncStatus.completed ||
+                  s.status == FileSyncStatus.error) &&
+              s.hasNewSync) {
+            ctx.read<LibraryBloc>().add(RefreshLibrary());
+          }
+        },
+        builder: (ctx, syncState) {
+          final isSyncing = syncState.status == FileSyncStatus.syncing;
+          final icon = syncState.status == FileSyncStatus.completed
+              ? FluentIcons.checkmark_circle_24_regular
+              : FluentIcons.arrow_sync_24_regular;
+          final tooltip = switch (syncState.status) {
+            FileSyncStatus.syncing => 'עצור סינכרון',
+            FileSyncStatus.completed =>
+              syncState.hasNewSync ? 'סנכרון הושלם' : 'אין עדכונים חדשים',
+            FileSyncStatus.error => 'שגיאה בסינכרון - לחץ לנסות שוב',
+            FileSyncStatus.initial => 'סינכרון',
+          };
+          return ToolbarActionButton(
+            compact: compact,
+            tooltip: tooltip,
+            icon: icon,
+            selected: isSyncing,
+            onPressed: () {
+              final b = ctx.read<FileSyncBloc>();
+              switch (syncState.status) {
+                case FileSyncStatus.syncing:
+                  b.add(const StopSync());
+                case FileSyncStatus.completed:
+                case FileSyncStatus.error:
+                  b.add(const ResetState());
+                case FileSyncStatus.initial:
+                  b.add(const StartSync());
+              }
+            },
+          );
+        },
       ),
       icon: FluentIcons.arrow_sync_24_regular,
       tooltip: 'סינכרון',
