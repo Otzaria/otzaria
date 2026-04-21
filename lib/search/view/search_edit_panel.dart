@@ -10,7 +10,7 @@ import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/view/advanced_search_controls.dart';
 import 'package:otzaria/search/view/category_tree_selector.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
-import 'package:otzaria/widgets/custom_ui_components.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
 
 /// פאנל עריכת חיפוש - מופיע מתחת לשורת "מוצגות תוצאות של..."

@@ -8,7 +8,7 @@ import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/view/plugin_settings_screen.dart';
-import 'package:otzaria/widgets/custom_ui_components.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 
 class PluginDevErrorView extends StatelessWidget {
   final InstalledPlugin plugin;
@@ -56,7 +56,8 @@ class PluginDevErrorView extends StatelessWidget {
               ),
               child: Text(
                 errorMessage,
-                style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer),
+                style: TextStyle(
+                    color: Theme.of(context).colorScheme.onErrorContainer),
                 textDirection: TextDirection.ltr,
               ),
             ),
@@ -67,18 +68,24 @@ class PluginDevErrorView extends StatelessWidget {
                 RecommendedActionButton(
                   text: 'נסה קריאה מחדש',
                   onPressed: () {
-                    context.read<PluginSystemBloc>().add(ReloadDevelopmentPluginRequested(plugin.pluginId));
+                    context
+                        .read<PluginSystemBloc>()
+                        .add(ReloadDevelopmentPluginRequested(plugin.pluginId));
                   },
                 ),
                 const SizedBox(width: 16),
                 NeutralActionButton(
                   text: 'הגדרות תוסף',
                   onPressed: () async {
-                    final result = await Navigator.of(context).push(MaterialPageRoute(
-                      builder: (context) => PluginSettingsScreen(plugin: plugin),
+                    final result =
+                        await Navigator.of(context).push(MaterialPageRoute(
+                      builder: (context) =>
+                          PluginSettingsScreen(plugin: plugin),
                     ));
                     if (result == true && context.mounted) {
-                      context.read<NavigationBloc>().add(const NavigateToScreen(Screen.more));
+                      context
+                          .read<NavigationBloc>()
+                          .add(const NavigateToScreen(Screen.more));
                     }
                   },
                 ),

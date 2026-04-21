@@ -3,7 +3,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:logging/logging.dart';
 import 'package:otzaria/core/ui_snack.dart';
-import 'package:otzaria/widgets/custom_ui_components.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 import '../providers/shamor_zachor_data_provider.dart';
 import '../providers/shamor_zachor_progress_provider.dart';
 import '../models/book_model.dart';
@@ -49,6 +49,7 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
     return _locallyRemovedBookKeys
         .contains(_bookLocalKey(category, bookName, details));
   }
+
   @override
   Widget build(BuildContext context) {
     if (widget.category == null &&
@@ -273,20 +274,20 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
           final category = book['category'] as String;
           final categoryPath = book['categoryPath'] as String?;
 
-        return BookCardWidget(
-          key: ValueKey('${details.id ?? 'no-id'}::$category::$name'),
-          topLevelCategoryKey: category,
-          categoryName: categoryPath ?? widget.categoryName ?? '',
-          bookName: name,
-          bookDetails: details,
-          onTap: () {
-            widget.onBookSelected(category, name, details);
-          },
-          onDelete: details.isCustom
-              ? () => _confirmRemoveBook(context, name, details)
-              : null,
-        );
-      },
+          return BookCardWidget(
+            key: ValueKey('${details.id ?? 'no-id'}::$category::$name'),
+            topLevelCategoryKey: category,
+            categoryName: categoryPath ?? widget.categoryName ?? '',
+            bookName: name,
+            bookDetails: details,
+            onTap: () {
+              widget.onBookSelected(category, name, details);
+            },
+            onDelete: details.isCustom
+                ? () => _confirmRemoveBook(context, name, details)
+                : null,
+          );
+        },
       ),
     );
   }
