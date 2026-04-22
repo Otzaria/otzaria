@@ -149,29 +149,187 @@ begin
   end;
 end;
 
-function WebView2NeedsInstall: Boolean;
+// ─── בדיקות רכיבי מערכת ───────────────────────────────────────────────────
+
+function GetVCVersion: String;
 var
   Version: String;
 begin
-  // בדיקת WebView2 Runtime — נדרש על ידי flutter_inappwebview_windows
-  // ב-Windows 11 וב-Windows 10 עם Edge עדכני הוא כבר קיים
-  Result := not RegQueryStringValue(HKLM64,
-    'SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
-    'pv', Version);
-  if Result then
-    Result := not RegQueryStringValue(HKCU,
+  if RegQueryStringValue(HKLM64,
+      'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64',
+      'Version', Version) then
+    Result := Version
+  else
+    Result := '';
+end;
+
+function GetWebView2Version: String;
+var
+  Version: String;
+begin
+  if RegQueryStringValue(HKLM64,
+      'SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
+      'pv', Version) then
+  begin
+    Result := Version;
+    exit;
+  end;
+  if RegQueryStringValue(HKCU,
       'SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
-      'pv', Version);
+      'pv', Version) then
+    Result := Version
+  else
+    Result := '';
 end;
 
 function VCRedistNeedsInstall: Boolean;
-var
-  Version: String;
 begin
-  // בדיקת Visual C++ 2015-2022 Redistributable x64 (גרסה 14.x)
-  Result := not RegQueryStringValue(HKLM64,
-    'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64',
-    'Version', Version);
+  Result := GetVCVersion = '';
+end;
+
+function WebView2NeedsInstall: Boolean;
+begin
+  Result := GetWebView2Version = '';
+end;
+
+// ─── משתנים גלובליים לבחירת רכיבים ────────────────────────────────────────
+
+var
+  CompPage: TWizardPage;
+  VCCheck, WV2Check: TCheckBox;
+  VCLabel, WV2Label: TLabel;
+  InstallVC, InstallWV2: Boolean;
+
+// ─── בניית עמוד בחירת רכיבים ───────────────────────────────────────────────
+
+procedure CreateComponentsPage;
+var
+  VCVersion, WV2Version: String;
+  VCStatus, WV2Status: String;
+  VCColor, WV2Color: TColor;
+  TopY: Integer;
+  HeaderLabel: TLabel;
+begin
+  CompPage := CreateCustomPage(wpSelectDir,
+    'בחירת רכיבי מערכת להתקנה',
+    'בדיקת הרכיבים הנדרשים לאפליקציה');
+
+  VCVersion  := GetVCVersion;
+  WV2Version := GetWebView2Version;
+
+  // כותרת הסבר
+  HeaderLabel := TLabel.Create(CompPage);
+  HeaderLabel.Parent := CompPage.Surface;
+  HeaderLabel.Left   := 0;
+  HeaderLabel.Top    := 0;
+  HeaderLabel.Width  := CompPage.SurfaceWidth;
+  HeaderLabel.AutoSize := False;
+  HeaderLabel.WordWrap := True;
+  HeaderLabel.Caption :=
+    'להלן רכיבי המערכת הנדרשים לפעולת אוצריא.' + #13#10 +
+    'רכיבים המסומנים באדום חסרים ונדרשים להתקנה. ' +
+    'רכיבים ירוקים קיימים ואינם דורשים פעולה.';
+  HeaderLabel.Height := 40;
+
+  TopY := 55;
+
+  // ─── Visual C++ Runtime ───────────────────────────────────────────────────
+  VCCheck := TCheckBox.Create(CompPage);
+  VCCheck.Parent  := CompPage.Surface;
+  VCCheck.Left    := 0;
+  VCCheck.Top     := TopY;
+  VCCheck.Width   := CompPage.SurfaceWidth;
+  VCCheck.Caption := 'Visual C++ Redistributable 2022 (x64)';
+
+  if VCVersion = '' then
+  begin
+    VCStatus := '⚠ חסר — נדרשת התקנה! ללא רכיב זה האפליקציה לא תפעל.';
+    VCColor  := clRed;
+    VCCheck.Checked := True;
+    VCCheck.Enabled := False;  // חובה — לא ניתן לבטל
+  end
+  else
+  begin
+    VCStatus := '✓ קיים (גרסה: ' + VCVersion + ') — לא נדרשת פעולה.';
+    VCColor  := $006400;  // ירוק כהה
+    VCCheck.Checked := False;
+    VCCheck.Enabled := True;
+  end;
+
+  VCLabel := TLabel.Create(CompPage);
+  VCLabel.Parent   := CompPage.Surface;
+  VCLabel.Left     := 20;
+  VCLabel.Top      := TopY + 22;
+  VCLabel.Width    := CompPage.SurfaceWidth - 20;
+  VCLabel.AutoSize := False;
+  VCLabel.WordWrap := True;
+  VCLabel.Caption  := VCStatus;
+  VCLabel.Font.Color := VCColor;
+  VCLabel.Height   := 30;
+
+  TopY := TopY + 70;
+
+  // ─── WebView2 Runtime ─────────────────────────────────────────────────────
+  WV2Check := TCheckBox.Create(CompPage);
+  WV2Check.Parent  := CompPage.Surface;
+  WV2Check.Left    := 0;
+  WV2Check.Top     := TopY;
+  WV2Check.Width   := CompPage.SurfaceWidth;
+  WV2Check.Caption := 'Microsoft WebView2 Runtime';
+
+  if WV2Version = '' then
+  begin
+    WV2Status := '⚠ חסר — נדרשת התקנה! ללא רכיב זה תצוגת דפי עזרה לא תפעל.';
+    WV2Color  := clRed;
+    WV2Check.Checked := True;
+    WV2Check.Enabled := False;  // חובה — לא ניתן לבטל
+  end
+  else
+  begin
+    WV2Status := '✓ קיים (גרסה: ' + WV2Version + ') — לא נדרשת פעולה.';
+    WV2Color  := $006400;
+    WV2Check.Checked := False;
+    WV2Check.Enabled := True;
+  end;
+
+  WV2Label := TLabel.Create(CompPage);
+  WV2Label.Parent   := CompPage.Surface;
+  WV2Label.Left     := 20;
+  WV2Label.Top      := TopY + 22;
+  WV2Label.Width    := CompPage.SurfaceWidth - 20;
+  WV2Label.AutoSize := False;
+  WV2Label.WordWrap := True;
+  WV2Label.Caption  := WV2Status;
+  WV2Label.Font.Color := WV2Color;
+  WV2Label.Height   := 30;
+end;
+
+function ShouldInstallVC: Boolean;
+begin
+  Result := InstallVC;
+end;
+
+function ShouldInstallWV2: Boolean;
+begin
+  Result := InstallWV2;
+end;
+
+procedure InitializeWizard;
+begin
+  // אתחול ברירות מחדל: מתקין רק אם חסר
+  InstallVC  := VCRedistNeedsInstall;
+  InstallWV2 := WebView2NeedsInstall;
+  CreateComponentsPage;
+end;
+
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  // עדכון הבחירות בעת מעבר מדף הרכיבים
+  if (CurPageID = wpSelectDir) and (CompPage <> nil) then
+  begin
+    InstallVC  := VCCheck.Checked;
+    InstallWV2 := WV2Check.Checked;
+  end;
 end;
 
 procedure ExtractBundledDatabase(const ArchiveName, DatabaseName: String);
@@ -310,8 +468,8 @@ begin
 end;
 
 [Run]
-Filename: "{tmp}\vc_redist.x64.exe"; Parameters: "/install /quiet /norestart"; StatusMsg: "מתקין Visual C++ Redistributable 2022..."; Flags: waituntilterminated; Check: VCRedistNeedsInstall
-Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "מתקין Microsoft WebView2 Runtime..."; Flags: waituntilterminated; Check: WebView2NeedsInstall
+Filename: "{tmp}\vc_redist.x64.exe"; Parameters: "/install /quiet /norestart"; StatusMsg: "מתקין Visual C++ Redistributable 2022..."; Flags: waituntilterminated; Check: ShouldInstallVC
+Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "מתקין Microsoft WebView2 Runtime..."; Flags: waituntilterminated; Check: ShouldInstallWV2
 Filename: "{app}\{#MyAppExeName}"; Description: "הפעל את {#MyAppName}"; Flags: nowait postinstall skipifsilent
 
 [Icons]
