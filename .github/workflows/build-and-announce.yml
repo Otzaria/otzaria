@@ -253,21 +253,19 @@ jobs:
             exit 1
           }
 
-      - name: Download Visual C++ Redistributable for full installer
+      - name: Download dependencies for full installer
         if: true
         shell: pwsh
         run: |
-          Write-Host "Downloading Visual C++ Redistributable for full installer..."
-          $latestRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/abbodi1406/vcredist/releases/latest"
-          $asset = $latestRelease.assets | Where-Object { $_.name -eq "VisualCppRedist_AIO_x86_x64.exe" }
-          if (-not $asset) {
-            Write-Host "::error::Could not find VisualCppRedist_AIO_x86_x64.exe in latest release"
-            exit 1
-          }
-          Write-Host "Downloading from: $($asset.browser_download_url)"
-          Write-Host "Size: $([math]::Round($asset.size / 1MB, 2)) MB"
-          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "installer\VisualCppRedist_AIO_x86_x64.exe"
-          Write-Host "Visual C++ Redistributable downloaded successfully"
+          Write-Host "Downloading Visual C++ Redistributable (official Microsoft)..."
+          Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile "installer\vc_redist.x64.exe"
+          $size = [math]::Round((Get-Item "installer\vc_redist.x64.exe").Length / 1MB, 2)
+          Write-Host "vc_redist.x64.exe downloaded successfully ($size MB)"
+
+          Write-Host "Downloading WebView2 Bootstrapper (Microsoft)..."
+          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile "installer\MicrosoftEdgeWebview2Setup.exe"
+          $size = [math]::Round((Get-Item "installer\MicrosoftEdgeWebview2Setup.exe").Length / 1MB, 2)
+          Write-Host "MicrosoftEdgeWebview2Setup.exe downloaded successfully ($size MB)"
 
       - name: Build Inno Setup installer
         shell: pwsh
@@ -312,6 +310,12 @@ jobs:
             throw "Regular installer build failed"
           }
 
+          Write-Host "Building UPDATE installer (small, no DLLs)..."
+          & "$env:ISCC" installer\otzaria_update.iss
+          if ($LASTEXITCODE -ne 0) {
+            throw "Update installer build failed"
+          }
+
       - name: Upload Windows installer (regular)
         uses: actions/upload-artifact@v4
         with:
@@ -323,6 +327,12 @@ jobs:
         with:
           name: otzaria-windows-installer-full
           path: installer/otzaria-*-windows-full.exe
+
+      - name: Upload Windows installer (update)
+        uses: actions/upload-artifact@v4
+        with:
+          name: otzaria-windows-installer-update
+          path: installer/otzaria-*-windows-update.exe
 
       - name: Upload Windows ZIP
         uses: actions/upload-artifact@v4
