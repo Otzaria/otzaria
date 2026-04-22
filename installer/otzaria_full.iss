@@ -380,54 +380,87 @@ end;
 // כתיבת נתיב הספרים ל-shared_preferences.json של האפליקציה
 procedure WriteLibraryPathToPrefs(const LibraryPath: String);
 var
-  PrefsDir, PrefsFile, JsonContent: String;
+  PrefsDir, PrefsFile, JsonContent, JsonPath, NewLine: String;
   Lines: TArrayOfString;
-  i: Integer;
-  Found: Boolean;
-  NewLine: String;
+  i, LastBrace: Integer;
+  Found, HasOtherKeys: Boolean;
 begin
-  // shared_preferences.json נמצא ב-%APPDATA%\otzaria (תמיד, גם בהתקנת admin)
   PrefsDir  := ExpandConstant('{userappdata}\otzaria');
   PrefsFile := PrefsDir + '\shared_preferences.json';
 
   ForceDirectories(PrefsDir);
 
-  // Escape backslashes for JSON
-  NewLine := '"key-library-path":"' + StringChange(LibraryPath, '\', '\\') + '"';
+  // StringChange מחזירה Integer ומשנה in-place — חייב משתנה עזר
+  JsonPath := LibraryPath;
+  StringChange(JsonPath, '\', '\\');
+  NewLine := '"key-library-path":"' + JsonPath + '"';
 
   if FileExists(PrefsFile) then
   begin
     LoadStringsFromFile(PrefsFile, Lines);
     Found := False;
+
+    // עדכון שורה קיימת — ללא פסיק (JSON לא יודע מה מגיע אחרי)
     for i := 0 to GetArrayLength(Lines) - 1 do
     begin
       if Pos('"key-library-path"', Lines[i]) > 0 then
       begin
-        Lines[i] := '  ' + NewLine + ',';
+        Lines[i] := '  ' + NewLine;
         Found := True;
       end;
     end;
+
     if Found then
     begin
-      SaveStringsToFile(PrefsFile, Lines, False);
+      // בנה JSON מחדש נקי — הסר פסיקים עודפים ואחד את המבנה
+      JsonContent := '';
+      for i := 0 to GetArrayLength(Lines) - 1 do
+        JsonContent := JsonContent + Lines[i] + #13#10;
+      SaveStringToFile(PrefsFile, JsonContent, False);
       exit;
     end;
-    // מפתח לא קיים — מוסיף לפני הסגירה }
+
+    // מפתח לא קיים — מוסיף. בדיקה אם הקובץ ריק ({})
+    HasOtherKeys := False;
+    for i := 0 to GetArrayLength(Lines) - 1 do
+    begin
+      if (Pos('"', Lines[i]) > 0) and (Pos('{', Lines[i]) = 0) and (Pos('}', Lines[i]) = 0) then
+      begin
+        HasOtherKeys := True;
+        break;
+      end;
+    end;
+
     JsonContent := '';
     for i := 0 to GetArrayLength(Lines) - 1 do
       JsonContent := JsonContent + Lines[i] + #13#10;
-    // מחפש את } האחרון ומוסיף לפניו
-    i := Length(JsonContent);
-    while (i > 0) and (JsonContent[i] <> '}') do
-      i := i - 1;
-    if i > 0 then
-      JsonContent := Copy(JsonContent, 1, i - 1) + ',' + #13#10 +
-                     '  ' + NewLine + #13#10 + '}';
-    SaveStringToFile(PrefsFile, JsonContent, False);
+
+    // מחפש } אחרון
+    LastBrace := 0;
+    for i := Length(JsonContent) downto 1 do
+    begin
+      if JsonContent[i] = '}' then
+      begin
+        LastBrace := i;
+        break;
+      end;
+    end;
+
+    if LastBrace > 0 then
+    begin
+      if HasOtherKeys then
+        // יש מפתחות אחרים — מוסיף פסיק אחרי האחרון שלהם ואחר כך את השורה החדשה
+        JsonContent := Copy(JsonContent, 1, LastBrace - 1) +
+                       ',' + #13#10 + '  ' + NewLine + #13#10 + '}'
+      else
+        // קובץ ריק {} — מוסיף בלי פסיק
+        JsonContent := '{' + #13#10 + '  ' + NewLine + #13#10 + '}';
+      SaveStringToFile(PrefsFile, JsonContent, False);
+    end;
   end
   else
   begin
-    // קובץ לא קיים — יוצר חדש
+    // קובץ לא קיים — יוצר חדש תקין
     JsonContent := '{' + #13#10 + '  ' + NewLine + #13#10 + '}';
     SaveStringToFile(PrefsFile, JsonContent, False);
   end;
