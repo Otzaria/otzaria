@@ -11,11 +11,6 @@ import 'hebrew_updat_widgets.dart';
 import 'linux_installer.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 
-/// סוג ההתקנה המוגדר בזמן build (אופציונלי)
-/// להגדרה: --dart-define=INSTALL_KIND=exe/zip
-const _kInstallKind =
-    String.fromEnvironment('INSTALL_KIND', defaultValue: 'auto');
-
 const _changelogUrl =
     'https://raw.githubusercontent.com/Otzaria/otzaria/refs/heads/migrationDB_V2/assets/%D7%99%D7%95%D7%9E%D7%9F%20%D7%A9%D7%99%D7%A0%D7%95%D7%99%D7%99%D7%9D.md';
 const _githubOwner = 'Otzaria';
@@ -61,31 +56,6 @@ class _ParsedVersion implements Comparable<_ParsedVersion> {
 
   @override
   int get hashCode => Object.hash(major, minor, patch);
-}
-
-/// זיהוי סוג ההתקנה ב-Windows
-/// אם הוגדר INSTALL_KIND בזמן build - משתמש בו
-/// אחרת - מזהה לפי נתיב הקובץ
-String _preferredWindowsFormat() {
-  if (!Platform.isWindows) return 'unknown';
-
-  // אם הוגדר סוג התקנה בזמן build - משתמש בו
-  if (_kInstallKind != 'auto') return _kInstallKind; // 'exe' | 'zip'
-
-  try {
-    // זיהוי אוטומטי לפי נתיב הקובץ
-    final executablePath = Platform.resolvedExecutable.toLowerCase();
-
-    if (executablePath.contains('\\program files\\') ||
-        executablePath.contains('\\program files (x86)\\')) {
-      return 'exe'; // התקנה תקנית
-    }
-
-    return 'zip'; // גרסה ניידת/ידנית
-  } catch (e) {
-    // במקרה של שגיאה, ברירת מחדל היא EXE
-    return 'exe';
-  }
 }
 
 String _normalizeVersion(String version) {
@@ -289,12 +259,13 @@ class MyUpdatWidget extends StatelessWidget {
 
               String? assetUrl;
 
-              // פונקציה לבחירת קובץ Windows לפי סדר עדיפות
-              // חשוב: לא לבחור קובץ -full.exe כי הוא מכיל את הספרייה המלאה
-              // ומיועד רק למשתמשים חדשים, לא לעדכונים
-              // allowZipFallback: האם לאפשר נפילה ל-ZIP אם לא נמצא התאמה
-              String? pickWindows(List<String> extsInOrder,
-                  {bool allowZipFallback = true}) {
+              // בחירת קובץ Windows לפי סדר עדיפות:
+              // 1. קובץ -update.exe (קטן, ללא DLLים — לעדכון בלבד)
+              // 2. קובץ .exe רגיל (לא full, לא update)
+              // 3. fallback ל-ZIP
+              // קבצי -full.exe מדולגים תמיד (מכילים ספרייה מלאה)
+              String? pickWindows({bool allowZipFallback = true}) {
+                String? regularExe;
                 String? foundZip;
                 for (final a in assets) {
                   final name = (a["name"] as String).toLowerCase();
@@ -304,33 +275,31 @@ class MyUpdatWidget extends StatelessWidget {
                       name.endsWith('.exe');
                   if (!isWin) continue;
 
-                  // דלג על קובץ full - מיועד להתקנה ראשונית בלבד
-                  if (name.contains('-full.exe') ||
-                      name.contains('_full.exe')) {
+                  // דלג על קובץ full — מיועד להתקנה ראשונית בלבד
+                  if (name.contains('-full') || name.contains('_full')) {
                     continue;
                   }
 
-                  for (final ext in extsInOrder) {
-                    if (name.endsWith(ext)) return url;
+                  // עדיפות ראשונה: קובץ עדכון קטן
+                  if (name.contains('-update.exe') ||
+                      name.contains('_update.exe')) {
+                    return url;
                   }
-                  // רק אם מותר fallback ל-ZIP
+
+                  if (name.endsWith('.exe') && regularExe == null) {
+                    regularExe = url;
+                  }
                   if (allowZipFallback &&
                       name.endsWith('.zip') &&
                       foundZip == null) {
                     foundZip = url;
                   }
                 }
-                return foundZip;
+                return regularExe ?? foundZip;
               }
 
               if (platform == 'windows') {
-                // בחירת סדר עדיפות לפי סוג ההתקנה
-                final pref = _preferredWindowsFormat();
-                final order = switch (pref) {
-                  'zip' => ['.zip', '.exe'],
-                  _ => ['.exe', '.zip'],
-                };
-                assetUrl = pickWindows(order, allowZipFallback: true);
+                assetUrl = pickWindows(allowZipFallback: true);
               } else if (platform == 'macos') {
                 // macOS - חיפוש קובץ zip
                 for (final a in assets) {
