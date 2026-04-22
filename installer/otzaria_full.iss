@@ -253,7 +253,7 @@ begin
     VCStatus := '✓ קיים (גרסה: ' + VCVersion + ') — לא נדרשת פעולה.';
     VCColor  := $006400;  // ירוק כהה
     VCCheck.Checked := False;
-    VCCheck.Enabled := True;
+    VCCheck.Enabled := False;  // קיים — נעול כדי למנוע התקנה מיותרת
   end;
 
   VCLabel := TLabel.Create(CompPage);
@@ -282,7 +282,7 @@ begin
   begin
     WV2Status := '⚠ חסר — מומלץ להתקין. ללא רכיב זה מערכת הפלאגינים לא תפעל,' +
                  ' אך שאר האפליקציה תעבוד כרגיל.';
-    WV2Color  := $007FFF;  // כחול — אזהרה, לא שגיאה
+    WV2Color  := $007FFF;  // כתום — אזהרה, לא שגיאה ($BBGGRR: B=00, G=7F, R=FF)
     WV2Check.Checked := True;
     WV2Check.Enabled := True;  // אופציונלי — ניתן לבטל
   end
@@ -291,7 +291,7 @@ begin
     WV2Status := '✓ קיים (גרסה: ' + WV2Version + ') — לא נדרשת פעולה.';
     WV2Color  := $006400;
     WV2Check.Checked := False;
-    WV2Check.Enabled := True;
+    WV2Check.Enabled := False;  // קיים — נעול כדי למנוע התקנה מיותרת
   end;
 
   WV2Label := TLabel.Create(CompPage);
@@ -324,10 +324,11 @@ begin
   CreateComponentsPage;
 end;
 
-procedure CurPageChanged(CurPageID: Integer);
+// שמירת בחירות המשתמש בלחיצה על "הבא" מדף הרכיבים
+function NextButtonClick(CurPageID: Integer): Boolean;
 begin
-  // עדכון הבחירות בעת מעבר מדף הרכיבים
-  if (CurPageID = wpSelectDir) and (CompPage <> nil) then
+  Result := True;
+  if (CompPage <> nil) and (CurPageID = CompPage.ID) then
   begin
     InstallVC  := VCCheck.Checked;
     InstallWV2 := WV2Check.Checked;
