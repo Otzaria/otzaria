@@ -18,8 +18,10 @@ AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-; עדכון דורש הרשאות זהות להתקנה המקורית — אין דיאלוג
+; אם ההתקנה המקורית הייתה תחת Program Files (admin) — נדרשות הרשאות admin.
+; dialog מאפשר ל-Inno Setup לבקש הרשאות רק כשצריך (כתיבה ל-Program Files).
 PrivilegesRequired=lowest
+PrivilegesRequiredOverridesAllowed=dialog
 DefaultDirName={code:GetInstallDir}
 DisableDirPage=yes
 DisableProgramGroupPage=yes
