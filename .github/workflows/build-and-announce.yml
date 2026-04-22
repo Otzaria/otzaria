@@ -33,7 +33,9 @@ jobs:
           $clientId = '${{ secrets.GOOGLE_CALENDAR_CLIENT_ID }}'
           $clientSecret = '${{ secrets.GOOGLE_CALENDAR_CLIENT_SECRET }}'
           if ([string]::IsNullOrWhiteSpace($clientId) -or [string]::IsNullOrWhiteSpace($clientSecret)) {
-            throw "Google Calendar secrets are missing. Please set GOOGLE_CALENDAR_CLIENT_ID and GOOGLE_CALENDAR_CLIENT_SECRET."
+              Write-Host "Google Calendar secrets are missing; writing placeholder credentials for fork/local CI builds."
+              $clientId = 'YOUR_CLIENT_ID.apps.googleusercontent.com'
+              $clientSecret = 'YOUR_CLIENT_SECRET'
           }
           $credentialsContent = @"
           class GoogleCalendarCredentials {
@@ -380,8 +382,9 @@ jobs:
           CLIENT_ID='${{ secrets.GOOGLE_CALENDAR_CLIENT_ID }}'
           CLIENT_SECRET='${{ secrets.GOOGLE_CALENDAR_CLIENT_SECRET }}'
           if [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ]; then
-            echo "::error::Google Calendar secrets are missing. Please set GOOGLE_CALENDAR_CLIENT_ID and GOOGLE_CALENDAR_CLIENT_SECRET."
-            exit 1
+            echo "Google Calendar secrets are missing; writing placeholder credentials for fork/local CI builds."
+            CLIENT_ID='YOUR_CLIENT_ID.apps.googleusercontent.com'
+            CLIENT_SECRET='YOUR_CLIENT_SECRET'
           fi
           cat > lib/tools/calendar/services/google_calendar_credentials.dart << EOF
           class GoogleCalendarCredentials {
@@ -745,8 +748,9 @@ jobs:
           CLIENT_ID='${{ secrets.GOOGLE_CALENDAR_CLIENT_ID }}'
           CLIENT_SECRET='${{ secrets.GOOGLE_CALENDAR_CLIENT_SECRET }}'
           if [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ]; then
-            echo "::error::Google Calendar secrets are missing. Please set GOOGLE_CALENDAR_CLIENT_ID and GOOGLE_CALENDAR_CLIENT_SECRET."
-            exit 1
+            echo "Google Calendar secrets are missing; writing placeholder credentials for fork/local CI builds."
+            CLIENT_ID='YOUR_CLIENT_ID.apps.googleusercontent.com'
+            CLIENT_SECRET='YOUR_CLIENT_SECRET'
           fi
           cat > lib/tools/calendar/services/google_calendar_credentials.dart << EOF
           class GoogleCalendarCredentials {
@@ -913,8 +917,9 @@ jobs:
           CLIENT_ID='${{ secrets.GOOGLE_CALENDAR_CLIENT_ID }}'
           CLIENT_SECRET='${{ secrets.GOOGLE_CALENDAR_CLIENT_SECRET }}'
           if [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ]; then
-            echo "::error::Google Calendar secrets are missing. Please set GOOGLE_CALENDAR_CLIENT_ID and GOOGLE_CALENDAR_CLIENT_SECRET."
-            exit 1
+            echo "Google Calendar secrets are missing; writing placeholder credentials for fork/local CI builds."
+            CLIENT_ID='YOUR_CLIENT_ID.apps.googleusercontent.com'
+            CLIENT_SECRET='YOUR_CLIENT_SECRET'
           fi
           cat > lib/tools/calendar/services/google_calendar_credentials.dart << EOF
           class GoogleCalendarCredentials {
