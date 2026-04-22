@@ -277,12 +277,14 @@ begin
   WV2Check.Width   := CompPage.SurfaceWidth;
   WV2Check.Caption := 'Microsoft WebView2 Runtime';
 
+  // WebView2 אינו חובה — משמש רק למערכת הפלאגינים (לא לקריאה/חיפוש/סימניות)
   if WV2Version = '' then
   begin
-    WV2Status := '⚠ חסר — נדרשת התקנה! ללא רכיב זה תצוגת דפי עזרה לא תפעל.';
-    WV2Color  := clRed;
+    WV2Status := '⚠ חסר — מומלץ להתקין. ללא רכיב זה מערכת הפלאגינים לא תפעל,' +
+                 ' אך שאר האפליקציה תעבוד כרגיל.';
+    WV2Color  := $007FFF;  // כחול — אזהרה, לא שגיאה
     WV2Check.Checked := True;
-    WV2Check.Enabled := False;  // חובה — לא ניתן לבטל
+    WV2Check.Enabled := True;  // אופציונלי — ניתן לבטל
   end
   else
   begin
