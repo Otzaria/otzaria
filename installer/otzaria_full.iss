@@ -390,8 +390,15 @@ begin
 
   ForceDirectories(PrefsDir);
 
-  // StringReplace היא הפונקציה הנכונה ב-Inno Setup Pascal להחלפת מחרוזות
-  JsonPath := StringReplace(LibraryPath, '\', '\\', [rfReplaceAll]);
+  // החלפת \ ב-\\ ידנית — StringReplace ו-StringChange אינן אמינות ב-Inno Setup
+  JsonPath := '';
+  for i := 1 to Length(LibraryPath) do
+  begin
+    if LibraryPath[i] = '\' then
+      JsonPath := JsonPath + '\\'
+    else
+      JsonPath := JsonPath + LibraryPath[i];
+  end;
   NewLine := '"key-library-path":"' + JsonPath + '"';
 
   if FileExists(PrefsFile) then
