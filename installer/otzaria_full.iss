@@ -390,9 +390,8 @@ begin
 
   ForceDirectories(PrefsDir);
 
-  // StringChange מחזירה Integer ומשנה in-place — חייב משתנה עזר
-  JsonPath := LibraryPath;
-  StringChange(JsonPath, '\', '\\');
+  // StringReplace היא הפונקציה הנכונה ב-Inno Setup Pascal להחלפת מחרוזות
+  JsonPath := StringReplace(LibraryPath, '\', '\\', [rfReplaceAll]);
   NewLine := '"key-library-path":"' + JsonPath + '"';
 
   if FileExists(PrefsFile) then
