@@ -136,17 +136,7 @@ begin
     end;
   end;
   
-  // בדיקה אם התיקיות קיימות והצגת אזהרה
-  if DirExists(DataPath + '\books') then
-  begin
-    if MsgBox('שים לב: קיימים נתונים מספרייה ישנה בתיקייה ' + DataPath + '\books' + #13#10 +
-              'הקודמים יימחקו ויוחלפו בנתוני ההתקנה החדשה.' + #13#10#13#10 +
-              'האם להמשיך בהתקנה?',
-              mbConfirmation, MB_YESNO) = IDNO then
-    begin
-      Result := False;
-    end;
-  end;
+  // האזהרה על מחיקת ספרים קיימים מוצגת בדף בחירת תיקיית הספרים
 end;
 
 // ─── בדיקות רכיבי מערכת ───────────────────────────────────────────────────
@@ -192,13 +182,18 @@ begin
   Result := GetWebView2Version = '';
 end;
 
-// ─── משתנים גלובליים לבחירת רכיבים ────────────────────────────────────────
+// ─── משתנים גלובליים ────────────────────────────────────────────────────────
 
 var
   CompPage: TWizardPage;
   VCCheck, WV2Check: TCheckBox;
   VCLabel, WV2Label: TLabel;
   InstallVC, InstallWV2: Boolean;
+
+  BooksPage: TWizardPage;
+  BooksPathEdit: TEdit;
+  BooksPathBrowseBtn: TButton;
+  SelectedBooksPath: String;
 
 // ─── בניית עמוד בחירת רכיבים ───────────────────────────────────────────────
 
@@ -306,6 +301,138 @@ begin
   WV2Label.Height   := 30;
 end;
 
+// ─── דף בחירת תיקיית הספרים ─────────────────────────────────────────────────
+
+procedure BrowseBooksFolder(Sender: TObject);
+var
+  Dir: String;
+begin
+  Dir := BooksPathEdit.Text;
+  if BrowseForFolder('בחר תיקיית ספרים:', Dir, False) then
+    BooksPathEdit.Text := Dir;
+end;
+
+procedure CreateBooksPage;
+var
+  DefaultPath: String;
+  DescLabel, WarnLabel, PathLabel: TLabel;
+begin
+  BooksPage := CreateCustomPage(CompPage.ID,
+    'תיקיית הספרים',
+    'בחר היכן יישמרו ספרי הספרייה');
+
+  DefaultPath := GetDataDir('') + '\books';
+  SelectedBooksPath := DefaultPath;
+
+  DescLabel := TLabel.Create(BooksPage);
+  DescLabel.Parent   := BooksPage.Surface;
+  DescLabel.Left     := 0;
+  DescLabel.Top      := 0;
+  DescLabel.Width    := BooksPage.SurfaceWidth;
+  DescLabel.AutoSize := False;
+  DescLabel.WordWrap := True;
+  DescLabel.Caption  :=
+    'כאן יישמרו קבצי הספרים שמגיעים עם ההתקנה וכל ספר שתוסיף בעתיד.' + #13#10 +
+    'הנתיב שתבחר יוגדר אוטומטית בהגדרות התוכנה.';
+  DescLabel.Height := 35;
+
+  PathLabel := TLabel.Create(BooksPage);
+  PathLabel.Parent  := BooksPage.Surface;
+  PathLabel.Left    := 0;
+  PathLabel.Top     := 45;
+  PathLabel.Caption := 'נתיב תיקיית הספרים:';
+  PathLabel.AutoSize := True;
+
+  BooksPathEdit := TEdit.Create(BooksPage);
+  BooksPathEdit.Parent := BooksPage.Surface;
+  BooksPathEdit.Left   := 0;
+  BooksPathEdit.Top    := 63;
+  BooksPathEdit.Width  := BooksPage.SurfaceWidth - 90;
+  BooksPathEdit.Text   := DefaultPath;
+
+  BooksPathBrowseBtn := TButton.Create(BooksPage);
+  BooksPathBrowseBtn.Parent  := BooksPage.Surface;
+  BooksPathBrowseBtn.Left    := BooksPage.SurfaceWidth - 85;
+  BooksPathBrowseBtn.Top     := 61;
+  BooksPathBrowseBtn.Width   := 85;
+  BooksPathBrowseBtn.Caption := 'עיון...';
+  BooksPathBrowseBtn.OnClick := @BrowseBooksFolder;
+
+  // אזהרה על מחיקת נתונים קיימים — הועברה לכאן מ-InitializeSetup
+  WarnLabel := TLabel.Create(BooksPage);
+  WarnLabel.Parent     := BooksPage.Surface;
+  WarnLabel.Left       := 0;
+  WarnLabel.Top        := 100;
+  WarnLabel.Width      := BooksPage.SurfaceWidth;
+  WarnLabel.AutoSize   := False;
+  WarnLabel.WordWrap   := True;
+  WarnLabel.Height     := 45;
+  WarnLabel.Font.Color := clRed;
+
+  if DirExists(DefaultPath) then
+    WarnLabel.Caption :=
+      '⚠ שים לב: תיקיית ספרים קיימת כבר בנתיב זה.' + #13#10 +
+      'התקנה זו תמחק את תוכנה ותחליף בספרים החדשים שבחבילה.'
+  else
+    WarnLabel.Caption := '';
+end;
+
+// כתיבת נתיב הספרים ל-shared_preferences.json של האפליקציה
+procedure WriteLibraryPathToPrefs(const LibraryPath: String);
+var
+  PrefsDir, PrefsFile, JsonContent: String;
+  Lines: TArrayOfString;
+  i: Integer;
+  Found: Boolean;
+  NewLine: String;
+begin
+  // shared_preferences.json נמצא ב-%APPDATA%\otzaria (תמיד, גם בהתקנת admin)
+  PrefsDir  := ExpandConstant('{userappdata}\otzaria');
+  PrefsFile := PrefsDir + '\shared_preferences.json';
+
+  ForceDirectories(PrefsDir);
+
+  // Escape backslashes for JSON
+  NewLine := '"key-library-path":"' + StringChange(LibraryPath, '\', '\\') + '"';
+
+  if FileExists(PrefsFile) then
+  begin
+    LoadStringsFromFile(PrefsFile, Lines);
+    Found := False;
+    for i := 0 to GetArrayLength(Lines) - 1 do
+    begin
+      if Pos('"key-library-path"', Lines[i]) > 0 then
+      begin
+        Lines[i] := '  ' + NewLine + ',';
+        Found := True;
+      end;
+    end;
+    if Found then
+    begin
+      SaveStringsToFile(PrefsFile, Lines, False);
+      exit;
+    end;
+    // מפתח לא קיים — מוסיף לפני הסגירה }
+    JsonContent := '';
+    for i := 0 to GetArrayLength(Lines) - 1 do
+      JsonContent := JsonContent + Lines[i] + #13#10;
+    // מחפש את } האחרון ומוסיף לפניו
+    i := Length(JsonContent);
+    while (i > 0) and (JsonContent[i] <> '}') do
+      i := i - 1;
+    if i > 0 then
+      JsonContent := Copy(JsonContent, 1, i - 1) + ',' + #13#10 +
+                     '  ' + NewLine + #13#10 + '}';
+    SaveStringToFile(PrefsFile, JsonContent, False);
+  end
+  else
+  begin
+    // קובץ לא קיים — יוצר חדש
+    JsonContent := '{' + #13#10 + '  ' + NewLine + #13#10 + '}';
+    SaveStringToFile(PrefsFile, JsonContent, False);
+  end;
+end;
+
 function ShouldInstallVC: Boolean;
 begin
   Result := InstallVC;
@@ -318,13 +445,13 @@ end;
 
 procedure InitializeWizard;
 begin
-  // אתחול ברירות מחדל: מתקין רק אם חסר
   InstallVC  := VCRedistNeedsInstall;
   InstallWV2 := WebView2NeedsInstall;
   CreateComponentsPage;
+  CreateBooksPage;
 end;
 
-// שמירת בחירות המשתמש בלחיצה על "הבא" מדף הרכיבים
+// שמירת בחירות בלחיצת "הבא"
 function NextButtonClick(CurPageID: Integer): Boolean;
 begin
   Result := True;
@@ -332,6 +459,15 @@ begin
   begin
     InstallVC  := VCCheck.Checked;
     InstallWV2 := WV2Check.Checked;
+  end;
+  if (BooksPage <> nil) and (CurPageID = BooksPage.ID) then
+  begin
+    SelectedBooksPath := BooksPathEdit.Text;
+    if SelectedBooksPath = '' then
+    begin
+      MsgBox('יש לבחור נתיב לתיקיית הספרים.', mbError, MB_OK);
+      Result := False;
+    end;
   end;
 end;
 
@@ -347,7 +483,7 @@ begin
     exit;
   end;
 
-  DatabasePath := ExpandConstant('{code:GetDataDir}\books\' + DatabaseName);
+  DatabasePath := SelectedBooksPath + '\' + DatabaseName;
   ZstdPath := ExpandConstant('{app}\zstd.exe');
 
   ForceDirectories(ExtractFileDir(DatabasePath));
@@ -376,9 +512,9 @@ begin
     exit;
   end;
 
-  ParentDir := ExpandConstant('{code:GetDataDir}\books');
+  ParentDir := SelectedBooksPath;
   TarPath := ParentDir + '\' + ChangeFileExt(ArchiveName, '');
-  TargetDir := ExpandConstant('{code:GetDataDir}\books\' + TargetDirName);
+  TargetDir := SelectedBooksPath + '\' + TargetDirName;
   ZstdPath := ExpandConstant('{app}\zstd.exe');
   SevenZipPath := ExpandConstant('{app}\7za.exe');
 
@@ -465,9 +601,16 @@ begin
   ExtractBundledTarArchive('talmud_bavli_latest.tar.zst', 'תלמוד בבלי');
   DeleteFile(ZstdPath);
   DeleteFile(SevenZipPath);
-  
+
   // Cleanup the temporary extraction directory
   DelTree(ExpandConstant('{app}\_staging'), True, True, True);
+
+  // יצירת תיקיית הספרים בנתיב שבחר המשתמש (אם שונה מברירת המחדל)
+  if SelectedBooksPath <> '' then
+  begin
+    ForceDirectories(SelectedBooksPath);
+    WriteLibraryPathToPrefs(SelectedBooksPath);
+  end;
 end;
 
 [Run]
