@@ -153,16 +153,10 @@ function VCRedistNeedsInstall: Boolean;
 var
   Version: String;
 begin
-  // Check if Visual C++ 2015-2022 Redistributable is installed
-  // This checks for x64 version
-  Result := not RegQueryStringValue(HKLM64, 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64', 
+  // בדיקת Visual C++ 2015-2022 Redistributable x64 (גרסה 14.x)
+  Result := not RegQueryStringValue(HKLM64,
+    'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64',
     'Version', Version);
-  if not Result then
-  begin
-    // Also check x86 version
-    Result := not RegQueryStringValue(HKLM64, 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x86', 
-      'Version', Version);
-  end;
 end;
 
 procedure ExtractBundledDatabase(const ArchiveName, DatabaseName: String);
@@ -301,7 +295,7 @@ begin
 end;
 
 [Run]
-Filename: "{tmp}\VisualCppRedist_AIO_x86_x64.exe"; Parameters: "/ai /gm2"; StatusMsg: "מתקין Visual C++ Redistributable..."; Flags: waituntilterminated; Check: VCRedistNeedsInstall
+Filename: "{tmp}\vc_redist.x64.exe"; Parameters: "/install /quiet /norestart"; StatusMsg: "מתקין Visual C++ Redistributable 2022..."; Flags: waituntilterminated; Check: VCRedistNeedsInstall
 Filename: "{app}\{#MyAppExeName}"; Description: "הפעל את {#MyAppName}"; Flags: nowait postinstall skipifsilent 
 
 [Icons]
@@ -327,7 +321,9 @@ Source: "library_db\talmud_bavli_latest.tar.zst"; DestDir: "{app}\_staging"; Fla
 Source: "zstd.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "7za.exe"; DestDir: "{app}"; Flags: ignoreversion
 
-Source: "VisualCppRedist_AIO_x86_x64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
+; vc_redist.x64.exe — הגרסה הרשמית של Microsoft, כ-25MB במקום AIO (~50MB)
+; כוללת את 2015/2017/2019/2022 תחת אותו מספר גרסה (14.x)
+Source: "vc_redist.x64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: VCRedistNeedsInstall
 
 [INI]
 Filename: "{app}\system_install.marker"; Section: "Install"; Key: "Mode"; String: "Admin"; Check: IsAdminInstallMode
