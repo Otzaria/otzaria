@@ -1137,7 +1137,12 @@ jobs:
           if [ -d "artifacts/otzaria-windows-installer-full" ]; then
             cp artifacts/otzaria-windows-installer-full/*.exe release-files/ || true
           fi
-          
+
+          # Windows installer (update - small, no DLLs)
+          if [ -d "artifacts/otzaria-windows-installer-update" ]; then
+            cp artifacts/otzaria-windows-installer-update/*.exe release-files/ || true
+          fi
+
           # Windows ZIP
           if [ -d "artifacts/otzaria-windows-zip" ]; then
             cp artifacts/otzaria-windows-zip/*.zip release-files/ || true
