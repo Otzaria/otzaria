@@ -55,7 +55,9 @@ jobs:
           $clientId = '${{ secrets.GOOGLE_CALENDAR_CLIENT_ID }}'
           $clientSecret = '${{ secrets.GOOGLE_CALENDAR_CLIENT_SECRET }}'
           if ([string]::IsNullOrWhiteSpace($clientId) -or [string]::IsNullOrWhiteSpace($clientSecret)) {
-            throw "Google Calendar secrets are missing. Please set GOOGLE_CALENDAR_CLIENT_ID and GOOGLE_CALENDAR_CLIENT_SECRET."
+              Write-Host "Google Calendar secrets are missing; writing placeholder credentials for fork/local CI builds."
+              $clientId = 'YOUR_CLIENT_ID.apps.googleusercontent.com'
+              $clientSecret = 'YOUR_CLIENT_SECRET'
           }
           $credentialsContent = @"
           class GoogleCalendarCredentials {
@@ -275,21 +277,19 @@ jobs:
             exit 1
           }
 
-      - name: Download Visual C++ Redistributable for full installer
+      - name: Download dependencies for full installer
         if: true
         shell: pwsh
         run: |
-          Write-Host "Downloading Visual C++ Redistributable for full installer..."
-          $latestRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/abbodi1406/vcredist/releases/latest"
-          $asset = $latestRelease.assets | Where-Object { $_.name -eq "VisualCppRedist_AIO_x86_x64.exe" }
-          if (-not $asset) {
-            Write-Host "::error::Could not find VisualCppRedist_AIO_x86_x64.exe in latest release"
-            exit 1
-          }
-          Write-Host "Downloading from: $($asset.browser_download_url)"
-          Write-Host "Size: $([math]::Round($asset.size / 1MB, 2)) MB"
-          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "installer\VisualCppRedist_AIO_x86_x64.exe"
-          Write-Host "Visual C++ Redistributable downloaded successfully"
+          Write-Host "Downloading Visual C++ Redistributable (official Microsoft)..."
+          Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile "installer\vc_redist.x64.exe"
+          $size = [math]::Round((Get-Item "installer\vc_redist.x64.exe").Length / 1MB, 2)
+          Write-Host "vc_redist.x64.exe downloaded successfully ($size MB)"
+
+          Write-Host "Downloading WebView2 Bootstrapper (Microsoft)..."
+          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile "installer\MicrosoftEdgeWebview2Setup.exe"
+          $size = [math]::Round((Get-Item "installer\MicrosoftEdgeWebview2Setup.exe").Length / 1MB, 2)
+          Write-Host "MicrosoftEdgeWebview2Setup.exe downloaded successfully ($size MB)"
 
       - name: Build Inno Setup installer
         shell: pwsh
@@ -392,8 +392,9 @@ jobs:
           CLIENT_ID='${{ secrets.GOOGLE_CALENDAR_CLIENT_ID }}'
           CLIENT_SECRET='${{ secrets.GOOGLE_CALENDAR_CLIENT_SECRET }}'
           if [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ]; then
-            echo "::error::Google Calendar secrets are missing. Please set GOOGLE_CALENDAR_CLIENT_ID and GOOGLE_CALENDAR_CLIENT_SECRET."
-            exit 1
+            echo "Google Calendar secrets are missing; writing placeholder credentials for fork/local CI builds."
+            CLIENT_ID='YOUR_CLIENT_ID.apps.googleusercontent.com'
+            CLIENT_SECRET='YOUR_CLIENT_SECRET'
           fi
           cat > lib/tools/calendar/services/google_calendar_credentials.dart << EOF
           class GoogleCalendarCredentials {
@@ -759,8 +760,9 @@ jobs:
           CLIENT_ID='${{ secrets.GOOGLE_CALENDAR_CLIENT_ID }}'
           CLIENT_SECRET='${{ secrets.GOOGLE_CALENDAR_CLIENT_SECRET }}'
           if [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ]; then
-            echo "::error::Google Calendar secrets are missing. Please set GOOGLE_CALENDAR_CLIENT_ID and GOOGLE_CALENDAR_CLIENT_SECRET."
-            exit 1
+            echo "Google Calendar secrets are missing; writing placeholder credentials for fork/local CI builds."
+            CLIENT_ID='YOUR_CLIENT_ID.apps.googleusercontent.com'
+            CLIENT_SECRET='YOUR_CLIENT_SECRET'
           fi
           cat > lib/tools/calendar/services/google_calendar_credentials.dart << EOF
           class GoogleCalendarCredentials {
@@ -927,8 +929,9 @@ jobs:
           CLIENT_ID='${{ secrets.GOOGLE_CALENDAR_CLIENT_ID }}'
           CLIENT_SECRET='${{ secrets.GOOGLE_CALENDAR_CLIENT_SECRET }}'
           if [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ]; then
-            echo "::error::Google Calendar secrets are missing. Please set GOOGLE_CALENDAR_CLIENT_ID and GOOGLE_CALENDAR_CLIENT_SECRET."
-            exit 1
+            echo "Google Calendar secrets are missing; writing placeholder credentials for fork/local CI builds."
+            CLIENT_ID='YOUR_CLIENT_ID.apps.googleusercontent.com'
+            CLIENT_SECRET='YOUR_CLIENT_SECRET'
           fi
           cat > lib/tools/calendar/services/google_calendar_credentials.dart << EOF
           class GoogleCalendarCredentials {
