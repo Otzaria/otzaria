@@ -137,6 +137,10 @@ begin
   end;
   
   // האזהרה על מחיקת ספרים קיימים מוצגת בדף בחירת תיקיית הספרים
+
+  // אתחול ברירות מחדל — גם להתקנה שקטה (/SILENT, /VERYSILENT)
+  InstallVC  := VCRedistNeedsInstall;
+  InstallWV2 := WebView2NeedsInstall;
 end;
 
 // ─── בדיקות רכיבי מערכת ───────────────────────────────────────────────────
@@ -685,7 +689,7 @@ Source: "7za.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "vc_redist.x64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: VCRedistNeedsInstall
 ; MicrosoftEdgeWebview2Setup.exe — bootstrapper קטן (~2MB) שמוריד ומתקין WebView2
 ; נדרש על ידי flutter_inappwebview_windows; ב-Win10/11 עם Edge עדכני — כבר קיים
-Source: "MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: WebView2NeedsInstall
+Source: "MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: ShouldInstallWV2
 
 [INI]
 Filename: "{app}\system_install.marker"; Section: "Install"; Key: "Mode"; String: "Admin"; Check: IsAdminInstallMode
