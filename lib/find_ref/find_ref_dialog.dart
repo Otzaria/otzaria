@@ -10,6 +10,7 @@ import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/product_tour/product_tour_exports.dart';
 import 'package:otzaria/utils/open_book.dart';
 import 'package:otzaria/widgets/rtl_text_field.dart';
 
@@ -169,38 +170,41 @@ class _FindRefDialogState extends State<FindRefDialog> {
                     }
                     return KeyEventResult.ignored;
                   },
-                  child: RtlTextField(
-                    focusNode: focusRepository.findRefSearchFocusNode,
-                    autofocus: true,
-                    decoration: InputDecoration(
-                      hintText:
-                          'הקלד מקור מדוייק, לדוגמה: בראשית פרק א או שוע אוח יב   ',
-                      suffixIcon: IconButton(
-                        icon: const Icon(FluentIcons.dismiss_24_regular),
-                        onPressed: () {
-                          focusRepository.findRefSearchController.clear();
-                          BlocProvider.of<FindRefBloc>(context)
-                              .add(ClearSearchRequested());
-                          setState(() {
-                            _selectedIndex = 0;
-                          });
-                        },
+                  child: ProductTourTarget(
+                    targetId: TourTargetId.findRefField,
+                    child: RtlTextField(
+                      focusNode: focusRepository.findRefSearchFocusNode,
+                      autofocus: true,
+                      decoration: InputDecoration(
+                        hintText:
+                            'הקלד מקור מדוייק, לדוגמה: בראשית פרק א או שוע אוח יב   ',
+                        suffixIcon: IconButton(
+                          icon: const Icon(FluentIcons.dismiss_24_regular),
+                          onPressed: () {
+                            focusRepository.findRefSearchController.clear();
+                            BlocProvider.of<FindRefBloc>(context)
+                                .add(ClearSearchRequested());
+                            setState(() {
+                              _selectedIndex = 0;
+                            });
+                          },
+                        ),
                       ),
+                      controller: focusRepository.findRefSearchController,
+                      onChanged: (ref) {
+                        BlocProvider.of<FindRefBloc>(context)
+                            .add(SearchRefRequested(ref));
+                        setState(() {
+                          _selectedIndex = 0;
+                        });
+                      },
+                      onSubmitted: (value) {
+                        // פתיחת המקור הנבחר בלחיצה על אנטר
+                        if (refs.isNotEmpty) {
+                          _openRef(refs[_selectedIndex]);
+                        }
+                      },
                     ),
-                    controller: focusRepository.findRefSearchController,
-                    onChanged: (ref) {
-                      BlocProvider.of<FindRefBloc>(context)
-                          .add(SearchRefRequested(ref));
-                      setState(() {
-                        _selectedIndex = 0;
-                      });
-                    },
-                    onSubmitted: (value) {
-                      // פתיחת המקור הנבחר בלחיצה על אנטר
-                      if (refs.isNotEmpty) {
-                        _openRef(refs[_selectedIndex]);
-                      }
-                    },
                   ),
                 );
               },

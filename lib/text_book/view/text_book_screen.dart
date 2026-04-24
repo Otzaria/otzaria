@@ -50,6 +50,8 @@ import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/widgets/app_menu.dart';
 import 'package:otzaria/widgets/adaptive_side_pane.dart';
 import 'package:otzaria/settings/services/nikud_display_service.dart';
+import 'package:otzaria/product_tour/product_tour_exports.dart';
+import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository.dart';
 import 'package:otzaria/text_book/view/page_shape/page_shape_settings_dialog.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dart';
@@ -93,6 +95,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   Book? _pdfBook; // Companion PDF
   bool _hasPdfBook = false;
   bool _leftPaneAutoCloseQueuedByScroll = false;
+  String? _lastCommentaryOpportunityBookTitle;
 
   // Key עבור PageShapeScreen - שינוי המפתח יגרום לבנייה מחדש
   Key _pageShapeKey = UniqueKey();
@@ -728,8 +731,28 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     }
   }
 
-  void _onSelectedTextChanged(String? selectedText) {
+  Future<void> _onSelectedTextChanged(String? selectedText) async {
     _selectedTextForSearch = selectedText;
+    final trimmedSelection = selectedText?.trim() ?? '';
+    if (trimmedSelection.isEmpty) {
+      return;
+    }
+
+    final hasDictionaryEntries = await DictionaryLookupRepository.instance
+        .hasContextMenuEntries(trimmedSelection);
+    if (!mounted ||
+        !hasDictionaryEntries ||
+        _selectedTextForSearch?.trim() != trimmedSelection) {
+      return;
+    }
+
+    context.read<ProductTourBloc>().add(
+          RecordInteraction(
+            TourInteraction(
+              type: TourInteractionType.textSelected,
+            ),
+          ),
+        );
   }
 
   void _openSearchFromToolbar() {
@@ -1300,7 +1323,10 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
       // 2) View Mode Dropdown (מאחד את Split View ו-Page Shape View)
       ActionButtonData(
-        widget: _buildViewModeDropdown(context, state, key: _viewModeMenuKey),
+        widget: ProductTourTarget(
+          targetId: TourTargetId.readingViewMode,
+          child: _buildViewModeDropdown(context, state, key: _viewModeMenuKey),
+        ),
         icon: _getViewModeIcon(state),
         tooltip: _getViewModeTooltip(state),
         onPressed: () {
@@ -1633,6 +1659,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           : (state.showSplitView ? _viewModeSplit : _viewModeBelow),
       onSelected: (value) async {
         final bloc = context.read<TextBookBloc>();
+        final productTourBloc = context.read<ProductTourBloc>();
 
         // קביעת מצב היעד לפי הבחירה
         final bool isPageSelected = value == _viewModePage;
@@ -1649,6 +1676,17 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           await _savePerBookSettingsDirectly(context, state,
               showSplitView: isSplitSelected);
         }
+
+        if (!mounted) return;
+
+        productTourBloc.add(
+              RecordInteraction(
+                TourInteraction(
+                  type: TourInteractionType.commentaryUsed,
+                  primaryValue: widget.tab.title,
+                ),
+              ),
+            );
       },
       entries: [
         AppMenuEntry(
@@ -2116,6 +2154,24 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     BuildContext context,
     TextBookLoaded state,
   ) {
+    if (state.availableCommentators.isNotEmpty &&
+        _lastCommentaryOpportunityBookTitle != widget.tab.title) {
+      _lastCommentaryOpportunityBookTitle = widget.tab.title;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !context.mounted) {
+          return;
+        }
+        context.read<ProductTourBloc>().add(
+              RecordInteraction(
+                TourInteraction(
+                  type: TourInteractionType.commentaryAvailable,
+                  primaryValue: widget.tab.title,
+                ),
+              ),
+            );
+      });
+    }
+
     return ValueListenableBuilder<double>(
       valueListenable: _sidebarWidth,
       builder: (context, width, child) => AdaptiveSidePane(
@@ -2195,18 +2251,21 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                 LogicalKeyboardKey.keyF,
               ): _openSearchFromToolbar,
             },
-            child: TextBookScaffold(
-              content: state.content,
-              openBookCallback: widget.openBookCallback,
-              openLeftPaneTab: _openLeftPaneTab,
-              onSelectedTextChanged: _onSelectedTextChanged,
-              searchTextController: TextEditingValue(text: state.searchText),
-              tab: widget.tab,
-              initialSidebarTabIndex: _sidebarTabIndex,
-              pageShapeKey: _pageShapeKey,
-              pageShapePrintBoundaryKey: _pageShapePrintBoundaryKey,
-              pageShapeSidebarTabNotifier: _pageShapeSidebarTabNotifier,
-              openSearch: _openSearchWithText,
+            child: ProductTourTarget(
+              targetId: TourTargetId.readingContent,
+              child: TextBookScaffold(
+                content: state.content,
+                openBookCallback: widget.openBookCallback,
+                openLeftPaneTab: _openLeftPaneTab,
+                onSelectedTextChanged: _onSelectedTextChanged,
+                searchTextController: TextEditingValue(text: state.searchText),
+                tab: widget.tab,
+                initialSidebarTabIndex: _sidebarTabIndex,
+                pageShapeKey: _pageShapeKey,
+                pageShapePrintBoundaryKey: _pageShapePrintBoundaryKey,
+                pageShapeSidebarTabNotifier: _pageShapeSidebarTabNotifier,
+                openSearch: _openSearchWithText,
+              ),
             ),
           ),
         ),

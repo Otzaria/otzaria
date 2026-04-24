@@ -1,24 +1,56 @@
-/// Represents the progress for a single page/item
-/// Includes initial learning and up to 3 reviews
+/// Represents the progress for a single page/item.
+/// Includes initial learning and up to 5 reviews with completion timestamps.
+const int shamorZachorMaxReviewCycles = 5;
+
 class PageProgress {
   bool learn;
   bool review1;
   bool review2;
   bool review3;
+  bool review4;
+  bool review5;
+  DateTime? learnCompletedAt;
+  DateTime? review1CompletedAt;
+  DateTime? review2CompletedAt;
+  DateTime? review3CompletedAt;
+  DateTime? review4CompletedAt;
+  DateTime? review5CompletedAt;
 
   PageProgress({
     this.learn = false,
     this.review1 = false,
     this.review2 = false,
     this.review3 = false,
+    this.review4 = false,
+    this.review5 = false,
+    this.learnCompletedAt,
+    this.review1CompletedAt,
+    this.review2CompletedAt,
+    this.review3CompletedAt,
+    this.review4CompletedAt,
+    this.review5CompletedAt,
   });
 
   /// Convert to JSON for storage
-  Map<String, bool> toJson() => {
+  Map<String, dynamic> toJson() => {
         'learn': learn,
         'review1': review1,
         'review2': review2,
         'review3': review3,
+        'review4': review4,
+        'review5': review5,
+        if (learnCompletedAt != null)
+          'learnCompletedAt': learnCompletedAt!.toIso8601String(),
+        if (review1CompletedAt != null)
+          'review1CompletedAt': review1CompletedAt!.toIso8601String(),
+        if (review2CompletedAt != null)
+          'review2CompletedAt': review2CompletedAt!.toIso8601String(),
+        if (review3CompletedAt != null)
+          'review3CompletedAt': review3CompletedAt!.toIso8601String(),
+        if (review4CompletedAt != null)
+          'review4CompletedAt': review4CompletedAt!.toIso8601String(),
+        if (review5CompletedAt != null)
+          'review5CompletedAt': review5CompletedAt!.toIso8601String(),
       };
 
   /// Create from JSON data
@@ -28,14 +60,31 @@ class PageProgress {
       review1: json['review1'] ?? false,
       review2: json['review2'] ?? false,
       review3: json['review3'] ?? false,
+      review4: json['review4'] ?? false,
+      review5: json['review5'] ?? false,
+      learnCompletedAt: _parseDateTime(json['learnCompletedAt']),
+      review1CompletedAt: _parseDateTime(json['review1CompletedAt']),
+      review2CompletedAt: _parseDateTime(json['review2CompletedAt']),
+      review3CompletedAt: _parseDateTime(json['review3CompletedAt']),
+      review4CompletedAt: _parseDateTime(json['review4CompletedAt']),
+      review5CompletedAt: _parseDateTime(json['review5CompletedAt']),
     );
   }
 
+  static DateTime? _parseDateTime(dynamic value) {
+    if (value is! String || value.isEmpty) {
+      return null;
+    }
+    return DateTime.tryParse(value);
+  }
+
   /// Check if no progress has been made
-  bool get isEmpty => !learn && !review1 && !review2 && !review3;
+  bool get isEmpty =>
+      !learn && !review1 && !review2 && !review3 && !review4 && !review5;
 
   /// Check if all learning and reviews are complete
-  bool get isComplete => learn && review1 && review2 && review3;
+  bool get isComplete =>
+      learn && review1 && review2 && review3 && review4 && review5;
 
   /// Get the number of completed items (learn + reviews)
   int get completedCount {
@@ -44,26 +93,56 @@ class PageProgress {
     if (review1) count++;
     if (review2) count++;
     if (review3) count++;
+    if (review4) count++;
+    if (review5) count++;
     return count;
   }
 
   /// Get progress as a percentage (0.0 to 1.0)
-  double get progressPercentage => completedCount / 4.0;
+  double get progressPercentage =>
+      completedCount / (shamorZachorMaxReviewCycles + 1);
 
   /// Set a specific property by name
-  void setProperty(String propertyName, bool value) {
+  void setProperty(
+    String propertyName,
+    bool value, {
+    DateTime? completedAt,
+  }) {
     switch (propertyName) {
       case 'learn':
         learn = value;
+        learnCompletedAt =
+            value ? (completedAt ?? learnCompletedAt ?? DateTime.now()) : null;
         break;
       case 'review1':
         review1 = value;
+        review1CompletedAt = value
+            ? (completedAt ?? review1CompletedAt ?? DateTime.now())
+            : null;
         break;
       case 'review2':
         review2 = value;
+        review2CompletedAt = value
+            ? (completedAt ?? review2CompletedAt ?? DateTime.now())
+            : null;
         break;
       case 'review3':
         review3 = value;
+        review3CompletedAt = value
+            ? (completedAt ?? review3CompletedAt ?? DateTime.now())
+            : null;
+        break;
+      case 'review4':
+        review4 = value;
+        review4CompletedAt = value
+            ? (completedAt ?? review4CompletedAt ?? DateTime.now())
+            : null;
+        break;
+      case 'review5':
+        review5 = value;
+        review5CompletedAt = value
+            ? (completedAt ?? review5CompletedAt ?? DateTime.now())
+            : null;
         break;
       default:
         throw ArgumentError('Unknown property: $propertyName');
@@ -81,6 +160,30 @@ class PageProgress {
         return review2;
       case 'review3':
         return review3;
+      case 'review4':
+        return review4;
+      case 'review5':
+        return review5;
+      default:
+        throw ArgumentError('Unknown property: $propertyName');
+    }
+  }
+
+  /// Get completion time for a specific property.
+  DateTime? getCompletedAtForProperty(String propertyName) {
+    switch (propertyName) {
+      case 'learn':
+        return learnCompletedAt;
+      case 'review1':
+        return review1CompletedAt;
+      case 'review2':
+        return review2CompletedAt;
+      case 'review3':
+        return review3CompletedAt;
+      case 'review4':
+        return review4CompletedAt;
+      case 'review5':
+        return review5CompletedAt;
       default:
         throw ArgumentError('Unknown property: $propertyName');
     }
@@ -92,12 +195,28 @@ class PageProgress {
     bool? review1,
     bool? review2,
     bool? review3,
+    bool? review4,
+    bool? review5,
+    DateTime? learnCompletedAt,
+    DateTime? review1CompletedAt,
+    DateTime? review2CompletedAt,
+    DateTime? review3CompletedAt,
+    DateTime? review4CompletedAt,
+    DateTime? review5CompletedAt,
   }) {
     return PageProgress(
       learn: learn ?? this.learn,
       review1: review1 ?? this.review1,
       review2: review2 ?? this.review2,
       review3: review3 ?? this.review3,
+      review4: review4 ?? this.review4,
+      review5: review5 ?? this.review5,
+      learnCompletedAt: learnCompletedAt ?? this.learnCompletedAt,
+      review1CompletedAt: review1CompletedAt ?? this.review1CompletedAt,
+      review2CompletedAt: review2CompletedAt ?? this.review2CompletedAt,
+      review3CompletedAt: review3CompletedAt ?? this.review3CompletedAt,
+      review4CompletedAt: review4CompletedAt ?? this.review4CompletedAt,
+      review5CompletedAt: review5CompletedAt ?? this.review5CompletedAt,
     );
   }
 
@@ -109,15 +228,36 @@ class PageProgress {
           learn == other.learn &&
           review1 == other.review1 &&
           review2 == other.review2 &&
-          review3 == other.review3;
+          review3 == other.review3 &&
+          review4 == other.review4 &&
+          review5 == other.review5 &&
+          learnCompletedAt == other.learnCompletedAt &&
+          review1CompletedAt == other.review1CompletedAt &&
+          review2CompletedAt == other.review2CompletedAt &&
+          review3CompletedAt == other.review3CompletedAt &&
+          review4CompletedAt == other.review4CompletedAt &&
+          review5CompletedAt == other.review5CompletedAt;
 
   @override
-  int get hashCode =>
-      learn.hashCode ^ review1.hashCode ^ review2.hashCode ^ review3.hashCode;
+  int get hashCode => Object.hash(
+        learn,
+        review1,
+        review2,
+        review3,
+        review4,
+        review5,
+        learnCompletedAt,
+        review1CompletedAt,
+        review2CompletedAt,
+        review3CompletedAt,
+        review4CompletedAt,
+        review5CompletedAt,
+      );
 
   @override
   String toString() {
-    return 'PageProgress(learn: $learn, review1: $review1, review2: $review2, review3: $review3)';
+    return 'PageProgress(learn: $learn, review1: $review1, review2: $review2, '
+        'review3: $review3, review4: $review4, review5: $review5)';
   }
 }
 

@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/product_tour/product_tour_exports.dart';
 import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository.dart';
 import 'package:otzaria/tools/dictionary/widgets/aramaic_dictionary_entry_view.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
@@ -188,6 +190,13 @@ void _showMeaningDialog({
   required String title,
   required Widget content,
 }) {
+  context.read<ProductTourBloc>().add(
+        RecordInteraction(
+          TourInteraction(
+            type: TourInteractionType.dictionaryUsed,
+          ),
+        ),
+      );
   showSingleActionDialog(
     context: context,
     title: title,

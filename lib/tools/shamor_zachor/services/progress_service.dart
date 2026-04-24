@@ -6,6 +6,7 @@ import 'package:logging/logging.dart';
 import '../models/progress_model.dart';
 import '../models/book_model.dart';
 import '../models/error_model.dart';
+import '../models/planning_model.dart';
 
 /// Service for managing user progress data with optimized storage
 class ProgressService {
@@ -16,6 +17,7 @@ class ProgressService {
   static const String _progressDataKey = '${_keyPrefix}progress_data';
   static const String _completionDatesKey = '${_keyPrefix}completion_dates';
   static const String _lastAccessedKey = '${_keyPrefix}last_accessed';
+  static const String _reviewScheduleKey = '${_keyPrefix}review_schedule';
 
   // Debouncing for batch saves
   Timer? _saveTimer;
@@ -365,10 +367,7 @@ class ProgressService {
     int inProgressItems = 0;
 
     for (final progress in bookProgress.values) {
-      if (progress.learn &&
-          progress.review1 &&
-          progress.review2 &&
-          progress.review3) {
+      if (progress.isComplete) {
         completedItems++;
       } else if (!progress.isEmpty) {
         inProgressItems++;
@@ -377,23 +376,23 @@ class ProgressService {
 
     bool isActiveReview = false;
     if (totalItems > 0 && completedItems == totalItems) {
-      final review1Progress =
-          getReviewCompletedPagesCount(bookProgress, 1) / totalItems;
-      final review2Progress =
-          getReviewCompletedPagesCount(bookProgress, 2) / totalItems;
-      final review3Progress =
-          getReviewCompletedPagesCount(bookProgress, 3) / totalItems;
-
-      final review1Active = review1Progress > 0 && review1Progress < 1.0;
-      final review2Active = review1Progress == 1.0 &&
-          review2Progress > 0 &&
-          review2Progress < 1.0;
-      final review3Active = review1Progress == 1.0 &&
-          review2Progress == 1.0 &&
-          review3Progress > 0 &&
-          review3Progress < 1.0;
-
-      isActiveReview = review1Active || review2Active || review3Active;
+      var previousReviewCompleted = true;
+      for (int reviewNumber = 1;
+          reviewNumber <= shamorZachorMaxReviewCycles;
+          reviewNumber++) {
+        final reviewProgress =
+            getReviewCompletedPagesCount(bookProgress, reviewNumber) /
+                totalItems;
+        final isCurrentReviewActive = previousReviewCompleted &&
+            reviewProgress > 0 &&
+            reviewProgress < 1.0;
+        if (isCurrentReviewActive) {
+          isActiveReview = true;
+          break;
+        }
+        previousReviewCompleted =
+            previousReviewCompleted && reviewProgress == 1.0;
+      }
     }
 
     return BookProgressSummary(
@@ -424,8 +423,52 @@ class ProgressService {
         return bookProgress.values.where((progress) => progress.review2).length;
       case 3:
         return bookProgress.values.where((progress) => progress.review3).length;
+      case 4:
+        return bookProgress.values.where((progress) => progress.review4).length;
+      case 5:
+        return bookProgress.values.where((progress) => progress.review5).length;
       default:
         throw ArgumentError('Invalid review number: $reviewNumber');
+    }
+  }
+
+  Future<ReviewScheduleSettings> loadReviewScheduleSettings() async {
+    try {
+      final prefs = await _getPrefs();
+      final jsonString = prefs.getString(_reviewScheduleKey);
+      if (jsonString == null || jsonString.isEmpty) {
+        return ReviewScheduleSettings.defaultSettings();
+      }
+
+      final decoded = json.decode(jsonString);
+      if (decoded is! Map<String, dynamic>) {
+        return ReviewScheduleSettings.defaultSettings();
+      }
+
+      return ReviewScheduleSettings.fromJson(decoded);
+    } catch (e, stackTrace) {
+      throw ShamorZachorError.fromException(
+        e,
+        stackTrace: stackTrace,
+        type: ShamorZachorErrorType.parseError,
+        customMessage: 'Failed to load review schedule settings',
+      );
+    }
+  }
+
+  Future<void> saveReviewScheduleSettings(
+    ReviewScheduleSettings settings,
+  ) async {
+    try {
+      final prefs = await _getPrefs();
+      await prefs.setString(_reviewScheduleKey, json.encode(settings.toJson()));
+    } catch (e, stackTrace) {
+      throw ShamorZachorError.fromException(
+        e,
+        stackTrace: stackTrace,
+        type: ShamorZachorErrorType.storageUnavailable,
+        customMessage: 'Failed to save review schedule settings',
+      );
     }
   }
 

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/product_tour/product_tour_exports.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/settings/settings_card.dart';
@@ -143,6 +146,64 @@ class AboutDevTab extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _buildHeader(context),
+          SettingsCard(
+            title: 'למידה והדרכה',
+            subtitle:
+                'סיור מודרך קצר וטיפים חיים שיעזרו לנצל טוב יותר את היכולות של אוצריא.',
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'אפשר להפעיל מחדש את הסיור בכל עת, או לאפס את ההדרכות כדי שהמערכת תלמד אותך מחדש לאורך העבודה.',
+                      textDirection: TextDirection.rtl,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: RecommendedActionButton(
+                            text: 'הפעל סיור מודרך',
+                            onPressed: () {
+                              context.read<ProductTourBloc>().add(
+                                    const StartIntroTour(manual: true),
+                                  );
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: NeutralActionButton(
+                            text: 'אפס טיפים והדרכות',
+                            onPressed: () async {
+                              final shouldReset = await showTwoActionsDialog(
+                                context: context,
+                                title: 'איפוס הדרכות',
+                                content:
+                                    'האם לאפס את הסיור המודרך ואת כל הטיפים החיים שהמערכת כבר הציגה?',
+                                cancelText: 'ביטול',
+                                confirmText: 'אפס',
+                              );
+                              if (shouldReset != true || !context.mounted) {
+                                return;
+                              }
+                              context.read<ProductTourBloc>().add(
+                                    const ResetProductTourProgress(),
+                                  );
+                              UiSnack.show('ההדרכות אופסו בהצלחה');
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
 
           // ── תרומה ומידע ──
           SettingsCard(

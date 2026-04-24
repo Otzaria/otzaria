@@ -24,6 +24,7 @@ import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
+import 'package:otzaria/product_tour/product_tour_exports.dart';
 import 'package:otzaria/widgets/indexing_warning.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
@@ -505,80 +506,84 @@ class _SearchDialogState extends State<SearchDialog> {
                                 children: [
                                   // שדה החיפוש עם כפתורי היסטוריה וחיפוש
                                   Expanded(
-                                    child: Stack(
-                                      children: [
-                                        BlocProvider.value(
-                                          value: _searchTab.searchBloc,
-                                          child: EnhancedSearchField(
-                                            key: enhancedSearchFieldKey,
-                                            widget: _SearchDialogWrapper(
-                                              tab: _searchTab,
-                                            ),
-                                            showInlineSearchButton: false,
-                                            onSubmit: _performSearch,
-                                          ),
-                                        ),
-                                        // כפתור חיפוש
-                                        Positioned(
-                                          right: 10,
-                                          top: 8,
-                                          bottom: 8,
-                                          child: Center(
-                                            child: IconButton(
-                                              icon: const Icon(
-                                                FluentIcons.search_24_filled,
-                                                size: 20,
+                                    child: ProductTourTarget(
+                                      targetId: TourTargetId.searchDialogField,
+                                      child: Stack(
+                                        children: [
+                                          BlocProvider.value(
+                                            value: _searchTab.searchBloc,
+                                            child: EnhancedSearchField(
+                                              key: enhancedSearchFieldKey,
+                                              widget: _SearchDialogWrapper(
+                                                tab: _searchTab,
                                               ),
-                                              tooltip: 'חפש',
-                                              onPressed: _performSearch,
-                                              style: IconButton.styleFrom(
-                                                backgroundColor:
-                                                    Theme.of(context)
-                                                        .colorScheme
-                                                        .primaryContainer,
-                                                foregroundColor:
-                                                    Theme.of(context)
-                                                        .colorScheme
-                                                        .primary,
-                                                padding:
-                                                    const EdgeInsets.all(6),
-                                                minimumSize: const Size(32, 32),
-                                                tapTargetSize:
-                                                    MaterialTapTargetSize
-                                                        .shrinkWrap,
-                                              ),
+                                              showInlineSearchButton: false,
+                                              onSubmit: _performSearch,
                                             ),
                                           ),
-                                        ),
-                                        // כפתור היסטוריה
-                                        Positioned(
-                                          left: 48,
-                                          top: 0,
-                                          bottom: 0,
-                                          child: Center(
-                                            child: IconButton(
-                                              icon: Icon(
-                                                _showHistoryDropdown
-                                                    ? FluentIcons
-                                                        .chevron_up_24_regular
-                                                    : FluentIcons
-                                                        .history_24_regular,
-                                                size: 24,
+                                          // כפתור חיפוש
+                                          Positioned(
+                                            right: 10,
+                                            top: 8,
+                                            bottom: 8,
+                                            child: Center(
+                                              child: IconButton(
+                                                icon: const Icon(
+                                                  FluentIcons.search_24_filled,
+                                                  size: 20,
+                                                ),
+                                                tooltip: 'חפש',
+                                                onPressed: _performSearch,
+                                                style: IconButton.styleFrom(
+                                                  backgroundColor:
+                                                      Theme.of(context)
+                                                          .colorScheme
+                                                          .primaryContainer,
+                                                  foregroundColor:
+                                                      Theme.of(context)
+                                                          .colorScheme
+                                                          .primary,
+                                                  padding:
+                                                      const EdgeInsets.all(6),
+                                                  minimumSize:
+                                                      const Size(32, 32),
+                                                  tapTargetSize:
+                                                      MaterialTapTargetSize
+                                                          .shrinkWrap,
+                                                ),
                                               ),
-                                              tooltip: 'היסטוריית חיפושים',
-                                              padding: EdgeInsets.zero,
-                                              constraints:
-                                                  const BoxConstraints(),
-                                              onPressed: () {
-                                                setState(() {
-                                                  _showHistoryDropdown =
-                                                      !_showHistoryDropdown;
-                                                });
-                                              },
                                             ),
                                           ),
-                                        ),
-                                      ],
+                                          // כפתור היסטוריה
+                                          Positioned(
+                                            left: 48,
+                                            top: 0,
+                                            bottom: 0,
+                                            child: Center(
+                                              child: IconButton(
+                                                icon: Icon(
+                                                  _showHistoryDropdown
+                                                      ? FluentIcons
+                                                          .chevron_up_24_regular
+                                                      : FluentIcons
+                                                          .history_24_regular,
+                                                  size: 24,
+                                                ),
+                                                tooltip: 'היסטוריית חיפושים',
+                                                padding: EdgeInsets.zero,
+                                                constraints:
+                                                    const BoxConstraints(),
+                                                onPressed: () {
+                                                  setState(() {
+                                                    _showHistoryDropdown =
+                                                        !_showHistoryDropdown;
+                                                  });
+                                                },
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                   // מרווח בין מילים

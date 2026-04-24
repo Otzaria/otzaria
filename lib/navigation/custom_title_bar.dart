@@ -27,6 +27,7 @@ import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
+import 'package:otzaria/product_tour/product_tour_exports.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/workspaces/bloc/workspace_event.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -46,8 +47,8 @@ class CustomTitleBar extends StatefulWidget {
   State<CustomTitleBar> createState() => _CustomTitleBarState();
 }
 
-const double _kAppBarControlsWidth = 125.0;
-const double _kAppBarControlsWidthRightAligned = 105.0;
+const double _kAppBarControlsWidth = 168.0;
+const double _kAppBarControlsWidthRightAligned = 148.0;
 const int _kActionButtonsCount = 1; // settings בלבד
 const double _kActionButtonWidth = 56.0;
 const double _kWindowCaptionButtonsWidth = 138.0;
@@ -238,6 +239,7 @@ class _CustomTitleBarState extends State<CustomTitleBar>
             'ctrl+shift+b';
     final workspaceShortcut =
         Settings.getValue<String>('key-shortcut-switch-workspace') ?? 'ctrl+k';
+    const helpShortcut = 'F1';
 
     return SizedBox(
       width: settingsState.alignTabsToRight
@@ -269,6 +271,19 @@ class _CustomTitleBarState extends State<CustomTitleBar>
                   tooltip:
                       'החלף שולחן עבודה (${workspaceShortcut.toUpperCase()})',
                   onPressed: () => _showSaveWorkspaceDialog(context),
+                  style: _kIconButtonStyle,
+                ),
+                IconButton(
+                  icon: const Icon(
+                    FluentIcons.question_circle_24_regular,
+                    size: 18,
+                  ),
+                  tooltip: 'הפעל סיור מודרך ($helpShortcut)',
+                  onPressed: () {
+                    context.read<ProductTourBloc>().add(
+                          const StartIntroTour(manual: true),
+                        );
+                  },
                   style: _kIconButtonStyle,
                 ),
               ],
@@ -392,56 +407,62 @@ class _CustomTitleBarState extends State<CustomTitleBar>
               ),
             // אזור הטאבים המעודכן
             Expanded(
-              child: DragTarget<OpenedTab>(
-                onWillAcceptWithDetails: (details) => state.tabs.length > 1,
-                onAcceptWithDetails: (details) {
-                  // מקבלים את רוחב המסך הכולל ואת מיקום העכבר בעת העזיבה
-                  final RenderBox renderBox =
-                      context.findRenderObject() as RenderBox;
-                  final localOffset = renderBox.globalToLocal(details.offset);
-                  final isLeftHalf =
-                      localOffset.dx < (renderBox.size.width / 2);
+              child: ProductTourTarget(
+                targetId: TourTargetId.readingTabsBar,
+                child: DragTarget<OpenedTab>(
+                  onWillAcceptWithDetails: (details) => state.tabs.length > 1,
+                  onAcceptWithDetails: (details) {
+                    // מקבלים את רוחב המסך הכולל ואת מיקום העכבר בעת העזיבה
+                    final RenderBox renderBox =
+                        context.findRenderObject() as RenderBox;
+                    final localOffset = renderBox.globalToLocal(details.offset);
+                    final isLeftHalf =
+                        localOffset.dx < (renderBox.size.width / 2);
 
-                  // בודקים אם כיוון האפליקציה הוא מימין לשמאל (RTL) - אוצריא בעברית
-                  final isRtl = Directionality.of(context) == TextDirection.rtl;
+                    // בודקים אם כיוון האפליקציה הוא מימין לשמאל (RTL) - אוצריא בעברית
+                    final isRtl =
+                        Directionality.of(context) == TextDirection.rtl;
 
-                  // חישוב האינדקס החדש
-                  int newIndex;
-                  if (isRtl) {
-                    newIndex = isLeftHalf ? state.tabs.length - 1 : 0;
-                  } else {
-                    newIndex = isLeftHalf ? 0 : state.tabs.length - 1;
-                  }
+                    // חישוב האינדקס החדש
+                    int newIndex;
+                    if (isRtl) {
+                      newIndex = isLeftHalf ? state.tabs.length - 1 : 0;
+                    } else {
+                      newIndex = isLeftHalf ? 0 : state.tabs.length - 1;
+                    }
 
-                  final draggedTab = details.data;
-                  final currentIndex = state.tabs.indexOf(draggedTab);
+                    final draggedTab = details.data;
+                    final currentIndex = state.tabs.indexOf(draggedTab);
 
-                  // מבצעים את ההעברה רק אם הטאב באמת שינה מיקום
-                  if (currentIndex != -1 && currentIndex != newIndex) {
-                    context.read<TabsBloc>().add(MoveTab(draggedTab, newIndex));
-                  }
-                },
-                builder: (context, candidateData, rejectedData) {
-                  return DragToMoveArea(
-                    child: ScrollableTabBarWithArrows(
-                      controller: _tabController!,
-                      tabAlignment: settingsState.alignTabsToRight
-                          ? TabAlignment.start
-                          : TabAlignment.center,
-                      hideArrowsWhenNotScrollable:
-                          settingsState.alignTabsToRight,
-                      onOverflowChanged: (overflow) {
-                        if (mounted && _tabsOverflow != overflow) {
-                          setState(() => _tabsOverflow = overflow);
-                        }
-                      },
-                      tabs: state.tabs
-                          .map((tab) =>
-                              _buildTab(context, tab, state, settingsState))
-                          .toList(),
-                    ),
-                  );
-                },
+                    // מבצעים את ההעברה רק אם הטאב באמת שינה מיקום
+                    if (currentIndex != -1 && currentIndex != newIndex) {
+                      context
+                          .read<TabsBloc>()
+                          .add(MoveTab(draggedTab, newIndex));
+                    }
+                  },
+                  builder: (context, candidateData, rejectedData) {
+                    return DragToMoveArea(
+                      child: ScrollableTabBarWithArrows(
+                        controller: _tabController!,
+                        tabAlignment: settingsState.alignTabsToRight
+                            ? TabAlignment.start
+                            : TabAlignment.center,
+                        hideArrowsWhenNotScrollable:
+                            settingsState.alignTabsToRight,
+                        onOverflowChanged: (overflow) {
+                          if (mounted && _tabsOverflow != overflow) {
+                            setState(() => _tabsOverflow = overflow);
+                          }
+                        },
+                        tabs: state.tabs
+                            .map((tab) =>
+                                _buildTab(context, tab, state, settingsState))
+                            .toList(),
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
 

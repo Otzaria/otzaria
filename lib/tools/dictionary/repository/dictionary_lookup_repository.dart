@@ -209,6 +209,27 @@ class DictionaryLookupRepository {
   }
 
   /// מחזיר את כל הפירושים לראשי תיבות אם קיימים.
+  /// בודק אם ל-[raw] יש אפשרות זמינה בתפריט ההקשר של המילון.
+  ///
+  /// מחזיר `true` אם קיימת פתיחת ראשי תיבות או התאמה למילון הארמי.
+  Future<bool> hasContextMenuEntries(String raw) async {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) {
+      return false;
+    }
+
+    final shouldCheckAcronyms = isLikelyAcronym(trimmed);
+    if (shouldCheckAcronyms) {
+      await ensureAcronymsLoaded();
+      if (findAcronymMatches(trimmed).isNotEmpty) {
+        return true;
+      }
+    }
+
+    await ensureAramaicLoaded();
+    return findAramaicMatches(trimmed).isNotEmpty;
+  }
+
   AcronymDictionaryEntry? findAcronym(String raw) {
     final normalized = _normalizeAcronym(raw);
     if (normalized.isEmpty) return null;

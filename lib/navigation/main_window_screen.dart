@@ -15,7 +15,9 @@ import 'package:otzaria/navigation/startup_work_gate.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/empty_library/empty_library_screen.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_bloc.dart';
+import 'package:otzaria/find_ref/find_ref_bloc.dart';
 import 'package:otzaria/find_ref/find_ref_dialog.dart';
+import 'package:otzaria/find_ref/find_ref_event.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/library/view/library_browser.dart';
 import 'package:otzaria/tabs/reading_screen.dart';
@@ -32,6 +34,7 @@ import 'package:otzaria/migration/sync/background_sync_initializer.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
+import 'package:otzaria/models/books.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/workspaces/bloc/workspace_state.dart';
 import 'package:otzaria/widgets/context_overlay_panel.dart';
@@ -43,11 +46,15 @@ import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/file_sync/file_sync_bloc.dart';
 import 'package:otzaria/file_sync/file_sync_event.dart';
+import 'package:otzaria/product_tour/product_tour_exports.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/widgets/nav_rail_item.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
+import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
+import 'package:otzaria/tabs/models/combined_tab.dart';
+import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
@@ -70,6 +77,8 @@ final GlobalKey<State<LibraryBrowser>> libraryBrowserKey =
 
 class MainWindowScreenState extends State<MainWindowScreen>
     with TickerProviderStateMixin {
+  static const String _tourFindRefExample = 'שוע אוח סימן קיט';
+
   late final PageController pageController;
   late final CalendarCubit _calendarCubit;
   late final SettingsScreenController _settingsScreenController;
@@ -519,6 +528,15 @@ class MainWindowScreenState extends State<MainWindowScreen>
             listener: (context, state) {
               _startupWorkGate.markLibraryLoaded();
               _tryStartDeferredStartupWork();
+              if (!context.read<NavigationBloc>().state.isLibraryEmpty) {
+                context.read<ProductTourBloc>().add(
+                      RecordInteraction(
+                        TourInteraction(
+                          type: TourInteractionType.libraryReady,
+                        ),
+                      ),
+                    );
+              }
             },
           ),
           BlocListener<LibraryBloc, LibraryState>(
@@ -528,8 +546,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
             listener: (context, state) {
               if (context.read<SettingsBloc>().state.autoUpdateIndex) {
                 context.read<IndexingBloc>().add(
-                    IndexSpecificBooks(
-                        state.newBooksToIndex!, state.library!));
+                    IndexSpecificBooks(state.newBooksToIndex!, state.library!));
               }
             },
           ),
@@ -550,9 +567,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
               if (state is IndexingInProgress && state.isCreatingIndex) {
                 final total = state.totalBooks ?? 0;
                 final processed = state.booksProcessed ?? 0;
-                final progress = total > 0
-                    ? (processed / total).clamp(0.0, 1.0)
-                    : null;
+                final progress =
+                    total > 0 ? (processed / total).clamp(0.0, 1.0) : null;
                 cubit.upsert(WorkStatusItem(
                   id: 'indexing',
                   title: 'אינדוקס ספרים',
@@ -711,11 +727,53 @@ class MainWindowScreenState extends State<MainWindowScreen>
                   'book': currentTab.title,
                   'index': tabIndex,
                 });
+
+                if (currentTab is TextBookTab || currentTab is PdfBookTab) {
+                  context.read<ProductTourBloc>().add(
+                        RecordInteraction(
+                          TourInteraction(
+                            type: TourInteractionType.currentTabChanged,
+                            primaryValue: currentTab.title,
+                          ),
+                        ),
+                      );
+                }
+
+                if (currentTab is TextBookTab) {
+                  context.read<ProductTourBloc>().add(
+                        RecordInteraction(
+                          TourInteraction(
+                            type: TourInteractionType.openedTextBook,
+                            primaryValue: currentTab.title,
+                          ),
+                        ),
+                      );
+                }
+
+                if (currentTab is CombinedTab) {
+                  context.read<ProductTourBloc>().add(
+                        RecordInteraction(
+                          TourInteraction(
+                            type: TourInteractionType.sideBySideEnabled,
+                          ),
+                        ),
+                      );
+                }
               }
             },
           ),
           // settings.changed עבור selectedCity ו-calendarType —
           // שדות אלה נמצאים ב-CalendarState ולא ב-SettingsState
+          BlocListener<ProductTourBloc, ProductTourState>(
+            listenWhen: (previous, current) =>
+                previous.activeIntroStepIndex != current.activeIntroStepIndex,
+            listener: (context, state) {
+              if (state.activeIntroStepIndex == null) {
+                return;
+              }
+              unawaited(_prepareTourStep(state));
+            },
+          ),
           BlocListener<CalendarCubit, CalendarState>(
             listenWhen: (previous, current) =>
                 previous.selectedCity != current.selectedCity ||
@@ -1002,6 +1060,33 @@ class MainWindowScreenState extends State<MainWindowScreen>
                             ],
                           ),
                         ),
+                        BlocBuilder<ProductTourBloc, ProductTourState>(
+                          builder: (context, productTourState) {
+                            return ProductTourOverlay(
+                              state: productTourState,
+                              onNext: () {
+                                context.read<ProductTourBloc>().add(
+                                      const NextTourStep(),
+                                    );
+                              },
+                              onPrevious: () {
+                                context.read<ProductTourBloc>().add(
+                                      const PreviousTourStep(),
+                                    );
+                              },
+                              onDismiss: () {
+                                context.read<ProductTourBloc>().add(
+                                      const DismissActiveOverlay(),
+                                    );
+                              },
+                              onFinish: () {
+                                context.read<ProductTourBloc>().add(
+                                      const CompleteIntroTour(),
+                                    );
+                              },
+                            );
+                          },
+                        ),
                       ],
                     ),
                   ),
@@ -1113,6 +1198,155 @@ class MainWindowScreenState extends State<MainWindowScreen>
       return 3;
     }
     return _getSelectedIndex(currentScreen);
+  }
+
+  Future<void> _prepareTourStep(ProductTourState tourState) async {
+    final productTourBloc = context.read<ProductTourBloc>();
+    final stepIndex = tourState.activeIntroStepIndex;
+    if (stepIndex == null || !mounted) {
+      return;
+    }
+
+    final step = kIntroTourSteps[stepIndex];
+    final isStepReady = await _runBeforeStep(step);
+    if (!isStepReady || !mounted) {
+      productTourBloc.add(const SkipActiveTourStep());
+      return;
+    }
+
+    final targetFound = await _waitForTourTarget(step.targetId);
+    if (!targetFound && mounted) {
+      productTourBloc.add(const SkipActiveTourStep());
+    }
+  }
+
+  Future<bool> _runBeforeStep(TourStepSpec step) async {
+    final navigationBloc = context.read<NavigationBloc>();
+    final focusRepository = context.read<FocusRepository>();
+    final findRefBloc = context.read<FindRefBloc>();
+    switch (step.targetId) {
+      case TourTargetId.librarySearch:
+        await _closeTourDialogsIfNeeded();
+        navigationBloc.add(const NavigateToScreen(Screen.library));
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+        await _syncPageWithState();
+        return true;
+      case TourTargetId.findRefField:
+        await _closeTourDialogsIfNeeded();
+        navigationBloc.add(const NavigateToScreen(Screen.find));
+        await Future<void>.delayed(const Duration(milliseconds: 120));
+        if (!mounted) {
+          return false;
+        }
+        if (!_isFindRefOpen) {
+          _handleFindRefOpen(context);
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 220));
+        if (!mounted) {
+          return false;
+        }
+        focusRepository.findRefSearchController.value = const TextEditingValue(
+          text: _tourFindRefExample,
+          selection: TextSelection(
+            baseOffset: 0,
+            extentOffset: _tourFindRefExample.length,
+          ),
+        );
+        focusRepository.requestFindRefSearchFocus(selectAll: true);
+        findRefBloc.add(const SearchRefRequested(_tourFindRefExample));
+        return true;
+      case TourTargetId.searchDialogField:
+        await _closeTourDialogsIfNeeded();
+        navigationBloc.add(const NavigateToScreen(Screen.search));
+        await Future<void>.delayed(const Duration(milliseconds: 120));
+        if (!mounted) {
+          return false;
+        }
+        if (!_isSearchOpen) {
+          _handleSearchTabOpen(context);
+        }
+        return true;
+      case TourTargetId.readingViewMode:
+      case TourTargetId.readingContent:
+        await _closeTourDialogsIfNeeded();
+        return _ensureTextReadingContextForTour();
+      case TourTargetId.readingTabsBar:
+        return true;
+    }
+  }
+
+  Future<void> _closeTourDialogsIfNeeded() async {
+    if ((_isFindRefOpen || _isSearchOpen) && mounted) {
+      Navigator.of(context).pop();
+      await Future<void>.delayed(const Duration(milliseconds: 180));
+    }
+  }
+
+  Future<bool> _waitForTourTarget(TourTargetId targetId) async {
+    for (var attempt = 0; attempt < 16; attempt++) {
+      if (!mounted) {
+        return false;
+      }
+
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      if (ProductTourRegistry.instance.rectFor(targetId) != null) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  Future<bool> _ensureTextReadingContextForTour() async {
+    if (!mounted) {
+      return false;
+    }
+
+    final navigationBloc = context.read<NavigationBloc>();
+    final tabsBloc = context.read<TabsBloc>();
+    final libraryBloc = context.read<LibraryBloc>();
+
+    navigationBloc.add(const NavigateToScreen(Screen.reading));
+    await Future<void>.delayed(const Duration(milliseconds: 180));
+    if (!mounted) {
+      return false;
+    }
+    await _syncPageWithState();
+
+    final currentTab = tabsBloc.state.currentTab;
+    if (currentTab is TextBookTab) {
+      return true;
+    }
+
+    final existingTextTabIndex = tabsBloc.state.tabs.indexWhere(
+      (tab) => tab is TextBookTab,
+    );
+    if (existingTextTabIndex != -1) {
+      tabsBloc.add(SetCurrentTab(existingTextTabIndex));
+      await Future<void>.delayed(const Duration(milliseconds: 180));
+      return true;
+    }
+
+    final library = libraryBloc.state.library;
+    if (library == null) {
+      return false;
+    }
+
+    TextBook? firstTextBook;
+    for (final book in library.getAllBooks()) {
+      if (book is TextBook) {
+        firstTextBook = book;
+        break;
+      }
+    }
+
+    if (firstTextBook == null) {
+      return false;
+    }
+
+    tabsBloc.add(AddTab(OpenedTab.fromBook(firstTextBook, 0)));
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    return true;
   }
 
   Future<void> _onNavTap(

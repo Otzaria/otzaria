@@ -72,6 +72,7 @@ import 'package:otzaria/tools/calendar/services/notification_service.dart';
 import 'package:otzaria/plugins/database/plugin_database_bootstrap.dart';
 import 'package:logging/logging.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:otzaria/product_tour/product_tour_exports.dart';
 import 'package:otzaria/widgets/restart_widget.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
@@ -372,6 +373,7 @@ Future<void> _runAppBootstrap() async {
 
   final historyRepository = HistoryRepository();
   final settingsRepository = SettingsRepository();
+  final productTourRepository = ProductTourRepository();
 
   runApp(
     SentryWidget(
@@ -383,6 +385,9 @@ Future<void> _runAppBootstrap() async {
             ),
             RepositoryProvider<SettingsRepository>(
               create: (context) => settingsRepository,
+            ),
+            RepositoryProvider<ProductTourRepository>(
+              create: (context) => productTourRepository,
             ),
           ],
           child: MultiBlocProvider(
@@ -415,6 +420,11 @@ Future<void> _runAppBootstrap() async {
                   create: (context) => FindRefBloc(
                       findRefRepository: FindRefRepository(
                           dataRepository: DataRepository.instance))),
+              BlocProvider<ProductTourBloc>(
+                create: (context) => ProductTourBloc(
+                  repository: productTourRepository,
+                )..add(const BootstrapTour()),
+              ),
               BlocProvider<PersonalNotesBloc>(
                 create: (context) => PersonalNotesBloc(),
               ),

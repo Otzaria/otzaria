@@ -39,6 +39,7 @@ import 'package:otzaria/widgets/context_overlay_panel.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
+import 'package:otzaria/product_tour/product_tour_exports.dart';
 import 'package:otzaria/widgets/otzaria_search_field.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
@@ -138,7 +139,6 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       togglePreviewPanel: _togglePreviewPanel,
     );
   }
-
 
   @override
   void initState() {
@@ -561,22 +561,26 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               }
             },
           },
-          child: OtzariaSearchField(
-            controller: focusRepository.librarySearchController,
-            focusNode: focusRepository.librarySearchFocusNode,
-            autofocus: true,
-            slim: isCompact,
-            hintText:
-                'איתור ספר או מחבר ב${state.currentCategory?.title ?? ""}',
-            maxWidth: isCompact ? 500 : 400,
-            onChanged: (value) {
-              context.read<LibraryBloc>().add(UpdateSearchQuery(value));
-              context.read<LibraryBloc>().add(const SelectTopics([]));
-              _update(context, state, settingsState);
-            },
-            onClear: () {
-              _update(context, state, settingsState, restoreSearchFocus: true);
-            },
+          child: ProductTourTarget(
+            targetId: TourTargetId.librarySearch,
+            child: OtzariaSearchField(
+              controller: focusRepository.librarySearchController,
+              focusNode: focusRepository.librarySearchFocusNode,
+              autofocus: true,
+              slim: isCompact,
+              hintText:
+                  'איתור ספר או מחבר ב${state.currentCategory?.title ?? ""}',
+              maxWidth: isCompact ? 500 : 400,
+              onChanged: (value) {
+                context.read<LibraryBloc>().add(UpdateSearchQuery(value));
+                context.read<LibraryBloc>().add(const SelectTopics([]));
+                _update(context, state, settingsState);
+              },
+              onClear: () {
+                _update(context, state, settingsState,
+                    restoreSearchFocus: true);
+              },
+            ),
           ),
         );
       },
@@ -736,44 +740,44 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   ActionButtonData _buildSyncActionButton({required bool compact}) {
     return ActionButtonData(
       widget: BlocConsumer<FileSyncBloc, FileSyncState>(
-          listener: (ctx, s) {
-            if ((s.status == FileSyncStatus.completed ||
-                    s.status == FileSyncStatus.error) &&
-                s.hasNewSync) {
-              ctx.read<LibraryBloc>().add(RefreshLibrary());
-            }
-          },
-          builder: (ctx, syncState) {
-            final isSyncing = syncState.status == FileSyncStatus.syncing;
-            final icon = syncState.status == FileSyncStatus.completed
-                ? FluentIcons.checkmark_circle_24_regular
-                : FluentIcons.arrow_sync_24_regular;
-            final tooltip = switch (syncState.status) {
-              FileSyncStatus.syncing => 'עצור סינכרון',
-              FileSyncStatus.completed =>
-                syncState.hasNewSync ? 'סנכרון הושלם' : 'אין עדכונים חדשים',
-              FileSyncStatus.error => 'שגיאה בסינכרון - לחץ לנסות שוב',
-              FileSyncStatus.initial => 'סינכרון',
-            };
-            return ToolbarActionButton(
-              compact: compact,
-              tooltip: tooltip,
-              icon: icon,
-              selected: isSyncing,
-              onPressed: () {
-                final b = ctx.read<FileSyncBloc>();
-                switch (syncState.status) {
-                  case FileSyncStatus.syncing:
-                    b.add(const StopSync());
-                  case FileSyncStatus.completed:
-                  case FileSyncStatus.error:
-                    b.add(const ResetState());
-                  case FileSyncStatus.initial:
-                    b.add(const StartSync());
-                }
-              },
-            );
-          },
+        listener: (ctx, s) {
+          if ((s.status == FileSyncStatus.completed ||
+                  s.status == FileSyncStatus.error) &&
+              s.hasNewSync) {
+            ctx.read<LibraryBloc>().add(RefreshLibrary());
+          }
+        },
+        builder: (ctx, syncState) {
+          final isSyncing = syncState.status == FileSyncStatus.syncing;
+          final icon = syncState.status == FileSyncStatus.completed
+              ? FluentIcons.checkmark_circle_24_regular
+              : FluentIcons.arrow_sync_24_regular;
+          final tooltip = switch (syncState.status) {
+            FileSyncStatus.syncing => 'עצור סינכרון',
+            FileSyncStatus.completed =>
+              syncState.hasNewSync ? 'סנכרון הושלם' : 'אין עדכונים חדשים',
+            FileSyncStatus.error => 'שגיאה בסינכרון - לחץ לנסות שוב',
+            FileSyncStatus.initial => 'סינכרון',
+          };
+          return ToolbarActionButton(
+            compact: compact,
+            tooltip: tooltip,
+            icon: icon,
+            selected: isSyncing,
+            onPressed: () {
+              final b = ctx.read<FileSyncBloc>();
+              switch (syncState.status) {
+                case FileSyncStatus.syncing:
+                  b.add(const StopSync());
+                case FileSyncStatus.completed:
+                case FileSyncStatus.error:
+                  b.add(const ResetState());
+                case FileSyncStatus.initial:
+                  b.add(const StartSync());
+              }
+            },
+          );
+        },
       ),
       icon: FluentIcons.arrow_sync_24_regular,
       tooltip: 'סינכרון',

@@ -5,6 +5,7 @@ import 'package:logging/logging.dart';
 import '../models/progress_model.dart';
 import '../models/book_model.dart';
 import '../models/error_model.dart';
+import '../models/planning_model.dart';
 import '../services/progress_service.dart';
 import 'package:otzaria/core/ui_snack.dart';
 
@@ -49,17 +50,23 @@ class ShamorZachorProgressProvider with ChangeNotifier {
   final Map<String, BookProgressSummary> _progressSummaryCache = {};
   bool _isLoading = false;
   ShamorZachorError? _error;
+  ReviewScheduleSettings _reviewScheduleSettings =
+      ReviewScheduleSettings.defaultSettings();
 
   // Column names for progress tracking
   static const String learnColumn = 'learn';
   static const String review1Column = 'review1';
   static const String review2Column = 'review2';
   static const String review3Column = 'review3';
+  static const String review4Column = 'review4';
+  static const String review5Column = 'review5';
   static const List<String> allColumnNames = [
     learnColumn,
     review1Column,
     review2Column,
     review3Column,
+    review4Column,
+    review5Column,
   ];
 
   // Stream for completion events
@@ -73,6 +80,11 @@ class ShamorZachorProgressProvider with ChangeNotifier {
 
   /// Get current error, if any
   ShamorZachorError? get error => _error;
+
+  ReviewScheduleSettings get reviewScheduleSettings => _reviewScheduleSettings;
+
+  List<int> get trackedBookIdsWithProgress =>
+      _progressById.keys.toList(growable: false);
 
   /// Check if progress data has been loaded
   bool get hasData => _fullProgress.isNotEmpty;
@@ -144,6 +156,8 @@ class ShamorZachorProgressProvider with ChangeNotifier {
       // Load new format (by ID)
       _progressById = await _progressService.loadProgressDataById();
       _completionDatesById = await _progressService.loadCompletionDatesById();
+      _reviewScheduleSettings =
+          await _progressService.loadReviewScheduleSettings();
 
       _logger.info(
           'Successfully loaded progress: ${_fullProgress.length} categories (old), ${_progressById.length} books (new)');
@@ -253,6 +267,12 @@ class ShamorZachorProgressProvider with ChangeNotifier {
       if (value && !isBulkUpdate) {
         final currentProgress =
             getProgressForItem(categoryName, bookName, absoluteIndex);
+        final validationMessage =
+            _validateProgressSelection(currentProgress, columnName);
+        if (validationMessage != null) {
+          UiSnack.show(validationMessage);
+          return;
+        }
 
         // אם מנסים לסמן review1, צריך שlearn יהיה מסומן
         if (columnName == 'review1' && !currentProgress.learn) {
@@ -378,6 +398,12 @@ class ShamorZachorProgressProvider with ChangeNotifier {
           break;
         case review3Column:
           reviewCycleNumber = 3;
+          break;
+        case review4Column:
+          reviewCycleNumber = 4;
+          break;
+        case review5Column:
+          reviewCycleNumber = 5;
           break;
       }
 
@@ -684,6 +710,8 @@ class ShamorZachorProgressProvider with ChangeNotifier {
       review1Column: null,
       review2Column: null,
       review3Column: null,
+      review4Column: null,
+      review5Column: null,
     };
 
     if (bookDetails == null) return columnStates;
@@ -762,7 +790,7 @@ class ShamorZachorProgressProvider with ChangeNotifier {
         totalTargetItems) {
       cycles++;
     }
-    for (int i = 1; i <= 3; i++) {
+    for (int i = 1; i <= shamorZachorMaxReviewCycles; i++) {
       if (ProgressService.getReviewCompletedPagesCount(bookProgress, i) >=
           totalTargetItems) {
         cycles++;
@@ -786,7 +814,7 @@ class ShamorZachorProgressProvider with ChangeNotifier {
     if (learnProgress > 0 && learnProgress < 1.0) return true;
 
     // Check review progress
-    for (int i = 1; i <= 3; i++) {
+    for (int i = 1; i <= shamorZachorMaxReviewCycles; i++) {
       final reviewProgress =
           getReviewProgressPercentage(categoryName, bookName, bookDetails, i);
       if (reviewProgress > 0 && reviewProgress < 1.0) return true;
@@ -1087,6 +1115,8 @@ class ShamorZachorProgressProvider with ChangeNotifier {
       await _progressService.clearAllProgress();
       _fullProgress.clear();
       _completionDates.clear();
+      _progressById.clear();
+      _completionDatesById.clear();
       _clearSummaryCache();
       notifyListeners();
     } catch (e, stackTrace) {
@@ -1133,6 +1163,12 @@ class ShamorZachorProgressProvider with ChangeNotifier {
       // בדיקה: אם מנסים לסמן חזרה, צריך שהלימוד הקודם יהיה מסומן
       if (value) {
         final currentProgress = getProgressForItemById(bookId, absoluteIndex);
+        final validationMessage =
+            _validateProgressSelection(currentProgress, columnName);
+        if (validationMessage != null) {
+          UiSnack.show(validationMessage);
+          return;
+        }
 
         // אם מנסים לסמן review1, צריך שlearn יהיה מסומן
         if (columnName == 'review1' && !currentProgress.learn) {
@@ -1240,6 +1276,8 @@ class ShamorZachorProgressProvider with ChangeNotifier {
       review1Column: null,
       review2Column: null,
       review3Column: null,
+      review4Column: null,
+      review5Column: null,
     };
 
     if (bookDetails == null) return columnStates;
@@ -1420,7 +1458,7 @@ class ShamorZachorProgressProvider with ChangeNotifier {
     if (learnProgress > 0 && learnProgress < 1.0) return true;
 
     // Check review progress
-    for (int i = 1; i <= 3; i++) {
+    for (int i = 1; i <= shamorZachorMaxReviewCycles; i++) {
       final reviewProgress =
           getReviewProgressPercentageById(bookId, bookDetails, i);
       if (reviewProgress > 0 && reviewProgress < 1.0) return true;
@@ -1441,7 +1479,7 @@ class ShamorZachorProgressProvider with ChangeNotifier {
         totalTargetItems) {
       cycles++;
     }
-    for (int i = 1; i <= 3; i++) {
+    for (int i = 1; i <= shamorZachorMaxReviewCycles; i++) {
       if (ProgressService.getReviewCompletedPagesCount(bookProgress, i) >=
           totalTargetItems) {
         cycles++;
@@ -1454,6 +1492,53 @@ class ShamorZachorProgressProvider with ChangeNotifier {
   /// Get Hebrew date string
   String _getHebrewDate() {
     return DateTime.now().toIso8601String();
+  }
+
+  Future<void> updateReviewScheduleSettings(
+    ReviewScheduleSettings settings,
+  ) async {
+    try {
+      await _progressService.saveReviewScheduleSettings(settings);
+      _reviewScheduleSettings = settings;
+      notifyListeners();
+    } catch (e, stackTrace) {
+      _error = ShamorZachorError.fromException(
+        e,
+        stackTrace: stackTrace,
+        customMessage: 'Failed to update review schedule settings',
+      );
+      notifyListeners();
+    }
+  }
+
+  String? _validateProgressSelection(
+    PageProgress currentProgress,
+    String columnName,
+  ) {
+    final reviewNumber = _reviewNumberForColumn(columnName);
+    if (reviewNumber == null) {
+      return null;
+    }
+
+    if (!currentProgress.learn) {
+      return 'יש לסמן תחילה את הלימוד הראשוני';
+    }
+
+    for (int previousReview = 1; previousReview < reviewNumber; previousReview++) {
+      if (!currentProgress.getProperty('review$previousReview')) {
+        return 'יש לסמן תחילה את חזרה $previousReview';
+      }
+    }
+
+    return null;
+  }
+
+  int? _reviewNumberForColumn(String columnName) {
+    if (!columnName.startsWith('review')) {
+      return null;
+    }
+
+    return int.tryParse(columnName.replaceFirst('review', ''));
   }
 
   @override
