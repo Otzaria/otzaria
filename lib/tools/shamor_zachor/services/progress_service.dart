@@ -661,11 +661,20 @@ class ProgressService {
         await prefs.remove(key);
       }
 
-      for (final entry in data.entries) {
-        await _saveBookProgressById(entry.key, entry.value);
-      }
+      final Map<String, dynamic> jsonData = {};
+      data.forEach((bookId, progressMap) {
+        final Map<String, dynamic> bookProgressJson = {};
+        progressMap.forEach((itemIndex, pageProgress) {
+          if (!pageProgress.isEmpty) {
+            bookProgressJson[itemIndex] = pageProgress.toJson();
+          }
+        });
+        if (bookProgressJson.isNotEmpty) {
+          jsonData[bookId.toString()] = bookProgressJson;
+        }
+      });
 
-      await prefs.remove(_progressByIdLegacyKey);
+      await prefs.setString(_progressByIdLegacyKey, json.encode(jsonData));
       _logger.fine('Saved progress data for ${data.length} books by ID');
     } catch (e, stackTrace) {
       throw ShamorZachorError.fromException(

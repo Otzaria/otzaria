@@ -595,7 +595,7 @@ class ShamorZachorProgressProvider with ChangeNotifier {
       _progressById.remove(bookId);
       _completionDatesById.remove(bookId);
 
-      await _progressService.saveBookProgressById(bookId, const {});
+      await _progressService.saveProgressDataById(_progressById);
       await _progressService.saveCompletionDatesById(_completionDatesById);
 
       if (categoryName != null && bookName != null) {
