@@ -120,6 +120,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
   bool _hasInitializedPageController = false;
   OverlayEntry? _productTourOverlayEntry;
   ProductTourState _latestProductTourState = ProductTourState.initial();
+  int _tourStepPreparationId = 0;
 
   static const _navData = [
     (
@@ -392,17 +393,29 @@ class MainWindowScreenState extends State<MainWindowScreen>
   }
 
   /// ודאו שה-PageView מסונכרן למצב הניווט הנוכחי גם אם בחרו שוב באותו יעד.
-  void _syncProductTourOverlay(ProductTourState state) {
+  void _syncProductTourOverlay(
+    ProductTourState state, {
+    bool bringToFront = false,
+  }) {
     _latestProductTourState = state;
     if (!mounted) {
       return;
     }
 
-    _productTourOverlayEntry?.remove();
-    _productTourOverlayEntry = null;
-
     if (!state.hasActiveOverlay) {
+      _productTourOverlayEntry?.remove();
+      _productTourOverlayEntry = null;
       return;
+    }
+
+    if (_productTourOverlayEntry != null) {
+      if (!bringToFront) {
+        _productTourOverlayEntry!.markNeedsBuild();
+        return;
+      }
+
+      _productTourOverlayEntry!.remove();
+      _productTourOverlayEntry = null;
     }
 
     final overlay = Overlay.of(context, rootOverlay: true);
@@ -439,7 +452,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
       return;
     }
 
-    _syncProductTourOverlay(_latestProductTourState);
+    _syncProductTourOverlay(_latestProductTourState, bringToFront: true);
   }
 
   Future<void> _syncPageWithState() async {
@@ -819,6 +832,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
           // settings.changed עבור selectedCity ו-calendarType —
           // שדות אלה נמצאים ב-CalendarState ולא ב-SettingsState
           BlocListener<ProductTourBloc, ProductTourState>(
+            listenWhen: (previous, current) =>
+                previous.activeIntroStepIndex != current.activeIntroStepIndex ||
+                previous.activeLiveTipId != current.activeLiveTipId,
             listener: (context, state) {
               _syncProductTourOverlay(state);
             },
@@ -830,7 +846,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
               if (state.activeIntroStepIndex == null) {
                 return;
               }
-              unawaited(_prepareTourStep(state));
+              final preparationId = ++_tourStepPreparationId;
+              unawaited(_prepareTourStep(state, preparationId));
             },
           ),
           BlocListener<CalendarCubit, CalendarState>(
@@ -1232,7 +1249,10 @@ class MainWindowScreenState extends State<MainWindowScreen>
     return _getSelectedIndex(currentScreen);
   }
 
-  Future<void> _prepareTourStep(ProductTourState tourState) async {
+  Future<void> _prepareTourStep(
+    ProductTourState tourState,
+    int preparationId,
+  ) async {
     final productTourBloc = context.read<ProductTourBloc>();
     final stepIndex = tourState.activeIntroStepIndex;
     if (stepIndex == null || !mounted) {
@@ -1242,18 +1262,27 @@ class MainWindowScreenState extends State<MainWindowScreen>
     final step = kIntroTourSteps[stepIndex];
     final isStepReady = await _runBeforeStep(step);
     if (!isStepReady || !mounted) {
-      productTourBloc.add(const SkipActiveTourStep());
+      if (_isCurrentTourPreparation(preparationId, stepIndex)) {
+        productTourBloc.add(const SkipActiveTourStep());
+      }
       return;
     }
 
     _bringProductTourOverlayToFront();
     final targetFound = await _waitForTourTarget(step.targetId);
-    if (mounted) {
+    if (mounted && _isCurrentTourPreparation(preparationId, stepIndex)) {
       _bringProductTourOverlayToFront();
     }
-    if (!targetFound && mounted) {
+    if (!targetFound &&
+        mounted &&
+        _isCurrentTourPreparation(preparationId, stepIndex)) {
       productTourBloc.add(const SkipActiveTourStep());
     }
+  }
+
+  bool _isCurrentTourPreparation(int preparationId, int stepIndex) {
+    return preparationId == _tourStepPreparationId &&
+        _latestProductTourState.activeIntroStepIndex == stepIndex;
   }
 
   Future<bool> _runBeforeStep(TourStepSpec step) async {

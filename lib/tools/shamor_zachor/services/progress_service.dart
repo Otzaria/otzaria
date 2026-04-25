@@ -18,11 +18,16 @@ class ProgressService {
   static const String _completionDatesKey = '${_keyPrefix}completion_dates';
   static const String _lastAccessedKey = '${_keyPrefix}last_accessed';
   static const String _reviewScheduleKey = '${_keyPrefix}review_schedule';
+  static const String _progressByIdLegacyKey = '${_keyPrefix}progress_by_id';
+  static const String _progressByIdBookKeyPrefix =
+      '${_keyPrefix}progress_by_id:';
 
   // Debouncing for batch saves
   Timer? _saveTimer;
+  Timer? _saveByIdTimer;
   final Duration _saveDelay = const Duration(milliseconds: 500);
   final Map<String, dynamic> _pendingChanges = {};
+  final Map<String, dynamic> _pendingChangesById = {};
 
   SharedPreferences? _prefs;
 
@@ -536,9 +541,19 @@ class ProgressService {
       await prefs.remove(_progressDataKey);
       await prefs.remove(_completionDatesKey);
       await prefs.remove(_lastAccessedKey);
+      await prefs.remove(_progressByIdLegacyKey);
+      final bookKeys = prefs
+          .getKeys()
+          .where((key) => key.startsWith(_progressByIdBookKeyPrefix))
+          .toList();
+      for (final key in bookKeys) {
+        await prefs.remove(key);
+      }
 
       _pendingChanges.clear();
       _saveTimer?.cancel();
+      _pendingChangesById.clear();
+      _saveByIdTimer?.cancel();
 
       _logger.info('Cleared all progress data');
     } catch (e, stackTrace) {
@@ -558,32 +573,63 @@ class ProgressService {
   Future<ProgressMapById> loadProgressDataById() async {
     try {
       final prefs = await _getPrefs();
-      final jsonString = prefs.getString('${_keyPrefix}progress_by_id');
+      final ProgressMapById progressMap = {};
+      final jsonString = prefs.getString(_progressByIdLegacyKey);
 
-      if (jsonString == null || jsonString.isEmpty) {
-        return {};
+      if (jsonString != null && jsonString.isNotEmpty) {
+        final Map<String, dynamic> decoded = json.decode(jsonString);
+        decoded.forEach((bookIdKey, bookValue) {
+          final bookId = int.parse(bookIdKey);
+          if (bookValue is Map) {
+            progressMap[bookId] = _decodeBookProgress(bookId, bookValue);
+          }
+        });
       }
 
-      final Map<String, dynamic> decoded = json.decode(jsonString);
-      final ProgressMapById progressMap = {};
-
-      decoded.forEach((bookIdKey, bookValue) {
-        final bookId = int.parse(bookIdKey);
-        if (bookValue is Map) {
-          progressMap[bookId] = {};
-          bookValue.forEach((itemIndexKey, itemProgressValue) {
-            if (itemProgressValue is Map) {
-              try {
-                progressMap[bookId]![itemIndexKey] = PageProgress.fromJson(
-                    Map<String, dynamic>.from(itemProgressValue));
-              } catch (e) {
-                _logger.warning(
-                    'Invalid progress data for book $bookId/$itemIndexKey: $e');
-              }
-            }
-          });
+      for (final key in prefs.getKeys()) {
+        if (!key.startsWith(_progressByIdBookKeyPrefix)) {
+          continue;
         }
-      });
+
+        final bookIdText = key.substring(_progressByIdBookKeyPrefix.length);
+        final bookId = int.tryParse(bookIdText);
+        final bookJson = prefs.getString(key);
+        if (bookId == null || bookJson == null || bookJson.isEmpty) {
+          continue;
+        }
+
+        final decodedBook = json.decode(bookJson);
+        if (decodedBook is Map) {
+          progressMap[bookId] = _decodeBookProgress(bookId, decodedBook);
+        }
+      }
+
+      if (jsonString != null && jsonString.isNotEmpty) {
+        for (final entry in progressMap.entries) {
+          await _saveBookProgressById(entry.key, entry.value);
+        }
+        await prefs.remove(_progressByIdLegacyKey);
+      }
+
+      for (final change in _pendingChangesById.values) {
+        final bookId = change['bookId'] as int;
+        final itemIndexKey = change['itemIndexKey'] as String;
+        final columnName = change['columnName'] as String;
+        final value = change['value'] as bool;
+        final bookProgress = progressMap.putIfAbsent(
+          bookId,
+          () => <String, PageProgress>{},
+        );
+        bookProgress.putIfAbsent(itemIndexKey, () => PageProgress());
+        final pageProgress = bookProgress[itemIndexKey]!;
+        pageProgress.setProperty(columnName, value);
+        if (pageProgress.isEmpty) {
+          bookProgress.remove(itemIndexKey);
+          if (bookProgress.isEmpty) {
+            progressMap.remove(bookId);
+          }
+        }
+      }
 
       _logger
           .fine('Loaded progress data for ${progressMap.length} books by ID');
@@ -601,23 +647,25 @@ class ProgressService {
     }
   }
 
-  /// Save progress data by book ID
+  /// Save progress data by book ID.
   Future<void> saveProgressDataById(ProgressMapById data) async {
     try {
+      await _processPendingChangesById();
       final prefs = await _getPrefs();
 
-      // המרה ידנית ל-JSON כי PageProgress לא ממיר אוטומטית
-      final Map<String, dynamic> jsonData = {};
-      data.forEach((bookId, progressMap) {
-        final Map<String, dynamic> bookProgressJson = {};
-        progressMap.forEach((itemIndex, pageProgress) {
-          bookProgressJson[itemIndex] = pageProgress.toJson();
-        });
-        jsonData[bookId.toString()] = bookProgressJson;
-      });
+      final existingBookKeys = prefs
+          .getKeys()
+          .where((key) => key.startsWith(_progressByIdBookKeyPrefix))
+          .toList();
+      for (final key in existingBookKeys) {
+        await prefs.remove(key);
+      }
 
-      final jsonString = json.encode(jsonData);
-      await prefs.setString('${_keyPrefix}progress_by_id', jsonString);
+      for (final entry in data.entries) {
+        await _saveBookProgressById(entry.key, entry.value);
+      }
+
+      await prefs.remove(_progressByIdLegacyKey);
       _logger.fine('Saved progress data for ${data.length} books by ID');
     } catch (e, stackTrace) {
       throw ShamorZachorError.fromException(
@@ -627,6 +675,156 @@ class ProgressService {
         customMessage: 'Failed to save progress data by ID',
       );
     }
+  }
+
+  /// Save progress for a single item by book ID with debouncing.
+  Future<void> saveProgressById(
+    int bookId,
+    String itemIndexKey,
+    String columnName,
+    bool value,
+  ) async {
+    try {
+      final changeKey = '$bookId:$itemIndexKey:$columnName';
+      _pendingChangesById[changeKey] = {
+        'bookId': bookId,
+        'itemIndexKey': itemIndexKey,
+        'columnName': columnName,
+        'value': value,
+      };
+
+      _saveByIdTimer?.cancel();
+      _saveByIdTimer = Timer(_saveDelay, _processPendingChangesById);
+    } catch (e, stackTrace) {
+      throw ShamorZachorError.fromException(
+        e,
+        stackTrace: stackTrace,
+        customMessage: 'Failed to save progress by ID',
+      );
+    }
+  }
+
+  /// Save all progress for one book ID without touching other books.
+  Future<void> saveBookProgressById(
+    int bookId,
+    Map<String, PageProgress> bookProgress,
+  ) async {
+    await _processPendingChangesById();
+    await _saveBookProgressById(bookId, bookProgress);
+  }
+
+  Future<void> _processPendingChangesById() async {
+    if (_pendingChangesById.isEmpty) return;
+
+    try {
+      final changes = Map<String, dynamic>.from(_pendingChangesById);
+      _pendingChangesById.clear();
+
+      final changesByBook = <int, List<Map<String, dynamic>>>{};
+      for (final change in changes.values) {
+        final bookId = change['bookId'] as int;
+        changesByBook.putIfAbsent(bookId, () => <Map<String, dynamic>>[]);
+        changesByBook[bookId]!.add(Map<String, dynamic>.from(change));
+      }
+
+      for (final entry in changesByBook.entries) {
+        final bookId = entry.key;
+        final bookProgress = await _loadBookProgressById(bookId);
+
+        for (final change in entry.value) {
+          final itemIndexKey = change['itemIndexKey'] as String;
+          final columnName = change['columnName'] as String;
+          final value = change['value'] as bool;
+
+          bookProgress.putIfAbsent(itemIndexKey, () => PageProgress());
+          final currentItemProgress = bookProgress[itemIndexKey]!;
+          currentItemProgress.setProperty(columnName, value);
+          if (currentItemProgress.isEmpty) {
+            bookProgress.remove(itemIndexKey);
+          }
+        }
+
+        await _saveBookProgressById(bookId, bookProgress);
+      }
+    } catch (e) {
+      _logger.severe('Failed to process pending ID changes: $e');
+      rethrow;
+    }
+  }
+
+  Future<Map<String, PageProgress>> _loadBookProgressById(int bookId) async {
+    final prefs = await _getPrefs();
+    final bookJson = prefs.getString('$_progressByIdBookKeyPrefix$bookId');
+    if (bookJson != null && bookJson.isNotEmpty) {
+      final decodedBook = json.decode(bookJson);
+      if (decodedBook is Map) {
+        return _decodeBookProgress(bookId, decodedBook);
+      }
+    }
+
+    final legacyJson = prefs.getString(_progressByIdLegacyKey);
+    if (legacyJson == null || legacyJson.isEmpty) {
+      return <String, PageProgress>{};
+    }
+
+    final decoded = json.decode(legacyJson);
+    if (decoded is! Map) {
+      return <String, PageProgress>{};
+    }
+
+    final legacyBook = decoded[bookId.toString()];
+    if (legacyBook is Map) {
+      return _decodeBookProgress(bookId, legacyBook);
+    }
+
+    return <String, PageProgress>{};
+  }
+
+  Future<void> _saveBookProgressById(
+    int bookId,
+    Map<String, PageProgress> bookProgress,
+  ) async {
+    final prefs = await _getPrefs();
+    final key = '$_progressByIdBookKeyPrefix$bookId';
+
+    if (bookProgress.isEmpty) {
+      await prefs.remove(key);
+      return;
+    }
+
+    final Map<String, dynamic> bookProgressJson = {};
+    bookProgress.forEach((itemIndex, pageProgress) {
+      if (!pageProgress.isEmpty) {
+        bookProgressJson[itemIndex] = pageProgress.toJson();
+      }
+    });
+
+    if (bookProgressJson.isEmpty) {
+      await prefs.remove(key);
+      return;
+    }
+
+    await prefs.setString(key, json.encode(bookProgressJson));
+  }
+
+  Map<String, PageProgress> _decodeBookProgress(
+    int bookId,
+    Map<dynamic, dynamic> bookValue,
+  ) {
+    final bookProgress = <String, PageProgress>{};
+    bookValue.forEach((itemIndexKey, itemProgressValue) {
+      if (itemProgressValue is Map) {
+        try {
+          bookProgress[itemIndexKey.toString()] = PageProgress.fromJson(
+            Map<String, dynamic>.from(itemProgressValue),
+          );
+        } catch (e) {
+          _logger.warning(
+              'Invalid progress data for book $bookId/$itemIndexKey: $e');
+        }
+      }
+    });
+    return bookProgress;
   }
 
   /// Load completion dates by book ID
@@ -897,5 +1095,7 @@ class ProgressService {
   void dispose() {
     _saveTimer?.cancel();
     _pendingChanges.clear();
+    _saveByIdTimer?.cancel();
+    _pendingChangesById.clear();
   }
 }

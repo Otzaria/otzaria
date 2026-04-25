@@ -121,7 +121,8 @@ class DictionaryLookupRepository {
   Map<String, List<String>> _acronymsByKey = <String, List<String>>{};
   Map<String, String> _originalAcronymByKey = <String, String>{};
   List<AramaicDictionaryEntry> _aramaicEntries = <AramaicDictionaryEntry>[];
-  Set<String> _aramaicTerms = <String>{};
+  Map<String, List<AramaicDictionaryEntry>> _aramaicEntriesByTerm =
+      <String, List<AramaicDictionaryEntry>>{};
 
   bool get isLoaded => _areAcronymsLoaded && _areAramaicLoaded;
   bool get areAcronymsLoaded => _areAcronymsLoaded;
@@ -286,30 +287,9 @@ class DictionaryLookupRepository {
   List<AramaicDictionaryEntry> findAramaicMatches(String raw) {
     final normalizedWord = _normalizeAramaic(raw);
     if (normalizedWord.isEmpty) return const <AramaicDictionaryEntry>[];
-    if (!_aramaicTerms.contains(normalizedWord)) {
-      return const <AramaicDictionaryEntry>[];
-    }
 
-    final exact = <AramaicDictionaryEntry>[];
-    final containsAsWord = <AramaicDictionaryEntry>[];
-
-    for (final entry in _aramaicEntries) {
-      final normalizedEntry = _normalizeAramaic(entry.aramaic);
-      if (normalizedEntry == normalizedWord) {
-        exact.add(entry);
-        continue;
-      }
-
-      final words = _splitAramaicWords(normalizedEntry);
-      if (words.contains(normalizedWord)) {
-        containsAsWord.add(entry);
-      }
-    }
-
-    return <AramaicDictionaryEntry>[
-      ...exact,
-      ...containsAsWord,
-    ];
+    return _aramaicEntriesByTerm[normalizedWord] ??
+        const <AramaicDictionaryEntry>[];
   }
 
   Future<void> _loadAcronymsInternal() async {
@@ -344,7 +324,7 @@ class DictionaryLookupRepository {
 
   Future<void> _loadAramaicInternal() async {
     final aramaicEntries = await _loadAramaicEntries();
-    final aramaicTerms = <String>{};
+    final entriesByTerm = <String, List<AramaicDictionaryEntry>>{};
 
     for (final entry in aramaicEntries) {
       final normalizedEntry = _normalizeAramaic(entry.aramaic);
@@ -352,12 +332,28 @@ class DictionaryLookupRepository {
         continue;
       }
 
-      aramaicTerms.add(normalizedEntry);
-      aramaicTerms.addAll(_splitAramaicWords(normalizedEntry));
+      entriesByTerm.putIfAbsent(
+        normalizedEntry,
+        () => <AramaicDictionaryEntry>[],
+      );
+      entriesByTerm[normalizedEntry]!.add(entry);
+
+      for (final word in _splitAramaicWords(normalizedEntry)) {
+        if (word == normalizedEntry) {
+          continue;
+        }
+        entriesByTerm.putIfAbsent(word, () => <AramaicDictionaryEntry>[]);
+        entriesByTerm[word]!.add(entry);
+      }
     }
 
     _aramaicEntries = List<AramaicDictionaryEntry>.unmodifiable(aramaicEntries);
-    _aramaicTerms = Set<String>.unmodifiable(aramaicTerms);
+    _aramaicEntriesByTerm = entriesByTerm.map(
+      (term, entries) => MapEntry(
+        term,
+        List<AramaicDictionaryEntry>.unmodifiable(entries),
+      ),
+    );
   }
 
   static Future<Map<String, List<String>>> _defaultLoadAcronyms() async {
@@ -469,7 +465,7 @@ class DictionaryLookupRepository {
 
   void _resetAramaicCache() {
     _aramaicEntries = <AramaicDictionaryEntry>[];
-    _aramaicTerms = <String>{};
+    _aramaicEntriesByTerm = <String, List<AramaicDictionaryEntry>>{};
     _areAramaicLoaded = false;
   }
 }

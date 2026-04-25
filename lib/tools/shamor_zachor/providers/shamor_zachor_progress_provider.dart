@@ -595,7 +595,7 @@ class ShamorZachorProgressProvider with ChangeNotifier {
       _progressById.remove(bookId);
       _completionDatesById.remove(bookId);
 
-      await _progressService.saveProgressDataById(_progressById);
+      await _progressService.saveBookProgressById(bookId, const {});
       await _progressService.saveCompletionDatesById(_completionDatesById);
 
       if (categoryName != null && bookName != null) {
@@ -1223,7 +1223,12 @@ class ShamorZachorProgressProvider with ChangeNotifier {
 
       _logger.info('Saving progress to storage...');
       // Save to storage
-      await _progressService.saveProgressDataById(_progressById);
+      await _progressService.saveProgressById(
+        bookId,
+        itemIndexKey,
+        columnName,
+        value,
+      );
       _logger.info('Progress saved successfully');
 
       // Handle completion events
@@ -1330,7 +1335,7 @@ class ShamorZachorProgressProvider with ChangeNotifier {
         bookProgress[key]!.setProperty(columnName, selectAll);
       }
 
-      await _progressService.saveProgressDataById(_progressById);
+      await _progressService.saveBookProgressById(bookId, bookProgress);
       notifyListeners();
     } catch (e, stackTrace) {
       _logger.severe(
@@ -1392,7 +1397,7 @@ class ShamorZachorProgressProvider with ChangeNotifier {
         bookProgress[key]!.setProperty(columnName, selectAll);
       }
 
-      await _progressService.saveProgressDataById(_progressById);
+      await _progressService.saveBookProgressById(bookId, bookProgress);
       notifyListeners();
     } catch (e, stackTrace) {
       _logger.severe('Error toggling section column by ID', e, stackTrace);
@@ -1524,7 +1529,9 @@ class ShamorZachorProgressProvider with ChangeNotifier {
       return 'יש לסמן תחילה את הלימוד הראשוני';
     }
 
-    for (int previousReview = 1; previousReview < reviewNumber; previousReview++) {
+    for (int previousReview = 1;
+        previousReview < reviewNumber;
+        previousReview++) {
       if (!currentProgress.getProperty('review$previousReview')) {
         return 'יש לסמן תחילה את חזרה $previousReview';
       }
