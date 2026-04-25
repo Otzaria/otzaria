@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:otzaria/generated_links/models/generated_inline_link.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
@@ -159,6 +160,7 @@ class TextBookLoaded extends TextBookState {
 
   // Caches
   final Map<int, List<Link>> linksByLine;
+  final Map<int, List<GeneratedInlineLink>> generatedLinksByLine;
 
   // Controllers
   final ItemScrollController scrollController;
@@ -205,6 +207,7 @@ class TextBookLoaded extends TextBookState {
     this.hasDraft = false,
     this.hasLinksFile = false,
     this.notesContent,
+    this.generatedLinksByLine = const {},
   }) : super(book, selectedIndex ?? 0, showLeftPane, activeCommentators);
 
   factory TextBookLoaded.initial({
@@ -292,6 +295,7 @@ class TextBookLoaded extends TextBookState {
     bool? hasDraft,
     bool? hasLinksFile,
     Object? notesContent = _noValue,
+    Map<int, List<GeneratedInlineLink>>? generatedLinksByLine,
   }) {
     return TextBookLoaded(
       book: book ?? this.book,
@@ -339,6 +343,7 @@ class TextBookLoaded extends TextBookState {
       notesContent: identical(notesContent, _noValue)
           ? this.notesContent
           : notesContent as String?,
+      generatedLinksByLine: generatedLinksByLine ?? this.generatedLinksByLine,
     );
   }
 
@@ -381,5 +386,6 @@ class TextBookLoaded extends TextBookState {
         hasDraft,
         hasLinksFile,
         notesContent,
+        generatedLinksByLine.length,
       ];
 }

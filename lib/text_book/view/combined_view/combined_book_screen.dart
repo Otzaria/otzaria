@@ -1217,8 +1217,8 @@ class _CombinedViewState extends State<CombinedView> {
 
                         String data = widget.data[index];
 
-                        // הוספת קישורים מבוססי תווים לפני כל עיבוד אחר
-                        // כי start/end מתייחסים לטקסט המקורי
+                        // הזרקת שני סוגי הקישורים במעבר אחד על הטקסט הגולמי
+                        // (start/end של שניהם מתייחסים לטקסט המקורי)
                         String dataWithLinks = data;
                         if (settingsState.enableHtmlLinks) {
                           try {
@@ -1228,13 +1228,14 @@ class _CombinedViewState extends State<CombinedView> {
                                     link.start != null &&
                                     link.end != null)
                                 .toList();
-
-                            if (linksForLine.isNotEmpty) {
-                              dataWithLinks =
-                                  addInlineLinksToText(data, linksForLine);
+                            final generatedForLine =
+                                state.generatedLinksByLine[index] ?? const [];
+                            if (linksForLine.isNotEmpty ||
+                                generatedForLine.isNotEmpty) {
+                              dataWithLinks = addAllInlineLinksToText(
+                                  data, linksForLine, generatedForLine);
                             }
                           } catch (e) {
-                            // אם יש שגיאה, פשוט נשתמש בטקסט המקורי
                             dataWithLinks = data;
                           }
                         }

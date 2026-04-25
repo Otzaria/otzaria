@@ -1,4 +1,8 @@
 import 'dart:async';
+import 'package:otzaria/generated_links/models/generated_inline_link.dart';
+import 'package:otzaria/generated_links/models/generated_links_processing_status.dart';
+import 'package:otzaria/generated_links/repository/generated_links_cache_store.dart';
+import 'package:otzaria/generated_links/services/generated_links_scheduler.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/foundation.dart';
@@ -32,6 +36,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   static const String _allTargetBookTitlesSignature =
       '__all_target_book_titles__';
 
+  static const String _rulesVersion = 'v1';
+
   final TextBookRepository repository;
   final Future<String?> Function(
     String title,
@@ -41,6 +47,12 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   }) _quickPreviewLoader;
   final ItemScrollController scrollController;
   final ItemPositionsListener positionsListener;
+
+  final GeneratedLinksScheduler? _generatedLinksScheduler;
+  final GeneratedLinksCacheStore? _generatedLinksCacheStore;
+  StreamSubscription<BatchResult>? _batchResultSubscription;
+  Map<int, List<GeneratedInlineLink>> _accumulatedGeneratedLinks = {};
+  String? _currentGeneratedLinksJobId;
 
   Timer? _debounceTimer;
   Timer? _highlightTimer;
@@ -67,7 +79,11 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     required TextBookInitial initialState,
     required this.scrollController,
     required this.positionsListener,
-  })  : _quickPreviewLoader = quickPreviewLoader ??
+    GeneratedLinksScheduler? generatedLinksScheduler,
+    GeneratedLinksCacheStore? generatedLinksCacheStore,
+  })  : _generatedLinksScheduler = generatedLinksScheduler,
+        _generatedLinksCacheStore = generatedLinksCacheStore,
+        _quickPreviewLoader = quickPreviewLoader ??
             SqliteDataProvider.instance.getBookQuickPreview,
         super(initialState) {
     on<LoadContent>(_onLoadContent);
@@ -91,6 +107,10 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     on<UpdateLinks>(_onUpdateLinks);
     on<UpdateAvailableCommentators>(_onUpdateAvailableCommentators);
     on<RefreshLinksForCurrentWindow>(_onRefreshLinksForCurrentWindow);
+    on<UpdateGeneratedLinks>(_onUpdateGeneratedLinks);
+
+    _batchResultSubscription =
+        _generatedLinksScheduler?.batchResults.listen(_onBatchResult);
   }
 
   @visibleForTesting
@@ -424,6 +444,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       }
 
       _enrichHeCategoriesInBackground(book);
+
+      // תזמון עיבוד קישורים שנוצרים מקומית (אם מוזרק scheduler)
+      _scheduleGeneratedLinksForBook(book, contentLines);
     } catch (e, st) {
       debugPrint('Error loading textbook: $e\n$st');
       if (state is TextBookInitial) {
@@ -1014,6 +1037,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     }
 
     emit(currentState.copyWith(content: event.content));
+    // תזמון מחדש לפי תוכן מלא — מבטל את job ה-preview ומתחיל מחדש
+    _scheduleGeneratedLinksForBook(currentState.book, event.content);
   }
 
   void _onCreateNoteFromToolbar(
@@ -1037,8 +1062,367 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     }
   }
 
+  // [EDITING DISABLED] - All editor event handlers commented out
+  // Future<void> _onOpenEditor(
+  //   OpenEditor event,
+  //   Emitter<TextBookState> emit,
+  // ) async {
+  //   if (state is! TextBookLoaded) return;
+  //
+  //   final currentState = state as TextBookLoaded;
+  //
+  //   try {
+  //     // Generate section identifier
+  //     final content = currentState.content[event.index];
+  //     final sectionId = SectionIdentifier.fromContent(
+  //       content: content,
+  //       index: event.index,
+  //     );
+  //
+  //     // Check if book has links file
+  //     final hasLinks =
+  //         await _overridesRepository.hasLinksFile(currentState.book.title);
+  //
+  //     // Load existing override or original content
+  //     final override = await _overridesRepository.readOverride(
+  //       currentState.book.title,
+  //       sectionId.sectionId,
+  //     );
+  //
+  //     final editorText = override?.markdownContent ?? content;
+  //
+  //     // Check for draft
+  //     final hasDraft = await _overridesRepository.hasNewerDraftThanOverride(
+  //       currentState.book.title,
+  //       sectionId.sectionId,
+  //     );
+  //
+  //     emit(currentState.copyWith(
+  //       isEditorOpen: true,
+  //       editorIndex: event.index,
+  //       editorSectionId: sectionId.sectionId,
+  //       editorText: editorText,
+  //       hasDraft: hasDraft,
+  //       hasLinksFile: hasLinks,
+  //     ));
+  //   } catch (e) {
+  //     // Handle error - could emit error state or show notification
+  //   }
+  // }
+  //
+  // Future<void> _onOpenFullFileEditor(
+  //   OpenFullFileEditor event,
+  //   Emitter<TextBookState> emit,
+  // ) async {
+  //   if (state is! TextBookLoaded) return;
+  //
+  //   final currentState = state as TextBookLoaded;
+  //
+  //   try {
+  //     // Combine all content into one string
+  //     final fullContent = currentState.content.join('\n\n');
+  //
+  //     // We don't need section identifier for full file - using fixed ID
+  //
+  //     // Check if book has links file
+  //     final hasLinks =
+  //         await _overridesRepository.hasLinksFile(currentState.book.title);
+  //
+  //     // Load existing override or original content
+  //     final override = await _overridesRepository.readOverride(
+  //       currentState.book.title,
+  //       'full_file',
+  //     );
+  //
+  //     final editorText = override?.markdownContent ?? fullContent;
+  //
+  //     // Check for draft
+  //     final hasDraft = await _overridesRepository.hasNewerDraftThanOverride(
+  //       currentState.book.title,
+  //       'full_file',
+  //     );
+  //
+  //     emit(currentState.copyWith(
+  //       isEditorOpen: true,
+  //       editorIndex: -1, // Special index for full file
+  //       editorSectionId: 'full_file',
+  //       editorText: editorText,
+  //       hasDraft: hasDraft,
+  //       hasLinksFile: hasLinks,
+  //     ));
+  //   } catch (e) {
+  //     // Debug: Error in _onOpenFullFileEditor: $e
+  //     // Handle error - could emit error state or show notification
+  //   }
+  // }
+  //
+  // Future<void> _onSaveEditedSection(
+  //   SaveEditedSection event,
+  //   Emitter<TextBookState> emit,
+  // ) async {
+  //   if (state is! TextBookLoaded) return;
+  //
+  //   final currentState = state as TextBookLoaded;
+  //
+  //   try {
+  //     // Handle full file editing differently
+  //     if (event.sectionId == 'full_file' && event.index == -1) {
+  //       // For full file editing, save the entire content to the original file
+  //       await repository.saveBookContent(currentState.book, event.markdown);
+  //
+  //       // Split the content back into sections for display
+  //       final sections = event.markdown
+  //           .split('\n\n')
+  //           .where((s) => s.trim().isNotEmpty)
+  //           .toList();
+  //
+  //       // If we have fewer sections than before, pad with empty strings
+  //       while (sections.length < currentState.content.length) {
+  //         sections.add('');
+  //       }
+  //
+  //       // Reload content to ensure we have the latest version
+  //       add(LoadContent(
+  //         fontSize: currentState.fontSize,
+  //         showSplitView: currentState.showSplitView,
+  //         removeNikud: currentState.removeNikud,
+  //         preserveState: true,
+  //       ));
+  //
+  //       return;
+  //     }
+  //
+  //     // Regular section editing - update the specific section and save the entire file
+  //     final updatedContent = List<String>.from(currentState.content);
+  //     updatedContent[event.index] = event.markdown;
+  //
+  //     // Join all sections back together and save to original file
+  //     final fullContent = updatedContent.join('\n\n');
+  //     await repository.saveBookContent(currentState.book, fullContent);
+  //
+  //     // Close editor immediately
+  //     emit(currentState.copyWith(
+  //       isEditorOpen: false,
+  //       editorIndex: null,
+  //       editorSectionId: null,
+  //       editorText: null,
+  //       hasDraft: false,
+  //     ));
+  //
+  //     // Reload content to ensure we have the latest version from the file system
+  //     add(LoadContent(
+  //       fontSize: currentState.fontSize,
+  //       showSplitView: currentState.showSplitView,
+  //       removeNikud: currentState.removeNikud,
+  //       preserveState: true,
+  //     ));
+  //   } catch (e) {
+  //     // Debug: Error in _onSaveEditedSection: $e
+  //     // Handle error - could show error message to user
+  //   }
+  // }
+  //
+  // Future<void> _onLoadDraftIfAny(
+  //   LoadDraftIfAny event,
+  //   Emitter<TextBookState> emit,
+  // ) async {
+  //   if (state is! TextBookLoaded) return;
+  //
+  //   final currentState = state as TextBookLoaded;
+  //
+  //   try {
+  //     final draft = await _overridesRepository.readDraft(
+  //       currentState.book.title,
+  //       event.sectionId,
+  //     );
+  //
+  //     if (draft != null) {
+  //       emit(currentState.copyWith(
+  //         editorText: draft.markdownContent,
+  //         hasDraft: false, // Draft is now loaded, so no longer "pending"
+  //       ));
+  //     }
+  //   } catch (e) {
+  //     // Handle error
+  //   }
+  // }
+  //
+  // Future<void> _onDiscardDraft(
+  //   DiscardDraft event,
+  //   Emitter<TextBookState> emit,
+  // ) async {
+  //   if (state is! TextBookLoaded) return;
+  //
+  //   final currentState = state as TextBookLoaded;
+  //
+  //   try {
+  //     await _overridesRepository.deleteDraft(
+  //       currentState.book.title,
+  //       event.sectionId,
+  //     );
+  //
+  //     emit(currentState.copyWith(hasDraft: false));
+  //   } catch (e) {
+  //     // Handle error
+  //   }
+  // }
+  //
+  // Future<void> _onCloseEditor(
+  //   CloseEditor event,
+  //   Emitter<TextBookState> emit,
+  // ) async {
+  //   if (state is! TextBookLoaded) return;
+  //
+  //   final currentState = state as TextBookLoaded;
+  //
+  //   emit(currentState.copyWith(
+  //     isEditorOpen: false,
+  //     editorIndex: null,
+  //     editorSectionId: null,
+  //     editorText: null,
+  //     hasDraft: false,
+  //   ));
+  // }
+  //
+  // Future<void> _onUpdateEditorText(
+  //   UpdateEditorText event,
+  //   Emitter<TextBookState> emit,
+  // ) async {
+  //   if (state is! TextBookLoaded) return;
+  //
+  //   final currentState = state as TextBookLoaded;
+  //
+  //   emit(currentState.copyWith(editorText: event.text));
+  // }
+  //
+  // Future<void> _onAutoSaveDraft(
+  //   AutoSaveDraft event,
+  //   Emitter<TextBookState> emit,
+  // ) async {
+  //   if (state is! TextBookLoaded) return;
+  //
+  //   final currentState = state as TextBookLoaded;
+  //
+  //   try {
+  //     await _overridesRepository.writeDraft(
+  //       currentState.book.title,
+  //       event.sectionId,
+  //       event.markdown,
+  //     );
+  //
+  //     // Don't emit state change for auto-save to avoid unnecessary rebuilds
+  //   } catch (e) {
+  //     // Handle error silently for auto-save
+  //   }
+  // }
+
+  void _onBatchResult(BatchResult result) {
+    if (isClosed) return;
+    final currentState = state;
+    if (currentState is! TextBookLoaded) return;
+    if (currentState.book.id != result.sourceBookId) return;
+
+    for (final link in result.newLinks) {
+      _accumulatedGeneratedLinks
+          .putIfAbsent(link.sourceLineIndex, () => [])
+          .add(link);
+    }
+
+    add(UpdateGeneratedLinks(
+      sourceBookId: result.sourceBookId,
+      generatedLinksByLine: Map.unmodifiable(_accumulatedGeneratedLinks),
+    ));
+  }
+
+  void _onUpdateGeneratedLinks(
+    UpdateGeneratedLinks event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is! TextBookLoaded) return;
+    final currentState = state as TextBookLoaded;
+    if (currentState.book.id != event.sourceBookId) return;
+    emit(currentState.copyWith(
+      generatedLinksByLine: event.generatedLinksByLine,
+    ));
+  }
+
+  /// טוען cache קיים ומתזמן עיבוד לאחר טעינת ספר.
+  void _scheduleGeneratedLinksForBook(
+    TextBook book,
+    List<String> contentLines,
+  ) async {
+    final store = _generatedLinksCacheStore;
+    if (store == null || book.id == null) return;
+
+    final fingerprint = '${book.id}:${contentLines.length}';
+
+    // הצג links שכבר ב-cache מיד, גם בלי scheduler
+    final cache = await store.load(book.id!);
+    if (cache != null &&
+        cache.isValidFor(fingerprint, _rulesVersion) &&
+        cache.links.isNotEmpty) {
+      final byLine = <int, List<GeneratedInlineLink>>{};
+      for (final link in cache.links) {
+        byLine.putIfAbsent(link.sourceLineIndex, () => []).add(link);
+      }
+      _accumulatedGeneratedLinks = byLine;
+      if (!isClosed && state is TextBookLoaded) {
+        final cs = state as TextBookLoaded;
+        if (cs.book.id == book.id) {
+          add(UpdateGeneratedLinks(
+            sourceBookId: book.id!,
+            generatedLinksByLine: Map.unmodifiable(byLine),
+          ));
+        }
+      }
+    } else {
+      _accumulatedGeneratedLinks = {};
+      // ניקוי links ישנים (למשל: preview) מה-state לפני שה-batch החדש חוזר
+      if (!isClosed && state is TextBookLoaded) {
+        final cs = state as TextBookLoaded;
+        if (cs.book.id == book.id && cs.generatedLinksByLine.isNotEmpty) {
+          add(UpdateGeneratedLinks(
+            sourceBookId: book.id!,
+            generatedLinksByLine: const {},
+          ));
+        }
+      }
+    }
+
+    // תזמון עיבוד רק אם יש scheduler ו-cache לא הושלם
+    final scheduler = _generatedLinksScheduler;
+    if (scheduler == null) return;
+    if (cache != null &&
+        cache.isValidFor(fingerprint, _rulesVersion) &&
+        cache.status == GeneratedLinksProcessingStatus.complete) {
+      return;
+    }
+
+    // ביטול job קודם לפני תזמון חדש (מונע עיבוד מיותר של preview ישן)
+    if (_currentGeneratedLinksJobId != null) {
+      scheduler.cancel(_currentGeneratedLinksJobId!);
+    }
+
+    final jobId = 'book_${book.id!}_open';
+    _currentGeneratedLinksJobId = jobId;
+    scheduler.schedule(ProcessingJob(
+      jobId: jobId,
+      isHighPriority: true,
+      sourceBookId: book.id!,
+      sourceBookTitle: book.title,
+      sourceFingerprint: fingerprint,
+      lines: contentLines,
+    ));
+  }
+
   @override
   Future<void> close() {
+    if (_currentGeneratedLinksJobId != null) {
+      _generatedLinksScheduler?.cancel(_currentGeneratedLinksJobId!);
+    }
+    _batchResultSubscription?.cancel();
+
+    // Cancel all timers
     _debounceTimer?.cancel();
     _highlightTimer?.cancel();
 

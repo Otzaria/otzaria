@@ -69,6 +69,7 @@ import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository
 import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria/tools/calendar/services/notification_service.dart';
 import 'package:otzaria/plugins/database/plugin_database_bootstrap.dart';
+import 'package:otzaria/generated_links/services/generated_links_service.dart';
 import 'package:logging/logging.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:otzaria/widgets/misc/restart_widget.dart';
@@ -511,6 +512,16 @@ Future<void> _heavyInitialize() async {
   } catch (error, stackTrace) {
     _logNonFatalInitializationError(
         'Direct error report queue', error, stackTrace);
+  }
+
+  try {
+    await GeneratedLinksService.init();
+  } catch (error, stackTrace) {
+    _logNonFatalInitializationError(
+      'GeneratedLinksService',
+      error,
+      stackTrace,
+    );
   }
 }
 

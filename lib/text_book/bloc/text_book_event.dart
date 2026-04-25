@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:otzaria/generated_links/models/generated_inline_link.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 
 sealed class TextBookEvent extends Equatable {
@@ -342,4 +343,17 @@ class OpenFullFileEditor extends TextBookEvent {
 
   @override
   List<Object?> get props => [];
+}
+
+class UpdateGeneratedLinks extends TextBookEvent {
+  final int sourceBookId;
+  final Map<int, List<GeneratedInlineLink>> generatedLinksByLine;
+
+  const UpdateGeneratedLinks({
+    required this.sourceBookId,
+    required this.generatedLinksByLine,
+  });
+
+  @override
+  List<Object?> get props => [sourceBookId, generatedLinksByLine.length];
 }

@@ -29,6 +29,7 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
+import 'package:otzaria/utils/text/text_with_inline_links.dart';
 import 'package:otzaria/text_book/view/selection/selection_persistence.dart';
 import 'package:otzaria/text_book/view/selection/selected_text_copy.dart';
 import 'package:otzaria/text_book/view/selection/selected_text_restore.dart';
@@ -1204,7 +1205,24 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
           padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
           child: BlocBuilder<SettingsBloc, SettingsState>(
             builder: (context, settingsState) {
-              final data = widget.content[index];
+              String data = widget.content[index];
+              // הזרקת קישורי DB וקישורים שנוצרו מקומית במעבר אחד
+              if (widget.isMainText && settingsState.enableHtmlLinks) {
+                try {
+                  final linksForLine = state.links
+                      .where((link) =>
+                          link.index1 == index + 1 &&
+                          link.start != null &&
+                          link.end != null)
+                      .toList();
+                  final generatedForLine =
+                      state.generatedLinksByLine[index] ?? const [];
+                  if (linksForLine.isNotEmpty || generatedForLine.isNotEmpty) {
+                    data = addAllInlineLinksToText(
+                        data, linksForLine, generatedForLine);
+                  }
+                } catch (_) {}
+              }
               final targetTitle =
                   widget.isMainText ? state.book.title : widget.bookTitle;
               // אם המשתמש לחץ על כפתור ניקוד (override), נשתמש בערך מה-state

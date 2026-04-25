@@ -54,6 +54,7 @@ import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/file_sync/bloc/file_sync_bloc.dart';
 import 'package:otzaria/file_sync/bloc/file_sync_event.dart';
+import 'package:otzaria/file_sync/bloc/file_sync_state.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/widgets/navigation/nav_rail_item.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
@@ -77,8 +78,14 @@ import 'package:otzaria/tour/models/live_tip.dart';
 import 'package:otzaria/tour/models/tour_step.dart';
 import 'package:otzaria/tour/tour_target_keys.dart';
 import 'package:otzaria/tour/view/tour_overlay_screen.dart';
+import 'package:otzaria/generated_links/services/generated_links_service.dart';
+import 'package:otzaria/generated_links/services/generated_links_scheduler.dart';
+import 'package:otzaria/generated_links/models/generated_links_processing_status.dart';
+import 'package:otzaria/history/history_repository.dart';
+import 'package:otzaria/text_book/text_book_repository.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/utils/navigation/open_book.dart';
+import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 
 class MainWindowScreen extends StatefulWidget {
   const MainWindowScreen({super.key});
@@ -315,6 +322,72 @@ class MainWindowScreenState extends State<MainWindowScreen>
 
     _initializeBackgroundSync();
     _startFileSync();
+    _scheduleHistoryBooks();
+  }
+
+  /// טוען את ספרי ההיסטוריה ומתזמן עיבוד קישורים ברקע.
+  ///
+  /// ספרים שיש להם cache תקין ומלא מושמטים.
+  /// שאר ה-TextBook נכנסים לתור הרקע של ה-scheduler.
+  Future<void> _scheduleHistoryBooks() async {
+    final service = GeneratedLinksService.instance;
+    if (service == null) return;
+
+    final List<dynamic> history;
+    try {
+      history = await HistoryRepository().loadHistory();
+    } catch (e) {
+      debugPrint('[GeneratedLinks] failed to load history: $e');
+      return;
+    }
+
+    final repo = TextBookRepository(
+      fileSystem: FileSystemData.instance,
+    );
+
+    // ספר אחד בלבד מכל כותרת (כפילויות בהיסטוריה)
+    final seen = <int>{};
+
+    for (final bookmark in history) {
+      final book = bookmark.book;
+      if (book is! TextBook) continue;
+      final id = book.id;
+      if (id == null) continue;
+      if (!seen.add(id)) continue;
+
+      // בדיקה שה-cache לא שלם כבר
+      try {
+        final cache = await service.cacheStore.load(id);
+        List<String> lines;
+        try {
+          final content = await repo.getBookContent(book);
+          if (content.isEmpty) continue;
+          lines = content.split('\n');
+        } catch (e) {
+          debugPrint(
+              '[GeneratedLinks] failed to load content for ${book.title}: $e');
+          continue;
+        }
+        final fingerprint = '$id:${lines.length}';
+        if (cache != null &&
+            cache.isValidFor(fingerprint, 'v1') &&
+            cache.status == GeneratedLinksProcessingStatus.complete) {
+          continue;
+        }
+
+        service.scheduler.schedule(ProcessingJob(
+          jobId: 'history_$id',
+          isHighPriority: false,
+          sourceBookId: id,
+          sourceBookTitle: book.title,
+          sourceFingerprint: fingerprint,
+          lines: lines,
+        ));
+      } catch (e) {
+        debugPrint(
+            '[GeneratedLinks] error scheduling history book ${book.title}: $e');
+      }
+    }
   }
 
   /// Setup synchronization between window fullscreen state and settings
@@ -1448,7 +1521,31 @@ class MainWindowScreenState extends State<MainWindowScreen>
               _startupWorkGate.markIndexingRunning(
                 state is IndexingInProgress,
               );
+              final glService = GeneratedLinksService.instance;
+              if (glService != null) {
+                if (state is IndexingInProgress) {
+                  glService.workGate.setBusy();
+                } else {
+                  glService.workGate.setIdle();
+                  glService.scheduler.resume();
+                }
+              }
               _tryStartDeferredStartupWork();
+            },
+          ),
+          BlocListener<FileSyncBloc, FileSyncState>(
+            listenWhen: (previous, current) =>
+                (previous.status == FileSyncStatus.syncing) !=
+                (current.status == FileSyncStatus.syncing),
+            listener: (context, state) {
+              final glService = GeneratedLinksService.instance;
+              if (glService == null) return;
+              if (state.status == FileSyncStatus.syncing) {
+                glService.workGate.setBusy();
+              } else {
+                glService.workGate.setIdle();
+                glService.scheduler.resume();
+              }
             },
           ),
           BlocListener<IndexingBloc, IndexingState>(

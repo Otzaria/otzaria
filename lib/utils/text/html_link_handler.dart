@@ -96,24 +96,72 @@ class HtmlLinkHandler {
     return title;
   }
 
+  /// מטפל בקישור שנוצר מקומית (generated-link).
+  static Future<void> _handleGeneratedLink(
+    BuildContext context,
+    String url,
+    Function(TextBookTab) openBookCallback,
+  ) async {
+    try {
+      final uri = Uri.parse(url);
+      final bookTitle = _safeDecode(uri.queryParameters['book'] ?? '');
+      final bookIdStr = uri.queryParameters['bookId'];
+      final index0Str = uri.queryParameters['index0'] ?? '';
+      final displayRef = _safeDecode(uri.queryParameters['ref'] ?? '');
+
+      if (bookTitle.isEmpty) throw Exception('שם ספר חסר בקישור');
+      final index0 = int.tryParse(index0Str);
+      if (index0 == null) throw Exception('אינדקס לא תקין בקישור');
+
+      final library = await DataRepository.instance.library;
+      final bookId = bookIdStr != null ? int.tryParse(bookIdStr) : null;
+      final TextBook? foundBook;
+      if (bookId != null) {
+        foundBook = library.getAllBooks().whereType<TextBook>()
+            .cast<TextBook?>()
+            .firstWhere((b) => b?.id == bookId, orElse: () => null);
+      } else {
+        foundBook = library.findBookByTitle(bookTitle, TextBook) as TextBook?;
+      }
+      if (foundBook == null) throw Exception('לא נמצא ספר בשם: $bookTitle');
+
+      final tab = TextBookTab(
+        book: foundBook,
+        index: index0,
+        openLeftPane: (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
+            (Settings.getValue<bool>('key-default-sidebar-open') ?? false),
+      );
+      openBookCallback(tab);
+
+      if (context.mounted && displayRef.isNotEmpty) {
+        UiSnack.show('נפתח: $displayRef');
+      }
+    } catch (e) {
+      debugPrint('שגיאה בטיפול ב-generated-link: $e');
+      if (context.mounted) UiSnack.showError('לא ניתן לפתוח את הקישור');
+    }
+  }
+
   /// מטפל בלחיצה על קישור HTML
   ///
   /// הפונקציה מפרשת קישורים בפורמטים הבאים:
-  /// - book://שם_הסxxxxxxxxח ספר בתחילת הספר
+  /// - book://שם_הספר - פותח ספר בתחילת הספר
   /// - book://שם_הספר#כותרת - פותח ספר ומנווט לכותרת ספציפית
   /// - #כותרת - מנווט לכותרת באותו ספר
   /// - otzaria://inline-link?path={path}&index={index}&ref={ref} - קישור מבוסס תווים
-  ///
-  /// דוגמאות:
-  /// - <a href="book://ברכות">ברכות</a>
-  /// - <a href="book://ברכות#דף ב">ברכות דף ב</a>
-  /// - <a href="#דף ג">דף ג</a>
+  /// - otzaria://generated-link?book={book}&fileType={ft}&index0={i}&ref={ref} - קישור שנוצר מקומית
   static Future<bool> handleLink(
     BuildContext context,
     String url,
     Function(TextBookTab) openBookCallback,
   ) async {
     try {
+      // בדיקה אם זה קישור שנוצר מקומית
+      if (url.startsWith('otzaria://generated-link')) {
+        await _handleGeneratedLink(context, url, openBookCallback);
+        return true;
+      }
+
       // בדיקה אם זה קישור מבוסס תווים (inline-link)
       if (url.startsWith('otzaria://inline-link')) {
         await _handleInlineLink(context, url, openBookCallback);

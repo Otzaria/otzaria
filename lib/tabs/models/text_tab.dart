@@ -11,6 +11,7 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
+import 'package:otzaria/generated_links/services/generated_links_service.dart';
 
 /// Represents a tab that contains a text book.
 ///
@@ -88,6 +89,7 @@ class TextBookTab extends OpenedTab {
     _lastShowPageShapeView = effectiveShowPageShapeView;
 
     // Initialize the bloc with initial state
+    final glService = GeneratedLinksService.instance;
     bloc = TextBookBloc(
       repository: TextBookRepository(
         fileSystem: FileSystemData.instance,
@@ -109,6 +111,8 @@ class TextBookTab extends OpenedTab {
       ),
       scrollController: scrollController,
       positionsListener: positionsListener,
+      generatedLinksScheduler: glService?.scheduler,
+      generatedLinksCacheStore: glService?.cacheStore,
     );
 
     // הוספת listener לעדכון האינדקס כשה-state משתנה

@@ -1,0 +1,153 @@
+import 'package:otzaria/generated_links/rules/generated_link_rule.dart';
+
+/// כלל לזיהוי מראי מקומות לגמרא בבלית בתוך שורות טקסט.
+///
+/// תומך בתבניות:
+/// - ברכות ב.
+/// - ברכות ב:
+/// - ברכות ב א / ברכות ב ב
+/// - ברכות דף ב ע"א
+/// - בברכות / דברכות / מברכות / לברכות / כברכות / שברכות + דף + עמוד
+class GemaraReferenceRule implements GeneratedLinkRule {
+  @override
+  String get id => 'gemara.reference.v1';
+
+  @override
+  int get version => 1;
+
+  /// שם מסכת קנוני → מספר הדף האחרון שלה.
+  static const Map<String, int> _tractateMaxDaf = {
+    'ברכות': 64, 'שבת': 157, 'עירובין': 105, 'פסחים': 121,
+    'שקלים': 22, 'יומא': 88, 'סוכה': 56, 'ביצה': 40,
+    'ראש השנה': 35, 'תענית': 31, 'מגילה': 32, 'מועד קטן': 29,
+    'חגיגה': 27, 'יבמות': 122, 'כתובות': 112, 'נדרים': 91,
+    'נזיר': 66, 'סוטה': 49, 'גיטין': 90, 'קידושין': 82,
+    'בבא קמא': 119, 'בבא מציעא': 119, 'בבא בתרא': 176,
+    'סנהדרין': 113, 'מכות': 24, 'שבועות': 49, 'עבודה זרה': 76,
+    'הוריות': 14, 'זבחים': 120, 'מנחות': 110, 'חולין': 142,
+    'בכורות': 61, 'ערכין': 34, 'תמורה': 34, 'כריתות': 28,
+    'מעילה': 22, 'תמיד': 10, 'נידה': 73,
+  };
+
+  /// כינוי אורתוגרפי → שם קנוני (כפי שמופיע בקטלוג).
+  ///
+  /// כינויים כלולים בביטוי הרגולרי לצורך זיהוי, אך [_resolveTractateName]
+  /// מנרמל את השם שיצא ל-[DetectedReference.targetBookTitle].
+  static const Map<String, String> _tractateAliases = {
+    'נדה': 'נידה', // כתיב ללא יו"ד (נפוץ)
+  };
+
+  /// מחזיר שם קנוני של מסכת; אם לא כינוי — מחזיר כפי שהוכנס.
+  static String _resolveTractateName(String raw) =>
+      _tractateAliases[raw] ?? raw;
+
+  static const Map<String, int> _letterValues = {
+    'א': 1, 'ב': 2, 'ג': 3, 'ד': 4, 'ה': 5, 'ו': 6,
+    'ז': 7, 'ח': 8, 'ט': 9, 'י': 10, 'כ': 20, 'ל': 30,
+    'מ': 40, 'נ': 50, 'ס': 60, 'ע': 70, 'פ': 80, 'צ': 90,
+    'ק': 100, 'ר': 200, 'ש': 300, 'ת': 400,
+  };
+
+  /// ממיר מחרוזת אותיות עבריות למספר שלם. מחזיר null אם יש אות לא מוכרת.
+  static int? hebrewToInt(String s) {
+    var result = 0;
+    for (var i = 0; i < s.length; i++) {
+      final val = _letterValues[s[i]];
+      if (val == null) return null;
+      result += val;
+    }
+    return result > 0 ? result : null;
+  }
+
+  /// מחזיר מספר דף מקסימלי למסכת, או null אם המסכת לא מוכרת.
+  static int? maxDafForTractate(String tractate) =>
+      _tractateMaxDaf[tractate];
+
+  /// מנרמל את סימן העמוד לאחת מהאפשרויות: 'א', 'ב', או null.
+  static String? normalizeAmud(String? raw) {
+    if (raw == null) return null;
+    final t = raw.trim();
+    if (t == '.' || t == 'א' || t == 'ע"א' || t == 'ע״א') return 'א';
+    if (t == ':' || t == 'ב' || t == 'ע"ב' || t == 'ע״ב') return 'ב';
+    return null;
+  }
+
+  static final RegExp _pattern = _buildPattern();
+
+  static RegExp _buildPattern() {
+    // שמות קנוניים + כינויים, ממוינים לפי אורך יורד (longest-first)
+    final allNames = <String>{
+      ..._tractateMaxDaf.keys,
+      ..._tractateAliases.keys,
+    }.toList()
+      ..sort((a, b) => b.length.compareTo(a.length));
+    final tractateAlt = allNames.map(RegExp.escape).join('|');
+
+    // טווח אותיות עבריות: א-ת
+    const hb = 'א-ת';
+    // אותיות שימוש: ב, ד, מ, ל, כ, ש
+    const pfx = 'בדמלכש';
+    // גרש + גרשיים (ו + ASCII " )
+    const gersh = '"״';
+
+    return RegExp(
+      '(?<![$hb])'       // גבול תחילה: לא קדמה אות עברית
+      '(?:[$pfx])?'      // תחילית אות שימוש (לא-לוכדת)
+      '(?:מסכת\\s+)?'    // מסכת (אופציונלי, לא-לוכד)
+      '($tractateAlt)'   // קבוצה 1: שם מסכת
+      '\\s+'
+      '(?:דף\\s+)?'      // דף (אופציונלי, לא-לוכד)
+      '([$hb]{1,3})'     // קבוצה 2: מספר הדף באותיות עבריות
+      // לא להמשיך אם יש אחריו אות עברית או גרש
+      "(?![$hb'׳])"
+      '('                // קבוצה 3: עמוד (אופציונלי)
+        '[.:]'           //   נקודה או נקודתיים צמודות לדף
+        '|\\s+(?:'       //   או רווח +
+          'ע[$gersh][אב]'  //   ע"א / ע"ב / ע״א / ע״ב
+          '|[אב](?![$hb])' //   א/ב שאחריהם לא אות עברית
+        ')'
+      ')?',
+      unicode: true,
+    );
+  }
+
+  @override
+  Future<List<DetectedReference>> detect(
+    GeneratedLinkRuleContext context,
+    List<String> lines,
+    LineRange lineRange,
+  ) async {
+    final results = <DetectedReference>[];
+
+    for (var i = lineRange.start; i <= lineRange.end && i < lines.length; i++) {
+      for (final match in _pattern.allMatches(lines[i])) {
+        final rawTractate = match.group(1)!;
+        final tractate = _resolveTractateName(rawTractate); // שם קנוני
+        final dafStr = match.group(2)!;
+        final amudRaw = match.group(3);
+
+        // אימות מספר הדף לפי השם הקנוני
+        final dafNum = hebrewToInt(dafStr);
+        if (dafNum == null || dafNum < 2) continue;
+        final maxDaf = _tractateMaxDaf[tractate];
+        if (maxDaf == null || dafNum > maxDaf) continue;
+
+        final amud = normalizeAmud(amudRaw);
+        final targetRefText = amud != null ? '$dafStr $amud' : dafStr;
+
+        results.add(DetectedReference(
+          sourceLineIndex: i,
+          start: match.start,
+          end: match.end,
+          matchedText: match.group(0)!,
+          targetBookTitle: tractate, // תמיד שם קנוני
+          targetRefText: targetRefText,
+          ruleId: id,
+          confidence: 0.9,
+        ));
+      }
+    }
+
+    return results;
+  }
+}

@@ -218,4 +218,11 @@ class AppPaths {
   static Future<String> resolvePluginsDbPath() async {
     return resolveNotesDbPath('plugins_host.db');
   }
+
+  /// מחזיר את נתיב תיקיית ה-cache של קישורים שנוצרו מקומית.
+  ///
+  /// קבצי JSON ייכתבו בתוך תיקייה זו, אחד לכל ספר לפי ה-ID שלו.
+  static Future<String> getGeneratedLinksCachePath() async {
+    return p.join(await getDataRootPath(), 'links', 'generated', 'books');
+  }
 }
