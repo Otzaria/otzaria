@@ -47,6 +47,7 @@ import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_data_provide
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_progress_provider.dart';
 import 'package:otzaria/tools/shamor_zachor/models/book_model.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/app_menu.dart';
 import 'package:otzaria/widgets/adaptive_side_pane.dart';
 import 'package:otzaria/settings/services/nikud_display_service.dart';
@@ -97,6 +98,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   bool _hasPdfBook = false;
   bool _leftPaneAutoCloseQueuedByScroll = false;
   String? _lastCommentaryOpportunityBookTitle;
+  Timer? _dictionaryHintDebounce;
+  int _dictionaryHintRequestId = 0;
 
   // Key עבור PageShapeScreen - שינוי המפתח יגרום לבנייה מחדש
   Key _pageShapeKey = UniqueKey();
@@ -686,6 +689,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     _sidebarWidth.dispose();
     _pageShapeSidebarTabNotifier.dispose();
     _settingsSub.cancel();
+    _dictionaryHintDebounce?.cancel();
     super.dispose();
   }
 
@@ -735,25 +739,31 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   Future<void> _onSelectedTextChanged(String? selectedText) async {
     _selectedTextForSearch = selectedText;
     final trimmedSelection = selectedText?.trim() ?? '';
-    if (trimmedSelection.isEmpty) {
+    _dictionaryHintDebounce?.cancel();
+    if (trimmedSelection.isEmpty || trimmedSelection.length > 80) {
       return;
     }
 
-    final hasDictionaryEntries = await DictionaryLookupRepository.instance
-        .hasContextMenuEntries(trimmedSelection);
-    if (!mounted ||
-        !hasDictionaryEntries ||
-        _selectedTextForSearch?.trim() != trimmedSelection) {
-      return;
-    }
+    final requestId = ++_dictionaryHintRequestId;
+    _dictionaryHintDebounce =
+        Timer(const Duration(milliseconds: 180), () async {
+      final hasDictionaryEntries = await DictionaryLookupRepository.instance
+          .hasContextMenuEntries(trimmedSelection);
+      if (!mounted ||
+          requestId != _dictionaryHintRequestId ||
+          !hasDictionaryEntries ||
+          _selectedTextForSearch?.trim() != trimmedSelection) {
+        return;
+      }
 
-    context.read<ProductTourBloc>().add(
-          RecordInteraction(
-            TourInteraction(
-              type: TourInteractionType.textSelected,
+      context.read<ProductTourBloc>().add(
+            RecordInteraction(
+              TourInteraction(
+                type: TourInteractionType.textSelected,
+              ),
             ),
-          ),
-        );
+          );
+    });
   }
 
   void _openSearchFromToolbar() {
@@ -1828,42 +1838,51 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     TextBookLoaded state,
   ) {
     final colorScheme = Theme.of(context).colorScheme;
+    final borderRadius = BorderRadius.circular(AppTokens.radiusXL);
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(10),
+        color: colorScheme.surfaceContainerHigh,
+        borderRadius: borderRadius,
         border: Border.all(color: colorScheme.outlineVariant),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AppPopupMenuButton<TextDisplayVisibilityPreset>(
-            tooltip: 'אפשרויות ניקוד ופיסוק',
-            icon: const Icon(FluentIcons.chevron_down_24_regular),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints.tightFor(width: 34, height: 36),
-            initialValue: _currentTextDisplayVisibilityPreset(state),
-            onSelected: (preset) =>
-                _applyTextDisplayVisibilityPreset(context, state, preset),
-            entries: _buildTextDisplayPresetEntries(state),
-          ),
-          SizedBox(
-            height: 18,
-            child: VerticalDivider(
-              width: 1,
-              thickness: 1,
-              color: colorScheme.outlineVariant,
+      child: ClipRRect(
+        borderRadius: borderRadius,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              onPressed: () => _toggleAndSaveNikud(context, state),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints.tightFor(width: 40, height: 36),
+              tooltip: _getNikudTooltip(state),
+              style: IconButton.styleFrom(
+                backgroundColor: colorScheme.surfaceContainerHigh,
+                shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.zero),
+              ),
+              icon: Icon(_getNikudIcon(state)),
             ),
-          ),
-          IconButton(
-            onPressed: () => _toggleAndSaveNikud(context, state),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints.tightFor(width: 40, height: 36),
-            tooltip: _getNikudTooltip(state),
-            icon: Icon(_getNikudIcon(state)),
-          ),
-        ],
+            SizedBox(
+              height: 18,
+              child: VerticalDivider(
+                width: 1,
+                thickness: 1,
+                color: colorScheme.outlineVariant,
+              ),
+            ),
+            AppPopupMenuButton<TextDisplayVisibilityPreset>(
+              tooltip: 'אפשרויות ניקוד ופיסוק',
+              icon: const Icon(FluentIcons.chevron_down_24_regular),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints.tightFor(width: 34, height: 36),
+              initialValue: _currentTextDisplayVisibilityPreset(state),
+              onSelected: (preset) =>
+                  _applyTextDisplayVisibilityPreset(context, state, preset),
+              entries: _buildTextDisplayPresetEntries(state),
+            ),
+          ],
+        ),
       ),
     );
   }
