@@ -42,16 +42,18 @@ class TourStepSpec extends Equatable {
   final TourTargetId targetId;
   final String title;
   final String description;
+  final String? tip;
 
   const TourStepSpec({
     required this.id,
     required this.targetId,
     required this.title,
     required this.description,
+    this.tip,
   });
 
   @override
-  List<Object?> get props => [id, targetId, title, description];
+  List<Object?> get props => [id, targetId, title, description, tip];
 }
 
 /// הגדרת טיפ חי אחד.

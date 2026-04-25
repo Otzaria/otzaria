@@ -118,6 +118,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
   CalendarState? _prevCalendarState;
 
   bool _hasInitializedPageController = false;
+  OverlayEntry? _productTourOverlayEntry;
+  ProductTourState _latestProductTourState = ProductTourState.initial();
 
   static const _navData = [
     (
@@ -348,6 +350,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
     appWindowListener?.onFullscreenChanged = null;
     appWindowListener?.onWindowStateChanged = null;
     appWindowListener?.onWindowResizeOccurred = null;
+    _productTourOverlayEntry?.remove();
+    _productTourOverlayEntry = null;
     _calendarCubit.close();
     _emptyLibraryBloc?.close();
     _readerLocationTracker?.dispose();
@@ -388,6 +392,56 @@ class MainWindowScreenState extends State<MainWindowScreen>
   }
 
   /// ודאו שה-PageView מסונכרן למצב הניווט הנוכחי גם אם בחרו שוב באותו יעד.
+  void _syncProductTourOverlay(ProductTourState state) {
+    _latestProductTourState = state;
+    if (!mounted) {
+      return;
+    }
+
+    _productTourOverlayEntry?.remove();
+    _productTourOverlayEntry = null;
+
+    if (!state.hasActiveOverlay) {
+      return;
+    }
+
+    final overlay = Overlay.of(context, rootOverlay: true);
+    _productTourOverlayEntry = OverlayEntry(
+      builder: (_) => ProductTourOverlay(
+        state: _latestProductTourState,
+        onNext: () {
+          context.read<ProductTourBloc>().add(
+                const NextTourStep(),
+              );
+        },
+        onPrevious: () {
+          context.read<ProductTourBloc>().add(
+                const PreviousTourStep(),
+              );
+        },
+        onDismiss: () {
+          context.read<ProductTourBloc>().add(
+                const DismissActiveOverlay(),
+              );
+        },
+        onFinish: () {
+          context.read<ProductTourBloc>().add(
+                const CompleteIntroTour(),
+              );
+        },
+      ),
+    );
+    overlay.insert(_productTourOverlayEntry!);
+  }
+
+  void _bringProductTourOverlayToFront() {
+    if (!_latestProductTourState.hasActiveOverlay) {
+      return;
+    }
+
+    _syncProductTourOverlay(_latestProductTourState);
+  }
+
   Future<void> _syncPageWithState() async {
     if (!mounted || !pageController.hasClients) return;
     final currentScreen = context.read<NavigationBloc>().state.currentScreen;
@@ -765,6 +819,11 @@ class MainWindowScreenState extends State<MainWindowScreen>
           // settings.changed עבור selectedCity ו-calendarType —
           // שדות אלה נמצאים ב-CalendarState ולא ב-SettingsState
           BlocListener<ProductTourBloc, ProductTourState>(
+            listener: (context, state) {
+              _syncProductTourOverlay(state);
+            },
+          ),
+          BlocListener<ProductTourBloc, ProductTourState>(
             listenWhen: (previous, current) =>
                 previous.activeIntroStepIndex != current.activeIntroStepIndex,
             listener: (context, state) {
@@ -1060,33 +1119,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
                             ],
                           ),
                         ),
-                        BlocBuilder<ProductTourBloc, ProductTourState>(
-                          builder: (context, productTourState) {
-                            return ProductTourOverlay(
-                              state: productTourState,
-                              onNext: () {
-                                context.read<ProductTourBloc>().add(
-                                      const NextTourStep(),
-                                    );
-                              },
-                              onPrevious: () {
-                                context.read<ProductTourBloc>().add(
-                                      const PreviousTourStep(),
-                                    );
-                              },
-                              onDismiss: () {
-                                context.read<ProductTourBloc>().add(
-                                      const DismissActiveOverlay(),
-                                    );
-                              },
-                              onFinish: () {
-                                context.read<ProductTourBloc>().add(
-                                      const CompleteIntroTour(),
-                                    );
-                              },
-                            );
-                          },
-                        ),
                       ],
                     ),
                   ),
@@ -1214,7 +1246,11 @@ class MainWindowScreenState extends State<MainWindowScreen>
       return;
     }
 
+    _bringProductTourOverlayToFront();
     final targetFound = await _waitForTourTarget(step.targetId);
+    if (mounted) {
+      _bringProductTourOverlayToFront();
+    }
     if (!targetFound && mounted) {
       productTourBloc.add(const SkipActiveTourStep());
     }

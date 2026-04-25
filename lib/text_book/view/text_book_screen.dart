@@ -55,6 +55,7 @@ import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository
 import 'package:otzaria/text_book/view/page_shape/page_shape_settings_dialog.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dart';
+import 'package:otzaria/text_book/view/text_display_visibility_preset.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
@@ -1336,30 +1337,21 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         },
       ),
 
-      // 3) Nikud Button
-      ActionButtonData(
-        widget: _buildNikudButton(context, state),
-        icon: state.removeNikud
-            ? FluentIcons.text_font_24_regular
-            : FluentIcons.text_font_info_24_regular,
-        tooltip: state.removeNikud ? 'הצג ניקוד' : 'הסתר ניקוד',
-        onPressed: () async {
-          final newValue = !state.removeNikud;
-          context.read<TextBookBloc>().add(ToggleNikud(newValue));
-          await _savePerBookSettingsDirectly(context, state,
-              removeNikud: newValue);
-        },
-      ),
-
-      // 3b) Punctuation Button - מוסתר בספרי תנ"ך
-      if (!state.isTanach)
+      // 3) ניקוד/פיסוק - כפתור מאוחד כששתי האפשרויות זמינות
+      if (state.isTanach)
         ActionButtonData(
-          widget: _buildPunctuationButton(context, state),
-          icon: state.removePunctuation
-              ? FluentIcons.text_quote_24_regular
-              : FluentIcons.text_clear_formatting_24_regular,
-          tooltip: state.removePunctuation ? 'הצג פיסוק' : 'הסתר פיסוק',
-          onPressed: () => _toggleAndSavePunctuation(context, state),
+          widget: _buildNikudButton(context, state),
+          icon: _getNikudIcon(state),
+          tooltip: _getNikudTooltip(state),
+          onPressed: () => _toggleAndSaveNikud(context, state),
+        )
+      else
+        ActionButtonData(
+          widget: _buildCombinedTextDisplayButton(context, state),
+          icon: _getNikudIcon(state),
+          tooltip: 'ניקוד ופיסוק',
+          onPressed: () => _toggleAndSaveNikud(context, state),
+          submenuItems: _buildTextDisplayPresetMenuActions(context, state),
         ),
 
       // 4) Search Button
@@ -1680,13 +1672,13 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         if (!mounted) return;
 
         productTourBloc.add(
-              RecordInteraction(
-                TourInteraction(
-                  type: TourInteractionType.commentaryUsed,
-                  primaryValue: widget.tab.title,
-                ),
-              ),
-            );
+          RecordInteraction(
+            TourInteraction(
+              type: TourInteractionType.commentaryUsed,
+              primaryValue: widget.tab.title,
+            ),
+          ),
+        );
       },
       entries: [
         AppMenuEntry(
@@ -1714,37 +1706,173 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     );
   }
 
-  Widget _buildNikudButton(BuildContext context, TextBookLoaded state) {
-    return IconButton(
-      onPressed: () async {
-        final newValue = !state.removeNikud;
-        context.read<TextBookBloc>().add(ToggleNikud(newValue));
-        // שמירה עם הערך החדש
-        await _savePerBookSettingsDirectly(context, state,
-            removeNikud: newValue);
-      },
-      icon: Icon(state.removeNikud
-          ? FluentIcons.text_font_24_regular
-          : FluentIcons.text_font_info_24_regular),
-      tooltip: state.removeNikud ? 'הצג ניקוד' : 'הסתר ניקוד',
+  IconData _getNikudIcon(TextBookLoaded state) {
+    return state.removeNikud
+        ? FluentIcons.text_font_24_regular
+        : FluentIcons.text_font_info_24_regular;
+  }
+
+  String _getNikudTooltip(TextBookLoaded state) {
+    return state.removeNikud ? 'הצג ניקוד' : 'הסתר ניקוד';
+  }
+
+  Future<void> _toggleAndSaveNikud(
+    BuildContext context,
+    TextBookLoaded state,
+  ) async {
+    final newValue = !state.removeNikud;
+    context.read<TextBookBloc>().add(ToggleNikud(newValue));
+    await _savePerBookSettingsDirectly(
+      context,
+      state,
+      removeNikud: newValue,
     );
   }
 
-  Future<void> _toggleAndSavePunctuation(
-      BuildContext context, TextBookLoaded state) async {
-    final newValue = !state.removePunctuation;
-    context.read<TextBookBloc>().add(TogglePunctuation(newValue));
-    await _savePerBookSettingsDirectly(context, state,
-        removePunctuation: newValue);
+  TextDisplayVisibilityPreset _currentTextDisplayVisibilityPreset(
+    TextBookLoaded state,
+  ) {
+    return resolveTextDisplayVisibilityPreset(
+      removeNikud: state.removeNikud,
+      removePunctuation: state.removePunctuation,
+    );
   }
 
-  Widget _buildPunctuationButton(BuildContext context, TextBookLoaded state) {
+  Future<void> _applyTextDisplayVisibilityPreset(
+    BuildContext context,
+    TextBookLoaded state,
+    TextDisplayVisibilityPreset preset,
+  ) async {
+    final values = applyTextDisplayVisibilityPreset(preset);
+    context.read<TextBookBloc>().add(ToggleNikud(values.removeNikud));
+    context.read<TextBookBloc>().add(
+          TogglePunctuation(values.removePunctuation),
+        );
+    await _savePerBookSettingsDirectly(
+      context,
+      state,
+      removeNikud: values.removeNikud,
+      removePunctuation: values.removePunctuation,
+    );
+  }
+
+  List<ActionButtonData> _buildTextDisplayPresetMenuActions(
+    BuildContext context,
+    TextBookLoaded state,
+  ) {
+    return [
+      (
+        preset: TextDisplayVisibilityPreset.removeAll,
+        tooltip: 'הסר הכל',
+        icon: FluentIcons.text_clear_formatting_24_regular,
+      ),
+      (
+        preset: TextDisplayVisibilityPreset.removePunctuation,
+        tooltip: 'הסר פיסוק',
+        icon: FluentIcons.text_quote_24_regular,
+      ),
+      (
+        preset: TextDisplayVisibilityPreset.removeNikud,
+        tooltip: 'הסר ניקוד',
+        icon: FluentIcons.text_font_24_regular,
+      ),
+      (
+        preset: TextDisplayVisibilityPreset.showAll,
+        tooltip: 'הצג הכל',
+        icon: FluentIcons.text_font_info_24_regular,
+      ),
+    ].map((item) {
+      return ActionButtonData(
+        widget: const SizedBox.shrink(),
+        icon: item.icon,
+        tooltip: item.tooltip,
+        onPressed: () => _applyTextDisplayVisibilityPreset(
+          context,
+          state,
+          item.preset,
+        ),
+      );
+    }).toList();
+  }
+
+  List<AppMenuEntry<TextDisplayVisibilityPreset>>
+      _buildTextDisplayPresetEntries(
+    TextBookLoaded state,
+  ) {
+    return [
+      AppMenuEntry(
+        value: TextDisplayVisibilityPreset.removeAll,
+        label: 'הסר הכל',
+        icon: FluentIcons.text_clear_formatting_24_regular,
+      ),
+      AppMenuEntry(
+        value: TextDisplayVisibilityPreset.removePunctuation,
+        label: 'הסר פיסוק',
+        icon: FluentIcons.text_quote_24_regular,
+      ),
+      AppMenuEntry(
+        value: TextDisplayVisibilityPreset.removeNikud,
+        label: 'הסר ניקוד',
+        icon: FluentIcons.text_font_24_regular,
+      ),
+      AppMenuEntry(
+        value: TextDisplayVisibilityPreset.showAll,
+        label: 'הצג הכל',
+        icon: FluentIcons.text_font_info_24_regular,
+      ),
+    ];
+  }
+
+  Widget _buildCombinedTextDisplayButton(
+    BuildContext context,
+    TextBookLoaded state,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AppPopupMenuButton<TextDisplayVisibilityPreset>(
+            tooltip: 'אפשרויות ניקוד ופיסוק',
+            icon: const Icon(FluentIcons.chevron_down_24_regular),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints.tightFor(width: 34, height: 36),
+            initialValue: _currentTextDisplayVisibilityPreset(state),
+            onSelected: (preset) =>
+                _applyTextDisplayVisibilityPreset(context, state, preset),
+            entries: _buildTextDisplayPresetEntries(state),
+          ),
+          SizedBox(
+            height: 18,
+            child: VerticalDivider(
+              width: 1,
+              thickness: 1,
+              color: colorScheme.outlineVariant,
+            ),
+          ),
+          IconButton(
+            onPressed: () => _toggleAndSaveNikud(context, state),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints.tightFor(width: 40, height: 36),
+            tooltip: _getNikudTooltip(state),
+            icon: Icon(_getNikudIcon(state)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNikudButton(BuildContext context, TextBookLoaded state) {
     return IconButton(
-      onPressed: () => _toggleAndSavePunctuation(context, state),
-      icon: Icon(state.removePunctuation
-          ? FluentIcons.text_quote_24_regular
-          : FluentIcons.text_clear_formatting_24_regular),
-      tooltip: state.removePunctuation ? 'הצג פיסוק' : 'הסתר פיסוק',
+      onPressed: () => _toggleAndSaveNikud(context, state),
+      icon: Icon(_getNikudIcon(state)),
+      tooltip: _getNikudTooltip(state),
     );
   }
 

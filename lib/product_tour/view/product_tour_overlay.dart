@@ -6,7 +6,6 @@ import 'package:otzaria/product_tour/bloc/product_tour_state.dart';
 import 'package:otzaria/product_tour/data/product_tour_specs.dart';
 import 'package:otzaria/product_tour/models/product_tour_models.dart';
 import 'package:otzaria/product_tour/services/product_tour_registry.dart';
-import 'package:otzaria/widgets/widgets_exports.dart';
 
 /// שכבת ה-UI של הסיור הראשי והטיפים החיים.
 class ProductTourOverlay extends StatelessWidget {
@@ -68,16 +67,17 @@ class _IntroTourOverlay extends StatelessWidget {
     final step = kIntroTourSteps[state.activeIntroStepIndex!];
     final targetRect = ProductTourRegistry.instance.rectFor(step.targetId);
     final mediaSize = MediaQuery.sizeOf(context);
-    final cardWidth = math.min(420.0, mediaSize.width - 32);
+    final cardWidth = math.min(360.0, mediaSize.width - 24);
     final cardLeft = _resolveHorizontalOffset(
       viewportWidth: mediaSize.width,
       targetRect: targetRect,
+      cardWidth: cardWidth,
     );
     final cardTop = _resolveVerticalOffset(
       viewportHeight: mediaSize.height,
       targetRect: targetRect,
+      cardHeightEstimate: step.tip == null ? 228.0 : 284.0,
     );
-    final isLastStep = state.activeIntroStepIndex == kIntroTourSteps.length - 1;
 
     return Positioned.fill(
       child: Material(
@@ -116,7 +116,7 @@ class _IntroTourOverlay extends StatelessWidget {
                               .colorScheme
                               .primary
                               .withValues(alpha: 0.18),
-                          blurRadius: 16,
+                          blurRadius: 18,
                           spreadRadius: 4,
                         ),
                       ],
@@ -127,85 +127,266 @@ class _IntroTourOverlay extends StatelessWidget {
             Positioned(
               left: cardLeft,
               top: cardTop,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: cardWidth,
-                ),
-                child: Card(
-                  elevation: 12,
-                  clipBehavior: Clip.antiAlias,
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                'שלב ${state.activeIntroStepIndex! + 1} מתוך ${kIntroTourSteps.length}',
-                                textDirection: TextDirection.rtl,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .labelMedium
-                                    ?.copyWith(
-                                      color:
-                                          Theme.of(context).colorScheme.primary,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                              ),
-                            ),
-                            IconButton(
-                              onPressed: onDismiss,
-                              icon: const Icon(
-                                FluentIcons.dismiss_24_regular,
-                              ),
-                              tooltip: 'סגור',
-                            ),
-                          ],
-                        ),
-                        Text(
-                          step.title,
-                          textDirection: TextDirection.rtl,
-                          style:
-                              Theme.of(context).textTheme.titleLarge?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          step.description,
-                          textDirection: TextDirection.rtl,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        const SizedBox(height: 18),
-                        Row(
-                          children: [
-                            if (state.activeIntroStepIndex! > 0)
-                              Expanded(
-                                child: NeutralActionButton(
-                                  text: 'חזור',
-                                  onPressed: onPrevious,
-                                ),
-                              ),
-                            if (state.activeIntroStepIndex! > 0)
-                              const SizedBox(width: 12),
-                            Expanded(
-                              child: RecommendedActionButton(
-                                text: isLastStep ? 'סיום' : 'הבא',
-                                onPressed: isLastStep ? onFinish : onNext,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
+              child: SizedBox(
+                width: cardWidth,
+                child: _IntroTourCard(
+                  step: step,
+                  stepIndex: state.activeIntroStepIndex!,
+                  totalSteps: kIntroTourSteps.length,
+                  onNext: onNext,
+                  onPrevious: onPrevious,
+                  onFinish: onFinish,
                 ),
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _IntroTourCard extends StatelessWidget {
+  final TourStepSpec step;
+  final int stepIndex;
+  final int totalSteps;
+  final VoidCallback onNext;
+  final VoidCallback onPrevious;
+  final VoidCallback onFinish;
+
+  const _IntroTourCard({
+    required this.step,
+    required this.stepIndex,
+    required this.totalSteps,
+    required this.onNext,
+    required this.onPrevious,
+    required this.onFinish,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isFirstStep = stepIndex == 0;
+    final isLastStep = stepIndex == totalSteps - 1;
+
+    return Material(
+      color: colorScheme.secondaryContainer,
+      elevation: 18,
+      borderRadius: const BorderRadius.only(
+        topLeft: Radius.circular(22),
+        topRight: Radius.circular(22),
+        bottomLeft: Radius.circular(22),
+        bottomRight: Radius.circular(8),
+      ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(22),
+            topRight: Radius.circular(22),
+            bottomLeft: Radius.circular(22),
+            bottomRight: Radius.circular(8),
+          ),
+          border: Border.all(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.85),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    FluentIcons.info_24_regular,
+                    size: 18,
+                    color: colorScheme.onSecondaryContainer,
+                  ),
+                  const Spacer(),
+                  _CornerFinishButton(
+                    onTap: onFinish,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                step.title,
+                textDirection: TextDirection.rtl,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSecondaryContainer,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                step.description,
+                textDirection: TextDirection.rtl,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSecondaryContainer,
+                      height: 1.35,
+                    ),
+              ),
+              if (step.tip != null) ...[
+                const SizedBox(height: 12),
+                _StepTipBanner(text: step.tip!),
+              ],
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  _ArrowNavButton(
+                    icon: FluentIcons.chevron_left_24_regular,
+                    tooltip: 'הקודם',
+                    enabled: !isFirstStep,
+                    onTap: onPrevious,
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        '${stepIndex + 1}/$totalSteps',
+                        textDirection: TextDirection.ltr,
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                              color: colorScheme.onSecondaryContainer,
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                    ),
+                  ),
+                  _ArrowNavButton(
+                    icon: isLastStep
+                        ? FluentIcons.checkmark_24_regular
+                        : FluentIcons.chevron_right_24_regular,
+                    tooltip: isLastStep ? 'סיום' : 'הבא',
+                    enabled: true,
+                    onTap: isLastStep ? onFinish : onNext,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CornerFinishButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _CornerFinishButton({
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Material(
+      color: colorScheme.surface.withValues(alpha: 0.24),
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          child: Text(
+            'סיום',
+            textDirection: TextDirection.rtl,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: colorScheme.onSecondaryContainer,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StepTipBanner extends StatelessWidget {
+  final String text;
+
+  const _StepTipBanner({
+    required this.text,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colorScheme.surface.withValues(alpha: 0.36),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'טיפ',
+              textDirection: TextDirection.rtl,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: colorScheme.tertiary,
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              text,
+              textDirection: TextDirection.rtl,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSecondaryContainer,
+                    height: 1.3,
+                  ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ArrowNavButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  const _ArrowNavButton({
+    required this.icon,
+    required this.tooltip,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final foregroundColor = enabled
+        ? colorScheme.onSecondaryContainer
+        : colorScheme.onSurfaceVariant.withValues(alpha: 0.5);
+
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: enabled
+            ? colorScheme.surface.withValues(alpha: 0.28)
+            : colorScheme.surface.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+        child: InkWell(
+          onTap: enabled ? onTap : null,
+          borderRadius: BorderRadius.circular(999),
+          child: SizedBox(
+            width: 34,
+            height: 34,
+            child: Icon(
+              icon,
+              size: 18,
+              color: foregroundColor,
+            ),
+          ),
         ),
       ),
     );
@@ -292,10 +473,7 @@ class _LiveTipOverlay extends StatelessWidget {
                     const SizedBox(height: 14),
                     Align(
                       alignment: AlignmentDirectional.centerStart,
-                      child: RecommendedActionButton(
-                        text: 'הבנתי',
-                        onPressed: onDismiss,
-                      ),
+                      child: _CornerFinishButton(onTap: onDismiss),
                     ),
                   ],
                 ),
@@ -344,34 +522,34 @@ class _BackdropPainter extends CustomPainter {
 double _resolveHorizontalOffset({
   required double viewportWidth,
   required Rect? targetRect,
+  required double cardWidth,
 }) {
-  final cardWidth = math.min(420.0, viewportWidth - 32);
   if (targetRect == null) {
-    return math.max(16, (viewportWidth - cardWidth) / 2);
+    return math.max(12.0, (viewportWidth - cardWidth) / 2);
   }
 
   return ((targetRect.center.dx - (cardWidth / 2))
-          .clamp(16.0, viewportWidth - cardWidth - 16))
+          .clamp(12.0, viewportWidth - cardWidth - 12.0))
       .toDouble();
 }
 
 double _resolveVerticalOffset({
   required double viewportHeight,
   required Rect? targetRect,
+  required double cardHeightEstimate,
 }) {
-  const fallbackTop = 80.0;
-  const cardHeightEstimate = 230.0;
+  const fallbackTop = 76.0;
   if (targetRect == null) {
     return fallbackTop;
   }
 
   final showAbove = targetRect.center.dy > (viewportHeight / 2);
   if (showAbove) {
-    return math.max(16, targetRect.top - cardHeightEstimate - 16);
+    return math.max(16.0, targetRect.top - cardHeightEstimate - 16.0);
   }
 
   return math.min(
-    viewportHeight - cardHeightEstimate - 16,
-    targetRect.bottom + 16,
+    viewportHeight - cardHeightEstimate - 16.0,
+    targetRect.bottom + 16.0,
   );
 }
