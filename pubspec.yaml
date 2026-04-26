@@ -145,9 +145,9 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
-  test: ^1.25.2
+
   build_runner: ^2.4.11
-  bloc_test: ^10.0.0
+
   mockito: ^5.4.4
 
 # For information on the generic Dart part of this file, see the
