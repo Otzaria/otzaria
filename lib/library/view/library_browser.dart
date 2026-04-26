@@ -516,6 +516,10 @@ class _LibraryBrowserState extends State<LibraryBrowser>
           }
           return ListView.builder(
             shrinkWrap: true,
+            // ⚡ Bolt: Increase cacheExtent to keep more items in memory,
+            // reducing stutter when scrolling through large library categories.
+            // 1000px provides a good balance between memory usage and scroll smoothness.
+            cacheExtent: 1000,
             key: PageStorageKey(state.currentCategory),
             itemCount: snapshot.data!.length,
             itemBuilder: (context, index) => snapshot.data![index],
@@ -666,6 +670,10 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   /// בניית תצוגת רשימה לתוצאות חיפוש
   Widget _buildSearchListView(List<Book> books) {
     return ListView.builder(
+      // ⚡ Bolt: Increase cacheExtent to keep more search results in memory,
+      // reducing stutter when scrolling through long lists of search results.
+      // 1000px provides a good balance between memory usage and scroll smoothness.
+      cacheExtent: 1000,
       itemCount: books.length,
       itemBuilder: (context, index) {
         return _buildListBookItem(books[index], 0);
@@ -676,6 +684,10 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   /// בניית תצוגת רשימה עם עץ מתרחב
   Widget _buildListView(Category category) {
     return ListView(
+      // ⚡ Bolt: Increase cacheExtent to keep more categories/books in memory,
+      // reducing stutter when expanding/collapsing trees and scrolling.
+      // 1000px provides a good balance between memory usage and scroll smoothness.
+      cacheExtent: 1000,
       children: _buildCategoryTree(category, 0),
     );
   }
