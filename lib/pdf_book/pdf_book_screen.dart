@@ -47,6 +47,7 @@ import 'pdf_zoom_bar.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/widgets/commentary_pane_tooltip.dart';
 import 'package:otzaria/pdf_book/pdf_scrollbar.dart';
+import 'package:otzaria/widgets/resume_reading_chip.dart';
 import 'package:otzaria/utils/text_manipulation.dart' as utils;
 import 'package:otzaria/models/pdf_headings.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
@@ -97,6 +98,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   _BookPageTurnTransition? _pageTurnTransition;
   bool _isPageTurnInProgress = false;
   _PendingBookPageTurn? _pendingPageTurn;
+  bool _resumePromptDismissed = false;
 
   // Local UI state that syncs with Bloc
   int _rightPaneInitialTabIndex = 0;
@@ -693,6 +695,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           thumbMinSize: 50.0,
           scrollBoundsBuilder: _currentVerticalScrollbarBounds,
         ),
+        _buildResumeReadingPrompt(size),
         PdfHorizontalScrollbar(
           controller: widget.tab.pdfViewerController,
           trackThickness: 10.0,
@@ -1016,6 +1019,46 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         child: CustomPaint(
           painter: _BookViewViewportMaskPainter(spreadViewportRect),
         ),
+      ),
+    );
+  }
+
+  Widget _buildResumeReadingPrompt(Size viewportSize) {
+    final resumePage = widget.tab.resumePageNumber;
+    final controller = widget.tab.pdfViewerController;
+    if (_resumePromptDismissed ||
+        resumePage == null ||
+        resumePage <= 1 ||
+        !controller.isReady ||
+        controller.pageCount <= 0 ||
+        controller.pageNumber == resumePage) {
+      return const SizedBox.shrink();
+    }
+
+    final targetPage = resumePage.clamp(1, controller.pageCount);
+    if (viewportSize.height <= 88) return const SizedBox.shrink();
+    final progress = controller.pageCount <= 1
+        ? 0.0
+        : (targetPage - 1) / (controller.pageCount - 1);
+    final markerTop = (viewportSize.height - 64) * progress;
+    final colorScheme = Theme.of(context).colorScheme;
+    final ref = widget.tab.resumeRef?.trim();
+    final subtitle = ref == null || ref.isEmpty ? 'עמוד $targetPage' : ref;
+
+    return PositionedDirectional(
+      end: 26,
+      top: markerTop.clamp(12.0, viewportSize.height - 76).toDouble(),
+      child: ResumeReadingChip(
+        subtitle: subtitle,
+        onTap: () {
+          setState(() {
+            _resumePromptDismissed = true;
+          });
+          _goToPageWithSpreadLock(targetPage);
+        },
+        backgroundColor: colorScheme.primaryContainer,
+        foregroundColor: colorScheme.onPrimaryContainer,
+        borderColor: colorScheme.primary.withValues(alpha: 0.25),
       ),
     );
   }

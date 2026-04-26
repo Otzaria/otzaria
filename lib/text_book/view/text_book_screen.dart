@@ -43,6 +43,7 @@ import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/utils/fullscreen_helper.dart';
 
 import 'package:otzaria/widgets/responsive_action_bar.dart';
+import 'package:otzaria/widgets/resume_reading_chip.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_data_provider.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_progress_provider.dart';
 import 'package:otzaria/tools/shamor_zachor/models/book_model.dart';
@@ -97,6 +98,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   Book? _pdfBook; // Companion PDF
   bool _hasPdfBook = false;
   bool _leftPaneAutoCloseQueuedByScroll = false;
+  bool _resumePromptDismissed = false;
   String? _lastCommentaryOpportunityBookTitle;
   Timer? _dictionaryHintDebounce;
   int _dictionaryHintRequestId = 0;
@@ -2400,21 +2402,81 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             },
             child: ProductTourTarget(
               targetId: TourTargetId.readingContent,
-              child: TextBookScaffold(
-                content: state.content,
-                openBookCallback: widget.openBookCallback,
-                openLeftPaneTab: _openLeftPaneTab,
-                onSelectedTextChanged: _onSelectedTextChanged,
-                searchTextController: TextEditingValue(text: state.searchText),
-                tab: widget.tab,
-                initialSidebarTabIndex: _sidebarTabIndex,
-                pageShapeKey: _pageShapeKey,
-                pageShapePrintBoundaryKey: _pageShapePrintBoundaryKey,
-                pageShapeSidebarTabNotifier: _pageShapeSidebarTabNotifier,
-                openSearch: _openSearchWithText,
+              child: Stack(
+                children: [
+                  TextBookScaffold(
+                    content: state.content,
+                    openBookCallback: widget.openBookCallback,
+                    openLeftPaneTab: _openLeftPaneTab,
+                    onSelectedTextChanged: _onSelectedTextChanged,
+                    searchTextController:
+                        TextEditingValue(text: state.searchText),
+                    tab: widget.tab,
+                    initialSidebarTabIndex: _sidebarTabIndex,
+                    pageShapeKey: _pageShapeKey,
+                    pageShapePrintBoundaryKey: _pageShapePrintBoundaryKey,
+                    pageShapeSidebarTabNotifier: _pageShapeSidebarTabNotifier,
+                    openSearch: _openSearchWithText,
+                  ),
+                  _buildResumeReadingPrompt(state),
+                ],
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResumeReadingPrompt(TextBookLoaded state) {
+    final resumeIndex = widget.tab.resumeIndex;
+    if (_resumePromptDismissed ||
+        resumeIndex == null ||
+        resumeIndex <= 0 ||
+        state.content.isEmpty ||
+        resumeIndex >= state.content.length ||
+        state.visibleIndices.contains(resumeIndex)) {
+      return const SizedBox.shrink();
+    }
+
+    final progress = resumeIndex / (state.content.length - 1);
+    final colorScheme = Theme.of(context).colorScheme;
+    final ref = widget.tab.resumeRef?.trim();
+    final subtitle = ref == null || ref.isEmpty ? null : ref;
+
+    return Positioned.fill(
+      child: IgnorePointer(
+        ignoring: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final availableHeight = constraints.maxHeight;
+            if (availableHeight <= 88) return const SizedBox.shrink();
+            final markerTop = (availableHeight - 64) * progress;
+            return Stack(
+              children: [
+                PositionedDirectional(
+                  end: 22,
+                  top: markerTop.clamp(12.0, availableHeight - 76).toDouble(),
+                  child: ResumeReadingChip(
+                    subtitle: subtitle,
+                    onTap: () {
+                      setState(() {
+                        _resumePromptDismissed = true;
+                      });
+                      state.scrollController.scrollTo(
+                        index: resumeIndex,
+                        duration: const Duration(milliseconds: 420),
+                        alignment: 0.08,
+                      );
+                    },
+                    backgroundColor: colorScheme.primaryContainer,
+                    foregroundColor: colorScheme.onPrimaryContainer,
+                    borderColor: colorScheme.primary.withValues(alpha: 0.25),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );

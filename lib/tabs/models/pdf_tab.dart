@@ -66,6 +66,8 @@ class PdfBookTab extends OpenedTab {
 
   /// Saved layout mode for restoration after rebuild
   PdfLayoutMode? savedLayoutMode;
+  final int? resumePageNumber;
+  final String? resumeRef;
 
   /// Creates a new instance of [PdfBookTab].
   ///
@@ -83,6 +85,8 @@ class PdfBookTab extends OpenedTab {
     this.typoToleranceEnabled = false,
     this.pdfSearchMatches,
     this.pdfSearchCurrentMatchIndex,
+    this.resumePageNumber,
+    this.resumeRef,
     bool isPinned = false,
     String? dedupeKey,
   }) : super(book.title, isPinned: isPinned, dedupeKey: dedupeKey) {

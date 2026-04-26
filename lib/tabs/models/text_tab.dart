@@ -48,6 +48,8 @@ class TextBookTab extends OpenedTab {
   final currentTitle = ValueNotifier<String>("");
 
   List<String>? commentators;
+  final int? resumeIndex;
+  final String? resumeRef;
   bool _lastSplitView = false;
   bool _lastShowPageShapeView = false;
 
@@ -70,6 +72,8 @@ class TextBookTab extends OpenedTab {
     this.searchMode = SearchMode.exact,
     this.typoToleranceEnabled = false,
     this.commentators,
+    this.resumeIndex,
+    this.resumeRef,
     bool openLeftPane = false,
     bool? splitedView,
     bool? showPageShapeView,

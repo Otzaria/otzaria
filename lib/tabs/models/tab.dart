@@ -35,6 +35,8 @@ abstract class OpenedTab {
         openLeftPane: state is TextBookLoaded ? state.showLeftPane : false,
         splitedView: splitedView,
         showPageShapeView: showPageShapeView,
+        resumeIndex: tab.resumeIndex,
+        resumeRef: tab.resumeRef,
         isPinned: tab.isPinned,
         dedupeKey: tab.dedupeKey,
       );
@@ -43,6 +45,8 @@ abstract class OpenedTab {
         book: tab.book,
         pageNumber: tab.pageNumber,
         openLeftPane: tab.showLeftPane.value,
+        resumePageNumber: tab.resumePageNumber,
+        resumeRef: tab.resumeRef,
         isPinned: tab.isPinned,
         dedupeKey: tab.dedupeKey,
       );
@@ -62,6 +66,8 @@ abstract class OpenedTab {
       List<String>? commentators,
       bool openLeftPane = false,
       bool isPinned = false,
+      int? resumeIndex,
+      String? resumeRef,
       bool? showPageShapeView}) {
     if (book is PdfBook) {
       return PdfBookTab(
@@ -69,6 +75,8 @@ abstract class OpenedTab {
         pageNumber: index,
         openLeftPane: openLeftPane,
         searchText: searchText,
+        resumePageNumber: resumeIndex,
+        resumeRef: resumeRef,
         isPinned: isPinned,
       );
     } else if (book is DocxBook) {
@@ -105,6 +113,8 @@ abstract class OpenedTab {
         openLeftPane: openLeftPane,
         isPinned: isPinned,
         showPageShapeView: showPageShapeView,
+        resumeIndex: resumeIndex,
+        resumeRef: resumeRef,
       );
     } else if (book is TextBook) {
       return TextBookTab(
@@ -115,6 +125,8 @@ abstract class OpenedTab {
         openLeftPane: openLeftPane,
         isPinned: isPinned,
         showPageShapeView: showPageShapeView,
+        resumeIndex: resumeIndex,
+        resumeRef: resumeRef,
       );
     }
     throw UnsupportedError("Unsupported book type: ${book.runtimeType}");

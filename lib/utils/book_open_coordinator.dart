@@ -39,8 +39,11 @@ class BookOpenCoordinator {
         : historyState.history
             .firstWhereOrNull((b) => b.book.title == book.title);
 
-    final initialIndex =
-        (ignoreHistory || index != 0) ? index : (lastOpened?.index ?? 0);
+    final resumeBookmark =
+        !ignoreHistory && index == 0 && (lastOpened?.index ?? 0) > 0
+            ? lastOpened
+            : null;
+    final initialIndex = book is PdfBook && index <= 0 ? 1 : index;
     final initialCommentators = lastOpened?.commentatorsToShow;
 
     final shouldOpenLeftPane = shouldAutoOpenReadingLeftPane();
@@ -55,6 +58,8 @@ class BookOpenCoordinator {
       commentators: initialCommentators,
       openLeftPane: shouldOpenLeftPane,
       showPageShapeView: savedViewMode,
+      resumeIndex: resumeBookmark?.index,
+      resumeRef: resumeBookmark?.ref,
     );
     tabsBloc.add(OpenOrFocusTab(tab));
 
