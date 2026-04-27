@@ -226,9 +226,9 @@ begin
     'להלן רכיבי המערכת הנדרשים לפעולת אוצריא.' + #13#10 +
     'רכיבים באדום חסרים — נדרשת התקנה.' + #13#10 +
     'רכיבים ירוקים קיימים — אין צורך בפעולה.';
-  HeaderLabel.Height := 52;
+  HeaderLabel.Height := 60;
 
-  TopY := 65;
+  TopY := 75;
 
   // ─── Visual C++ Runtime ───────────────────────────────────────────────────
   VCCheck := TCheckBox.Create(CompPage);
@@ -336,26 +336,26 @@ begin
   DescLabel.Caption  :=
     'כאן יישמרו קבצי הספרים שמגיעים עם ההתקנה וכל ספר שתוסיף בעתיד.' + #13#10 +
     'הנתיב שתבחר יוגדר אוטומטית בהגדרות התוכנה.';
-  DescLabel.Height := 50;
+  DescLabel.Height := 60;
 
   PathLabel := TLabel.Create(BooksPage);
   PathLabel.Parent  := BooksPage.Surface;
   PathLabel.Left    := 0;
-  PathLabel.Top     := 60;
+  PathLabel.Top     := 70;
   PathLabel.Caption := 'נתיב תיקיית הספרים:';
   PathLabel.AutoSize := True;
 
   BooksPathEdit := TEdit.Create(BooksPage);
   BooksPathEdit.Parent := BooksPage.Surface;
   BooksPathEdit.Left   := 0;
-  BooksPathEdit.Top    := 78;
+  BooksPathEdit.Top    := 88;
   BooksPathEdit.Width  := BooksPage.SurfaceWidth - 90;
   BooksPathEdit.Text   := DefaultPath;
 
   BooksPathBrowseBtn := TButton.Create(BooksPage);
   BooksPathBrowseBtn.Parent  := BooksPage.Surface;
   BooksPathBrowseBtn.Left    := BooksPage.SurfaceWidth - 85;
-  BooksPathBrowseBtn.Top     := 76;
+  BooksPathBrowseBtn.Top     := 86;
   BooksPathBrowseBtn.Width   := 85;
   BooksPathBrowseBtn.Caption := 'עיון...';
   BooksPathBrowseBtn.OnClick := @BrowseBooksFolder;
@@ -364,7 +364,7 @@ begin
   WarnLabel := TLabel.Create(BooksPage);
   WarnLabel.Parent     := BooksPage.Surface;
   WarnLabel.Left       := 0;
-  WarnLabel.Top        := 118;
+  WarnLabel.Top        := 130;
   WarnLabel.Width      := BooksPage.SurfaceWidth;
   WarnLabel.AutoSize   := False;
   WarnLabel.WordWrap   := True;
