@@ -48,6 +48,17 @@ Name: "hebrew"; MessagesFile: "compiler:Languages\Hebrew.isl"
 
 [Code]
 
+var
+  CompPage: TWizardPage;
+  VCCheck, WV2Check: TCheckBox;
+  VCLabel, WV2Label: TLabel;
+  InstallVC, InstallWV2: Boolean;
+
+  BooksPage: TWizardPage;
+  BooksPathEdit: TEdit;
+  BooksPathBrowseBtn: TButton;
+  SelectedBooksPath: String;
+
 function TryGetInstallDirFromRegistry(RootKey: Integer; const SubKey: String; var InstallDir: String): Boolean;
 begin
   Result := RegQueryStringValue(RootKey, SubKey, 'Inno Setup: App Path', InstallDir);
@@ -185,19 +196,6 @@ function WebView2NeedsInstall: Boolean;
 begin
   Result := GetWebView2Version = '';
 end;
-
-// ─── משתנים גלובליים ────────────────────────────────────────────────────────
-
-var
-  CompPage: TWizardPage;
-  VCCheck, WV2Check: TCheckBox;
-  VCLabel, WV2Label: TLabel;
-  InstallVC, InstallWV2: Boolean;
-
-  BooksPage: TWizardPage;
-  BooksPathEdit: TEdit;
-  BooksPathBrowseBtn: TButton;
-  SelectedBooksPath: String;
 
 // ─── בניית עמוד בחירת רכיבים ───────────────────────────────────────────────
 
