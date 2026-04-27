@@ -1,5 +1,6 @@
 # Ignore Visual C++ Redistributable file (large file, should be downloaded separately)
-VisualCppRedist_AIO_x86_x64.exe
+VC_redist.x64.exe
+MicrosoftEdgeWebview2Setup.exe
 zstd.exe
 zstd-win64.zip
 7za.exe
