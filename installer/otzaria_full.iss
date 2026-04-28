@@ -226,16 +226,17 @@ begin
     'להלן רכיבי המערכת הנדרשים לפעולת אוצריא.' + #13#10 +
     'רכיבים באדום חסרים — נדרשת התקנה.' + #13#10 +
     'רכיבים ירוקים קיימים — אין צורך בפעולה.';
-  HeaderLabel.Height := 60;
+  HeaderLabel.Height := ScaleY(60);  // 3 שורות קצרות, בלי עודף ריפוד
 
-  TopY := 75;
+  TopY := HeaderLabel.Height + ScaleY(6);
 
   // ─── Visual C++ Runtime ───────────────────────────────────────────────────
   VCCheck := TCheckBox.Create(CompPage);
   VCCheck.Parent  := CompPage.Surface;
   VCCheck.Left    := 0;
-  VCCheck.Top     := TopY;
+  VCCheck.Top     := TopY + ScaleY(2);
   VCCheck.Width   := CompPage.SurfaceWidth;
+  VCCheck.Height  := ScaleY(20);
   VCCheck.Caption := 'Visual C++ Redistributable 2022 (x64)';
 
   if VCVersion = '' then
@@ -255,16 +256,16 @@ begin
 
   VCLabel := TLabel.Create(CompPage);
   VCLabel.Parent   := CompPage.Surface;
-  VCLabel.Left     := 20;
-  VCLabel.Top      := TopY + 22;
-  VCLabel.Width    := CompPage.SurfaceWidth - 20;
+  VCLabel.Left     := ScaleX(20);
+  VCLabel.Top      := TopY + ScaleY(18);
+  VCLabel.Width    := CompPage.SurfaceWidth - ScaleX(20);
   VCLabel.AutoSize := False;
   VCLabel.WordWrap := True;
   VCLabel.Caption  := VCStatus;
   VCLabel.Font.Color := VCColor;
-  VCLabel.Height   := 30;
+  VCLabel.Height   := ScaleY(36);
 
-  TopY := TopY + 70;
+  TopY := TopY + ScaleY(58);
 
   // ─── WebView2 Runtime ─────────────────────────────────────────────────────
   WV2Check := TCheckBox.Create(CompPage);
@@ -272,6 +273,7 @@ begin
   WV2Check.Left    := 0;
   WV2Check.Top     := TopY;
   WV2Check.Width   := CompPage.SurfaceWidth;
+  WV2Check.Height  := ScaleY(20);
   WV2Check.Caption := 'Microsoft WebView2 Runtime';
 
   // WebView2 אינו חובה — משמש רק למערכת הפלאגינים (לא לקריאה/חיפוש/סימניות)
@@ -293,14 +295,14 @@ begin
 
   WV2Label := TLabel.Create(CompPage);
   WV2Label.Parent   := CompPage.Surface;
-  WV2Label.Left     := 20;
-  WV2Label.Top      := TopY + 22;
-  WV2Label.Width    := CompPage.SurfaceWidth - 20;
+  WV2Label.Left     := ScaleX(20);
+  WV2Label.Top      := TopY + ScaleY(18);
+  WV2Label.Width    := CompPage.SurfaceWidth - ScaleX(20);
   WV2Label.AutoSize := False;
   WV2Label.WordWrap := True;
   WV2Label.Caption  := WV2Status;
   WV2Label.Font.Color := WV2Color;
-  WV2Label.Height   := 30;
+  WV2Label.Height   := ScaleY(34);
 end;
 
 // ─── דף בחירת תיקיית הספרים ─────────────────────────────────────────────────
@@ -336,39 +338,42 @@ begin
   DescLabel.Caption  :=
     'כאן יישמרו קבצי הספרים שמגיעים עם ההתקנה וכל ספר שתוסיף בעתיד.' + #13#10 +
     'הנתיב שתבחר יוגדר אוטומטית בהגדרות התוכנה.';
-  DescLabel.Height := 60;
+  DescLabel.Height := ScaleY(42);  // 2 שורות צמודות יותר
 
   PathLabel := TLabel.Create(BooksPage);
-  PathLabel.Parent  := BooksPage.Surface;
-  PathLabel.Left    := 0;
-  PathLabel.Top     := 70;
-  PathLabel.Caption := 'נתיב תיקיית הספרים:';
-  PathLabel.AutoSize := True;
+  PathLabel.Parent   := BooksPage.Surface;
+  PathLabel.Left     := 0;
+  PathLabel.Top      := DescLabel.Height + ScaleY(2);
+  PathLabel.Width    := BooksPage.SurfaceWidth;
+  PathLabel.AutoSize := False;
+  PathLabel.Caption  := 'נתיב תיקיית הספרים:';
+  PathLabel.Height   := ScaleY(20);
 
   BooksPathEdit := TEdit.Create(BooksPage);
   BooksPathEdit.Parent := BooksPage.Surface;
   BooksPathEdit.Left   := 0;
-  BooksPathEdit.Top    := 88;
-  BooksPathEdit.Width  := BooksPage.SurfaceWidth - 90;
+  BooksPathEdit.Top    := PathLabel.Top + ScaleY(26);
+  BooksPathEdit.Width  := BooksPage.SurfaceWidth - ScaleX(84);
+  BooksPathEdit.Height := ScaleY(22);
   BooksPathEdit.Text   := DefaultPath;
 
   BooksPathBrowseBtn := TButton.Create(BooksPage);
   BooksPathBrowseBtn.Parent  := BooksPage.Surface;
-  BooksPathBrowseBtn.Left    := BooksPage.SurfaceWidth - 85;
-  BooksPathBrowseBtn.Top     := 86;
-  BooksPathBrowseBtn.Width   := 85;
+  BooksPathBrowseBtn.Left    := BooksPage.SurfaceWidth - ScaleX(78);
+  BooksPathBrowseBtn.Top     := BooksPathEdit.Top - ScaleY(1);
+  BooksPathBrowseBtn.Width   := ScaleX(78);
+  BooksPathBrowseBtn.Height  := ScaleY(23);
   BooksPathBrowseBtn.Caption := 'עיון...';
   BooksPathBrowseBtn.OnClick := @BrowseBooksFolder;
 
-  // אזהרה על מחיקת נתונים קיימים — הועברה לכאן מ-InitializeSetup
   WarnLabel := TLabel.Create(BooksPage);
   WarnLabel.Parent     := BooksPage.Surface;
   WarnLabel.Left       := 0;
-  WarnLabel.Top        := 130;
+  WarnLabel.Top        := BooksPathEdit.Top + BooksPathEdit.Height + ScaleY(8);
   WarnLabel.Width      := BooksPage.SurfaceWidth;
   WarnLabel.AutoSize   := False;
   WarnLabel.WordWrap   := True;
-  WarnLabel.Height     := 45;
+  WarnLabel.Height     := ScaleY(42);
   WarnLabel.Font.Color := clRed;
 
   if DirExists(DefaultPath) then
