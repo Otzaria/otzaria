@@ -209,10 +209,10 @@ void main() {
   });
 
   group('GemaraReferenceRule — כינויי מסכת → שם קנוני', () {
-    test('נדה ב. → targetBookTitle = נידה (לא נדה)', () async {
-      final refs = await _detect('נדה ב.');
+    test('נידה ב. → targetBookTitle = נדה לפי שם הקטלוג', () async {
+      final refs = await _detect('נידה ב.');
       expect(refs, hasLength(1));
-      expect(refs.first.targetBookTitle, equals('נידה'));
+      expect(refs.first.targetBookTitle, equals('נדה'));
     });
   });
 
@@ -222,7 +222,8 @@ void main() {
     test('טו = 15', () => expect(GemaraReferenceRule.hebrewToInt('טו'), 15));
     test('טז = 16', () => expect(GemaraReferenceRule.hebrewToInt('טז'), 16));
     test('כ = 20', () => expect(GemaraReferenceRule.hebrewToInt('כ'), 20));
-    test('קעו = 176', () => expect(GemaraReferenceRule.hebrewToInt('קעו'), 176));
+    test(
+        'קעו = 176', () => expect(GemaraReferenceRule.hebrewToInt('קעו'), 176));
     test('מחרוזת לא עברית מחזירה null',
         () => expect(GemaraReferenceRule.hebrewToInt('abc'), isNull));
   });

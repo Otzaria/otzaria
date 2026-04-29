@@ -1,5 +1,6 @@
 import 'package:otzaria/generated_links/repository/generated_links_book_resolver.dart';
 import 'package:otzaria/generated_links/repository/generated_links_cache_store.dart';
+import 'package:otzaria/generated_links/rules/generated_link_rules_registry.dart';
 import 'package:otzaria/generated_links/services/generated_links_processor.dart';
 import 'package:otzaria/generated_links/services/generated_links_scheduler.dart';
 import 'package:otzaria/generated_links/services/generated_links_work_gate.dart';
@@ -36,7 +37,7 @@ class GeneratedLinksService {
     final scheduler = GeneratedLinksScheduler(
       cacheStore: store,
       workGate: gate,
-      rulesVersion: 'v1',
+      rulesVersion: GeneratedLinkRulesRegistry.defaultRulesVersion,
       processBatch: processor.processBatch,
     );
 

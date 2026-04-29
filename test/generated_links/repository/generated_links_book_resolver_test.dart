@@ -58,6 +58,53 @@ void main() {
       expect(target.targetIndex, equals(42));
       expect(target.isResolved, isTrue);
     });
+
+    test('הפניה תנ"כית מדויקת נפתרת לפי line.heRef לפני TOC פרקי', () async {
+      final resolver = GeneratedLinksBookResolver(
+        warmUpReferenceBooks: () async {},
+        isReferenceBooksLoaded: () => true,
+        searchBooks: (q, {int limit = 50}) => [_book(id: 1, title: 'בראשית')],
+        getLineByReference: (bookId, title, refText) async => {
+          'reference': 'בראשית א, א',
+          'segment': 2,
+          'level': 99,
+        },
+        getTocEntries: (bookId, title, {List<String>? queryTokens}) async => [
+          {'reference': 'בראשית פרק א', 'segment': 1, 'level': 1}
+        ],
+      );
+
+      final target = await resolver.resolve(
+        bookTitle: 'בראשית',
+        refText: 'בראשית א א',
+      );
+
+      expect(target, isNotNull);
+      expect(target!.targetIndex, equals(2));
+    });
+
+    test('מחזיר target כאשר שם הספר נמצא דרך book_acronym מדויק', () async {
+      final resolver = GeneratedLinksBookResolver(
+        warmUpReferenceBooks: () async {},
+        isReferenceBooksLoaded: () => true,
+        searchBooks: (q, {int limit = 50}) => [
+          _book(id: 20, title: 'משנה ברורה', matchRank: 3),
+        ],
+        getTocEntries: (bookId, title, {List<String>? queryTokens}) async => [
+          {'reference': 'משנה ברורה סימן א', 'segment': 11, 'level': 1}
+        ],
+      );
+
+      final target = await resolver.resolve(
+        bookTitle: 'מ"ב',
+        refText: 'סימן א',
+      );
+
+      expect(target, isNotNull);
+      expect(target!.targetBookId, equals(20));
+      expect(target.bookTitle, equals('משנה ברורה'));
+      expect(target.targetIndex, equals(11));
+    });
   });
 
   group('GeneratedLinksBookResolver — ספר לא קיים', () {
@@ -85,9 +132,43 @@ void main() {
         getTocEntries: (bookId, title, {List<String>? queryTokens}) async => [],
       );
 
-      final target =
-          await resolver.resolve(bookTitle: 'ברכות', refText: 'ב א');
+      final target = await resolver.resolve(bookTitle: 'ברכות', refText: 'ב א');
       expect(target, isNull);
+    });
+
+    test('שני ספרים עם acronym מדויק → null (אמביגואי)', () async {
+      final resolver = GeneratedLinksBookResolver(
+        warmUpReferenceBooks: () async {},
+        isReferenceBooksLoaded: () => true,
+        searchBooks: (q, {int limit = 50}) => [
+          _book(id: 1, title: 'ספר א', matchRank: 3),
+          _book(id: 2, title: 'ספר ב', matchRank: 3),
+        ],
+        getTocEntries: (bookId, title, {List<String>? queryTokens}) async => [
+          {'reference': title, 'segment': 0, 'level': 1}
+        ],
+      );
+
+      final target = await resolver.resolve(bookTitle: 'ס"א', refText: 'א');
+      expect(target, isNull);
+    });
+
+    test('שם מדויק עדיף על acronym מדויק של ספר אחר', () async {
+      final resolver = GeneratedLinksBookResolver(
+        warmUpReferenceBooks: () async {},
+        isReferenceBooksLoaded: () => true,
+        searchBooks: (q, {int limit = 50}) => [
+          _book(id: 1, title: 'ראש', matchRank: 0),
+          _book(id: 2, title: 'ראשית חכמה', matchRank: 3),
+        ],
+        getTocEntries: (bookId, title, {List<String>? queryTokens}) async => [
+          {'reference': title, 'segment': bookId, 'level': 1}
+        ],
+      );
+
+      final target = await resolver.resolve(bookTitle: 'ראש', refText: 'א');
+      expect(target, isNotNull);
+      expect(target!.targetBookId, equals(1));
     });
   });
 
@@ -114,8 +195,7 @@ void main() {
       final resolver = GeneratedLinksBookResolver(
         warmUpReferenceBooks: () async {},
         isReferenceBooksLoaded: () => true,
-        searchBooks: (q, {int limit = 50}) =>
-            [_book(id: 7, title: 'פסחים')],
+        searchBooks: (q, {int limit = 50}) => [_book(id: 7, title: 'פסחים')],
         getTocEntries: (bookId, title, {List<String>? queryTokens}) async {
           tocCallCount++;
           return [
@@ -143,8 +223,7 @@ void main() {
           searchCallCount++;
           return []; // תמיד נכשל (אין התאמה מדויקת)
         },
-        getTocEntries: (bookId, title, {List<String>? queryTokens}) async =>
-            [],
+        getTocEntries: (bookId, title, {List<String>? queryTokens}) async => [],
       );
 
       // _maxFailedAttempts == 3; כל אחד מ-3 הראשונים חייב לקרוא ל-search
@@ -167,8 +246,7 @@ void main() {
       final resolver = GeneratedLinksBookResolver(
         warmUpReferenceBooks: () async {},
         isReferenceBooksLoaded: () => true,
-        searchBooks: (q, {int limit = 50}) =>
-            [_book(id: 3, title: 'גיטין')],
+        searchBooks: (q, {int limit = 50}) => [_book(id: 3, title: 'גיטין')],
         getTocEntries: (bookId, title, {List<String>? queryTokens}) async {
           tocCallCount++;
           // הקריאה הראשונה נכשלת, השנייה מצליחה
@@ -179,12 +257,10 @@ void main() {
         },
       );
 
-      final first =
-          await resolver.resolve(bookTitle: 'גיטין', refText: 'ב א');
+      final first = await resolver.resolve(bookTitle: 'גיטין', refText: 'ב א');
       expect(first, isNull); // כשל ראשון
 
-      final second =
-          await resolver.resolve(bookTitle: 'גיטין', refText: 'ב א');
+      final second = await resolver.resolve(bookTitle: 'גיטין', refText: 'ב א');
       expect(second, isNotNull); // הצלחה בניסיון שני
       expect(second!.targetIndex, equals(5));
     });

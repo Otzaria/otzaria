@@ -2424,12 +2424,12 @@ extension BookAcronymRepository on SeforimRepository {
     // Note: COALESCE(l.lineIndex, t.lineId) is used to support external books
     // where lineId stores the line/page index directly (no entry in line table)
     final tocEntries = db.select('''
-        SELECT t.id, tt.text, t.level, COALESCE(l.lineIndex, t.lineId) as lineIndex, t.parentId
+        SELECT t.id, tt.text, t.level, COALESCE(l.lineIndex, t.lineIndex, t.lineId) as lineIndex, t.parentId
         FROM tocEntry t
         JOIN tocText tt ON t.textId = tt.id
         LEFT JOIN line l ON t.lineId = l.id
         WHERE t.bookId = ?
-        ORDER BY COALESCE(l.lineIndex, t.lineId), t.level
+        ORDER BY COALESCE(l.lineIndex, t.lineIndex, t.lineId), t.level
       ''', [bookId]).toMapList();
 
     if (tocEntries.isEmpty) {
@@ -2455,6 +2455,8 @@ extension BookAcronymRepository on SeforimRepository {
       parentLevels[id] = level;
     }
 
+    final exactDafTocText = _exactGemaraDafTocText(queryTokens, tocEntries);
+
     for (final entry in tocEntries) {
       final text = entry['text'] as String;
       final level = entry['level'] as int;
@@ -2466,6 +2468,10 @@ extension BookAcronymRepository on SeforimRepository {
       // Previously this skipped level 1, which inadvertently dropped all
       // chapter headings for books that have only level 0 + level 1 (e.g. בראשית).
       if (level == 0) continue;
+
+      if (exactDafTocText != null && text != exactDafTocText) {
+        continue;
+      }
 
       // Build full reference path, skipping the book-name level (level 0).
       String fullRef = bookTitle;
@@ -2481,7 +2487,9 @@ extension BookAcronymRepository on SeforimRepository {
       }
 
       // Filter by query tokens if provided
-      if (queryTokens != null && queryTokens.isNotEmpty) {
+      if (exactDafTocText == null &&
+          queryTokens != null &&
+          queryTokens.isNotEmpty) {
         // Use the same normalization as FindRef for consistent matching
         final refNormalized = _normalizeForTocMatch(fullRef);
         final refTokens =
@@ -2529,6 +2537,68 @@ extension BookAcronymRepository on SeforimRepository {
         .sort((a, b) => (a['segment'] as int).compareTo(b['segment'] as int));
 
     return results;
+  }
+
+  /// Resolves an exact line-level Hebrew reference through `line.heRef`.
+  ///
+  /// In the current DB, Tanach TOC entries usually stop at chapter level
+  /// (`פרק א`), while verse precision lives on `line.heRef`
+  /// (`בראשית א, א`). Generated Tanach links must therefore resolve here
+  /// before falling back to TOC heading matching.
+  Future<Map<String, dynamic>?> getLineEntryForReference(
+    int bookId,
+    String bookTitle,
+    String refText,
+  ) async {
+    final db = await _database.database;
+    final expected = _normalizeForTocMatch(
+      refText.trim().startsWith(bookTitle) ? refText : '$bookTitle $refText',
+    );
+    if (expected.isEmpty) return null;
+
+    final rows = db.select('''
+      SELECT lineIndex, heRef
+      FROM line
+      WHERE bookId = ?
+        AND heRef IS NOT NULL
+        AND heRef != ''
+      ORDER BY lineIndex
+    ''', [bookId]).toMapList();
+
+    for (final row in rows) {
+      final heRef = row['heRef'] as String? ?? '';
+      if (_normalizeForTocMatch(heRef) != expected) continue;
+      return {
+        'reference': heRef,
+        'segment': row['lineIndex'] as int,
+        'level': 99,
+      };
+    }
+
+    return null;
+  }
+
+  String? _exactGemaraDafTocText(
+    List<String>? queryTokens,
+    List<Map<String, dynamic>> tocEntries,
+  ) {
+    if (queryTokens == null || queryTokens.isEmpty) return null;
+
+    final hasDafHeadings = tocEntries.any((entry) {
+      final text = entry['text'] as String? ?? '';
+      return text.startsWith('דף ');
+    });
+    if (!hasDafHeadings) return null;
+
+    final tokens =
+        queryTokens.where((token) => token != 'דף' && token != 'עמוד').toList();
+    if (tokens.isEmpty) return null;
+
+    final daf = tokens.first;
+    final amud = tokens.length >= 2 ? tokens[1] : 'א';
+    if (amud != 'א' && amud != 'ב') return null;
+
+    return 'דף $daf${amud == 'ב' ? ':' : '.'}';
   }
 
   /// Normalizes text for TOC matching (same as FindRef normalization)

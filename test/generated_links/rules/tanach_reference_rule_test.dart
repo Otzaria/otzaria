@@ -55,10 +55,10 @@ void main() {
       expect(refs.first.confidence, greaterThan(0.9));
     });
 
-    test('תהלים פרק קיט פסוק א', () async {
+    test('תהלים פרק קיט פסוק א → תהילים לפי שם הקטלוג', () async {
       final refs = await _detectTanach('תהלים פרק קיט פסוק א');
       expect(refs, hasLength(1));
-      expect(refs.first.targetBookTitle, equals('תהלים'));
+      expect(refs.first.targetBookTitle, equals('תהילים'));
     });
 
     test('ספרים שמספרי פרקיהם ערביים', () async {
