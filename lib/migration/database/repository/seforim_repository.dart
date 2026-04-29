@@ -2607,6 +2607,13 @@ extension BookAcronymRepository on SeforimRepository {
     var cleaned = input;
     // Remove common Hebrew diacritics
     cleaned = cleaned.replaceAll(RegExp(r'[\u0591-\u05C7]'), '');
+    // Remove Hebrew/ASCII quotes before punctuation normalization so קי"ט
+    // matches קיט instead of becoming two separate tokens.
+    cleaned = cleaned
+        .replaceAll('"', '')
+        .replaceAll('״', '')
+        .replaceAll('׳', '')
+        .replaceAll("'", '');
     // Keep only letters, numbers, and spaces
     cleaned = cleaned.replaceAll(RegExp(r'[^a-zA-Z0-9\u0590-\u05FF\s]'), ' ');
     cleaned = cleaned.toLowerCase();

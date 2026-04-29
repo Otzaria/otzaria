@@ -121,4 +121,29 @@ void main() {
     expect(result!['reference'], equals('בראשית א, א'));
     expect(result['segment'], equals(2));
   });
+
+  test('Tanach verse with gershayim resolves through normalized line.heRef',
+      () async {
+    final categoryId = await createCategory();
+    final bookId = await createBook(categoryId, 'תהילים');
+
+    await repository.insertLine(
+      Line(
+        bookId: bookId,
+        lineIndex: 2143,
+        content: 'אַשְׁרֵי תְמִימֵי דָרֶךְ',
+        heRef: 'תהילים קיט, א',
+      ),
+    );
+
+    final result = await repository.getLineEntryForReference(
+      bookId,
+      'תהילים',
+      'תהילים קי"ט א',
+    );
+
+    expect(result, isNotNull);
+    expect(result!['reference'], equals('תהילים קיט, א'));
+    expect(result['segment'], equals(2143));
+  });
 }

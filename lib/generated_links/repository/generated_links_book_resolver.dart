@@ -115,7 +115,7 @@ class GeneratedLinksBookResolver {
               queryTokens: queryTokens);
         };
 
-    final queryTokens = refText.split(' ').where((t) => t.isNotEmpty).toList();
+    final queryTokens = _queryTokensForRefText(refText);
     final tocEntries =
         await toc(hit.bookId, hit.title, queryTokens: queryTokens);
 
@@ -186,11 +186,26 @@ class GeneratedLinksBookResolver {
   }
 
   String _normalizeForPrefix(String input) {
-    return input
-        .replaceAll(RegExp(r'[\u0591-\u05C7]'), '')
+    var cleaned = input.replaceAll(RegExp(r'[\u0591-\u05C7]'), '');
+    cleaned = _removeGershayim(cleaned);
+    return cleaned
         .replaceAll(RegExp(r'[^a-zA-Z0-9\u0590-\u05FF\s]'), ' ')
         .toLowerCase()
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
   }
+
+  List<String> _queryTokensForRefText(String refText) {
+    final normalized = _normalizeForPrefix(refText);
+    return normalized
+        .split(' ')
+        .where((token) => token.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  String _removeGershayim(String input) => input
+      .replaceAll('"', '')
+      .replaceAll('״', '')
+      .replaceAll('׳', '')
+      .replaceAll("'", '');
 }

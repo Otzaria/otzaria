@@ -14,7 +14,7 @@ class TanachReferenceRule implements GeneratedLinkRule {
   String get id => 'tanach.reference.v1';
 
   @override
-  int get version => 1;
+  int get version => 2;
 
   /// שם ספר → מספר פרקים מרבי.
   static const Map<String, int> _bookMaxChapters = {
@@ -88,7 +88,7 @@ class TanachReferenceRule implements GeneratedLinkRule {
 
   static RegExp _buildBracketedPattern() {
     final bookAlt = _buildBookAlternation();
-    const numPat = r'(?:\d+|[א-ת]{1,3})';
+    const numPat = "(?:\\d+|[א-ת]{1,3}(?:[\"״׳'][א-ת]{1,3})?)";
     // raw strings לסביבת הסוגריים כדי לא לבלבל Dart עם escape sequences
     return RegExp(
       r'([([])' // קבוצה 1: ( או [
@@ -104,7 +104,7 @@ class TanachReferenceRule implements GeneratedLinkRule {
 
   static RegExp _buildExplicitPattern() {
     final bookAlt = _buildBookAlternation();
-    const numPat = r'(?:\d+|[א-ת]{1,3})';
+    const numPat = "(?:\\d+|[א-ת]{1,3}(?:[\"״׳'][א-ת]{1,3})?)";
     return RegExp(
       r'(?<![א-ת])'
       '($bookAlt)'
@@ -128,9 +128,17 @@ class TanachReferenceRule implements GeneratedLinkRule {
 
   /// ממיר מחרוזת מספר (ספרות ערביות או אותיות עבריות) למספר שלם.
   static int? parseNumber(String s) {
-    final arabic = int.tryParse(s);
+    final cleaned = removeGershayim(s);
+    final arabic = int.tryParse(cleaned);
     if (arabic != null) return arabic;
-    return _hebrewToInt(s);
+    return _hebrewToInt(cleaned);
+  }
+
+  /// מנרמל מספר לצורת האותיות שבה `line.heRef` נכתב ב-DB.
+  static String normalizeNumberText(String s) {
+    final number = parseNumber(s);
+    if (number == null) return removeGershayim(s);
+    return _intToHebrew(number);
   }
 
   /// מחזיר מספר פרקים מרבי לספר, או null אם הספר לא מוכר.
@@ -163,13 +171,105 @@ class TanachReferenceRule implements GeneratedLinkRule {
 
   static int? _hebrewToInt(String s) {
     var result = 0;
+    int? previousCategory;
+    final seenLetters = <String>{};
+
     for (var i = 0; i < s.length; i++) {
-      final val = _letterValues[s[i]];
+      final suffix = s.substring(i);
+      if ((suffix == 'טו' || suffix == 'טז') &&
+          (previousCategory == null || previousCategory == 100)) {
+        result += suffix == 'טו' ? 15 : 16;
+        return result;
+      }
+
+      final char = s[i];
+      final val = _letterValues[char];
       if (val == null) return null;
+      if (!seenLetters.add(char)) return null;
+
+      final category = val >= 100
+          ? 100
+          : val >= 10
+              ? 10
+              : 1;
+      if (previousCategory != null && category >= previousCategory) {
+        return null;
+      }
+
+      previousCategory = category;
       result += val;
     }
     return result > 0 ? result : null;
   }
+
+  static String _intToHebrew(int value) {
+    if (value <= 0) return value.toString();
+
+    var remaining = value;
+    final buffer = StringBuffer();
+
+    while (remaining >= 400) {
+      buffer.write('ת');
+      remaining -= 400;
+    }
+
+    const hundreds = {
+      300: 'ש',
+      200: 'ר',
+      100: 'ק',
+    };
+    for (final entry in hundreds.entries) {
+      if (remaining >= entry.key) {
+        buffer.write(entry.value);
+        remaining -= entry.key;
+      }
+    }
+
+    if (remaining == 15) return '$bufferטו';
+    if (remaining == 16) return '$bufferטז';
+
+    const tens = {
+      90: 'צ',
+      80: 'פ',
+      70: 'ע',
+      60: 'ס',
+      50: 'נ',
+      40: 'מ',
+      30: 'ל',
+      20: 'כ',
+      10: 'י',
+    };
+    for (final entry in tens.entries) {
+      if (remaining >= entry.key) {
+        buffer.write(entry.value);
+        remaining -= entry.key;
+      }
+    }
+
+    const ones = {
+      9: 'ט',
+      8: 'ח',
+      7: 'ז',
+      6: 'ו',
+      5: 'ה',
+      4: 'ד',
+      3: 'ג',
+      2: 'ב',
+      1: 'א',
+    };
+    if (remaining > 0) {
+      buffer.write(ones[remaining] ?? remaining.toString());
+    }
+
+    return buffer.toString();
+  }
+
+  /// מסיר גרשיים/גרש ממספר עברי.
+  static String removeGershayim(String s) => s
+      .replaceAll('"', '')
+      .replaceAll('״', '')
+      .replaceAll('׳', '')
+      .replaceAll("'", '');
 
   /// פותר ראשי תיבות וכינויי כתיב לשם ספר קנוני.
   static String _resolveBookName(String raw) =>
@@ -177,7 +277,7 @@ class TanachReferenceRule implements GeneratedLinkRule {
 
   /// בונה targetRefText בפורמט אחיד: `{ספר} {פרק} {פסוק}`.
   static String _buildRefText(String book, String chapter, String verse) =>
-      '$book $chapter $verse';
+      '$book ${normalizeNumberText(chapter)} ${normalizeNumberText(verse)}';
 
   /// בודק תקינות פרק (פסוקים אינם מוגבלים בשלב ראשון).
   static bool _isValidRef(String book, int chapter) {

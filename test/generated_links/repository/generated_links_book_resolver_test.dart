@@ -105,6 +105,35 @@ void main() {
       expect(target.bookTitle, equals('משנה ברורה'));
       expect(target.targetIndex, equals(11));
     });
+
+    test('מנרמל גרשיים ב-ref לפני חיפוש TOC', () async {
+      List<String>? seenQueryTokens;
+      final resolver = GeneratedLinksBookResolver(
+        warmUpReferenceBooks: () async {},
+        isReferenceBooksLoaded: () => true,
+        searchBooks: (q, {int limit = 50}) => [
+          _book(id: 20, title: 'משנה ברורה', matchRank: 3),
+        ],
+        getTocEntries: (bookId, title, {List<String>? queryTokens}) async {
+          seenQueryTokens = queryTokens;
+          if (queryTokens case ['סימן', 'כב']) {
+            return [
+              {'reference': 'משנה ברורה סימן כב', 'segment': 22, 'level': 1}
+            ];
+          }
+          return const [];
+        },
+      );
+
+      final target = await resolver.resolve(
+        bookTitle: 'מ"ב',
+        refText: 'סימן כ"ב',
+      );
+
+      expect(seenQueryTokens, equals(['סימן', 'כב']));
+      expect(target, isNotNull);
+      expect(target!.targetIndex, equals(22));
+    });
   });
 
   group('GeneratedLinksBookResolver — ספר לא קיים', () {

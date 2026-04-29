@@ -15,16 +15,18 @@ class TanachShamReferenceRule implements GeneratedLinkRule {
   String get id => 'tanach.sham.v1';
 
   @override
-  int get version => 1;
+  int get version => 2;
+
+  static const String _numPat = "(?:\\d+|[א-ת]{1,3}(?:[\"״׳'][א-ת]{1,3})?)";
 
   /// `(שם)` עם אופציה ל-`(שם X)` או `(שם X, Y)` / `(שם X Y)`.
   static final RegExp _shamPattern = RegExp(
-    r'\(שם(?:\s+(?:\d+|[א-ת]{1,3})(?:(?:,\s*|\s+)(?:\d+|[א-ת]{1,3}))?)?\)',
+    '\\(שם(?:\\s+$_numPat(?:(?:,\\s*|\\s+)$_numPat)?)?\\)',
     unicode: true,
   );
 
   static final RegExp _shamNumbersPattern = RegExp(
-    r'שם\s+((?:\d+|[א-ת]{1,3}))(?:(?:,\s*|\s+)((?:\d+|[א-ת]{1,3})))?',
+    'שם\\s+($_numPat)(?:(?:,\\s*|\\s+)($_numPat))?',
     unicode: true,
   );
 
@@ -78,7 +80,10 @@ class TanachShamReferenceRule implements GeneratedLinkRule {
           final maxCh = TanachReferenceRule.maxChaptersForBook(book);
           if (maxCh != null && chNum > maxCh) continue;
 
-          targetRefText = vs != null ? '$book $ch $vs' : '$book $ch';
+          final normalizedChapter = TanachReferenceRule.normalizeNumberText(ch);
+          targetRefText = vs != null
+              ? '$book $normalizedChapter ${TanachReferenceRule.normalizeNumberText(vs)}'
+              : '$book $normalizedChapter';
         }
 
         results.add(DetectedReference(
@@ -132,10 +137,8 @@ class TanachShamReferenceRule implements GeneratedLinkRule {
         lineIdx <= shamLineIdx;
         lineIdx++) {
       final line = lines[lineIdx];
-      final segStart =
-          lineIdx == lastRef.sourceLineIndex ? lastRef.end : 0;
-      final segEnd =
-          lineIdx == shamLineIdx ? shamStart : line.length;
+      final segStart = lineIdx == lastRef.sourceLineIndex ? lastRef.end : 0;
+      final segEnd = lineIdx == shamLineIdx ? shamStart : line.length;
 
       if (segStart >= segEnd) continue;
 

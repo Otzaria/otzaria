@@ -64,6 +64,14 @@ void main() {
     test('ספרים שמספרי פרקיהם ערביים', () async {
       final refs = await _detectTanach('בראשית פרק 1 פסוק 1');
       expect(refs, hasLength(1));
+      expect(refs.first.targetRefText, equals('בראשית א א'));
+    });
+
+    test('תהלים פרק קי"ט פסוק א → מנורמל לפי line.heRef ב-DB', () async {
+      final refs = await _detectTanach('תהלים פרק קי"ט פסוק א');
+      expect(refs, hasLength(1));
+      expect(refs.first.targetBookTitle, equals('תהילים'));
+      expect(refs.first.targetRefText, equals('תהילים קיט א'));
     });
   });
 
@@ -90,6 +98,13 @@ void main() {
       final refs = await _detectTanach('(דה״ב לו, כג)');
       expect(refs, hasLength(1));
       expect(refs.first.targetBookTitle, equals('דברי הימים ב'));
+    });
+
+    test('(תהלים קי״ט, א) — גרשיים במספר הפרק', () async {
+      final refs = await _detectTanach('(תהלים קי״ט, א)');
+      expect(refs, hasLength(1));
+      expect(refs.first.targetBookTitle, equals('תהילים'));
+      expect(refs.first.targetRefText, equals('תהילים קיט א'));
     });
   });
 
@@ -202,6 +217,34 @@ void main() {
       expect(refs, hasLength(1));
       expect(refs.first.targetBookTitle, equals('בראשית'));
       expect(refs.first.targetRefText, contains('ב'));
+    });
+
+    test('(שם קי״ט, א) — מנרמל גרשיים במספר הפרק', () async {
+      final prev = [
+        DetectedReference(
+          sourceLineIndex: 0,
+          start: 0,
+          end: 13,
+          matchedText: '(תהילים א, א)',
+          targetBookTitle: 'תהילים',
+          targetRefText: 'תהילים א א',
+          ruleId: 'tanach.reference.v1',
+          confidence: 0.92,
+        ),
+      ];
+      final ctx = GeneratedLinkRuleContext(
+        sourceBookId: 1,
+        sourceBookTitle: 'test',
+        previousReferences: prev,
+      );
+      final refs = await TanachShamReferenceRule().detect(
+        ctx,
+        ['(תהילים א, א)', '(שם קי״ט, א)'],
+        const LineRange(1, 1),
+      );
+      expect(refs, hasLength(1));
+      expect(refs.first.targetBookTitle, equals('תהילים'));
+      expect(refs.first.targetRefText, equals('תהילים קיט א'));
     });
   });
 }
