@@ -13,7 +13,7 @@ class GemaraReferenceRule implements GeneratedLinkRule {
   String get id => 'gemara.reference.v1';
 
   @override
-  int get version => 1;
+  int get version => 2;
 
   /// שם מסכת קנוני → מספר הדף האחרון שלה.
   static const Map<String, int> _tractateMaxDaf = {
@@ -94,12 +94,41 @@ class GemaraReferenceRule implements GeneratedLinkRule {
     'ת': 400,
   };
 
-  /// ממיר מחרוזת אותיות עבריות למספר שלם. מחזיר null אם יש אות לא מוכרת.
+  /// ממיר מחרוזת אותיות עבריות למספר שלם.
+  ///
+  /// מחזיר null אם יש אות לא מוכרת או אם מבנה הגימטריה אינו תקין. זה מונע
+  /// false positives כמו "תענית בהב" או "ברכות גכ".
   static int? hebrewToInt(String s) {
+    final cleaned = removeGershayim(s);
+
     var result = 0;
-    for (var i = 0; i < s.length; i++) {
-      final val = _letterValues[s[i]];
+    int? previousCategory;
+    final seenLetters = <String>{};
+
+    for (var i = 0; i < cleaned.length; i++) {
+      final suffix = cleaned.substring(i);
+      if ((suffix == 'טו' || suffix == 'טז') &&
+          (previousCategory == null || previousCategory == 100)) {
+        result += suffix == 'טו' ? 15 : 16;
+        return result;
+      }
+
+      final char = cleaned[i];
+      final val = _letterValues[char];
       if (val == null) return null;
+
+      if (!seenLetters.add(char)) return null;
+
+      final category = val >= 100
+          ? 100
+          : val >= 10
+              ? 10
+              : 1;
+      if (previousCategory != null && category >= previousCategory) {
+        return null;
+      }
+
+      previousCategory = category;
       result += val;
     }
     return result > 0 ? result : null;
@@ -111,11 +140,18 @@ class GemaraReferenceRule implements GeneratedLinkRule {
   /// מנרמל את סימן העמוד לאחת מהאפשרויות: 'א', 'ב', או null.
   static String? normalizeAmud(String? raw) {
     if (raw == null) return null;
-    final t = raw.trim();
+    final t = raw.replaceAll(RegExp(r'[\s,;]'), '').trim();
     if (t == '.' || t == 'א' || t == 'ע"א' || t == 'ע״א') return 'א';
     if (t == ':' || t == 'ב' || t == 'ע"ב' || t == 'ע״ב') return 'ב';
     return null;
   }
+
+  /// מסיר גרשיים/גרש ממספר דף עברי.
+  static String removeGershayim(String s) => s
+      .replaceAll('"', '')
+      .replaceAll('״', '')
+      .replaceAll('׳', '')
+      .replaceAll("'", '');
 
   static final RegExp _pattern = _buildPattern();
 
@@ -132,26 +168,33 @@ class GemaraReferenceRule implements GeneratedLinkRule {
     const hb = 'א-ת';
     // אותיות שימוש: ב, ד, מ, ל, כ, ש
     const pfx = 'בדמלכש';
-    // גרש + גרשיים (ו + ASCII " )
     const gersh = '"״';
+    const brackets = r'[(\[]';
+    const closeBrackets = r'[)\]]';
 
     return RegExp(
       '(?<![$hb])' // גבול תחילה: לא קדמה אות עברית
+      '(?:$brackets)?' // סוגר פותח אופציונלי
       '(?:[$pfx])?' // תחילית אות שימוש (לא-לוכדת)
       '(?:מסכת\\s+)?' // מסכת (אופציונלי, לא-לוכד)
       '($tractateAlt)' // קבוצה 1: שם מסכת
       '\\s+'
       '(?:דף\\s+)?' // דף (אופציונלי, לא-לוכד)
-      '([$hb]{1,3})' // קבוצה 2: מספר הדף באותיות עבריות
+      '([$hb]{1,3}(?:[$gersh][$hb]{1,3})?)' // קבוצה 2: דף, כולל כ"ב/קנ"ז
       // לא להמשיך אם יש אחריו אות עברית או גרש
-      "(?![$hb'׳])"
+      "(?![$hb'׳\"״])"
       '(' // קבוצה 3: עמוד (אופציונלי)
       '[.:]' //   נקודה או נקודתיים צמודות לדף
+      '|\\s*[,;]\\s*(?:' //   פסיק/נקודה-פסיק + עמוד
+      'ע[$gersh][אב]'
+      '|[אב](?![$hb])'
+      ')'
       '|\\s+(?:' //   או רווח +
       'ע[$gersh][אב]' //   ע"א / ע"ב / ע״א / ע״ב
       '|[אב](?![$hb])' //   א/ב שאחריהם לא אות עברית
       ')'
-      ')?',
+      ')?'
+      '(?:$closeBrackets)?',
       unicode: true,
     );
   }
@@ -168,7 +211,7 @@ class GemaraReferenceRule implements GeneratedLinkRule {
       for (final match in _pattern.allMatches(lines[i])) {
         final rawTractate = match.group(1)!;
         final tractate = _resolveTractateName(rawTractate); // שם קנוני
-        final dafStr = match.group(2)!;
+        final dafStr = removeGershayim(match.group(2)!);
         final amudRaw = match.group(3);
 
         // אימות מספר הדף לפי השם הקנוני

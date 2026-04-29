@@ -16,17 +16,17 @@ class GemaraShamReferenceRule implements GeneratedLinkRule {
   String get id => 'gemara.sham.v1';
 
   @override
-  int get version => 1;
+  int get version => 2;
 
   /// מזהה `(שם)` עם אופציה ל-`(שם X)` או `(שם X Y)`.
   static final RegExp _shamPattern = RegExp(
-    r'\(שם(?:\s+[א-ת]{1,3}(?:\s+[אב](?![א-ת]))?)?\)',
+    r'\(שם(?:\s+[א-ת]{1,3}(?:["״][א-ת]{1,3})?(?:(?:[.:])|(?:,\s*|\s+)[אב](?![א-ת]))?)?\)',
     unicode: true,
   );
 
   /// מוצא דף ועמוד אופציונלי בתוך `(שם X Y)`.
   static final RegExp _shamDafPattern = RegExp(
-    r'שם\s+([א-ת]{1,3})(?:\s+([אב])(?![א-ת]))?',
+    r'שם\s+([א-ת]{1,3}(?:["״][א-ת]{1,3})?)((?:[.:])|(?:,\s*|\s+)[אב](?![א-ת]))?',
     unicode: true,
   );
 
@@ -70,14 +70,16 @@ class GemaraShamReferenceRule implements GeneratedLinkRule {
           targetRefText = lastRef.targetRefText;
         } else {
           // (שם X Y) — אותה מסכת, דף אחר
-          final newDaf = dafMatch.group(1)!;
-          final newAmud = dafMatch.group(2);
+          final newDaf = GemaraReferenceRule.removeGershayim(
+            dafMatch.group(1)!,
+          );
+          final newAmud = GemaraReferenceRule.normalizeAmud(dafMatch.group(2));
 
           // אימות גבולות דף
           final dafNum = GemaraReferenceRule.hebrewToInt(newDaf);
           if (dafNum == null || dafNum < 2) continue;
-          final maxDaf = GemaraReferenceRule.maxDafForTractate(
-              lastRef.targetBookTitle);
+          final maxDaf =
+              GemaraReferenceRule.maxDafForTractate(lastRef.targetBookTitle);
           if (maxDaf != null && dafNum > maxDaf) continue;
 
           targetRefText = newAmud != null ? '$newDaf $newAmud' : newDaf;
@@ -139,10 +141,8 @@ class GemaraShamReferenceRule implements GeneratedLinkRule {
         lineIdx <= shamLineIdx;
         lineIdx++) {
       final line = lines[lineIdx];
-      final segStart =
-          lineIdx == lastRef.sourceLineIndex ? lastRef.end : 0;
-      final segEnd =
-          lineIdx == shamLineIdx ? shamStart : line.length;
+      final segStart = lineIdx == lastRef.sourceLineIndex ? lastRef.end : 0;
+      final segEnd = lineIdx == shamLineIdx ? shamStart : line.length;
 
       if (segStart >= segEnd) continue;
 
