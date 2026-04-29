@@ -61,9 +61,12 @@ const Duration _kLibrarySearchDebounceDuration = Duration(milliseconds: 250);
   double? paneWidthOverride,
 }) {
   const preferredMinPaneWidth = 280.0;
+  const previewWidthFactorGrid = 0.35;
+  const previewWidthFactorList = 0.60;
   final minPaneWidth = min(preferredMinPaneWidth, max(0.0, availableWidth));
-  final previewWidth =
-      viewMode == 'list' ? availableWidth * 0.55 : availableWidth * 0.36;
+  final previewWidth = viewMode == 'list'
+      ? availableWidth * previewWidthFactorList
+      : availableWidth * previewWidthFactorGrid;
   final maxPaneWidth = max(minPaneWidth, availableWidth - 350);
   final paneWidth = (paneWidthOverride ?? previewWidth)
       .clamp(minPaneWidth, maxPaneWidth)
@@ -1245,7 +1248,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                 textAlign: TextAlign.right,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w700,
-                      color: Theme.of(context).colorScheme.primary,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
               ),
             ),
@@ -1314,7 +1317,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                   book is PdfBook
                       ? FluentIcons.document_pdf_24_regular
                       : FluentIcons.document_text_24_regular,
-                  color: Theme.of(ctx).colorScheme.secondary,
+                  color: Theme.of(ctx).colorScheme.primary,
                   size: 18,
                 ),
                 const SizedBox(width: 12),
@@ -1329,7 +1332,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                         textAlign: TextAlign.right,
                         style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.w700,
-                              color: Theme.of(ctx).colorScheme.primary,
+                              color: Theme.of(ctx).colorScheme.onSurface,
                             ),
                       ),
                       if (book.author != null && book.author!.isNotEmpty)
@@ -1339,8 +1342,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                           textDirection: TextDirection.rtl,
                           textAlign: TextAlign.right,
                           style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                                color:
-                                    Theme.of(ctx).colorScheme.onSurfaceVariant,
+                                color: Theme.of(ctx).colorScheme.onSurface,
                               ),
                         ),
                     ],
@@ -1407,7 +1409,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                     textAlign: TextAlign.right,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w700,
-                          color: Theme.of(context).colorScheme.primary,
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                   ),
                   if (book.author != null && book.author!.isNotEmpty)
@@ -1417,8 +1419,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                       maxLines: 1,
                       textAlign: TextAlign.right,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
+                            color: Theme.of(context).colorScheme.onSurface,
                           ),
                     ),
                 ],
