@@ -58,6 +58,23 @@ void main() {
     await _tmpDir.delete(recursive: true);
   });
 
+  group('שלב 6 — אתחול השירות באפליקציה', () {
+    test('GeneratedLinksService.init אינו תלוי במיגרציית Windows', () async {
+      final mainFile = File('lib/main.dart');
+      final source = await mainFile.readAsString();
+
+      final initCall = source.indexOf('await GeneratedLinksService.init();');
+      final migrationFunction = source
+          .indexOf('Future<void> _migrateWindowsLibraryPathFromInstallerPrefs');
+
+      expect(initCall, isNonNegative);
+      expect(migrationFunction, isNonNegative);
+      expect(initCall, lessThan(migrationFunction),
+          reason:
+              'GeneratedLinksService חייב להיות מאותחל ב-_heavyInitialize, לא בתוך מיגרציית Windows שמדלגת על macOS/Linux');
+    });
+  });
+
   group('שלב 6 — GeneratedLinksWorkGate + scheduler startup', () {
     test('work gate עסוק: scheduler לא מתחיל batches', () async {
       final gate = GeneratedLinksWorkGate()..setBusy();
@@ -158,8 +175,7 @@ void main() {
           reason: 'עדיין יש file sync פעיל — gate חייב להישאר סגור');
 
       gate.setIdle(); // file sync סיים
-      expect(gate.isIdle, isTrue,
-          reason: 'שניהם סיימו — gate חייב לפתוח');
+      expect(gate.isIdle, isTrue, reason: 'שניהם סיימו — gate חייב לפתוח');
     });
 
     test('scheduler לא מתעורר כשרק חלק ממקורות העומס סיימו', () async {

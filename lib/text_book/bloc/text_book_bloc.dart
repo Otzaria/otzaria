@@ -1352,7 +1352,15 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     List<String> contentLines,
   ) async {
     final store = _generatedLinksCacheStore;
-    if (store == null || book.id == null) return;
+    if (store == null || book.id == null) {
+      if (kDebugMode) {
+        debugPrint(
+          '[GeneratedLinks] skip scheduling for ${book.title}: '
+          'store=${store != null}, bookId=${book.id}',
+        );
+      }
+      return;
+    }
 
     final fingerprint = '${book.id}:${contentLines.length}';
 
@@ -1391,7 +1399,13 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
     // תזמון עיבוד רק אם יש scheduler ו-cache לא הושלם
     final scheduler = _generatedLinksScheduler;
-    if (scheduler == null) return;
+    if (scheduler == null) {
+      if (kDebugMode) {
+        debugPrint(
+            '[GeneratedLinks] skip scheduling for ${book.title}: no scheduler');
+      }
+      return;
+    }
     if (cache != null &&
         cache.isValidFor(fingerprint, _rulesVersion) &&
         cache.status == GeneratedLinksProcessingStatus.complete) {
@@ -1405,6 +1419,12 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
     final jobId = 'book_${book.id!}_open';
     _currentGeneratedLinksJobId = jobId;
+    if (kDebugMode) {
+      debugPrint(
+        '[GeneratedLinks] scheduling $jobId '
+        'title=${book.title} lines=${contentLines.length}',
+      );
+    }
     scheduler.schedule(ProcessingJob(
       jobId: jobId,
       isHighPriority: true,

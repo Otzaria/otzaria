@@ -1,11 +1,11 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/migration/core/models/category.dart';
-import 'package:otzaria/migration/core/models/line.dart';
-import 'package:otzaria/migration/core/models/toc_entry.dart';
-import 'package:otzaria/migration/dao/daos/database.dart';
-import 'package:otzaria/migration/dao/repository/seforim_repository.dart';
+import 'package:otzaria/migration/models/category.dart';
+import 'package:otzaria/migration/models/line.dart';
+import 'package:otzaria/migration/models/toc_entry.dart';
+import 'package:otzaria/migration/database/daos/database.dart';
+import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:path/path.dart' as path;
 
 void main() {

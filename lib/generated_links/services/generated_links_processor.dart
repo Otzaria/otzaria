@@ -1,4 +1,5 @@
 import 'dart:isolate';
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:otzaria/generated_links/models/generated_inline_link.dart';
 import 'package:otzaria/generated_links/models/generated_link_target.dart';
 import 'package:otzaria/generated_links/repository/generated_links_book_resolver.dart';
@@ -53,9 +54,8 @@ class GeneratedLinksProcessor {
     final linesCopy = List<String>.unmodifiable(lines);
 
     final resultMaps = await Isolate.run(() async {
-      final prevRefs = prevJson
-          .map((m) => DetectedReference.fromJson(m ))
-          .toList();
+      final prevRefs =
+          prevJson.map((m) => DetectedReference.fromJson(m)).toList();
       final ctx = GeneratedLinkRuleContext(
         sourceBookId: sourceBookId,
         sourceBookTitle: sourceBookTitle,
@@ -71,9 +71,7 @@ class GeneratedLinksProcessor {
       return out;
     });
 
-    return resultMaps
-        .map((m) => DetectedReference.fromJson(m ))
-        .toList();
+    return resultMaps.map((m) => DetectedReference.fromJson(m)).toList();
   }
 
   /// מריץ כללים ואז פותר כל [DetectedReference] ל-[GeneratedInlineLink].
@@ -95,6 +93,12 @@ class GeneratedLinksProcessor {
       endLine: endLine,
       previousRefs: previousRefs,
     );
+    if (kDebugMode && refs.isNotEmpty) {
+      debugPrint(
+        '[GeneratedLinksProcessor] refs book=$sourceBookId '
+        'range=$startLine-$endLine count=${refs.length}',
+      );
+    }
 
     final links = <GeneratedInlineLink>[];
     for (final ref in refs) {
@@ -115,6 +119,13 @@ class GeneratedLinksProcessor {
         confidence: ref.confidence,
         createdAt: DateTime.now(),
       ));
+    }
+
+    if (kDebugMode && (refs.isNotEmpty || links.isNotEmpty)) {
+      debugPrint(
+        '[GeneratedLinksProcessor] resolved book=$sourceBookId '
+        'range=$startLine-$endLine refs=${refs.length} links=${links.length}',
+      );
     }
 
     return links;

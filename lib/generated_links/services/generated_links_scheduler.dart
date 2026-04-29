@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:otzaria/generated_links/models/generated_inline_link.dart';
 import 'package:otzaria/generated_links/models/generated_links_cache.dart';
 import 'package:otzaria/generated_links/models/generated_links_processing_status.dart';
@@ -63,8 +63,7 @@ class GeneratedLinksScheduler {
     required List<DetectedReference> previousRefs,
   }) processBatch;
 
-  final _batchResultController =
-      StreamController<BatchResult>.broadcast();
+  final _batchResultController = StreamController<BatchResult>.broadcast();
 
   /// Stream של תוצאות; ה-BLoC יכול להאזין ולהפיץ events.
   Stream<BatchResult> get batchResults => _batchResultController.stream;
@@ -83,6 +82,13 @@ class GeneratedLinksScheduler {
 
   /// מוסיפה עבודה לתור. עדיפות גבוהה → ראש תור.
   void schedule(ProcessingJob job) {
+    if (kDebugMode) {
+      debugPrint(
+        '[GeneratedLinksScheduler] schedule ${job.jobId} '
+        'book=${job.sourceBookId} lines=${job.lines.length} '
+        'priority=${job.isHighPriority ? "high" : "background"}',
+      );
+    }
     if (job.isHighPriority) {
       _highQueue.insert(0, job);
     } else {
@@ -124,7 +130,13 @@ class GeneratedLinksScheduler {
       if (job.isCancelled) continue;
 
       _currentJob = job;
+      if (kDebugMode) {
+        debugPrint('[GeneratedLinksScheduler] start ${job.jobId}');
+      }
       await _processJob(job);
+      if (kDebugMode) {
+        debugPrint('[GeneratedLinksScheduler] done ${job.jobId}');
+      }
       _currentJob = null;
     }
   }
@@ -237,6 +249,12 @@ class GeneratedLinksScheduler {
           : GeneratedLinksProcessingStatus.partial;
 
       cache = await _saveAs(cache, allLinks, processedRanges, newStatus);
+      if (kDebugMode) {
+        debugPrint(
+          '[GeneratedLinksScheduler] batch ${job.jobId} '
+          '$start-$end links=${batchLinks.length} status=$newStatus',
+        );
+      }
       _batchResultController.add(BatchResult(job.sourceBookId, batchLinks));
     }
   }

@@ -474,6 +474,16 @@ Future<void> _heavyInitialize() async {
   await SqliteDataProvider.instance.initialize();
 
   try {
+    await GeneratedLinksService.init();
+  } catch (error, stackTrace) {
+    _logNonFatalInitializationError(
+      'GeneratedLinksService',
+      error,
+      stackTrace,
+    );
+  }
+
+  try {
     final cacheDir = await getTemporaryDirectory();
     Pdfrx.getCacheDirectory = () => cacheDir.path;
     debugPrint('Pdfrx cache directory set to: ${cacheDir.path}');
