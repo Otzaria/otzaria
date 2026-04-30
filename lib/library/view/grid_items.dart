@@ -1,9 +1,7 @@
-import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
-import 'package:otzaria/widgets/data_source_indicator.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/services/book_details_service.dart';
 import 'package:otzaria/text_book/view/book_source_dialog.dart';
@@ -449,17 +447,6 @@ class _BookGridMediaColumn extends StatelessWidget {
                       ),
           ),
         ),
-        if (kDebugMode && book is TextBook) ...[
-          const SizedBox(height: 4),
-          DataSourceIndicatorAsync(
-            sourceFuture: FileSystemData.instance.getBookDataSource(
-              book.title,
-              categoryId: book.categoryId,
-              fileType: book.fileType,
-            ),
-            size: 14,
-          ),
-        ],
       ],
     );
   }
