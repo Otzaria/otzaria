@@ -249,7 +249,7 @@ class CategoryGridItem extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           child: Row(
             // LTR: ╫נ╫ש╫ש╫º╫ץ╫á╫ש╫¥ ╫ס╫⌐╫₧╫נ╫£, ╫ר╫º╫í╫ר ╫ס╫ש╫₧╫ש╫ƒ Γאפ ╫₧╫¬╫נ╫ש╫¥ ╫£╫₧╫₧╫⌐╫º RTL ╫ó╫ס╫¿╫ש
-            textDirection: TextDirection.ltr,
+            textDirection: TextDirection.rtl,
             children: [
               // ΓפאΓפא ╫נ╫ש╫ש╫º╫ץ╫ƒ ╫₧╫ש╫ף╫ó (╫⌐╫₧╫נ╫£ ╫º╫ש╫ª╫ץ╫á╫ש) ΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפא
               if (category.shortDescription.isNotEmpty)
@@ -269,7 +269,7 @@ class CategoryGridItem extends StatelessWidget {
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: cs.surfaceContainerHighest,
+                  color: cs.primaryContainer,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
@@ -363,7 +363,7 @@ class BookGridItem extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               child: Row(
                 // LTR: action column Γזע media column Γזע text column
-                textDirection: TextDirection.ltr,
+                textDirection: TextDirection.rtl,
                 children: [
                   // ΓפאΓפא ╫ó╫₧╫ץ╫ף╫¬ ╫ñ╫ó╫ץ╫£╫ץ╫¬ (╫⌐╫₧╫נ╫£ ╫º╫ש╫ª╫ץ╫á╫ש) ΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפא
                   _BookGridActionColumn(
@@ -418,7 +418,7 @@ class _BookGridMediaColumn extends StatelessWidget {
           width: iconBoxSize,
           height: iconBoxSize,
           decoration: BoxDecoration(
-            color: cs.surfaceContainerHighest,
+            color: cs.primaryContainer,
             borderRadius: BorderRadius.circular(10),
           ),
           child: Center(
