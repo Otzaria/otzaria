@@ -587,9 +587,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     final allActive = relevantCommentators.isNotEmpty &&
         widget.tab.activeCommentators.containsAll(relevantCommentators);
 
-    // בדיקה אם החלונית הימנית סגורה
-    final state = _bloc.state;
-    final isRightPaneClosed = state is! PdfBookLoaded || !state.showRightPane;
+    // בדיקה אם החלונית הימנית סגורה (switch expression מודרני)
+    final isRightPaneClosed = switch (_bloc.state) {
+      PdfBookLoaded(showRightPane: final isShown) => !isShown,
+      _ => true,
+    };
 
     final commentatorChildren = <AppContextMenuEntry>[
       // הצגת "פתח את המפרשים" רק אם יש מפרשים והחלונית סגורה

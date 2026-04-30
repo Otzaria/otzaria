@@ -370,7 +370,6 @@ class _CombinedViewState extends State<CombinedView> {
       // הצגת "פתח את חלונית המפרשים" רק אם המפרשים בחלונית צד והחלונית סגורה
       if (state.availableCommentators.isNotEmpty && 
           !widget.showCommentaryAsExpansionTiles && 
-          state.showSplitView && 
           widget.isPaneOpen?.call() != true) ...[
         AppContextMenuEntry(
           label: 'פתח את חלונית המפרשים',
