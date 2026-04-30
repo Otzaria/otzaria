@@ -15,6 +15,8 @@ class GeneratedLinksCacheStore {
 
   GeneratedLinksCacheStore({required String basePath}) : _cacheDir = basePath;
 
+  String get directoryPath => _cacheDir;
+
   /// יוצר instance חדש ומוודא שתיקיית ה-cache קיימת.
   static Future<GeneratedLinksCacheStore> create() async {
     final dir = await AppPaths.getGeneratedLinksCachePath();
@@ -59,8 +61,7 @@ class GeneratedLinksCacheStore {
       await tmpFile.writeAsString(jsonEncode(cache.toJson()), flush: true);
       await tmpFile.rename(finalFile.path);
     } catch (e, st) {
-      debugPrint(
-          'GeneratedLinksCacheStore: failed to save cache for '
+      debugPrint('GeneratedLinksCacheStore: failed to save cache for '
           '${cache.sourceBookId}: $e\n$st');
       if (await tmpFile.exists()) {
         await tmpFile.delete().catchError((Object _) => tmpFile);

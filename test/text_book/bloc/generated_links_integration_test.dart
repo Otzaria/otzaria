@@ -8,6 +8,7 @@ import 'package:otzaria/generated_links/models/generated_links_cache.dart';
 import 'package:otzaria/generated_links/models/generated_links_processing_status.dart';
 import 'package:otzaria/generated_links/models/processed_range.dart';
 import 'package:otzaria/generated_links/repository/generated_links_cache_store.dart';
+import 'package:otzaria/generated_links/rules/generated_link_rules_registry.dart';
 import 'package:otzaria/generated_links/services/generated_links_scheduler.dart';
 import 'package:otzaria/generated_links/services/generated_links_work_gate.dart';
 import 'package:otzaria/models/books.dart';
@@ -56,7 +57,7 @@ GeneratedLinksCache _makeCompleteCache({
 }) =>
     GeneratedLinksCache(
       schemaVersion: GeneratedLinksCache.currentSchemaVersion,
-      rulesVersion: 'v1',
+      rulesVersion: GeneratedLinkRulesRegistry.defaultRulesVersion,
       sourceBookId: bookId,
       sourceFingerprint: fingerprint,
       status: GeneratedLinksProcessingStatus.complete,
@@ -141,8 +142,7 @@ class _MemoryCacheProvider extends CacheProvider {
   Future<void> setInt(String key, int? value) async => _values[key] = value;
 
   @override
-  Future<void> setObject<T>(String key, T? value) async =>
-      _values[key] = value;
+  Future<void> setObject<T>(String key, T? value) async => _values[key] = value;
 
   @override
   Future<void> setString(String key, String? value) async =>
@@ -274,7 +274,9 @@ void main() {
       final link = _makeLink(bookId: 99, lineIndex: 2);
       bloc.add(UpdateGeneratedLinks(
         sourceBookId: 99, // ספר שונה!
-        generatedLinksByLine: {2: [link]},
+        generatedLinksByLine: {
+          2: [link]
+        },
       ));
       await Future<void>.delayed(const Duration(milliseconds: 20));
 
@@ -284,15 +286,43 @@ void main() {
 
       await bloc.close();
     });
+
+    test('ClearGeneratedLinks מוחק cache ומנקה את ה-state', () async {
+      final store = GeneratedLinksCacheStore(basePath: _tmpDir.path);
+      await store.save(_makeCompleteCache(bookId: 42, fingerprint: '42:40'));
+
+      final bloc = _createBloc(cacheStore: store);
+      bloc.add(const LoadContent(
+        fontSize: 20,
+        showSplitView: false,
+        removeNikud: false,
+        loadCommentators: false,
+      ));
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+
+      final beforeClear = bloc.state as TextBookLoaded;
+      expect(beforeClear.generatedLinksByLine, isNotEmpty);
+
+      bloc.add(const ClearGeneratedLinks(42));
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+
+      final afterClear = bloc.state as TextBookLoaded;
+      expect(afterClear.generatedLinksByLine, isEmpty);
+      expect(await store.load(42), isNull);
+
+      await bloc.close();
+    });
   });
 
   group('שלב 5 — addGeneratedInlineLinksToText', () {
-    test('מייצר URL תקין otzaria://generated-link עם bookId, index0 ו-book', () {
+    test('מייצר URL תקין otzaria://generated-link עם bookId, index0 ו-book',
+        () {
       final link = _makeLink(lineIndex: 0, start: 0, end: 6);
       final result = addGeneratedInlineLinksToText('ברכות ב. טקסט', [link]);
 
       expect(result, contains('otzaria://generated-link'));
-      expect(result, contains('book=%D7%91%D7%A8%D7%9B%D7%95%D7%AA')); // ברכות encoded
+      expect(result,
+          contains('book=%D7%91%D7%A8%D7%9B%D7%95%D7%AA')); // ברכות encoded
       expect(result, contains('bookId=7')); // targetBookId יציב
       expect(result, contains('index0=1'));
       expect(result, contains('class="generated-inline-link"'));
@@ -316,7 +346,8 @@ void main() {
           'הוהו בסס ממ בסס', [link2, link1]); // מסודרים הפוך
       final pos1 = result.indexOf('otzaria://');
       final pos2 = result.lastIndexOf('otzaria://');
-      expect(pos1, lessThan(pos2), reason: 'שני קישורים חייבים להיות בסדר נכון');
+      expect(pos1, lessThan(pos2),
+          reason: 'שני קישורים חייבים להיות בסדר נכון');
     });
   });
 
@@ -326,8 +357,7 @@ void main() {
         () async {
       // הכנת cache תקין ל-fingerprint '42:40' (preview)
       final store = GeneratedLinksCacheStore(basePath: _tmpDir.path);
-      await store
-          .save(_makeCompleteCache(bookId: 42, fingerprint: '42:40'));
+      await store.save(_makeCompleteCache(bookId: 42, fingerprint: '42:40'));
 
       final bloc = _createBloc(cacheStore: store, bookId: 42);
       bloc.add(const LoadContent(
@@ -350,8 +380,7 @@ void main() {
 
       final afterFull = bloc.state as TextBookLoaded;
       expect(afterFull.generatedLinksByLine, isEmpty,
-          reason:
-              'links ישנים מה-preview חייבים להיות מנוקים לפני batch חדש');
+          reason: 'links ישנים מה-preview חייבים להיות מנוקים לפני batch חדש');
 
       await bloc.close();
     });
@@ -365,7 +394,7 @@ void main() {
       final scheduler = GeneratedLinksScheduler(
         cacheStore: store,
         workGate: GeneratedLinksWorkGate(),
-        rulesVersion: 'v1',
+        rulesVersion: GeneratedLinkRulesRegistry.defaultRulesVersion,
         processBatch: ({
           required sourceBookId,
           required sourceBookTitle,
@@ -377,7 +406,8 @@ void main() {
             [link],
       );
 
-      final bloc = _createBloc(cacheStore: store, scheduler: scheduler, bookId: 55);
+      final bloc =
+          _createBloc(cacheStore: store, scheduler: scheduler, bookId: 55);
       bloc.add(const LoadContent(
         fontSize: 20,
         showSplitView: false,

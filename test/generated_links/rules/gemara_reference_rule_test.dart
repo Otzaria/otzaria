@@ -277,6 +277,20 @@ void main() {
       expect(refs.first.targetBookTitle, equals('חגיגה'));
       expect(refs.first.targetRefText, equals('יז א'));
     });
+
+    test("לקמן דף ד' ע\"א", () async {
+      const ctx = GeneratedLinkRuleContext(
+        sourceBookId: 102,
+        sourceBookTitle: 'ביצה',
+      );
+      final refs = await _detectWithContext(
+        "משמיה דרביה ס\"ל להכנה דרבה, [לקמן דף ד' ע\"א אתמר שבת ויו\"ט",
+        ctx,
+      );
+      expect(refs, hasLength(1));
+      expect(refs.first.targetBookTitle, equals('ביצה'));
+      expect(refs.first.targetRefText, equals('ד א'));
+    });
   });
 
   group('GemaraReferenceRule — כינויי מסכת → שם קנוני', () {

@@ -172,7 +172,7 @@ class GemaraReferenceRule implements GeneratedLinkRule {
     const hb = 'א-ת';
     // אותיות שימוש: ב, ד, מ, ל, כ, ש
     const pfx = 'בדמלכש';
-    const gersh = '"״';
+    const gersh = '\'"׳״';
     const brackets = r'[(\[]';
     const closeBrackets = r'[)\]]';
 
@@ -187,7 +187,7 @@ class GemaraReferenceRule implements GeneratedLinkRule {
       '(?:$brackets)?' // סוגר לפני "דף", למשל: שבת (דף מז)
       '\\s*'
       '(?:דף\\s+)?' // דף (אופציונלי, לא-לוכד)
-      '([$hb]{1,3}(?:[$gersh][$hb]{1,3})?)' // קבוצה 2: דף, כולל כ"ב/קנ"ז
+      '((?:[$hb]{1,3}(?:[$gersh][$hb]{1,3})?|[$hb][\'׳]))' // קבוצה 2: דף, כולל כ"ב/ד'
       // לא להמשיך אם יש אחריו אות עברית או גרש
       "(?![$hb'׳\"״])"
       '(' // קבוצה 3: עמוד (אופציונלי)
@@ -208,7 +208,7 @@ class GemaraReferenceRule implements GeneratedLinkRule {
 
   static RegExp _buildRelativePattern() {
     const hb = 'א-ת';
-    const gersh = '"״';
+    const gersh = '\'"׳״';
     const brackets = r'[(\[]';
     const closeBrackets = r'[)\]]';
 
@@ -219,7 +219,7 @@ class GemaraReferenceRule implements GeneratedLinkRule {
       '(?:$brackets)?'
       '\\s*'
       '(?:דף\\s+)?'
-      '([$hb]{1,3}(?:[$gersh][$hb]{1,3})?)'
+      '((?:[$hb]{1,3}(?:[$gersh][$hb]{1,3})?|[$hb][\'׳]))'
       "(?![$hb'׳\"״])"
       '('
       '[.:]'

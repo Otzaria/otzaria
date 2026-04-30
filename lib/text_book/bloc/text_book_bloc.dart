@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:otzaria/generated_links/models/generated_inline_link.dart';
 import 'package:otzaria/generated_links/models/generated_links_processing_status.dart';
 import 'package:otzaria/generated_links/repository/generated_links_cache_store.dart';
+import 'package:otzaria/generated_links/rules/generated_link_rules_registry.dart';
 import 'package:otzaria/generated_links/services/generated_links_scheduler.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -36,7 +37,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   static const String _allTargetBookTitlesSignature =
       '__all_target_book_titles__';
 
-  static const String _rulesVersion = 'v1';
+  static String get _rulesVersion =>
+      GeneratedLinkRulesRegistry.defaultRulesVersion;
 
   final TextBookRepository repository;
   final Future<String?> Function(
@@ -108,6 +110,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     on<UpdateAvailableCommentators>(_onUpdateAvailableCommentators);
     on<RefreshLinksForCurrentWindow>(_onRefreshLinksForCurrentWindow);
     on<UpdateGeneratedLinks>(_onUpdateGeneratedLinks);
+    on<ClearGeneratedLinks>(_onClearGeneratedLinks);
 
     _batchResultSubscription =
         _generatedLinksScheduler?.batchResults.listen(_onBatchResult);
@@ -1346,6 +1349,27 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     ));
   }
 
+  Future<void> _onClearGeneratedLinks(
+    ClearGeneratedLinks event,
+    Emitter<TextBookState> emit,
+  ) async {
+    final currentState = state;
+    if (currentState is! TextBookLoaded) return;
+    if (currentState.book.id != event.sourceBookId) return;
+
+    if (_currentGeneratedLinksJobId != null) {
+      _generatedLinksScheduler?.cancel(_currentGeneratedLinksJobId!);
+      _currentGeneratedLinksJobId = null;
+    }
+
+    _accumulatedGeneratedLinks = {};
+    await _generatedLinksCacheStore?.delete(event.sourceBookId);
+
+    emit(currentState.copyWith(
+      generatedLinksByLine: const {},
+    ));
+  }
+
   /// טוען cache קיים ומתזמן עיבוד לאחר טעינת ספר.
   void _scheduleGeneratedLinksForBook(
     TextBook book,
@@ -1624,8 +1648,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   ) {
     if (state is TextBookLoaded) {
       final currentState = state as TextBookLoaded;
-      final autoSelectNotes = currentState.activeCommentators.isEmpty &&
-          event.notesContent != null;
+      // בחירה אוטומטית של הערות כאשר אין מפרשים פעילים
+      final autoSelectNotes =
+          currentState.activeCommentators.isEmpty && event.notesContent != null;
       final activeCommentators = autoSelectNotes
           ? [kNotesCommentatorTitle]
           : currentState.activeCommentators;

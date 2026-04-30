@@ -16,6 +16,7 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/widgets/navigation/scrollable_tab_bar.dart';
+import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/history/view/history_screen.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
@@ -32,6 +33,7 @@ import 'package:otzaria/workspaces/bloc/workspace_event.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tour/tour_target_keys.dart';
+import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 
 class CustomTitleBar extends StatefulWidget {
   final VoidCallback? onReadingSettingsPressed;
@@ -854,6 +856,29 @@ class _CustomTitleBarState extends State<CustomTitleBar>
     UiSnack.show('הכרטיסיה הועברה לשולחן העבודה "${targetWorkspace.name}"');
   }
 
+  Future<void> _clearGeneratedLinksForTab(TextBookTab tab) async {
+    final bookId = tab.book.id;
+    if (bookId == null) {
+      UiSnack.showError('לא ניתן למחוק נתוני קישורים לספר ללא מזהה');
+      return;
+    }
+
+    final confirmed = await showWarningDialog(
+      context: context,
+      title: 'מחק נתוני קישורים',
+      content: 'נתוני הקישורים שנוצרו לספר "${tab.title}" יימחקו מהמחשב.',
+      subtitle: 'הנתונים ייווצרו מחדש בפתיחה הבאה של הספר.',
+      cancelText: 'ביטול',
+      confirmText: 'מחק',
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    tab.bloc.add(ClearGeneratedLinks(bookId));
+    UiSnack.show('נתוני הקישורים של הספר נמחקו');
+  }
+
   List<AppContextMenuEntry> _buildTabContextMenuEntries(
     BuildContext menuCtx,
     OpenedTab tab,
@@ -880,15 +905,21 @@ class _CustomTitleBarState extends State<CustomTitleBar>
         label: 'שיכפול',
         onTap: () => context.read<TabsBloc>().add(CloneTab(tab)),
       ),
+      if (tab is TextBookTab)
+        AppContextMenuEntry(
+          label: 'מחק את נתוני הקישורים לספר זה',
+          icon: FluentIcons.delete_24_regular,
+          enabled: tab.book.id != null,
+          onTap: () => _clearGeneratedLinksForTab(tab),
+        ),
       const AppContextMenuEntry.divider(),
     ];
 
     // הצג לצד
     if (tab is! CombinedTab) {
       if (state.tabs.length > 1) {
-        final otherTabsList = state.tabs
-            .where((t) => t != tab && t is! CombinedTab)
-            .toList();
+        final otherTabsList =
+            state.tabs.where((t) => t != tab && t is! CombinedTab).toList();
         final otherTabs = otherTabsList.asMap().entries.map((mapEntry) {
           final isFirst = mapEntry.key == 0;
           final otherTab = mapEntry.value;

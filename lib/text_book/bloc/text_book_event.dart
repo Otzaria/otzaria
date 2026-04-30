@@ -357,3 +357,12 @@ class UpdateGeneratedLinks extends TextBookEvent {
   @override
   List<Object?> get props => [sourceBookId, generatedLinksByLine.length];
 }
+
+class ClearGeneratedLinks extends TextBookEvent {
+  final int sourceBookId;
+
+  const ClearGeneratedLinks(this.sourceBookId);
+
+  @override
+  List<Object?> get props => [sourceBookId];
+}

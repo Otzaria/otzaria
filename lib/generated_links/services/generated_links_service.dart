@@ -49,7 +49,9 @@ class GeneratedLinksService {
     );
 
     if (kDebugMode) {
-      debugPrint('[GeneratedLinksService] initialized');
+      debugPrint(
+        '[GeneratedLinksService] initialized cacheDir=${store.directoryPath}',
+      );
     }
   }
 }
