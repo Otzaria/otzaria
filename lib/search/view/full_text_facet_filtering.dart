@@ -476,10 +476,12 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
           if (libraryState.library != null) {
             // סינון ידנית מהספרייה
             final allBooks = _getAllBooksFromLibrary(libraryState.library!);
+            // ⚡ Bolt: Cache lowercased query outside the loop to prevent O(N) redundant string allocations
+            final queryLower = _filterQuery.text.toLowerCase();
             final filtered = allBooks
                 .where((book) => book.title
                     .toLowerCase()
-                    .contains(_filterQuery.text.toLowerCase()))
+                    .contains(queryLower))
                 .toList();
             return _buildBooksList(filtered);
           }

@@ -63,12 +63,16 @@ class _ItemsListViewState extends State<ItemsListView> {
     }
 
     // Filter items based on search query
-    final filteredItems = _searchQuery.isEmpty
-        ? widget.items
-        : widget.items
-            .where((item) =>
-                item.ref.toLowerCase().contains(_searchQuery.toLowerCase()))
-            .toList();
+    List<dynamic> filteredItems;
+    if (_searchQuery.isEmpty) {
+      filteredItems = widget.items;
+    } else {
+      // ⚡ Bolt: Cache lowercased query outside the loop to prevent O(N) redundant string allocations
+      final queryLower = _searchQuery.toLowerCase();
+      filteredItems = widget.items
+          .where((item) => item.ref.toLowerCase().contains(queryLower))
+          .toList();
+    }
 
     return Column(
       children: [
