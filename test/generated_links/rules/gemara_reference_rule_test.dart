@@ -12,6 +12,14 @@ Future<List<DetectedReference>> _detect(String line) async {
   return rule.detect(_ctx, [line], const LineRange(0, 0));
 }
 
+Future<List<DetectedReference>> _detectWithContext(
+  String line,
+  GeneratedLinkRuleContext context,
+) async {
+  final rule = GemaraReferenceRule();
+  return rule.detect(context, [line], const LineRange(0, 0));
+}
+
 void main() {
   group('GemaraReferenceRule — תבניות בסיסיות', () {
     test('ברכות ב. — מסכת + דף + נקודה', () async {
@@ -205,6 +213,69 @@ void main() {
       final refs = await _detect('מסכת ברכות ב.');
       expect(refs, hasLength(1));
       expect(refs.first.targetBookTitle, equals('ברכות'));
+    });
+  });
+
+  group('GemaraReferenceRule — סוגריים בין מסכת לדף', () {
+    test('דיבמות (דף ד ע"א)', () async {
+      final refs = await _detect('כאן הוכיח בתוס׳ פ"ק דיבמות (דף ד ע"א)');
+      expect(refs, hasLength(1));
+      expect(refs.first.targetBookTitle, equals('יבמות'));
+      expect(refs.first.targetRefText, equals('ד א'));
+    });
+
+    test('בברכות (דף כ ע"א ד"ה...)', () async {
+      final refs =
+          await _detect('וכדאיתא בתוס׳ בברכות (דף כ ע"א ד"ה שב ואל תעשה)');
+      expect(refs, hasLength(1));
+      expect(refs.first.targetBookTitle, equals('ברכות'));
+      expect(refs.first.targetRefText, equals('כ א'));
+    });
+
+    test('שבת (דף מז ד"ה...) — דף ללא עמוד לפני ד"ה', () async {
+      final refs = await _detect('עצמו כתב בשבת (דף מז ד"ה אגב)');
+      expect(refs, hasLength(1));
+      expect(refs.first.targetBookTitle, equals('שבת'));
+      expect(refs.first.targetRefText, equals('מז'));
+    });
+
+    test('שבת [דף לט ע"ב ד"ה...] — סוגר מרובע לא סגור', () async {
+      final refs = await _detect('ובתו׳ פ"ג דשבת [דף לט ע"ב ד"ה וב"ה');
+      expect(refs, hasLength(1));
+      expect(refs.first.targetBookTitle, equals('שבת'));
+      expect(refs.first.targetRefText, equals('לט ב'));
+    });
+
+    test('חגיגה דף י"ז בתוך סוגריים עם טקסט מקדים', () async {
+      final refs = await _detect('[אב"ה עיין מ"ש לקמן במסכת חגיגה דף י"ז]:');
+      expect(refs, hasLength(1));
+      expect(refs.first.targetBookTitle, equals('חגיגה'));
+      expect(refs.first.targetRefText, equals('יז'));
+    });
+  });
+
+  group('GemaraReferenceRule — לעיל/לקמן באותו ספר', () {
+    test('לעיל [דף כא סוף ע"ב]', () async {
+      const ctx = GeneratedLinkRuleContext(
+        sourceBookId: 110,
+        sourceBookTitle: 'ראש השנה',
+      );
+      final refs =
+          await _detectWithContext('דהא ר"ה קאמר לעיל [דף כא סוף ע"ב]', ctx);
+      expect(refs, hasLength(1));
+      expect(refs.first.targetBookTitle, equals('ראש השנה'));
+      expect(refs.first.targetRefText, equals('כא ב'));
+    });
+
+    test('לקמן דף יז.', () async {
+      const ctx = GeneratedLinkRuleContext(
+        sourceBookId: 114,
+        sourceBookTitle: 'חגיגה',
+      );
+      final refs = await _detectWithContext('ועיין לקמן דף יז.', ctx);
+      expect(refs, hasLength(1));
+      expect(refs.first.targetBookTitle, equals('חגיגה'));
+      expect(refs.first.targetRefText, equals('יז א'));
     });
   });
 

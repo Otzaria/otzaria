@@ -13,7 +13,7 @@ class GemaraReferenceRule implements GeneratedLinkRule {
   String get id => 'gemara.reference.v1';
 
   @override
-  int get version => 2;
+  int get version => 3;
 
   /// שם מסכת קנוני → מספר הדף האחרון שלה.
   static const Map<String, int> _tractateMaxDaf = {
@@ -140,7 +140,10 @@ class GemaraReferenceRule implements GeneratedLinkRule {
   /// מנרמל את סימן העמוד לאחת מהאפשרויות: 'א', 'ב', או null.
   static String? normalizeAmud(String? raw) {
     if (raw == null) return null;
-    final t = raw.replaceAll(RegExp(r'[\s,;]'), '').trim();
+    final t = raw
+        .replaceAll(RegExp(r'(?:סוף|ריש|ראש|תחילת)'), '')
+        .replaceAll(RegExp(r'[\s,;]'), '')
+        .trim();
     if (t == '.' || t == 'א' || t == 'ע"א' || t == 'ע״א') return 'א';
     if (t == ':' || t == 'ב' || t == 'ע"ב' || t == 'ע״ב') return 'ב';
     return null;
@@ -154,6 +157,7 @@ class GemaraReferenceRule implements GeneratedLinkRule {
       .replaceAll("'", '');
 
   static final RegExp _pattern = _buildPattern();
+  static final RegExp _relativePattern = _buildRelativePattern();
 
   static RegExp _buildPattern() {
     // שמות קנוניים + כינויים, ממוינים לפי אורך יורד (longest-first)
@@ -178,7 +182,10 @@ class GemaraReferenceRule implements GeneratedLinkRule {
       '(?:[$pfx])?' // תחילית אות שימוש (לא-לוכדת)
       '(?:מסכת\\s+)?' // מסכת (אופציונלי, לא-לוכד)
       '($tractateAlt)' // קבוצה 1: שם מסכת
-      '\\s+'
+      '(?=\\s|$brackets)'
+      '\\s*'
+      '(?:$brackets)?' // סוגר לפני "דף", למשל: שבת (דף מז)
+      '\\s*'
       '(?:דף\\s+)?' // דף (אופציונלי, לא-לוכד)
       '([$hb]{1,3}(?:[$gersh][$hb]{1,3})?)' // קבוצה 2: דף, כולל כ"ב/קנ"ז
       // לא להמשיך אם יש אחריו אות עברית או גרש
@@ -192,6 +199,37 @@ class GemaraReferenceRule implements GeneratedLinkRule {
       '|\\s+(?:' //   או רווח +
       'ע[$gersh][אב]' //   ע"א / ע"ב / ע״א / ע״ב
       '|[אב](?![$hb])' //   א/ב שאחריהם לא אות עברית
+      ')'
+      ')?'
+      '(?:$closeBrackets)?',
+      unicode: true,
+    );
+  }
+
+  static RegExp _buildRelativePattern() {
+    const hb = 'א-ת';
+    const gersh = '"״';
+    const brackets = r'[(\[]';
+    const closeBrackets = r'[)\]]';
+
+    return RegExp(
+      '(?<![$hb])'
+      '(לעיל|לקמן)'
+      '\\s*'
+      '(?:$brackets)?'
+      '\\s*'
+      '(?:דף\\s+)?'
+      '([$hb]{1,3}(?:[$gersh][$hb]{1,3})?)'
+      "(?![$hb'׳\"״])"
+      '('
+      '[.:]'
+      '|\\s*[,;]\\s*(?:'
+      'ע[$gersh][אב]'
+      '|[אב](?![$hb])'
+      ')'
+      '|\\s+(?:(?:סוף|ריש|ראש|תחילת)\\s+)?(?:'
+      'ע[$gersh][אב]'
+      '|[אב](?![$hb])'
       ')'
       ')?'
       '(?:$closeBrackets)?',
@@ -232,6 +270,31 @@ class GemaraReferenceRule implements GeneratedLinkRule {
           targetRefText: targetRefText,
           ruleId: id,
           confidence: 0.9,
+        ));
+      }
+
+      for (final match in _relativePattern.allMatches(lines[i])) {
+        final dafStr = removeGershayim(match.group(2)!);
+        final amudRaw = match.group(3);
+
+        final dafNum = hebrewToInt(dafStr);
+        if (dafNum == null || dafNum < 2) continue;
+
+        final maxDaf = _tractateMaxDaf[context.sourceBookTitle];
+        if (maxDaf != null && dafNum > maxDaf) continue;
+
+        final amud = normalizeAmud(amudRaw);
+        final targetRefText = amud != null ? '$dafStr $amud' : dafStr;
+
+        results.add(DetectedReference(
+          sourceLineIndex: i,
+          start: match.start,
+          end: match.end,
+          matchedText: match.group(0)!,
+          targetBookTitle: context.sourceBookTitle,
+          targetRefText: targetRefText,
+          ruleId: id,
+          confidence: 0.78,
         ));
       }
     }

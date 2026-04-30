@@ -1,6 +1,7 @@
 import 'package:otzaria/generated_links/rules/gemara_reference_rule.dart';
 import 'package:otzaria/generated_links/rules/gemara_sham_reference_rule.dart';
 import 'package:otzaria/generated_links/rules/generated_link_rule.dart';
+import 'package:otzaria/generated_links/rules/shulchan_aruch_reference_rule.dart';
 import 'package:otzaria/generated_links/rules/tanach_reference_rule.dart';
 import 'package:otzaria/generated_links/rules/tanach_sham_reference_rule.dart';
 
@@ -13,6 +14,7 @@ class GeneratedLinkRulesRegistry {
     GemaraShamReferenceRule(),
     TanachReferenceRule(),
     TanachShamReferenceRule(),
+    ShulchanAruchReferenceRule(),
   ];
 
   /// מחרוזת גרסה מחושבת מכל הכללים הפעילים.
@@ -23,6 +25,5 @@ class GeneratedLinkRulesRegistry {
     return parts;
   }
 
-  static String get defaultRulesVersion =>
-      computeRulesVersion(defaultRules);
+  static String get defaultRulesVersion => computeRulesVersion(defaultRules);
 }
