@@ -55,6 +55,7 @@ class CombinedView extends StatefulWidget {
     this.isPreviewMode = false,
     this.onOpenPersonalNotes,
     this.onOpenCommentatorsPane,
+    this.isPaneOpen, // callback חדש לבדיקת מצב החלונית
   });
 
   final List<String> data;
@@ -67,6 +68,7 @@ class CombinedView extends StatefulWidget {
   final bool isPreviewMode;
   final VoidCallback? onOpenPersonalNotes;
   final VoidCallback? onOpenCommentatorsPane;
+  final bool Function()? isPaneOpen; // callback לבדיקת מצב החלונית
 
   @override
   State<CombinedView> createState() => _CombinedViewState();
@@ -365,6 +367,21 @@ class _CombinedViewState extends State<CombinedView> {
     );
 
     final commentatorChildren = <AppContextMenuEntry>[
+      // הצגת "פתח את חלונית המפרשים" רק אם המפרשים בחלונית צד והחלונית סגורה
+      if (state.availableCommentators.isNotEmpty && 
+          !widget.showCommentaryAsExpansionTiles && 
+          state.showSplitView && 
+          widget.isPaneOpen?.call() != true) ...[
+        AppContextMenuEntry(
+          label: 'פתח את חלונית המפרשים',
+          icon: FluentIcons.open_24_regular,
+          onTap: () {
+            _selectParagraphForContextMenu(paragraphIndex);
+            _openCommentatorsPane(isAdding: true);
+          },
+        ),
+        const AppContextMenuEntry.divider(),
+      ],
       AppContextMenuEntry(
         label: 'הצג את כל המפרשים',
         icon: allActive ? FluentIcons.checkmark_24_regular : null,

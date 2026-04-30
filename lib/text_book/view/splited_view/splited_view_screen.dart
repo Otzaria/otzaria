@@ -258,6 +258,7 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                       _currentTabIndex = 0;
                     });
                   },
+                  isPaneOpen: () => _paneOpen, // callback לבדיקת מצב החלונית
                 ),
                 if (!_paneOpen)
                   Positioned(

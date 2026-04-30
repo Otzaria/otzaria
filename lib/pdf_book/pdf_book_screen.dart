@@ -587,7 +587,20 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     final allActive = relevantCommentators.isNotEmpty &&
         widget.tab.activeCommentators.containsAll(relevantCommentators);
 
+    // בדיקה אם החלונית הימנית סגורה
+    final state = _bloc.state;
+    final isRightPaneClosed = state is! PdfBookLoaded || !state.showRightPane;
+
     final commentatorChildren = <AppContextMenuEntry>[
+      // הצגת "פתח את המפרשים" רק אם יש מפרשים והחלונית סגורה
+      if (relevantCommentators.isNotEmpty && isRightPaneClosed) ...[
+        AppContextMenuEntry(
+          label: 'פתח את חלונית המפרשים',
+          icon: FluentIcons.open_24_regular,
+          onTap: () => _openCommentaryPane(),
+        ),
+        const AppContextMenuEntry.divider(),
+      ],
       AppContextMenuEntry(
         label: 'הצג את כל המפרשים',
         icon: allActive ? FluentIcons.checkmark_24_regular : null,
