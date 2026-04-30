@@ -68,7 +68,7 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
   void _onQueryChanged(String query) {
     if (query.length >= _kMinQueryLength) {
       context.read<SearchBloc>().add(UpdateFilterQuery(query));
-    } else if (query.isEmpty) {
+    } else {
       context.read<SearchBloc>().add(ClearFilter());
     }
   }
@@ -471,35 +471,36 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
           return Center(child: Text('Error: ${libraryState.error}'));
         }
 
-        // בדיקה אם יש סינון ספרים - מחוץ ל-BlocBuilder
-        if (_filterQuery.text.length >= _kMinQueryLength) {
-          if (libraryState.library != null) {
-            // סינון ידנית מהספרייה
-            final allBooks = _getAllBooksFromLibrary(libraryState.library!);
-            // ⚡ Bolt: Cache lowercased query outside the loop to prevent O(N) redundant string allocations
-            final queryLower = _filterQuery.text.toLowerCase();
-            final filtered = allBooks
-                .where((book) => book.title
-                    .toLowerCase()
-                    .contains(queryLower))
-                .toList();
-            return _buildBooksList(filtered);
-          }
-        }
-
         return BlocBuilder<SearchBloc, SearchState>(
           builder: (context, searchState) {
-
             if (libraryState.library == null) {
               return const Center(child: Text('No library data available'));
             }
 
             final rootCategory = libraryState.library!;
+
+            // סינון ספרים לפי קוורי — בתוך BlocBuilder<SearchBloc> כדי להגיב לשינויים
+            final filterQuery = searchState.filterQuery;
+            if (filterQuery != null && filterQuery.length >= _kMinQueryLength) {
+              // אם ה-Bloc כבר ביצע חיפוש, נשתמש בתוצאות שלו
+              final books = searchState.filteredBooks;
+              if (books != null) {
+                return _buildBooksList(books);
+              }
+              // חיפוש קצר מדי לחיפוש הבלוק — סינון ידני
+              final allBooks = _getAllBooksFromLibrary(rootCategory);
+              final queryLower = filterQuery.toLowerCase();
+              final filtered = allBooks
+                  .where((book) => book.title.toLowerCase().contains(queryLower))
+                  .toList();
+              return _buildBooksList(filtered);
+            }
+
             final countFuture =
                 widget.tab.countForFacetCached(rootCategory.path);
             return FutureBuilder<int>(
               key: ValueKey(
-                  '${searchState.searchQuery}_${rootCategory.path}'), // מפתח שמשתנה עם החיפוש
+                  '${searchState.searchQuery}_${rootCategory.path}'),
               future: countFuture,
               builder: (context, snapshot) {
                 if (snapshot.hasData) {

@@ -33,10 +33,12 @@ class _ItemsListViewState extends State<ItemsListView> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   String _searchQuery = '';
+  late List<String> _lowerCasedRefs;
 
   @override
   void initState() {
     super.initState();
+    _lowerCasedRefs = widget.items.map((item) => (item.ref as String).toLowerCase()).toList();
     _searchController.addListener(() {
       setState(() {
         _searchQuery = _searchController.text;
@@ -47,6 +49,14 @@ class _ItemsListViewState extends State<ItemsListView> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _searchFocusNode.requestFocus();
     });
+  }
+
+  @override
+  void didUpdateWidget(ItemsListView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.items, widget.items)) {
+      _lowerCasedRefs = widget.items.map((item) => (item.ref as String).toLowerCase()).toList();
+    }
   }
 
   @override
@@ -63,15 +73,15 @@ class _ItemsListViewState extends State<ItemsListView> {
     }
 
     // Filter items based on search query
-    List<dynamic> filteredItems;
+    List<int> filteredIndices;
     if (_searchQuery.isEmpty) {
-      filteredItems = widget.items;
+      filteredIndices = List.generate(widget.items.length, (i) => i);
     } else {
-      // ⚡ Bolt: Cache lowercased query outside the loop to prevent O(N) redundant string allocations
       final queryLower = _searchQuery.toLowerCase();
-      filteredItems = widget.items
-          .where((item) => item.ref.toLowerCase().contains(queryLower))
-          .toList();
+      filteredIndices = [
+        for (int i = 0; i < widget.items.length; i++)
+          if (_lowerCasedRefs[i].contains(queryLower)) i,
+      ];
     }
 
     return Column(
@@ -103,13 +113,13 @@ class _ItemsListViewState extends State<ItemsListView> {
           ),
         ),
         Expanded(
-          child: filteredItems.isEmpty
+          child: filteredIndices.isEmpty
               ? Center(child: Text(widget.notFoundText))
               : ListView.builder(
-                  itemCount: filteredItems.length,
+                  itemCount: filteredIndices.length,
                   itemBuilder: (context, index) {
-                    final item = filteredItems[index];
-                    final originalIndex = widget.items.indexOf(item);
+                    final originalIndex = filteredIndices[index];
+                    final item = widget.items[originalIndex];
                     return ListTile(
                       leading: widget.leadingIconBuilder?.call(item),
                       title: Text(item.ref),
