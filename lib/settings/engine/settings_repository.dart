@@ -115,8 +115,6 @@ class SettingsRepository {
   Future<Map<String, dynamic>> loadSettings() async {
     // Initialize default settings to disk if needed
     await _initializeDefaultsIfNeeded();
-    // Migrate users who received the old dark seed color as default
-    await _migrateDefaultSeedColorIfNeeded();
 
     return {
       'isDarkMode': _settings.getValue<bool>(keyDarkMode, defaultValue: false),
@@ -707,10 +705,6 @@ class SettingsRepository {
     // Use a dedicated flag to track initialization
     return !_settings.getValue<bool>('settings_initialized',
         defaultValue: false);
-  }
-
-  Future<void> _migrateDefaultSeedColorIfNeeded() async {
-    // No migration needed
   }
 
   /// Write all default settings to persistent storage
