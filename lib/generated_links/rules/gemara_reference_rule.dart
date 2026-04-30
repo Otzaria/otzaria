@@ -137,6 +137,37 @@ class GemaraReferenceRule implements GeneratedLinkRule {
   /// מחזיר מספר דף מקסימלי למסכת, או null אם המסכת לא מוכרת.
   static int? maxDafForTractate(String tractate) => _tractateMaxDaf[tractate];
 
+  /// מחלץ שם מסכת קנוני מתוך כותרת ספר המקור.
+  ///
+  /// דוגמאות:
+  /// - `ברכות` -> `ברכות`
+  /// - `מסכת ברכות` -> `ברכות`
+  /// - `חידושי רבי עקיבא איגר על מסכת ברכות` -> `ברכות`
+  /// - `רש"י על בבא קמא` -> `בבא קמא`
+  static String? resolveContextTractate(String sourceBookTitle) {
+    final direct = _resolveTractateName(sourceBookTitle);
+    if (_tractateMaxDaf.containsKey(direct)) {
+      return direct;
+    }
+
+    final allNames = <String>{
+      ..._tractateMaxDaf.keys,
+      ..._tractateAliases.keys,
+    }.toList()
+      ..sort((a, b) => b.length.compareTo(a.length));
+
+    for (final rawName in allNames) {
+      final canonical = _resolveTractateName(rawName);
+      if (sourceBookTitle.contains('מסכת $rawName') ||
+          sourceBookTitle.contains('על $rawName') ||
+          sourceBookTitle.contains(rawName)) {
+        return canonical;
+      }
+    }
+
+    return null;
+  }
+
   /// מנרמל את סימן העמוד לאחת מהאפשרויות: 'א', 'ב', או null.
   static String? normalizeAmud(String? raw) {
     if (raw == null) return null;
@@ -274,13 +305,16 @@ class GemaraReferenceRule implements GeneratedLinkRule {
       }
 
       for (final match in _relativePattern.allMatches(lines[i])) {
+        final tractate = resolveContextTractate(context.sourceBookTitle);
+        if (tractate == null) continue;
+
         final dafStr = removeGershayim(match.group(2)!);
         final amudRaw = match.group(3);
 
         final dafNum = hebrewToInt(dafStr);
         if (dafNum == null || dafNum < 2) continue;
 
-        final maxDaf = _tractateMaxDaf[context.sourceBookTitle];
+        final maxDaf = _tractateMaxDaf[tractate];
         if (maxDaf != null && dafNum > maxDaf) continue;
 
         final amud = normalizeAmud(amudRaw);
@@ -291,7 +325,7 @@ class GemaraReferenceRule implements GeneratedLinkRule {
           start: match.start,
           end: match.end,
           matchedText: match.group(0)!,
-          targetBookTitle: context.sourceBookTitle,
+          targetBookTitle: tractate,
           targetRefText: targetRefText,
           ruleId: id,
           confidence: 0.78,

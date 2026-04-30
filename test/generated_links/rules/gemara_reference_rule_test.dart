@@ -254,7 +254,7 @@ void main() {
     });
   });
 
-  group('GemaraReferenceRule — לעיל/לקמן באותו ספר', () {
+  group('GemaraReferenceRule — לעיל/לקמן באותה מסכת', () {
     test('לעיל [דף כא סוף ע"ב]', () async {
       const ctx = GeneratedLinkRuleContext(
         sourceBookId: 110,
@@ -290,6 +290,29 @@ void main() {
       expect(refs, hasLength(1));
       expect(refs.first.targetBookTitle, equals('ביצה'));
       expect(refs.first.targetRefText, equals('ד א'));
+    });
+
+    test('ספר פירוש על מסכת מנורמל למסכת הבסיס', () async {
+      const ctx = GeneratedLinkRuleContext(
+        sourceBookId: 5001,
+        sourceBookTitle: 'חידושי רבי עקיבא איגר על מסכת ברכות',
+      );
+      final refs = await _detectWithContext(
+        'והוא דמלשון הברייתא (לקמן דף ד)',
+        ctx,
+      );
+      expect(refs, hasLength(1));
+      expect(refs.first.targetBookTitle, equals('ברכות'));
+      expect(refs.first.targetRefText, equals('ד'));
+    });
+
+    test('ספר ללא מסכת בסיס לא מייצר קישור יחסי שגוי', () async {
+      const ctx = GeneratedLinkRuleContext(
+        sourceBookId: 9001,
+        sourceBookTitle: 'ספר כללי על סוגיות הש"ס',
+      );
+      final refs = await _detectWithContext('ועיין לקמן דף ד.', ctx);
+      expect(refs, isEmpty);
     });
   });
 
