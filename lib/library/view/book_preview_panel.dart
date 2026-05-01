@@ -22,13 +22,11 @@ import 'package:otzaria/widgets/widgets_exports.dart';
 class BookPreviewPanel extends StatefulWidget {
   final Book? book;
   final Function(int index)? onOpenInReader; // מקבל את המיקום הנוכחי
-  final VoidCallback? onClose;
 
   const BookPreviewPanel({
     super.key,
     this.book,
     this.onOpenInReader,
-    this.onClose,
   });
 
   @override

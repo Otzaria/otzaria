@@ -1430,22 +1430,23 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     );
   }
 
-  Widget _buildBookListRow({
+  /// בניית שורת ספר משותפת למספר סוגי ספרים
+  Widget _buildLibraryListRowBase({
     required BuildContext context,
-    required Book book,
+    required Widget leadingWidget,
+    required String title,
+    required String? subtitle,
     required int level,
     required _LibraryListItemStyle itemStyle,
     required bool isSelected,
     required VoidCallback onTap,
-    required VoidCallback onDoubleTap,
+    VoidCallback? onDoubleTap,
     FocusNode? focusNode,
   }) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final isGrouped = itemStyle == _LibraryListItemStyle.grouped;
     final isSearch = itemStyle == _LibraryListItemStyle.search;
-    const double iconBoxSize = 26.0;
-    const double iconSize = 14.0;
     final horizontalPadding = isSearch ? 8.0 : 12.0;
     const double verticalPadding = 8.0;
     final indent = isGrouped ? (level - 1).clamp(0, 100) * 18.0 : level * 24.0;
@@ -1455,11 +1456,12 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       fontWeight: isGrouped ? FontWeight.w600 : FontWeight.w700,
       height: isGrouped ? 1.15 : null,
     );
-    final authorStyle = _libraryListSubtitleStyle(
+    final subtitleStyle = _libraryListSubtitleStyle(
       theme.textTheme,
       cs,
       height: isGrouped ? 1.1 : null,
     );
+
     final row = DecoratedBox(
       decoration: BoxDecoration(
         color: isSelected ? cs.secondaryContainer.withValues(alpha: 0.3) : null,
@@ -1484,42 +1486,26 @@ class _LibraryBrowserState extends State<LibraryBrowser>
           child: Row(
             textDirection: TextDirection.rtl,
             children: [
-              Container(
-                width: iconBoxSize,
-                height: iconBoxSize,
-                decoration: BoxDecoration(
-                  color: cs.secondaryContainer,
-                  borderRadius: BorderRadius.circular(AppTokens.radiusSM),
-                ),
-                child: Center(
-                  child: Icon(
-                    book is PdfBook
-                        ? FluentIcons.document_pdf_24_regular
-                        : FluentIcons.document_text_24_regular,
-                    color: cs.onSecondaryContainer,
-                    size: iconSize,
-                  ),
-                ),
-              ),
+              leadingWidget,
               SizedBox(width: isSearch ? 8 : 9),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     LibraryOverflowTooltipText(
-                      text: book.title,
+                      text: title,
                       maxLines: 1,
                       textDirection: TextDirection.rtl,
                       textAlign: TextAlign.right,
                       style: titleStyle,
                     ),
-                    if (book.author != null && book.author!.isNotEmpty)
+                    if (subtitle != null && subtitle.isNotEmpty)
                       LibraryOverflowTooltipText(
-                        text: book.author!,
+                        text: subtitle,
                         maxLines: 1,
                         textDirection: TextDirection.rtl,
                         textAlign: TextAlign.right,
-                        style: authorStyle,
+                        style: subtitleStyle,
                       ),
                   ],
                 ),
@@ -1548,6 +1534,52 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     );
   }
 
+  Widget _buildBookListRow({
+    required BuildContext context,
+    required Book book,
+    required int level,
+    required _LibraryListItemStyle itemStyle,
+    required bool isSelected,
+    required VoidCallback onTap,
+    required VoidCallback onDoubleTap,
+    FocusNode? focusNode,
+  }) {
+    const double iconBoxSize = 26.0;
+    const double iconSize = 14.0;
+    final cs = Theme.of(context).colorScheme;
+
+    final leadingWidget = Container(
+      width: iconBoxSize,
+      height: iconBoxSize,
+      decoration: BoxDecoration(
+        color: cs.secondaryContainer,
+        borderRadius: BorderRadius.circular(AppTokens.radiusSM),
+      ),
+      child: Center(
+        child: Icon(
+          book is PdfBook
+              ? FluentIcons.document_pdf_24_regular
+              : FluentIcons.document_text_24_regular,
+          color: cs.onSecondaryContainer,
+          size: iconSize,
+        ),
+      ),
+    );
+
+    return _buildLibraryListRowBase(
+      context: context,
+      leadingWidget: leadingWidget,
+      title: book.title,
+      subtitle: book.author,
+      level: level,
+      itemStyle: itemStyle,
+      isSelected: isSelected,
+      onTap: onTap,
+      onDoubleTap: onDoubleTap,
+      focusNode: focusNode,
+    );
+  }
+
   Widget _buildExternalBookListRow({
     required BuildContext context,
     required ExternalLibraryBook book,
@@ -1556,113 +1588,50 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     required VoidCallback onTap,
     FocusNode? focusNode,
   }) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final isGrouped = itemStyle == _LibraryListItemStyle.grouped;
-    final isSearch = itemStyle == _LibraryListItemStyle.search;
     const double iconBoxSize = 26.0;
     const double iconSize = 14.0;
-    final horizontalPadding = isSearch ? 8.0 : 12.0;
-    const double verticalPadding = 8.0;
-    final indent = isGrouped ? (level - 1).clamp(0, 100) * 18.0 : level * 24.0;
-    final titleStyle = _libraryListTitleStyle(
-      theme.textTheme,
-      cs,
-      fontWeight: isGrouped ? FontWeight.w600 : FontWeight.w700,
-      height: isGrouped ? 1.15 : null,
-    );
-    final authorStyle = _libraryListSubtitleStyle(
-      theme.textTheme,
-      cs,
-      height: isGrouped ? 1.1 : null,
-    );
+    final cs = Theme.of(context).colorScheme;
 
-    final row = InkWell(
-      focusNode: focusNode,
-      mouseCursor: SystemMouseCursors.click,
-      borderRadius: isGrouped
-          ? BorderRadius.zero
-          : BorderRadius.circular(AppTokens.radiusXL),
-      hoverColor: cs.primary.withValues(alpha: 0.06),
-      hoverDuration: Durations.medium1,
-      onTap: onTap,
-      child: Padding(
-        padding: EdgeInsets.only(
-          right: horizontalPadding + indent,
-          left: horizontalPadding,
-          top: verticalPadding,
-          bottom: verticalPadding,
-        ),
+    final leadingWidget = Container(
+      width: iconBoxSize,
+      height: iconBoxSize,
+      decoration: BoxDecoration(
+        color: cs.secondaryContainer,
+        borderRadius: BorderRadius.circular(AppTokens.radiusSM),
+      ),
+      child: Center(
         child: Row(
-          textDirection: TextDirection.rtl,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: iconBoxSize,
-              height: iconBoxSize,
-              decoration: BoxDecoration(
-                color: cs.secondaryContainer,
-                borderRadius: BorderRadius.circular(AppTokens.radiusSM),
-              ),
-              child: Center(
-                child: Image.asset(
-                  book.link.toString().contains('tablet.otzar.org')
-                      ? 'assets/logos/otzar.ico'
-                      : 'assets/logos/hebrew_books.png',
-                  width: iconSize,
-                  height: iconSize,
-                  fit: BoxFit.contain,
-                ),
-              ),
+            Image.asset(
+              book.link.toString().contains('tablet.otzar.org')
+                  ? 'assets/logos/otzar.ico'
+                  : 'assets/logos/hebrew_books.png',
+              width: iconSize,
+              height: iconSize,
+              fit: BoxFit.contain,
             ),
-            const SizedBox(width: 6),
+            SizedBox(width: iconBoxSize - iconSize - 2),
             Icon(
               FluentIcons.open_24_regular,
               color: cs.onSecondaryContainer,
               size: iconSize,
-            ),
-            SizedBox(width: isSearch ? 8 : 9),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  LibraryOverflowTooltipText(
-                    text: book.title,
-                    textDirection: TextDirection.rtl,
-                    maxLines: 1,
-                    textAlign: TextAlign.right,
-                    style: titleStyle,
-                  ),
-                  if (book.author != null && book.author!.isNotEmpty)
-                    LibraryOverflowTooltipText(
-                      text: book.author!,
-                      textDirection: TextDirection.rtl,
-                      maxLines: 1,
-                      textAlign: TextAlign.right,
-                      style: authorStyle,
-                    ),
-                ],
-              ),
             ),
           ],
         ),
       ),
     );
 
-    if (isGrouped) {
-      return row;
-    }
-
-    return Card(
-      elevation: 0,
-      color: AppSurfaces.card(context),
-      clipBehavior: Clip.antiAlias,
-      surfaceTintColor: Colors.transparent,
-      margin: const EdgeInsets.symmetric(vertical: 2),
-      shape: const RoundedRectangleBorder(
-        side: BorderSide.none,
-        borderRadius: BorderRadius.all(Radius.circular(AppTokens.radiusXL)),
-      ),
-      child: row,
+    return _buildLibraryListRowBase(
+      context: context,
+      leadingWidget: leadingWidget,
+      title: book.title,
+      subtitle: book.author,
+      level: level,
+      itemStyle: itemStyle,
+      isSelected: false,
+      onTap: onTap,
+      focusNode: focusNode,
     );
   }
 
@@ -2028,7 +1997,6 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               _openBookInReader(previewState.previewBook!, i);
             }
           },
-          onClose: () => _hidePreviewPanel(settingsState),
         ),
       ),
     );
