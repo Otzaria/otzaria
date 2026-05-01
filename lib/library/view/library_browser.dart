@@ -1245,7 +1245,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
             child: Text(
               'הצג עוד ${filteredBooks.length - limit} פריטים',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.primary,
+                    color: Theme.of(context).colorScheme.secondary,
                   ),
             ),
           ),
@@ -1339,7 +1339,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               width: iconBoxSize,
               height: iconBoxSize,
               decoration: BoxDecoration(
-                color: cs.primaryContainer,
+                color: cs.secondaryContainer,
                 borderRadius: BorderRadius.circular(AppTokens.radiusSM),
               ),
               child: Center(
@@ -1347,7 +1347,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                   isExpanded
                       ? FluentIcons.folder_open_24_filled
                       : FluentIcons.folder_24_regular,
-                  color: cs.onSurfaceVariant,
+                  color: cs.onSecondaryContainer,
                   size: iconSize,
                 ),
               ),
@@ -1366,7 +1366,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               isExpanded
                   ? FluentIcons.chevron_up_24_regular
                   : FluentIcons.chevron_down_24_regular,
-              color: cs.onSurfaceVariant,
+              color: cs.onSecondaryContainer,
               size: 18,
             ),
           ],
@@ -1415,7 +1415,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   }) {
     return textTheme.bodySmall?.merge(
       AppTextStyles.settingSubtitle.copyWith(
-        color: cs.onSurfaceVariant,
+        color: cs.onSecondaryContainer,
         height: height,
       ),
     );
@@ -1453,7 +1453,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     );
     final row = DecoratedBox(
       decoration: BoxDecoration(
-        color: isSelected ? cs.primaryContainer.withValues(alpha: 0.3) : null,
+        color: isSelected ? cs.secondaryContainer.withValues(alpha: 0.3) : null,
       ),
       child: InkWell(
         focusNode: focusNode,
@@ -1479,7 +1479,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                 width: iconBoxSize,
                 height: iconBoxSize,
                 decoration: BoxDecoration(
-                  color: cs.primaryContainer,
+                  color: cs.secondaryContainer,
                   borderRadius: BorderRadius.circular(AppTokens.radiusSM),
                 ),
                 child: Center(
@@ -1487,7 +1487,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                     book is PdfBook
                         ? FluentIcons.document_pdf_24_regular
                         : FluentIcons.document_text_24_regular,
-                    color: cs.onSurfaceVariant,
+                    color: cs.onSecondaryContainer,
                     size: iconSize,
                   ),
                 ),
@@ -1591,7 +1591,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               width: iconBoxSize,
               height: iconBoxSize,
               decoration: BoxDecoration(
-                color: cs.primaryContainer,
+                color: cs.secondaryContainer,
                 borderRadius: BorderRadius.circular(AppTokens.radiusSM),
               ),
               child: Center(
@@ -1608,7 +1608,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
             const SizedBox(width: 6),
             Icon(
               FluentIcons.open_24_regular,
-              color: cs.onSurfaceVariant,
+              color: cs.onSecondaryContainer,
               size: iconSize,
             ),
             SizedBox(width: isSearch ? 8 : 9),
