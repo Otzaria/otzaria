@@ -39,7 +39,7 @@ import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/widgets/otzaria_search_field.dart';
 import 'package:otzaria/settings/settings_exports.dart';
-import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 
 // ── קבועים ────────────────────────────────────────────────────────────────────
 
@@ -51,6 +51,8 @@ const int _kScrollDebounceMs = 100;
 
 /// דיבאונס לחיפוש ספרים — מונע הרצת חיפוש כבד על כל אות.
 const Duration _kLibrarySearchDebounceDuration = Duration(milliseconds: 250);
+
+enum _LibraryListItemStyle { root, groupedRoot, grouped, search }
 
 /// מחשב רוחב תקין לחלונית התצוגה המקדימה לפי הרוחב הפנוי בספרייה.
 @visibleForTesting
@@ -1099,41 +1101,39 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         focusNode: focusNode,
       );
     }
-    return BlocBuilder<LibraryBloc, LibraryState>(
-      buildWhen: (p, c) =>
-          (p.previewBook != c.previewBook) &&
-          (p.previewBook == book || c.previewBook == book),
-      builder: (ctx, libState) {
-        final isSelected = libState.previewBook == book;
-        return GestureDetector(
-          onDoubleTap: () => _openBookInReader(book, book is PdfBook ? 1 : 0),
-          child: Container(
-            decoration: isSelected
-                ? BoxDecoration(
-                    border: Border.all(
-                      color: Theme.of(ctx).colorScheme.primary,
-                      width: 2,
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                  )
-                : null,
-            child: BookGridItem(
-              book: book,
-              showTopics: showTopics,
-              focusNode: focusNode,
-              onBookClickCallback: () {
-                final s = ctx.read<SettingsBloc>().state;
-                if (s.libraryShowPreview) {
-                  _showBookPreview(book);
-                } else {
-                  _openBookInReader(book, book is PdfBook ? 1 : 0);
-                }
-              },
-              onBookDeleted: () {
-                if (ctx.mounted) ctx.read<LibraryBloc>().add(RefreshLibrary());
-              },
-            ),
-          ),
+    return BlocBuilder<SettingsBloc, SettingsState>(
+      buildWhen: (p, c) => p.libraryShowPreview != c.libraryShowPreview,
+      builder: (ctx, settingsState) {
+        return BlocBuilder<LibraryBloc, LibraryState>(
+          buildWhen: (p, c) =>
+              (p.previewBook != c.previewBook) &&
+              (p.previewBook == book || c.previewBook == book),
+          builder: (ctx, libState) {
+            final isSelected = settingsState.libraryShowPreview &&
+                libState.previewBook == book;
+            return GestureDetector(
+              onDoubleTap: () =>
+                  _openBookInReader(book, book is PdfBook ? 1 : 0),
+              child: BookGridItem(
+                book: book,
+                showTopics: showTopics,
+                isSelected: isSelected,
+                focusNode: focusNode,
+                onBookClickCallback: () {
+                  if (settingsState.libraryShowPreview) {
+                    _showBookPreview(book);
+                  } else {
+                    _openBookInReader(book, book is PdfBook ? 1 : 0);
+                  }
+                },
+                onBookDeleted: () {
+                  if (ctx.mounted) {
+                    ctx.read<LibraryBloc>().add(RefreshLibrary());
+                  }
+                },
+              ),
+            );
+          },
         );
       },
     );
@@ -1143,20 +1143,24 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       context.read<LibraryBloc>().add(SelectBookForPreview(book));
 
   Widget _buildSearchListView(List<Book> books) {
-    return ListView.builder(
+    return _LibraryBrowserList(
       itemCount: books.length,
+      forPanel: false,
       itemBuilder: (context, index) {
         return _buildListBookItem(
           books[index],
           0,
+          itemStyle: _LibraryListItemStyle.search,
           focusNode: index == 0 ? _firstSearchResultFocusNode : null,
         );
       },
     );
   }
 
-  Widget _buildListView(Category category) =>
-      ListView(children: _buildCategoryTree(category, 0));
+  Widget _buildListView(Category category) => _LibraryBrowserList(
+        forPanel: false,
+        children: _buildCategoryTree(category, 0),
+      );
 
   List<Widget> _buildCategoryTree(Category category, int level) {
     final List<Widget> widgets = [];
@@ -1174,12 +1178,58 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     }
     for (final sub in filteredSubs) {
       final isExpanded = _expandedCategories.contains(sub.path);
-      widgets.add(_buildListCategoryItem(sub, level, isExpanded));
-      if (isExpanded) widgets.addAll(_buildCategoryTree(sub, level + 1));
+      final isRootItem = level == 0;
+      if (isExpanded) {
+        final children = _buildCategoryTree(sub, level + 1);
+        if (isRootItem && children.isNotEmpty) {
+          widgets.add(
+            _buildGroupedListSection([
+              _buildListCategoryItem(
+                sub,
+                level,
+                isExpanded,
+                itemStyle: _LibraryListItemStyle.groupedRoot,
+              ),
+              ...children,
+            ]),
+          );
+        } else {
+          widgets.add(
+            _buildListCategoryItem(
+              sub,
+              level,
+              isExpanded,
+              itemStyle: isRootItem
+                  ? _LibraryListItemStyle.root
+                  : _LibraryListItemStyle.grouped,
+            ),
+          );
+          widgets.addAll(children);
+        }
+      } else {
+        widgets.add(
+          _buildListCategoryItem(
+            sub,
+            level,
+            isExpanded,
+            itemStyle: isRootItem
+                ? _LibraryListItemStyle.root
+                : _LibraryListItemStyle.grouped,
+          ),
+        );
+      }
     }
     const limit = 500;
     for (int i = 0; i < filteredBooks.length && i < limit; i++) {
-      widgets.add(_buildListBookItem(filteredBooks[i], level));
+      widgets.add(
+        _buildListBookItem(
+          filteredBooks[i],
+          level,
+          itemStyle: level == 0
+              ? _LibraryListItemStyle.root
+              : _LibraryListItemStyle.grouped,
+        ),
+      );
     }
     if (filteredBooks.length > limit) {
       widgets.add(
@@ -1205,8 +1255,69 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     return widgets;
   }
 
-  Widget _buildListCategoryItem(Category category, int level, bool isExpanded) {
-    return InkWell(
+  Widget _buildGroupedListSection(List<Widget> children) {
+    final cs = Theme.of(context).colorScheme;
+    return Card(
+      elevation: 0,
+      color: AppSurfaces.card(context),
+      clipBehavior: Clip.antiAlias,
+      surfaceTintColor: Colors.transparent,
+      margin: const EdgeInsets.only(top: 2, bottom: 8),
+      shape: const RoundedRectangleBorder(
+        side: BorderSide.none,
+        borderRadius: BorderRadius.all(Radius.circular(AppTokens.radiusXL)),
+      ),
+      child: Column(
+        children: [
+          for (int i = 0; i < children.length; i++) ...[
+            children[i],
+            if (i < children.length - 1)
+              Divider(
+                height: 1,
+                thickness: 1.5,
+                indent: 0,
+                endIndent: 0,
+                color: cs.surfaceContainerHighest,
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildListCategoryItem(
+    Category category,
+    int level,
+    bool isExpanded, {
+    _LibraryListItemStyle itemStyle = _LibraryListItemStyle.root,
+  }) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isGrouped = itemStyle == _LibraryListItemStyle.grouped;
+    final isGroupedRoot = itemStyle == _LibraryListItemStyle.groupedRoot;
+    final isInGroupedSection = isGrouped || isGroupedRoot;
+    const double iconBoxSize = 26.0;
+    const double iconSize = 14.0;
+    const double horizontalPadding = 12.0;
+    const double verticalPadding = 8.0;
+    final indent =
+        isInGroupedSection ? (level - 1).clamp(0, 100) * 18.0 : level * 24.0;
+    final titleStyle = theme.textTheme.titleMedium?.merge(
+      AppTextStyles.settingTitle.copyWith(
+        fontWeight: isGrouped ? FontWeight.w600 : FontWeight.w700,
+        color: cs.onSurface,
+        height: isGrouped ? 1.15 : null,
+      ),
+    );
+    final rowBorderRadius = isInGroupedSection
+        ? BorderRadius.zero
+        : BorderRadius.circular(AppTokens.radiusXL);
+
+    final row = InkWell(
+      mouseCursor: SystemMouseCursors.click,
+      borderRadius: rowBorderRadius,
+      hoverColor: cs.primary.withValues(alpha: 0.06),
+      hoverDuration: Durations.medium1,
       onTap: () => setState(() {
         if (isExpanded) {
           _expandedCategories.remove(category.path);
@@ -1214,190 +1325,293 @@ class _LibraryBrowserState extends State<LibraryBrowser>
           _expandedCategories.add(category.path);
         }
       }),
-      child: Container(
+      child: Padding(
         padding: EdgeInsets.only(
-          right: 16.0 + level * 24,
-          left: 16,
-          top: 12,
-          bottom: 12,
-        ),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: Theme.of(context).dividerColor,
-              width: 0.5,
-            ),
-          ),
+          right: horizontalPadding + indent,
+          left: horizontalPadding,
+          top: verticalPadding,
+          bottom: verticalPadding,
         ),
         child: Row(
           textDirection: TextDirection.rtl,
           children: [
-            Icon(
-              isExpanded
-                  ? FluentIcons.folder_open_24_filled
-                  : FluentIcons.folder_24_regular,
-              color: Theme.of(context).colorScheme.primary,
-              size: 20,
+            Container(
+              width: iconBoxSize,
+              height: iconBoxSize,
+              decoration: BoxDecoration(
+                color: cs.primaryContainer,
+                borderRadius: BorderRadius.circular(AppTokens.radiusSM),
+              ),
+              child: Center(
+                child: Icon(
+                  isExpanded
+                      ? FluentIcons.folder_open_24_filled
+                      : FluentIcons.folder_24_regular,
+                  color: cs.onSurfaceVariant,
+                  size: iconSize,
+                ),
+              ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 9),
             Expanded(
               child: LibraryOverflowTooltipText(
                 text: category.title,
                 maxLines: 1,
                 textDirection: TextDirection.rtl,
                 textAlign: TextAlign.right,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
+                style: titleStyle,
               ),
             ),
             Icon(
               isExpanded
                   ? FluentIcons.chevron_up_24_regular
                   : FluentIcons.chevron_down_24_regular,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              color: cs.onSurfaceVariant,
+              size: 18,
             ),
           ],
         ),
       ),
     );
-  }
 
-  /// פריט ספר בתצוגת רשימה
-  Widget _buildListBookItem(
-    Book book,
-    int level, {
-    FocusNode? focusNode,
-  }) {
-    if (book is ExternalLibraryBook) {
-      return _buildExternalBookListItem(book, level, focusNode: focusNode);
+    if (isInGroupedSection) {
+      return row;
     }
-    return BlocBuilder<LibraryBloc, LibraryState>(
-      buildWhen: (p, c) =>
-          (p.previewBook != c.previewBook) &&
-          (p.previewBook == book || c.previewBook == book),
-      builder: (ctx, libState) {
-        final isSelected = libState.previewBook == book;
-        return InkWell(
-          focusNode: focusNode,
-          onTap: () {
-            final s = ctx.read<SettingsBloc>().state;
-            if (s.libraryShowPreview) {
-              _showBookPreview(book);
-            } else {
-              _openBookInReader(book, book is PdfBook ? 1 : 0);
-            }
-          },
-          onDoubleTap: () => _openBookInReader(book, book is PdfBook ? 1 : 0),
-          child: Container(
-            padding: EdgeInsets.only(
-              right: 16.0 + level * 24,
-              left: 16,
-              top: 10,
-              bottom: 10,
-            ),
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? Theme.of(
-                      ctx,
-                    ).colorScheme.primaryContainer.withValues(alpha: 0.3)
-                  : null,
-              border: Border(
-                bottom: BorderSide(
-                  color: Theme.of(ctx).dividerColor,
-                  width: 0.5,
-                ),
-              ),
-            ),
-            child: Row(
-              textDirection: TextDirection.rtl,
-              children: [
-                Icon(
-                  book is PdfBook
-                      ? FluentIcons.document_pdf_24_regular
-                      : FluentIcons.document_text_24_regular,
-                  color: Theme.of(ctx).colorScheme.primary,
-                  size: 18,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      LibraryOverflowTooltipText(
-                        text: book.title,
-                        maxLines: 1,
-                        textDirection: TextDirection.rtl,
-                        textAlign: TextAlign.right,
-                        style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              color: Theme.of(ctx).colorScheme.onSurface,
-                            ),
-                      ),
-                      if (book.author != null && book.author!.isNotEmpty)
-                        LibraryOverflowTooltipText(
-                          text: book.author!,
-                          maxLines: 1,
-                          textDirection: TextDirection.rtl,
-                          textAlign: TextAlign.right,
-                          style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                                color: Theme.of(ctx).colorScheme.onSurface,
-                              ),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+
+    return Card(
+      elevation: 0,
+      color: AppSurfaces.card(context),
+      clipBehavior: Clip.antiAlias,
+      surfaceTintColor: Colors.transparent,
+      margin: const EdgeInsets.symmetric(vertical: 2),
+      shape: const RoundedRectangleBorder(
+        side: BorderSide.none,
+        borderRadius: BorderRadius.all(Radius.circular(AppTokens.radiusXL)),
+      ),
+      child: row,
     );
   }
 
-  /// פריט ספר חיצוני בתצוגת רשימה
-  Widget _buildExternalBookListItem(
-    ExternalLibraryBook book,
-    int level, {
+  TextStyle? _libraryListTitleStyle(
+    TextTheme textTheme,
+    ColorScheme cs, {
+    required FontWeight fontWeight,
+    double? height,
+  }) {
+    return textTheme.titleMedium?.merge(
+      AppTextStyles.settingTitle.copyWith(
+        fontWeight: fontWeight,
+        color: cs.onSurface,
+        height: height,
+        fontSize: (AppTokens.fontMD),
+      ),
+    );
+  }
+
+  TextStyle? _libraryListSubtitleStyle(
+    TextTheme textTheme,
+    ColorScheme cs, {
+    double? height,
+  }) {
+    return textTheme.bodySmall?.merge(
+      AppTextStyles.settingSubtitle.copyWith(
+        color: cs.onSurfaceVariant,
+        height: height,
+      ),
+    );
+  }
+
+  Widget _buildBookListRow({
+    required BuildContext context,
+    required Book book,
+    required int level,
+    required _LibraryListItemStyle itemStyle,
+    required bool isSelected,
+    required VoidCallback onTap,
+    required VoidCallback onDoubleTap,
     FocusNode? focusNode,
   }) {
-    return InkWell(
-      focusNode: focusNode,
-      onTap: () => _openOtzarBook(book),
-      child: Container(
-        padding: EdgeInsets.only(
-          right: 16.0 + (level * 24.0) + 32.0,
-          left: 16.0,
-          top: 10.0,
-          bottom: 10.0,
-        ),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: Theme.of(context).dividerColor,
-              width: 0.5,
-            ),
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isGrouped = itemStyle == _LibraryListItemStyle.grouped;
+    final isSearch = itemStyle == _LibraryListItemStyle.search;
+    const double iconBoxSize = 26.0;
+    const double iconSize = 14.0;
+    final horizontalPadding = isSearch ? 8.0 : 12.0;
+    const double verticalPadding = 8.0;
+    final indent = isGrouped ? (level - 1).clamp(0, 100) * 18.0 : level * 24.0;
+    final titleStyle = _libraryListTitleStyle(
+      theme.textTheme,
+      cs,
+      fontWeight: isGrouped ? FontWeight.w600 : FontWeight.w700,
+      height: isGrouped ? 1.15 : null,
+    );
+    final authorStyle = _libraryListSubtitleStyle(
+      theme.textTheme,
+      cs,
+      height: isGrouped ? 1.1 : null,
+    );
+    final row = DecoratedBox(
+      decoration: BoxDecoration(
+        color: isSelected ? cs.primaryContainer.withValues(alpha: 0.3) : null,
+      ),
+      child: InkWell(
+        focusNode: focusNode,
+        mouseCursor: SystemMouseCursors.click,
+        borderRadius: isGrouped
+            ? BorderRadius.zero
+            : BorderRadius.circular(AppTokens.radiusXL),
+        hoverColor: cs.primary.withValues(alpha: 0.06),
+        hoverDuration: Durations.medium1,
+        onTap: onTap,
+        onDoubleTap: onDoubleTap,
+        child: Padding(
+          padding: EdgeInsets.only(
+            right: horizontalPadding + indent,
+            left: horizontalPadding,
+            top: verticalPadding,
+            bottom: verticalPadding,
           ),
+          child: Row(
+            textDirection: TextDirection.rtl,
+            children: [
+              Container(
+                width: iconBoxSize,
+                height: iconBoxSize,
+                decoration: BoxDecoration(
+                  color: cs.primaryContainer,
+                  borderRadius: BorderRadius.circular(AppTokens.radiusSM),
+                ),
+                child: Center(
+                  child: Icon(
+                    book is PdfBook
+                        ? FluentIcons.document_pdf_24_regular
+                        : FluentIcons.document_text_24_regular,
+                    color: cs.onSurfaceVariant,
+                    size: iconSize,
+                  ),
+                ),
+              ),
+              SizedBox(width: isSearch ? 8 : 9),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    LibraryOverflowTooltipText(
+                      text: book.title,
+                      maxLines: 1,
+                      textDirection: TextDirection.rtl,
+                      textAlign: TextAlign.right,
+                      style: titleStyle,
+                    ),
+                    if (book.author != null && book.author!.isNotEmpty)
+                      LibraryOverflowTooltipText(
+                        text: book.author!,
+                        maxLines: 1,
+                        textDirection: TextDirection.rtl,
+                        textAlign: TextAlign.right,
+                        style: authorStyle,
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (isGrouped) {
+      return row;
+    }
+
+    return Card(
+      elevation: 0,
+      color: AppSurfaces.card(context),
+      clipBehavior: Clip.antiAlias,
+      surfaceTintColor: Colors.transparent,
+      margin: const EdgeInsets.symmetric(vertical: 2),
+      shape: const RoundedRectangleBorder(
+        side: BorderSide.none,
+        borderRadius: BorderRadius.all(Radius.circular(AppTokens.radiusXL)),
+      ),
+      child: row,
+    );
+  }
+
+  Widget _buildExternalBookListRow({
+    required BuildContext context,
+    required ExternalLibraryBook book,
+    required int level,
+    required _LibraryListItemStyle itemStyle,
+    required VoidCallback onTap,
+    FocusNode? focusNode,
+  }) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isGrouped = itemStyle == _LibraryListItemStyle.grouped;
+    final isSearch = itemStyle == _LibraryListItemStyle.search;
+    const double iconBoxSize = 26.0;
+    const double iconSize = 14.0;
+    final horizontalPadding = isSearch ? 8.0 : 12.0;
+    const double verticalPadding = 8.0;
+    final indent = isGrouped ? (level - 1).clamp(0, 100) * 18.0 : level * 24.0;
+    final titleStyle = _libraryListTitleStyle(
+      theme.textTheme,
+      cs,
+      fontWeight: isGrouped ? FontWeight.w600 : FontWeight.w700,
+      height: isGrouped ? 1.15 : null,
+    );
+    final authorStyle = _libraryListSubtitleStyle(
+      theme.textTheme,
+      cs,
+      height: isGrouped ? 1.1 : null,
+    );
+
+    final row = InkWell(
+      focusNode: focusNode,
+      mouseCursor: SystemMouseCursors.click,
+      borderRadius: isGrouped
+          ? BorderRadius.zero
+          : BorderRadius.circular(AppTokens.radiusXL),
+      hoverColor: cs.primary.withValues(alpha: 0.06),
+      hoverDuration: Durations.medium1,
+      onTap: onTap,
+      child: Padding(
+        padding: EdgeInsets.only(
+          right: horizontalPadding + indent,
+          left: horizontalPadding,
+          top: verticalPadding,
+          bottom: verticalPadding,
         ),
         child: Row(
           textDirection: TextDirection.rtl,
           children: [
-            Image.asset(
-              book.link.toString().contains('tablet.otzar.org')
-                  ? 'assets/logos/otzar.ico'
-                  : 'assets/logos/hebrew_books.png',
-              width: 18,
-              height: 18,
-              fit: BoxFit.contain,
+            Container(
+              width: iconBoxSize,
+              height: iconBoxSize,
+              decoration: BoxDecoration(
+                color: cs.primaryContainer,
+                borderRadius: BorderRadius.circular(AppTokens.radiusSM),
+              ),
+              child: Center(
+                child: Image.asset(
+                  book.link.toString().contains('tablet.otzar.org')
+                      ? 'assets/logos/otzar.ico'
+                      : 'assets/logos/hebrew_books.png',
+                  width: iconSize,
+                  height: iconSize,
+                  fit: BoxFit.contain,
+                ),
+              ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             Icon(
               FluentIcons.open_24_regular,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-              size: 16,
+              color: cs.onSurfaceVariant,
+              size: iconSize,
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: isSearch ? 8 : 9),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1407,10 +1621,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                     textDirection: TextDirection.rtl,
                     maxLines: 1,
                     textAlign: TextAlign.right,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
+                    style: titleStyle,
                   ),
                   if (book.author != null && book.author!.isNotEmpty)
                     LibraryOverflowTooltipText(
@@ -1418,9 +1629,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                       textDirection: TextDirection.rtl,
                       maxLines: 1,
                       textAlign: TextAlign.right,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurface,
-                          ),
+                      style: authorStyle,
                     ),
                 ],
               ),
@@ -1428,6 +1637,89 @@ class _LibraryBrowserState extends State<LibraryBrowser>
           ],
         ),
       ),
+    );
+
+    if (isGrouped) {
+      return row;
+    }
+
+    return Card(
+      elevation: 0,
+      color: AppSurfaces.card(context),
+      clipBehavior: Clip.antiAlias,
+      surfaceTintColor: Colors.transparent,
+      margin: const EdgeInsets.symmetric(vertical: 2),
+      shape: const RoundedRectangleBorder(
+        side: BorderSide.none,
+        borderRadius: BorderRadius.all(Radius.circular(AppTokens.radiusXL)),
+      ),
+      child: row,
+    );
+  }
+
+  /// פריט ספר בתצוגת רשימה
+  Widget _buildListBookItem(
+    Book book,
+    int level, {
+    _LibraryListItemStyle itemStyle = _LibraryListItemStyle.root,
+    FocusNode? focusNode,
+  }) {
+    if (book is ExternalLibraryBook) {
+      return _buildExternalBookListItem(
+        book,
+        level,
+        itemStyle: itemStyle,
+        focusNode: focusNode,
+      );
+    }
+    return BlocBuilder<SettingsBloc, SettingsState>(
+      buildWhen: (p, c) => p.libraryShowPreview != c.libraryShowPreview,
+      builder: (ctx, settingsState) {
+        return BlocBuilder<LibraryBloc, LibraryState>(
+          buildWhen: (p, c) =>
+              p.previewBook != c.previewBook ||
+              p.previewBook == book ||
+              c.previewBook == book,
+          builder: (ctx, libState) {
+            final isSelected = settingsState.libraryShowPreview &&
+                libState.previewBook == book;
+            return _buildBookListRow(
+              context: ctx,
+              book: book,
+              level: level,
+              itemStyle: itemStyle,
+              isSelected: isSelected,
+              focusNode: focusNode,
+              onTap: () {
+                if (settingsState.libraryShowPreview) {
+                  _showBookPreview(book);
+                } else {
+                  _openBookInReader(book, book is PdfBook ? 1 : 0);
+                }
+              },
+              onDoubleTap: () =>
+                  _openBookInReader(book, book is PdfBook ? 1 : 0),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// פריט ספר חיצוני בתצוגת רשימה
+  Widget _buildExternalBookListItem(
+    ExternalLibraryBook book,
+    int level, {
+    _LibraryListItemStyle itemStyle = _LibraryListItemStyle.root,
+    FocusNode? focusNode,
+  }) {
+    return _buildExternalBookListRow(
+      context: context,
+      book: book,
+      level: level,
+      itemStyle: itemStyle,
+      focusNode: focusNode,
+      onTap: () => _openOtzarBook(book),
     );
   }
 
@@ -1812,6 +2104,43 @@ class _LoadingDotsTextState extends State<_LoadingDotsText>
           style: Theme.of(context).textTheme.bodyMedium,
         );
       },
+    );
+  }
+}
+
+class _LibraryBrowserList extends StatelessWidget {
+  const _LibraryBrowserList({
+    this.children,
+    this.itemCount,
+    this.itemBuilder,
+    this.forPanel = false,
+  }) : assert(
+          children != null || (itemCount != null && itemBuilder != null),
+          'Provide either children or itemCount with itemBuilder',
+        );
+
+  final List<Widget>? children;
+  final int? itemCount;
+  final NullableIndexedWidgetBuilder? itemBuilder;
+  final bool forPanel;
+
+  @override
+  Widget build(BuildContext context) {
+    final padding = forPanel
+        ? const EdgeInsets.symmetric(horizontal: 12, vertical: 8)
+        : const EdgeInsets.symmetric(horizontal: 45, vertical: 8);
+
+    if (children != null) {
+      return ListView(
+        padding: padding,
+        children: children!,
+      );
+    }
+
+    return ListView.builder(
+      padding: padding,
+      itemCount: itemCount,
+      itemBuilder: itemBuilder!,
     );
   }
 }

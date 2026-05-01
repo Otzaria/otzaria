@@ -10,8 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'dart:math';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/book_locator.dart';
-import 'package:otzaria/theme/app_tokens.dart';
-import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 
 // ΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפא
@@ -249,35 +248,6 @@ class CategoryGridItem extends StatelessWidget {
             // LTR: ╫נ╫ש╫ש╫º╫ץ╫á╫ש╫¥ ╫ס╫⌐╫₧╫נ╫£, ╫ר╫º╫í╫ר ╫ס╫ש╫₧╫ש╫ƒ Γאפ ╫₧╫¬╫נ╫ש╫¥ ╫£╫₧╫₧╫⌐╫º RTL ╫ó╫ס╫¿╫ש
             textDirection: TextDirection.rtl,
             children: [
-              // ΓפאΓפא ╫נ╫ש╫ש╫º╫ץ╫ƒ ╫₧╫ש╫ף╫ó (╫⌐╫₧╫נ╫£ ╫º╫ש╫ª╫ץ╫á╫ש) ΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפא
-              if (category.shortDescription.isNotEmpty)
-                Tooltip(
-                  message: category.shortDescription,
-                  waitDuration: const Duration(milliseconds: 400),
-                  child: Icon(
-                    FluentIcons.info_24_regular,
-                    size: 16,
-                    color: theme.colorScheme.onSurfaceVariant
-                        .withValues(alpha: 0.6),
-                  ),
-                ),
-              // ΓפאΓפא ╫נ╫ש╫ש╫º╫ץ╫ƒ ╫¬╫ש╫º╫ש╫ש╫פ ΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפא
-              const SizedBox(width: 4),
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: cs.primaryContainer,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  FluentIcons.folder_24_filled,
-                  color: cs.onSurfaceVariant,
-                  size: 16,
-                ),
-              ),
-              const SizedBox(width: 18),
-              // ΓפאΓפא ╫ó╫₧╫ץ╫ף╫¬ ╫ר╫º╫í╫ר (╫ש╫₧╫ש╫ƒ) ΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפא
               Expanded(
                 child: Align(
                   alignment: Alignment.centerRight,
@@ -305,6 +275,32 @@ class CategoryGridItem extends StatelessWidget {
                   ),
                 ),
               ),
+              const SizedBox(width: 18),
+              if (category.shortDescription.isNotEmpty)
+                Tooltip(
+                  message: category.shortDescription,
+                  waitDuration: const Duration(milliseconds: 400),
+                  child: Icon(
+                    FluentIcons.info_24_regular,
+                    size: 16,
+                    color: theme.colorScheme.onSurfaceVariant
+                        .withValues(alpha: 0.6),
+                  ),
+                ),
+              const SizedBox(width: 4),
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: cs.primaryContainer,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  FluentIcons.folder_24_filled,
+                  color: cs.onSurfaceVariant,
+                  size: 16,
+                ),
+              ),
             ],
           ),
         ),
@@ -321,6 +317,7 @@ class CategoryGridItem extends StatelessWidget {
 
 class BookGridItem extends StatelessWidget {
   final bool showTopics;
+  final bool isSelected;
   final Book book;
   final VoidCallback onBookClickCallback;
   final VoidCallback? onBookDeleted;
@@ -331,6 +328,7 @@ class BookGridItem extends StatelessWidget {
     required this.book,
     required this.onBookClickCallback,
     this.showTopics = false,
+    this.isSelected = false,
     this.onBookDeleted,
     this.focusNode,
   });
@@ -347,42 +345,47 @@ class BookGridItem extends StatelessWidget {
         surfaceTintColor: Colors.transparent,
         shape: const RoundedRectangleBorder(
           side: BorderSide.none,
-          borderRadius: BorderRadius.all(Radius.circular(AppTokens.radiusXL)),
+          borderRadius: BorderRadius.all(
+            Radius.circular(AppTokens.radiusXL),
+          ),
         ),
-        child: InkWell(
-          focusNode: focusNode,
-          mouseCursor: SystemMouseCursors.click,
-          borderRadius: BorderRadius.circular(AppTokens.radiusXL),
-          hoverColor: cs.primary.withValues(alpha: 0.06),
-          onTap: () => onBookClickCallback(),
-          hoverDuration: Durations.medium1,
-          child: SizedBox.expand(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              child: Row(
-                // LTR: action column Γזע media column Γזע text column
-                textDirection: TextDirection.rtl,
-                children: [
-                  // ΓפאΓפא ╫ó╫₧╫ץ╫ף╫¬ ╫ñ╫ó╫ץ╫£╫ץ╫¬ (╫⌐╫₧╫נ╫£ ╫º╫ש╫ª╫ץ╫á╫ש) ΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפא
-                  _BookGridActionColumn(
-                    book: book,
-                    onBookDeleted: onBookDeleted,
-                  ),
-                  const SizedBox(width: 6),
-                  // ΓפאΓפא ╫ó╫₧╫ץ╫ף╫¬ ╫₧╫ף╫ש╫פ (╫נ╫ש╫ש╫º╫ץ╫ƒ ╫í╫ñ╫¿) ΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפא
-                  _BookGridMediaColumn(book: book, showTopics: showTopics),
-                  const SizedBox(width: 18),
-                  // ΓפאΓפא ╫ó╫₧╫ץ╫ף╫¬ ╫ר╫º╫í╫ר (╫ש╫₧╫ש╫ƒ) ΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפאΓפא
-                  Expanded(
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: _BookGridTextColumn(
-                        book: book,
-                        showTopics: showTopics,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color:
+                isSelected ? cs.primaryContainer.withValues(alpha: 0.3) : null,
+          ),
+          child: InkWell(
+            focusNode: focusNode,
+            mouseCursor: SystemMouseCursors.click,
+            borderRadius: BorderRadius.circular(AppTokens.radiusXL),
+            hoverColor: cs.primary.withValues(alpha: 0.06),
+            onTap: () => onBookClickCallback(),
+            hoverDuration: Durations.medium1,
+            child: SizedBox.expand(
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                child: Row(
+                  textDirection: TextDirection.rtl,
+                  children: [
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: _BookGridTextColumn(
+                          book: book,
+                          showTopics: showTopics,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 18),
+                    _BookGridMediaColumn(book: book, showTopics: showTopics),
+                    const SizedBox(width: 6),
+                    _BookGridActionColumn(
+                      book: book,
+                      onBookDeleted: onBookDeleted,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
