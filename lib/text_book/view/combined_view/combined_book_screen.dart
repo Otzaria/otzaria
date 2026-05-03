@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 
@@ -55,6 +55,7 @@ class CombinedView extends StatefulWidget {
     this.isPreviewMode = false,
     this.onOpenPersonalNotes,
     this.onOpenCommentatorsPane,
+    this.onOpenCommentatorsPaneWithFilter,
     this.isPaneOpen,
   });
 
@@ -68,6 +69,7 @@ class CombinedView extends StatefulWidget {
   final bool isPreviewMode;
   final VoidCallback? onOpenPersonalNotes;
   final VoidCallback? onOpenCommentatorsPane;
+  final VoidCallback? onOpenCommentatorsPaneWithFilter;
   final bool Function()? isPaneOpen;
 
   @override
@@ -310,7 +312,7 @@ class _CombinedViewState extends State<CombinedView> {
     return [
       AppContextMenuEntry(
         label: 'הצג את כל $groupName',
-        icon: groupActive ? FluentIcons.checkmark_24_regular : null,
+        isSelected: groupActive,
         onTap: () {
           _selectParagraphForContextMenu(paragraphIndex);
           final current = List<String>.from(st.activeCommentators);
@@ -330,7 +332,7 @@ class _CombinedViewState extends State<CombinedView> {
         final bool isActive = st.activeCommentators.contains(title);
         return AppContextMenuEntry(
           label: title,
-          icon: isActive ? FluentIcons.checkmark_24_regular : null,
+          isSelected: isActive,
           onTap: () {
             _selectParagraphForContextMenu(paragraphIndex);
             final current = List<String>.from(st.activeCommentators);
@@ -387,6 +389,7 @@ class _CombinedViewState extends State<CombinedView> {
         AppContextMenuEntry(
           label: 'פתח את חלונית המפרשים',
           icon: FluentIcons.panel_right_24_regular,
+          isHighlighted: true,
           onTap: () {
             _selectParagraphForContextMenu(paragraphIndex);
             _openCommentatorsPane(isAdding: true);
@@ -394,9 +397,25 @@ class _CombinedViewState extends State<CombinedView> {
         ),
         const AppContextMenuEntry.divider(),
       ],
+      if (state.availableCommentators.isNotEmpty) ...[
+        AppContextMenuEntry(
+          label: 'בחר מפרשים מרובים',
+          icon: FluentIcons.filter_24_regular,
+          isHighlighted: true,
+          onTap: () {
+            _selectParagraphForContextMenu(paragraphIndex);
+            if (widget.onOpenCommentatorsPaneWithFilter != null) {
+              widget.onOpenCommentatorsPaneWithFilter!();
+            } else {
+              _openCommentatorsPane(isAdding: true);
+            }
+          },
+        ),
+        const AppContextMenuEntry.divider(),
+      ],
       AppContextMenuEntry(
-        label: 'הצג את כל המפרשים',
-        icon: allActive ? FluentIcons.checkmark_24_regular : null,
+        label: '\u05d4\u05e6\u05d2 \u05d0\u05ea \u05db\u05dc \u05d4\u05de\u05e4\u05e8\u05e9\u05d9\u05dd',
+        isSelected: allActive,
         onTap: () {
           _selectParagraphForContextMenu(paragraphIndex);
           context.read<TextBookBloc>().add(
@@ -1480,3 +1499,5 @@ class _CommentaryCardState extends State<_CommentaryCard> {
 class _CopySelectedTextIntent extends Intent {
   const _CopySelectedTextIntent();
 }
+
+

@@ -40,6 +40,8 @@ class AppContextMenuEntry {
   final bool enabled;
   final bool isDivider;
   final bool isDestructive;
+  final bool isSelected;
+  final bool isHighlighted;
   final VoidCallback? onTap;
   final Widget? trailing;
 
@@ -56,6 +58,8 @@ class AppContextMenuEntry {
     this.icon,
     this.enabled = true,
     this.isDestructive = false,
+    this.isSelected = false,
+    this.isHighlighted = false,
     this.onTap,
     this.trailing,
     this.children,
@@ -70,6 +74,8 @@ class AppContextMenuEntry {
         enabled = false,
         isDivider = true,
         isDestructive = false,
+        isSelected = false,
+        isHighlighted = false,
         onTap = null,
         trailing = null,
         children = null,
@@ -300,19 +306,19 @@ Widget _buildAppMenuRowContent(
   Widget? trailing,
   bool isSelected = false,
   bool isDestructive = false,
+  bool isHighlighted = false,
   bool enabled = true,
 }) {
   final colorScheme = Theme.of(context).colorScheme;
-  // M3: selectedContainer = primaryContainer (ללא גבול, ממלא שורה שלמה)
-  final selectedBackground =
-      colorScheme.primaryContainer.withValues(alpha: 0.95);
   final foregroundColor = !enabled
       ? colorScheme.onSurface.withValues(alpha: 0.38)
       : isDestructive
           ? colorScheme.error
           : isSelected
               ? colorScheme.onPrimaryContainer
-              : colorScheme.onSurface;
+              : isHighlighted
+                  ? colorScheme.primary
+                  : colorScheme.onSurface;
 
   final hasTrailingWidget = isSelected || trailing != null;
   final labelMaxWidth = _calculateAppMenuLabelMaxWidth(
@@ -324,7 +330,7 @@ Widget _buildAppMenuRowContent(
   final labelTextStyle = TextStyle(
     fontFamily: 'Roboto',
     fontSize: metrics.fontSize,
-    fontWeight: isSelected ? FontWeight.w600 : metrics.itemFontWeight,
+    fontWeight: isSelected || isHighlighted ? FontWeight.w600 : metrics.itemFontWeight,
     color: foregroundColor,
   );
   final labelChild = labelWidget ??
@@ -335,16 +341,33 @@ Widget _buildAppMenuRowContent(
         textDirection: TextDirection.rtl,
       );
 
-  final row = Row(
-    mainAxisSize: trailing != null ? MainAxisSize.max : MainAxisSize.min,
-    children: [
-      if (icon != null) ...[
-        Icon(icon, size: metrics.iconSize, color: foregroundColor),
-        const SizedBox(width: 8),
+  final Widget row;
+  if (isHighlighted) {
+    row = Row(
+      mainAxisSize: MainAxisSize.max,
+      children: [
+        Expanded(
+          child: Center(
+            child: Directionality(
+              textDirection: TextDirection.rtl,
+              child: DefaultTextStyle.merge(
+                style: labelTextStyle,
+                child: labelChild,
+              ),
+            ),
+          ),
+        ),
+        if (icon != null) ...[const SizedBox(width: 8), Icon(icon, size: metrics.iconSize, color: foregroundColor)],
       ],
-      Directionality(
-        textDirection: TextDirection.rtl,
-        child: DefaultTextStyle.merge(
+    );
+  } else {
+    row = Directionality(
+    textDirection: TextDirection.rtl,
+    child: Row(
+      mainAxisSize: trailing != null || isSelected ? MainAxisSize.max : MainAxisSize.min,
+      children: [
+        if (icon != null) ...[Icon(icon, size: metrics.iconSize, color: foregroundColor), const SizedBox(width: 8)],
+        DefaultTextStyle.merge(
           style: labelTextStyle,
           child: labelMaxWidth == null
               ? labelChild
@@ -353,38 +376,46 @@ Widget _buildAppMenuRowContent(
                   child: labelChild,
                 ),
         ),
-      ),
-      // סימן ✓ לפריט נבחר (תמיד, בכל סוג תפריט)
-      if (isSelected) ...[
-        const SizedBox(width: 8),
-        Icon(
-          FluentIcons.checkmark_24_regular,
-          size: metrics.iconSize,
-          color: foregroundColor,
-        ),
-      ] else if (trailing != null) ...[
-        const Spacer(),
-        IconTheme.merge(
-          data: IconThemeData(
+        if (isSelected) ...[
+          const Spacer(),
+          Icon(
+            FluentIcons.checkmark_circle_24_regular,
             size: metrics.iconSize,
             color: foregroundColor,
           ),
-          child: DefaultTextStyle.merge(
-            style: TextStyle(color: foregroundColor),
-            child: trailing,
+] else if (trailing != null) ...[
+          const Spacer(),
+          IconTheme.merge(
+            data: IconThemeData(
+              size: metrics.iconSize,
+              color: foregroundColor,
+            ),
+            child: DefaultTextStyle.merge(
+              style: TextStyle(color: foregroundColor),
+              child: trailing,
+            ),
           ),
-        ),
+        ],
       ],
-    ],
-  );
+    ),
+    );
+  }
 
+  if (isHighlighted) {
+    return _HoverableHighlightedRow(
+      borderColor: colorScheme.primary,
+      itemBorderRadius: metrics.itemBorderRadius,
+      itemPadding: metrics.itemPadding,
+      menuMinWidth: metrics.menuMinWidth,
+      itemHeight: metrics.itemHeight,
+      child: row,
+    );
+  }
   return Container(
     constraints: BoxConstraints(
       minWidth: metrics.menuMinWidth,
       minHeight: metrics.itemHeight,
     ),
-    // צבע מלא שורה — ללא עיגול פינות וללא גבול
-    color: isSelected ? selectedBackground : null,
     padding: metrics.itemPadding,
     alignment: AlignmentDirectional.centerStart,
     child: row,
@@ -406,6 +437,84 @@ double? _calculateAppMenuLabelMaxWidth(
   if (availableWidth <= 0) return null;
 
   return availableWidth;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// _HoverableHighlightedRow
+// ═══════════════════════════════════════════════════════════════════════════
+
+class _HoverableHighlightedRow extends StatefulWidget {
+  const _HoverableHighlightedRow({
+    required this.child,
+    required this.borderColor,
+    required this.itemBorderRadius,
+    required this.itemPadding,
+    required this.menuMinWidth,
+    required this.itemHeight,
+  });
+  final Widget child;
+  final Color borderColor;
+  final double itemBorderRadius;
+  final EdgeInsets itemPadding;
+  final double menuMinWidth;
+  final double itemHeight;
+
+  @override
+  State<_HoverableHighlightedRow> createState() =>
+      _HoverableHighlightedRowState();
+}
+
+class _HoverableHighlightedRowState extends State<_HoverableHighlightedRow> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        constraints: BoxConstraints(
+          minWidth: widget.menuMinWidth,
+          minHeight: widget.itemHeight,
+        ),
+        decoration: BoxDecoration(
+          color: widget.borderColor.withValues(alpha: 0.09),
+          border: Border.all(
+            color: widget.borderColor.withValues(alpha: 0.45),
+            width: 1.0,
+          ),
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: _hovered
+              ? [
+                  BoxShadow(
+                    color: widget.borderColor.withValues(alpha: 0.28),
+                    blurRadius: 14,
+                    spreadRadius: 0,
+                    offset: const Offset(0, 5),
+                  ),
+                ]
+              : [
+                  BoxShadow(
+                    color: widget.borderColor.withValues(alpha: 0.08),
+                    blurRadius: 4,
+                    spreadRadius: 0,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
+        ),
+        padding: widget.itemPadding.copyWith(
+          top: widget.itemPadding.top + 3,
+          bottom: widget.itemPadding.bottom + 3,
+          left: widget.itemPadding.left + 4,
+          right: widget.itemPadding.right + 4,
+        ),
+        alignment: AlignmentDirectional.center,
+        child: widget.child,
+      ),
+    );
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1133,6 +1242,8 @@ class _AppContextMenuRegionState extends State<AppContextMenuRegion> {
           icon: entry.icon,
           trailing: entry.trailing,
           isDestructive: entry.isDestructive,
+          isHighlighted: entry.isHighlighted,
+          isSelected: entry.isSelected,
           enabled: entry.enabled,
         ),
       );

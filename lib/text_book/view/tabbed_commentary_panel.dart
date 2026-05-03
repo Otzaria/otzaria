@@ -23,6 +23,8 @@ class TabbedCommentaryPanel extends StatefulWidget {
   final bool showSplitView; // האם במצב מפוצל (true) או מפרשים למטה (false)
   final TabController? controller;
   final bool showHeader;
+  final ValueNotifier<int>? openCommentatorsFilterNotifier;
+  final ValueNotifier<int>? closeCommentatorsFilterNotifier;
 
   const TabbedCommentaryPanel({
     super.key,
@@ -35,6 +37,8 @@ class TabbedCommentaryPanel extends StatefulWidget {
     this.showSplitView = true,
     this.controller,
     this.showHeader = true,
+    this.openCommentatorsFilterNotifier,
+    this.closeCommentatorsFilterNotifier,
   });
 
   @override
@@ -143,6 +147,8 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
                             .read<TextBookBloc>()
                             .add(UpdateCommentators(commentators));
                       },
+                      openFilterNotifier: widget.openCommentatorsFilterNotifier,
+                      closeFilterNotifier: widget.closeCommentatorsFilterNotifier,
                     )
                   else
                     const CommentatorsListView(

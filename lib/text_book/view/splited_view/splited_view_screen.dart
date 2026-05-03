@@ -60,6 +60,8 @@ class _SplitedViewScreenState extends State<SplitedViewScreen>
   bool? _publishedHeaderSplitView;
   final ValueNotifier<String?> _savedSelectedText =
       ValueNotifier<String?>(null); // טקסט נבחר לתפריט הקשר
+  final ValueNotifier<int> _openCommentatorsFilterNotifier = ValueNotifier<int>(0);
+  final ValueNotifier<int> _closeCommentatorsFilterNotifier = ValueNotifier<int>(0);
 
   @override
   void initState() {
@@ -273,6 +275,8 @@ class _SplitedViewScreenState extends State<SplitedViewScreen>
       ..dispose();
     _controller.dispose();
     _savedSelectedText.dispose();
+    _openCommentatorsFilterNotifier.dispose();
+    _closeCommentatorsFilterNotifier.dispose();
     super.dispose();
   }
 
@@ -334,6 +338,8 @@ class _SplitedViewScreenState extends State<SplitedViewScreen>
                   controller: _tabController,
                   showHeader: !showHeaderInToolbar,
                   showSplitView: widget.showSplitView,
+                  openCommentatorsFilterNotifier: _openCommentatorsFilterNotifier,
+                  closeCommentatorsFilterNotifier: _closeCommentatorsFilterNotifier,
                 ),
               ),
               builder: (context, selectedText, child) => child!,
@@ -355,10 +361,26 @@ class _SplitedViewScreenState extends State<SplitedViewScreen>
                     });
                   },
                   onOpenCommentatorsPane: () {
+                    final bloc = context.read<TextBookBloc>();
+                    final st = bloc.state;
+                    final noActive = st is TextBookLoaded && st.activeCommentators.isEmpty;
+                    setState(() {
+                      _paneOpen = true;
+                    });
+                    // מחכה לסיום האנימציה של פתיחת הפאנל (250ms) לפני מעבר לטאב
+                    Future.delayed(const Duration(milliseconds: 280), () {
+                      if (!mounted) return;
+                      _closeCommentatorsFilterNotifier.value++;
+                      _setCurrentTab(0);
+                      if (noActive) _openCommentatorsFilterNotifier.value++;
+                    });
+                  },
+                  onOpenCommentatorsPaneWithFilter: () {
                     setState(() {
                       _paneOpen = true;
                       _setCurrentTab(0);
                     });
+                    _openCommentatorsFilterNotifier.value++;
                   },
                   isPaneOpen: () => _paneOpen,
                 ),
