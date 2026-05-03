@@ -143,8 +143,15 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
       return shell;
     }
 
-    final handleOffset = isWide ? _kNarrowHandleInset : 0.0;
-    final handleAtOuterWindowEdge = !isWide;
+    // במסך רחב, ה-handle צריך להיות בקצה החיצוני (בין שני החלונות)
+    // במסך צר, ה-handle צריך להיות בתוך החלונית
+    final handleAtOuterWindowEdge = isWide;
+    
+    // כשה-handle בקצה החיצוני, נזיז אותו החוצה כדי שיהיה בין החלונות
+    // כשה-handle בתוך החלונית, נזיז אותו פנימה מעט
+    final handleOffset = handleAtOuterWindowEdge 
+        ? -(_kHandleHitSize / 2) 
+        : _kNarrowHandleInset;
 
     return Stack(
       clipBehavior: Clip.none,
@@ -153,12 +160,14 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
         Positioned(
           top: 0,
           bottom: 0,
+          // כשהחלונית בצד ימין והhandle בקצה החיצוני, נמקם אותו משמאל לחלונית
+          // כשהחלונית בצד שמאל והhandle בקצה החיצוני, נמקם אותו מימין לחלונית
           left: handleAtOuterWindowEdge
-              ? (paneOnRight ? null : handleOffset)
-              : (paneOnRight ? handleOffset : null),
-          right: handleAtOuterWindowEdge
               ? (paneOnRight ? handleOffset : null)
               : (paneOnRight ? null : handleOffset),
+          right: handleAtOuterWindowEdge
+              ? (paneOnRight ? null : handleOffset)
+              : (paneOnRight ? handleOffset : null),
           child: ResizableDragHandle(
             isVertical: true,
             hitSize: _kHandleHitSize,

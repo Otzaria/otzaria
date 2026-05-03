@@ -15,6 +15,9 @@ import 'package:otzaria/tour/widgets/spotlight_overlay.dart';
 import 'package:otzaria/tour/widgets/tour_tooltip_card.dart';
 
 const Duration tourCardSwitchDuration = Duration(milliseconds: 260);
+const int _targetMonitorMaxFramesAfterMove = 45;
+const int _targetMonitorStableFrames = 3;
+const double _targetMonitorRectTolerance = 0.5;
 
 Duration tourCardSwitchDurationFor({
   required String? fromStepId,
@@ -62,9 +65,14 @@ class TourOverlayScreen extends StatefulWidget {
 class _TourOverlayScreenState extends State<TourOverlayScreen> {
   String? _lastStepId;
   String? _renderedStepId;
+  String? _targetMonitorStepId;
   Rect? _lastResolvedRect;
+  List<Rect>? _lastMeasuredTargetRects;
   bool _skipCardTransition = false;
   bool _retryScheduled = false;
+  bool _targetMonitorRetryScheduled = false;
+  int _targetMonitorFramesLeft = 0;
+  int _targetMonitorStableFrameCount = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -78,6 +86,7 @@ class _TourOverlayScreenState extends State<TourOverlayScreen> {
         if (step != null) {
           _lastStepId = step.id;
           _lastResolvedRect = null;
+          _resetTargetMonitor(step.id);
           widget.onStepChanged(step);
         }
       },
@@ -117,6 +126,7 @@ class _TourOverlayScreenState extends State<TourOverlayScreen> {
               final targetRects = resolvedRects == null || resolvedRects.isEmpty
                   ? [targetRect]
                   : resolvedRects;
+              _trackTargetRects(step.id, targetRects);
               final combinedTargetRect =
                   targetRects.skip(1).fold(targetRects.first, (rect, next) {
                 return rect.expandToInclude(next);
@@ -267,6 +277,50 @@ class _TourOverlayScreenState extends State<TourOverlayScreen> {
     });
   }
 
+  void _resetTargetMonitor(String stepId) {
+    _targetMonitorStepId = stepId;
+    _lastMeasuredTargetRects = null;
+    _targetMonitorFramesLeft = _targetMonitorMaxFramesAfterMove;
+    _targetMonitorStableFrameCount = 0;
+  }
+
+  void _trackTargetRects(String stepId, List<Rect> targetRects) {
+    if (_targetMonitorStepId != stepId) {
+      _resetTargetMonitor(stepId);
+    }
+
+    final didMove = !_rectListsClose(_lastMeasuredTargetRects, targetRects);
+    _lastMeasuredTargetRects = List<Rect>.of(targetRects);
+
+    if (didMove) {
+      _targetMonitorFramesLeft = _targetMonitorMaxFramesAfterMove;
+      _targetMonitorStableFrameCount = 0;
+    } else {
+      _targetMonitorStableFrameCount++;
+    }
+
+    if (_targetMonitorFramesLeft <= 0 ||
+        _targetMonitorStableFrameCount >= _targetMonitorStableFrames) {
+      return;
+    }
+    _scheduleTargetMonitorRetry();
+  }
+
+  void _scheduleTargetMonitorRetry() {
+    if (_targetMonitorRetryScheduled) {
+      return;
+    }
+    _targetMonitorRetryScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _targetMonitorRetryScheduled = false;
+      _targetMonitorFramesLeft--;
+      setState(() {});
+    });
+  }
+
   Alignment _cardAlignmentFor(TourStep step, Rect targetRect, Size size) {
     if (step.isDialog) {
       return Alignment.center;
@@ -284,6 +338,25 @@ class _TourOverlayScreenState extends State<TourOverlayScreen> {
         ) ==
         Duration.zero;
   }
+}
+
+bool _rectListsClose(List<Rect>? previous, List<Rect> current) {
+  if (previous == null || previous.length != current.length) {
+    return false;
+  }
+  for (var i = 0; i < current.length; i++) {
+    if (!_rectClose(previous[i], current[i])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool _rectClose(Rect a, Rect b) {
+  return (a.left - b.left).abs() <= _targetMonitorRectTolerance &&
+      (a.top - b.top).abs() <= _targetMonitorRectTolerance &&
+      (a.right - b.right).abs() <= _targetMonitorRectTolerance &&
+      (a.bottom - b.bottom).abs() <= _targetMonitorRectTolerance;
 }
 
 class _LiveTipOverlay extends StatelessWidget {

@@ -321,6 +321,12 @@ Widget _buildAppMenuRowContent(
     hasLeadingIcon: icon != null,
     hasTrailingWidget: hasTrailingWidget,
   );
+  final labelTextStyle = TextStyle(
+    fontFamily: 'Roboto',
+    fontSize: metrics.fontSize,
+    fontWeight: isSelected ? FontWeight.w600 : metrics.itemFontWeight,
+    color: foregroundColor,
+  );
   final labelChild = labelWidget ??
       Text(
         label,
@@ -328,6 +334,49 @@ Widget _buildAppMenuRowContent(
         softWrap: false,
         textDirection: TextDirection.rtl,
       );
+
+  final row = Row(
+    mainAxisSize: trailing != null ? MainAxisSize.max : MainAxisSize.min,
+    children: [
+      if (icon != null) ...[
+        Icon(icon, size: metrics.iconSize, color: foregroundColor),
+        const SizedBox(width: 8),
+      ],
+      Directionality(
+        textDirection: TextDirection.rtl,
+        child: DefaultTextStyle.merge(
+          style: labelTextStyle,
+          child: labelMaxWidth == null
+              ? labelChild
+              : ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: labelMaxWidth),
+                  child: labelChild,
+                ),
+        ),
+      ),
+      // סימן ✓ לפריט נבחר (תמיד, בכל סוג תפריט)
+      if (isSelected) ...[
+        const SizedBox(width: 8),
+        Icon(
+          FluentIcons.checkmark_24_regular,
+          size: metrics.iconSize,
+          color: foregroundColor,
+        ),
+      ] else if (trailing != null) ...[
+        const Spacer(),
+        IconTheme.merge(
+          data: IconThemeData(
+            size: metrics.iconSize,
+            color: foregroundColor,
+          ),
+          child: DefaultTextStyle.merge(
+            style: TextStyle(color: foregroundColor),
+            child: trailing,
+          ),
+        ),
+      ],
+    ],
+  );
 
   return Container(
     constraints: BoxConstraints(
@@ -338,53 +387,7 @@ Widget _buildAppMenuRowContent(
     color: isSelected ? selectedBackground : null,
     padding: metrics.itemPadding,
     alignment: AlignmentDirectional.centerStart,
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (icon != null) ...[
-          Icon(icon, size: metrics.iconSize, color: foregroundColor),
-          const SizedBox(width: 8),
-        ],
-        Directionality(
-          textDirection: TextDirection.rtl,
-          child: DefaultTextStyle.merge(
-            style: TextStyle(
-              fontFamily: 'Roboto',
-              fontSize: metrics.fontSize,
-              fontWeight: isSelected ? FontWeight.w600 : metrics.itemFontWeight,
-              color: foregroundColor,
-            ),
-            child: labelMaxWidth == null
-                ? labelChild
-                : ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: labelMaxWidth),
-                    child: labelChild,
-                  ),
-          ),
-        ),
-        // סימן ✓ לפריט נבחר (תמיד, בכל סוג תפריט)
-        if (isSelected) ...[
-          const SizedBox(width: 8),
-          Icon(
-            FluentIcons.checkmark_24_regular,
-            size: metrics.iconSize,
-            color: foregroundColor,
-          ),
-        ] else if (trailing != null) ...[
-          const SizedBox(width: 8),
-          IconTheme.merge(
-            data: IconThemeData(
-              size: metrics.iconSize,
-              color: foregroundColor,
-            ),
-            child: DefaultTextStyle.merge(
-              style: TextStyle(color: foregroundColor),
-              child: trailing,
-            ),
-          ),
-        ],
-      ],
-    ),
+    child: row,
   );
 }
 
@@ -1167,6 +1170,18 @@ class _LazyAppSubmenuButtonState extends State<_LazyAppSubmenuButton> {
   List<AppContextMenuEntry>? _entries;
   List<Widget>? _menuChildren;
   bool? _hasEnabledChildren;
+  bool? _openToRight;
+
+  @override
+  void initState() {
+    super.initState();
+    // טעינה מוקדמת של הילדים כדי למנוע תפריט ריק
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _menuChildren == null) {
+        _ensureMenuChildrenLoaded();
+      }
+    });
+  }
 
   void openSubmenu([VoidCallback? afterOpen]) {
     if (_menuChildren == null) {
@@ -1191,15 +1206,62 @@ class _LazyAppSubmenuButtonState extends State<_LazyAppSubmenuButton> {
     final hasEnabledChildren = _hasEnabledAppContextMenuEntries(entries);
     setState(() {
       _hasEnabledChildren = hasEnabledChildren;
+      _openToRight = _shouldOpenToRight();
       _menuChildren = hasEnabledChildren
           ? widget.buildChildren(entries, widget.maxWidth)
           : const <Widget>[];
     });
   }
 
+  bool _shouldOpenToRight() {
+    final isRtl = Directionality.of(context) == TextDirection.rtl;
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
+    final overlayRenderObject = overlay?.context.findRenderObject();
+    final itemRenderObject = context.findRenderObject();
+    if (overlayRenderObject is! RenderBox ||
+        itemRenderObject is! RenderBox ||
+        !overlayRenderObject.hasSize ||
+        !itemRenderObject.hasSize) {
+      return !isRtl;
+    }
+
+    final itemRect = MatrixUtils.transformRect(
+      itemRenderObject.getTransformTo(overlayRenderObject),
+      Offset.zero & itemRenderObject.size,
+    );
+    final spaceLeft = itemRect.left;
+    final spaceRight = overlayRenderObject.size.width - itemRect.right;
+
+    if (isRtl) {
+      return spaceLeft < widget.maxWidth && spaceRight > spaceLeft;
+    }
+    return !(spaceRight < widget.maxWidth && spaceLeft > spaceRight);
+  }
+
   @override
   Widget build(BuildContext context) {
     final isRtl = Directionality.of(context) == TextDirection.rtl;
+    final openToRight = _openToRight ?? !isRtl;
+    final menuTextDirection =
+        openToRight ? TextDirection.ltr : TextDirection.rtl;
+    final submenuAlignment =
+        openToRight ? Alignment.topRight : Alignment.topLeft;
+    final contentTextDirection = isRtl ? TextDirection.rtl : TextDirection.ltr;
+    final submenuArrow = widget.entry.trailing ??
+        Icon(
+          isRtl
+              ? FluentIcons.chevron_right_16_regular
+              : FluentIcons.chevron_left_16_regular,
+          size: widget.metrics.iconSize,
+        );
+    final menuChildren = (_menuChildren ?? const <Widget>[])
+        .map(
+          (child) => Directionality(
+            textDirection: contentTextDirection,
+            child: child,
+          ),
+        )
+        .toList();
 
     if (_hasEnabledChildren == false) {
       return MenuItemButton(
@@ -1219,7 +1281,7 @@ class _LazyAppSubmenuButtonState extends State<_LazyAppSubmenuButton> {
       );
     }
 
-    return MouseRegion(
+    final submenuButton = MouseRegion(
       onEnter: (_) => _ensureMenuChildrenLoaded(),
       child: Listener(
         behavior: HitTestBehavior.deferToChild,
@@ -1228,31 +1290,39 @@ class _LazyAppSubmenuButtonState extends State<_LazyAppSubmenuButton> {
           controller: widget.controller,
           onOpen: () {
             _ensureMenuChildrenLoaded();
+            final shouldOpenToRight = _shouldOpenToRight();
+            if (_openToRight != shouldOpenToRight) {
+              setState(() => _openToRight = shouldOpenToRight);
+            }
             widget.onOpen?.call();
           },
-          trailingIcon: widget.entry.trailing ??
-              Icon(
-                isRtl
-                    ? FluentIcons.chevron_right_16_regular
-                    : FluentIcons.chevron_left_16_regular,
-                size: widget.metrics.iconSize,
-              ),
+          submenuIcon: const WidgetStatePropertyAll<Widget?>(SizedBox.shrink()),
           style: buildAppSubmenuItemStyle(context, widget.metrics),
-          menuStyle: widget.menuStyle,
-          menuChildren: _menuChildren ?? const <Widget>[],
-          child: _buildAppMenuRowContent(
-            context,
-            widget.metrics,
-            maxWidth: widget.maxWidth,
-            label: widget.entry.label ?? '',
-            labelWidget: widget.entry.labelWidget,
-            icon: widget.entry.icon,
-            trailing: null,
-            isDestructive: widget.entry.isDestructive,
-            enabled: widget.entry.enabled,
+          menuStyle: widget.menuStyle.copyWith(
+            alignment: submenuAlignment,
+          ),
+          menuChildren: menuChildren,
+          child: Directionality(
+            textDirection: contentTextDirection,
+            child: _buildAppMenuRowContent(
+              context,
+              widget.metrics,
+              maxWidth: widget.maxWidth,
+              label: widget.entry.label ?? '',
+              labelWidget: widget.entry.labelWidget,
+              icon: widget.entry.icon,
+              trailing: submenuArrow,
+              isDestructive: widget.entry.isDestructive,
+              enabled: widget.entry.enabled,
+            ),
           ),
         ),
       ),
+    );
+
+    return Directionality(
+      textDirection: menuTextDirection,
+      child: submenuButton,
     );
   }
 }

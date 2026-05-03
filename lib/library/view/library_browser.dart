@@ -49,6 +49,9 @@ const double _kDafYomiInlineMinWidth = 820.0;
 /// דיבאונס לגלילה (ms) — מונע rebuild חוזר
 const int _kScrollDebounceMs = 100;
 
+/// דיבאונס לחיפוש ספרים — מונע הרצת חיפוש כבד על כל אות.
+const Duration _kLibrarySearchDebounceDuration = Duration(milliseconds: 250);
+
 /// מחשב רוחב תקין לחלונית התצוגה המקדימה לפי הרוחב הפנוי בספרייה.
 @visibleForTesting
 ({double paneWidth, double minPaneWidth, double maxPaneWidth})
@@ -104,6 +107,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
   /// דיבאונס timer לגלילה — מונע setState חוזר בכל scroll event
   Timer? _scrollDebounce;
+  Timer? _searchDebounce;
   bool _lastScrollVisible = true;
 
   static const List<String> _orderedTopCategories = [
@@ -194,6 +198,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   void dispose() {
     _firstSearchResultFocusNode.dispose();
     _scrollDebounce?.cancel();
+    _searchDebounce?.cancel();
     _secondaryRowVisible.dispose();
     _topBarTotalHeight.dispose();
     _settingsPanelOpen.dispose();
@@ -602,7 +607,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               onChanged: (value) {
                 context.read<LibraryBloc>().add(UpdateSearchQuery(value));
                 context.read<LibraryBloc>().add(const SelectTopics([]));
-                _update(context, state, settingsState);
+                _scheduleSearchWithSettings(context, settingsState);
               },
               onClear: () {
                 _update(context, state, settingsState,
@@ -1606,6 +1611,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     bool restoreSearchFocus = false,
     bool selectAllOnRestore = false,
   }) {
+    _searchDebounce?.cancel();
     final searchText =
         context.read<FocusRepository>().librarySearchController.text;
     context.read<LibraryBloc>().add(
@@ -1618,7 +1624,17 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     }
   }
 
+  void _scheduleSearchWithSettings(BuildContext context, SettingsState s) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(_kLibrarySearchDebounceDuration, () {
+      if (!mounted) return;
+      _searchWithSettings(context, s);
+    });
+  }
+
   void _searchWithSettings(BuildContext context, SettingsState s) {
+    _searchDebounce?.cancel();
+    _searchDebounce = null;
     context.read<LibraryBloc>().add(
           SearchBooks(
             showHebrewBooks: s.showExternalBooks && s.showHebrewBooks,

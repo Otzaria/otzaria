@@ -21,6 +21,8 @@ class TabbedCommentaryPanel extends StatefulWidget {
   final int? initialTabIndex; // אינדקס הכרטיסייה הראשונית
   final Function(int)? onTabChanged; // callback כשהטאב משתנה
   final bool showSplitView; // האם במצב מפוצל (true) או מפרשים למטה (false)
+  final TabController? controller;
+  final bool showHeader;
 
   const TabbedCommentaryPanel({
     super.key,
@@ -31,6 +33,8 @@ class TabbedCommentaryPanel extends StatefulWidget {
     this.initialTabIndex,
     this.onTabChanged,
     this.showSplitView = true,
+    this.controller,
+    this.showHeader = true,
   });
 
   @override
@@ -39,7 +43,9 @@ class TabbedCommentaryPanel extends StatefulWidget {
 
 class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
     with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+  TabController? _ownedTabController;
+
+  TabController get _tabController => widget.controller ?? _ownedTabController!;
 
   // פונקציה ציבורית לעבור לכרטיסיית הקישורים
   void switchToLinksTab() {
@@ -51,27 +57,24 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
   @override
   void initState() {
     super.initState();
-    // וידוא שהאינדקס ההתחלתי תקף (בין 0 ל-2)
-    final validInitialIndex = (widget.initialTabIndex ?? 0).clamp(0, 2);
-    _tabController = TabController(
-      length: 3, // 3 טאבים: מפרשים, קישורים והערות אישיות
-      vsync: this,
-      initialIndex: validInitialIndex, // כרטיסייה ראשונית
-    );
-
-    // מאזין לשינויים בטאב ושומר אותם
-    _tabController.addListener(() {
-      if (!_tabController.indexIsChanging &&
-          _tabController.index >= 0 &&
-          _tabController.index < 3) {
-        widget.onTabChanged?.call(_tabController.index);
-      }
-    });
+    if (widget.controller == null) {
+      _ownedTabController = _createOwnedTabController();
+    }
   }
 
   @override
   void didUpdateWidget(TabbedCommentaryPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      if (oldWidget.controller == null) {
+        _ownedTabController?.dispose();
+        _ownedTabController = null;
+      }
+      if (widget.controller == null) {
+        _ownedTabController = _createOwnedTabController();
+      }
+    }
+
     // אם יש אינדקס חדש, עובר אליו (עם וידוא שהוא תקף)
     if (widget.initialTabIndex != null &&
         widget.initialTabIndex != oldWidget.initialTabIndex) {
@@ -85,18 +88,29 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
 
   @override
   void dispose() {
-    _tabController.dispose();
+    _ownedTabController?.dispose();
     super.dispose();
   }
 
-  Widget _tabLabel(String text) => Text(
-        text,
-        style: const TextStyle(fontSize: 12),
-        maxLines: 1,
-        softWrap: false,
-        overflow: TextOverflow.ellipsis,
-        textAlign: TextAlign.center,
-      );
+  TabController _createOwnedTabController() {
+    // וידוא שהאינדקס ההתחלתי תקף (בין 0 ל-2)
+    final validInitialIndex = (widget.initialTabIndex ?? 0).clamp(0, 2);
+    final controller = TabController(
+      length: 3, // 3 טאבים: מפרשים, קישורים והערות אישיות
+      vsync: this,
+      initialIndex: validInitialIndex, // כרטיסייה ראשונית
+    );
+
+    // מאזין לשינויים בטאב ושומר אותם
+    controller.addListener(() {
+      if (!controller.indexIsChanging &&
+          controller.index >= 0 &&
+          controller.index < 3) {
+        widget.onTabChanged?.call(controller.index);
+      }
+    });
+    return controller;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -105,53 +119,12 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
         return Column(
           children: [
             // שורת הכרטיסיות עם כפתור סגירה
-            LayoutBuilder(
-              builder: (context, constraints) {
-                // מתחת לסף זה - הצג אייקונים בלבד (ללא טקסט)
-                final isCompact = constraints.maxWidth < 270;
-                final firstTabIcon = Icon(
-                  widget.showSplitView
-                      ? FluentIcons.book_24_regular
-                      : FluentIcons.settings_24_regular,
-                  size: 18,
-                );
-                return PanelTabHeader(
-                  controller: _tabController,
-                  onClose: widget.onClosePane,
-                  tabs: isCompact
-                      ? [
-                          Tab(icon: firstTabIcon),
-                          const Tab(
-                            icon: Icon(FluentIcons.link_24_regular, size: 18),
-                          ),
-                          const Tab(
-                            icon: Icon(FluentIcons.note_24_regular, size: 18),
-                          ),
-                        ]
-                      : [
-                          Tab(
-                            icon: firstTabIcon,
-                            iconMargin: const EdgeInsets.only(bottom: 2),
-                            child: _tabLabel(
-                              widget.showSplitView ? 'מפרשים' : 'סינון מפרשים',
-                            ),
-                          ),
-                          Tab(
-                            icon:
-                                const Icon(FluentIcons.link_24_regular, size: 18),
-                            iconMargin: const EdgeInsets.only(bottom: 2),
-                            child: _tabLabel('קישורים'),
-                          ),
-                          Tab(
-                            icon:
-                                const Icon(FluentIcons.note_24_regular, size: 18),
-                            iconMargin: const EdgeInsets.only(bottom: 2),
-                            child: _tabLabel('הערות'),
-                          ),
-                        ],
-                );
-              },
-            ),
+            if (widget.showHeader)
+              TabbedCommentaryPanelHeader(
+                controller: _tabController,
+                onClosePane: widget.onClosePane,
+                showSplitView: widget.showSplitView,
+              ),
             // תוכן הכרטיסיות
             Expanded(
               child: TabBarView(
@@ -222,5 +195,80 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
     final bloc = context.read<TextBookBloc>();
     bloc.add(UpdateSelectedIndex(targetIndex));
     bloc.add(HighlightLine(targetIndex));
+  }
+}
+
+class TabbedCommentaryPanelHeader extends StatelessWidget {
+  final TabController controller;
+  final VoidCallback? onClosePane;
+  final bool showSplitView;
+  final double height;
+
+  const TabbedCommentaryPanelHeader({
+    super.key,
+    required this.controller,
+    this.onClosePane,
+    required this.showSplitView,
+    this.height = 60,
+  });
+
+  Widget _tabLabel(String text) => Text(
+        text,
+        style: const TextStyle(fontSize: 12),
+        maxLines: 1,
+        softWrap: false,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.center,
+        textDirection: TextDirection.rtl,
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // מתחת לסף זה - הצג אייקונים בלבד (ללא טקסט)
+        final isCompact = constraints.maxWidth < 270;
+        final firstTabIcon = Icon(
+          showSplitView
+              ? FluentIcons.book_24_regular
+              : FluentIcons.settings_24_regular,
+          size: 18,
+        );
+        return PanelTabHeader(
+          controller: controller,
+          height: height,
+          onClose: onClosePane,
+          tabs: isCompact
+              ? [
+                  Tab(icon: firstTabIcon),
+                  const Tab(
+                    icon: Icon(FluentIcons.link_24_regular, size: 18),
+                  ),
+                  const Tab(
+                    icon: Icon(FluentIcons.note_24_regular, size: 18),
+                  ),
+                ]
+              : [
+                  Tab(
+                    icon: firstTabIcon,
+                    iconMargin: const EdgeInsets.only(bottom: 2),
+                    child: _tabLabel(
+                      showSplitView ? 'מפרשים' : 'סינון מפרשים',
+                    ),
+                  ),
+                  Tab(
+                    icon: const Icon(FluentIcons.link_24_regular, size: 18),
+                    iconMargin: const EdgeInsets.only(bottom: 2),
+                    child: _tabLabel('קישורים'),
+                  ),
+                  Tab(
+                    icon: const Icon(FluentIcons.note_24_regular, size: 18),
+                    iconMargin: const EdgeInsets.only(bottom: 2),
+                    child: _tabLabel('הערות'),
+                  ),
+                ],
+        );
+      },
+    );
   }
 }

@@ -25,6 +25,7 @@ class SplitedViewScreen extends StatefulWidget {
     required this.tab,
     this.initialTabIndex, // אינדקס הכרטיסייה הראשונית
     required this.showSplitView, // האם להציג בתצוגה מפוצלת
+    this.commentaryPaneHeaderNotifier,
   });
 
   final List<String> content;
@@ -35,22 +36,28 @@ class SplitedViewScreen extends StatefulWidget {
   final TextBookTab tab;
   final int? initialTabIndex;
   final bool showSplitView;
+  final ValueNotifier<(Widget?, double)>? commentaryPaneHeaderNotifier;
 
   @override
   State<SplitedViewScreen> createState() => _SplitedViewScreenState();
 }
 
-class _SplitedViewScreenState extends State<SplitedViewScreen> {
+class _SplitedViewScreenState extends State<SplitedViewScreen>
+    with SingleTickerProviderStateMixin {
   // קבועים לאינדקסים של הטאבים
   static const int _commentaryTabIndex = 0;
   static const int _linksTabIndex = 1;
   static const int _notesTabIndex = 2;
 
   late final MultiSplitViewController _controller;
+  late final TabController _tabController;
   bool _paneOpen = false;
   int? _currentTabIndex;
   late double _leftPaneWidth;
   bool _isHovering = false; // מצב ריחוף על הטאב
+  bool _publishedHeaderInToolbar = false;
+  double? _publishedHeaderWidth;
+  bool? _publishedHeaderSplitView;
   final ValueNotifier<String?> _savedSelectedText =
       ValueNotifier<String?>(null); // טקסט נבחר לתפריט הקשר
 
@@ -59,6 +66,12 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
     super.initState();
     _controller = MultiSplitViewController();
     _currentTabIndex = _getInitialTabIndex();
+    _tabController = TabController(
+      length: 3,
+      vsync: this,
+      initialIndex: _currentTabIndex!.clamp(0, 2),
+    );
+    _tabController.addListener(_handleTabChanged);
     if (widget.initialTabIndex != null) {
       _paneOpen = true;
     }
@@ -83,6 +96,10 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
         if (!widget.showSplitView && _paneOpen) {
           _paneOpen = false;
         }
+        final validIndex = _currentTabIndex!.clamp(0, 2);
+        if (_tabController.index != validIndex) {
+          _tabController.animateTo(validIndex);
+        }
       });
     }
   }
@@ -91,13 +108,11 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
     // קביעת הטאב הראשוני
     // הטאבים בטור השמאלי: 0=מפרשים, 1=קישורים, 2=הערות אישיות
     if (widget.initialTabIndex != null) {
-      debugPrint('DEBUG: Using initialTabIndex: ${widget.initialTabIndex}');
       // וידוא שהאינדקס תקף (0-2)
       return widget.initialTabIndex!.clamp(0, 2);
     } else {
       // ברירת מחדל - מפרשים (0)
       final saved = Settings.getValue<int>('key-sidebar-tab-index-combined');
-      debugPrint('DEBUG: saved: $saved, returning: ${saved ?? 0}');
       // וידוא שהערך השמור תקף (0-2)
       return (saved ?? 0).clamp(0, 2);
     }
@@ -113,6 +128,7 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
         _paneOpen = false;
         _isHovering = false;
       });
+      _clearToolbarHeader();
     }
   }
 
@@ -145,7 +161,7 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
 
     setState(() {
       _paneOpen = true;
-      _currentTabIndex = targetTab;
+      _setCurrentTab(targetTab);
     });
   }
 
@@ -157,8 +173,104 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
     }
   }
 
+  void _setCurrentTab(int index) {
+    final validIndex = index.clamp(0, 2);
+    _currentTabIndex = validIndex;
+    if (_tabController.index != validIndex) {
+      _tabController.animateTo(validIndex);
+    }
+  }
+
+  void _handleTabChanged() {
+    if (_tabController.indexIsChanging ||
+        _tabController.index < 0 ||
+        _tabController.index >= 3) {
+      return;
+    }
+
+    final index = _tabController.index;
+    if (_currentTabIndex != index) {
+      setState(() {
+        _currentTabIndex = index;
+      });
+    }
+    if (!widget.showSplitView) {
+      Settings.setValue<int>('key-sidebar-tab-index-combined', index);
+    }
+  }
+
+  bool _shouldShowHeaderInToolbar(BuildContext context) {
+    const wideOuterSideGap = 10.0;
+    const wideInnerSideGap = 12.0;
+    const minMainContentWidth = 520.0;
+    final wideOccupiedWidth =
+        _leftPaneWidth + wideOuterSideGap + wideInnerSideGap;
+    return _paneOpen &&
+        MediaQuery.of(context).size.width >=
+            (wideOccupiedWidth + minMainContentWidth);
+  }
+
+  void _scheduleToolbarHeaderSync(bool showHeaderInToolbar) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _syncToolbarHeader(showHeaderInToolbar);
+    });
+  }
+
+  void _syncToolbarHeader(bool showHeaderInToolbar) {
+    final notifier = widget.commentaryPaneHeaderNotifier;
+    if (notifier == null) {
+      return;
+    }
+
+    if (!showHeaderInToolbar) {
+      _clearToolbarHeader();
+      return;
+    }
+
+    if (_publishedHeaderInToolbar &&
+        _publishedHeaderWidth == _leftPaneWidth &&
+        _publishedHeaderSplitView == widget.showSplitView) {
+      return;
+    }
+
+    notifier.value = (
+      SizedBox(
+        width: _leftPaneWidth,
+        child: TabbedCommentaryPanelHeader(
+          controller: _tabController,
+          onClosePane: _togglePane,
+          showSplitView: widget.showSplitView,
+          height: kToolbarHeight,
+        ),
+      ),
+      _leftPaneWidth,
+    );
+    _publishedHeaderInToolbar = true;
+    _publishedHeaderWidth = _leftPaneWidth;
+    _publishedHeaderSplitView = widget.showSplitView;
+  }
+
+  void _clearToolbarHeader() {
+    final notifier = widget.commentaryPaneHeaderNotifier;
+    if (notifier == null || !_publishedHeaderInToolbar) {
+      return;
+    }
+
+    notifier.value = (null, 0.0);
+    _publishedHeaderInToolbar = false;
+    _publishedHeaderWidth = null;
+    _publishedHeaderSplitView = null;
+  }
+
   @override
   void dispose() {
+    _clearToolbarHeader();
+    _tabController
+      ..removeListener(_handleTabChanged)
+      ..dispose();
     _controller.dispose();
     _savedSelectedText.dispose();
     super.dispose();
@@ -188,6 +300,9 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
           return true;
         },
         builder: (context, state) {
+          final showHeaderInToolbar = _shouldShowHeaderInToolbar(context);
+          _scheduleToolbarHeaderSync(showHeaderInToolbar);
+
           return AdaptiveSidePane(
             isOpen: _paneOpen,
             alignment: AlignmentDirectional.centerStart,
@@ -216,22 +331,9 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                   showSearch: true,
                   onClosePane: _togglePane,
                   initialTabIndex: _currentTabIndex,
+                  controller: _tabController,
+                  showHeader: !showHeaderInToolbar,
                   showSplitView: widget.showSplitView,
-                  onTabChanged: (index) {
-                    debugPrint(
-                        'DEBUG: Tab changed to $index, showSplitView: ${widget.showSplitView}');
-                    setState(() {
-                      _currentTabIndex = index;
-                    });
-                    if (!widget.showSplitView) {
-                      debugPrint(
-                          'DEBUG: Saving tab $index to combined settings');
-                      Settings.setValue<int>(
-                          'key-sidebar-tab-index-combined', index);
-                    } else {
-                      debugPrint('DEBUG: NOT saving tab (split view mode)');
-                    }
-                  },
                 ),
               ),
               builder: (context, selectedText, child) => child!,
@@ -249,16 +351,16 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                   onOpenPersonalNotes: () {
                     setState(() {
                       _paneOpen = true;
-                      _currentTabIndex = 2;
+                      _setCurrentTab(2);
                     });
                   },
                   onOpenCommentatorsPane: () {
                     setState(() {
                       _paneOpen = true;
-                      _currentTabIndex = 0;
+                      _setCurrentTab(0);
                     });
                   },
-                  isPaneOpen: () => _paneOpen, // callback לבדיקת מצב החלונית
+                  isPaneOpen: () => _paneOpen,
                 ),
                 if (!_paneOpen)
                   Positioned(
@@ -317,6 +419,7 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
             onPaneWidthChanged: (nextWidth) {
               setState(() {
                 _leftPaneWidth = nextWidth;
+                _publishedHeaderWidth = null;
               });
             },
             onPaneResizeEnd: () {

@@ -955,17 +955,20 @@ class _CustomTitleBarState extends State<CustomTitleBar>
           final index = tabs.indexOf(tab);
           context.read<TabsBloc>().add(SetCurrentTab(index));
         },
-        trailing: IconButton(
-          tooltip: 'סגור',
-          visualDensity: VisualDensity.compact,
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-          icon: const Icon(FluentIcons.dismiss_24_regular, size: 14),
-          onPressed: () {
-            Navigator.of(context).maybePop();
-            closeTab(tab, context);
-          },
-          splashRadius: 16,
+        trailing: Align(
+          alignment: AlignmentDirectional.centerEnd,
+          child: IconButton(
+            tooltip: 'סגור',
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+            icon: const Icon(FluentIcons.dismiss_24_regular, size: 14),
+            onPressed: () {
+              Navigator.of(context).maybePop();
+              closeTab(tab, context);
+            },
+            splashRadius: 16,
+          ),
         ),
       );
     }).toList();

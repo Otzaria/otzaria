@@ -17,6 +17,7 @@ import 'package:otzaria/utils/zip_extractor_service.dart';
 
 class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
   final DataRepository _repository = DataRepository.instance;
+  int _searchGeneration = 0;
 
   LibraryBloc() : super(LibraryState.initial()) {
     on<LoadLibrary>(_onLoadLibrary);
@@ -389,13 +390,26 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     }
 
     try {
+      final searchGeneration = ++_searchGeneration;
+      final query = state.searchQuery!;
+      final category = state.currentCategory;
+      final topics = List<String>.from(state.selectedTopics ?? const []);
+      final includeOtzar = event.showOtzarHachochma ?? false;
+      final includeHebrewBooks = event.showHebrewBooks ?? false;
       final results = await _repository.findBooks(
-        state.searchQuery!,
-        state.currentCategory,
-        topics: state.selectedTopics,
-        includeOtzar: event.showOtzarHachochma ?? false,
-        includeHebrewBooks: event.showHebrewBooks ?? false,
+        query,
+        category,
+        topics: topics,
+        includeOtzar: includeOtzar,
+        includeHebrewBooks: includeHebrewBooks,
       );
+
+      if (searchGeneration != _searchGeneration ||
+          state.searchQuery != query ||
+          state.currentCategory != category ||
+          !_sameStringList(state.selectedTopics ?? const [], topics)) {
+        return;
+      }
 
       // בחירת הספר הראשון מתוצאות החיפוש לתצוגה מקדימה
       Book? firstBook;
@@ -417,6 +431,14 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
         searchResults: null,
       ));
     }
+  }
+
+  bool _sameStringList(List<String> first, List<String> second) {
+    if (first.length != second.length) return false;
+    for (var i = 0; i < first.length; i++) {
+      if (first[i] != second[i]) return false;
+    }
+    return true;
   }
 
   void _onSelectTopics(

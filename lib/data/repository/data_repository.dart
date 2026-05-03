@@ -138,64 +138,48 @@ class DataRepository {
     bool sortByRatio = true,
   }) async {
     final normalizedQuery = _normalizeForSearch(query);
-    final queryWords = normalizedQuery.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
-    var allBooks = category?.getAllBooks() ?? (await library).getAllBooks();
+    final queryWords = normalizedQuery
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .toList();
+    if (queryWords.isEmpty) {
+      return [];
+    }
+
+    final allBooks = <Book>[
+      ...(category?.getAllBooks() ?? (await library).getAllBooks()),
+    ];
 
     if (includeOtzar) {
-      allBooks += await otzarBooks;
+      allBooks.addAll(await otzarBooks);
     }
     if (includeHebrewBooks) {
-      allBooks += await hebrewBooks;
+      allBooks.addAll(await hebrewBooks);
     }
 
-    // Filter books based on query and topics
-    // Search in both title and author
-    final filteredBooks = allBooks.where((book) {
-      final title = _normalizeForSearch(book.title);
-      final author = _normalizeForSearch(book.author ?? '');
-      final bookTopics = book.topics.split(', ');
+    final searchEntries = <_BookSearchEntry>[
+      for (var i = 0; i < allBooks.length; i++)
+        _BookSearchEntry(
+          index: i,
+          title: allBooks[i].title,
+          author: allBooks[i].author ?? '',
+          topics: allBooks[i].topics,
+        ),
+    ];
 
-      bool matchesQuery = queryWords
-          .every((word) => title.contains(word) || author.contains(word));
-      bool matchesTopics = topics == null ||
-          topics.isEmpty ||
-          topics.every((t) => bookTopics.contains(t));
+    final matchingIndices = await Isolate.run(
+      () => _filterBookSearchEntries(
+        entries: searchEntries,
+        queryWords: queryWords,
+        topics: topics ?? const <String>[],
+        sortByRatio: sortByRatio,
+        normalizedQuery: normalizedQuery,
+      ),
+    );
 
-      return matchesQuery && matchesTopics;
-    }).toList();
-
-    //sort by levenstien distance - using an isolate
-    if (sortByRatio) {
-      Future<List<int>> getSortedIndices(
-          List<Map<String, dynamic>> data, String query) async {
-        return await Isolate.run(() {
-          List<int> indices = List<int>.generate(data.length, (i) => i);
-          indices.sort((a, b) {
-            final scoreA = ratio(query, data[a]['title'] as String);
-            final scoreB = ratio(query, data[b]['title'] as String);
-            return scoreB.compareTo(scoreA);
-          });
-          return indices;
-        });
-      }
-
-      final List<Map<String, dynamic>> sortData = filteredBooks
-          .asMap()
-          .map((i, book) => MapEntry(i, {
-                'index': i,
-                'title': book.title,
-              }))
-          .values
-          .toList();
-
-      // Sort results by relevance in isolate
-      final sortedIndices = getSortedIndices(sortData, query);
-
-      return (await sortedIndices)
-          .map((index) => filteredBooks[index])
-          .toList();
-    }
-    return filteredBooks;
+    return [
+      for (final index in matchingIndices) allBooks[index],
+    ];
   }
 
   String _normalizeForSearch(String input) {
@@ -205,4 +189,105 @@ class DataRepository {
     cleaned = cleaned.replaceAll(RegExp(r'[^a-zA-Z0-9\u0590-\u05FF\s]'), ' ');
     return cleaned.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
   }
+}
+
+class _BookSearchEntry {
+  final int index;
+  final String title;
+  final String author;
+  final String topics;
+
+  const _BookSearchEntry({
+    required this.index,
+    required this.title,
+    required this.author,
+    required this.topics,
+  });
+}
+
+List<int> _filterBookSearchEntries({
+  required List<_BookSearchEntry> entries,
+  required List<String> queryWords,
+  required List<String> topics,
+  required bool sortByRatio,
+  required String normalizedQuery,
+}) {
+  final preparedEntries = entries.map((entry) {
+    final normalizedTitle = _normalizeBookSearchText(entry.title);
+    final normalizedAuthor = _normalizeBookSearchText(entry.author);
+    final topics = entry.topics
+        .split(',')
+        .map((topic) => topic.trim())
+        .where((topic) => topic.isNotEmpty)
+        .toSet();
+
+    return _PreparedBookSearchEntry(
+      index: entry.index,
+      normalizedTitle: normalizedTitle,
+      normalizedAuthor: normalizedAuthor,
+      topics: topics,
+    );
+  });
+
+  final filtered = preparedEntries.where((entry) {
+    final matchesQuery = queryWords.every(
+      (word) =>
+          entry.normalizedTitle.contains(word) ||
+          entry.normalizedAuthor.contains(word),
+    );
+    final matchesTopics =
+        topics.isEmpty || topics.every((topic) => entry.topics.contains(topic));
+
+    return matchesQuery && matchesTopics;
+  }).toList();
+
+  if (sortByRatio) {
+    final scored = [
+      for (final entry in filtered)
+        _ScoredBookSearchEntry(
+          index: entry.index,
+          score: ratio(normalizedQuery, entry.normalizedTitle),
+        ),
+    ]..sort((a, b) => b.score.compareTo(a.score));
+
+    return [
+      for (final entry in scored) entry.index,
+    ];
+  }
+
+  return [
+    for (final entry in filtered) entry.index,
+  ];
+}
+
+class _PreparedBookSearchEntry {
+  final int index;
+  final String normalizedTitle;
+  final String normalizedAuthor;
+  final Set<String> topics;
+
+  const _PreparedBookSearchEntry({
+    required this.index,
+    required this.normalizedTitle,
+    required this.normalizedAuthor,
+    required this.topics,
+  });
+}
+
+class _ScoredBookSearchEntry {
+  final int index;
+  final int score;
+
+  const _ScoredBookSearchEntry({
+    required this.index,
+    required this.score,
+  });
+}
+
+String _normalizeBookSearchText(String input) {
+  var cleaned = removeTeamim(removeVolwels(input));
+  cleaned = cleaned.replaceAll('"', '').replaceAll("'", '');
+  cleaned = cleaned.replaceAll('\u05F4', '').replaceAll('\u05F3', '');
+  cleaned = cleaned.replaceAll(RegExp(r'[^a-zA-Z0-9\u0590-\u05FF\s]'), ' ');
+  return cleaned.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
 }

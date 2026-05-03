@@ -71,7 +71,6 @@ import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository
 import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria/tools/calendar/services/notification_service.dart';
 import 'package:otzaria/plugins/database/plugin_database_bootstrap.dart';
-import 'package:otzaria/plugins/view/webview_environment_holder.dart';
 import 'package:logging/logging.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:otzaria/widgets/restart_widget.dart';
@@ -218,8 +217,8 @@ void _logNonFatalInitializationError(
 /// לסטרים שכבר נסגר. נרשמת פעם אחת בלוג ואחר כך נבלעת כדי לא לייצר רעש.
 bool _isPdfrxMissingFontsStreamError(Object error, StackTrace stack) {
   return error.toString().contains(
-        'Cannot add new events after calling close',
-      ) &&
+            'Cannot add new events after calling close',
+          ) &&
       stack.toString().contains('_notifyMissingFonts');
 }
 
@@ -511,12 +510,6 @@ Future<void> _heavyInitialize() async {
       error,
       stackTrace,
     );
-  }
-
-  try {
-    await WebViewEnvironmentHolder.initialize();
-  } catch (error, stackTrace) {
-    _logNonFatalInitializationError('WebViewEnvironment', error, stackTrace);
   }
 
   try {

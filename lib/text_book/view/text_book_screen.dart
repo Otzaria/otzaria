@@ -124,6 +124,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   final FocusNode _bookContentFocusNode = FocusNode(); // FocusNode לתוכן הספר
   late TabController tabController;
   late final ValueNotifier<double> _sidebarWidth;
+  final ValueNotifier<(Widget?, double)> _commentaryPaneHeaderNotifier =
+      ValueNotifier<(Widget?, double)>((null, 0.0));
   late final StreamSubscription<SettingsState> _settingsSub;
   int? _sidebarTabIndex; // אינדקס הכרטיסייה בסרגל הצדי
   bool _isInitialFocusDone = false;
@@ -722,6 +724,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     navigationSearchFocusNode.dispose();
     _bookContentFocusNode.dispose();
     _sidebarWidth.dispose();
+    _commentaryPaneHeaderNotifier.dispose();
     _pageShapeSidebarTabNotifier.dispose();
     _settingsSub.cancel();
     super.dispose();
@@ -1302,53 +1305,82 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     TextBookLoaded state,
     bool wideScreen,
   ) {
-    final screenWidth = MediaQuery.of(context).size.width;
-
-    // נקבע כמה כפתורים להציג בהתאם לרוחב המסך
-    // שים לב: הכפתורים יוסתרו בסדר ההצגה (מימין לשמאל, כך שהימני ביותר יעלם אחרון)
-    int maxButtons;
-
-    if (screenWidth < 400) {
-      maxButtons = 2; // 2 כפתורים + "..." במסכים קטנים מאוד
-    } else if (screenWidth < 500) {
-      maxButtons = 4; // 4 כפתורים + "..." במסכים קטנים
-    } else if (screenWidth < 600) {
-      maxButtons = 6; // 6 כפתורים + "..." במסכים בינוניים קטנים
-    } else if (screenWidth < 700) {
-      maxButtons = 8; // 8 כפתורים + "..." במסכים בינוניים
-    } else if (screenWidth < 800) {
-      maxButtons = 10; // 10 כפתורים + "..." במסכים בינוניים גדולים
-    } else if (screenWidth < 900) {
-      maxButtons = 12; // 12 כפתורים + "..." במסכים גדולים
-    } else if (screenWidth < 1100) {
-      maxButtons = 14; // 14 כפתורים + "..." במסכים גדולים יותר
-    } else {
-      maxButtons =
-          999; // כל הכפתורים החיצוניים במסכים רחבים מאוד (ה-5 הקבועים תמיד בתפריט)
-    }
-
     return [
-      Consumer<ShamorZachorDataProvider>(
-        builder: (context, _, __) => ResponsiveActionBar(
-          key: const ValueKey('responsive_actions'),
-          overflowMenuOffset: const Offset(0, 8),
-          overflowButtonKey:
-              widget.enableTourTargets ? textBookOverflowTourTargetKey : null,
-          menuItemKeysByTooltip: widget.enableTourTargets
-              ? {
-                  _getViewModeTooltip(state):
-                      textBookOverflowCommentatorsTourTargetKey,
-                  'הוסף סימניה': textBookOverflowBookmarkTourTargetKey,
-                  'חיפוש': textBookOverflowSearchTourTargetKey,
-                  'הדפסה': textBookOverflowPrintTourTargetKey,
-                }
-              : null,
-          actions: _buildDisplayOrderActions(context, state),
-          alwaysInMenu: _buildAlwaysInMenuActions(context, state),
-          maxVisibleButtons: maxButtons,
-        ),
+      ValueListenableBuilder<(Widget?, double)>(
+        valueListenable: _commentaryPaneHeaderNotifier,
+        builder: (context, headerData, _) {
+          final (commentaryPaneHeader, headerWidth) = headerData;
+          final screenWidth = MediaQuery.of(context).size.width;
+          final maxButtons = _maxVisibleActionButtonsForWidth(
+              max(0, screenWidth - headerWidth));
+
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            textDirection: TextDirection.ltr,
+            children: [
+              if (commentaryPaneHeader != null) commentaryPaneHeader,
+              Consumer<ShamorZachorDataProvider>(
+                builder: (context, _, __) => ResponsiveActionBar(
+                  key: const ValueKey('responsive_actions'),
+                  overflowMenuOffset: const Offset(0, 8),
+                  overflowButtonKey: widget.enableTourTargets
+                      ? textBookOverflowTourTargetKey
+                      : null,
+                  menuItemKeysByTooltip: widget.enableTourTargets
+                      ? {
+                          _getViewModeTooltip(state):
+                              textBookOverflowCommentatorsTourTargetKey,
+                          'הוסף סימניה': textBookOverflowBookmarkTourTargetKey,
+                          'חיפוש': textBookOverflowSearchTourTargetKey,
+                          'הדפסה': textBookOverflowPrintTourTargetKey,
+                        }
+                      : null,
+                  actions: _buildDisplayOrderActions(context, state),
+                  alwaysInMenu: _buildAlwaysInMenuActions(context, state),
+                  maxVisibleButtons: maxButtons,
+                ),
+              ),
+            ],
+          );
+        },
       ),
     ];
+  }
+
+  int _maxVisibleActionButtonsForWidth(double availableWidth) {
+    // נקבע כמה כפתורים להציג בהתאם לרוחב המסך
+    // שים לב: הכפתורים יוסתרו בסדר ההצגה (מימין לשמאל, כך שהימני ביותר יעלם אחרון)
+    if (availableWidth < 400) {
+      return 2; // 2 כפתורים + "..." במסכים קטנים מאוד
+    }
+
+    if (availableWidth < 500) {
+      return 4; // 4 כפתורים + "..." במסכים קטנים
+    }
+
+    if (availableWidth < 600) {
+      return 6; // 6 כפתורים + "..." במסכים בינוניים קטנים
+    }
+
+    if (availableWidth < 700) {
+      return 8; // 8 כפתורים + "..." במסכים בינוניים
+    }
+
+    if (availableWidth < 800) {
+      return 10; // 10 כפתורים + "..." במסכים בינוניים גדולים
+    }
+
+    if (availableWidth < 900) {
+      return 12; // 12 כפתורים + "..." במסכים גדולים
+    }
+
+    if (availableWidth < 1100) {
+      return 14; // 14 כפתורים + "..." במסכים גדולים יותר
+    }
+
+    // כל הכפתורים החיצוניים במסכים רחבים מאוד
+    // (ה-5 הקבועים תמיד בתפריט)
+    return 999;
   }
 
   /// בניית רשימת כפתורים בסדר ההצגה (מימין לשמאל ב-RTL)
@@ -2321,6 +2353,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
               pageShapeKey: _pageShapeKey,
               pageShapePrintBoundaryKey: _pageShapePrintBoundaryKey,
               pageShapeSidebarTabNotifier: _pageShapeSidebarTabNotifier,
+              commentaryPaneHeaderNotifier: _commentaryPaneHeaderNotifier,
               openSearch: _openSearchWithText,
             ),
           ),

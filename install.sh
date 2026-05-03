@@ -15,7 +15,7 @@ if [ -z "$DEB_FILE" ]; then
     exit 1
 fi
 
-echo "מתקין את אוצריה..."
+echo "מתקין את אוצריא..."
 echo "קובץ: $(basename "$DEB_FILE")"
 
 # Install using pkexec (GUI sudo)

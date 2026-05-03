@@ -76,6 +76,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
   double? _leftWidth;
   double? _rightWidth;
   double? _bottomHeight;
+  double? _bottomLeftWidth; // רוחב המפרש התחתון השמאלי (כאשר יש 2 מפרשים תחתונים)
 
   // הגדרות הצגת טורים
   Map<String, bool> _columnVisibility = {
@@ -123,6 +124,8 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
         screenWidth * 0.17;
     _bottomHeight = Settings.getValue<double>('page_shape_bottom_height') ??
         screenHeight * 0.27;
+    _bottomLeftWidth = Settings.getValue<double>('page_shape_bottom_left_width') ??
+        screenWidth * 0.5;
 
     setState(() {});
   }
@@ -141,6 +144,9 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
     }
     if (_bottomHeight != null) {
       Settings.setValue<double>('page_shape_bottom_height', _bottomHeight!);
+    }
+    if (_bottomLeftWidth != null) {
+      Settings.setValue<double>('page_shape_bottom_left_width', _bottomLeftWidth!);
     }
   }
 
@@ -649,23 +655,39 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                             ),
                                           ),
                                         ],
-                                        ResizableDragHandle(
-                                          isVertical: true,
-                                          showDivider: false,
-                                          onDragDelta: (delta) {
-                                            setState(() {
-                                              _leftWidth =
-                                                  ((_leftWidth ?? 0) - delta)
-                                                      .clamp(
-                                                80.0,
-                                                MediaQuery.of(context)
-                                                        .size
-                                                        .width *
-                                                    0.4,
-                                              );
-                                            });
-                                          },
-                                          onDragEnd: _saveSizes,
+                                        SizedBox(
+                                          width: 8,
+                                          child: Stack(
+                                            children: [
+                                              Positioned(
+                                                top: 0,
+                                                bottom: 0,
+                                                child: ResizableDragHandle(
+                                                  isVertical: true,
+                                                  showDivider: false,
+                                                  onDragDelta: (delta) {
+                                                    setState(() {
+                                                      _leftWidth =
+                                                          ((_leftWidth ?? 
+                                                              MediaQuery.of(context)
+                                                                      .size
+                                                                      .width *
+                                                                  _kCommentaryPaneWidthFactor) -
+                                                                  delta)
+                                                              .clamp(
+                                                        80.0,
+                                                        MediaQuery.of(context)
+                                                                .size
+                                                                .width *
+                                                            0.4,
+                                                      );
+                                                    });
+                                                  },
+                                                  onDragEnd: _saveSizes,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       ],
                                       Expanded(
@@ -685,23 +707,39 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                       ),
                                       if (_columnVisibility['right'] ==
                                           true) ...[
-                                        ResizableDragHandle(
-                                          isVertical: true,
-                                          showDivider: false,
-                                          onDragDelta: (delta) {
-                                            setState(() {
-                                              _rightWidth =
-                                                  ((_rightWidth ?? 0) + delta)
-                                                      .clamp(
-                                                80.0,
-                                                MediaQuery.of(context)
-                                                        .size
-                                                        .width *
-                                                    0.4,
-                                              );
-                                            });
-                                          },
-                                          onDragEnd: _saveSizes,
+                                        SizedBox(
+                                          width: 8,
+                                          child: Stack(
+                                            children: [
+                                              Positioned(
+                                                top: 0,
+                                                bottom: 0,
+                                                child: ResizableDragHandle(
+                                                  isVertical: true,
+                                                  showDivider: false,
+                                                  onDragDelta: (delta) {
+                                                    setState(() {
+                                                      _rightWidth =
+                                                          ((_rightWidth ?? 
+                                                              MediaQuery.of(context)
+                                                                      .size
+                                                                      .width *
+                                                                  _kCommentaryPaneWidthFactor) +
+                                                                  delta)
+                                                              .clamp(
+                                                        80.0,
+                                                        MediaQuery.of(context)
+                                                                .size
+                                                                .width *
+                                                            0.4,
+                                                      );
+                                                    });
+                                                  },
+                                                  onDragEnd: _saveSizes,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                         if (_rightPaneSelectableCommentators(
                                                 state)
@@ -817,7 +855,12 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                                         ),
                                                       ),
                                                       const SizedBox(width: 4),
-                                                      Expanded(
+                                                      SizedBox(
+                                                        width: _bottomLeftWidth ??
+                                                            MediaQuery.of(context)
+                                                                    .size
+                                                                    .width *
+                                                                0.5,
                                                         child: _CommentaryPane(
                                                           commentatorName:
                                                               _bottomCommentator!,
@@ -832,7 +875,40 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                                                       false),
                                                         ),
                                                       ),
-                                                      const SizedBox(width: 8),
+                                                      SizedBox(
+                                                        width: 8,
+                                                        child: Stack(
+                                                          children: [
+                                                            Positioned(
+                                                              top: 0,
+                                                              bottom: 0,
+                                                              child: ResizableDragHandle(
+                                                                isVertical: true,
+                                                                showDivider: false,
+                                                                onDragDelta: (delta) {
+                                                                  setState(() {
+                                                                    _bottomLeftWidth =
+                                                                        ((_bottomLeftWidth ?? 
+                                                                            MediaQuery.of(context)
+                                                                                    .size
+                                                                                    .width *
+                                                                                0.5) -
+                                                                                delta)
+                                                                            .clamp(
+                                                                      100.0,
+                                                                      MediaQuery.of(context)
+                                                                              .size
+                                                                              .width *
+                                                                          0.8,
+                                                                    );
+                                                                  });
+                                                                },
+                                                                onDragEnd: _saveSizes,
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
                                                     ],
                                                     Expanded(
                                                       child: _CommentaryPane(

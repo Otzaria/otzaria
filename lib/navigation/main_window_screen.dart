@@ -1290,7 +1290,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
     } catch (_) {
       return null;
     }
-    if (renderObject is! RenderBox || !renderObject.hasSize) {
+    if (renderObject is! RenderBox ||
+        !renderObject.attached ||
+        !renderObject.hasSize) {
       return null;
     }
     final topLeft = renderObject.localToGlobal(Offset.zero);

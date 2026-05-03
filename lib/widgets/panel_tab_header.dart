@@ -7,6 +7,7 @@ class PanelTabHeader extends StatelessWidget {
   final List<Widget> tabs;
   final VoidCallback? onClose;
   final ValueChanged<int>? onTap;
+  final double height;
 
   const PanelTabHeader({
     super.key,
@@ -14,13 +15,14 @@ class PanelTabHeader extends StatelessWidget {
     required this.tabs,
     this.onClose,
     this.onTap,
+    this.height = 60,
   });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return SizedBox(
-      height: 60,
+      height: height,
       child: Container(
         decoration: BoxDecoration(
           border: Border(

@@ -67,4 +67,50 @@ void main() {
       expect(result, isEmpty);
     });
   });
+
+  group('shouldShowOpenCommentatorsPaneEntry', () {
+    test('מחזירה true רק כשיש מפרשים, החלונית בצד, והיא סגורה', () {
+      expect(
+        shouldShowOpenCommentatorsPaneEntry(
+          hasAvailableCommentators: true,
+          showCommentaryAsExpansionTiles: false,
+          isPaneOpen: false,
+        ),
+        isTrue,
+      );
+    });
+
+    test('מחזירה false כשאין מפרשים זמינים', () {
+      expect(
+        shouldShowOpenCommentatorsPaneEntry(
+          hasAvailableCommentators: false,
+          showCommentaryAsExpansionTiles: false,
+          isPaneOpen: false,
+        ),
+        isFalse,
+      );
+    });
+
+    test('מחזירה false כשהמפרשים מוצגים כהרחבה מתחת לטקסט', () {
+      expect(
+        shouldShowOpenCommentatorsPaneEntry(
+          hasAvailableCommentators: true,
+          showCommentaryAsExpansionTiles: true,
+          isPaneOpen: false,
+        ),
+        isFalse,
+      );
+    });
+
+    test('מחזירה false כשהחלונית כבר פתוחה', () {
+      expect(
+        shouldShowOpenCommentatorsPaneEntry(
+          hasAvailableCommentators: true,
+          showCommentaryAsExpansionTiles: false,
+          isPaneOpen: true,
+        ),
+        isFalse,
+      );
+    });
+  });
 }

@@ -1393,7 +1393,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
   Widget _buildGuidedTourSection(BuildContext context) {
     return SettingsCard(
       title: 'סיור מודרך',
-      subtitle: 'היכרות מהירה עם החלקים המרכזיים באוצריה.',
+      subtitle: 'היכרות מהירה עם החלקים המרכזיים באוצריא.',
       children: [
         ListTile(
           hoverColor: Colors.transparent,

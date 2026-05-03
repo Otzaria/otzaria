@@ -11,7 +11,7 @@ Future<void> installLinuxPackage(File debFile) async {
   await scriptFile.writeAsString('''#!/bin/bash
 set -e
 DEB_FILE="${debFile.absolute.path}"
-echo "מתקין את אוצריה..."
+echo "מתקין את אוצריא..."
 pkexec apt install -y "\$DEB_FILE"
 echo "✓ ההתקנה הושלמה בהצלחה!"
 ''');

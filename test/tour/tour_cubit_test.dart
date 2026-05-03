@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/tour/bloc/tour_cubit.dart';
@@ -384,6 +385,48 @@ void main() {
     expect(stack.children, hasLength(2));
     expect(stack.children.first.key, const ValueKey('previous'));
     expect(stack.children.last.key, const ValueKey('current'));
+  });
+
+  testWidgets('TourOverlayScreen מודד מחדש יעד שמשתנה אחרי frame',
+      (tester) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final cubit = TourCubit()..start(libraryLoaded: true);
+    cubit.goToStep(cubit.state.steps.length - 1);
+    var resolveCalls = 0;
+    final resolvedLeftValues = <double>[];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BlocProvider.value(
+          value: cubit,
+          child: Stack(
+            children: [
+              TourOverlayScreen(
+                onStepChanged: (_) {},
+                targetRectResolver: (_) {
+                  resolveCalls++;
+                  final left = resolveCalls == 1 ? 24.0 : 84.0;
+                  resolvedLeftValues.add(left);
+                  return Rect.fromLTWH(left, 40, 120, 48);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    expect(resolvedLeftValues, [24]);
+
+    await tester.pump();
+
+    expect(resolveCalls, greaterThan(1));
+    expect(resolvedLeftValues.last, 84);
+
+    await cubit.close();
   });
 
   test('טיפ חי מוצג מעל היעד כאשר אין מקום מתחתיו', () {

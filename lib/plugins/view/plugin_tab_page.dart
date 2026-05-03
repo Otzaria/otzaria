@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
@@ -76,6 +77,8 @@ class PluginTabPage extends StatefulWidget {
 }
 
 class _PluginTabPageState extends State<PluginTabPage> {
+  static Future<void>? _webViewPrerequisitesFuture;
+
   InAppWebViewController? webViewController;
   late String localHtmlPath;
   late final PluginBridgeHandler _bridge;
@@ -264,7 +267,32 @@ class _PluginTabPageState extends State<PluginTabPage> {
       return const SizedBox.shrink(); // התוסף כבר הוסר — הטאב ייסגר בקרוב
     }
 
-    return InAppWebView(
+    if (_needsWebViewPrerequisites) {
+      return FutureBuilder<void>(
+        future: _ensureWebViewPrerequisitesConfigured(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const SizedBox.shrink();
+          }
+          if (snapshot.hasError) {
+            debugPrint('WebView prerequisites init error: ${snapshot.error}');
+            return Center(
+              child: Text(
+                'שגיאה באתחול סביבת הדפדפן: ${snapshot.error}',
+                textDirection: TextDirection.rtl,
+              ),
+            );
+          }
+          return _buildWebView();
+        },
+      );
+    }
+
+    return _buildWebView();
+  }
+
+  Widget _buildWebView() {
+    final webView = InAppWebView(
       webViewEnvironment: WebViewEnvironmentHolder.environment,
       initialUrlRequest: URLRequest(url: WebUri.uri(Uri.file(localHtmlPath))),
       initialSettings: InAppWebViewSettings(
@@ -273,6 +301,7 @@ class _PluginTabPageState extends State<PluginTabPage> {
         useShouldOverrideUrlLoading: true,
         useShouldInterceptRequest: true,
         cacheEnabled: !widget.plugin.isDevelopment,
+        isInspectable: kDebugMode,
       ),
       // Stub SDK — injected BEFORE any page JS runs
       initialUserScripts: UnmodifiableListView<UserScript>([
@@ -475,5 +504,24 @@ class _PluginTabPageState extends State<PluginTabPage> {
         }
       },
     );
+
+    return webView;
+  }
+
+  static bool get _needsWebViewPrerequisites {
+    return !kIsWeb && (Platform.isAndroid || Platform.isWindows);
+  }
+
+  static Future<void> _ensureWebViewPrerequisitesConfigured() {
+    return _webViewPrerequisitesFuture ??= _configureWebViewPrerequisites();
+  }
+
+  static Future<void> _configureWebViewPrerequisites() async {
+    if (Platform.isAndroid) {
+      await InAppWebViewController.setWebContentsDebuggingEnabled(kDebugMode);
+    }
+    if (Platform.isWindows) {
+      await WebViewEnvironmentHolder.initialize();
+    }
   }
 }

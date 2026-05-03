@@ -20,6 +20,7 @@ class SplitViewStrategyImpl extends TextBookViewStrategy {
       tab: config.tab,
       initialTabIndex: config.initialSidebarTabIndex,
       showSplitView: true, // Split view - panel on the side
+      commentaryPaneHeaderNotifier: config.commentaryPaneHeaderNotifier,
     );
   }
 }
