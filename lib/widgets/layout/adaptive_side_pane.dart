@@ -67,7 +67,6 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
   static const double _kWideInnerSideGap = 12;
   static const double _kNarrowTopGap = 14;
   static const double _kNarrowBottomGap = 10;
-  static const double _kNarrowHandleInset = 4;
   static const double _kHandleHitSize = 36;
 
   Color _effectivePaneColor(BuildContext context) {
@@ -143,15 +142,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
       return shell;
     }
 
-    // במסך רחב, ה-handle צריך להיות בקצה החיצוני (בין שני החלונות)
-    // במסך צר, ה-handle צריך להיות בתוך החלונית
-    final handleAtOuterWindowEdge = isWide;
-    
-    // כשה-handle בקצה החיצוני, נזיז אותו החוצה כדי שיהיה בין החלונות
-    // כשה-handle בתוך החלונית, נזיז אותו פנימה מעט
-    final handleOffset = handleAtOuterWindowEdge 
-        ? -(_kHandleHitSize / 2) 
-        : _kNarrowHandleInset;
+    final handleOffset = -(_kHandleHitSize / 2);
 
     return Stack(
       clipBehavior: Clip.none,
@@ -160,14 +151,8 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
         Positioned(
           top: 0,
           bottom: 0,
-          // כשהחלונית בצד ימין והhandle בקצה החיצוני, נמקם אותו משמאל לחלונית
-          // כשהחלונית בצד שמאל והhandle בקצה החיצוני, נמקם אותו מימין לחלונית
-          left: handleAtOuterWindowEdge
-              ? (paneOnRight ? handleOffset : null)
-              : (paneOnRight ? null : handleOffset),
-          right: handleAtOuterWindowEdge
-              ? (paneOnRight ? null : handleOffset)
-              : (paneOnRight ? handleOffset : null),
+          left: paneOnRight ? handleOffset : null,
+          right: paneOnRight ? null : handleOffset,
           child: ResizableDragHandle(
             isVertical: true,
             hitSize: _kHandleHitSize,
