@@ -71,26 +71,32 @@ Future<ReaderLocationSnapshot?> resolveReaderLocation(
 /// פותר מיקום עבור ספר טקסט
 Future<ReaderLocationSnapshot?> _resolveTextBookLocation(
     TextBookTab tab) async {
+  final state = tab.bloc.state;
+  final resolvedIndex = state is TextBookLoaded
+      ? state.selectedIndex ??
+          (state.visibleIndices.isNotEmpty
+              ? state.visibleIndices.first
+              : tab.index)
+      : tab.index;
   // ניסיון ראשון: currentTitle מה-ValueNotifier
   final notifierTitle = tab.currentTitle.value.trim();
   if (notifierTitle.isNotEmpty) {
     return ReaderLocationSnapshot(
       currentBook: tab.title,
       currentBookId: tab.title,
-      currentIndex: tab.index,
+      currentIndex: resolvedIndex,
       currentRef: notifierTitle,
     );
   }
 
   // ניסיון שני: מה-state של ה-bloc
-  final state = tab.bloc.state;
   if (state is TextBookLoaded) {
     final stateTitle = state.currentTitle?.trim() ?? '';
     if (stateTitle.isNotEmpty) {
       return ReaderLocationSnapshot(
         currentBook: tab.title,
         currentBookId: tab.title,
-        currentIndex: tab.index,
+        currentIndex: resolvedIndex,
         currentRef: stateTitle,
       );
     }
@@ -98,14 +104,14 @@ Future<ReaderLocationSnapshot?> _resolveTextBookLocation(
     // ניסיון שלישי: חישוב מתוך TOC
     try {
       final ref = await refFromIndex(
-        tab.index,
+        resolvedIndex,
         Future.value(state.tableOfContents),
       );
       final normalizedRef = ref.trim();
       return ReaderLocationSnapshot(
         currentBook: tab.title,
         currentBookId: tab.title,
-        currentIndex: tab.index,
+        currentIndex: resolvedIndex,
         currentRef: normalizedRef.isEmpty ? null : normalizedRef,
       );
     } catch (_) {
@@ -113,7 +119,7 @@ Future<ReaderLocationSnapshot?> _resolveTextBookLocation(
       return ReaderLocationSnapshot(
         currentBook: tab.title,
         currentBookId: tab.title,
-        currentIndex: tab.index,
+        currentIndex: resolvedIndex,
         currentRef: null,
       );
     }

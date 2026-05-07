@@ -64,6 +64,7 @@ void main() {
         'autoSyncCatalogs': true,
         'softwareAndBookUpdatesEnabled': true,
         'personalNotesCollapsedByDefault': true,
+        'continuousReadingMode': true,
       };
 
       blocTest<SettingsBloc, SettingsState>(
@@ -113,7 +114,7 @@ void main() {
             enablePerBookSettings:
                 mockSettings['enablePerBookSettings'] as bool,
             pdfBookViewByDefault:
-              mockSettings['pdfBookViewByDefault'] as bool? ?? false,
+                mockSettings['pdfBookViewByDefault'] as bool? ?? false,
             isOfflineMode: mockSettings['isOfflineMode'] as bool? ?? false,
             autoSyncCatalogs:
                 mockSettings['autoSyncCatalogs'] as bool? ?? false,
@@ -127,6 +128,8 @@ void main() {
                     true,
             protectedModeEnabled:
                 mockSettings['protectedModeEnabled'] as bool? ?? false,
+            continuousReadingMode:
+                mockSettings['continuousReadingMode'] as bool? ?? false,
           ),
         ],
         verify: (_) {
@@ -304,7 +307,7 @@ void main() {
       blocTest<SettingsBloc, SettingsState>(
         'emits updated state when UpdateSoftwareAndBookUpdatesEnabled is added',
         build: () {
-              when(mockRepository.updateSoftwareAndBookUpdatesEnabled(false))
+          when(mockRepository.updateSoftwareAndBookUpdatesEnabled(false))
               .thenAnswer((_) async {});
           return settingsBloc;
         },
@@ -316,6 +319,20 @@ void main() {
         verify: (_) {
           verify(mockRepository.updateSoftwareAndBookUpdatesEnabled(false))
               .called(1);
+        },
+      );
+    });
+
+    group('UpdateContinuousReadingMode', () {
+      blocTest<SettingsBloc, SettingsState>(
+        'emits updated state when UpdateContinuousReadingMode is added',
+        build: () => settingsBloc,
+        act: (bloc) => bloc.add(const UpdateContinuousReadingMode(true)),
+        expect: () => [
+          settingsBloc.state.copyWith(continuousReadingMode: true),
+        ],
+        verify: (_) {
+          verify(mockRepository.updateContinuousReadingMode(true)).called(1);
         },
       );
     });

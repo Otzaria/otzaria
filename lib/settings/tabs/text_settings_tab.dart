@@ -208,6 +208,26 @@ class TextSettingsTab extends StatelessWidget {
 
                 divider,
 
+                SegmentedSettingsTile<bool>(
+                  icon: FluentIcons.text_align_justify_24_regular,
+                  title: 'מצב קריאה',
+                  subtitle: state.continuousReadingMode
+                      ? 'השורות יוצגו ברצף עד הכותרת הבאה'
+                      : 'כל שורה תוצג בנפרד',
+                  options: const [
+                    SegmentOption(value: false, label: 'שורות בודדות'),
+                    SegmentOption(value: true, label: 'רצף'),
+                  ],
+                  currentValue: state.continuousReadingMode,
+                  onChanged: (value) {
+                    context
+                        .read<SettingsBloc>()
+                        .add(UpdateContinuousReadingMode(value));
+                  },
+                ),
+
+                divider,
+
                 // שורה 3: מרווח בין שורות (תמיד חצי רוחב)
                 Padding(
                   padding: const EdgeInsets.all(16.0),

@@ -13,6 +13,7 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/services/nikud_display_service.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_commentary_selection.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
@@ -21,6 +22,7 @@ import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/text_book/utils/link_processing.dart';
 import 'package:otzaria/text_book/utils/he_categories_enricher.dart';
 import 'package:otzaria/text_book/utils/commentator_group_builder.dart';
+import 'package:otzaria/text_book/utils/reading_segments.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
@@ -307,39 +309,44 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       _positionListenerCallback = () {
         final rawPositions = positionsListener.itemPositions.value.toList()
           ..sort((a, b) => a.index.compareTo(b.index));
-        final visibleIndicesNow =
-            rawPositions.map((position) => position.index).toSet().toList();
+        final currentState = state;
+        if (currentState is! TextBookLoaded) {
+          return;
+        }
+
+        final visibleIndicesNow = _resolveVisibleSourceIndices(
+          currentState,
+          rawPositions,
+        );
         if (visibleIndicesNow.isEmpty) {
           return;
         }
-        final currentState = state;
-        if (currentState is TextBookLoaded) {
-          if (!_hasMeaningfulVisibleIndicesChange(
-            currentState.visibleIndices,
-            visibleIndicesNow,
-          )) {
+
+        if (!_hasMeaningfulVisibleIndicesChange(
+          currentState.visibleIndices,
+          visibleIndicesNow,
+        )) {
+          return;
+        }
+
+        final initialSyncClassification =
+            classifyRawPositionsDuringInitialPageShapeVisibleSyncForTesting(
+          awaitingInitialPageShapeVisibleSync:
+              _awaitingInitialPageShapeVisibleSync,
+          showPageShapeView: currentState.showPageShapeView,
+          currentVisibleIndices: currentState.visibleIndices,
+          selectedIndex: currentState.selectedIndex,
+          nextVisibleIndices: visibleIndicesNow,
+        );
+        if (initialSyncClassification.shouldIgnore ||
+            initialSyncClassification.shouldDispatchImmediately) {
+          if (initialSyncClassification.shouldIgnore) {
             return;
           }
 
-          final initialSyncClassification =
-              classifyRawPositionsDuringInitialPageShapeVisibleSyncForTesting(
-            awaitingInitialPageShapeVisibleSync:
-                _awaitingInitialPageShapeVisibleSync,
-            showPageShapeView: currentState.showPageShapeView,
-            currentVisibleIndices: currentState.visibleIndices,
-            selectedIndex: currentState.selectedIndex,
-            nextVisibleIndices: visibleIndicesNow,
-          );
-          if (initialSyncClassification.shouldIgnore ||
-              initialSyncClassification.shouldDispatchImmediately) {
-            if (initialSyncClassification.shouldIgnore) {
-              return;
-            }
-
-            _debounceTimer?.cancel();
-            add(UpdateVisibleIndecies(visibleIndicesNow));
-            return;
-          }
+          _debounceTimer?.cancel();
+          add(UpdateVisibleIndecies(visibleIndicesNow));
+          return;
         }
 
         add(UpdateVisibleIndecies(visibleIndicesNow));
@@ -352,16 +359,19 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           final debouncedRawPositions = positionsListener.itemPositions.value
               .toList()
             ..sort((a, b) => a.index.compareTo(b.index));
-          final visibleIndicesNow =
-              debouncedRawPositions.map((e) => e.index).toSet().toList();
           final latestState = state;
-          if (visibleIndicesNow.isNotEmpty &&
-              latestState is TextBookLoaded &&
-              _hasMeaningfulVisibleIndicesChange(
-                latestState.visibleIndices,
-                visibleIndicesNow,
-              )) {
-            add(UpdateVisibleIndecies(visibleIndicesNow));
+          if (latestState is TextBookLoaded) {
+            final visibleIndicesNow = _resolveVisibleSourceIndices(
+              latestState,
+              debouncedRawPositions,
+            );
+            if (visibleIndicesNow.isNotEmpty &&
+                _hasMeaningfulVisibleIndicesChange(
+                  latestState.visibleIndices,
+                  visibleIndicesNow,
+                )) {
+              add(UpdateVisibleIndecies(visibleIndicesNow));
+            }
           }
         });
       };
@@ -908,6 +918,44 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
     return currentIndices.first != nextIndices.first ||
         currentIndices.last != nextIndices.last;
+  }
+
+  bool _isContinuousReadingModeEnabled() {
+    return Settings.getValue<bool>(
+          SettingsRepository.keyContinuousReadingMode,
+          defaultValue: false,
+        ) ??
+        false;
+  }
+
+  List<int> _resolveVisibleSourceIndices(
+    TextBookLoaded state,
+    Iterable<ItemPosition> visibleItemPositions,
+  ) {
+    final itemPositions = visibleItemPositions.toList();
+    if (itemPositions.isEmpty) {
+      return const [];
+    }
+
+    if (!_isContinuousReadingModeEnabled()) {
+      return itemPositions.map((position) => position.index).toSet().toList()
+        ..sort();
+    }
+
+    final segments = buildReadingSegments(
+      state.content,
+      continuous: true,
+    );
+    return sourceLineIndicesForSegmentViewports(
+      segments,
+      itemPositions.map(
+        (position) => ReadingSegmentViewport(
+          segmentIndex: position.index,
+          leadingEdge: position.itemLeadingEdge,
+          trailingEdge: position.itemTrailingEdge,
+        ),
+      ),
+    );
   }
 
   void _onUpdateSelectedIndex(

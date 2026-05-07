@@ -100,6 +100,15 @@ class UpdateLineHeight extends SettingsEvent {
   List<Object?> get props => [lineHeight];
 }
 
+class UpdateContinuousReadingMode extends SettingsEvent {
+  final bool continuousReadingMode;
+
+  const UpdateContinuousReadingMode(this.continuousReadingMode);
+
+  @override
+  List<Object?> get props => [continuousReadingMode];
+}
+
 class UpdateShowOtzarHachochma extends SettingsEvent {
   final bool showOtzarHachochma;
 
