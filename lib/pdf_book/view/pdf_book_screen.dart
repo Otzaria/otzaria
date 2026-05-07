@@ -21,8 +21,6 @@ import 'package:otzaria/pdf_book/view/pdf_commentary_panel.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
-import 'package:otzaria/personal_notes/widgets/personal_note_editor_dialog.dart';
-import 'package:otzaria/personal_notes/widgets/personal_note_editor.dart';
 import 'package:otzaria/personal_notes/services/personal_note_draft_service.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
@@ -572,6 +570,21 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     _bloc.add(const pdf_events.ToggleRightPane(show: true));
   }
 
+  // פותחת את חלונית ההערות האישיות.
+  // אם הייתה סגורה — נפתחת ב-narrow (רוחב מינימלי).
+  // אם הייתה פתוחה — נשארת ברוחב הנוכחי ועוברת לטאב הערות.
+  void _openPersonalNotesPane() {
+    final current = _bloc.state;
+    final isOpen = current is PdfBookLoaded && current.showRightPane;
+    setState(() {
+      _rightPaneInitialTabIndex = 2;
+    });
+    if (!isOpen) {
+      _bloc.add(const pdf_events.UpdateRightPaneWidth(250));
+    }
+    _bloc.add(const pdf_events.ToggleRightPane(show: true));
+  }
+
   void _maybeRegisterPdfCommentaryOpportunity() {
     if (_linksLoading) {
       return;
@@ -755,6 +768,12 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         icon: FluentIcons.link_24_regular,
         enabled: relevantLinks.isNotEmpty,
         children: linkChildren,
+      ),
+      const AppContextMenuEntry.divider(),
+      AppContextMenuEntry(
+        label: 'הוסף הערה אישית',
+        icon: FluentIcons.note_add_24_regular,
+        onTap: () => _handleAddNotePress(menuContext),
       ),
     ];
   }
@@ -3443,9 +3462,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                     icon: FluentIcons.link_multiple_24_regular,
                     tooltip: 'העתק קישור ישיר לעמוד זה',
                     onPressed: () {
-                      final page =
-                          widget.tab.pdfViewerController.pageNumber ??
-                              widget.tab.pageNumber;
+                      final page = widget.tab.pdfViewerController.pageNumber ??
+                          widget.tab.pageNumber;
                       copyLinkToClipboard(buildPdfPageLink(bookId, page));
                     },
                   ),
@@ -3571,112 +3589,23 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
     final notesBloc = context.read<PersonalNotesBloc>();
 
-    final library = await DataRepository.instance.library;
-    final textBook = library.findBookByTitle(widget.tab.book.title, TextBook);
-
-    String dialogTitle = 'הוסף הערה לעמוד $currentPage';
-    if (textBook != null && widget.tab.pdfHeadings != null) {
-      final currentTitle = widget.tab.currentTitle.value;
-      final currentLineNumber =
-          widget.tab.pdfHeadings!.getLineNumberForHeading(currentTitle);
-
-      if (currentLineNumber != null) {
-        final sortedHeadings = widget.tab.pdfHeadings!.getSortedHeadings();
-        final currentIndex =
-            sortedHeadings.indexWhere((e) => e.value == currentLineNumber);
-
-        if (currentIndex != -1) {
-          final nextLineNumber = currentIndex < sortedHeadings.length - 1
-              ? sortedHeadings[currentIndex + 1].value
-              : null;
-
-          if (nextLineNumber != null) {
-            dialogTitle =
-                'הוסף הערה לעמוד $currentPage\n(שורות $currentLineNumber-${nextLineNumber - 1} בטקסט)';
-          } else {
-            dialogTitle =
-                'הוסף הערה לעמוד $currentPage\n(משורה $currentLineNumber בטקסט)';
-          }
-        }
-      }
-    }
-
-    if (!mounted) return;
-
     final draftService = PersonalNoteDraftService();
     final draft = await draftService.loadDraft(
       bookId: widget.tab.book.title,
       lineNumber: currentPage,
     );
 
-    if (!context.mounted) return;
-
-    final noteContent = await showDialog<PersonalNoteEditorResult>(
-      context: context,
-      builder: (context) => PersonalNoteEditorDialog(
-        title: dialogTitle,
-        bookId: widget.tab.book.title,
-        categoryId: widget.tab.book.categoryId,
-        draftLineNumber: currentPage,
-        initialContent: draft?.content ?? '',
-        initialContentFormat:
-            draft?.contentFormat ?? PersonalNoteContentFormat.plain,
-        linkableNotes: [
-          ...notesBloc.state.locatedNotes,
-          ...notesBloc.state.missingNotes,
-        ],
-      ),
-    );
-
-    if (mounted) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _pdfViewFocusNode.requestFocus();
-        }
-      });
-    }
-
     if (!mounted) return;
 
-    if (noteContent == null) {
-      return;
-    }
+    notesBloc.add(StartCreatingPersonalNote(
+      bookId: widget.tab.book.title,
+      lineNumber: currentPage,
+      referenceText: 'עמוד $currentPage',
+      initialContent: draft?.content ?? '',
+      initialFormat: draft?.contentFormat ?? PersonalNoteContentFormat.plain,
+    ));
 
-    final trimmed = noteContent.contentPlain.trim();
-    if (trimmed.isEmpty) {
-      UiSnack.show('ההערה ריקה, לא נשמרה');
-      return;
-    }
-
-    if (!mounted) return;
-
-    try {
-      final bookId = widget.tab.book.title;
-
-      notesBloc.add(AddPersonalNote(
-        bookId: bookId,
-        lineNumber: currentPage,
-        content: noteContent.content,
-        contentPlain: noteContent.contentPlain,
-        contentFormat: noteContent.contentFormat,
-      ));
-
-      setState(() {
-        _rightPaneInitialTabIndex = 2;
-      });
-      _bloc.add(const pdf_events.ToggleRightPane(show: true));
-
-      await Future.delayed(const Duration(milliseconds: 100));
-
-      if (textBook != null) {
-        UiSnack.show('ההערה נשמרה ותוצג בכל שורות העמוד בתצוגת הטקסט');
-      } else {
-        UiSnack.show('ההערה נשמרה בהצלחה');
-      }
-    } catch (e) {
-      debugPrint('Error adding note: $e');
-      UiSnack.showError('שמירת ההערה נכשלה: $e');
-    }
+    _openPersonalNotesPane();
   }
 
   Future<void> _handlePrintPress(BuildContext context) async {
