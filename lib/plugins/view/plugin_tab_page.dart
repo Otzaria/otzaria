@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
+import 'package:otzaria/plugins/models/plugin_network_allowlist.dart';
 import 'package:otzaria/plugins/services/plugin_manifest_validator.dart';
 import 'package:otzaria/plugins/bridge/plugin_bridge_handler.dart';
 import 'dart:io';
@@ -350,12 +351,8 @@ class _PluginTabPageState extends State<PluginTabPage> {
                 widget.plugin.pluginId,
                 'network.access',
               );
-              if (granted == true) {
-                final allowlist = widget.plugin.manifest.networkAllowlist;
-                if (allowlist.any((domain) =>
-                    uri.host == domain || uri.host.endsWith('.$domain'))) {
-                  return NavigationActionPolicy.ALLOW;
-                }
+              if (granted == true && isUriAllowedForPluginNetwork(uri)) {
+                return NavigationActionPolicy.ALLOW;
               }
             }
           }
@@ -386,13 +383,7 @@ class _PluginTabPageState extends State<PluginTabPage> {
                 widget.plugin.pluginId,
                 'network.access',
               );
-              if (granted == true) {
-                final allowlist = widget.plugin.manifest.networkAllowlist;
-                if (!allowlist.any((domain) =>
-                    uri.host == domain || uri.host.endsWith('.$domain'))) {
-                  return WebResourceResponse(
-                      statusCode: 403, reasonPhrase: 'Forbidden');
-                }
+              if (granted == true && isUriAllowedForPluginNetwork(uri)) {
                 return null;
               }
             }
