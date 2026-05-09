@@ -43,7 +43,10 @@ class PersonalNotesSidebar extends StatefulWidget {
   }
 }
 
-class PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
+class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
+    with AutomaticKeepAliveClientMixin<PersonalNotesSidebar> {
+  @override
+  bool get wantKeepAlive => true;
   final PersonalNoteDraftService _draftService = PersonalNoteDraftService();
 
   @override
@@ -141,6 +144,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     // בודקים אם TextBookBloc זמין בהקשר הנוכחי
     final hasTextBookBloc =
         context.findAncestorWidgetOfExactType<BlocProvider<TextBookBloc>>() !=
