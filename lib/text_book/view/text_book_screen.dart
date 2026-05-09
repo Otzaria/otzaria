@@ -2230,36 +2230,33 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     BuildContext context,
     TextBookLoaded state,
   ) {
-    return ValueListenableBuilder<double>(
-      valueListenable: _sidebarWidth,
-      builder: (context, width, child) => AdaptiveSidePane(
-        isOpen: state.showLeftPane,
-        alignment: AlignmentDirectional.centerEnd,
-        paneWidth: width,
-        minMainContentWidth: 520,
-        onClose: () =>
-            context.read<TextBookBloc>().add(const ToggleLeftPane(false)),
-        paneContent: widget.enableTourTargets
-            ? KeyedSubtree(
-                key: textBookNavPanelTourTargetKey,
-                child: _buildLeftPaneContent(state),
-              )
-            : _buildLeftPaneContent(state),
-        mainContent: _buildHTMLViewer(state),
-        isResizable: true,
-        minPaneWidth: 200,
-        maxPaneWidth: 600,
-        onPaneWidthChanged: (nextWidth) {
-          _sidebarWidth.value = nextWidth;
-        },
-        onPaneResizeEnd: () {
-          context
-              .read<SettingsBloc>()
-              .add(UpdateSidebarWidth(_sidebarWidth.value));
-        },
-        autoHandleResponsiveVisibility: false,
-        scrollbarTopMargin: 0,
-      ),
+    return AdaptiveSidePane(
+      isOpen: state.showLeftPane,
+      alignment: AlignmentDirectional.centerEnd,
+      paneWidth: _sidebarWidth.value,
+      minMainContentWidth: 520,
+      onClose: () =>
+          context.read<TextBookBloc>().add(const ToggleLeftPane(false)),
+      paneContent: widget.enableTourTargets
+          ? KeyedSubtree(
+              key: textBookNavPanelTourTargetKey,
+              child: _buildLeftPaneContent(state),
+            )
+          : _buildLeftPaneContent(state),
+      mainContent: _buildHTMLViewer(state),
+      isResizable: true,
+      minPaneWidth: 200,
+      maxPaneWidth: 600,
+      onPaneWidthChanged: (nextWidth) {
+        _sidebarWidth.value = nextWidth;
+      },
+      onPaneResizeEnd: () {
+        context
+            .read<SettingsBloc>()
+            .add(UpdateSidebarWidth(_sidebarWidth.value));
+      },
+      autoHandleResponsiveVisibility: false,
+      scrollbarTopMargin: 0,
     );
   }
 
