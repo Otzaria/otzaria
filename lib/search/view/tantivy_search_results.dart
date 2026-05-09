@@ -281,6 +281,7 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                   searchOptions: widget.tab.searchOptions,
                   alternativeWords: widget.tab.alternativeWords,
                   customSpacing: widget.tab.spacingValues,
+                  searchDistance: state.configuration.distance,
                 );
               },
             );

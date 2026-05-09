@@ -449,50 +449,50 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         return;
       }
 
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => PrintingScreen(
-            // במצב זה ה-PDF נוצר מצילום המסך, ולכן אין צורך בנתוני הטקסט
-            data: Future.value(''),
-            bookId: state.book.title,
-            removeNikud: state.removeNikud,
-            removeTaamim: !settingsState.showTeamim,
-            createPdfOverride: (PdfPageFormat format) async {
-              final doc = pw.Document(compress: false);
-              final img = pw.MemoryImage(png);
-              doc.addPage(
-                pw.Page(
-                  pageFormat: format,
-                  margin: pw.EdgeInsets.zero,
-                  build: (context) => pw.Center(
-                    child: pw.Image(
-                      img,
-                      fit: pw.BoxFit.contain,
-                    ),
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => PrintingScreen(
+          // במצב זה ה-PDF נוצר מצילום המסך, ולכן אין צורך בנתוני הטקסט
+          data: Future.value(''),
+          bookId: state.book.title,
+          removeNikud: state.removeNikud,
+          removeTaamim: !settingsState.showTeamim,
+          createPdfOverride: (PdfPageFormat format) async {
+            final doc = pw.Document(compress: false);
+            final img = pw.MemoryImage(png);
+            doc.addPage(
+              pw.Page(
+                pageFormat: format,
+                margin: pw.EdgeInsets.zero,
+                build: (context) => pw.Center(
+                  child: pw.Image(
+                    img,
+                    fit: pw.BoxFit.contain,
                   ),
                 ),
-              );
-              return doc.save();
-            },
-          ),
+              ),
+            );
+            return doc.save();
+          },
         ),
       );
       return;
     }
 
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => PrintingScreen(
-          data: Future.value(state.content.join('\n')),
-          bookId: state.book.title,
-          book: state.book,
-          links: state.links,
-          activeCommentators: state.activeCommentators,
-          startLine: state.visibleIndices.first,
-          removeNikud: state.removeNikud,
-          removeTaamim: !context.read<SettingsBloc>().state.showTeamim,
-          tableOfContents: state.tableOfContents,
-        ),
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => PrintingScreen(
+        data: Future.value(state.content.join('\n')),
+        bookId: state.book.title,
+        book: state.book,
+        links: state.links,
+        activeCommentators: state.activeCommentators,
+        startLine: state.visibleIndices.first,
+        removeNikud: state.removeNikud,
+        removeTaamim: !context.read<SettingsBloc>().state.showTeamim,
+        tableOfContents: state.tableOfContents,
       ),
     );
   }
@@ -2039,19 +2039,19 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       tooltip: 'הדפסה (${shortcut.toUpperCase()})',
       onPressed: () {
         final settingsState = context.read<SettingsBloc>().state;
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => PrintingScreen(
-              data: Future.value(state.content.join('\n')),
-              bookId: state.book.title,
-              book: state.book,
-              links: state.links,
-              activeCommentators: state.activeCommentators,
-              startLine: state.visibleIndices.first,
-              removeNikud: state.removeNikud,
-              removeTaamim: !settingsState.showTeamim,
-              tableOfContents: state.tableOfContents,
-            ),
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => PrintingScreen(
+            data: Future.value(state.content.join('\n')),
+            bookId: state.book.title,
+            book: state.book,
+            links: state.links,
+            activeCommentators: state.activeCommentators,
+            startLine: state.visibleIndices.first,
+            removeNikud: state.removeNikud,
+            removeTaamim: !settingsState.showTeamim,
+            tableOfContents: state.tableOfContents,
           ),
         );
       },
@@ -2252,6 +2252,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
               .add(UpdateSidebarWidth(_sidebarWidth.value));
         },
         autoHandleResponsiveVisibility: false,
+        scrollbarTopMargin: 0,
       ),
     );
   }
@@ -2561,19 +2562,19 @@ bool _handleGlobalKeyEvent(KeyEvent event, BuildContext context,
   // הדפסה
   if (ShortcutHelper.matchesShortcut(event, printShortcut)) {
     final settingsState = context.read<SettingsBloc>().state;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => PrintingScreen(
-          data: Future.value(state.content.join('\n')),
-          bookId: state.book.title,
-          book: state.book,
-          links: state.links,
-          activeCommentators: state.activeCommentators,
-          startLine: state.visibleIndices.first,
-          removeNikud: state.removeNikud,
-          removeTaamim: !settingsState.showTeamim,
-          tableOfContents: state.tableOfContents,
-        ),
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => PrintingScreen(
+        data: Future.value(state.content.join('\n')),
+        bookId: state.book.title,
+        book: state.book,
+        links: state.links,
+        activeCommentators: state.activeCommentators,
+        startLine: state.visibleIndices.first,
+        removeNikud: state.removeNikud,
+        removeTaamim: !settingsState.showTeamim,
+        tableOfContents: state.tableOfContents,
       ),
     );
     return true;

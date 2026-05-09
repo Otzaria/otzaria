@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
+import 'package:otzaria/settings/search/settings_anchor.dart';
+import 'package:otzaria/settings/search/settings_search_models.dart';
+import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/tools/calendar/utils/calendar_cubit.dart';
@@ -13,6 +16,34 @@ import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 /// טאב הגדרות לוח שנה
 class CalendarSettingsTab extends StatefulWidget {
   const CalendarSettingsTab({super.key});
+
+  /// פריטי חיפוש בהגדרות. נסרק על-ידי tool/generate_search_index.dart.
+  static const List<SettingsSearchEntry> searchEntries = [
+    SettingsSearchEntry(
+      id: 'tools.calendar.location',
+      title: 'מיקום',
+      subtitle: 'מיקום עבור חישובי לוח השנה',
+      tab: SettingsTab.tools,
+      cardId: 'tools.calendar',
+      keywords: ['לוח שנה', 'זמנים', 'מיקום גיאוגרפי'],
+    ),
+    SettingsSearchEntry(
+      id: 'tools.calendar.times',
+      title: 'הצגת זמנים',
+      subtitle: 'אילו זמנים יוצגו בלוח השנה',
+      tab: SettingsTab.tools,
+      cardId: 'tools.calendar',
+      keywords: ['לוח שנה', 'זמנים'],
+    ),
+    SettingsSearchEntry(
+      id: 'tools.calendar.candle_minutes',
+      title: 'דקות הדלקת נרות',
+      subtitle: 'מספר דקות לפני שקיעה להדלקת נרות',
+      tab: SettingsTab.tools,
+      cardId: 'tools.calendar',
+      keywords: ['שבת', 'נרות'],
+    ),
+  ];
 
   @override
   State<CalendarSettingsTab> createState() => _CalendarSettingsTabState();
@@ -37,7 +68,9 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // ── לוח שנה: סוג לוח + עיר באותו מקטע ──
-            SettingsCard(
+            SettingsAnchor(
+              cardId: 'tools.calendar',
+              child: SettingsCard(
               title: 'לוח שנה',
               children: [
                 // סוג לוח
@@ -110,6 +143,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                   },
                 ),
               ],
+              ),
             ),
 
             kSettingsCardSpacing,

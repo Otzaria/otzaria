@@ -226,8 +226,7 @@ class BookDao {
     String? heShortDesc,
     double orderIndex,
     int totalLines,
-    bool isBaseBook,
-    String? notesContent, {
+    bool isBaseBook, {
     bool hasTargumConnection = false,
     bool hasReferenceConnection = false,
     bool hasSourceConnection = false,
@@ -250,7 +249,6 @@ class BookDao {
       sourceId,
       title,
       heShortDesc,
-      notesContent,
       orderIndex,
       totalLines,
       (isBaseBook ? 1 : 0),
@@ -281,8 +279,7 @@ class BookDao {
     String? heShortDesc,
     double orderIndex,
     int totalLines,
-    bool isBaseBook,
-    String? notesContent, {
+    bool isBaseBook, {
     bool hasTargumConnection = false,
     bool hasReferenceConnection = false,
     bool hasSourceConnection = false,
@@ -306,7 +303,6 @@ class BookDao {
       sourceId,
       title,
       heShortDesc,
-      notesContent,
       orderIndex,
       totalLines,
       (isBaseBook ? 1 : 0),

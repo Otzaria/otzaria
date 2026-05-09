@@ -23,7 +23,7 @@ class AppSurfaces {
   ///
   /// מחזיר:
   /// - מצב כהה: שחור מוחלט (כרטיסי SettingsCard בולטים מעליו)
-  /// - מצב בהיר: surfaceContainerHighest בשקיפות 28% (טון עדין מעל הרקע הלבן)
+  /// - מצב בהיר: surfaceContainerHighest בשקיפות 48% (טון עדין מעל הרקע הלבן)
   ///
   /// **שימוש:**
   /// ```dart
@@ -33,18 +33,16 @@ class AppSurfaces {
   /// )
   /// ```
   static Color panelBackground(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return isDark
-        ? Colors.black
-        : cs.surfaceContainerHighest.withValues(alpha: 0.28);
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    if (theme.brightness == Brightness.dark) return Colors.black;
+    return Color.alphaBlend(
+      cs.surfaceContainerHighest.withValues(alpha: 0.475),
+      cs.surface,
+    );
   }
 
-  /// גרסה אטומה של רקע מסכי הלוח לשימוש בתוך חלוניות/כרטיסים
-  /// כך שצבע המסגרת או הרקע שמתחת לא ישפיעו על גוון התוכן.
-  static Color solidPanelBackground(BuildContext context) {
-    final theme = Theme.of(context);
-    final color = panelBackground(context);
-    return Color.alphaBlend(color, theme.colorScheme.surface);
-  }
+  /// זהה ל-[panelBackground] — נשמר לתאימות עם קוד קיים.
+  static Color solidPanelBackground(BuildContext context) =>
+      panelBackground(context);
 }

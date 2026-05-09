@@ -14,6 +14,9 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:otzaria/core/app_runtime_reset.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
+import 'package:otzaria/settings/search/settings_anchor.dart';
+import 'package:otzaria/settings/search/settings_search_models.dart';
+import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/settings/services/safer_mode/password_verification_dialog.dart';
 import 'package:otzaria/settings/services/safer_mode/protected_settings_wrapper.dart';
 import 'package:otzaria/settings/services/backup_service.dart';
@@ -44,6 +47,130 @@ import 'package:url_launcher/url_launcher.dart';
 /// טאב "אוצריא" — גרסאות, נתיב ספרייה, גיבוי, מצב סייפר, איפוס.
 class SystemSettingsTab extends StatefulWidget {
   const SystemSettingsTab({super.key});
+
+  /// פריטי חיפוש בהגדרות. נסרק על-ידי tool/generate_search_index.dart.
+  static const List<SettingsSearchEntry> searchEntries = [
+    SettingsSearchEntry(
+      id: 'system.versions.app',
+      title: 'גרסת תוכנה',
+      subtitle: 'גרסת אוצריא המותקנת',
+      tab: SettingsTab.system,
+      cardId: 'system.versions',
+      keywords: ['גרסה', 'version'],
+    ),
+    SettingsSearchEntry(
+      id: 'system.versions.library',
+      title: 'גרסת ספרייה',
+      subtitle: 'גרסת מאגר הספרים',
+      tab: SettingsTab.system,
+      cardId: 'system.versions',
+      keywords: ['גרסה', 'ספריה'],
+    ),
+    SettingsSearchEntry(
+      id: 'system.versions.book_count',
+      title: 'מספר ספרים',
+      subtitle: 'כמות הספרים בספרייה',
+      tab: SettingsTab.system,
+      cardId: 'system.versions',
+      keywords: ['ספרים', 'כמות'],
+    ),
+    SettingsSearchEntry(
+      id: 'system.updates.network_mode',
+      title: 'סינכרון ומצב רשת',
+      subtitle: 'מקוון / מנותק לחלוטין מהרשת',
+      tab: SettingsTab.system,
+      cardId: 'system.updates',
+      keywords: ['רשת', 'אופליין', 'אונליין'],
+    ),
+    SettingsSearchEntry(
+      id: 'system.updates.software',
+      title: 'עדכוני תוכנה וספרים',
+      subtitle: 'הפעלת עדכוני תוכנה וספרים אוטומטיים',
+      tab: SettingsTab.system,
+      cardId: 'system.updates',
+      keywords: ['עדכון', 'גרסה'],
+    ),
+    SettingsSearchEntry(
+      id: 'system.updates.library_sync',
+      title: 'סינכרון הספרייה באופן אוטומטי',
+      subtitle: 'עדכון מסד הנתונים של הספרייה אוטומטית',
+      tab: SettingsTab.system,
+      cardId: 'system.updates',
+      keywords: ['סנכרון', 'ספריה'],
+    ),
+    SettingsSearchEntry(
+      id: 'system.updates.dev_channel',
+      title: 'עדכון לגרסאות מפתחים',
+      subtitle: 'קבלת גרסאות בדיקה (Beta)',
+      tab: SettingsTab.system,
+      cardId: 'system.updates',
+      keywords: ['בטא', 'מפתחים'],
+    ),
+    SettingsSearchEntry(
+      id: 'system.reports.email',
+      title: 'כתובת מייל לזיהוי',
+      subtitle: 'מייל לזיהוי בדיווחי טעויות',
+      tab: SettingsTab.system,
+      cardId: 'system.reports',
+      keywords: ['מייל', 'דיווח'],
+    ),
+    SettingsSearchEntry(
+      id: 'system.reports.queue_offline',
+      title: 'שמירת דיווחים אוטומטית כשאין חיבור',
+      subtitle: 'תור אוטומטי לדיווחים במצב אופליין',
+      tab: SettingsTab.system,
+      cardId: 'system.reports',
+      keywords: ['דיווח', 'אופליין'],
+    ),
+    SettingsSearchEntry(
+      id: 'system.reports.pending',
+      title: 'ניהול דיווחים שמורים',
+      subtitle: 'צפיה ושליחה של דיווחים שעדיין לא נשלחו',
+      tab: SettingsTab.system,
+      cardId: 'system.reports',
+      keywords: ['דיווח', 'תור', 'שליחה'],
+    ),
+    SettingsSearchEntry(
+      id: 'system.reports.sent',
+      title: 'דיווחים שנשלחו',
+      subtitle: 'היסטוריית דיווחים שנשלחו',
+      tab: SettingsTab.system,
+      cardId: 'system.reports',
+      keywords: ['דיווח', 'היסטוריה'],
+    ),
+    SettingsSearchEntry(
+      id: 'system.advanced.backup',
+      title: 'גיבוי אוטומטי',
+      subtitle: 'תדירות גיבוי + יצירה ושחזור גיבוי',
+      tab: SettingsTab.system,
+      cardId: 'system.advanced',
+      keywords: ['גיבוי', 'שחזור', 'backup'],
+    ),
+    SettingsSearchEntry(
+      id: 'system.advanced.cypher',
+      title: 'מצב סייפר',
+      subtitle: 'נעילת הגדרות בסיסמה',
+      tab: SettingsTab.system,
+      cardId: 'system.advanced',
+      keywords: ['נעילה', 'סיסמה', 'הגנה'],
+    ),
+    SettingsSearchEntry(
+      id: 'system.tour',
+      title: 'הפעל סיור מחדש',
+      subtitle: 'סיור מודרך לחלקי האפליקציה',
+      tab: SettingsTab.system,
+      cardId: 'system.tour',
+      keywords: ['סיור', 'הדרכה', 'tour'],
+    ),
+    SettingsSearchEntry(
+      id: 'system.reset',
+      title: 'איפוס הגדרות',
+      subtitle: 'מחיקת כל ההגדרות וחזרה למצב ההתחלתי',
+      tab: SettingsTab.system,
+      cardId: 'system.reset',
+      keywords: ['איפוס', 'reset'],
+    ),
+  ];
 
   @override
   State<SystemSettingsTab> createState() => _SystemSettingsTabState();
@@ -435,21 +562,39 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // 1. גרסאות + נתיב ספרייה
-                  _buildVersionAndPathSection(context, state),
+                  SettingsAnchor(
+                    cardId: 'system.versions',
+                    child: _buildVersionAndPathSection(context, state),
+                  ),
 
                   // 2. עדכוני מערכת (רשת + עדכון מפתחים)
-                  _buildSystemUpdatesSection(context, state),
+                  SettingsAnchor(
+                    cardId: 'system.updates',
+                    child: _buildSystemUpdatesSection(context, state),
+                  ),
 
                   // 3. דיווחי טעויות
-                  _buildErrorReportsSection(context, state),
+                  SettingsAnchor(
+                    cardId: 'system.reports',
+                    child: _buildErrorReportsSection(context, state),
+                  ),
 
                   // 4. מתקדם (גיבוי + מצב סייפר)
-                  _buildAdvancedSection(context, state),
+                  SettingsAnchor(
+                    cardId: 'system.advanced',
+                    child: _buildAdvancedSection(context, state),
+                  ),
 
-                  _buildGuidedTourSection(context),
+                  SettingsAnchor(
+                    cardId: 'system.tour',
+                    child: _buildGuidedTourSection(context),
+                  ),
 
                   // 6. איפוס
-                  _buildResetSection(context),
+                  SettingsAnchor(
+                    cardId: 'system.reset',
+                    child: _buildResetSection(context),
+                  ),
                 ],
               ),
             ),
@@ -669,19 +814,12 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                   child: _isPendingReportsExpanded
                       ? Column(
                           children: [
-                            if (pendingReports.isNotEmpty)
-                              ...pendingReports.map(
-                                (report) => _buildPendingReportTile(
-                                  context,
-                                  report,
-                                  canSend: !state.isOfflineMode,
-                                ),
-                              ),
                             if (hasReports)
                               Padding(
                                 padding: const EdgeInsets.only(
                                   right: 16,
                                   left: 16,
+                                  top: 8,
                                   bottom: 16,
                                 ),
                                 child: Row(
@@ -738,6 +876,14 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                                   'במצב מנותק אי אפשר לשלוח כעת, אך ניתן להוריד סקריפט לשליחה ממחשב מחובר.',
                                   style: kSettingsSubtitleStyle,
                                   textDirection: TextDirection.rtl,
+                                ),
+                              ),
+                            if (pendingReports.isNotEmpty)
+                              ...pendingReports.map(
+                                (report) => _buildPendingReportTile(
+                                  context,
+                                  report,
+                                  canSend: !state.isOfflineMode,
                                 ),
                               ),
                           ],

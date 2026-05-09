@@ -849,7 +849,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   List<String> _normalizeCommentaryTargets(Iterable<String> titles) {
     return titles
         .map((title) => title.trim())
-        .where((title) => title.isNotEmpty && title != kNotesCommentatorTitle)
+        .where((title) => title.isNotEmpty)
         .toSet()
         .toList()
       ..sort();
@@ -1272,17 +1272,10 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   ) {
     if (state is TextBookLoaded) {
       final currentState = state as TextBookLoaded;
-      final autoSelectNotes =
-          currentState.activeCommentators.isEmpty && event.notesContent != null;
-      final activeCommentators = autoSelectNotes
-          ? [kNotesCommentatorTitle]
-          : currentState.activeCommentators;
 
       final updatedState = currentState.copyWith(
         availableCommentators: event.availableCommentators,
         commentatorGroups: event.commentatorGroups.cast<CommentatorGroup>(),
-        notesContent: event.notesContent,
-        activeCommentators: activeCommentators,
       );
       emit(updatedState);
 
@@ -1312,15 +1305,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     try {
       final availableCommentators =
           await repository.getAvailableCommentators(book);
-      final notesContent = await repository.getNotesContent(book);
 
-      final allCommentators = [...availableCommentators];
-      if (notesContent != null) {
-        allCommentators.add(kNotesCommentatorTitle);
-      }
-
-      final eras = await utils.splitByEra(allCommentators);
-      final groups = buildCommentatorGroups(eras, allCommentators);
+      final eras = await utils.splitByEra(availableCommentators);
+      final groups = buildCommentatorGroups(eras, availableCommentators);
 
       if (isClosed || state is! TextBookLoaded) {
         return;
@@ -1331,8 +1318,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         return;
       }
 
-      add(UpdateAvailableCommentators(allCommentators, groups,
-          notesContent: notesContent));
+      add(UpdateAvailableCommentators(availableCommentators, groups));
     } catch (e) {
       debugPrint('⚠️ Failed to load commentators in background: $e');
     }

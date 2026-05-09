@@ -126,6 +126,30 @@ void main() {
       final result = highLight(text, 'כל');
       expect(result, contains('<span style="color: red">'));
     });
+
+    test('multi-word with nikud and spacing - highlights both words', () {
+      const text = 'וְעַתָּה יֵרֶא פַּרְעֹה אִישׁ נָבוֹן וְחָכָם';
+      final result = highLight(
+        text,
+        'פרעה נבון',
+        spacingValues: const {'0-1': '1'},
+      );
+
+      expect(result, contains('<span style="color: red">פַּרְעֹה</span>'));
+      expect(result, contains('<span style="color: red">נָבוֹן</span>'));
+    });
+
+    test('multi-word with nikud and searchDistance - highlights both words', () {
+      const text = 'וְעַתָּה יֵרֶא פַּרְעֹה אִישׁ נָבוֹן וְחָכָם';
+      final result = highLight(
+        text,
+        'פרעה נבון',
+        searchDistance: 1,
+      );
+
+      expect(result, contains('<span style="color: red">פַּרְעֹה</span>'));
+      expect(result, contains('<span style="color: red">נָבוֹן</span>'));
+    });
   });
 
   group('removePunctuation', () {

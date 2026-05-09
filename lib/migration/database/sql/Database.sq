@@ -89,8 +89,6 @@ CREATE TABLE IF NOT EXISTS book (
     sourceId INTEGER NOT NULL,
     title TEXT NOT NULL,
     heShortDesc TEXT,
-    -- Optional raw notes attached to the base book (when a companion file 'הערות על <title>' exists)
-    notesContent TEXT,
     orderIndex INTEGER NOT NULL DEFAULT 999,
     totalLines INTEGER NOT NULL DEFAULT 0,
     isBaseBook INTEGER NOT NULL DEFAULT 0,

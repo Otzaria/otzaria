@@ -165,6 +165,42 @@ class FindRefRepository {
         stripLeadingTokensCount: matchedByAcronym ? bookQueryTokenCount : 0,
       );
 
+      // bookId == -1: file-system PDF — show exactly one result: best chapter match or book title
+      if (bookId == -1) {
+        final outlineEntries =
+            await ReferenceBooksCache.instance.getPdfOutlineEntries(hit.filePath);
+        final normalizedBookTitle = _normalizeForMatch(title);
+
+        DbReferenceResult? bestChapter;
+        for (final (normChapter, origChapter, pageNumber) in outlineEntries) {
+          if (normChapter == normalizedBookTitle) continue;
+          final chapterWords = _tokenize(normChapter);
+          final matches = remainingTokens.isEmpty ||
+              remainingTokens.every(
+                (t) => chapterWords.any((w) => w.startsWith(t)),
+              );
+          if (!matches) continue;
+          bestChapter = DbReferenceResult(
+            title: title,
+            reference: '$title $origChapter',
+            segment: pageNumber,
+            isPdf: true,
+            filePath: hit.filePath,
+          );
+          break;
+        }
+
+        results.add(bestChapter ??
+            DbReferenceResult(
+              title: title,
+              reference: title,
+              segment: 0,
+              isPdf: true,
+              filePath: hit.filePath,
+            ));
+        continue;
+      }
+
       if (remainingTokens.isEmpty) {
         final tocEntries = await fetchTocEntries(bookId, title);
 
@@ -247,7 +283,7 @@ class FindRefRepository {
     final out = <DbReferenceResult>[];
 
     for (final r in results) {
-      final key = '${_normalize(r.reference)}|${r.title}|${r.segment}';
+      final key = '${_normalize(r.reference)}|${r.title}|${r.segment}|${r.isPdf}';
       if (seen.add(key)) {
         out.add(r);
       }

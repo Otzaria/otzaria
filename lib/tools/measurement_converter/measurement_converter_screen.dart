@@ -859,9 +859,7 @@ class _MeasurementConverterScreenState
       minPaneWidth: 150,
       maxPaneWidth: 280,
       onPaneWidthChanged: (nextWidth) {
-        setState(() {
-          _categoriesPaneWidth = nextWidth;
-        });
+        _categoriesPaneWidth = nextWidth;
       },
       wrapPaneInFloatingPanel: true,
       mainContent: isWide
@@ -887,10 +885,6 @@ class _MeasurementConverterScreenState
       paneContent: _buildCategoriesPane(
         bgColor,
         closeOnSelect: !isWide,
-      ),
-      narrowPaneBuilder: (context, paneContent) => Material(
-        color: AppSurfaces.solidPanelBackground(context),
-        child: SafeArea(child: paneContent),
       ),
     );
   }

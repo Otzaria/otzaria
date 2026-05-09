@@ -297,17 +297,14 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                     }
 
                     if (state is TextBookLoaded) {
-                      return Padding(
-                        padding: const EdgeInsets.only(left: 12.0, right: 0.0),
-                        child: CombinedView(
-                          data: state.content,
-                          textSize: _fontSize,
-                          openBookCallback: (tab) {},
-                          openLeftPaneTab: (index, {String? searchText}) {},
-                          showCommentaryAsExpansionTiles: false,
-                          tab: _currentTextTab!,
-                          isPreviewMode: true,
-                        ),
+                      return CombinedView(
+                        data: state.content,
+                        textSize: _fontSize,
+                        openBookCallback: (tab) {},
+                        openLeftPaneTab: (index, {String? searchText}) {},
+                        showCommentaryAsExpansionTiles: false,
+                        tab: _currentTextTab!,
+                        isPreviewMode: true,
                       );
                     }
 
@@ -318,10 +315,10 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
             ),
           ),
         ),
-        // כפתורים צפים בפינה השמאלית העליונה
+        // כפתורים צפים בפינה השמאלית העליונה — top תואם ל-_kWideTopGap של AdaptiveSidePane
         Positioned(
-          top: 8,
-          left: 8,
+          top: 14,
+          left: 14,
           child: Builder(
             builder: (context) {
               return Row(

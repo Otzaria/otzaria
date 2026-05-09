@@ -1,7 +1,10 @@
+import 'dart:math';
+
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/text/rtl_text_field.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // AppMenuEntry — נתוני פריט בתפריט
@@ -233,6 +236,7 @@ Future<T?> showAnchoredAppMenu<T>({
       itemsBuilder,
   PopupMenuPosition position = PopupMenuPosition.under,
   Offset offset = const Offset(0, 4),
+  T? initialValue,
 }) async {
   final metrics = Theme.of(context).extension<AppMenuMetrics>() ??
       AppMenuMetrics.create(compactMenus: false);
@@ -274,9 +278,322 @@ Future<T?> showAnchoredAppMenu<T>({
     context: context,
     position: anchorRect,
     items: items,
+    initialValue: initialValue,
     // מינימום רוחב תואם רוחב הטריגר — סעיף 4
     constraints: BoxConstraints(minWidth: targetRect.width),
   );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// showAnchoredAppSearchMenu — תפריט עם שדה חיפוש מוצמד בראש
+//
+// שדה החיפוש לא נגלל יחד עם הרשימה — תמיד גלוי בראש התפריט.
+// כתיבה בו מסננת את הפריטים בזמן אמת.
+// ═══════════════════════════════════════════════════════════════════════════
+
+Future<T?> showAnchoredAppSearchMenu<T>({
+  required BuildContext context,
+  required BuildContext anchorContext,
+  required List<AppMenuEntry<T>> entries,
+  T? initialValue,
+  String searchHint = 'חיפוש',
+  PopupMenuPosition position = PopupMenuPosition.under,
+  Offset offset = const Offset(0, 4),
+}) async {
+  if (entries.isEmpty) return null;
+
+  final metrics = Theme.of(context).extension<AppMenuMetrics>() ??
+      AppMenuMetrics.create(compactMenus: false);
+
+  final renderBox = anchorContext.findRenderObject() as RenderBox;
+  final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+  final targetRect = MatrixUtils.transformRect(
+    renderBox.getTransformTo(overlay),
+    Offset.zero & renderBox.size,
+  );
+
+  // גובה מקסימלי: שדה חיפוש + עד 8 פריטים + ריפוד
+  const double searchBarHeight = 56.0;
+  const int maxItemsVisible = 8;
+  final maxMenuHeight = searchBarHeight +
+      (metrics.itemHeight * maxItemsVisible) +
+      metrics.menuPadding.vertical +
+      8;
+
+  final spaceBelow = overlay.size.height - targetRect.bottom - offset.dy;
+  final spaceAbove = targetRect.top - offset.dy;
+  final preferBelow = position == PopupMenuPosition.under;
+  final shouldOpenBelow = preferBelow
+      ? (spaceBelow >= maxMenuHeight || spaceBelow >= spaceAbove)
+      : !(spaceAbove >= maxMenuHeight || spaceAbove >= spaceBelow);
+
+  final availableHeight = shouldOpenBelow ? spaceBelow : spaceAbove;
+  // אל תחרוג ממה שזמין; קח את המינימום בין הזמין לבין הגובה המבוקש.
+  // הרשימה הפנימית גלילה, אז גם תפריט נמוך נשאר שמיש.
+  final menuHeight = min(availableHeight, maxMenuHeight);
+
+  final menuTop = shouldOpenBelow
+      ? targetRect.bottom + offset.dy
+      : targetRect.top - menuHeight - offset.dy;
+
+  return Navigator.of(context).push<T>(
+    _AnchoredSearchMenuRoute<T>(
+      anchorRect: Rect.fromLTWH(
+        targetRect.left,
+        menuTop,
+        targetRect.width,
+        menuHeight,
+      ),
+      entries: entries,
+      initialValue: initialValue,
+      searchHint: searchHint,
+      metrics: metrics,
+    ),
+  );
+}
+
+class _AnchoredSearchMenuRoute<T> extends PopupRoute<T> {
+  final Rect anchorRect;
+  final List<AppMenuEntry<T>> entries;
+  final T? initialValue;
+  final String searchHint;
+  final AppMenuMetrics metrics;
+
+  _AnchoredSearchMenuRoute({
+    required this.anchorRect,
+    required this.entries,
+    required this.initialValue,
+    required this.searchHint,
+    required this.metrics,
+  });
+
+  @override
+  Color? get barrierColor => null;
+
+  @override
+  bool get barrierDismissible => true;
+
+  @override
+  String? get barrierLabel => 'Dismiss';
+
+  @override
+  Duration get transitionDuration => const Duration(milliseconds: 100);
+
+  @override
+  Widget buildPage(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+  ) {
+    return _AnchoredSearchMenuContent<T>(
+      anchorRect: anchorRect,
+      entries: entries,
+      initialValue: initialValue,
+      searchHint: searchHint,
+      metrics: metrics,
+      animation: animation,
+    );
+  }
+}
+
+class _AnchoredSearchMenuContent<T> extends StatefulWidget {
+  final Rect anchorRect;
+  final List<AppMenuEntry<T>> entries;
+  final T? initialValue;
+  final String searchHint;
+  final AppMenuMetrics metrics;
+  final Animation<double> animation;
+
+  const _AnchoredSearchMenuContent({
+    required this.anchorRect,
+    required this.entries,
+    required this.initialValue,
+    required this.searchHint,
+    required this.metrics,
+    required this.animation,
+  });
+
+  @override
+  State<_AnchoredSearchMenuContent<T>> createState() =>
+      _AnchoredSearchMenuContentState<T>();
+}
+
+class _AnchoredSearchMenuContentState<T>
+    extends State<_AnchoredSearchMenuContent<T>> {
+  late final TextEditingController _searchController;
+  late final FocusNode _searchFocus;
+  late final ScrollController _scrollController;
+  String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController();
+    _searchFocus = FocusNode();
+    _scrollController = ScrollController();
+    _searchController.addListener(_onSearchChanged);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _searchFocus.requestFocus();
+      _scrollToInitialValue();
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
+    _searchFocus.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged() {
+    if (_query == _searchController.text) return;
+    setState(() => _query = _searchController.text);
+  }
+
+  void _scrollToInitialValue() {
+    if (widget.initialValue == null) return;
+    if (!_scrollController.hasClients) return;
+
+    final filtered = _filteredEntries;
+    final idx = filtered.indexWhere((e) => e.value == widget.initialValue);
+    if (idx < 0) return;
+
+    final targetOffset =
+        (idx * widget.metrics.itemHeight) - (widget.metrics.itemHeight * 2);
+    final maxOffset = _scrollController.position.maxScrollExtent;
+    _scrollController.jumpTo(targetOffset.clamp(0.0, maxOffset));
+  }
+
+  List<AppMenuEntry<T>> get _filteredEntries {
+    if (_query.isEmpty) return widget.entries;
+    final lowerQuery = _query.toLowerCase();
+    return widget.entries
+        .where((e) => e.label.toLowerCase().contains(lowerQuery))
+        .toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final filtered = _filteredEntries;
+    final menuColor = Theme.of(context).popupMenuTheme.color ?? cs.surface;
+
+    return Stack(
+      children: [
+        Positioned(
+          left: widget.anchorRect.left,
+          top: widget.anchorRect.top,
+          width: widget.anchorRect.width,
+          height: widget.anchorRect.height,
+          child: FadeTransition(
+            opacity: widget.animation,
+            child: Material(
+              elevation: 8,
+              borderRadius:
+                  BorderRadius.circular(widget.metrics.menuBorderRadius),
+              color: menuColor,
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                children: [
+                  // שדה חיפוש מוצמד בראש
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+                    child: RtlTextField(
+                      controller: _searchController,
+                      focusNode: _searchFocus,
+                      style: TextStyle(
+                        fontSize: widget.metrics.fontSize,
+                        color: cs.onSurface,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: widget.searchHint,
+                        hintStyle: TextStyle(
+                          color: cs.onSurfaceVariant,
+                          fontSize: widget.metrics.fontSize,
+                        ),
+                        isDense: true,
+                        prefixIcon: Icon(
+                          FluentIcons.search_24_regular,
+                          size: widget.metrics.iconSize,
+                          color: cs.onSurfaceVariant,
+                        ),
+                        filled: true,
+                        fillColor: cs.onSurface.withValues(alpha: 0.06),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                      ),
+                    ),
+                  ),
+                  // רשימה נגללת
+                  Expanded(
+                    child: filtered.isEmpty
+                        ? Center(
+                            child: Text(
+                              'אין תוצאות',
+                              style: TextStyle(
+                                color: cs.onSurfaceVariant,
+                                fontSize: widget.metrics.fontSize,
+                              ),
+                            ),
+                          )
+                        : ListView.builder(
+                            controller: _scrollController,
+                            padding: widget.metrics.menuPadding,
+                            itemCount: filtered.length,
+                            itemBuilder: (ctx, i) {
+                              final entry = filtered[i];
+                              final isSelected =
+                                  widget.initialValue != null &&
+                                      entry.value == widget.initialValue;
+                              return InkWell(
+                                onTap: entry.enabled
+                                    ? () => Navigator.of(context)
+                                        .pop(entry.value)
+                                    : null,
+                                child: SizedBox(
+                                  width: double.infinity,
+                                  height: widget.metrics.itemHeight,
+                                  child: LayoutBuilder(
+                                    // המרת הרוחב הזמין למקסימום שלוקח buildAppMenuRowContent.
+                                    // הוא יחסר את itemPadding פנימית לחישוב labelMaxWidth,
+                                    // ולכן מוסיפים בחזרה את הפדינג כך שהחישוב יהיה נכון.
+                                    builder: (ctx, constraints) =>
+                                        buildAppMenuRowContent(
+                                      context,
+                                      widget.metrics,
+                                      label: entry.label,
+                                      maxWidth: constraints.maxWidth +
+                                          widget.metrics.itemPadding.horizontal,
+                                      icon: entry.icon,
+                                      trailing: entry.trailing,
+                                      isSelected: isSelected,
+                                      isDestructive: entry.isDestructive,
+                                      enabled: entry.enabled,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -14,6 +14,7 @@ import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/navigation/search_pane_base.dart';
 import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/search/search_query_builder.dart';
+import 'package:otzaria/search/utils/snippet_builder.dart';
 import 'package:otzaria/search/book_facet.dart';
 import 'package:search_engine/search_engine.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
@@ -156,6 +157,20 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     _updateForceSearchEngine();
   }
 
+  void _syncBlocSearchTextState() {
+    final activeParameters = _activeSearchParameters;
+    context.read<TextBookBloc>().add(
+          UpdateSearchText(
+            searchTextController.text,
+            searchOptions: activeParameters.searchOptions,
+            alternativeWords: activeParameters.alternativeWords,
+            spacingValues: activeParameters.customSpacing,
+            searchMode: _searchMode,
+            searchDistance: _searchDistance,
+          ),
+        );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -163,6 +178,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
 
     searchTextController.text = widget.initialQuery;
     _syncSearchConfigurationFromWidget();
+    _syncBlocSearchTextState();
 
     scrollControler = widget.scrollControler;
     widget.focusNode.requestFocus();
@@ -203,6 +219,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     }
 
     if (queryChanged || searchConfigurationChanged) {
+      _syncBlocSearchTextState();
       if (widget.initialQuery.isNotEmpty) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
@@ -527,27 +544,43 @@ class TextBookSearchViewState extends State<TextBookSearchView>
           final resultListIndex = item.resultListIndex!;
           return BlocBuilder<SettingsBloc, SettingsState>(
             builder: (context, settingsState) {
+              final activeParameters = _activeSearchParameters;
               String snippet = result.snippet;
 
               if (settingsState.replaceHolyNames) {
                 snippet = utils.replaceHolyNames(snippet);
               }
 
-              snippet = _buildSearchExcerpt(
+              snippet = SnippetBuilder.buildExcerptText(
                 fullText: snippet,
                 query: result.query,
                 maxChars: _maxResultSnippetChars,
+                searchOptions: activeParameters.searchOptions,
+                alternativeWords: activeParameters.alternativeWords,
+                spacingValues: activeParameters.customSpacing,
+                searchDistance: _searchDistance,
+                fallbackToIndividualWords: _isSimpleSearch,
               );
 
-              // יצירת TextSpans עם הדגשה של מילות החיפוש
-              final highlightedSnippet = _buildHighlightedText(
-                snippet,
-                result.query,
-                settingsState,
-                context,
-                spacingValues: _spacingValues,
-                alternativeWords: _alternativeWords,
-                allowReverseOrderFallback: true,
+              final highlightedSnippet = SnippetBuilder.buildHighlightSpans(
+                plainText: snippet,
+                query: result.query,
+                defaultStyle: TextStyle(
+                  fontSize: 16,
+                  fontFamily: settingsState.fontFamily,
+                  color: Theme.of(context).colorScheme.onSurface,
+                  height: 1.5,
+                ),
+                highlightStyle: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: Color(0xFFD32F2F),
+                ),
+                searchOptions: activeParameters.searchOptions,
+                alternativeWords: activeParameters.alternativeWords,
+                searchDistance: _searchDistance,
+                spacingValues: activeParameters.customSpacing,
+                fallbackToIndividualWords: _isSimpleSearch,
               );
 
               return Container(
@@ -588,7 +621,9 @@ class TextBookSearchViewState extends State<TextBookSearchView>
                       .withValues(alpha: 0.4),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 10),
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
                     child: RichText(
                       textAlign: TextAlign.justify,
                       text: TextSpan(
@@ -648,9 +683,8 @@ class TextBookSearchViewState extends State<TextBookSearchView>
       },
       additionalActions: const [],
       hintText: 'חפש כאן...',
-      onAdvancedSearch: () {
-        // Create a temporary SearchingTab to hold the state
-        final tempTab = SearchingTab("חיפוש", searchTextController.text);
+      onAdvancedSearch: () async {
+        final tempTab = SearchingTab('חיפוש', searchTextController.text);
         tempTab.searchOptions.addAll(_searchOptions);
         tempTab.alternativeWords.addAll(_alternativeWords);
         tempTab.spacingValues.addAll(_spacingValues);
@@ -660,49 +694,53 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         final bookTitle =
             (context.read<TextBookBloc>().state as TextBookLoaded).book.title;
 
-        showDialog(
+        final result = await showDialog<SearchDialogResult>(
           context: context,
           builder: (dialogContext) => SearchDialog(
             existingTab: tempTab,
             bookTitle: bookTitle,
-            onSearch: (query, searchOptions, alternativeWords, spacingValues,
-                searchMode, distance) {
-              final normalizedParameters =
-                  SearchQueryBuilder.normalizeParametersForMode(
-                searchMode,
-                customSpacing: spacingValues,
-                alternativeWords: alternativeWords,
-                searchOptions: searchOptions,
-              );
-              applyInBookSearchQuery(
-                controller: searchTextController,
-                query: query,
-                onQueryChanged: (value) {
-                  context.read<TextBookBloc>().add(
-                        UpdateSearchText(
-                          value,
-                          searchOptions: normalizedParameters.searchOptions,
-                          alternativeWords:
-                              normalizedParameters.alternativeWords,
-                          spacingValues: normalizedParameters.customSpacing,
-                          searchMode: searchMode,
-                          searchDistance: distance,
-                        ),
-                      );
-                },
-              );
-              setState(() {
-                _searchOptions = normalizedParameters.searchOptions;
-                _alternativeWords = normalizedParameters.alternativeWords;
-                _spacingValues = normalizedParameters.customSpacing;
-                _searchMode = searchMode;
-                _searchDistance = distance;
-                _updateForceSearchEngine();
-              });
-              _searchTextUpdated();
-            },
+            returnResultOnSubmit: true,
           ),
         );
+
+        tempTab.dispose();
+
+        if (!mounted || result == null) {
+          return;
+        }
+
+        final normalizedParameters =
+            SearchQueryBuilder.normalizeParametersForMode(
+          result.searchMode,
+          customSpacing: result.spacingValues,
+          alternativeWords: result.alternativeWords,
+          searchOptions: result.searchOptions,
+        );
+        applyInBookSearchQuery(
+          controller: searchTextController,
+          query: result.query,
+          onQueryChanged: (value) {
+            context.read<TextBookBloc>().add(
+                  UpdateSearchText(
+                    value,
+                    searchOptions: normalizedParameters.searchOptions,
+                    alternativeWords: normalizedParameters.alternativeWords,
+                    spacingValues: normalizedParameters.customSpacing,
+                    searchMode: result.searchMode,
+                    searchDistance: result.distance,
+                  ),
+                );
+          },
+        );
+        setState(() {
+          _searchOptions = normalizedParameters.searchOptions;
+          _alternativeWords = normalizedParameters.alternativeWords;
+          _spacingValues = normalizedParameters.customSpacing;
+          _searchMode = result.searchMode;
+          _searchDistance = result.distance;
+          _updateForceSearchEngine();
+        });
+        _searchTextUpdated();
       },
     );
   }
@@ -777,232 +815,6 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         ),
       ),
     );
-  }
-
-  // פונקציה ליצירת טקסט מודגש
-  List<InlineSpan> _buildHighlightedText(
-    String text,
-    String query,
-    SettingsState settingsState,
-    BuildContext context, {
-    Map<String, String> spacingValues = const {},
-    Map<int, List<String>> alternativeWords = const {},
-    bool allowReverseOrderFallback = false,
-  }) {
-    if (query.isEmpty) {
-      return [TextSpan(text: text)];
-    }
-
-    final List<InlineSpan> spans = [];
-    final searchTerms =
-        query.trim().split(RegExp(r'\s+')).where((s) => s.isNotEmpty).toList();
-
-    // בניית regex לכל מילה בנפרד + pattern לביטוי המלא
-    final wordRegexList = <RegExp>[];
-    final wordPatternStrings = <String>[];
-
-    for (int i = 0; i < searchTerms.length; i++) {
-      final wordVariants = <String>[searchTerms[i]];
-      final alts = alternativeWords[i];
-      if (alts != null && alts.isNotEmpty) {
-        wordVariants.addAll(alts);
-      }
-      final wordPattern = wordVariants.map(RegExp.escape).join('|');
-      final wordPatternStr =
-          wordVariants.length > 1 ? '(?:$wordPattern)' : wordPattern;
-      wordPatternStrings.add(wordPatternStr);
-      wordRegexList.add(RegExp(wordPatternStr, caseSensitive: false));
-    }
-
-    final patternParts = <String>[];
-    for (int i = 0; i < wordPatternStrings.length; i++) {
-      patternParts.add(wordPatternStrings[i]);
-      if (i < wordPatternStrings.length - 1) {
-        final spacingKey = '$i-${i + 1}';
-        final maxTokens = int.tryParse(spacingValues[spacingKey] ?? '') ?? 0;
-        if (maxTokens > 0) {
-          patternParts.add('(?:\\s+\\S+){0,$maxTokens}\\s+');
-        } else {
-          patternParts.add(r'\s+');
-        }
-      }
-    }
-    final phraseRegex = RegExp(patternParts.join(''), caseSensitive: false);
-
-    const highlightStyle = TextStyle(
-      fontWeight: FontWeight.bold,
-      fontSize: 18,
-      color: Color(0xFFD32F2F),
-    );
-
-    // regex משולב לכל מילה בכל סדר – לשימוש כ-fallback
-    final anyWordRegex = wordPatternStrings.isNotEmpty
-        ? RegExp(wordPatternStrings.join('|'), caseSensitive: false)
-        : null;
-
-    // פונקציה פנימית: הדגשת מילות חיפוש בודדות (כל סדר) בטקסט נתון
-    void addIndividualWordHighlights(String segment) {
-      if (anyWordRegex == null) {
-        spans.add(TextSpan(text: segment));
-        return;
-      }
-      int pos = 0;
-      for (final m in anyWordRegex.allMatches(segment)) {
-        if (m.start > pos) {
-          spans.add(TextSpan(text: segment.substring(pos, m.start)));
-        }
-        spans.add(TextSpan(text: m.group(0), style: highlightStyle));
-        pos = m.end;
-      }
-      if (pos < segment.length) {
-        spans.add(TextSpan(text: segment.substring(pos)));
-      }
-    }
-
-    final phraseMatches = phraseRegex.allMatches(text).toList();
-    // אם הביטוי לא נמצא כלל וחיפוש לא מדויק, ייתכן שהמילים בסדר הפוך – נדגיש בנפרד
-    if (phraseMatches.isEmpty && allowReverseOrderFallback) {
-      addIndividualWordHighlights(text);
-      return spans;
-    }
-
-    int currentPosition = 0;
-
-    for (final phraseMatch in phraseMatches) {
-      // טקסט לפני הביטוי – ללא הדגשה (בחיפוש רגיל)
-      if (phraseMatch.start > currentPosition) {
-        spans.add(
-            TextSpan(text: text.substring(currentPosition, phraseMatch.start)));
-      }
-
-      // הדגשת מילות החיפוש בלבד בתוך הביטוי (בסדר המקורי)
-      final phraseText = text.substring(phraseMatch.start, phraseMatch.end);
-      int phraseOffset = 0;
-
-      for (final wordRegex in wordRegexList) {
-        final wordMatch =
-            wordRegex.firstMatch(phraseText.substring(phraseOffset));
-        if (wordMatch == null) break;
-
-        final wordStart = phraseOffset + wordMatch.start;
-        final wordEnd = phraseOffset + wordMatch.end;
-
-        // טקסט בין המילים (לא מודגש)
-        if (wordStart > phraseOffset) {
-          spans.add(
-              TextSpan(text: phraseText.substring(phraseOffset, wordStart)));
-        }
-        // המילה המודגשת
-        spans.add(TextSpan(
-          text: phraseText.substring(wordStart, wordEnd),
-          style: highlightStyle,
-        ));
-        phraseOffset = wordEnd;
-      }
-
-      // טקסט שנותר אחרי המילה האחרונה בביטוי
-      if (phraseOffset < phraseText.length) {
-        spans.add(TextSpan(text: phraseText.substring(phraseOffset)));
-      }
-
-      currentPosition = phraseMatch.end;
-    }
-
-    // טקסט אחרי ההדגשה האחרונה – ללא הדגשה
-    if (currentPosition < text.length) {
-      spans.add(TextSpan(text: text.substring(currentPosition)));
-    }
-
-    return spans;
-  }
-
-  String _buildSearchExcerpt({
-    required String fullText,
-    required String query,
-    required int maxChars,
-  }) {
-    var text = fullText.replaceAll(RegExp(r'\s+'), ' ').trim();
-    if (text.length <= maxChars) return text;
-
-    // Helper to find word end
-    int findWordEnd(int fromIndex) {
-      if (fromIndex >= text.length) return text.length;
-      final nextSpace = text.indexOf(' ', fromIndex);
-      return nextSpace != -1 ? nextSpace : text.length;
-    }
-
-    // Helper to find word start
-    int findWordStart(int fromIndex) {
-      if (fromIndex <= 0) return 0;
-      final lastSpace = text.lastIndexOf(' ', fromIndex);
-      return lastSpace != -1 ? lastSpace + 1 : 0;
-    }
-
-    final q = query.trim();
-    if (q.isEmpty) {
-      var end = findWordEnd(maxChars);
-      final suffix = end < text.length ? ' ...' : '';
-      return '${text.substring(0, end)}$suffix';
-    }
-
-    final terms = q.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
-    if (terms.isEmpty) {
-      var end = findWordEnd(maxChars);
-      final suffix = end < text.length ? ' ...' : '';
-      return '${text.substring(0, end)}$suffix';
-    }
-
-    final highlightRegex = RegExp(
-      terms.map(RegExp.escape).join('|'),
-      caseSensitive: false,
-    );
-
-    final matches = highlightRegex.allMatches(text);
-    if (matches.isEmpty) {
-      var end = findWordEnd(maxChars);
-      final suffix = end < text.length ? ' ...' : '';
-      return '${text.substring(0, end)}$suffix';
-    }
-
-    Match? bestMatch;
-    Match? firstMatch;
-
-    // Try to find a whole word match
-    // We define a word char as alphanumeric or Hebrew
-    final wordCharRegex = RegExp(r'[a-zA-Z0-9\u0590-\u05FF]');
-
-    for (final match in matches) {
-      firstMatch ??= match;
-
-      final start = match.start;
-      final end = match.end;
-
-      bool startOk = start == 0 || !wordCharRegex.hasMatch(text[start - 1]);
-      bool endOk = end == text.length || !wordCharRegex.hasMatch(text[end]);
-
-      if (startOk && endOk) {
-        bestMatch = match;
-        break;
-      }
-    }
-
-    bestMatch ??= firstMatch;
-
-    final len = text.length;
-    var start = (bestMatch!.start - (maxChars ~/ 3)).clamp(0, len);
-    var end = (start + maxChars).clamp(0, len);
-
-    // If we're at the end and didn't get enough chars, shift the window left.
-    if (end - start < maxChars) {
-      start = (end - maxChars).clamp(0, len);
-    }
-
-    start = findWordStart(start);
-    end = findWordEnd(end);
-
-    final prefix = start > 0 ? '... ' : '';
-    final suffix = end < len ? ' ...' : '';
-    return '$prefix${text.substring(start, end)}$suffix';
   }
 
   @override

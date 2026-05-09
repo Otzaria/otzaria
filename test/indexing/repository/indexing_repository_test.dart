@@ -4,6 +4,44 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 
 void main() {
+  group('IndexingRepository.shouldSkipManualReindexCheck', () {
+    test('מחזיר true עבור ספרייה ריקה - מונע דיאלוג איפוס בלי ספרים', () {
+      expect(
+        IndexingRepository.shouldSkipManualReindexCheck(
+          Library(categories: []),
+        ),
+        isTrue,
+      );
+    });
+
+    test('מחזיר true עבור ספרייה עם קטגוריות ריקות', () {
+      final library = Library(categories: []);
+      library.subCategories.add(
+        Category(
+          title: 'תנ"ך',
+          description: '',
+          shortDescription: '',
+          order: 1,
+          subCategories: [],
+          books: [],
+          parent: library,
+        ),
+      );
+      expect(
+        IndexingRepository.shouldSkipManualReindexCheck(library),
+        isTrue,
+      );
+    });
+
+    test('מחזיר false עבור ספרייה עם ספר אחד', () {
+      final library = _buildLibrary(bavliBooks: const [('שבת', 1)]);
+      expect(
+        IndexingRepository.shouldSkipManualReindexCheck(library),
+        isFalse,
+      );
+    });
+  });
+
   group('IndexingRepository.shouldResetBeforeFullReindex', () {
     test('מחזיר true כשמתחילים בנייה מחדש מעל אינדקס קיים', () {
       final shouldReset = IndexingRepository.shouldResetBeforeFullReindex(

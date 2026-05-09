@@ -32,6 +32,15 @@ class IndexSpecificBooks extends IndexingWorkEvent {
   List<Object?> get props => [books, library];
 }
 
+class CheckIndexStatus extends IndexingEvent {
+  final Library library;
+
+  const CheckIndexStatus(this.library);
+
+  @override
+  List<Object?> get props => [library];
+}
+
 class ClearIndex extends IndexingEvent {}
 
 class CancelIndexing extends IndexingEvent {}

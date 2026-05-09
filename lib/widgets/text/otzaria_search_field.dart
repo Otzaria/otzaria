@@ -208,11 +208,7 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
 
   bool _resolveSlim(BuildContext context) {
     if (widget.slim != null) return widget.slim!;
-    try {
-      return context.read<SettingsBloc>().state.compactMenuMode;
-    } catch (_) {
-      return false;
-    }
+    return context.read<SettingsBloc?>()?.state.compactMenuMode ?? false;
   }
 
   @override

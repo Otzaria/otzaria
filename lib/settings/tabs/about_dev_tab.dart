@@ -2,13 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
+import 'package:otzaria/settings/search/settings_anchor.dart';
+import 'package:otzaria/settings/search/settings_search_models.dart';
 import 'package:otzaria/settings/settings_card.dart';
+import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/dialogs/ad_popup_dialog.dart';
 
 /// טאב "חכמי לב" — אודות, קהילה, תורמים ומפתחים.
 class AboutDevTab extends StatelessWidget {
   const AboutDevTab({super.key});
+
+  /// פריטי חיפוש בהגדרות. נסרק על-ידי tool/generate_search_index.dart.
+  static const List<SettingsSearchEntry> searchEntries = [
+    SettingsSearchEntry(
+      id: 'about.team',
+      title: 'אודות הצוות',
+      subtitle: 'מידע על מפתחי אוצריא',
+      tab: SettingsTab.about,
+      cardId: 'about.main',
+      keywords: ['אודות', 'מפתחים', 'צוות'],
+    ),
+  ];
 
   static const _developers = <Map<String, String>>[
     {'name': 'sivan22', 'url': 'https://github.com/Sivan22'},
@@ -143,7 +158,10 @@ class AboutDevTab extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildHeader(context),
+            SettingsAnchor(
+              cardId: 'about.main',
+              child: _buildHeader(context),
+            ),
 
             // ── תרומה ומידע ──
             SettingsCard(
@@ -239,10 +257,9 @@ class AboutDevTab extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _editorCategory(context, '10 ספרים ומעלה', _topEditors),
+                      _editorCategory('10 ספרים ומעלה', _topEditors),
                       const SizedBox(height: 20),
-                      _editorCategory(
-                          context, 'בין 5 ל-10 ספרים', _regularEditors),
+                      _editorCategory('בין 5 ל-10 ספרים', _regularEditors),
                       const SizedBox(height: 12),
                       _editorsNote(context),
                     ],
@@ -292,8 +309,7 @@ class AboutDevTab extends StatelessWidget {
     );
   }
 
-  Widget _editorCategory(
-      BuildContext context, String label, List<Map<String, String>> editors) {
+  Widget _editorCategory(String label, List<Map<String, String>> editors) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

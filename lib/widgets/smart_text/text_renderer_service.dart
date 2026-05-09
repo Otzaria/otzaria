@@ -50,6 +50,7 @@ class TextRendererService {
         alternativeWords: settings.alternativeWords,
         spacingValues: settings.spacingValues,
         isFuzzy: settings.isFuzzySearch,
+        searchDistance: settings.searchDistance,
       );
     }
 

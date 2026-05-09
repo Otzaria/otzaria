@@ -12,6 +12,7 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
 
   IndexingBloc(this._repository) : super(IndexingInitial()) {
     on<IndexingWorkEvent>(_onIndexingWork, transformer: sequential());
+    on<CheckIndexStatus>(_onCheckIndexStatus);
     on<CancelIndexing>(_onCancelIndexing);
     on<ActualIndexingStarted>(_onActualIndexingStarted);
     on<UpdateIndexingProgress>(_onUpdateProgress);
@@ -174,6 +175,38 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
           totalBooks: state.totalBooks,
           booksDone: _repository.getIndexedBooks()));
     }
+  }
+
+  Future<void> _onCheckIndexStatus(
+    CheckIndexStatus event,
+    Emitter<IndexingState> emit,
+  ) async {
+    if (state is IndexingInProgress) return;
+
+    await _repository.awaitReady();
+
+    if (state is IndexingInProgress) return;
+
+    if (await _repository.requiresManualReindex(event.library)) {
+      emit(IndexingInitial());
+      return;
+    }
+
+    final indexableBooks = event.library
+        .getAllBooks()
+        .where(IndexingRepository.isIndexableBook)
+        .toList();
+
+    if (indexableBooks.isEmpty) {
+      emit(const IndexingComplete());
+      return;
+    }
+
+    final indexedSet = Set<String>.from(_repository.getIndexedBooks());
+    final allIndexed = indexableBooks.every(
+      (book) => indexedSet.contains(IndexingRepository.catalogueOrderKey(book)),
+    );
+    emit(allIndexed ? const IndexingComplete() : IndexingInitial());
   }
 
   /// Handles the CancelIndexing event

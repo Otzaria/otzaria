@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
 
-abstract class IndexingState extends Equatable {
+sealed class IndexingState extends Equatable {
   final int? booksProcessed;
   final int? totalBooks;
   final List<String>? booksDone;

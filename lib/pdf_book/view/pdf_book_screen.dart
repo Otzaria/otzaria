@@ -50,7 +50,9 @@ import 'package:otzaria/tour/models/live_tip.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/models/pdf_headings.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
+import 'package:otzaria/printing/printing_helpers.dart';
 import 'package:otzaria/printing/view/printing_screen.dart';
+import 'package:otzaria/shortcuts/shortcut_helper.dart';
 
 final GlobalKey pdfBookNavigationTourTargetKey = GlobalKey(
   debugLabel: 'pdf_book_navigation_tour_target',
@@ -109,16 +111,6 @@ bool shouldShowOpenPdfLinksPaneEntry({
   return hasRelevantLinks && !isPaneOpen;
 }
 
-int resolveInitialPdfPrintPage({
-  required int currentPage,
-  required PdfLayoutMode layoutMode,
-}) {
-  if (layoutMode != PdfLayoutMode.bookView || currentPage <= 1) {
-    return currentPage;
-  }
-  return currentPage.isEven ? currentPage : currentPage - 1;
-}
-
 class _PdfBookScreenState extends State<PdfBookScreen>
     with AutomaticKeepAliveClientMixin, TickerProviderStateMixin {
   static const int _defaultPdfLineRange = 50;
@@ -164,7 +156,38 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   bool _pdfViewerSuspended = false;
   bool _readerFocusAndHideQueued = false;
   bool _bookHasCommentaryLinks = false;
-  _PendingBookPageTurn? _pendingPageTurn;
+  // FIFO queue of page-turns that came in while another was already running.
+  // Each click gets its own animation; rapid clicks accumulate and play in
+  // order, instead of being collapsed into a single animation toward the
+  // latest target.
+  final List<_PendingBookPageTurn> _pendingPageTurns = [];
+  // Tracks left/right arrow keys that have fired KeyRepeatEvent so we can
+  // distinguish a held key (drain queue on release) from a short tap (let
+  // its queued turn play out).
+  final Set<LogicalKeyboardKey> _heldArrowKeys = {};
+
+  // Pre-rendered spread cache: lets the page-turn animation start instantly
+  // because the target spread snapshot is already in memory at click time.
+  // Key = spread start page (1-indexed). Pages are rendered via pdfrx's
+  // page.render() in the background and composited on-demand into a
+  // viewport-sized ui.Image when a page-turn fires.
+  final Map<int, _PdfSpreadCacheEntry> _spreadCache = {};
+  final Set<int> _spreadRenderInProgress = {};
+  final Map<int, PdfPageRenderCancellationToken> _spreadCancellationTokens = {};
+  int? _lastPrerenderTriggeredSpread;
+
+  // Tracks the most recent page-turn target we *initiated* (animation started
+  // or queued). next/prev navigation reads this instead of
+  // `controller.pageNumber` while a goToPage is in flight, so rapid clicks
+  // advance from the last-known intent rather than the stale viewer state.
+  // Cleared in `_onPdfViewerControllerUpdate` once the controller's spread
+  // catches up.
+  int? _lastInitiatedTargetPage;
+  // Target of the page-turn currently being animated (NOT including queued
+  // ones). Set when an animation starts, cleared after its goToPage settles.
+  // When we drop the held-key queue, `_lastInitiatedTargetPage` snaps back
+  // to this so the next click advances from where this animation will land.
+  int? _inFlightAnimationTarget;
 
   // Local UI state that syncs with Bloc
   int _rightPaneInitialTabIndex = 0;
@@ -271,7 +294,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     super.initState();
     _pageTurnController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 520),
+      duration: const Duration(milliseconds: 400),
     );
     if (widget.tab.pageNumber < 1) {
       widget.tab.pageNumber = 1;
@@ -1059,6 +1082,12 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           autofocus: false,
           onKeyEvent: (FocusNode node, KeyEvent event) {
             if (event is KeyDownEvent) {
+              final printShortcut =
+                  Settings.getValue<String>('key-shortcut-print') ?? 'ctrl+p';
+              if (ShortcutHelper.matchesShortcut(event, printShortcut)) {
+                _handlePrintPress(context);
+                return KeyEventResult.handled;
+              }
               if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
                 _goNextPage();
                 return KeyEventResult.handled;
@@ -1074,9 +1103,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
               }
             } else if (event is KeyRepeatEvent) {
               if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+                _heldArrowKeys.add(event.logicalKey);
                 _goNextPage();
                 return KeyEventResult.handled;
               } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+                _heldArrowKeys.add(event.logicalKey);
                 _goPreviousPage();
                 return KeyEventResult.handled;
               } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
@@ -1090,6 +1121,25 @@ class _PdfBookScreenState extends State<PdfBookScreen>
               if (event.logicalKey == LogicalKeyboardKey.arrowUp ||
                   event.logicalKey == LogicalKeyboardKey.arrowDown) {
                 _stopContinuousScroll();
+                return KeyEventResult.handled;
+              }
+              // Releasing left/right arrow: only drain the queue if the key
+              // was HELD (had at least one KeyRepeatEvent). Short taps must
+              // keep their queued turn so the second click in a fast 1-2
+              // tap doesn't get dropped along with the first click's hold-
+              // less queue clear.
+              if (event.logicalKey == LogicalKeyboardKey.arrowLeft ||
+                  event.logicalKey == LogicalKeyboardKey.arrowRight) {
+                final wasHeld = _heldArrowKeys.remove(event.logicalKey);
+                if (wasHeld) {
+                  _pendingPageTurns.clear();
+                  // Snap the "last initiated" intent back to the target of
+                  // the animation that's actually in flight, so the next
+                  // click advances ONE step from where the user is about
+                  // to land — instead of from the discarded held-key
+                  // intent that may be many spreads further ahead.
+                  _lastInitiatedTargetPage = _inFlightAnimationTarget;
+                }
                 return KeyEventResult.handled;
               }
             }
@@ -1348,7 +1398,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             child: AnimatedBuilder(
               animation: _pageTurnController,
               builder: (context, child) {
-                final progress = Curves.easeInOutCubic.transform(
+                final progress = Curves.easeOutCubic.transform(
                   _pageTurnController.value,
                 );
                 return CustomPaint(
@@ -1372,7 +1422,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             child: AnimatedBuilder(
               animation: _pageTurnController,
               builder: (context, child) {
-                final progress = Curves.easeInOutCubic.transform(
+                final progress = Curves.easeOutCubic.transform(
                   _pageTurnController.value,
                 );
 
@@ -1660,30 +1710,289 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   }
 
   Future<void> _processPendingPageTurnIfNeeded() async {
-    final pendingPageTurn = _pendingPageTurn;
-    _pendingPageTurn = null;
-
-    if (pendingPageTurn == null || !mounted) {
+    if (_pendingPageTurns.isEmpty || !mounted) {
       return;
     }
 
+    final pending = _pendingPageTurns.removeAt(0);
     await _animateBookPageTurn(
-      targetPage: pendingPageTurn.targetPage,
-      direction: pendingPageTurn.direction,
+      targetPage: pending.targetPage,
+      direction: pending.direction,
     );
   }
 
-  bool _hasNewerPendingPageTurn({
-    required int targetPage,
-    required _BookPageTurnDirection direction,
-  }) {
-    final pendingPageTurn = _pendingPageTurn;
-    if (pendingPageTurn == null) {
-      return false;
+  // ============================================================
+  // Spread pre-render cache
+  // ============================================================
+
+  List<int> _pagesInSpread(int spreadStartPage) {
+    final controller = widget.tab.pdfViewerController;
+    if (!controller.isReady) return const [];
+    final totalPages = controller.pageCount;
+    if (spreadStartPage < 1 || spreadStartPage > totalPages) return const [];
+    if (spreadStartPage == 1) return const [1];
+    return spreadStartPage + 1 <= totalPages
+        ? [spreadStartPage, spreadStartPage + 1]
+        : [spreadStartPage];
+  }
+
+  /// Renders the pages of [spreadStartPage] via pdfrx and stores the rendered
+  /// images in the cache. Safe to call repeatedly: returns immediately if the
+  /// spread is already cached or being rendered.
+  Future<void> _renderSpreadPagesIntoCache(int spreadStartPage) async {
+    if (_spreadCache.containsKey(spreadStartPage)) return;
+    if (_spreadRenderInProgress.contains(spreadStartPage)) return;
+
+    final controller = widget.tab.pdfViewerController;
+    if (!controller.isReady) return;
+
+    final pageNumbers = _pagesInSpread(spreadStartPage);
+    if (pageNumbers.isEmpty) return;
+
+    _spreadRenderInProgress.add(spreadStartPage);
+
+    final pageImages = <int, ui.Image>{};
+
+    try {
+      for (final pageNum in pageNumbers) {
+        if (!mounted || !controller.isReady) {
+          _disposeImageMap(pageImages);
+          return;
+        }
+
+        final pages = controller.document.pages;
+        final pageIdx = pageNum - 1;
+        if (pageIdx < 0 || pageIdx >= pages.length) continue;
+
+        final page = pages[pageIdx];
+        final cancellationToken = page.createCancellationToken();
+        _spreadCancellationTokens[spreadStartPage] = cancellationToken;
+
+        // 2.0 = render at 2x the page's natural 72-DPI size; sharp on most
+        // displays without blowing memory. The painter scales down on draw
+        // when the viewport is smaller.
+        const renderScale = 2.0;
+        final pdfImage = await page.render(
+          fullWidth: page.width * renderScale,
+          fullHeight: page.height * renderScale,
+          backgroundColor: 0xFFFFFFFF,
+          flags: PdfPageRenderFlags.limitedImageCache,
+          cancellationToken: cancellationToken,
+        );
+
+        if (_spreadCancellationTokens[spreadStartPage] == cancellationToken) {
+          _spreadCancellationTokens.remove(spreadStartPage);
+        }
+
+        if (pdfImage == null || !mounted) {
+          _disposeImageMap(pageImages);
+          return;
+        }
+
+        final uiImage = await pdfImage.createImage();
+        pdfImage.dispose();
+
+        if (!mounted) {
+          uiImage.dispose();
+          _disposeImageMap(pageImages);
+          return;
+        }
+
+        pageImages[pageNum] = uiImage;
+      }
+
+      // Replace any stale entry (e.g. from previous render at different zoom).
+      _spreadCache[spreadStartPage]?.dispose();
+      _spreadCache[spreadStartPage] =
+          _PdfSpreadCacheEntry(pageImages: pageImages);
+    } catch (e, s) {
+      debugPrint('Spread pre-render failed for $spreadStartPage: $e\n$s');
+      _disposeImageMap(pageImages);
+    } finally {
+      _spreadRenderInProgress.remove(spreadStartPage);
+      _spreadCancellationTokens.remove(spreadStartPage);
+    }
+  }
+
+  void _disposeImageMap(Map<int, ui.Image> images) {
+    for (final image in images.values) {
+      image.dispose();
+    }
+    images.clear();
+  }
+
+  /// Composes a viewport-sized [ui.Image] from cached page images by
+  /// predicting the post-navigation viewer matrix (preserves zoom, centers on
+  /// the target spread) and drawing each page at its predicted viewport rect.
+  /// Returns null if the spread isn't cached, the controller isn't ready, or
+  /// the viewport size is empty.
+  Future<ui.Image?> _composeCachedSpreadSnapshot(int spreadStartPage) async {
+    final entry = _spreadCache[spreadStartPage];
+    if (entry == null || entry.pageImages.isEmpty) return null;
+
+    final controller = widget.tab.pdfViewerController;
+    if (!controller.isReady) return null;
+
+    final layout = controller.layout;
+    final pageLayouts = layout.pageLayouts;
+    final viewSize = controller.viewSize;
+    if (viewSize.width <= 0 || viewSize.height <= 0) return null;
+
+    final newSpreadRect = _spreadRectForPageLayout(layout, spreadStartPage);
+    if (newSpreadRect == null) return null;
+
+    // Predict the post-navigation viewer matrix using the same arithmetic as
+    // `_goToPageWithSpreadLock`, so the composed snapshot lands on the same
+    // pixels the live viewer will show after `goTo`. Otherwise zoomed-in
+    // reading (where relative scroll != 0.5) would produce a "snap" at the
+    // end of the curl as the snapshot is replaced by the actual viewer.
+    final currentSpreadRect = _currentSpreadRect(controller);
+    final visibleRect = controller.visibleRect;
+    final zoom = controller.value.zoom;
+
+    var targetCenterY = newSpreadRect.center.dy;
+    if (currentSpreadRect != null &&
+        currentSpreadRect.height > 0 &&
+        newSpreadRect.height > 0) {
+      final visibleHeight = min(visibleRect.height, currentSpreadRect.height);
+      final currentScrollableExtent =
+          max(currentSpreadRect.height - visibleHeight, 0.0);
+      var relativeScroll = 0.0;
+      if (currentScrollableExtent > 0) {
+        final currentScrollTop = (visibleRect.top - currentSpreadRect.top)
+            .clamp(0.0, currentScrollableExtent);
+        relativeScroll = currentScrollTop / currentScrollableExtent;
+      }
+      final newScrollableExtent =
+          max(newSpreadRect.height - visibleHeight, 0.0);
+      final newScrollTop = relativeScroll * newScrollableExtent;
+      targetCenterY = newSpreadRect.top + newScrollTop + visibleHeight / 2;
     }
 
-    return pendingPageTurn.targetPage != targetPage ||
-        pendingPageTurn.direction != direction;
+    final targetMatrix = controller.calcMatrixFor(
+      Offset(newSpreadRect.center.dx, targetCenterY),
+      zoom: zoom,
+      viewSize: viewSize,
+    );
+
+    final viewportPixels = viewSize.width * viewSize.height;
+    const maxCapturePixels = 1600000.0;
+    final cappedPixelRatio =
+        viewportPixels <= 0 ? 1.0 : sqrt(maxCapturePixels / viewportPixels);
+    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+    final pixelRatio =
+        min(devicePixelRatio, min(1.35, cappedPixelRatio)).clamp(0.85, 1.35);
+
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    canvas.scale(pixelRatio);
+
+    // Background — match the dark/light viewer surface so the area outside
+    // the spread doesn't show as a stark transparent strip during the curl.
+    final bgColor = Theme.of(context).brightness == Brightness.dark
+        ? Colors.black
+        : const Color(0xFFFFFFFF);
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, viewSize.width, viewSize.height),
+      Paint()..color = bgColor,
+    );
+
+    final paint = Paint()..filterQuality = FilterQuality.medium;
+    for (final pageNum in entry.pageImages.keys) {
+      final pageIdx = pageNum - 1;
+      if (pageIdx < 0 || pageIdx >= pageLayouts.length) continue;
+
+      final pageDocRect = pageLayouts[pageIdx];
+      final pageViewportRect =
+          MatrixUtils.transformRect(targetMatrix, pageDocRect);
+
+      final pageImage = entry.pageImages[pageNum]!;
+      canvas.drawImageRect(
+        pageImage,
+        Rect.fromLTWH(
+          0,
+          0,
+          pageImage.width.toDouble(),
+          pageImage.height.toDouble(),
+        ),
+        pageViewportRect,
+        paint,
+      );
+    }
+
+    final picture = recorder.endRecording();
+    try {
+      return await picture.toImage(
+        (viewSize.width * pixelRatio).round(),
+        (viewSize.height * pixelRatio).round(),
+      );
+    } finally {
+      picture.dispose();
+    }
+  }
+
+  /// Kicks off background pre-rendering of the current, next, and previous
+  /// spreads so that `_animateBookPageTurn` finds them already cached.
+  /// Cheap to call repeatedly: skips spreads that are already cached or
+  /// rendering, and de-dupes via [_lastPrerenderTriggeredSpread].
+  void _schedulePrerenderForAdjacentSpreads() {
+    if (!_isBookViewModeActive()) return;
+    final controller = widget.tab.pdfViewerController;
+    if (!controller.isReady) return;
+
+    final currentPage = controller.pageNumber ?? 1;
+    final currentSpread = _spreadStartPageFor(currentPage);
+
+    if (_lastPrerenderTriggeredSpread == currentSpread &&
+        _spreadCache.containsKey(currentSpread)) {
+      return;
+    }
+    _lastPrerenderTriggeredSpread = currentSpread;
+
+    final totalPages = controller.pageCount;
+    final candidates = <int>[
+      currentSpread,
+      currentSpread + 2,
+      currentSpread - 2,
+    ];
+
+    for (final spread in candidates) {
+      if (spread >= 1 && spread <= totalPages) {
+        unawaited(_renderSpreadPagesIntoCache(spread));
+      }
+    }
+
+    _evictSpreadCacheFarFrom(currentSpread);
+  }
+
+  /// Keeps cache memory bounded by evicting spreads more than [keepRange]
+  /// pages away from the current spread.
+  void _evictSpreadCacheFarFrom(int currentSpread) {
+    const keepRange = 4;
+    final toRemove = <int>[];
+    for (final spread in _spreadCache.keys) {
+      if ((spread - currentSpread).abs() > keepRange) {
+        toRemove.add(spread);
+      }
+    }
+    for (final spread in toRemove) {
+      _spreadCache.remove(spread)?.dispose();
+    }
+  }
+
+  void _disposeAllSpreadCache() {
+    for (final entry in _spreadCache.values) {
+      entry.dispose();
+    }
+    _spreadCache.clear();
+    for (final token in _spreadCancellationTokens.values) {
+      token.cancel();
+    }
+    _spreadCancellationTokens.clear();
+    _spreadRenderInProgress.clear();
+    _lastPrerenderTriggeredSpread = null;
+    _lastInitiatedTargetPage = null;
+    _inFlightAnimationTarget = null;
   }
 
   Future<void> _animateBookPageTurn({
@@ -1705,10 +2014,12 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     }
 
     if (_pageTurnController.isAnimating || _isPageTurnInProgress) {
-      _pendingPageTurn = _PendingBookPageTurn(
+      // Animation already in flight: queue this turn FIFO so it plays after
+      // the current one finishes. Each click gets its own curl, in order.
+      _pendingPageTurns.add(_PendingBookPageTurn(
         targetPage: targetPage,
         direction: direction,
-      );
+      ));
       return;
     }
 
@@ -1717,6 +2028,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     // currentSpreadViewportRect is null (layout not ready during progressive
     // loading), goToPage hangs because normalization keeps fighting it.
     _isPageTurnInProgress = true;
+    _inFlightAnimationTarget = targetPage;
 
     try {
       final currentSpreadViewportRect = _currentSpreadViewportRect(
@@ -1737,26 +2049,21 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         return;
       }
 
-      if (_hasNewerPendingPageTurn(
-          targetPage: targetPage, direction: direction)) {
-        captureResult.image.dispose();
-        return;
-      }
-
       // Reset to 0 before setState so that when the AnimatedBuilder first
       // paints the overlay it uses progress=0 (full snapshot, no hole).
       // Without this, a previous completed animation leaves the controller
       // at 1.0, punching a full-spread hole in the snapshot and exposing
       // the loading tiles underneath before the animation even starts.
       _pageTurnController.reset();
+      final transition = _BookPageTurnTransition(
+        direction: direction,
+        viewportRect: currentSpreadViewportRect,
+        viewportLogicalSize: captureResult.viewportLogicalSize,
+      );
       setState(() {
         _disposePageTurnSnapshot();
         _pageTurnSnapshot = captureResult.image;
-        _pageTurnTransition = _BookPageTurnTransition(
-          direction: direction,
-          viewportRect: currentSpreadViewportRect,
-          viewportLogicalSize: captureResult.viewportLogicalSize,
-        );
+        _pageTurnTransition = transition;
       });
 
       // Wait for the overlay frame to actually paint before jumping to the
@@ -1766,43 +2073,74 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       await WidgetsBinding.instance.endOfFrame;
       if (!mounted) return;
 
-      if (_hasNewerPendingPageTurn(
-          targetPage: targetPage, direction: direction)) {
-        return;
+      // Cache lookup: if the target spread was pre-rendered, compose its
+      // snapshot now (cheap, page renders are already in memory) and run
+      // navigation in parallel with the curl. The user gets an instant
+      // page-turn with the new page fully visible from frame 1.
+      final targetSpreadStartPage = _spreadStartPageFor(targetPage);
+      final hasCachedTarget = _spreadCache.containsKey(targetSpreadStartPage);
+
+      if (hasCachedTarget) {
+        final composed =
+            await _composeCachedSpreadSnapshot(targetSpreadStartPage);
+
+        if (!mounted) {
+          composed?.dispose();
+          return;
+        }
+
+        if (composed != null) {
+          setState(() {
+            _pageTurnTargetSnapshot?.dispose();
+            _pageTurnTargetSnapshot = composed;
+          });
+          await WidgetsBinding.instance.endOfFrame;
+          if (!mounted) return;
+        }
+
+        // Run navigation concurrently with the animation. The cached snapshot
+        // covers the reveal so any tile churn from goTo is invisible. We
+        // capture the future and await it AFTER the animation so the next
+        // queued page-turn (if any) starts from the actual settled spread,
+        // not a stale viewer mid-transition. The overlay stays visible (at
+        // progress=1) until finally clears it, so the user sees no flash.
+        final navigationFuture =
+            _goToPageWithSpreadLock(targetPage).catchError((Object _) {});
+
+        await _pageTurnController.forward(from: 0);
+        await navigationFuture;
+      } else {
+        // Cache miss — fall back to sequential flow (the cost on first visit
+        // before pre-rendering completes for this spread).
+        await _goToPageWithSpreadLock(targetPage);
+
+        if (!mounted) return;
+
+        // Capture the target spread after navigation. During the animation we
+        // draw this snapshot in the revealed area, so the new page looks
+        // fully rendered from the very first frame of the curl — instead of
+        // showing pdfrx tile-loading progress that reads as "scrolling in".
+        await Future<void>.delayed(const Duration(milliseconds: 90));
+
+        if (!mounted) return;
+
+        final targetCaptureResult = await _capturePdfViewportSnapshot();
+
+        if (mounted && targetCaptureResult != null) {
+          setState(() {
+            _pageTurnTargetSnapshot?.dispose();
+            _pageTurnTargetSnapshot = targetCaptureResult.image;
+          });
+          await WidgetsBinding.instance.endOfFrame;
+        }
+
+        if (!mounted) return;
+
+        await _pageTurnController.forward(from: 0);
       }
-
-      await _goToPageWithSpreadLock(targetPage);
-
-      if (!mounted) return;
-
-      // Capture the target spread after navigation. During the animation we
-      // draw this snapshot in the revealed area, so the new page looks as
-      // strong and complete as it does after the page turn finishes.
-      await Future<void>.delayed(const Duration(milliseconds: 90));
-
-      if (!mounted) return;
-
-      final targetCaptureResult = await _capturePdfViewportSnapshot();
-
-      if (_hasNewerPendingPageTurn(
-          targetPage: targetPage, direction: direction)) {
-        targetCaptureResult?.image.dispose();
-        return;
-      }
-
-      if (mounted && targetCaptureResult != null) {
-        setState(() {
-          _pageTurnTargetSnapshot?.dispose();
-          _pageTurnTargetSnapshot = targetCaptureResult.image;
-        });
-        await WidgetsBinding.instance.endOfFrame;
-      }
-
-      if (!mounted) return;
-
-      await _pageTurnController.forward(from: 0);
     } finally {
       _isPageTurnInProgress = false;
+      _inFlightAnimationTarget = null;
       if (mounted) {
         setState(_clearPageTurnOverlay);
       } else {
@@ -1979,6 +2317,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     _stopContinuousScroll();
     _pointerScrollFlushTimer?.cancel();
     _disposePageTurnSnapshot();
+    _disposeAllSpreadCache();
+    _pendingPageTurns.clear();
     _pageTurnController.dispose();
     textSearcher?.removeListener(_onTextSearcherUpdated);
     pdfController.removeListener(_onPdfViewerControllerUpdate);
@@ -2013,10 +2353,26 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   void _onPdfViewerControllerUpdate() async {
     if (!widget.tab.pdfViewerController.isReady) return;
 
+    // Keep adjacent-spread pre-renders warm so page-turn animations can
+    // open the cached snapshot instantly without waiting on goToPage + tile
+    // loading. Cheap & idempotent — guarded by `_lastPrerenderTriggeredSpread`.
+    _schedulePrerenderForAdjacentSpreads();
+
     final tourCubit = context.read<TourCubit>();
     widget.tab.savedZoom = widget.tab.pdfViewerController.value.zoom;
 
     final newPage = widget.tab.pdfViewerController.pageNumber ?? 1;
+
+    // Once the controller's spread catches up to the most recently initiated
+    // target, the staleness window is closed — clear the override so future
+    // clicks read directly from the controller again.
+    if (_lastInitiatedTargetPage != null) {
+      final initiatedSpread = _spreadStartPageFor(_lastInitiatedTargetPage!);
+      final newSpread = _spreadStartPageFor(newPage);
+      if (initiatedSpread == newSpread) {
+        _lastInitiatedTargetPage = null;
+      }
+    }
     // אם אנחנו בתהליך קפיצה, לא נעדכן את pageNumber
     if (_isJumping) {
       return;
@@ -2190,7 +2546,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                       .add(UpdateCommentaryPaneWidth(current.rightPaneWidth));
                 }
               },
-              minMainContentWidth: 640,
+              minMainContentWidth: 200,
             );
           },
         ),
@@ -2466,9 +2822,25 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                 child: TabBar(
                   controller: _leftPaneTabController,
                   tabs: const [
-                    Tab(text: 'ניווט'),
-                    Tab(text: 'חיפוש'),
-                    Tab(text: 'דפים'),
+                    Tab(
+                      icon: Icon(FluentIcons.navigation_24_regular, size: 16),
+                      iconMargin: EdgeInsets.only(bottom: 1),
+                      height: 44,
+                      child: Text('ניווט', style: TextStyle(fontSize: 11)),
+                    ),
+                    Tab(
+                      icon: Icon(FluentIcons.search_24_regular, size: 16),
+                      iconMargin: EdgeInsets.only(bottom: 1),
+                      height: 44,
+                      child: Text('חיפוש', style: TextStyle(fontSize: 11)),
+                    ),
+                    Tab(
+                      icon: Icon(FluentIcons.document_multiple_24_regular,
+                          size: 16),
+                      iconMargin: EdgeInsets.only(bottom: 1),
+                      height: 44,
+                      child: Text('דפים', style: TextStyle(fontSize: 11)),
+                    ),
                   ],
                   labelColor: Theme.of(context).colorScheme.primary,
                   unselectedLabelColor: Theme.of(context)
@@ -2605,18 +2977,35 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     _bloc.add(const pdf_events.ResetZoom());
   }
 
+  /// Returns the page that next/prev navigation should treat as the user's
+  /// current position. When a navigation is in flight (cache-hit path runs
+  /// goToPage in parallel with the animation, so `controller.pageNumber`
+  /// lags), prefer the latest target we already initiated. Without this,
+  /// rapid double-clicks compute the same target twice (controller still
+  /// reports the pre-click page) and the second click animates without
+  /// advancing the page.
+  int _effectiveCurrentPageForNavigation() {
+    final controller = widget.tab.pdfViewerController;
+    return _lastInitiatedTargetPage ?? (controller.pageNumber ?? 1);
+  }
+
   void _goNextPage() {
     if (!widget.tab.pdfViewerController.isReady) return;
 
     final isBookViewMode = _isBookViewModeActive();
-    final currentPage = widget.tab.pdfViewerController.pageNumber ?? 1;
+    final basePage = _effectiveCurrentPageForNavigation();
     final totalPages = widget.tab.pdfViewerController.pageCount;
     final pageStep = isBookViewMode ? 2 : 1;
-    final nextPage = min(currentPage + pageStep, totalPages);
+    final nextPage = min(basePage + pageStep, totalPages);
 
-    if (nextPage == currentPage) {
+    if (nextPage == basePage) {
       return;
     }
+
+    // Record the user-initiated target so the next click computes its own
+    // target relative to this one — even if controller.pageNumber hasn't
+    // updated yet (parallel goToPage in cache-hit flow).
+    _lastInitiatedTargetPage = nextPage;
 
     if (isBookViewMode) {
       _animateBookPageTurn(
@@ -2633,13 +3022,15 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     if (!widget.tab.pdfViewerController.isReady) return;
 
     final isBookViewMode = _isBookViewModeActive();
-    final currentPage = widget.tab.pdfViewerController.pageNumber ?? 1;
+    final basePage = _effectiveCurrentPageForNavigation();
     final pageStep = isBookViewMode ? 2 : 1;
-    final prevPage = max(currentPage - pageStep, 1);
+    final prevPage = max(basePage - pageStep, 1);
 
-    if (prevPage == currentPage) {
+    if (prevPage == basePage) {
       return;
     }
+
+    _lastInitiatedTargetPage = prevPage;
 
     if (isBookViewMode) {
       _animateBookPageTurn(
@@ -3305,7 +3696,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         : 1;
 
     final notesBloc = context.read<PersonalNotesBloc>();
-    final dialogContext = context;
 
     final library = await DataRepository.instance.library;
     final textBook = library.findBookByTitle(widget.tab.book.title, TextBook);
@@ -3345,11 +3735,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       lineNumber: currentPage,
     );
 
-    if (!mounted) return;
+    if (!context.mounted) return;
 
     final noteContent = await showDialog<PersonalNoteEditorResult>(
-      // ignore: use_build_context_synchronously
-      context: dialogContext,
+      context: context,
       builder: (context) => PersonalNoteEditorDialog(
         title: dialogTitle,
         bookId: widget.tab.book.title,
@@ -3432,7 +3821,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       layoutMode: currentLayoutMode,
     );
     setState(() => _pdfViewerSuspended = true);
-    await Navigator.of(context).push<bool>(MaterialPageRoute(
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
       builder: (_) => PrintingScreen(
         data: Future.value(''),
         bookId: widget.tab.book.title,
@@ -3441,7 +3832,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         isBookView: currentLayoutMode == PdfLayoutMode.bookView,
         pdfOutline: widget.tab.outline.value ?? [],
       ),
-    ));
+    );
     if (mounted) {
       try {
         // Always reset the pdfrx worker when leaving the print screen:
@@ -3588,6 +3979,22 @@ class _BookPageTurnTransition {
     required this.viewportRect,
     required this.viewportLogicalSize,
   });
+}
+
+/// Holds pre-rendered images for the pages of a single book-view spread.
+/// The animation flow composites these page images into a viewport-sized
+/// snapshot on demand (cheap, ~5-15ms) instead of waiting on goToPage +
+/// tile loading + viewport capture (~150-250ms total).
+class _PdfSpreadCacheEntry {
+  final Map<int, ui.Image> pageImages;
+
+  _PdfSpreadCacheEntry({required this.pageImages});
+
+  void dispose() {
+    for (final image in pageImages.values) {
+      image.dispose();
+    }
+  }
 }
 
 class _BookViewViewportMaskPainter extends CustomPainter {

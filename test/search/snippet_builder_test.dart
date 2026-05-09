@@ -4,6 +4,66 @@ import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/search/utils/snippet_builder.dart';
 
 void main() {
+  test('buildHighlightSpans מדגיש חלופה שסופקה ב-alternativeWords', () {
+    final spans = SnippetBuilder.buildHighlightSpans(
+      plainText: 'אמר שלום לכל אדם',
+      query: 'ברכה',
+      defaultStyle: const TextStyle(),
+      highlightStyle: const TextStyle(fontWeight: FontWeight.bold),
+      searchOptions: const {},
+      alternativeWords: const {
+        0: ['שלום'],
+      },
+    );
+
+    final highlighted = spans
+        .whereType<TextSpan>()
+        .where((span) => span.style?.fontWeight == FontWeight.bold)
+        .map((span) => span.text ?? '')
+        .join();
+
+    expect(highlighted, contains('שלום'));
+  });
+
+  test('buildHighlightSpans מכבד קידומות דקדוקיות ומדגיש רק את בסיס המילה', () {
+    final spans = SnippetBuilder.buildHighlightSpans(
+      plainText: 'והחכמה מאין תמצא',
+      query: 'חכמה',
+      defaultStyle: const TextStyle(),
+      highlightStyle: const TextStyle(fontWeight: FontWeight.bold),
+      searchOptions: {
+        SearchQueryBuilder.buildWordKey('חכמה', 0): const {
+          'קידומות דקדוקיות': true,
+        },
+      },
+      alternativeWords: const {},
+      fallbackToIndividualWords: false,
+    );
+
+    final highlighted = spans
+        .whereType<TextSpan>()
+        .where((span) => span.style?.fontWeight == FontWeight.bold)
+        .map((span) => span.text ?? '')
+        .join();
+
+    expect(highlighted, 'חכמה');
+  });
+
+  test('buildExcerptText מעגן את הקטע להתאמת phrase הראשונה עם spacing', () {
+    final excerpt = SnippetBuilder.buildExcerptText(
+      fullText: 'פתיח ארוך מאוד אבג מילה1 מילה2 דהו המשך נוסף ולאחר מכן אבג',
+      query: 'אבג דהו',
+      maxChars: 40,
+      searchOptions: const {},
+      alternativeWords: const {},
+      spacingValues: const {'0-1': '2'},
+      fallbackToIndividualWords: false,
+    );
+
+    expect(excerpt, contains('אבג מילה1 מילה2 דהו'));
+    expect(excerpt, isNot(contains('לאחר מכן אבג')));
+  });
+
   test('SnippetBuilder שומר גרשיים בתצוגת ראשי תיבות', () {
     final spans = SnippetBuilder.createSnippetSpans(
       fullHtml: '<p>רש"י אומר</p>',
@@ -135,5 +195,148 @@ void main() {
     expect(renderedText, contains('אבג'));
     expect(renderedText, contains('דהו'));
     expect(highlighted, isEmpty);
+  });
+
+  test('SnippetBuilder מדגיש טקסט מנוקד עם spacing בין מילים', () {
+    final spans = SnippetBuilder.buildHighlightSpans(
+      plainText: 'וְעַתָּה יֵרֶא פַּרְעֹה אִישׁ נָבוֹן וְחָכָם',
+      query: 'פרעה נבון',
+      defaultStyle: const TextStyle(),
+      highlightStyle: const TextStyle(fontWeight: FontWeight.bold),
+      searchOptions: const {},
+      alternativeWords: const {},
+      spacingValues: const {'0-1': '1'},
+      fallbackToIndividualWords: false,
+    );
+
+    final highlighted = spans
+        .whereType<TextSpan>()
+        .where((span) => span.style?.fontWeight == FontWeight.bold)
+        .map((span) => span.text ?? '')
+        .join('|');
+
+    expect(highlighted, contains('פַּרְעֹה'));
+    expect(highlighted, contains('נָבוֹן'));
+  });
+
+  test('SnippetBuilder מדגיש טקסט מנוקד גם עם searchDistance ללא spacing מפורש',
+      () {
+    final spans = SnippetBuilder.buildHighlightSpans(
+      plainText: 'וְעַתָּה יֵרֶא פַּרְעֹה אִישׁ נָבוֹן וְחָכָם',
+      query: 'פרעה נבון',
+      defaultStyle: const TextStyle(),
+      highlightStyle: const TextStyle(fontWeight: FontWeight.bold),
+      searchOptions: const {},
+      alternativeWords: const {},
+      searchDistance: 1,
+      fallbackToIndividualWords: false,
+    );
+
+    final highlighted = spans
+        .whereType<TextSpan>()
+        .where((span) => span.style?.fontWeight == FontWeight.bold)
+        .map((span) => span.text ?? '')
+        .join('|');
+
+    expect(highlighted, contains('פַּרְעֹה'));
+    expect(highlighted, contains('נָבוֹן'));
+  });
+
+  test('SnippetBuilder לא נתקע על בחירה גרידית כשיש התאמה חוקית מאוחרת', () {
+    final spans = SnippetBuilder.buildHighlightSpans(
+      plainText: 'A B X C B C',
+      query: 'A B C',
+      defaultStyle: const TextStyle(),
+      highlightStyle: const TextStyle(fontWeight: FontWeight.bold),
+      searchOptions: const {},
+      alternativeWords: const {},
+      spacingValues: const {'0-1': '4', '1-2': '0'},
+      fallbackToIndividualWords: false,
+    );
+
+    final highlighted = spans
+        .whereType<TextSpan>()
+        .where((span) => span.style?.fontWeight == FontWeight.bold)
+        .map((span) => span.text ?? '')
+        .join('|');
+
+    expect(highlighted, isNotEmpty);
+    expect(highlighted, contains('A'));
+    expect(highlighted, contains('B'));
+    expect(highlighted, contains('C'));
+  });
+
+  test('SnippetBuilder מדגיש phrase כשמונח ראשון הוא חלק ממילה', () {
+    final spans = SnippetBuilder.buildHighlightSpans(
+      plainText: 'זהו כינויי השני הידוע',
+      query: 'כינוי השני',
+      defaultStyle: const TextStyle(),
+      highlightStyle: const TextStyle(fontWeight: FontWeight.bold),
+      searchOptions: {
+        SearchQueryBuilder.buildWordKey('כינוי', 0): const {
+          'חלק ממילה': true,
+        },
+      },
+      alternativeWords: const {},
+      fallbackToIndividualWords: false,
+    );
+
+    final highlighted = spans
+        .whereType<TextSpan>()
+        .where((span) => span.style?.fontWeight == FontWeight.bold)
+        .map((span) => span.text ?? '')
+        .join('|');
+
+    expect(highlighted, contains('כינוי'));
+    expect(highlighted, contains('השני'));
+  });
+
+  test('SnippetBuilder typo tolerance מתחשב גם ב-alternativeWords', () {
+    final spans = SnippetBuilder.buildHighlightSpans(
+      plainText: 'אמר שלומ לכל אדם',
+      query: 'ברכה',
+      defaultStyle: const TextStyle(),
+      highlightStyle: const TextStyle(fontWeight: FontWeight.bold),
+      searchOptions: {
+        SearchQueryBuilder.buildWordKey('ברכה', 0): const {
+          'שגיאות כתיב': true,
+        },
+      },
+      alternativeWords: const {
+        0: ['שלום'],
+      },
+    );
+
+    final highlighted = spans
+        .whereType<TextSpan>()
+        .where((span) => span.style?.fontWeight == FontWeight.bold)
+        .map((span) => span.text ?? '')
+        .join();
+
+    expect(highlighted, contains('שלומ'));
+  });
+
+  test('SnippetBuilder typo tolerance מתחשב גם בכתיב מלא וחסר', () {
+    final spans = SnippetBuilder.buildHighlightSpans(
+      plainText: 'דד אמר',
+      query: 'דויד',
+      defaultStyle: const TextStyle(),
+      highlightStyle: const TextStyle(fontWeight: FontWeight.bold),
+      searchOptions: {
+        SearchQueryBuilder.buildWordKey('דויד', 0): const {
+          'כתיב מלא/חסר': true,
+          'שגיאות כתיב': true,
+        },
+      },
+      alternativeWords: const {},
+    );
+
+    final highlighted = spans
+        .whereType<TextSpan>()
+        .where((span) => span.style?.fontWeight == FontWeight.bold)
+        .map((span) => span.text ?? '')
+        .join();
+
+    expect(highlighted, contains('דד'));
   });
 }

@@ -57,6 +57,12 @@ void main() {
     test('חותך רווחים מהצדדים', () {
       expect(SearchQueryBuilder.sanitizeQuery('  תורה  '), 'תורה');
     });
+
+    test('ממיר מקף עברי (־) לרווח רגיל', () {
+      expect(SearchQueryBuilder.sanitizeQuery('אל־משה'), 'אל משה');
+      expect(SearchQueryBuilder.sanitizeQuery('ויאמר־אלהים'),
+          'ויאמר אלהים');
+    });
   });
 
   group('typo helpers', () {
@@ -212,6 +218,32 @@ void main() {
       expect(result.first, contains('הכמה'));
       expect(result.first, contains('חמכה'));
       expect(result.first, isNot(contains('תרה')));
+    });
+
+    test('שגיאות כתיב פר-מילה כוללות גם הוספה או השמטה של אות אחת', () {
+      final result = SearchQueryBuilder.buildAdvancedQuery(
+        ['רעה'],
+        null,
+        {
+          'רעה_0': {SearchQueryBuilder.typoToleranceOptionKey: true}
+        },
+      );
+
+      expect(result.first, contains('פרעה'));
+    });
+
+    test('שגיאות כתיב פר-מילה נשארות חסומות בגודל query', () {
+      final result = SearchQueryBuilder.buildAdvancedQuery(
+        ['רעה'],
+        null,
+        {
+          'רעה_0': {SearchQueryBuilder.typoToleranceOptionKey: true}
+        },
+      );
+
+      final branchCount = RegExp(r'\|').allMatches(result.first).length + 1;
+      expect(branchCount, lessThanOrEqualTo(48));
+      expect(result.first, contains('פרעה'));
     });
 
     test('מגביל וריאציות ל-20', () {
@@ -408,6 +440,15 @@ void main() {
       final regexTerms = params['regexTerms'] as List<String>;
 
       expect(regexTerms.first, contains('חמכה'));
+    });
+
+    test('fuzzy נשאר חסום בגודל query', () {
+      final params = SearchQueryBuilder.prepareQueryParams(
+          'רעה', true, 2, null, null, null);
+      final regexTerms = params['regexTerms'] as List<String>;
+      final branchCount = RegExp(r'\|').allMatches(regexTerms.first).length + 1;
+
+      expect(branchCount, lessThanOrEqualTo(96));
     });
 
     test('עם סיומות ומילה קצרה → maxExpansions גבוה', () {

@@ -29,7 +29,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/layout/floating_panel.dart';
+import 'package:otzaria/widgets/layout/resizable_drag_handle.dart';
 
 class ContextOverlayPanel extends StatefulWidget {
   /// האם הפאנל פתוח
@@ -64,18 +66,25 @@ class ContextOverlayPanel extends StatefulWidget {
   /// כאשר `true`, עלות הבנייה משולמת רק בפתיחה הראשונה.
   final bool preserveChildStateOnClose;
 
+  /// רוחב מינימלי לגרירה
+  final double minWidth;
+
+  /// רוחב מקסימלי לגרירה
+  final double? maxWidth;
+
   const ContextOverlayPanel({
     super.key,
     required this.isOpen,
     required this.onClose,
     required this.child,
     this.width = 400,
-    this.alignment =
-        AlignmentDirectional.centerEnd, // ברירת מחדל: שמאל בעברית (RTL)
+    this.alignment = AlignmentDirectional.centerEnd,
     this.backgroundColor,
     this.contentPadding = const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16),
     this.deferChildBuildOnOpen = false,
     this.preserveChildStateOnClose = false,
+    this.minWidth = 200,
+    this.maxWidth,
   });
 
   @override
@@ -83,16 +92,15 @@ class ContextOverlayPanel extends StatefulWidget {
 }
 
 class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
-  static const _opacityDuration = Duration(milliseconds: 200);
-  static const _slideDuration = Duration(milliseconds: 300);
-
   Timer? _disposeChildTimer;
   bool _isDeferredBuildScheduled = false;
   late bool _shouldBuildChild;
+  late double _currentWidth;
 
   @override
   void initState() {
     super.initState();
+    _currentWidth = widget.width;
     _shouldBuildChild = widget.isOpen && !widget.deferChildBuildOnOpen;
     if (widget.isOpen && widget.deferChildBuildOnOpen) {
       _scheduleDeferredChildBuild();
@@ -127,7 +135,7 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
     }
 
     _disposeChildTimer?.cancel();
-    _disposeChildTimer = Timer(_slideDuration, () {
+    _disposeChildTimer = Timer(AppTokens.animPanelSlide, () {
       if (!mounted || widget.isOpen) {
         return;
       }
@@ -167,17 +175,19 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
         widget.backgroundColor ?? cs.surfaceContainerHigh;
     // centerEnd = שמאל פיזי ב-RTL, centerStart = ימין פיזי
     final isLeft = widget.alignment == AlignmentDirectional.centerEnd;
+    final showHandle = widget.isOpen;
+    final overhang = showHandle ? handleHitOverhang(context) : 0.0;
 
     return IgnorePointer(
       ignoring: !widget.isOpen,
       child: Stack(
         children: [
-          // ── scrim (רקע שקוף לחיץ) ──────────────────────────────────────
+          // ── scrim ──────────────────────────────────────────────────────
           Positioned.fill(
             child: GestureDetector(
               onTap: widget.onClose,
-              child: AnimatedOpacity(
-                duration: _opacityDuration,
+                child: AnimatedOpacity(
+                duration: AppTokens.animPanelOpacity,
                 opacity: widget.isOpen ? 1.0 : 0.0,
                 child: ColoredBox(
                   color: cs.scrim.withValues(alpha: 0.30),
@@ -185,29 +195,27 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
               ),
             ),
           ),
-          // ── הפאנל: צף עם פינות מעוגלות ושוליים מהצדדים ────────────────
+          // ── הפאנל ──────────────────────────────────────────────────────
           Positioned(
             top: 10,
             bottom: 12,
             left: isLeft ? 10 : null,
             right: isLeft ? null : 10,
             child: AnimatedOpacity(
-              duration: _opacityDuration,
+              duration: AppTokens.animPanelOpacity,
               opacity: widget.isOpen ? 1.0 : 0.0,
               child: AnimatedSlide(
-                duration: _slideDuration,
+                duration: AppTokens.animPanelSlide,
                 curve: Curves.easeInOut,
                 offset: widget.isOpen
                     ? Offset.zero
-                    : (isLeft
-                        ? const Offset(-1, 0) // שמאל → יוצא שמאלה
-                        : const Offset(1, 0)), // ימין → יוצא ימינה
+                    : (isLeft ? const Offset(-1, 0) : const Offset(1, 0)),
                 child: FloatingPanel(
                   elevation: 8,
                   color: effectiveBackgroundColor,
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(AppTokens.radiusPanel),
                   child: SizedBox(
-                    width: widget.width,
+                    width: _currentWidth,
                     child: SafeArea(
                       child: Padding(
                         padding: widget.contentPadding,
@@ -221,6 +229,25 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
               ),
             ),
           ),
+          // ── הוו גרירה (מעל ה-scrim) ────────────────────────────────────
+          if (showHandle)
+            Positioned(
+              top: 10,
+              bottom: 12,
+              left: isLeft ? 10 + _currentWidth - overhang : null,
+              right: isLeft ? null : 10 + _currentWidth - overhang,
+              child: ResizableDragHandle(
+                isVertical: true,
+                showDivider: false,
+                onDragDelta: (delta) {
+                  final d = isLeft ? delta : -delta;
+                  setState(() {
+                    _currentWidth = (_currentWidth + d).clamp(
+                        widget.minWidth, widget.maxWidth ?? double.infinity);
+                  });
+                },
+              ),
+            ),
         ],
       ),
     );

@@ -306,7 +306,6 @@ class MyDatabase {
           sourceId INTEGER NOT NULL,
           title TEXT NOT NULL,
           heShortDesc TEXT,
-          notesContent TEXT,
           orderIndex INTEGER NOT NULL DEFAULT 999,
           totalLines INTEGER NOT NULL DEFAULT 0,
           isBaseBook INTEGER NOT NULL DEFAULT 0,

@@ -35,10 +35,6 @@ class Book {
   /// A short description of the book in Hebrew
   final String? heShortDesc;
 
-  /// Optional notes content: when a companion file named "הערות על <title>" exists,
-  /// its content is attached here instead of being inserted as a separate book.
-  final String? notesContent;
-
   /// The display order of the book within its category
   final double order;
 
@@ -92,7 +88,6 @@ class Book {
     this.pubPlaces = const [],
     this.pubDates = const [],
     this.heShortDesc,
-    this.notesContent,
     this.order = 999.0,
     this.totalLines = 0,
     this.isBaseBook = false,
@@ -136,7 +131,6 @@ class Book {
     List<PubPlace>? pubPlaces,
     List<PubDate>? pubDates,
     String? heShortDesc,
-    String? notesContent,
     double? order,
     int? totalLines,
     bool? isBaseBook,
@@ -168,7 +162,6 @@ class Book {
       pubPlaces: pubPlaces ?? this.pubPlaces,
       pubDates: pubDates ?? this.pubDates,
       heShortDesc: heShortDesc ?? this.heShortDesc,
-      notesContent: notesContent ?? this.notesContent,
       order: order ?? this.order,
       totalLines: totalLines ?? this.totalLines,
       isBaseBook: isBaseBook ?? this.isBaseBook,
@@ -217,7 +210,6 @@ class Book {
               .toList() ??
           [],
       heShortDesc: json['heShortDesc'] as String?,
-      notesContent: json['notesContent'] as String?,
       order: (json['orderIndex'] as num?)?.toDouble() ??
           (json['order'] as num?)?.toDouble() ??
           999.0,
@@ -256,7 +248,6 @@ class Book {
       'pubPlaces': pubPlaces.map((e) => e.toJson()).toList(),
       'pubDates': pubDates.map((e) => e.toJson()).toList(),
       'heShortDesc': heShortDesc,
-      'notesContent': notesContent,
       'orderIndex': order,
       'order': order,
       'totalLines': totalLines,
@@ -299,7 +290,6 @@ class Book {
           const ListEquality().equals(pubPlaces, other.pubPlaces) &&
           const ListEquality().equals(pubDates, other.pubDates) &&
           heShortDesc == other.heShortDesc &&
-          notesContent == other.notesContent &&
           order == other.order &&
           totalLines == other.totalLines &&
           isBaseBook == other.isBaseBook &&
@@ -332,7 +322,6 @@ class Book {
       const ListEquality().hash(pubPlaces) ^
       const ListEquality().hash(pubDates) ^
       heShortDesc.hashCode ^
-      notesContent.hashCode ^
       order.hashCode ^
       totalLines.hashCode ^
       isBaseBook.hashCode ^

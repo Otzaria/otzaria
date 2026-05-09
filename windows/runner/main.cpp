@@ -4,6 +4,7 @@
 #include <knownfolders.h>
 #include <shlobj.h>
 #include <windows.h>
+#include <tlhelp32.h>
 
 #include <chrono>
 #include <iomanip>
@@ -15,6 +16,7 @@
 #include "utils.h"
 
 static const wchar_t* kSingleInstanceMutexName = L"OtzariaAppSingleInstance";
+static const wchar_t* kOtzariaExeName = L"otzaria.exe";
 
 // Escapes a UTF-8 string for safe embedding inside a JSON string value.
 static std::string JsonEscape(const std::string& s) {
@@ -88,6 +90,83 @@ static void EnqueueUri(const std::string& uri_utf8) {
   }
 }
 
+// Returns true if the given PID belongs to an otzaria.exe process other than
+// the current one. Used to filter EnumWindows results.
+static bool IsOtzariaProcess(DWORD pid) {
+  if (pid == 0 || pid == GetCurrentProcessId()) return false;
+  HANDLE h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+  if (h == nullptr) return false;
+  wchar_t path[MAX_PATH] = {0};
+  DWORD size = MAX_PATH;
+  bool result = false;
+  if (QueryFullProcessImageNameW(h, 0, path, &size)) {
+    const wchar_t* name = wcsrchr(path, L'\\');
+    name = name ? name + 1 : path;
+    result = (_wcsicmp(name, kOtzariaExeName) == 0);
+  }
+  CloseHandle(h);
+  return result;
+}
+
+struct FindWindowContext {
+  HWND result;
+};
+
+static BOOL CALLBACK FindOtzariaWindowProc(HWND hwnd, LPARAM lparam) {
+  FindWindowContext* ctx = reinterpret_cast<FindWindowContext*>(lparam);
+  if (!IsWindowVisible(hwnd)) return TRUE;
+  DWORD pid = 0;
+  GetWindowThreadProcessId(hwnd, &pid);
+  if (!IsOtzariaProcess(pid)) return TRUE;
+  ctx->result = hwnd;
+  return FALSE;
+}
+
+// Searches all top-level windows for a visible window owned by another
+// otzaria.exe process. Returns the first match, or nullptr.
+static HWND FindOtzariaWindow() {
+  FindWindowContext ctx = { nullptr };
+  EnumWindows(FindOtzariaWindowProc, reinterpret_cast<LPARAM>(&ctx));
+  return ctx.result;
+}
+
+// Restores a minimized window and brings it to the foreground.
+static void BringWindowToFront(HWND hwnd) {
+  if (IsIconic(hwnd)) {
+    ShowWindow(hwnd, SW_RESTORE);
+  }
+  SetForegroundWindow(hwnd);
+}
+
+// Terminates every otzaria.exe process other than the current one. Waits up to
+// 5 seconds per process so the OS can release any handles (mutex, files, ...)
+// before we continue startup.
+static void KillOtherOtzariaProcesses() {
+  HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+  if (snap == INVALID_HANDLE_VALUE) return;
+
+  PROCESSENTRY32W entry = {0};
+  entry.dwSize = sizeof(entry);
+  DWORD self_pid = GetCurrentProcessId();
+
+  if (Process32FirstW(snap, &entry)) {
+    do {
+      if (entry.th32ProcessID == self_pid) continue;
+      if (_wcsicmp(entry.szExeFile, kOtzariaExeName) != 0) continue;
+
+      HANDLE h = OpenProcess(PROCESS_TERMINATE | SYNCHRONIZE, FALSE,
+                             entry.th32ProcessID);
+      if (h == nullptr) continue;
+      if (TerminateProcess(h, 1)) {
+        WaitForSingleObject(h, 5000);
+      }
+      CloseHandle(h);
+    } while (Process32NextW(snap, &entry));
+  }
+
+  CloseHandle(snap);
+}
+
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t* command_line, _In_ int show_command) {
   // Attach to console when present (e.g., 'flutter run') or create a
@@ -107,17 +186,35 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
       (mutex != nullptr && GetLastError() == ERROR_ALREADY_EXISTS);
 
   if (is_second_instance) {
-    // Enqueue any otzaria:// URIs passed on the command line so the first
-    // instance can handle them via its file-watcher, then exit immediately.
-    std::vector<std::string> args = GetCommandLineArguments();
-    for (const auto& arg : args) {
-      if (arg.size() >= 8 &&
-          _strnicmp(arg.c_str(), "otzaria:", 8) == 0) {
-        EnqueueUri(arg);
-      }
+    // Look for a real running instance — a visible window owned by another
+    // otzaria.exe process. Retry briefly so we don't kill an instance that's
+    // still in early startup and hasn't created its window yet.
+    HWND existing = FindOtzariaWindow();
+    for (int i = 0; existing == nullptr && i < 3; ++i) {
+      Sleep(500);
+      existing = FindOtzariaWindow();
     }
-    CloseHandle(mutex);
-    return EXIT_SUCCESS;
+
+    if (existing != nullptr) {
+      // Real instance is alive. Hand off any otzaria:// URIs so it can pick
+      // them up via its file-watcher, then bring its window to the front.
+      std::vector<std::string> args = GetCommandLineArguments();
+      for (const auto& arg : args) {
+        if (arg.size() >= 8 &&
+            _strnicmp(arg.c_str(), "otzaria:", 8) == 0) {
+          EnqueueUri(arg);
+        }
+      }
+      BringWindowToFront(existing);
+      CloseHandle(mutex);
+      return EXIT_SUCCESS;
+    }
+
+    // The mutex is held but no Otzaria window exists — the existing process
+    // is a zombie. Kill it and continue startup as the primary instance. Our
+    // mutex handle stays open, so a future third instance will still see
+    // ERROR_ALREADY_EXISTS against us.
+    KillOtherOtzariaProcesses();
   }
 
   // Initialize COM, so that it is available for use in the library and/or

@@ -320,25 +320,6 @@ class DatabaseGenerator {
       // קביעת מזהה לספר: שלילי אם אישי או קובץ שאינו txt, אחרת רגיל
       int currentBookId = await repository.getNextNegativeBookId();
 
-      // Detect companion notes file named 'הערות על <title>.txt' in the same directory
-      String? notesContent;
-      try {
-        final dir = Directory(path.dirname(bookPath));
-        final notesTitle = 'הערות על $title';
-        final candidate = path.join(dir.path, '$notesTitle.txt');
-        final candidateFile = File(candidate);
-        if (await candidateFile.exists()) {
-          // Prefer preloaded cache if available
-          final key = _toLibraryRelativeKey(candidate);
-          final lines = _bookContentCache[key];
-          notesContent = lines != null
-              ? lines.join('\n')
-              : await candidateFile.readAsString();
-        }
-      } catch (e) {
-        // Ignore errors reading notes
-      }
-
       // For non-txt files (external), get file stats
       int? fileSize;
       int? lastModified;
@@ -360,7 +341,6 @@ class DatabaseGenerator {
         pubPlaces: [],
         pubDates: [],
         heShortDesc: null,
-        notesContent: notesContent,
         order: 999.0,
         topics: extractTopics(bookPath),
         isBaseBook: false,

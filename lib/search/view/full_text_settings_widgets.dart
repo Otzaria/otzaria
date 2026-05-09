@@ -81,25 +81,37 @@ class SearchModeToggle extends StatelessWidget {
 }
 
 class FuzzyDistance extends StatefulWidget {
-  const FuzzyDistance({super.key, required this.tab});
+  const FuzzyDistance({
+    super.key,
+    required this.tab,
+    this.inputFocusNotifier,
+    this.triggerSearch = true,
+  });
 
   final SearchingTab tab;
+  final ValueNotifier<bool>? inputFocusNotifier;
+  final bool triggerSearch;
 
   @override
   State<FuzzyDistance> createState() => _FuzzyDistanceState();
 }
 
 class _FuzzyDistanceState extends State<FuzzyDistance> {
+  final FocusNode _focusNode = FocusNode();
+
   @override
   void initState() {
     super.initState();
     // מאזין לשינויים במרווחים המותאמים אישית
     widget.tab.spacingValuesChanged.addListener(_onSpacingChanged);
+    _focusNode.addListener(_onFocusChanged);
   }
 
   @override
   void dispose() {
     widget.tab.spacingValuesChanged.removeListener(_onSpacingChanged);
+    _focusNode.removeListener(_onFocusChanged);
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -107,6 +119,10 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
     setState(() {
       // עדכון התצוגה כשמשתמש משנה מרווחים
     });
+  }
+
+  void _onFocusChanged() {
+    widget.inputFocusNotifier?.value = _focusNode.hasFocus;
   }
 
   @override
@@ -120,33 +136,38 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
 
         return SizedBox(
           width: 140,
-          child: SpinBox(
-            enabled: isEnabled,
-            decoration: InputDecoration(
-              labelText: hasCustomSpacing
-                  ? 'מרווח בין מילים (מושבת)'
-                  : 'מרווח בין מילים',
-              labelStyle: TextStyle(
-                color: hasCustomSpacing
-                    ? Theme.of(context).colorScheme.onSurfaceVariant
-                    : null,
+          child: Focus(
+            focusNode: _focusNode,
+            child: SpinBox(
+              enabled: isEnabled,
+              decoration: InputDecoration(
+                labelText: hasCustomSpacing
+                    ? 'מרווח בין מילים (מושבת)'
+                    : 'מרווח בין מילים',
+                labelStyle: TextStyle(
+                  color: hasCustomSpacing
+                      ? Theme.of(context).colorScheme.onSurfaceVariant
+                      : null,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 16.0,
+                ),
               ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 16.0,
-              ),
+              min: 0,
+              max: 30,
+              value: state.distance.toDouble(),
+              onChanged: isEnabled
+                  ? (value) => context.read<SearchBloc>().add(
+                    widget.triggerSearch
+                      ? UpdateDistance(value.toInt())
+                      : UpdateDistanceWithoutSearch(value.toInt()),
+                      )
+                  : null,
             ),
-            min: 0,
-            max: 30,
-            value: state.distance.toDouble(),
-            onChanged: isEnabled
-                ? (value) => context.read<SearchBloc>().add(
-                      UpdateDistance(value.toInt()),
-                    )
-                : null,
           ),
         );
       },

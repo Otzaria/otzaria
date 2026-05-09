@@ -13,15 +13,11 @@ import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/tools/calendar/helpers/daf_yomi_navigation.dart';
-import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/file_sync/bloc/file_sync_bloc.dart';
 import 'package:otzaria/file_sync/bloc/file_sync_event.dart';
 import 'package:otzaria/file_sync/bloc/file_sync_state.dart';
 import 'package:otzaria/library/view/library_daf_yomi.dart';
-import 'package:flutter_settings_screens/flutter_settings_screens.dart';
-import 'package:otzaria/migration/sync/file_sync_service.dart';
-import 'package:otzaria/migration/sync/background_db_sync_worker.dart';
-import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
+import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_bloc.dart';
 import 'package:otzaria/widgets/lists/filter_chips_widget.dart';
 import 'package:otzaria/navigation/view/main_window_screen.dart';
 import 'package:otzaria/library/view/grid_items.dart';
@@ -711,10 +707,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
           minPaneWidth: previewPaneWidths.minPaneWidth,
           maxPaneWidth: previewPaneWidths.maxPaneWidth,
           onPaneWidthChanged: (nextWidth) {
-            setState(() {
-              _previewPaneWidthOverride = nextWidth;
-            });
+            _previewPaneWidthOverride = nextWidth;
           },
+          autoHandleResponsiveVisibility: false,
           wrapPaneInFloatingPanel: false,
           narrowPaneBuilder: (context, paneContent) => Material(
             color: Theme.of(context).colorScheme.surface,
@@ -815,40 +810,10 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     );
   }
 
-  Future<void> _refreshWithPersonalFolders() async {
-    try {
-      final sqliteProvider = SqliteDataProvider.instance;
-      if (!sqliteProvider.isInitialized) {
-        await sqliteProvider.initialize();
-      }
-      if (!sqliteProvider.isInitialized) return;
-
-      final dbPath = sqliteProvider.dbPath;
-      final libraryPath = Settings.getValue<String>('key-library-path');
-      if (libraryPath == null || libraryPath.isEmpty) return;
-
-      final customFoldersJson =
-          Settings.getValue<String>(SettingsRepository.keyCustomFolders);
-      final customFolders = CustomFoldersManager.loadFolders(customFoldersJson);
-      final folderName =
-          Settings.getValue<String>(SettingsRepository.keyLibraryFolderName) ??
-              '';
-
-      await runCustomFoldersDbSyncInIsolate(
-        dbPath: dbPath,
-        libraryPath: libraryPath,
-        customFolders: customFolders,
-        folderName: folderName,
-      );
-
-      await FileSyncService.saveCustomFoldersSignature(customFolders);
-    } catch (_) {
-      // גם אם סריקת התיקיות נכשלה, עדיין נרענן את הספרייה.
-    }
-
-    if (mounted) {
-      context.read<LibraryBloc>().add(RefreshLibrary());
-    }
+  void _refreshWithPersonalFolders() {
+    context
+        .read<CustomFoldersBloc>()
+        .add(const RescanCustomFolders(showNoChangesMessage: false));
   }
 
   List<ActionButtonData> _buildOriginalOrderActions(
@@ -858,39 +823,24 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     bool compact,
   ) {
     return [
-      ActionButtonData(
-        widget: ToolbarActionButton(
-          compact: compact,
-          tooltip: 'חזרה לתיקיה הקודמת',
-          icon: FluentIcons.arrow_up_24_regular,
-          onPressed: () => _handleNavigateUp(context, state, settingsState),
-        ),
-        icon: FluentIcons.arrow_up_24_regular,
+      ActionButtonData.simple(
+        compact: compact,
         tooltip: 'חזרה לתיקיה הקודמת',
+        icon: FluentIcons.arrow_up_24_regular,
         onPressed: () => _handleNavigateUp(context, state, settingsState),
       ),
-      ActionButtonData(
-        widget: ToolbarActionButton(
-          compact: compact,
-          tooltip: 'חזרה לתיקיה הראשית',
-          icon: FluentIcons.home_24_regular,
-          onPressed: () => _handleNavigateHome(context, state, settingsState),
-        ),
-        icon: FluentIcons.home_24_regular,
+      ActionButtonData.simple(
+        compact: compact,
         tooltip: 'חזרה לתיקיה הראשית',
+        icon: FluentIcons.home_24_regular,
         onPressed: () => _handleNavigateHome(context, state, settingsState),
       ),
       if (settingsState.canUseSoftwareAndBookUpdates)
         _buildSyncActionButton(compact: compact),
-      ActionButtonData(
-        widget: ToolbarActionButton(
-          compact: compact,
-          tooltip: 'טעינה מחדש',
-          icon: FluentIcons.arrow_clockwise_24_regular,
-          onPressed: _refreshWithPersonalFolders,
-        ),
-        icon: FluentIcons.arrow_clockwise_24_regular,
+      ActionButtonData.simple(
+        compact: compact,
         tooltip: 'טעינה מחדש',
+        icon: FluentIcons.arrow_clockwise_24_regular,
         onPressed: _refreshWithPersonalFolders,
       ),
     ];
@@ -903,39 +853,24 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     bool compact,
   ) {
     return [
-      ActionButtonData(
-        widget: ToolbarActionButton(
-          compact: compact,
-          tooltip: 'חזרה לתיקיה הקודמת',
-          icon: FluentIcons.arrow_up_24_regular,
-          onPressed: () => _handleNavigateUp(context, state, settingsState),
-        ),
-        icon: FluentIcons.arrow_up_24_regular,
+      ActionButtonData.simple(
+        compact: compact,
         tooltip: 'חזרה לתיקיה הקודמת',
+        icon: FluentIcons.arrow_up_24_regular,
         onPressed: () => _handleNavigateUp(context, state, settingsState),
       ),
       if (settingsState.canUseSoftwareAndBookUpdates)
         _buildSyncActionButton(compact: compact),
-      ActionButtonData(
-        widget: ToolbarActionButton(
-          compact: compact,
-          tooltip: 'חזרה לתיקיה הראשית',
-          icon: FluentIcons.home_24_regular,
-          onPressed: () => _handleNavigateHome(context, state, settingsState),
-        ),
-        icon: FluentIcons.home_24_regular,
+      ActionButtonData.simple(
+        compact: compact,
         tooltip: 'חזרה לתיקיה הראשית',
+        icon: FluentIcons.home_24_regular,
         onPressed: () => _handleNavigateHome(context, state, settingsState),
       ),
-      ActionButtonData(
-        widget: ToolbarActionButton(
-          compact: compact,
-          tooltip: 'טעינה מחדש',
-          icon: FluentIcons.arrow_clockwise_24_regular,
-          onPressed: _refreshWithPersonalFolders,
-        ),
-        icon: FluentIcons.arrow_clockwise_24_regular,
+      ActionButtonData.simple(
+        compact: compact,
         tooltip: 'טעינה מחדש',
+        icon: FluentIcons.arrow_clockwise_24_regular,
         onPressed: _refreshWithPersonalFolders,
       ),
     ];
@@ -1005,32 +940,22 @@ class _LibraryBrowserState extends State<LibraryBrowser>
           child: _buildSearchResultsGrid(books, displayLimit),
         );
       }
-      return FutureBuilder<List<Widget>>(
-        future: _buildCategoryContent(state.currentCategory!),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-          if (snapshot.hasData && snapshot.data!.isEmpty) {
-            final repo = context.read<FocusRepository>();
-            return Center(
-              child: Text(
-                repo.librarySearchController.text.isNotEmpty
-                    ? 'אין תוצאות עבור "${repo.librarySearchController.text}"'
-                    : 'אין פריטים להצגה בתיקייה זו',
-                style: Theme.of(context).textTheme.titleMedium,
-                textAlign: TextAlign.center,
-              ),
-            );
-          }
-          return SingleChildScrollView(
-            key: PageStorageKey(state.currentCategory),
-            child: Column(children: snapshot.data!),
-          );
-        },
+      final categoryItems = _buildCategoryContent(state.currentCategory!);
+      if (categoryItems.isEmpty) {
+        final repo = context.read<FocusRepository>();
+        return Center(
+          child: Text(
+            repo.librarySearchController.text.isNotEmpty
+                ? 'אין תוצאות עבור "${repo.librarySearchController.text}"'
+                : 'אין פריטים להצגה בתיקייה זו',
+            style: Theme.of(context).textTheme.titleMedium,
+            textAlign: TextAlign.center,
+          ),
+        );
+      }
+      return SingleChildScrollView(
+        key: PageStorageKey(state.currentCategory),
+        child: Column(children: categoryItems),
       );
     }
     if (state.searchResults != null) {
@@ -1039,7 +964,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     return _buildListView(state.currentCategory!);
   }
 
-  Future<List<Widget>> _buildCategoryContent(Category category) async {
+  List<Widget> _buildCategoryContent(Category category) {
     final List<Widget> items = [];
     final filteredBooks = category.books.toList();
     final filteredSubCategories = category.subCategories.toList();

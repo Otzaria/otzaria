@@ -1,7 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/data/cache/books_cache.dart';
 import 'package:otzaria/data/cache/acronyms_cache.dart';
+import 'package:otzaria/data/data_providers/book_composite_key.dart';
+import 'package:otzaria/data/data_providers/file_system_library_provider.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
+import 'package:pdfrx/pdfrx.dart';
 
 /// In-memory cache for reference finding.
 ///
@@ -21,6 +24,15 @@ class ReferenceBooksCache {
 
   // Normalized titles cache (computed from BooksCache)
   final Map<int, String> _normalizedTitles = <int, String>{};
+
+  // PDF books from file system (not in DB) — stored as (normalizedTitle, hit)
+  final List<(String, ReferenceBookHit)> _fsPdfBooks =
+      <(String, ReferenceBookHit)>[];
+
+  // Lazy PDF outline cache: filePath → Future of outline entries
+  // Populated on demand, not during warmup.
+  final Map<String, Future<List<(String, String, int)>>> _pdfOutlineCache =
+      <String, Future<List<(String, String, int)>>>{};
 
   bool get isLoaded => _isLoaded;
 
@@ -49,22 +61,69 @@ class ReferenceBooksCache {
         _normalizedTitles[book.id] = _normalizeForMatch(book.title);
       }
 
+      // Collect DB PDF titles to avoid duplicates with file-system PDFs
+      final dbPdfTitles = BooksCache.instance.books
+          .where((b) => b.fileType == 'pdf')
+          .map((b) => b.title)
+          .toSet();
+
+      // Load PDF books from file system that are not in the DB.
+      // PDF outline parsing is NOT done here — it happens lazily via getPdfOutlineEntries().
+      _fsPdfBooks.clear();
+      if (FileSystemLibraryProvider.instance.isInitialized) {
+        final keyToPath = await FileSystemLibraryProvider.instance.keyToPath;
+        for (final entry in keyToPath.entries) {
+          final key = BookCompositeKey.tryParse(entry.key);
+          if (key == null || key.fileType != 'pdf') continue;
+          if (dbPdfTitles.contains(key.title)) continue;
+
+          final normalizedTitle = _normalizeForMatch(key.title);
+          if (normalizedTitle.isEmpty) continue;
+
+          _fsPdfBooks.add((
+            normalizedTitle,
+            ReferenceBookHit(
+              bookId: -1,
+              title: key.title,
+              filePath: entry.value,
+              fileType: 'pdf',
+              matchRank: 0,
+              orderIndex: 999.0,
+            ),
+          ));
+        }
+        debugPrint(
+            '[ReferenceBooksCache] Added ${_fsPdfBooks.length} FS PDF books');
+      }
+
       _isLoaded = true;
       debugPrint(
-        '[ReferenceBooksCache] Ready with ${BooksCache.instance.books.length} books',
+        '[ReferenceBooksCache] Ready with ${BooksCache.instance.books.length} DB books'
+        ' + ${_fsPdfBooks.length} FS PDF books',
       );
     } catch (e) {
       debugPrint('[ReferenceBooksCache] Warmup failed: $e');
       _normalizedTitles.clear();
+      _fsPdfBooks.clear();
       _isLoaded = true;
     }
   }
 
   void clear() {
     _normalizedTitles.clear();
+    _fsPdfBooks.clear();
+    _pdfOutlineCache.clear();
     _isLoaded = false;
     _loadingFuture = null;
     // Note: We don't clear the shared caches here as they may be used by other components
+  }
+
+  /// Returns outline entries for a file-system PDF, parsed lazily and cached.
+  /// Each entry is (normalizedTitle, originalTitle, pageNumber).
+  Future<List<(String, String, int)>> getPdfOutlineEntries(
+      String filePath) async {
+    return _pdfOutlineCache.putIfAbsent(
+        filePath, () => _parsePdfOutlineEntries(filePath));
   }
 
   /// Searches books by title and acronym from memory.
@@ -127,7 +186,34 @@ class ReferenceBooksCache {
         orderIndex: book.orderIndex,
       );
 
-      // Keep two buckets for cheap ordering.
+      if (matchRank <= 1) {
+        starts.add(hit);
+      } else {
+        contains.add(hit);
+      }
+    }
+
+    // Search file-system PDF books
+    for (final (t, baseHit) in _fsPdfBooks) {
+      int? matchRank;
+      if (t == q) {
+        matchRank = 0;
+      } else if (t.startsWith(q)) {
+        matchRank = 1;
+      } else if (t.contains(q)) {
+        matchRank = 2;
+      }
+      if (matchRank == null) continue;
+
+      final hit = ReferenceBookHit(
+        bookId: baseHit.bookId,
+        title: baseHit.title,
+        filePath: baseHit.filePath,
+        fileType: baseHit.fileType,
+        matchRank: matchRank,
+        orderIndex: baseHit.orderIndex,
+      );
+
       if (matchRank <= 1) {
         starts.add(hit);
       } else {
@@ -157,11 +243,45 @@ class ReferenceBooksCache {
     // Remove quotes/gershayim completely (don't convert to space)
     // This way מ"ב becomes מב (not מ ב)
     cleaned = cleaned.replaceAll('"', '').replaceAll("'", '');
-    cleaned = cleaned.replaceAll('\u05F4', '').replaceAll('\u05F3', '');
+    cleaned = cleaned.replaceAll('״', '').replaceAll('׳', '');
 
-    cleaned = cleaned.replaceAll(RegExp(r'[^a-zA-Z0-9\u0590-\u05FF\s]'), ' ');
+    cleaned = cleaned.replaceAll(RegExp(r'[^a-zA-Z0-9֐-׿\s]'), ' ');
     cleaned = cleaned.toLowerCase();
     return cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
+  static Future<List<(String, String, int)>> _parsePdfOutlineEntries(
+      String filePath) async {
+    try {
+      final doc = await PdfDocument.openFile(filePath);
+      final outline = await doc.loadOutline();
+      final entries = <(String, String, int)>[];
+      _collectOutlineEntries(outline, entries, maxDepth: 2, currentDepth: 0);
+      debugPrint(
+          '[ReferenceBooksCache] Parsed ${entries.length} outline entries for $filePath');
+      return entries;
+    } catch (e) {
+      debugPrint(
+          '[ReferenceBooksCache] Failed to parse outline for $filePath: $e');
+      return const [];
+    }
+  }
+
+  static void _collectOutlineEntries(
+    List<PdfOutlineNode> nodes,
+    List<(String, String, int)> out, {
+    required int maxDepth,
+    required int currentDepth,
+  }) {
+    if (currentDepth >= maxDepth) return;
+    for (final node in nodes) {
+      final page = node.dest?.pageNumber;
+      if (page != null && node.title.isNotEmpty) {
+        out.add((_normalizeForMatch(node.title), node.title, page));
+      }
+      _collectOutlineEntries(node.children, out,
+          maxDepth: maxDepth, currentDepth: currentDepth + 1);
+    }
   }
 }
 

@@ -13,6 +13,7 @@ class AppTokens {
   static const double radiusMD = 12;
   static const double radiusLG = 16;
   static const double radiusXL = 20; // SettingsCard
+  static const double radiusPanel = 18;
 
   // ── Typography Scale ——————————————————————
   static const double fontSM = 12;
@@ -28,7 +29,13 @@ class AppTokens {
   // ── Animation Durations ————————————————————
   static const Duration animFast = Duration(milliseconds: 150);
   static const Duration animNormal = Duration(milliseconds: 250);
+  static const Duration animPanelOpacity = Duration(milliseconds: 200);
+  static const Duration animPanelSlide = Duration(milliseconds: 300);
   static const Duration animSlow = Duration(milliseconds: 400);
+
+  // ── Drag Handle ——————————————————————————————
+  static const double dragHandleCompactHitSize = 18;
+  static const double dragHandleRegularHitSize = 24;
 }
 
 /// סגנונות טקסט מובנים לשימוש עקבי בכל האפליקציה

@@ -115,7 +115,6 @@ class FloatingPanel extends StatelessWidget {
       color: panelColor,
       elevation: elevation,
       shadowColor: shadowColor ?? Theme.of(context).colorScheme.shadow.withValues(alpha: 0.10),
-      // surfaceTintColor: Colors.transparent → מניעים tinting כחול אוטומטי של M3
       surfaceTintColor: Colors.transparent,
       borderRadius: effectiveBorderRadius,
       clipBehavior: Clip.antiAlias,

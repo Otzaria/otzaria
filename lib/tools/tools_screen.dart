@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/focus_repository.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/personal_notes/view/personal_notes_screen.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/measurement_converter/measurement_converter_screen.dart';
@@ -139,6 +142,13 @@ class ToolsScreenState extends State<ToolsScreen>
   final ScrollController _tabScrollController = ScrollController();
   bool _canTabScrollLeft = false;
   bool _canTabScrollRight = false;
+
+  // בקשת פתיחה ממתינה לכלי שעדיין אין לו descriptor (בעיקר תוספים שטרם
+  // נטענו מ-PluginSystemBloc). תיפתח באוטומט ב-_applyTabState הבא, או
+  // תיכשל עם UiSnack לאחר timeout.
+  String? _pendingToolIdToOpen;
+  Timer? _pendingToolTimeoutTimer;
+  static const Duration _pendingToolTimeout = Duration(seconds: 5);
 
   static const _mobileGroupDefs = [
     (label: 'לוח שנה', toolIds: <String>['builtin.calendar']),
@@ -370,6 +380,8 @@ class ToolsScreenState extends State<ToolsScreen>
     } else {
       applyState();
     }
+
+    _flushPendingToolIfReady();
   }
 
   void _rebuildTabs(List<InstalledPlugin> pinnedPlugins,
@@ -442,17 +454,66 @@ class ToolsScreenState extends State<ToolsScreen>
     _requestCalendarFocus();
   }
 
-  void openToolForTour(String toolId) {
+  /// פותח לשונית כלי לפי מזהה. אם ה-descriptor עדיין לא נטען (תוסף שעוד לא
+  /// הגיע מ-PluginSystemBloc), הבקשה נכנסת לתור ותתבצע אוטומטית בעת הרענון
+  /// הבא של ה-descriptors. אם תוך 5 שניות עדיין לא נמצא — מוצגת שגיאה.
+  ///
+  /// משמש גם את ה-Guided Tour וגם את ה-deep links (`otzaria://open/tool/...`).
+  void requestOpenTool(String toolId) {
     final index = _descriptors.indexWhere((d) => d.toolId == toolId);
-    if (index == -1) {
+    if (index != -1) {
+      _clearPendingTool();
+      _changeTab(index);
       return;
     }
-    _changeTab(index);
+
+    // ה-descriptor עדיין לא קיים — קורה בעיקר עם תוספים לפני ש-PluginSystemLoaded
+    // הגיע. ממתינים ל-_applyTabState הבא כדי לפתוח, ומוסיפים timeout עם פידבק
+    // למקרה שהכלי לא מתקיים בפועל.
+    _pendingToolIdToOpen = toolId;
+    _pendingToolTimeoutTimer?.cancel();
+    _pendingToolTimeoutTimer = Timer(_pendingToolTimeout, () {
+      if (!mounted) return;
+      if (_pendingToolIdToOpen == toolId) {
+        _pendingToolIdToOpen = null;
+        _pendingToolTimeoutTimer = null;
+        UiSnack.showError('הכלי "$toolId" לא נמצא');
+      }
+    });
+  }
+
+  void _clearPendingTool() {
+    _pendingToolIdToOpen = null;
+    _pendingToolTimeoutTimer?.cancel();
+    _pendingToolTimeoutTimer = null;
+  }
+
+  void _flushPendingToolIfReady() {
+    final pendingId = _pendingToolIdToOpen;
+    if (pendingId == null) return;
+    final index = _descriptors.indexWhere((d) => d.toolId == pendingId);
+    if (index == -1) return;
+    _clearPendingTool();
+    // _applyTabState רץ בתוך setState; דוחים את החלפת הטאב לפריים הבא כדי לא
+    // לקנן setState נוספת.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (index < _descriptors.length &&
+          _descriptors[index].toolId == pendingId) {
+        _changeTab(index);
+      } else {
+        // הסדר השתנה בין הקריאות — נחפש שוב לפי id.
+        final freshIndex =
+            _descriptors.indexWhere((d) => d.toolId == pendingId);
+        if (freshIndex != -1) _changeTab(freshIndex);
+      }
+    });
   }
 
   @override
   void dispose() {
     FocusRepository().unregisterMoreScreenFocusRequester(requestActiveTabFocus);
+    _pendingToolTimeoutTimer?.cancel();
     _contentFocusNode.dispose();
     _contentScrollController.dispose();
     _tabScrollController.dispose();

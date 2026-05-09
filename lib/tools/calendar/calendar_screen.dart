@@ -509,9 +509,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
           minPaneWidth: 280,
           maxPaneWidth: 520,
           onPaneWidthChanged: (nextWidth) {
-            setState(() {
-              _sidePanelWidth = nextWidth;
-            });
+            _sidePanelWidth = nextWidth;
           },
           narrowPaneBuilder: (context, paneContent) => Material(
             color: AppSurfaces.solidPanelBackground(context),
@@ -731,14 +729,16 @@ class CalendarWidgetState extends State<CalendarWidget> {
     ).then((count) {
       _isPrintDialogOpen = false;
       if (count == null || !context.mounted) return;
-      Navigator.of(context).push(MaterialPageRoute(
+      showDialog(
+        context: context,
+        barrierDismissible: false,
         builder: (_) => PrintingScreen(
           data: Future.value(''),
           bookId: 'calendar',
           createPdfOverride: (format) =>
               print_helper.createCalendarPdf(state, format, count: count),
         ),
-      ));
+      );
     });
   }
 

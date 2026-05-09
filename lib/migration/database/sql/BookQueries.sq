@@ -56,16 +56,16 @@ selectBaseIds:
 SELECT id FROM book WHERE isBaseBook = 1 ORDER BY orderIndex, title;
 
 insert:
-INSERT INTO book (categoryId, sourceId, title, heShortDesc, notesContent, orderIndex, totalLines, isBaseBook, 
+INSERT INTO book (categoryId, sourceId, title, heShortDesc, orderIndex, totalLines, isBaseBook,
+    hasTargumConnection, hasReferenceConnection, hasSourceConnection, hasCommentaryConnection, hasOtherConnection,
+    hasAltStructures, hasTeamim, hasNekudot, isPersonal, filePath, fileType, fileSize, lastModified, pages, volume)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+insertWithId:
+INSERT INTO book (id, categoryId, sourceId, title, heShortDesc, orderIndex, totalLines, isBaseBook,
     hasTargumConnection, hasReferenceConnection, hasSourceConnection, hasCommentaryConnection, hasOtherConnection,
     hasAltStructures, hasTeamim, hasNekudot, isPersonal, filePath, fileType, fileSize, lastModified, pages, volume)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-
-insertWithId:
-INSERT INTO book (id, categoryId, sourceId, title, heShortDesc, notesContent, orderIndex, totalLines, isBaseBook,
-    hasTargumConnection, hasReferenceConnection, hasSourceConnection, hasCommentaryConnection, hasOtherConnection,
-    hasAltStructures, hasTeamim, hasNekudot, isPersonal, filePath, fileType, fileSize, lastModified, pages, volume)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- Insert external content book (content stored externally, metadata in DB)
 insertExternalContent:

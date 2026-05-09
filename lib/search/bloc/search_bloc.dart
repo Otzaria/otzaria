@@ -40,8 +40,10 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
   SearchBloc() : super(const SearchState()) {
     on<UpdateSearchQuery>(_onUpdateSearchQuery);
     on<UpdateDistance>(_onUpdateDistance);
+    on<UpdateDistanceWithoutSearch>(_onUpdateDistanceWithoutSearch);
     on<ToggleSearchMode>(_onToggleSearchMode);
     on<SetSearchMode>(_onSetSearchMode);
+    on<SetSearchModeWithoutSearch>(_onSetSearchModeWithoutSearch);
     on<UpdateBooksToSearch>(_onUpdateBooksToSearch);
     on<AddFacet>(_onAddFacet);
     on<RemoveFacet>(_onRemoveFacet);
@@ -246,7 +248,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     add(ReplaceFacetCounts(aggregated));
   }
 
-  void _onUpdateFilterQuery(
+  Future<void> _onUpdateFilterQuery(
     UpdateFilterQuery event,
     Emitter<SearchState> emit,
   ) async {
@@ -287,9 +289,17 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     UpdateDistance event,
     Emitter<SearchState> emit,
   ) {
-    final newConfig = state.configuration.copyWith(distance: event.distance);
-    emit(state.copyWith(configuration: newConfig));
+    if (!_updateDistanceConfiguration(event.distance, emit)) {
+      return;
+    }
     add(UpdateSearchQuery(state.searchQuery));
+  }
+
+  void _onUpdateDistanceWithoutSearch(
+    UpdateDistanceWithoutSearch event,
+    Emitter<SearchState> emit,
+  ) {
+    _updateDistanceConfiguration(event.distance, emit);
   }
 
   void _onToggleSearchMode(
@@ -326,21 +336,49 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     SetSearchMode event,
     Emitter<SearchState> emit,
   ) {
+    if (!_updateSearchModeConfiguration(event.searchMode, emit)) {
+      return;
+    }
+
+    add(UpdateSearchQuery(state.searchQuery));
+  }
+
+  void _onSetSearchModeWithoutSearch(
+    SetSearchModeWithoutSearch event,
+    Emitter<SearchState> emit,
+  ) {
+    _updateSearchModeConfiguration(event.searchMode, emit);
+  }
+
+  bool _updateDistanceConfiguration(int distance, Emitter<SearchState> emit) {
+    final newConfig = state.configuration.copyWith(distance: distance);
+    if (newConfig == state.configuration) {
+      return false;
+    }
+
+    emit(state.copyWith(configuration: newConfig));
+    return true;
+  }
+
+  bool _updateSearchModeConfiguration(
+    SearchMode searchMode,
+    Emitter<SearchState> emit,
+  ) {
     final newConfig = state.configuration.copyWith(
-      searchMode: event.searchMode,
+      searchMode: searchMode,
       distance: _resolveDistanceForModeChange(
         state.configuration.searchMode,
-        event.searchMode,
+        searchMode,
         state.configuration.distance,
       ),
     );
 
     if (newConfig == state.configuration) {
-      return;
+      return false;
     }
 
     emit(state.copyWith(configuration: newConfig));
-    add(UpdateSearchQuery(state.searchQuery));
+    return true;
   }
 
   void _onUpdateBooksToSearch(

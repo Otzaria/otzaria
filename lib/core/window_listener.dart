@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -7,6 +8,8 @@ import '../migration/database/daos/database.dart';
 import 'package:otzaria/core/pre_close_registry.dart';
 import 'package:otzaria/core/window_persistence.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
+import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
+import 'package:otzaria/plugins/view/webview_environment_holder.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 /// Callback type for fullscreen state changes
@@ -22,6 +25,24 @@ class AppWindowListener extends WindowListener {
 
   /// נקרא בכל אירוע resize רציף — מיועד ל-debounced restore.
   VoidCallback? onWindowResizeOccurred;
+
+  Future<void> _runBestEffortShutdownStep(
+    String stepName,
+    Future<void> Function() action, {
+    required Duration timeout,
+  }) async {
+    try {
+      await action().timeout(timeout);
+    } on TimeoutException {
+      if (kDebugMode) {
+        debugPrint('WebView shutdown step timed out: $stepName');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('WebView shutdown step failed ($stepName): $e');
+      }
+    }
+  }
 
   @override
   void onWindowEnterFullScreen() {
@@ -47,6 +68,20 @@ class AppWindowListener extends WindowListener {
       debugPrint('Window close requested');
     }
 
+    await _runBestEffortShutdownStep(
+      'prepareForAppShutdown',
+      PluginRuntimeDispatcher.instance.prepareForAppShutdown,
+      timeout: const Duration(seconds: 2),
+    );
+    await Future<void>.delayed(Duration.zero);
+    await _runBestEffortShutdownStep(
+      'shutdownForAppExit',
+      WebViewEnvironmentHolder.shutdownForAppExit,
+      // This step includes the native dispatcher-queue drain, so keep the
+      // timeout looser than the Dart-side pre-close step.
+      timeout: const Duration(seconds: 8),
+    );
+
     // Step 1: Non-critical cleanup — errors here must not block Hive.close().
     try {
       MyDatabase().close();
@@ -68,6 +103,12 @@ class AppWindowListener extends WindowListener {
 
     // Step 3: Storage close, error reporting, and window destruction.
     try {
+      // שמירת מצב החלון חייבת להתבצע לפני Hive.close() כי Settings כותב ל-Hive
+      if (!kIsWeb &&
+          (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+        await WindowPersistence.saveNow();
+      }
+
       await Hive.close();
 
       if (flushFailure != null) {
@@ -86,8 +127,6 @@ class AppWindowListener extends WindowListener {
 
       if (!kIsWeb &&
           (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
-        // שמירת מצב החלון
-        await WindowPersistence.saveNow();
         // סגירה רגילה דרך ה-WindowManager
         await windowManager.destroy();
       }

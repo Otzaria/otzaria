@@ -460,8 +460,8 @@ class LibraryProviderManager {
         if (content.isNotEmpty && !content.startsWith('שגיאה')) {
           return content;
         }
-      } catch (_) {
-        // Continue to fallback
+      } catch (e) {
+        debugPrint('LibraryProviderManager: provider failed for $targetTitle, continuing to fallback: $e');
       }
     }
 

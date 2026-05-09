@@ -114,8 +114,6 @@ class TextBookError extends TextBookState {
   List<Object?> get props => [message, book.title];
 }
 
-const _noValue = Object();
-
 class TextBookLoaded extends TextBookState {
   final List<String> content;
   final double fontSize;
@@ -153,9 +151,6 @@ class TextBookLoaded extends TextBookState {
   final String? editorText;
   final bool hasDraft;
   final bool hasLinksFile;
-
-  // Notes virtual commentator
-  final String? notesContent;
 
   // Caches
   final Map<int, List<Link>> linksByLine;
@@ -206,7 +201,6 @@ class TextBookLoaded extends TextBookState {
     this.editorText,
     this.hasDraft = false,
     this.hasLinksFile = false,
-    this.notesContent,
   }) : super(book, selectedIndex ?? 0, showLeftPane, activeCommentators);
 
   factory TextBookLoaded.initial({
@@ -294,7 +288,6 @@ class TextBookLoaded extends TextBookState {
     String? editorText,
     bool? hasDraft,
     bool? hasLinksFile,
-    Object? notesContent = _noValue,
   }) {
     return TextBookLoaded(
       book: book ?? this.book,
@@ -341,9 +334,6 @@ class TextBookLoaded extends TextBookState {
       editorText: editorText ?? this.editorText,
       hasDraft: hasDraft ?? this.hasDraft,
       hasLinksFile: hasLinksFile ?? this.hasLinksFile,
-      notesContent: identical(notesContent, _noValue)
-          ? this.notesContent
-          : notesContent as String?,
     );
   }
 
@@ -385,6 +375,5 @@ class TextBookLoaded extends TextBookState {
         editorText,
         hasDraft,
         hasLinksFile,
-        notesContent,
       ];
 }

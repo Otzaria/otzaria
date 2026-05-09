@@ -2,13 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart'
     hide SwitchSettingsTile;
+import 'package:otzaria/settings/search/settings_anchor.dart';
+import 'package:otzaria/settings/search/settings_search_models.dart';
 import 'package:otzaria/settings/settings_card.dart';
+import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
 /// טאב הגדרות גימטריה
 class GematriaSettingsTab extends StatefulWidget {
   const GematriaSettingsTab({super.key});
+
+  /// פריטי חיפוש בהגדרות. נסרק על-ידי tool/generate_search_index.dart.
+  static const List<SettingsSearchEntry> searchEntries = [
+    SettingsSearchEntry(
+      id: 'tools.gematria.method',
+      title: 'שיטת חישוב גימטריה',
+      subtitle: 'שיטת חישוב המשמשת בכלי הגימטריה',
+      tab: SettingsTab.tools,
+      cardId: 'tools.gematria',
+      keywords: ['גימטריה', 'חישוב'],
+    ),
+  ];
 
   @override
   State<GematriaSettingsTab> createState() => _GematriaSettingsTabState();
@@ -49,7 +64,9 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SettingsCard(
+        SettingsAnchor(
+          cardId: 'tools.gematria',
+          child: SettingsCard(
           title: 'חיפוש גימטריה',
           children: [
             ListTile(
@@ -130,6 +147,7 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
               },
             ),
           ],
+          ),
         ),
         kSettingsCardSpacing,
         SettingsCard(

@@ -25,6 +25,7 @@ class RtlTextField extends StatefulWidget {
   final bool enabled;
   final TextStyle? style;
   final TextAlign textAlign;
+  final TextAlignVertical? textAlignVertical;
   final List<TextInputFormatter>? inputFormatters;
   final bool obscureText;
   final Color? cursorColor;
@@ -44,6 +45,7 @@ class RtlTextField extends StatefulWidget {
     this.enabled = true,
     this.style,
     this.textAlign = TextAlign.start,
+    this.textAlignVertical,
     this.inputFormatters,
     this.obscureText = false,
     this.cursorColor,
@@ -116,6 +118,7 @@ class _RtlTextFieldState extends State<RtlTextField> {
       enabled: widget.enabled,
       style: widget.style,
       textAlign: widget.textAlign,
+      textAlignVertical: widget.textAlignVertical,
       inputFormatters: widget.inputFormatters,
       obscureText: widget.obscureText,
       cursorColor: widget.cursorColor,

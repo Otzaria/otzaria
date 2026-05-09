@@ -11,7 +11,6 @@ import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
 import 'package:otzaria/text_book/view/combined_view/commentary_content.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/text_book/view/commentators_list_screen.dart';
-import 'package:otzaria/text_book/utils/notes_commentary_utils.dart';
 import 'package:otzaria/widgets/misc/commentators_filter_button.dart';
 import 'package:otzaria/widgets/layout/commentators_filter_screen.dart';
 import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
@@ -25,8 +24,6 @@ import 'package:otzaria/widgets/feedback/app_future_builder.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'package:otzaria/services/commentary_service.dart';
-import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
-import 'package:otzaria/widgets/smart_text/render_settings.dart';
 
 // Type alias לתאימות לאחור - משתמש ב-LinkGroup מה-Service
 typedef CommentaryGroup = LinkGroup;
@@ -94,8 +91,6 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
   bool _userInteractedWithFilter =
       false; // האם המשתמש בחר בעצמו בתוך פאנל הסינון
   final FocusNode _focusNode = FocusNode();
-  String? _cachedNotesContent;
-  Map<String, String> _cachedNotesByMarker = const {};
 
   String _getLinkKey(Link link) =>
       '${link.index1}_${link.path2}_${link.index2}';
@@ -104,16 +99,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
   List<Link> _orderedLinks = [];
 
   List<String> _selectedCommentators(TextBookLoaded state) {
-    final all = widget.selectedCommentatorsOverride ?? state.activeCommentators;
-    return all.where((c) => c != kNotesCommentatorTitle).toList();
-  }
-
-  Map<String, String> _notesByMarker(String notesContent) {
-    if (_cachedNotesContent != notesContent) {
-      _cachedNotesContent = notesContent;
-      _cachedNotesByMarker = parseNotesContent(notesContent);
-    }
-    return _cachedNotesByMarker;
+    return widget.selectedCommentatorsOverride ?? state.activeCommentators;
   }
 
   String _buildGroupingSignature(List<Link> links) {
@@ -484,17 +470,12 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
               previous.selectedIndex != current.selectedIndex ||
               previous.fontSize != current.fontSize ||
               previous.removeNikud != current.removeNikud ||
-              previous.removePunctuation != current.removePunctuation ||
-              previous.notesContent != current.notesContent;
+              previous.removePunctuation != current.removePunctuation;
         },
         loadingWidget: const Center(),
         builder: (context, state) {
           final selectedCommentators = _selectedCommentators(state);
-          final notesIsActive = state.notesContent != null &&
-              (widget.selectedCommentatorsOverride ?? state.activeCommentators)
-                  .contains(kNotesCommentatorTitle);
-          final shouldAutoOpenOverrideFilter = !notesIsActive &&
-              widget.showSearch &&
+          final shouldAutoOpenOverrideFilter = widget.showSearch &&
               widget.onSelectedCommentatorsOverrideChanged != null &&
               selectedCommentators.isEmpty &&
               !_showCommentatorsFilter;
@@ -531,34 +512,6 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                                 : 0)
                       ];
 
-                Widget? notesWidget;
-                if (notesIsActive && state.notesContent != null) {
-                  final relevantNotes = notesForIndexes(
-                    content: state.content,
-                    indexes: currentIndexes,
-                    notesByMarker: _notesByMarker(state.notesContent!),
-                  );
-
-                  if (relevantNotes.isNotEmpty) {
-                    notesWidget = _NotesCommentaryWidget(
-                      notes: relevantNotes,
-                      fontSize: widget.fontSize,
-                      removeNikud: state.removeNikud,
-                      openBookCallback: widget.openBookCallback,
-                    );
-                  } else if (selectedCommentators.isEmpty) {
-                    notesWidget = Center(
-                      child: Text(
-                        'אין הערות לקטע זה',
-                        style: TextStyle(
-                          fontSize: widget.fontSize * 0.7,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    );
-                  }
-                }
-
                 // בדיקה אם יש בכלל קישורים לאינדקסים הנוכחיים (ללא סינון מפרשים)
                 final hasAnyCommentaryLinks = currentIndexes.any((idx) {
                   final lineLinks = state.linksByLine[idx + 1];
@@ -593,10 +546,6 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                       }
                     });
                     return const Center(child: CircularProgressIndicator());
-                  }
-
-                  if (notesWidget != null) {
-                    return notesWidget;
                   }
 
                   // אין מפרשים בכלל לקטע הזה, או שיש מפרשים נבחרים אבל הם לא רלוונטיים
@@ -744,27 +693,14 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                   },
                 );
 
-                if (notesWidget == null) {
-                  return commentaryWidget;
-                }
-
-                return Column(
-                  children: [
-                    Flexible(
-                      fit: FlexFit.loose,
-                      child: notesWidget,
-                    ),
-                    const Divider(height: 1),
-                    Expanded(child: commentaryWidget),
-                  ],
-                );
+                return commentaryWidget;
               },
             );
           }
 
           if (widget.showSearch) {
-            // אם מסך בחירת המפרשים פתוח, מציג אותו במקום הרשימה (אלא אם notes פעיל)
-            if (_showCommentatorsFilter && !notesIsActive) {
+            // אם מסך בחירת המפרשים פתוח, מציג אותו במקום הרשימה
+            if (_showCommentatorsFilter) {
               final groups = _commentatorGroups(state);
               final customSelection =
                   widget.onSelectedCommentatorsOverrideChanged;
@@ -1348,69 +1284,4 @@ class _CollapsibleCommentaryGroupState
 
 class _CopyCommentaryIntent extends Intent {
   const _CopyCommentaryIntent();
-}
-
-class _NotesCommentaryWidget extends StatelessWidget {
-  final List<String> notes;
-  final double fontSize;
-  final bool removeNikud;
-  final Function(TextBookTab) openBookCallback;
-
-  const _NotesCommentaryWidget({
-    required this.notes,
-    required this.fontSize,
-    required this.removeNikud,
-    required this.openBookCallback,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return BlocBuilder<SettingsBloc, SettingsState>(
-      builder: (context, settingsState) {
-        return SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // כותרת — כמו כותרת קבוצת מפרשים
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0, vertical: 12.0),
-                child: Text(
-                  kNotesCommentatorTitle,
-                  style: TextStyle(
-                    fontSize: fontSize * 0.85,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: settingsState.commentatorsFontFamily,
-                  ),
-                  textDirection: TextDirection.rtl,
-                ),
-              ),
-              ...notes.map((note) {
-                final text = removeNikud ? utils.removeVolwels(note) : note;
-                return Padding(
-                  padding: const EdgeInsets.only(
-                      right: 32.0, left: 16.0, bottom: 12.0),
-                  child: SmartTextWidget(
-                    text: text,
-                    settings: RenderSettings(
-                      removeNikud: removeNikud,
-                      removePunctuation: false,
-                      removeTeamim: false,
-                      replaceHolyNames: settingsState.replaceHolyNames,
-                      searchText: '',
-                      currentSearchIndex: -1,
-                      fontSize: fontSize * 0.85,
-                      fontFamily: settingsState.commentatorsFontFamily,
-                      lineHeight: settingsState.lineHeight,
-                    ),
-                  ),
-                );
-              }),
-              const Divider(height: 1),
-            ],
-          ),
-        );
-      },
-    );
-  }
 }

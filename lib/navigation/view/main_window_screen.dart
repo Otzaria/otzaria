@@ -6,14 +6,19 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:collection/collection.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/core/focus_repository.dart';
+import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
 import 'package:otzaria/indexing/bloc/indexing_event.dart';
 import 'package:otzaria/indexing/bloc/indexing_state.dart';
+import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
+import 'package:otzaria/navigation/startup_indexing_decision.dart';
 import 'package:otzaria/navigation/view/startup_work_gate.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/empty_library/empty_library_screen.dart';
@@ -55,12 +60,14 @@ import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/file_sync/bloc/file_sync_bloc.dart';
 import 'package:otzaria/file_sync/bloc/file_sync_event.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
 import 'package:otzaria/widgets/navigation/nav_rail_item.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
+import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
@@ -70,8 +77,8 @@ import 'package:otzaria/plugins/bridge/plugin_bridge_adapter.dart'
     show buildThemePayload;
 import 'package:otzaria/core/external_activation_queue.dart';
 import 'package:otzaria/core/external_activation_channel.dart';
+import 'package:otzaria/core/external_uri_router.dart';
 import 'package:otzaria/plugins/services/reader_location_tracker.dart';
-import 'package:otzaria/plugins/services/plugin_store_link_parser.dart';
 import 'package:otzaria/tour/bloc/tour_cubit.dart';
 import 'package:otzaria/tour/models/live_tip.dart';
 import 'package:otzaria/tour/models/tour_step.dart';
@@ -94,7 +101,10 @@ final GlobalKey<State<LibraryBrowser>> libraryBrowserKey =
 
 class MainWindowScreenState extends State<MainWindowScreen>
     with TickerProviderStateMixin {
-  late final PageController pageController;
+  // לא final: ה-controller נוצר מחדש בעת שינוי אוריינטציה
+  // (ראה _handleOrientationChange) כדי למנוע מצב שבו pixel offset מהציר
+  // הישן (vertical) מתפרש כעמוד שגוי בציר החדש (horizontal).
+  late PageController pageController;
   late final CalendarCubit _calendarCubit;
   late final SettingsScreenController _settingsScreenController;
   final ExternalActivationQueue _externalActivationQueue =
@@ -125,7 +135,10 @@ class MainWindowScreenState extends State<MainWindowScreen>
   bool? _previousLibraryEmptyState;
 
   final StartupWorkGate _startupWorkGate = StartupWorkGate();
+  final IndexingRepository _indexingRepository =
+      IndexingRepository(TantivyDataProvider.instance);
   bool _hasCheckedAutoIndex = false;
+  bool _isShowingStartupManualReindexDialog = false;
   bool _hasRestoredFullscreen = false;
   bool _hasStartedFileSync = false;
   bool _isSearchOpen = false;
@@ -368,9 +381,87 @@ class MainWindowScreenState extends State<MainWindowScreen>
     if (_hasCheckedAutoIndex) return;
     _hasCheckedAutoIndex = true;
 
-    // Check if auto-update is enabled
-    if (context.read<SettingsBloc>().state.autoUpdateIndex) {
-      _startIndexing(context);
+    unawaited(_resolveStartupIndexing(context));
+  }
+
+  Future<void> _resolveStartupIndexing(BuildContext context) async {
+    final autoUpdateIndex = context.read<SettingsBloc>().state.autoUpdateIndex;
+    final library = await DataRepository.instance.library;
+    if (!mounted || !context.mounted) {
+      return;
+    }
+
+    final requiresManualReindex =
+        await _indexingRepository.requiresManualReindex(library);
+    if (!mounted || !context.mounted) {
+      return;
+    }
+
+    final decision = decideStartupIndexing(
+      requiresManualReindex: requiresManualReindex,
+      autoUpdateIndex: autoUpdateIndex,
+    );
+
+    switch (decision) {
+      case StartupIndexingDecision.autoReindexThenStart:
+        await _indexingRepository.prepareForManualReindex(library);
+        if (!mounted || !context.mounted) {
+          return;
+        }
+        _startupWorkGate.markIndexingDecisionResolved(expectIndexing: true);
+        _tryStartDeferredStartupWork();
+        context.read<IndexingBloc>().add(StartIndexing(library));
+        return;
+      case StartupIndexingDecision.promptManualReindex:
+        _startupWorkGate.markIndexingDecisionResolved(expectIndexing: false);
+        _tryStartDeferredStartupWork();
+        await _showStartupManualReindexDialog(context, library);
+        return;
+      case StartupIndexingDecision.startIndexing:
+        _startupWorkGate.markIndexingDecisionResolved(expectIndexing: true);
+        _tryStartDeferredStartupWork();
+        context.read<IndexingBloc>().add(StartIndexing(library));
+        return;
+      case StartupIndexingDecision.checkIndexStatus:
+        _startupWorkGate.markIndexingDecisionResolved(expectIndexing: false);
+        _tryStartDeferredStartupWork();
+        context.read<IndexingBloc>().add(CheckIndexStatus(library));
+        return;
+    }
+  }
+
+  Future<void> _showStartupManualReindexDialog(
+    BuildContext context,
+    library_model.Library library,
+  ) async {
+    if (_isShowingStartupManualReindexDialog) {
+      return;
+    }
+
+    _isShowingStartupManualReindexDialog = true;
+    final indexingBloc = context.read<IndexingBloc>();
+    try {
+      final result = await showTwoActionsDialog(
+        context: context,
+        title: 'נדרש איפוס אינדקס',
+        content:
+            'האינדקס הקיים אינו מעודכן ביחס לשינויים האחרונים בחיפוש. עד שתבצע איפוס ואינדוקס מחדש, ייתכן שחלק מיכולות החיפוש לא יעבדו כראוי.',
+        cancelText: 'אחר כך',
+        confirmText: 'אפס ועדכן',
+      );
+      if (!mounted || !context.mounted || result != true) {
+        return;
+      }
+
+      await _indexingRepository.prepareForManualReindex(library);
+      if (!mounted || !context.mounted) {
+        return;
+      }
+
+      _startupWorkGate.markIndexingDecisionResolved(expectIndexing: true);
+      indexingBloc.add(StartIndexing(library));
+    } finally {
+      _isShowingStartupManualReindexDialog = false;
     }
   }
 
@@ -445,34 +536,96 @@ class MainWindowScreenState extends State<MainWindowScreen>
 
     try {
       final uri = Uri.tryParse(uriString);
-      if (uri == null) {
-        return;
-      }
+      if (uri == null) return;
 
-      final installRequest = PluginStoreLinkParser.parseUri(uri);
-      if (installRequest == null) {
-        return;
-      }
+      final action = ExternalUriRouter.parseUri(uri);
+      if (action == null) return;
 
-      if (!kIsWeb &&
-          (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
-        await windowManager.show();
-        await windowManager.focus();
-      }
-
+      await _bringWindowToFront();
       if (!mounted) return;
-      context.read<NavigationBloc>().add(const NavigateToScreen(Screen.more));
-      context.read<PluginSystemBloc>().add(
-            InstallRemotePluginRequested(
-              installRequest.downloadUri.toString(),
-              forceOverwrite: installRequest.forceOverwrite,
-            ),
-          );
+      _dispatchExternalUriAction(action);
     } catch (e, stackTrace) {
       debugPrint(
         'Failed to process external activation "$uriString": $e\n$stackTrace',
       );
     }
+  }
+
+  Future<void> _bringWindowToFront() async {
+    if (!kIsWeb &&
+        (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+      await windowManager.show();
+      await windowManager.focus();
+    }
+  }
+
+  void _dispatchExternalUriAction(ExternalUriAction action) {
+    switch (action) {
+      case OpenScreenAction(:final screen):
+        context.read<NavigationBloc>().add(NavigateToScreen(screen));
+      case OpenToolAction(:final toolId):
+        context.read<NavigationBloc>().add(const NavigateToScreen(Screen.more));
+        // ToolsScreen נבנה lazy בעת המעבר ל־Screen.more, ולכן ייתכן
+        // ש־moreScreenKey.currentState עדיין null בפריים הראשון. ניסיונות חוזרים
+        // עם hop קצר מבטיחים שהלשונית תיפתח גם בפעם הראשונה שנכנסים אליה.
+        _openToolWhenAvailable(toolId);
+      case OpenBookAction(:final bookId, :final index, :final searchQuery):
+        unawaited(_openBookByExternalId(
+          bookId,
+          index: index,
+          searchQuery: searchQuery,
+        ));
+      case InstallPluginAction(:final request):
+        context.read<NavigationBloc>().add(const NavigateToScreen(Screen.more));
+        context.read<PluginSystemBloc>().add(
+              InstallRemotePluginRequested(
+                request.downloadUri.toString(),
+                forceOverwrite: request.forceOverwrite,
+              ),
+            );
+      case RunSearchAction(:final query):
+        _runExternalSearch(query);
+    }
+  }
+
+  void _runExternalSearch(String query) {
+    final tab = SearchingTab(SearchingTab.titleForQuery(query), query);
+    context.read<HistoryBloc>().add(AddHistory(tab));
+    context.read<TabsBloc>().add(AddTab(tab));
+    context.read<NavigationBloc>().add(const NavigateToScreen(Screen.search));
+    // ה-UpdateSearchQuery נשלח אוטומטית מ-TantivyFullTextSearch.initState
+    // ברגע שהלשונית מוצגת לראשונה. ראה tantivy_full_text_search.dart:130-134.
+  }
+
+  Future<void> _openBookByExternalId(
+    int bookId, {
+    int? index,
+    String? searchQuery,
+  }) async {
+    final library = await DataRepository.instance.library;
+    if (!mounted) return;
+    final book = library.getAllBooks().firstWhereOrNull((b) => b.id == bookId);
+    if (book == null) {
+      UiSnack.showError('הספר עם המזהה $bookId לא נמצא בספרייה');
+      return;
+    }
+    openBook(context, book, index ?? 0, searchQuery ?? '');
+  }
+
+  void _openToolWhenAvailable(String toolId, {int attemptsLeft = 6}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final toolsState = moreScreenKey.currentState;
+      if (toolsState != null) {
+        toolsState.requestOpenTool(toolId);
+        return;
+      }
+      if (attemptsLeft <= 0) return;
+      Future<void>.delayed(const Duration(milliseconds: 50), () {
+        if (!mounted) return;
+        _openToolWhenAvailable(toolId, attemptsLeft: attemptsLeft - 1);
+      });
+    });
   }
 
   @override
@@ -494,29 +647,34 @@ class MainWindowScreenState extends State<MainWindowScreen>
   }
 
   void _handleOrientationChange(BuildContext context, Orientation orientation) {
-    if (_previousOrientation != orientation) {
-      _previousOrientation = orientation;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) {
-          return;
-        }
-        final currentScreen =
-            context.read<NavigationBloc>().state.currentScreen;
-        final targetPage = _pageIndexForScreen(currentScreen);
-        if (targetPage == null) {
-          return;
-        }
+    if (_previousOrientation == orientation) return;
 
-        if (_currentPageIndex != targetPage) {
-          setState(() {
-            _currentPageIndex = targetPage;
-          });
-          if (pageController.hasClients) {
-            pageController.jumpToPage(targetPage);
-          }
-        }
-      });
-    }
+    final isFirstDetection = _previousOrientation == null;
+    _previousOrientation = orientation;
+    if (isFirstDetection) return;
+
+    // החלפת ציר ב-PageView (vertical↔horizontal) משבשת את חישוב העמוד
+    // הפנימי של PageController: ה-pixel offset נשמר אבל ה-viewport
+    // dimension משתנה (height→width), ולכן הנוסחה offset/viewport
+    // מקפיצה את העמוד הפעיל. התוצאה: עמוד 1 (מסך עיון) מוצג רגעית מעל
+    // המסך הנוכחי, ושאר המסכים נכפים ל-dispose ואז init מחדש (ראה למשל
+    // ShamorZachorWidget בלוגים).
+    //
+    // הפתרון: יוצרים PageController חדש *סינכרונית* לפני בניית ה-PageView
+    // החדש (בציר החדש). ה-PageView שייבנה מיד אחרי הקריאה הזו ישתמש
+    // ב-controller החדש עם initialPage תקין, בלי offset יורש מהציר הקודם.
+    final currentScreen = context.read<NavigationBloc>().state.currentScreen;
+    final targetPage = _pageIndexForScreen(currentScreen) ?? _currentPageIndex;
+    _currentPageIndex = targetPage;
+
+    final oldController = pageController;
+    pageController = PageController(initialPage: targetPage);
+
+    // dispose נדחה לפוסט-פריים: ה-PageView הישן עדיין מחובר ל-oldController
+    // עד שתסתיים הרקונסיליאציה של עץ הווידג'טים בפריים הזה.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      oldController.dispose();
+    });
   }
 
   void _toggleReadingSettingsPanel() {
@@ -831,7 +989,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      moreScreenKey.currentState?.openToolForTour(toolId);
+      moreScreenKey.currentState?.requestOpenTool(toolId);
       _scheduleTourTargetRebuilds(remainingFrames: 4);
     });
   }
@@ -1444,6 +1602,10 @@ class MainWindowScreenState extends State<MainWindowScreen>
               if (context.read<SettingsBloc>().state.autoUpdateIndex) {
                 context.read<IndexingBloc>().add(
                     IndexSpecificBooks(state.newBooksToIndex!, state.library!));
+              } else {
+                context
+                    .read<IndexingBloc>()
+                    .add(CheckIndexStatus(state.library!));
               }
             },
           ),
@@ -1606,10 +1768,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
               if (!previous.autoUpdateIndex && current.autoUpdateIndex) {
                 _startIndexing(context);
               }
-              _startupWorkGate.markIndexingDecisionResolved(
-                expectIndexing: current.autoUpdateIndex,
-              );
-              _tryStartDeferredStartupWork();
               _restoreFullscreenState(context);
             },
           ),

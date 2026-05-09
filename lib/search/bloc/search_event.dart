@@ -29,11 +29,21 @@ class UpdateDistance extends SearchEvent {
   UpdateDistance(this.distance);
 }
 
+class UpdateDistanceWithoutSearch extends SearchEvent {
+  final int distance;
+  UpdateDistanceWithoutSearch(this.distance);
+}
+
 class ToggleSearchMode extends SearchEvent {}
 
 class SetSearchMode extends SearchEvent {
   final SearchMode searchMode;
   SetSearchMode(this.searchMode);
+}
+
+class SetSearchModeWithoutSearch extends SearchEvent {
+  final SearchMode searchMode;
+  SetSearchModeWithoutSearch(this.searchMode);
 }
 
 class UpdateBooksToSearch extends SearchEvent {

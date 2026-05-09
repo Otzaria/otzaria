@@ -5,12 +5,8 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
-import 'package:otzaria/text_book/models/commentator_group.dart';
-import 'package:otzaria/text_book/utils/notes_commentary_utils.dart';
 import 'package:otzaria/text_book/view/combined_view/commentary_content.dart';
 import 'package:otzaria/widgets/misc/progressive_scrolling.dart';
-import 'package:otzaria/widgets/smart_text/render_settings.dart';
-import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
@@ -46,16 +42,6 @@ class _CommentaryListState extends State<CommentaryList> {
   final ValueNotifier<int> _totalSearchResultsNotifier = ValueNotifier<int>(0);
   final Map<int, int> _searchResultsPerItem = {};
   String _lastIndexesKey = '';
-  String? _cachedNotesContent;
-  Map<String, String> _cachedNotesByMarker = const {};
-
-  Map<String, String> _notesByMarker(String notesContent) {
-    if (_cachedNotesContent != notesContent) {
-      _cachedNotesContent = notesContent;
-      _cachedNotesByMarker = parseNotesContent(notesContent);
-    }
-    return _cachedNotesByMarker;
-  }
 
   int _getItemSearchIndex(int itemIndex) {
     int cumulativeIndex = 0;
@@ -136,8 +122,7 @@ class _CommentaryListState extends State<CommentaryList> {
           previous.selectedIndex != current.selectedIndex ||
           previous.fontSize != current.fontSize ||
           previous.removeNikud != current.removeNikud ||
-          previous.removePunctuation != current.removePunctuation ||
-          previous.notesContent != current.notesContent;
+          previous.removePunctuation != current.removePunctuation;
     }, builder: (context, state) {
       if (state is! TextBookLoaded) return const Center();
       final currentIndexes = state.selectedIndex != null
@@ -296,30 +281,9 @@ class _CommentaryListState extends State<CommentaryList> {
     TextBookLoaded state,
     List<int> currentIndexes,
   ) {
-    final notesActive = state.notesContent != null &&
-        state.activeCommentators.contains(kNotesCommentatorTitle);
-    final realCommentators = state.activeCommentators
-        .where((c) => c != kNotesCommentatorTitle)
-        .toList();
-
-    final activeNotes = notesActive
-        ? notesForIndexes(
-            content: state.content,
-            indexes: currentIndexes,
-            notesByMarker: _notesByMarker(state.notesContent!),
-          )
-        : const <String>[];
-    final hasNotes = activeNotes.isNotEmpty;
+    final realCommentators = state.activeCommentators;
 
     return [
-      if (hasNotes) ...[
-        _NotesSection(
-          notes: activeNotes,
-          fontSize: widget.fontSize,
-          removeNikud: state.removeNikud,
-        ),
-        if (realCommentators.isNotEmpty) const Divider(height: 1, thickness: 1),
-      ],
       if (realCommentators.isNotEmpty)
         Expanded(
           child: FutureBuilder(
@@ -416,61 +380,10 @@ class _CommentaryListState extends State<CommentaryList> {
             },
           ),
         ),
-      if (!hasNotes && realCommentators.isEmpty)
+      if (realCommentators.isEmpty)
         const Expanded(
           child: Center(child: Text('לא נמצאו מפרשים להצגה')),
         ),
     ];
-  }
-}
-
-class _NotesSection extends StatelessWidget {
-  final List<String> notes;
-  final double fontSize;
-  final bool removeNikud;
-
-  const _NotesSection({
-    required this.notes,
-    required this.fontSize,
-    required this.removeNikud,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return BlocBuilder<SettingsBloc, SettingsState>(
-      builder: (context, settingsState) {
-        return ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.4,
-          ),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: notes.map((note) {
-                final text = removeNikud ? utils.removeVolwels(note) : note;
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: SmartTextWidget(
-                    text: text,
-                    settings: RenderSettings(
-                      removeNikud: removeNikud,
-                      removePunctuation: false,
-                      removeTeamim: false,
-                      replaceHolyNames: settingsState.replaceHolyNames,
-                      searchText: '',
-                      currentSearchIndex: -1,
-                      fontSize: fontSize * 0.85,
-                      fontFamily: settingsState.commentatorsFontFamily,
-                      lineHeight: settingsState.lineHeight,
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-        );
-      },
-    );
   }
 }

@@ -1,8 +1,10 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:flutter_spinbox/flutter_spinbox.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
@@ -420,5 +422,156 @@ void main() {
 
     expect(find.text('מרווח בין מילים'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Enter בשדה מרווח בין מילים לא מפעיל onSearch',
+      (WidgetTester tester) async {
+    final historyBloc = MockHistoryBloc();
+    final indexingBloc = MockIndexingBloc();
+    final navigationBloc = MockNavigationBloc();
+    final theme = ThemeData(
+      useMaterial3: true,
+      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFB85C38)),
+    );
+    final tab = SearchingTab('חיפוש', 'חכמה בינה');
+    tab.searchBloc.add(SetSearchMode(SearchMode.advanced));
+
+    var onSearchCalls = 0;
+
+    whenListen(
+      historyBloc,
+      const Stream<HistoryState>.empty(),
+      initialState: HistoryLoaded([]),
+    );
+    whenListen(
+      indexingBloc,
+      const Stream<IndexingState>.empty(),
+      initialState: IndexingInitial(),
+    );
+    whenListen(
+      navigationBloc,
+      const Stream<NavigationState>.empty(),
+      initialState: const NavigationState(currentScreen: Screen.search),
+    );
+
+    addTearDown(() async {
+      await tester.binding.setSurfaceSize(null);
+      tab.dispose();
+      await historyBloc.close();
+      await indexingBloc.close();
+      await navigationBloc.close();
+    });
+
+    await tester.binding.setSurfaceSize(const Size(1400, 900));
+    await tester.pumpWidget(_buildDialogHarness(
+      theme: theme,
+      historyBloc: historyBloc,
+      indexingBloc: indexingBloc,
+      navigationBloc: navigationBloc,
+      dialog: SearchDialog(
+        existingTab: tab,
+        bookTitle: 'ספר',
+        onSearch: (
+          query,
+          searchOptions,
+          alternativeWords,
+          spacingValues,
+          searchMode,
+          distance,
+        ) {
+          onSearchCalls++;
+        },
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(SpinBox));
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+
+    expect(onSearchCalls, 0);
+    expect(find.byType(SearchDialog), findsOneWidget);
+  });
+
+  testWidgets('returnResultOnSubmit מחזיר תוצאת חיפוש אחרי סגירת הדיאלוג',
+      (WidgetTester tester) async {
+    final historyBloc = MockHistoryBloc();
+    final indexingBloc = MockIndexingBloc();
+    final navigationBloc = MockNavigationBloc();
+    final theme = ThemeData(
+      useMaterial3: true,
+      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFB85C38)),
+    );
+    final tab = SearchingTab('חיפוש', 'חכמה בינה');
+
+    SearchDialogResult? capturedResult;
+
+    whenListen(
+      historyBloc,
+      const Stream<HistoryState>.empty(),
+      initialState: HistoryLoaded([]),
+    );
+    whenListen(
+      indexingBloc,
+      const Stream<IndexingState>.empty(),
+      initialState: IndexingInitial(),
+    );
+    whenListen(
+      navigationBloc,
+      const Stream<NavigationState>.empty(),
+      initialState: const NavigationState(currentScreen: Screen.search),
+    );
+
+    addTearDown(() async {
+      await tester.binding.setSurfaceSize(null);
+      tab.dispose();
+      await historyBloc.close();
+      await indexingBloc.close();
+      await navigationBloc.close();
+    });
+
+    await tester.binding.setSurfaceSize(const Size(1400, 900));
+    await tester.pumpWidget(
+      MultiBlocProvider(
+        providers: [
+          BlocProvider<HistoryBloc>.value(value: historyBloc),
+          BlocProvider<IndexingBloc>.value(value: indexingBloc),
+          BlocProvider<NavigationBloc>.value(value: navigationBloc),
+        ],
+        child: MaterialApp(
+          theme: theme,
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => Center(
+                child: ElevatedButton(
+                  onPressed: () async {
+                    capturedResult = await showDialog<SearchDialogResult>(
+                      context: context,
+                      builder: (_) => SearchDialog(
+                        existingTab: tab,
+                        bookTitle: 'ספר',
+                        returnResultOnSubmit: true,
+                      ),
+                    );
+                  },
+                  child: const Text('פתח'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('פתח'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('חפש'));
+    await tester.pumpAndSettle();
+
+    expect(capturedResult, isNotNull);
+    expect(capturedResult!.query, 'חכמה בינה');
+    expect(find.byType(SearchDialog), findsNothing);
   });
 }

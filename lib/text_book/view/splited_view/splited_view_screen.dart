@@ -102,6 +102,22 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
     }
   }
 
+  ({double paneWidth, double minPaneWidth, double maxPaneWidth})
+      _calculatePaneWidths(double availableWidth) {
+    const minPaneWidth = 280.0;
+    const minTextWidth = 300.0;
+    final maxPaneWidth = (availableWidth * 0.75).clamp(minPaneWidth, double.infinity);
+    // נדחס אם אין מספיק מקום לטקסט, אבל לא עולה על 75%
+    final effectiveMax = ((availableWidth - minTextWidth).clamp(minPaneWidth, maxPaneWidth));
+    final paneWidth = _leftPaneWidth.clamp(minPaneWidth, effectiveMax);
+
+    return (
+      paneWidth: paneWidth,
+      minPaneWidth: minPaneWidth,
+      maxPaneWidth: maxPaneWidth,
+    );
+  }
+
   void _togglePane() {
     if (!_paneOpen) {
       // פתיחת הטור - בחר את הטאב הנכון
@@ -187,146 +203,152 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
           return true;
         },
         builder: (context, state) {
-          return AdaptiveSidePane(
-            isOpen: _paneOpen,
-            alignment: AlignmentDirectional.centerStart,
-            paneWidth: _leftPaneWidth,
-            minMainContentWidth: 520,
-            onClose: () {
-              setState(() {
-                _paneOpen = false;
-                _isHovering = false;
-              });
-            },
-            paneContent: ValueListenableBuilder<String?>(
-              valueListenable: _savedSelectedText,
-              child: SelectionArea(
-                contextMenuBuilder: (context, selectableRegionState) {
-                  return const SizedBox.shrink();
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final availableWidth = constraints.maxWidth;
+              final paneWidths = _calculatePaneWidths(availableWidth);
+
+              return AdaptiveSidePane(
+                isOpen: _paneOpen,
+                alignment: AlignmentDirectional.centerStart,
+                paneWidth: paneWidths.paneWidth,
+                minMainContentWidth: 200,
+                onClose: () {
+                  setState(() {
+                    _paneOpen = false;
+                    _isHovering = false;
+                  });
                 },
-                onSelectionChanged: (selection) {
-                  if (selection != null && selection.plainText.isNotEmpty) {
-                    _savedSelectedText.value = selection.plainText;
-                  }
-                },
-                child: TabbedCommentaryPanel(
-                  fontSize: state.fontSize,
-                  openBookCallback: widget.openBookCallback,
-                  showSearch: true,
-                  onClosePane: _togglePane,
-                  initialTabIndex: _currentTabIndex,
-                  showSplitView: widget.showSplitView,
-                  onTabChanged: (index) {
-                    debugPrint(
-                        'DEBUG: Tab changed to $index, showSplitView: ${widget.showSplitView}');
-                    setState(() {
-                      _currentTabIndex = index;
-                    });
-                    if (!widget.showSplitView) {
-                      debugPrint(
-                          'DEBUG: Saving tab $index to combined settings');
-                      Settings.setValue<int>(
-                          'key-sidebar-tab-index-combined', index);
-                    } else {
-                      debugPrint('DEBUG: NOT saving tab (split view mode)');
-                    }
-                  },
+                paneContent: ValueListenableBuilder<String?>(
+                  valueListenable: _savedSelectedText,
+                  child: SelectionArea(
+                    contextMenuBuilder: (context, selectableRegionState) {
+                      return const SizedBox.shrink();
+                    },
+                    onSelectionChanged: (selection) {
+                      if (selection != null && selection.plainText.isNotEmpty) {
+                        _savedSelectedText.value = selection.plainText;
+                      }
+                    },
+                    child: TabbedCommentaryPanel(
+                      fontSize: state.fontSize,
+                      openBookCallback: widget.openBookCallback,
+                      showSearch: true,
+                      onClosePane: _togglePane,
+                      initialTabIndex: _currentTabIndex,
+                      showSplitView: widget.showSplitView,
+                      onTabChanged: (index) {
+                        debugPrint(
+                            'DEBUG: Tab changed to $index, showSplitView: ${widget.showSplitView}');
+                        setState(() {
+                          _currentTabIndex = index;
+                        });
+                        if (!widget.showSplitView) {
+                          debugPrint(
+                              'DEBUG: Saving tab $index to combined settings');
+                          Settings.setValue<int>(
+                              'key-sidebar-tab-index-combined', index);
+                        } else {
+                          debugPrint('DEBUG: NOT saving tab (split view mode)');
+                        }
+                      },
+                    ),
+                  ),
+                  builder: (context, selectedText, child) => child!,
                 ),
-              ),
-              builder: (context, selectedText, child) => child!,
-            ),
-            mainContent: Stack(
-              children: [
-                CombinedView(
-                  data: widget.content,
-                  textSize: state.fontSize,
-                  openBookCallback: widget.openBookCallback,
-                  openLeftPaneTab: widget.openLeftPaneTab,
-                  onSelectedTextChanged: widget.onSelectedTextChanged,
-                  showCommentaryAsExpansionTiles: !widget.showSplitView,
-                  tab: widget.tab,
-                  onOpenPersonalNotes: () {
-                    setState(() {
-                      _paneOpen = true;
-                      _currentTabIndex = 2;
-                    });
-                  },
-                  onOpenCommentatorsPane: () {
-                    setState(() {
-                      _paneOpen = true;
-                      _currentTabIndex = 0;
-                    });
-                  },
-                  onOpenLinksPane: () {
-                    setState(() {
-                      _paneOpen = true;
-                      _currentTabIndex = _linksTabIndex;
-                    });
-                  },
-                  isPaneOpen: () => _paneOpen,
-                ),
-                if (!_paneOpen)
-                  Positioned(
-                    left: 0,
-                    top: MediaQuery.of(context).size.height * 0.10,
-                    child: MouseRegion(
-                      onEnter: (_) => setState(() => _isHovering = true),
-                      onExit: (_) => setState(() => _isHovering = false),
-                      child: GestureDetector(
-                        onTap: _togglePane,
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          curve: Curves.easeOut,
-                          width: _isHovering ? 48 : 20,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .surfaceContainerHighest
-                                .withValues(alpha: _isHovering ? 0.95 : 0.8),
-                            borderRadius: const BorderRadius.only(
-                              topRight: Radius.circular(40),
-                              bottomRight: Radius.circular(40),
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.15),
-                                blurRadius: _isHovering ? 8 : 4,
-                                offset: const Offset(2, 0),
+                mainContent: Stack(
+                  children: [
+                    CombinedView(
+                      data: widget.content,
+                      textSize: state.fontSize,
+                      openBookCallback: widget.openBookCallback,
+                      openLeftPaneTab: widget.openLeftPaneTab,
+                      onSelectedTextChanged: widget.onSelectedTextChanged,
+                      showCommentaryAsExpansionTiles: !widget.showSplitView,
+                      tab: widget.tab,
+                      onOpenPersonalNotes: () {
+                        setState(() {
+                          _paneOpen = true;
+                          _currentTabIndex = 2;
+                        });
+                      },
+                      onOpenCommentatorsPane: () {
+                        setState(() {
+                          _paneOpen = true;
+                          _currentTabIndex = 0;
+                        });
+                      },
+                      onOpenLinksPane: () {
+                        setState(() {
+                          _paneOpen = true;
+                          _currentTabIndex = _linksTabIndex;
+                        });
+                      },
+                      isPaneOpen: () => _paneOpen,
+                    ),
+                    if (!_paneOpen)
+                      Positioned(
+                        left: 0,
+                        top: MediaQuery.of(context).size.height * 0.10,
+                        child: MouseRegion(
+                          onEnter: (_) => setState(() => _isHovering = true),
+                          onExit: (_) => setState(() => _isHovering = false),
+                          child: GestureDetector(
+                            onTap: _togglePane,
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              curve: Curves.easeOut,
+                              width: _isHovering ? 48 : 20,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .surfaceContainerHighest
+                                    .withValues(alpha: _isHovering ? 0.95 : 0.8),
+                                borderRadius: const BorderRadius.only(
+                                  topRight: Radius.circular(40),
+                                  bottomRight: Radius.circular(40),
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.15),
+                                    blurRadius: _isHovering ? 8 : 4,
+                                    offset: const Offset(2, 0),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                          child: Center(
-                            child: AnimatedOpacity(
-                              duration: const Duration(milliseconds: 150),
-                              opacity: _isHovering ? 1.0 : 0.6,
-                              child: Icon(
-                                FluentIcons.chevron_right_24_regular,
-                                size: _isHovering ? 24 : 18,
-                                color: Theme.of(context).colorScheme.onSurface,
+                              child: Center(
+                                child: AnimatedOpacity(
+                                  duration: const Duration(milliseconds: 150),
+                                  opacity: _isHovering ? 1.0 : 0.6,
+                                  child: Icon(
+                                    FluentIcons.chevron_right_24_regular,
+                                    size: _isHovering ? 24 : 18,
+                                    color: Theme.of(context).colorScheme.onSurface,
+                                  ),
+                                ),
                               ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  ),
-              ],
-            ),
-            isResizable: true,
-            minPaneWidth: 200,
-            maxPaneWidth: 800,
-            onPaneWidthChanged: (nextWidth) {
-              setState(() {
-                _leftPaneWidth = nextWidth;
-              });
+                  ],
+                ),
+                isResizable: true,
+                minPaneWidth: paneWidths.minPaneWidth,
+                maxPaneWidth: paneWidths.maxPaneWidth,
+                onPaneWidthChanged: (nextWidth) {
+                  _leftPaneWidth = nextWidth;
+                },
+                onPaneResizeEnd: () {
+                  context
+                      .read<SettingsBloc>()
+                      .add(UpdateCommentaryPaneWidth(_leftPaneWidth));
+                },
+                autoHandleResponsiveVisibility: false,
+                scrollbarTopMargin: 0,
+              );
             },
-            onPaneResizeEnd: () {
-              context
-                  .read<SettingsBloc>()
-                  .add(UpdateCommentaryPaneWidth(_leftPaneWidth));
-            },
-            autoHandleResponsiveVisibility: false,
           );
         },
       ),

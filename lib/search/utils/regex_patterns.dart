@@ -96,11 +96,11 @@ class SearchRegexPatterns {
     if (word.isEmpty) return word;
 
     if (word.length <= 1) {
-      return '.{1,5}${RegExp.escape(word)}';
+      return '.{0,5}${RegExp.escape(word)}';
     } else if (word.length <= 2) {
-      return '.{1,4}${RegExp.escape(word)}';
+      return '.{0,4}${RegExp.escape(word)}';
     } else if (word.length <= 3) {
-      return '.{1,3}${RegExp.escape(word)}';
+      return '.{0,3}${RegExp.escape(word)}';
     } else {
       return '.*${RegExp.escape(word)}';
     }
@@ -112,11 +112,11 @@ class SearchRegexPatterns {
     if (word.isEmpty) return word;
 
     if (word.length <= 1) {
-      return '${RegExp.escape(word)}.{1,7}';
+      return '${RegExp.escape(word)}.{0,7}';
     } else if (word.length <= 2) {
-      return '${RegExp.escape(word)}.{1,6}';
+      return '${RegExp.escape(word)}.{0,6}';
     } else if (word.length <= 3) {
-      return '${RegExp.escape(word)}.{1,5}';
+      return '${RegExp.escape(word)}.{0,5}';
     } else {
       return '${RegExp.escape(word)}.*';
     }
@@ -203,6 +203,25 @@ class SearchRegexPatterns {
     'ז': ['צ'],
   };
 
+  static const List<String> _hebrewInsertionLetters = [
+    'ו',
+    'י',
+    'א',
+    'ה',
+    'פ',
+    'ל',
+    'מ',
+    'נ',
+    'ב',
+    'כ',
+    'ש',
+    'ת',
+    'ר',
+  ];
+
+  static const int _maxTypoToleranceVariations = 48;
+  static const int _maxFuzzyLiteralVariations = 96;
+
   /// יוצר וריאציות עם עד החלפת אות אחת לפי שגיאות עבריות נפוצות.
   static List<String> generateCommonHebrewTypoVariations(String word) {
     if (word.isEmpty) return [word];
@@ -238,17 +257,89 @@ class SearchRegexPatterns {
     return variations.toList();
   }
 
+  /// יוצר וריאציות של שגיאות כתיב במרחק עריכה 1:
+  /// החלפה שכיחה, חילוף סדר, השמטת אות אחת או הוספת אות אחת.
+  static List<String> generateTypoToleranceVariations(
+    String word, {
+    int maxVariations = _maxTypoToleranceVariations,
+  }) {
+    if (word.isEmpty) {
+      return [word];
+    }
+
+    final graphemes = word.characters.toList();
+    final variations = <String>{};
+
+    bool addVariation(String variation) {
+      if (variation.isEmpty || variations.contains(variation)) {
+        return true;
+      }
+
+      variations.add(variation);
+      return variations.length < maxVariations;
+    }
+
+    for (final variation in generateCommonHebrewTypoVariations(word)) {
+      if (!addVariation(variation)) {
+        return variations.toList(growable: false);
+      }
+    }
+
+    for (int i = 0; i < graphemes.length; i++) {
+      final next = List<String>.from(graphemes)..removeAt(i);
+      if (next.isNotEmpty && !addVariation(next.join())) {
+        return variations.toList(growable: false);
+      }
+    }
+
+    for (final position in _prioritizedInsertionPositions(graphemes.length)) {
+      for (final letter in _hebrewInsertionLetters) {
+        final next = List<String>.from(graphemes)..insert(position, letter);
+        if (!addVariation(next.join())) {
+          return variations.toList(growable: false);
+        }
+      }
+    }
+
+    return variations.toList(growable: false);
+  }
+
   /// יוצר את כל וריאציות ה-fuzzy הליטרליות: כתיב מלא/חסר + טעות שכיחה אחת.
-  static List<String> generateFuzzyLiteralVariations(String word) {
+  static List<String> generateFuzzyLiteralVariations(
+    String word, {
+    int maxVariations = _maxFuzzyLiteralVariations,
+  }) {
     if (word.isEmpty) return [word];
 
     final variations = <String>{};
     for (final spellingVariation
         in generateFullPartialSpellingVariations(word)) {
-      variations.addAll(generateCommonHebrewTypoVariations(spellingVariation));
+      final remaining = maxVariations - variations.length;
+      if (remaining <= 0) {
+        break;
+      }
+
+      variations.addAll(
+        generateTypoToleranceVariations(
+          spellingVariation,
+          maxVariations: remaining,
+        ),
+      );
     }
 
-    return variations.toList();
+    return variations.toList(growable: false);
+  }
+
+  static List<int> _prioritizedInsertionPositions(int length) {
+    if (length <= 0) {
+      return const [0];
+    }
+
+    final positions = <int>[0, length];
+    for (var offset = 1; offset < length; offset++) {
+      positions.add(offset);
+    }
+    return positions;
   }
 
   /// בודק אם מילה מכילה קידומת דקדוקית

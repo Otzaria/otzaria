@@ -30,6 +30,24 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/tour/tour_target_keys.dart';
 
+class SearchDialogResult {
+  const SearchDialogResult({
+    required this.query,
+    required this.searchOptions,
+    required this.alternativeWords,
+    required this.spacingValues,
+    required this.searchMode,
+    required this.distance,
+  });
+
+  final String query;
+  final Map<String, Map<String, bool>> searchOptions;
+  final Map<int, List<String>> alternativeWords;
+  final Map<String, String> spacingValues;
+  final SearchMode searchMode;
+  final int distance;
+}
+
 /// דיאלוג חיפוש מתקדם - מכיל את כל פקדי החיפוש וההגדרות
 /// כשמבצעים חיפוש, הדיאלוג נסגר ונפתחת לשונית תוצאות
 class SearchDialog extends StatefulWidget {
@@ -43,9 +61,14 @@ class SearchDialog extends StatefulWidget {
     int distance,
   )? onSearch;
   final String? bookTitle;
+    final bool returnResultOnSubmit;
 
   const SearchDialog(
-      {super.key, this.existingTab, this.onSearch, this.bookTitle});
+      {super.key,
+      this.existingTab,
+      this.onSearch,
+      this.bookTitle,
+      this.returnResultOnSubmit = false});
 
   @override
   State<SearchDialog> createState() => _SearchDialogState();
@@ -72,6 +95,9 @@ class _SearchDialogState extends State<SearchDialog> {
       };
     }
   }
+
+  bool get _usesStagedSubmit =>
+      widget.onSearch != null || widget.returnResultOnSubmit;
 
   @override
   void initState() {
@@ -312,16 +338,38 @@ class _SearchDialogState extends State<SearchDialog> {
     };
     Settings.setValue<String>('key-last-search-mode', modeString);
 
-    if (widget.onSearch != null) {
-      widget.onSearch!(
-        query,
-        normalizedParameters.searchOptions,
-        normalizedParameters.alternativeWords,
-        normalizedParameters.customSpacing,
-        currentMode,
-        _searchTab.searchBloc.state.distance,
+    if (widget.returnResultOnSubmit) {
+      Navigator.of(context).pop(
+        SearchDialogResult(
+          query: query,
+          searchOptions: normalizedParameters.searchOptions,
+          alternativeWords: normalizedParameters.alternativeWords,
+          spacingValues: normalizedParameters.customSpacing,
+          searchMode: currentMode,
+          distance: _searchTab.searchBloc.state.distance,
+        ),
       );
+      return;
+    }
+
+    if (widget.onSearch != null) {
+      final onSearch = widget.onSearch!;
+      final searchOptions = normalizedParameters.searchOptions;
+      final alternativeWords = normalizedParameters.alternativeWords;
+      final spacingValues = normalizedParameters.customSpacing;
+      final distance = _searchTab.searchBloc.state.distance;
+
       Navigator.of(context).pop();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        onSearch(
+          query,
+          searchOptions,
+          alternativeWords,
+          spacingValues,
+          currentMode,
+          distance,
+        );
+      });
       return;
     }
 
@@ -444,7 +492,11 @@ class _SearchDialogState extends State<SearchDialog> {
       color: Colors.transparent,
       child: InkWell(
         onTap: () {
-          context.read<SearchBloc>().add(SetSearchMode(mode));
+          context.read<SearchBloc>().add(
+              !_usesStagedSubmit
+                    ? SetSearchMode(mode)
+                    : SetSearchModeWithoutSearch(mode),
+              );
           _searchTab.searchFieldFocusNode.requestFocus();
         },
         borderRadius: BorderRadius.circular(12),
@@ -664,7 +716,12 @@ class _SearchDialogState extends State<SearchDialog> {
 
                                 final fuzzyDistanceWidget = Padding(
                                   padding: const EdgeInsets.only(right: 12.0),
-                                  child: FuzzyDistance(tab: _searchTab),
+                                  child: FuzzyDistance(
+                                    tab: _searchTab,
+                                    inputFocusNotifier:
+                                        _advancedControlsHasFocus,
+                                    triggerSearch: !_usesStagedSubmit,
+                                  ),
                                 );
 
                                 final showCategoriesToggleWidget =

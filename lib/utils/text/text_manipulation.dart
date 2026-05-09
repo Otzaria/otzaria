@@ -380,17 +380,20 @@ String highLight(
   Map<int, List<String>> alternativeWords = const {},
   Map<String, String> spacingValues = const {},
   bool isFuzzy = false,
+  int searchDistance = 0,
 }) {
   if (searchQuery.isEmpty) return data;
-
-  // Debug print
-  // debugPrint('highLight: query="$searchQuery", options=$searchOptions');
 
   // 1. חילוץ מילות החיפוש כולל מילים חילופיות
   final originalWords = SearchQueryBuilder.sanitizeQuery(searchQuery)
       .split(RegExp(r'\s+'))
       .where((s) => s.isNotEmpty)
       .toList();
+  final effectiveSpacingValues = SearchQueryBuilder.effectiveSpacingValues(
+    wordCount: originalWords.length,
+    spacingValues: spacingValues,
+    searchDistance: searchDistance,
+  );
 
   // בניית קבוצת patterns לכל מילה בנפרד (כולל חלופות לכל מיקום)
   final patternGroups = <List<String>>[];
@@ -466,7 +469,8 @@ String highLight(
     for (var i = 0; i < wordPatternStrings.length; i++) {
       patternParts.add(wordPatternStrings[i]);
       if (i < wordPatternStrings.length - 1) {
-        patternParts.add(_highlightSeparatorForIndex(spacingValues, i));
+        patternParts
+            .add(_highlightSeparatorForIndex(effectiveSpacingValues, i));
       }
     }
     combinedPattern = patternParts.join();

@@ -21,6 +21,31 @@ void _updateAddress(List<String> address, String line) {
   address.add(line);
 }
 
+bool _isHebrewLetter(int codeUnit) {
+  return (codeUnit >= 0x05D0 && codeUnit <= 0x05EA) ||
+      (codeUnit >= 0x05F0 && codeUnit <= 0x05F4) ||
+      (codeUnit >= 0xFB1D && codeUnit <= 0xFBB1);
+}
+
+/// Returns true only if [query] appears as a whole word in [text]
+/// (not surrounded by Hebrew letters on either side).
+bool _containsWholeWord(String text, String query) {
+  if (!text.contains(query)) return false;
+
+  int idx = text.indexOf(query);
+  while (idx != -1) {
+    final before = idx > 0 ? text.codeUnitAt(idx - 1) : -1;
+    final after = idx + query.length < text.length
+        ? text.codeUnitAt(idx + query.length)
+        : -1;
+
+    if (!_isHebrewLetter(before) && !_isHebrewLetter(after)) return true;
+
+    idx = text.indexOf(query, idx + 1);
+  }
+  return false;
+}
+
 /// Search logic executed in isolate for better performance
 List<TextSearchResult> _searchIsolate(Map<String, dynamic> args) {
   final List<String> content = args['content'] as List<String>;
@@ -46,7 +71,7 @@ List<TextSearchResult> _searchIsolate(Map<String, dynamic> args) {
     }
 
     final cleanLine = utils.removeVolwels(utils.stripHtmlIfNeeded(line));
-    if (cleanLine.contains(query)) {
+    if (_containsWholeWord(cleanLine, query)) {
       results.add(TextSearchResult(
         index: i,
         snippet: cleanLine,

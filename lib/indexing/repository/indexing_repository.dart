@@ -33,6 +33,31 @@ class IndexingRepository {
     return indexExistedBeforeInit && booksDone.isEmpty;
   }
 
+  /// בודקת אם בכלל יש טעם להריץ את בדיקת requiresManualReindex.
+  /// ספרייה ריקה (כולל המקרה של "אין ספרייה") אין טעם לאפס לה אינדקס,
+  /// כי אין מה לאנדקס מחדש.
+  @visibleForTesting
+  static bool shouldSkipManualReindexCheck(Library library) {
+    return library.getAllBooks().isEmpty;
+  }
+
+  Future<bool> requiresManualReindex(Library library) async {
+    if (shouldSkipManualReindexCheck(library)) {
+      return false;
+    }
+    await _tantivyDataProvider.engine;
+    return _tantivyDataProvider.requiresManualReindex(
+      currentCatalogueOrderSignature: buildCatalogueOrderSignature(library),
+    );
+  }
+
+  Future<void> prepareForManualReindex(Library library) async {
+    await _tantivyDataProvider.engine;
+    await _tantivyDataProvider.prepareForManualReindex(
+      buildCatalogueOrderSignature(library),
+    );
+  }
+
   /// Indexes all books in the provided library.
   ///
   /// [library] The library containing books to index
@@ -59,8 +84,12 @@ class IndexingRepository {
     var didStartActualIndexing = false;
 
     try {
-      await _tantivyDataProvider
+      final requiresManualReindex = await _tantivyDataProvider
           .ensureIndexStateMatchesCatalogue(catalogueOrderSignature);
+      if (requiresManualReindex) {
+        _tantivyDataProvider.isIndexing.value = false;
+        return false;
+      }
 
       if (shouldResetBeforeFullReindex(
         indexExistedBeforeInit: _tantivyDataProvider.indexExistedBeforeInit,
@@ -487,7 +516,6 @@ class IndexingRepository {
     return encodedCatalogueOrder - 1;
   }
 
-  @visibleForTesting
   static String buildCatalogueOrderSignature(Library library) {
     final orderedKeys = SearchCatalogueOrderHelper.buildOrderedKeys(
       library,
@@ -533,6 +561,11 @@ class IndexingRepository {
     final isolateService =
         _isolateService ?? await IndexingIsolateService.create();
     _activeIsolateService = isolateService;
+
+    if (await requiresManualReindex(library)) {
+      _tantivyDataProvider.isIndexing.value = false;
+      return false;
+    }
 
     // בנה מפת סדר קטלוג מהספרייה הטרייה שהועברה כפרמטר
     // חשוב: משתמשים בספרייה המלאה כדי שהסדר הגלובלי יהיה נכון לכל הספרים
@@ -650,6 +683,17 @@ class IndexingRepository {
   /// Gets the list of books that have already been indexed.
   List<String> getIndexedBooks() {
     return List<String>.from(_tantivyDataProvider.booksDone);
+  }
+
+  /// Returns true for book types that the indexer actually processes.
+  /// Non-indexable types (ExternalLibraryBook, DocxBook, etc.) are silently
+  /// skipped by indexAllBooks, so they must be excluded from status checks.
+  static bool isIndexableBook(Book book) => book is TextBook || book is PdfBook;
+
+  /// Waits until the underlying data provider is fully initialized
+  /// (booksDone loaded from disk).
+  Future<void> awaitReady() async {
+    await _tantivyDataProvider.engine;
   }
 
   /// Checks if indexing is currently in progress.

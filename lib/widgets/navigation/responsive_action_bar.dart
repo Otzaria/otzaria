@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/buttons/action_buttons.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 
 /// רכיב שמציג כפתורי פעולה עם יכולת הסתרה במסכים צרים
@@ -316,6 +317,29 @@ class ActionButtonData {
     this.onPressed,
     this.submenuItems,
   });
+
+  /// Factory constructor לכפתור פשוט — מונע כפילות של icon/tooltip/onPressed
+  /// בין הכפתור עצמו לנתוני התפריט.
+  factory ActionButtonData.simple({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onPressed,
+    required bool compact,
+    bool selected = false,
+  }) {
+    return ActionButtonData(
+      widget: ToolbarActionButton(
+        compact: compact,
+        tooltip: tooltip,
+        icon: icon,
+        selected: selected,
+        onPressed: onPressed,
+      ),
+      icon: icon,
+      tooltip: tooltip,
+      onPressed: onPressed,
+    );
+  }
 
   @override
   bool operator ==(Object other) =>

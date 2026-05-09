@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
+import 'package:otzaria/settings/search/settings_anchor.dart';
+import 'package:otzaria/settings/search/settings_search_models.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/settings/settings_card.dart';
+import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
@@ -17,6 +20,114 @@ class TextSettingsTab extends StatelessWidget {
 
   const TextSettingsTab({super.key, this.isDialog = false});
 
+  /// פריטי חיפוש בהגדרות. נסרק על-ידי tool/generate_search_index.dart.
+  static const List<SettingsSearchEntry> searchEntries = [
+    SettingsSearchEntry(
+      id: 'text.font.book_size',
+      title: 'גודל גופן הספר',
+      subtitle: 'גודל הטקסט בספרים',
+      tab: SettingsTab.text,
+      cardId: 'text.font',
+      keywords: ['גודל אות', 'פונט'],
+    ),
+    SettingsSearchEntry(
+      id: 'text.font.book_family',
+      title: 'גופן טקסט',
+      subtitle: 'בחירת סוג הגופן לספרים',
+      tab: SettingsTab.text,
+      cardId: 'text.font',
+      keywords: ['פונט', 'אות'],
+    ),
+    SettingsSearchEntry(
+      id: 'text.font.commentators_size',
+      title: 'גודל גופן מפרשים',
+      subtitle: 'גודל הטקסט במפרשים',
+      tab: SettingsTab.text,
+      cardId: 'text.font',
+      keywords: ['פרשנים', 'מפרשים'],
+    ),
+    SettingsSearchEntry(
+      id: 'text.font.commentators_family',
+      title: 'גופן מפרשים',
+      subtitle: 'בחירת סוג הגופן למפרשים',
+      tab: SettingsTab.text,
+      cardId: 'text.font',
+      keywords: ['פונט', 'פרשנים'],
+    ),
+    SettingsSearchEntry(
+      id: 'text.font.line_height',
+      title: 'מרווח בין שורות',
+      subtitle: 'גובה השורות בספרים',
+      tab: SettingsTab.text,
+      cardId: 'text.font',
+      keywords: ['רווח', 'גובה שורה'],
+    ),
+    SettingsSearchEntry(
+      id: 'text.font.text_width',
+      title: 'רוחב הטקסט',
+      subtitle: 'רוחב מקסימלי של עמודת הטקסט',
+      tab: SettingsTab.text,
+      cardId: 'text.font',
+      keywords: ['רוחב', 'עמודה'],
+    ),
+    SettingsSearchEntry(
+      id: 'text.nikud.display_mode',
+      title: 'הצגת הניקוד',
+      subtitle: 'הצג / הסתר ניקוד בתנ"ך ובכל הספרים',
+      tab: SettingsTab.text,
+      cardId: 'text.nikud',
+      keywords: ['ניקוד', 'תנך'],
+    ),
+    SettingsSearchEntry(
+      id: 'text.nikud.holy_names',
+      title: 'הצגת שם הקודש',
+      subtitle: 'הסתרת שם השם משיקולי קדושה',
+      tab: SettingsTab.text,
+      cardId: 'text.nikud',
+      keywords: ['שם השם', 'קדושה'],
+    ),
+    SettingsSearchEntry(
+      id: 'text.nikud.teamim',
+      title: 'הצגת טעמי המקרא',
+      subtitle: 'הצג טעמים בתנ"ך',
+      tab: SettingsTab.text,
+      cardId: 'text.nikud',
+      keywords: ['טעמים', 'מקרא'],
+    ),
+    SettingsSearchEntry(
+      id: 'text.copy.with_headers',
+      title: 'העתקת הכותרת',
+      subtitle: 'העתקת הטקסט עם שם הספר וכותרות',
+      tab: SettingsTab.text,
+      cardId: 'text.copy',
+      keywords: ['העתק', 'כותרת'],
+    ),
+    SettingsSearchEntry(
+      id: 'text.copy.format',
+      title: 'עיצוב כותרות',
+      subtitle: 'עיצוב כותרות בעת העתקה',
+      tab: SettingsTab.text,
+      cardId: 'text.copy',
+      keywords: ['העתק', 'כותרת', 'פורמט'],
+    ),
+    SettingsSearchEntry(
+      id: 'text.per_book.enable',
+      title: 'שמירת התאמות לכל ספר בנפרד',
+      subtitle: 'שינויי תצוגה ייחודיים לכל ספר',
+      tab: SettingsTab.text,
+      cardId: 'text.per_book',
+      keywords: ['ספר נפרד', 'התאמה אישית'],
+    ),
+    SettingsSearchEntry(
+      id: 'text.per_book.reset',
+      title: 'אפס את כל הגדרות אלו, בכל הספרים',
+      subtitle: 'מחיקת כל ההתאמות שנשמרו לספרים',
+      tab: SettingsTab.text,
+      cardId: 'text.per_book',
+      keywords: ['איפוס', 'מחיקה'],
+    ),
+  ];
+
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<SettingsBloc, SettingsState>(
@@ -28,13 +139,25 @@ class TextSettingsTab extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _buildFontSection(context, settingsState),
+                SettingsAnchor(
+                  cardId: 'text.font',
+                  child: _buildFontSection(context, settingsState),
+                ),
                 kSettingsCardSpacing,
-                _buildNikudSection(context, settingsState),
+                SettingsAnchor(
+                  cardId: 'text.nikud',
+                  child: _buildNikudSection(context, settingsState),
+                ),
                 kSettingsCardSpacing,
-                _buildCopySection(context, settingsState),
+                SettingsAnchor(
+                  cardId: 'text.copy',
+                  child: _buildCopySection(context, settingsState),
+                ),
                 kSettingsCardSpacing,
-                _buildPerBookSection(context, settingsState),
+                SettingsAnchor(
+                  cardId: 'text.per_book',
+                  child: _buildPerBookSection(context, settingsState),
+                ),
               ],
             ),
           ),

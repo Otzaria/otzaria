@@ -265,16 +265,10 @@ class _PersonalNotesManagerScreenState
                     minPaneWidth: 150,
                     maxPaneWidth: 500,
                     onPaneWidthChanged: (nextWidth) {
-                      setState(() {
-                        _navigationWidth = nextWidth;
-                      });
+                      _navigationWidth = nextWidth;
                     },
                     paneContent: _buildNotesTree(),
                     wrapPaneInFloatingPanel: true,
-                    narrowPaneBuilder: (context, paneContent) => Material(
-                      color: AppSurfaces.solidPanelBackground(context),
-                      child: SafeArea(child: paneContent),
-                    ),
                   ),
                 ),
               ),

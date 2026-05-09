@@ -3,6 +3,9 @@ import 'dart:io';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
+import 'package:otzaria/settings/search/settings_anchor.dart';
+import 'package:otzaria/settings/search/settings_search_models.dart';
+import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/shortcuts/view/shortcut_dropdown_tile.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
@@ -13,6 +16,26 @@ import 'package:otzaria/tour/tour_target_keys.dart';
 /// טאב קיצורי מקלדת — מוצג רק בדסקטופ.
 class ShortcutsSettingsTab extends StatelessWidget {
   const ShortcutsSettingsTab({super.key});
+
+  /// פריטי חיפוש בהגדרות. נסרק על-ידי tool/generate_search_index.dart.
+  static const List<SettingsSearchEntry> searchEntries = [
+    SettingsSearchEntry(
+      id: 'shortcuts.list',
+      title: 'קיצורי מקלדת',
+      subtitle: 'התאמה אישית של קיצורי המקלדת',
+      tab: SettingsTab.shortcuts,
+      cardId: 'shortcuts.main',
+      keywords: ['קיצורים', 'מקלדת', 'shortcuts'],
+    ),
+    SettingsSearchEntry(
+      id: 'shortcuts.reset',
+      title: 'איפוס קיצורים',
+      subtitle: 'החזרת כל קיצורי המקלדת לברירת המחדל',
+      tab: SettingsTab.shortcuts,
+      cardId: 'shortcuts.main',
+      keywords: ['איפוס', 'ברירת מחדל'],
+    ),
+  ];
 
   static const Map<String, String> _shortcutsList = {
     'ctrl+a': 'CTRL + A',
@@ -71,24 +94,27 @@ class ShortcutsSettingsTab extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // ── כללי (איפוס) ──────────────────────────────────────────────
-            SettingsCard(
-              title: 'כללי',
-              children: [
-                ListTile(
-                  hoverColor: Colors.transparent,
-                  leading: const Icon(FluentIcons.arrow_reset_24_regular),
-                  title: const Text('איפוס קיצורי מקשים',
-                      style: kSettingsTitleStyle),
-                  subtitle: const Text(
-                    'החזר את כל קיצורי המקשים לברירת המחדל',
-                    style: kSettingsSubtitleStyle,
+            SettingsAnchor(
+              cardId: 'shortcuts.main',
+              child: SettingsCard(
+                title: 'כללי',
+                children: [
+                  ListTile(
+                    hoverColor: Colors.transparent,
+                    leading: const Icon(FluentIcons.arrow_reset_24_regular),
+                    title: const Text('איפוס קיצורי מקשים',
+                        style: kSettingsTitleStyle),
+                    subtitle: const Text(
+                      'החזר את כל קיצורי המקשים לברירת המחדל',
+                      style: kSettingsSubtitleStyle,
+                    ),
+                    trailing: NeutralActionButton(
+                      text: 'איפוס',
+                      onPressed: () => _resetShortcuts(context),
+                    ),
                   ),
-                  trailing: NeutralActionButton(
-                    text: 'איפוס',
-                    onPressed: () => _resetShortcuts(context),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
 
             kSettingsCardSpacing,

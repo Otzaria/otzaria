@@ -10,10 +10,12 @@ import 'package:otzaria/search/book_facet.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/search/search_repository.dart';
+import 'package:otzaria/search/utils/snippet_builder.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
+import 'package:otzaria/text_book/utils/search_query_sync.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/navigation/search_pane_base.dart';
 import 'package:pdfrx/pdfrx.dart';
@@ -375,6 +377,10 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
             },
             height: 50,
             query: widget.searchController.text,
+            searchOptions: _activeSearchParameters.searchOptions,
+            alternativeWords: _activeSearchParameters.alternativeWords,
+            spacingValues: _activeSearchParameters.customSpacing,
+            searchDistance: _searchDistance,
           );
         },
       ),
@@ -403,7 +409,8 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
       },
       additionalActions: const [],
       hintText: 'חפש כאן..',
-      onAdvancedSearch: () {
+      onAdvancedSearch: () async {
+        final pdfBookBloc = context.read<PdfBookBloc>();
         final tempTab = SearchingTab('חיפוש', widget.searchController.text);
         tempTab.searchOptions.addAll(_searchOptions);
         tempTab.alternativeWords.addAll(_alternativeWords);
@@ -411,44 +418,54 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
         tempTab.searchBloc.add(SetSearchMode(_searchMode));
         tempTab.searchBloc.add(UpdateDistance(_searchDistance));
 
-        showDialog(
+        final result = await showDialog<SearchDialogResult>(
           context: context,
           builder: (context) => SearchDialog(
             existingTab: tempTab,
             bookTitle: widget.bookTitle,
-            onSearch: (query, searchOptions, alternativeWords, spacingValues,
-                searchMode, distance) {
-              final normalizedParameters =
-                  SearchQueryBuilder.normalizeParametersForMode(
-                searchMode,
-                customSpacing: spacingValues,
-                alternativeWords: alternativeWords,
-                searchOptions: searchOptions,
-              );
-              widget.searchController.text = query;
-              setState(() {
-                _searchOptions = normalizedParameters.searchOptions;
-                _alternativeWords = normalizedParameters.alternativeWords;
-                _spacingValues = normalizedParameters.customSpacing;
-                _searchMode = searchMode;
-                _searchDistance = distance;
-                _forceSearchEngine = _searchMode != SearchMode.exact ||
-                    _searchDistance > 0 ||
-                    _searchOptions.isNotEmpty ||
-                    _alternativeWords.isNotEmpty ||
-                    _spacingValues.isNotEmpty;
-              });
-              context.read<PdfBookBloc>().add(UpdateSearchOptions(
-                    searchOptions: normalizedParameters.searchOptions,
-                    alternativeWords: normalizedParameters.alternativeWords,
-                    spacingValues: normalizedParameters.customSpacing,
-                    searchMode: searchMode,
-                    searchDistance: distance,
-                  ));
-              _searchTextUpdated();
-            },
+            returnResultOnSubmit: true,
           ),
         );
+
+        tempTab.dispose();
+
+        if (!mounted || result == null) {
+          return;
+        }
+
+        final normalizedParameters =
+            SearchQueryBuilder.normalizeParametersForMode(
+          result.searchMode,
+          customSpacing: result.spacingValues,
+          alternativeWords: result.alternativeWords,
+          searchOptions: result.searchOptions,
+        );
+        final queryChanged = widget.searchController.text != result.query;
+
+        setState(() {
+          _searchOptions = normalizedParameters.searchOptions;
+          _alternativeWords = normalizedParameters.alternativeWords;
+          _spacingValues = normalizedParameters.customSpacing;
+          _searchMode = result.searchMode;
+          _searchDistance = result.distance;
+          _forceSearchEngine = _searchMode != SearchMode.exact ||
+              _searchDistance > 0 ||
+              _searchOptions.isNotEmpty ||
+              _alternativeWords.isNotEmpty ||
+              _spacingValues.isNotEmpty;
+        });
+          pdfBookBloc.add(UpdateSearchOptions(
+              searchOptions: normalizedParameters.searchOptions,
+              alternativeWords: normalizedParameters.alternativeWords,
+              spacingValues: normalizedParameters.customSpacing,
+              searchMode: result.searchMode,
+              searchDistance: result.distance,
+            ));
+
+        syncSearchControllerQuery(widget.searchController, result.query);
+        if (!queryChanged) {
+          _searchTextUpdated();
+        }
       },
     );
   }
@@ -460,6 +477,10 @@ class SearchResultTile extends StatelessWidget {
     required this.onTap,
     required this.height,
     required this.query,
+    required this.searchOptions,
+    required this.alternativeWords,
+    required this.spacingValues,
+    required this.searchDistance,
     super.key,
   });
 
@@ -467,6 +488,10 @@ class SearchResultTile extends StatelessWidget {
   final void Function() onTap;
   final double height;
   final String query;
+  final Map<String, Map<String, bool>> searchOptions;
+  final Map<int, List<String>> alternativeWords;
+  final Map<String, String> spacingValues;
+  final int searchDistance;
 
   @override
   Widget build(BuildContext context) {
@@ -534,37 +559,25 @@ class SearchResultTile extends StatelessWidget {
       );
     }
 
-    final searchTerms = query.trim().split(RegExp(r'\s+'));
-    final highlightRegex = RegExp(
-      searchTerms.map(RegExp.escape).join('|'),
-      caseSensitive: false,
+    final spans = SnippetBuilder.buildHighlightSpans(
+      plainText: displayText,
+      query: query,
+      defaultStyle: TextStyle(
+        fontSize: 16,
+        fontFamily: settingsState.fontFamily,
+        color: Theme.of(context).colorScheme.onSurface,
+        height: 1.5,
+      ),
+      highlightStyle: const TextStyle(
+        fontWeight: FontWeight.bold,
+        fontSize: 18,
+        color: Color(0xFFD32F2F),
+      ),
+      searchOptions: searchOptions,
+      alternativeWords: alternativeWords,
+      spacingValues: spacingValues,
+      searchDistance: searchDistance,
     );
-
-    final List<InlineSpan> spans = [];
-    var currentPosition = 0;
-
-    for (final match in highlightRegex.allMatches(displayText)) {
-      if (match.start > currentPosition) {
-        spans.add(TextSpan(
-          text: displayText.substring(currentPosition, match.start),
-        ));
-      }
-      spans.add(TextSpan(
-        text: match.group(0),
-        style: const TextStyle(
-          fontWeight: FontWeight.bold,
-          fontSize: 18,
-          color: Color(0xFFD32F2F),
-        ),
-      ));
-      currentPosition = match.end;
-    }
-
-    if (currentPosition < displayText.length) {
-      spans.add(TextSpan(
-        text: displayText.substring(currentPosition),
-      ));
-    }
 
     return Text.rich(
       TextSpan(

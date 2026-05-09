@@ -239,24 +239,50 @@ class TantivyDataProvider {
         storedCatalogueOrderSignature != currentCatalogueOrderSignature;
   }
 
-  Future<void> ensureIndexStateMatchesCatalogue(
-    String currentCatalogueOrderSignature,
-  ) async {
-    if (!shouldInvalidateStoredIndexState(
+  @visibleForTesting
+  static bool shouldPromptForManualReindex({
+    required bool indexExistedBeforeInit,
+    required int storedIndexStateVersion,
+    required String? storedCatalogueOrderSignature,
+    required String currentCatalogueOrderSignature,
+  }) {
+    return indexExistedBeforeInit &&
+        storedIndexStateVersion != currentIndexStateVersion;
+  }
+
+  bool requiresManualReindex({
+    required String currentCatalogueOrderSignature,
+  }) {
+    return shouldPromptForManualReindex(
+      indexExistedBeforeInit: _indexExistedBeforeInit,
       storedIndexStateVersion: _storedIndexStateVersion,
       storedCatalogueOrderSignature: _catalogueOrderSignature,
       currentCatalogueOrderSignature: currentCatalogueOrderSignature,
+    );
+  }
+
+  Future<bool> ensureIndexStateMatchesCatalogue(
+    String currentCatalogueOrderSignature,
+  ) async {
+    if (!requiresManualReindex(
+      currentCatalogueOrderSignature: currentCatalogueOrderSignature,
     )) {
-      return;
+      return false;
     }
 
-    final lockPath = await AppPaths.getTantivyLockPath();
     debugPrint(
       '⚠️ מצב האינדקס לא תואם לקטלוג הנוכחי '
       '(version=$_storedIndexStateVersion, '
       'signatureMatch=${_catalogueOrderSignature == currentCatalogueOrderSignature}) '
-      '- מסמן צורך בבנייה מחדש מלאה',
+      '- נדרש איפוס ואינדוקס ידני באישור המשתמש',
     );
+    return true;
+  }
+
+  Future<void> prepareForManualReindex(
+    String currentCatalogueOrderSignature,
+  ) async {
+    final lockPath = await AppPaths.getTantivyLockPath();
     booksDone = [];
     _storedIndexStateVersion = currentIndexStateVersion;
     _catalogueOrderSignature = currentCatalogueOrderSignature;

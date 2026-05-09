@@ -53,11 +53,13 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
       if (change.manifestChanged) {
         add(DevelopmentPluginManifestChanged(change.pluginId));
       } else {
-        PluginRuntimeDispatcher.instance
-            .reloadPlugin(change.pluginId)
-            .catchError((e) {
-          debugPrint('Plugin dev reload error [${change.pluginId}]: $e');
-        });
+        unawaited(
+          PluginRuntimeDispatcher.instance.reloadPlugin(change.pluginId).then(
+            (_) {},
+            onError: (e) =>
+                debugPrint('Plugin dev reload error [${change.pluginId}]: $e'),
+          ),
+        );
       }
     });
   }

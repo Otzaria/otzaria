@@ -12,7 +12,6 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
-import 'package:otzaria/text_book/utils/notes_commentary_utils.dart';
 import 'package:otzaria/widgets/misc/progressive_scrolling.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
@@ -890,6 +889,12 @@ class _CombinedViewState extends State<CombinedView> {
       removeTeamim: !settingsState.showTeamim,
       replaceHolyNames: settingsState.replaceHolyNames,
       searchText: state.searchText,
+      searchOptions: state.searchOptions,
+      alternativeWords: state.alternativeWords,
+      spacingValues: state.spacingValues,
+      isFuzzySearch: state.searchMode == SearchMode.fuzzy,
+      searchMode: state.searchMode,
+      searchDistance: state.searchDistance,
       fontSize: widget.textSize,
       fontFamily: settingsState.fontFamily,
       lineHeight: settingsState.lineHeight,
@@ -1378,6 +1383,7 @@ class _CombinedViewState extends State<CombinedView> {
                             spacingValues: state.spacingValues,
                             isFuzzySearch: state.searchMode == SearchMode.fuzzy,
                             searchMode: state.searchMode,
+                            searchDistance: state.searchDistance,
                             fontSize: widget.textSize,
                             fontFamily: settingsState.fontFamily,
                             lineHeight: settingsState.lineHeight,
@@ -1589,16 +1595,6 @@ class _CombinedViewState extends State<CombinedView> {
 
   /// בדיקה אם יש מפרשים לאינדקס מסוים
   bool _hasCommentaries(TextBookLoaded state, int index) {
-    // בדיקה לנוכחות הערות על הספר (virtual commentator)
-    if (state.activeCommentators.contains(kNotesCommentatorTitle) &&
-        state.notesContent != null) {
-      final lineContent =
-          index < state.content.length ? state.content[index] : '';
-      if (hasNoteMarkers(lineContent)) {
-        return true;
-      }
-    }
-
     // בדיקה אם יש קישורים רלוונטיים לאינדקס הזה
     final lineLinks = state.linksByLine[index + 1];
     if (lineLinks == null || lineLinks.isEmpty) return false;

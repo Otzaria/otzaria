@@ -104,6 +104,28 @@ void main() {
     );
 
     blocTest<SearchBloc, SearchState>(
+      'SetSearchModeWithoutSearch מעדכן מצב חיפוש בלי ריענון שאילתה',
+      build: SearchBloc.new,
+      act: (bloc) => bloc.add(SetSearchModeWithoutSearch(SearchMode.fuzzy)),
+      expect: () => [
+        isA<SearchState>()
+            .having((state) => state.configuration.searchMode, 'searchMode',
+                SearchMode.fuzzy)
+            .having((state) => state.configuration.distance, 'distance', 2),
+      ],
+    );
+
+    blocTest<SearchBloc, SearchState>(
+      'UpdateDistanceWithoutSearch מעדכן מרחק בלי ריענון שאילתה',
+      build: SearchBloc.new,
+      act: (bloc) => bloc.add(UpdateDistanceWithoutSearch(4)),
+      expect: () => [
+        isA<SearchState>()
+            .having((state) => state.configuration.distance, 'distance', 4),
+      ],
+    );
+
+    blocTest<SearchBloc, SearchState>(
       'UpdateFacetCounts ממזג עדכונים נקודתיים לקאש',
       build: SearchBloc.new,
       act: (bloc) {

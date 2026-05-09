@@ -241,17 +241,6 @@ class TextBookRepository {
     return commentatorTitles;
   }
 
-  /// מחזיר את תוכן ההערות של ספר מה-DB, אם קיים
-  Future<String?> getNotesContent(TextBook book) async {
-    final dbBook = await BookLocator.getBookFromDatabase(
-      book.title,
-      category: book.category,
-      categoryId: book.categoryId,
-    );
-    final content = dbBook?.notesContent;
-    return (content != null && content.isNotEmpty) ? content : null;
-  }
-
   Future<bool> bookExists(String title) async {
     return await _fileSystem.bookExists(title);
   }

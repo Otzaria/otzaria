@@ -6,8 +6,11 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart'
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
+import 'package:otzaria/settings/search/settings_anchor.dart';
+import 'package:otzaria/settings/search/settings_search_models.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/settings/settings_card.dart';
+import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
 enum _SidebarMode { pinned, openOnBook, closed }
@@ -15,6 +18,91 @@ enum _SidebarMode { pinned, openOnBook, closed }
 /// טאב הגדרות עיצוב
 class DesignSettingsTab extends StatelessWidget {
   const DesignSettingsTab({super.key});
+
+  /// פריטים בעלי הגדרות לחיפוש בהגדרות. נסרק על-ידי
+  /// tool/generate_search_index.dart בעת בנייה ומשולב באינדקס המאוחד.
+  static const List<SettingsSearchEntry> searchEntries = [
+    SettingsSearchEntry(
+      id: 'design.display.fullscreen',
+      title: 'מסך מלא',
+      subtitle: 'החלף מצב מסך מלא',
+      tab: SettingsTab.design,
+      cardId: 'design.display',
+      keywords: ['מסך מלא', 'fullscreen'],
+    ),
+    SettingsSearchEntry(
+      id: 'design.theme.follow_system',
+      title: 'מעקב אחר צבע המערכת',
+      subtitle: 'התאמת ערכת הנושא לצבע מערכת ההפעלה',
+      tab: SettingsTab.design,
+      cardId: 'design.theme',
+      keywords: ['ערכת נושא', 'מערכת'],
+    ),
+    SettingsSearchEntry(
+      id: 'design.theme.dark_mode',
+      title: 'מצב כהה',
+      subtitle: 'מעבר בין מצב בהיר למצב כהה',
+      tab: SettingsTab.design,
+      cardId: 'design.theme',
+      keywords: ['ערכת נושא', 'בהיר', 'אפל', 'dark mode'],
+    ),
+    SettingsSearchEntry(
+      id: 'design.theme.seed_color',
+      title: 'צבע בסיס',
+      subtitle: 'צבע ראשי של ערכת הנושא',
+      tab: SettingsTab.design,
+      cardId: 'design.theme',
+      keywords: ['צבע', 'ערכת נושא'],
+    ),
+    SettingsSearchEntry(
+      id: 'design.pdf.book_view',
+      title: 'תצוגת ספר בPDF',
+      subtitle: 'פתיחת ספרי PDF בתצוגת ספר או רגילה',
+      tab: SettingsTab.design,
+      cardId: 'design.pdf',
+      keywords: ['pdf', 'תצוגה'],
+    ),
+    SettingsSearchEntry(
+      id: 'design.tabs.compact',
+      title: 'תפריטים קומפקטיים',
+      subtitle: 'צפיפות תפריטים בסגנון Chrome',
+      tab: SettingsTab.design,
+      cardId: 'design.tabs',
+      keywords: ['קומפקטי', 'צפוף'],
+    ),
+    SettingsSearchEntry(
+      id: 'design.tabs.align_right',
+      title: 'הצגת כרטיסיות בימין',
+      subtitle: 'הצגת כרטיסיות הספרים בימין החלון',
+      tab: SettingsTab.design,
+      cardId: 'design.tabs',
+      keywords: ['ימין', 'מרכז', 'כרטיסיות'],
+    ),
+    SettingsSearchEntry(
+      id: 'design.layout.sidebar_mode',
+      title: 'חלונית ניווט בין כותרות',
+      subtitle: 'הצגה / אוטומטי / הסתרה של חלונית הניווט',
+      tab: SettingsTab.design,
+      cardId: 'design.layout',
+      keywords: ['סייד-בר', 'תפריט'],
+    ),
+    SettingsSearchEntry(
+      id: 'design.layout.notes_collapsed',
+      title: 'פתיחת הערות אישיות במצב סגור',
+      subtitle: 'תצוגת רשימות הערות בפתיחה',
+      tab: SettingsTab.design,
+      cardId: 'design.layout',
+      keywords: ['הערות', 'אישיות'],
+    ),
+    SettingsSearchEntry(
+      id: 'design.layout.split_view',
+      title: 'הצגת המפרשים בחלונית בצד',
+      subtitle: 'מפרשים בחלונית מפוצלת או בתוך הטקסט',
+      tab: SettingsTab.design,
+      cardId: 'design.layout',
+      keywords: ['מפרשים', 'מפוצל'],
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -29,36 +117,41 @@ class DesignSettingsTab extends StatelessWidget {
               children: [
                 // מסך מלא (רק בדסקטופ)
                 if (!(Platform.isAndroid || Platform.isIOS))
-                  SettingsCard(
-                    title: 'תצוגה',
-                    children: [
-                      ListTile(
-                        leading: Icon(state.isFullscreen
-                            ? FluentIcons.full_screen_minimize_24_regular
-                            : FluentIcons.full_screen_maximize_24_regular),
-                        title:
-                            const Text('מסך מלא', style: kSettingsTitleStyle),
-                        subtitle: const Text('החלף מצב מסך מלא',
-                            style: kSettingsSubtitleStyle),
-                        trailing: Switch(
-                          value: state.isFullscreen,
-                          onChanged: (value) async {
-                            context
-                                .read<SettingsBloc>()
-                                .add(UpdateIsFullscreen(value));
-                            await windowManager.setFullScreen(value);
-                          },
+                  SettingsAnchor(
+                    cardId: 'design.display',
+                    child: SettingsCard(
+                      title: 'תצוגה',
+                      children: [
+                        ListTile(
+                          leading: Icon(state.isFullscreen
+                              ? FluentIcons.full_screen_minimize_24_regular
+                              : FluentIcons.full_screen_maximize_24_regular),
+                          title: const Text('מסך מלא',
+                              style: kSettingsTitleStyle),
+                          subtitle: const Text('החלף מצב מסך מלא',
+                              style: kSettingsSubtitleStyle),
+                          trailing: Switch(
+                            value: state.isFullscreen,
+                            onChanged: (value) async {
+                              context
+                                  .read<SettingsBloc>()
+                                  .add(UpdateIsFullscreen(value));
+                              await windowManager.setFullScreen(value);
+                            },
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
 
                 if (!(Platform.isAndroid || Platform.isIOS))
                   kSettingsCardSpacing,
 
                 // מצב כהה וצבע בסיס
-                SettingsCard(
-                  title: 'ערכת נושא',
+                SettingsAnchor(
+                  cardId: 'design.theme',
+                  child: SettingsCard(
+                    title: 'ערכת נושא',
                   children: [
                     SwitchSettingsTile(
                       leading: const Icon(FluentIcons.settings_24_regular),
@@ -116,42 +209,48 @@ class DesignSettingsTab extends StatelessWidget {
                       ),
                     ),
                   ],
+                  ),
                 ),
 
                 kSettingsCardSpacing,
 
-                SettingsCard(
-                  title: 'תצוגת PDF',
-                  children: [
-                    SwitchSettingsTile(
-                      leading: const Icon(FluentIcons.book_open_24_regular),
-                      title: const Text('תצוגת ספר בPDF',
-                          style: kSettingsTitleStyle),
-                      subtitle: Text(
-                        state.enablePerBookSettings
-                            ? state.pdfBookViewByDefault
-                                ? 'ספרי PDF ייפתחו בתצוגת ספר'
-                                : 'ספרי PDF ייפתחו בתצוגה רגילה'
-                            : state.pdfBookViewByDefault
-                                ? 'כל ספרי ה-PDF ייפתחו בתצוגת ספר'
-                                : 'כל ספרי ה-PDF ייפתחו בתצוגה רגילה',
-                        style: kSettingsSubtitleStyle,
+                SettingsAnchor(
+                  cardId: 'design.pdf',
+                  child: SettingsCard(
+                    title: 'תצוגת PDF',
+                    children: [
+                      SwitchSettingsTile(
+                        leading: const Icon(FluentIcons.book_open_24_regular),
+                        title: const Text('תצוגת ספר בPDF',
+                            style: kSettingsTitleStyle),
+                        subtitle: Text(
+                          state.enablePerBookSettings
+                              ? state.pdfBookViewByDefault
+                                  ? 'ספרי PDF ייפתחו בתצוגת ספר'
+                                  : 'ספרי PDF ייפתחו בתצוגה רגילה'
+                              : state.pdfBookViewByDefault
+                                  ? 'כל ספרי ה-PDF ייפתחו בתצוגת ספר'
+                                  : 'כל ספרי ה-PDF ייפתחו בתצוגה רגילה',
+                          style: kSettingsSubtitleStyle,
+                        ),
+                        value: state.pdfBookViewByDefault,
+                        onChanged: (value) {
+                          context
+                              .read<SettingsBloc>()
+                              .add(UpdatePdfBookViewByDefault(value));
+                        },
                       ),
-                      value: state.pdfBookViewByDefault,
-                      onChanged: (value) {
-                        context
-                            .read<SettingsBloc>()
-                            .add(UpdatePdfBookViewByDefault(value));
-                      },
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
 
                 kSettingsCardSpacing,
 
                 // הגדרות טאבים
-                SettingsCard(
-                  title: 'כרטיסיות הספרים',
+                SettingsAnchor(
+                  cardId: 'design.tabs',
+                  child: SettingsCard(
+                    title: 'כרטיסיות הספרים',
                   children: [
                     if (!(Platform.isAndroid || Platform.isIOS))
                       SwitchSettingsTile(
@@ -190,13 +289,16 @@ class DesignSettingsTab extends StatelessWidget {
                       },
                     ),
                   ],
+                  ),
                 ),
 
                 kSettingsCardSpacing,
 
                 // התנהגות סרגל צד
-                SettingsCard(
-                  title: 'חלוניות עזר',
+                SettingsAnchor(
+                  cardId: 'design.layout',
+                  child: SettingsCard(
+                    title: 'חלוניות עזר',
                   children: [
                     SegmentedSettingsTile<_SidebarMode>(
                       title: 'חלונית ניווט בין כותרות',
@@ -290,6 +392,7 @@ class DesignSettingsTab extends StatelessWidget {
                       },
                     ),
                   ],
+                  ),
                 ),
               ],
             ),

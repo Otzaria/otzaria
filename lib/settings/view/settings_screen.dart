@@ -4,6 +4,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/tools/calendar/utils/calendar_cubit.dart';
+import 'package:otzaria/settings/search/settings_search_field.dart';
+import 'package:otzaria/settings/search/settings_search_index.dart';
+import 'package:otzaria/settings/search/settings_search_models.dart';
+import 'package:otzaria/settings/search/settings_search_registry.dart';
+import 'package:otzaria/settings/search/settings_search_results_view.dart';
 import 'package:otzaria/settings/tabs/settings_tabs_exports.dart';
 import 'package:otzaria/settings/services/safer_mode/protected_settings_wrapper.dart';
 import 'package:otzaria/widgets/navigation/keyboard_navigator.dart';
@@ -53,21 +58,81 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
   final _contentFocusNode = FocusNode();
   final _contentScrollController = ScrollController();
 
+  // ── חיפוש בהגדרות ─────────────────────────────────────────────────────────
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+  String _searchQuery = '';
+  List<SettingsSearchEntry> _searchResults = const [];
+
   @override
   void initState() {
     super.initState();
     widget.controller?.addListener(_handleRequestedTab);
     _applyRequestedTab(widget.controller?.takeRequestedTab());
     FocusRepository().registerSettingsFocusRequester(_requestSettingsFocus);
+    SettingsSearchRegistry.instance.addListener(_handleSearchNavigation);
   }
 
   @override
   void dispose() {
     FocusRepository().unregisterSettingsFocusRequester(_requestSettingsFocus);
+    SettingsSearchRegistry.instance.removeListener(_handleSearchNavigation);
     widget.controller?.removeListener(_handleRequestedTab);
     _contentFocusNode.dispose();
     _contentScrollController.dispose();
+    _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
+  }
+
+  // ── חיפוש: עדכון השאילתה ─────────────────────────────────────────────────
+  void _onSearchChanged(String query) {
+    setState(() {
+      _searchQuery = query;
+      _searchResults = SettingsSearchIndex.search(query);
+    });
+  }
+
+  // ── חיפוש: לחיצה על תוצאה — נווט לטאב + גלול והבזק ───────────────────────
+  void _onSearchResultTap(SettingsSearchEntry entry) {
+    SettingsSearchRegistry.instance.navigateToEntry(entry);
+    _searchController.clear();
+    setState(() {
+      _searchQuery = '';
+      _searchResults = const [];
+    });
+  }
+
+  // ── חיפוש: עיבוד בקשת ניווט מה-registry ──────────────────────────────────
+  void _handleSearchNavigation() {
+    final request = SettingsSearchRegistry.instance.pendingRequest;
+    if (request == null) return;
+    SettingsSearchRegistry.instance.consumePendingRequest();
+    if (!mounted) return;
+
+    final tabIndex = switch (request.tab) {
+      SettingsTab.design => 0,
+      SettingsTab.text => 1,
+      SettingsTab.library => 2,
+      SettingsTab.tools => 3,
+      SettingsTab.shortcuts => 4,
+      SettingsTab.system => 5,
+      SettingsTab.about => 6,
+    };
+
+    setState(() {
+      _selectedIndex = tabIndex;
+      _showMobileMenu = false;
+    });
+
+    // לאחר טעינת הטאב — גלילה והבזק על הכרטיס.
+    final cardId = request.cardId;
+    if (cardId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        await Future.delayed(const Duration(milliseconds: 80));
+        await SettingsSearchRegistry.instance.scrollAndHighlight(cardId);
+      });
+    }
   }
 
   @override
@@ -205,6 +270,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
             // ── מצב מובייל ────────────────────────────────────────────────
             if (isMobile) {
               if (_showMobileMenu) {
+                final showResults = _searchQuery.trim().isNotEmpty;
                 return KeyboardNavigator(
                   currentTabIndex: _selectedIndex,
                   totalTabs: _tabsData.length,
@@ -217,38 +283,63 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                       elevation: 0,
                       title: const Text('הגדרות'),
                     ),
-                    body: ListView(
-                      padding: const EdgeInsets.all(12),
+                    body: Column(
                       children: [
-                        for (final group in _mobileGroups) ...[
-                          SettingsCard(
-                            title: group.label,
-                            children: [
-                              for (final idx in group.indices)
-                                ListTile(
-                                  key: tourSettingsTabTargetKeys[idx],
-                                  leading: Icon(_tabsData[idx].icon,
-                                      color: colorScheme.primary),
-                                  title: Text(_tabsData[idx].label),
-                                  trailing: const Icon(
-                                    FluentIcons.chevron_left_24_regular,
-                                  ),
-                                  onTap: () {
-                                    setState(() {
-                                      _selectedIndex = idx;
-                                      _showMobileMenu = false;
-                                    });
-                                  },
-                                ),
-                            ],
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                          child: SettingsSearchField(
+                            controller: _searchController,
+                            focusNode: _searchFocusNode,
+                            onChanged: _onSearchChanged,
                           ),
-                          const SizedBox(height: 8),
-                        ],
+                        ),
+                        Expanded(
+                          child: showResults
+                              ? SettingsSearchResultsView(
+                                  query: _searchQuery,
+                                  results: _searchResults,
+                                  onResultTap: _onSearchResultTap,
+                                )
+                              : ListView(
+                                  padding: const EdgeInsets.all(12),
+                                  children: [
+                                    for (final group in _mobileGroups) ...[
+                                      SettingsCard(
+                                        title: group.label,
+                                        children: [
+                                          for (final idx in group.indices)
+                                            ListTile(
+                                              key:
+                                                  tourSettingsTabTargetKeys[idx],
+                                              leading: Icon(
+                                                _tabsData[idx].icon,
+                                                color: colorScheme.primary,
+                                              ),
+                                              title: Text(_tabsData[idx].label),
+                                              trailing: const Icon(
+                                                FluentIcons
+                                                    .chevron_left_24_regular,
+                                              ),
+                                              onTap: () {
+                                                setState(() {
+                                                  _selectedIndex = idx;
+                                                  _showMobileMenu = false;
+                                                });
+                                              },
+                                            ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                    ],
+                                  ],
+                                ),
+                        ),
                       ],
                     ),
                   ),
                 );
               } else {
+                final showResults = _searchQuery.trim().isNotEmpty;
                 return KeyboardNavigator(
                   currentTabIndex: _selectedIndex,
                   totalTabs: _tabsData.length,
@@ -269,7 +360,27 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                         ),
                       ),
                     ),
-                    body: _tabsData[_selectedIndex].pageBuilder(),
+                    body: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                          child: SettingsSearchField(
+                            controller: _searchController,
+                            focusNode: _searchFocusNode,
+                            onChanged: _onSearchChanged,
+                          ),
+                        ),
+                        Expanded(
+                          child: showResults
+                              ? SettingsSearchResultsView(
+                                  query: _searchQuery,
+                                  results: _searchResults,
+                                  onResultTap: _onSearchResultTap,
+                                )
+                              : _tabsData[_selectedIndex].pageBuilder(),
+                        ),
+                      ],
+                    ),
                   ),
                 );
               }
@@ -391,6 +502,18 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                           bgColor: bgColor,
                           focusNode: _contentFocusNode,
                           scrollController: _contentScrollController,
+                          headerExtra: SettingsSearchField(
+                            controller: _searchController,
+                            focusNode: _searchFocusNode,
+                            onChanged: _onSearchChanged,
+                          ),
+                          overrideContent: _searchQuery.trim().isEmpty
+                              ? null
+                              : SettingsSearchResultsView(
+                                  query: _searchQuery,
+                                  results: _searchResults,
+                                  onResultTap: _onSearchResultTap,
+                                ),
                           child: _tabsData[_selectedIndex].pageBuilder(),
                         ),
                       ),
@@ -414,6 +537,8 @@ class _SettingsContentPane extends StatefulWidget {
   final Color bgColor;
   final FocusNode focusNode;
   final ScrollController scrollController;
+  final Widget? headerExtra;
+  final Widget? overrideContent;
 
   const _SettingsContentPane({
     required this.label,
@@ -421,6 +546,8 @@ class _SettingsContentPane extends StatefulWidget {
     required this.bgColor,
     required this.focusNode,
     required this.scrollController,
+    this.headerExtra,
+    this.overrideContent,
     super.key,
   });
 
@@ -456,12 +583,24 @@ class _SettingsContentPaneState extends State<_SettingsContentPane> {
                 child: Padding(
                   padding: const EdgeInsets.only(
                       top: 28, right: 16, left: 16, bottom: 4),
-                  child: Text(
-                    widget.label,
-                    style: Theme.of(context)
-                        .textTheme
-                        .headlineMedium
-                        ?.copyWith(fontWeight: FontWeight.bold),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          widget.label,
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineMedium
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      if (widget.headerExtra != null)
+                        SizedBox(
+                          width: 260,
+                          child: widget.headerExtra!,
+                        ),
+                    ],
                   ),
                 ),
               ),
@@ -481,7 +620,7 @@ class _SettingsContentPaneState extends State<_SettingsContentPane> {
                     interactive: true,
                     child: PrimaryScrollController(
                       controller: widget.scrollController,
-                      child: widget.child,
+                      child: widget.overrideContent ?? widget.child,
                     ),
                   ),
                 ),

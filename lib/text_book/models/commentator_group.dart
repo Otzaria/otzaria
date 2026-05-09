@@ -1,7 +1,5 @@
 import 'package:equatable/equatable.dart';
 
-const String kNotesCommentatorTitle = 'הערות על הספר';
-
 class CommentatorGroup extends Equatable {
   final String title;
   final List<String> commentators;

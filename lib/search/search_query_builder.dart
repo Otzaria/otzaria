@@ -118,8 +118,10 @@ class SearchQueryBuilder {
 
   /// ניקוי שאילתה מתווים מיוחדים שיכולים להפריע לחיפוש
   /// מסירים גם פסיקים וגרשיים/גרש
+  /// המקף העברי (־) מומר לרווח רגיל כדי שיתפצל למילים נפרדות בחיפוש
   static String sanitizeQuery(String query) {
     return query
+        .replaceAll('־', ' ')
         .replaceAll(RegExp(r"""[,!?'"״׳":*\(\)\[\]\{\}\^\$\|\\+.~`]"""), '')
         .trim();
   }
@@ -140,6 +142,21 @@ class SearchQueryBuilder {
     }
 
     return maxSpacing;
+  }
+
+  static Map<String, String> effectiveSpacingValues({
+    required int wordCount,
+    required Map<String, String> spacingValues,
+    required int searchDistance,
+  }) {
+    if (spacingValues.isNotEmpty || searchDistance <= 0 || wordCount < 2) {
+      return spacingValues;
+    }
+
+    return {
+      for (var index = 0; index < wordCount - 1; index++)
+        '$index-${index + 1}': '$searchDistance',
+    };
   }
 
   /// בונה query מתקדם עם מילים חילופיות ואפשרויות חיפוש
@@ -180,14 +197,18 @@ class SearchQueryBuilder {
           allOptions.where((w) => w.trim().isNotEmpty).toList();
 
       if (validOptions.isNotEmpty) {
-        final maxVariationsPerWord = fuzzy ? 50 : 20;
+        final maxVariationsPerWord = fuzzy
+            ? 96
+            : hasTypoTolerance
+                ? 48
+                : 20;
         final allVariations = <String>{};
 
         for (final option in validOptions) {
           final expandedOptions = fuzzy
               ? SearchRegexPatterns.generateFuzzyLiteralVariations(option)
               : hasTypoTolerance
-                  ? SearchRegexPatterns.generateCommonHebrewTypoVariations(
+                  ? SearchRegexPatterns.generateTypoToleranceVariations(
                       option,
                     )
                   : [option];

@@ -124,6 +124,9 @@ class RenderSettings {
   /// מצב החיפוש
   final SearchMode searchMode;
 
+  /// מרחק חיפוש בין מילים כאשר לא הוגדר spacing מפורש
+  final int searchDistance;
+
   /// גודל הטקסט
   final double fontSize;
 
@@ -154,6 +157,7 @@ class RenderSettings {
     this.spacingValues = const {},
     this.isFuzzySearch = false,
     this.searchMode = SearchMode.exact,
+    this.searchDistance = 0,
     this.fontSize = 18.0,
     this.fontFamily,
     this.lineHeight = 1.5,
@@ -175,6 +179,7 @@ class RenderSettings {
     Map<String, String>? spacingValues,
     bool? isFuzzySearch,
     SearchMode? searchMode,
+    int? searchDistance,
     double? fontSize,
     String? fontFamily,
     double? lineHeight,
@@ -194,6 +199,7 @@ class RenderSettings {
       spacingValues: spacingValues ?? this.spacingValues,
       isFuzzySearch: isFuzzySearch ?? this.isFuzzySearch,
       searchMode: searchMode ?? this.searchMode,
+      searchDistance: searchDistance ?? this.searchDistance,
       fontSize: fontSize ?? this.fontSize,
       fontFamily: fontFamily ?? this.fontFamily,
       lineHeight: lineHeight ?? this.lineHeight,
@@ -218,6 +224,7 @@ class RenderSettings {
         _stringMapEquals(spacingValues, other.spacingValues) &&
         isFuzzySearch == other.isFuzzySearch &&
         searchMode == other.searchMode &&
+        searchDistance == other.searchDistance &&
         fontSize == other.fontSize &&
         fontFamily == other.fontFamily &&
         lineHeight == other.lineHeight &&
@@ -240,6 +247,7 @@ class RenderSettings {
       _stringMapHash(spacingValues),
       isFuzzySearch,
       searchMode,
+      searchDistance,
       fontSize,
       fontFamily,
       lineHeight,

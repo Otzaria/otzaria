@@ -22,6 +22,22 @@ class _ApproximateSnippetMatchCandidate {
   });
 }
 
+class _PreparedHighlightData {
+  final String plainText;
+  final List<_SnippetMatchRange> exactMatches;
+  final List<_SnippetMatchRange> individualWordMatches;
+  final List<_SnippetMatchRange> approximateMatches;
+  final List<_SnippetMatchRange> allMatches;
+
+  const _PreparedHighlightData({
+    required this.plainText,
+    required this.exactMatches,
+    required this.individualWordMatches,
+    required this.approximateMatches,
+    required this.allMatches,
+  });
+}
+
 class SnippetBuilder {
   /// פונקציה לחישוב כמה תווים יכולים להיכנס בשורה אחת
   static int calculateCharsPerLine(double availableWidth, TextStyle textStyle) {
@@ -48,105 +64,25 @@ class SnippetBuilder {
     required Map<String, Map<String, bool>> searchOptions,
     required Map<int, List<String>> alternativeWords,
     Map<String, String> customSpacing = const {},
+    int searchDistance = 0,
   }) {
-    // 1. קבלת הטקסט הנקי מה-HTML
-    var plainText =
+    final plainText =
         html_parser.parse(fullHtml).documentElement?.text.trim() ?? '';
+    final prepared = _prepareHighlightData(
+      plainText: plainText,
+      query: query,
+      searchOptions: searchOptions,
+      alternativeWords: alternativeWords,
+      spacingValues: customSpacing,
+      searchDistance: searchDistance,
+      fallbackToIndividualWords: false,
+    );
 
-    // 2. חילוץ מילות החיפוש כולל מילים חילופיות
-    final originalWords = query
-        .trim()
-        .replaceAll(RegExp(r'[!?":*\(\)\[\]\{\}\^\$\|\\+.~`~]'), ' ')
-        .split(RegExp(r'\s+'))
-        .where((s) => s.isNotEmpty)
-        .toList();
-
-    // הוספת מילים חילופיות ווריאציות כתיב מלא/חסר למילות החיפוש
-    // termsByWord: רשימת רשימות - עבור כל מילת חיפוש, כל הווריאציות שלה
-    final termsByWord = <List<String>>[];
-    for (int i = 0; i < originalWords.length; i++) {
-      final word = originalWords[i];
-      final wordKey = '${word}_$i';
-      final wordTerms = <String>[];
-
-      // בדיקת אפשרויות החיפוש למילה הזו
-      final wordOptions = searchOptions[wordKey] ?? {};
-      final hasFullPartialSpelling = wordOptions['כתיב מלא/חסר'] == true;
-
-      if (hasFullPartialSpelling) {
-        // אם יש כתיב מלא/חסר, נוסיף את כל הווריאציות
-        try {
-          final variations =
-              SearchRegexPatterns.generateFullPartialSpellingVariations(word);
-          wordTerms.addAll(variations);
-        } catch (e) {
-          // אם יש בעיה, נוסיף לפחות את המילה המקורית
-          wordTerms.add(word);
-        }
-      } else {
-        // אם אין כתיב מלא/חסר, נוסיף את המילה המקורית
-        wordTerms.add(word);
-      }
-
-      // הוספת מילים חילופיות אם יש
-      final alternatives = alternativeWords[i];
-      if (alternatives != null && alternatives.isNotEmpty) {
-        if (hasFullPartialSpelling) {
-          // אם יש כתיב מלא/חסר, נוסיף גם את הווריאציות של המילים החילופיות
-          for (final alt in alternatives) {
-            try {
-              final altVariations =
-                  SearchRegexPatterns.generateFullPartialSpellingVariations(
-                      alt);
-              wordTerms.addAll(altVariations);
-            } catch (e) {
-              wordTerms.add(alt);
-            }
-          }
-        } else {
-          wordTerms.addAll(alternatives);
-        }
-      }
-
-      termsByWord.add(wordTerms);
-    }
-
-    // רשימה שטוחה - לשימוש בחיפוש מקורב
-    final searchTerms = termsByWord.expand((t) => t).toList();
-
-    if (searchTerms.isEmpty || plainText.isEmpty) {
+    if (prepared.plainText.isEmpty || prepared.allMatches.isEmpty) {
       return [TextSpan(text: plainText, style: defaultStyle)];
     }
 
-    // 3. מציאת כל ההתאמות של כל המילים בטקסט המקורי
-    // שימוש ב-phrase matching: מדגישים רק הופעות שבהן כל המילים מופיעות ברצף,
-    // כך שהופעות בודדות-מרוחקות לא מקבלות הדגשה מוטעית
-    final exactMatches = _collectPhraseWordMatches(plainText, termsByWord,
-        customSpacing: customSpacing);
-    final approxMatches =
-        SearchQueryBuilder.hasTypoToleranceEnabled(searchOptions)
-            ? _collectApproximateMatches(plainText, searchTerms,
-                existingMatches: exactMatches)
-            : const <_ApproximateSnippetMatchCandidate>[];
-
-    final selectedApprox = exactMatches.isNotEmpty
-        ? _selectApproximateMatchesNearExactMatches(approxMatches, exactMatches)
-        : _selectApproximateMatchesForSnippet(
-            approxMatches,
-            plainTextLength: plainText.length,
-          );
-
-    final allMatches =
-        _mergeOverlappingRanges([...exactMatches, ...selectedApprox]);
-
-    if (allMatches.isEmpty) {
-      return [
-        TextSpan(
-          text: plainText.substring(0, min(200, plainText.length)),
-          style: defaultStyle,
-        ),
-      ];
-    }
+    final allMatches = prepared.allMatches;
 
     // 4. מיון ההתאמות וקביעת הגבולות המוחלטים
     final int absoluteFirstMatch = allMatches.first.start;
@@ -255,75 +191,159 @@ class SnippetBuilder {
         snippetText, snippetMatches, defaultStyle, highlightStyle);
   }
 
+  static List<InlineSpan> buildHighlightSpans({
+    required String plainText,
+    required String query,
+    required TextStyle defaultStyle,
+    required TextStyle highlightStyle,
+    required Map<String, Map<String, bool>> searchOptions,
+    required Map<int, List<String>> alternativeWords,
+    Map<String, String> spacingValues = const {},
+    int searchDistance = 0,
+    bool fallbackToIndividualWords = true,
+  }) {
+    final prepared = _prepareHighlightData(
+      plainText: plainText,
+      query: query,
+      searchOptions: searchOptions,
+      alternativeWords: alternativeWords,
+      spacingValues: spacingValues,
+      searchDistance: searchDistance,
+      fallbackToIndividualWords: fallbackToIndividualWords,
+    );
+
+    final matches = prepared.exactMatches.isNotEmpty
+        ? _mergeOverlappingRanges(
+            [...prepared.exactMatches, ...prepared.approximateMatches])
+        : fallbackToIndividualWords
+            ? _mergeOverlappingRanges([
+                ...prepared.individualWordMatches,
+                ...prepared.approximateMatches,
+              ])
+            : prepared.approximateMatches;
+
+    if (prepared.plainText.isEmpty || matches.isEmpty) {
+      return [TextSpan(text: prepared.plainText, style: defaultStyle)];
+    }
+
+    return _buildTextSpans(
+      prepared.plainText,
+      matches,
+      defaultStyle,
+      highlightStyle,
+    );
+  }
+
+  static String buildExcerptText({
+    required String fullText,
+    required String query,
+    required int maxChars,
+    required Map<String, Map<String, bool>> searchOptions,
+    required Map<int, List<String>> alternativeWords,
+    Map<String, String> spacingValues = const {},
+    int searchDistance = 0,
+    bool fallbackToIndividualWords = true,
+  }) {
+    final text = fullText.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (text.length <= maxChars) return text;
+
+    int findWordEnd(int fromIndex) {
+      if (fromIndex >= text.length) return text.length;
+      final nextSpace = text.indexOf(' ', fromIndex);
+      return nextSpace != -1 ? nextSpace : text.length;
+    }
+
+    int findWordStart(int fromIndex) {
+      if (fromIndex <= 0) return 0;
+      final lastSpace = text.lastIndexOf(' ', fromIndex);
+      return lastSpace != -1 ? lastSpace + 1 : 0;
+    }
+
+    if (query.trim().isEmpty) {
+      final end = findWordEnd(maxChars);
+      final suffix = end < text.length ? ' ...' : '';
+      return '${text.substring(0, end)}$suffix';
+    }
+
+    final prepared = _prepareHighlightData(
+      plainText: text,
+      query: query,
+      searchOptions: searchOptions,
+      alternativeWords: alternativeWords,
+      spacingValues: spacingValues,
+      searchDistance: searchDistance,
+      fallbackToIndividualWords: fallbackToIndividualWords,
+    );
+
+    final anchorRange = prepared.exactMatches.isNotEmpty
+        ? prepared.exactMatches.first
+        : prepared.individualWordMatches.isNotEmpty
+            ? prepared.individualWordMatches.first
+            : prepared.approximateMatches.isNotEmpty
+                ? prepared.approximateMatches.first
+                : null;
+
+    if (anchorRange == null) {
+      final end = findWordEnd(maxChars);
+      final suffix = end < text.length ? ' ...' : '';
+      return '${text.substring(0, end)}$suffix';
+    }
+
+    final len = text.length;
+    var start = (anchorRange.start - (maxChars ~/ 3)).clamp(0, len);
+    var end = (start + maxChars).clamp(0, len);
+
+    if (end - start < maxChars) {
+      start = (end - maxChars).clamp(0, len);
+    }
+
+    start = findWordStart(start);
+    end = findWordEnd(end);
+
+    final prefix = start > 0 ? '... ' : '';
+    final suffix = end < len ? ' ...' : '';
+    return '$prefix${text.substring(start, end)}$suffix';
+  }
+
   /// מציאת התאמות ביטוי (phrase matching) בשיטת token-based:
   /// מוצאים רק הופעות שבהן כל המילים מופיעות ברצף כשמספר הטוקנים
   /// ביניהם <= customSpacing. תואם את סמנטיקת slop מנוע החיפוש.
   /// אם לא נמצא ביטוי - מחזיר רשימה ריקה (אין הדגשה), לא מחזיר בodim בודדות.
   static List<_SnippetMatchRange> _collectPhraseWordMatches(
     String plainText,
-    List<List<String>> termsByWord, {
+    List<List<_TokenPattern>> patternsByWord, {
     Map<String, String> customSpacing = const {},
   }) {
-    if (termsByWord.isEmpty) return const [];
+    if (patternsByWord.isEmpty) return const [];
 
-    // 1. איסוף מקומות התאמות לכל מילה, ממוין לפי start
-    final matchesByWord = termsByWord.map((wordTerms) {
-      final wordMatches = <_SnippetMatchRange>[];
-      for (final term in wordTerms) {
-        final regex = RegExp(_termToRegexPattern(term), caseSensitive: false);
-        for (final m in regex.allMatches(plainText)) {
-          wordMatches.add(_SnippetMatchRange(m.start, m.end));
-        }
-      }
-      wordMatches.sort((a, b) => a.start.compareTo(b.start));
-      return wordMatches;
-    }).toList();
+    final tokens = _collectSearchTokens(plainText);
+    final matchesByWord = _collectWordMatchesByWord(tokens, patternsByWord);
 
     // מילה אחת - נחזיר את כל ההופעות
-    if (termsByWord.length == 1) {
+    if (patternsByWord.length == 1) {
       return _mergeOverlappingRanges(matchesByWord[0]);
     }
 
     // 2. בניית רשימת תחילות הטוקנים (מילים לא-רווח) לספירת טוקנים בין היתורים
-    final tokenStarts = <int>[];
-    for (final m in RegExp(r'\S+').allMatches(plainText)) {
-      tokenStarts.add(m.start);
-    }
+    final tokenStarts =
+        tokens.map((token) => token.start).toList(growable: false);
 
-    // 3. Phrase matching: עבור כל הופעה של המילה הראשונה, בודק אם שאר המילים מופיעות ברצף
+    // 3. Phrase matching: עבור כל הופעה של המילה הראשונה, בודק אם שאר המילים מופיעות ברצף.
+    // משתמשים ב-backtracking כדי לא לפספס התאמה חוקית בגלל בחירה גרידית מוקדמת.
     final result = <_SnippetMatchRange>[];
+    final continuationCache = <String, int?>{};
 
     for (final firstMatch in matchesByWord[0]) {
       final phraseMatches = [firstMatch];
-      int prevEnd = firstMatch.end;
-      bool phraseValid = true;
-
-      for (int wordIdx = 1; wordIdx < matchesByWord.length; wordIdx++) {
-        final spacingKey = '${wordIdx - 1}-$wordIdx';
-        final maxTokensBetween =
-            int.tryParse(customSpacing[spacingKey] ?? '') ?? 0;
-
-        _SnippetMatchRange? best;
-        for (final candidate in matchesByWord[wordIdx]) {
-          if (candidate.start < prevEnd) continue;
-          final tokensBetween =
-              _countTokensInRange(tokenStarts, prevEnd, candidate.start);
-          if (tokensBetween > maxTokensBetween) {
-            break; // רשימה ממוינת, break תקין
-          }
-          best = candidate;
-          break; // נוצלים את הקרובה ביותר
-        }
-
-        if (best == null) {
-          phraseValid = false;
-          break;
-        }
-        phraseMatches.add(best);
-        prevEnd = best.end;
-      }
-
-      if (phraseValid) {
+      if (_tryMatchPhraseContinuation(
+        matchesByWord: matchesByWord,
+        tokenStarts: tokenStarts,
+        customSpacing: customSpacing,
+        wordIdx: 1,
+        prevEnd: firstMatch.end,
+        phraseMatches: phraseMatches,
+        continuationCache: continuationCache,
+      )) {
         result.addAll(phraseMatches);
       }
     }
@@ -331,6 +351,98 @@ class SnippetBuilder {
     // אם לא נמצא ביטוי - מחזירים רשימה ריקה. דע caller יבחר להציג קטע ללא הדגשה.
     // זה הוגן מהדגשת הופעות בודדות לא-קשורות.
     return _mergeOverlappingRanges(result);
+  }
+
+  static bool _tryMatchPhraseContinuation({
+    required List<List<_SnippetMatchRange>> matchesByWord,
+    required List<int> tokenStarts,
+    required Map<String, String> customSpacing,
+    required int wordIdx,
+    required int prevEnd,
+    required List<_SnippetMatchRange> phraseMatches,
+    required Map<String, int?> continuationCache,
+  }) {
+    if (wordIdx >= matchesByWord.length) {
+      return true;
+    }
+
+    final cacheKey = '$wordIdx:$prevEnd';
+    if (continuationCache.containsKey(cacheKey)) {
+      final cachedIndex = continuationCache[cacheKey];
+      if (cachedIndex == null) {
+        return false;
+      }
+
+      final cachedCandidate = matchesByWord[wordIdx][cachedIndex];
+      phraseMatches.add(cachedCandidate);
+      final hasContinuation = _tryMatchPhraseContinuation(
+        matchesByWord: matchesByWord,
+        tokenStarts: tokenStarts,
+        customSpacing: customSpacing,
+        wordIdx: wordIdx + 1,
+        prevEnd: cachedCandidate.end,
+        phraseMatches: phraseMatches,
+        continuationCache: continuationCache,
+      );
+      if (!hasContinuation) {
+        phraseMatches.removeLast();
+      }
+      return hasContinuation;
+    }
+
+    final spacingKey = '${wordIdx - 1}-$wordIdx';
+    final maxTokensBetween = int.tryParse(customSpacing[spacingKey] ?? '') ?? 0;
+    final candidates = matchesByWord[wordIdx];
+    final startIndex = _firstRangeStartingAtOrAfter(candidates, prevEnd);
+
+    for (var candidateIndex = startIndex;
+        candidateIndex < candidates.length;
+        candidateIndex++) {
+      final candidate = candidates[candidateIndex];
+
+      final tokensBetween =
+          _countTokensInRange(tokenStarts, prevEnd, candidate.start);
+      if (tokensBetween > maxTokensBetween) {
+        break;
+      }
+
+      phraseMatches.add(candidate);
+      if (_tryMatchPhraseContinuation(
+        matchesByWord: matchesByWord,
+        tokenStarts: tokenStarts,
+        customSpacing: customSpacing,
+        wordIdx: wordIdx + 1,
+        prevEnd: candidate.end,
+        phraseMatches: phraseMatches,
+        continuationCache: continuationCache,
+      )) {
+        continuationCache[cacheKey] = candidateIndex;
+        return true;
+      }
+      phraseMatches.removeLast();
+    }
+
+    continuationCache[cacheKey] = null;
+    return false;
+  }
+
+  static int _firstRangeStartingAtOrAfter(
+    List<_SnippetMatchRange> ranges,
+    int minStart,
+  ) {
+    int lo = 0;
+    int hi = ranges.length;
+
+    while (lo < hi) {
+      final mid = (lo + hi) ~/ 2;
+      if (ranges[mid].start < minStart) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+
+    return lo;
   }
 
   /// ספירת טוקנים בטווח [fromPos, toPos) עם binary search.
@@ -590,11 +702,355 @@ class SnippetBuilder {
     return false;
   }
 
-  /// בניית תבנית רגקס שמאפשרת מרכאות אופציונליות בין תווים (כדי למצוא רשב"י כשמחפשים רשבי)
-  static String _termToRegexPattern(String term) {
-    const optionalQuotes = r'["״׳]?';
-    return term.split('').map(RegExp.escape).join(optionalQuotes);
+  /// מימוש ישן שנשאר לצורכי תאימות בזמן מעבר ללוגיקה החדשה.
+  // ignore: unused_element
+  static String _termToRegexPatternLegacy(String term) {
+    const optionalQuotesAndMarks = r'["״׳]?[591-5C7]*';
+    final chars = term.split('');
+    if (chars.isEmpty) {
+      return '';
+    }
+
+    final buffer = StringBuffer();
+    for (var i = 0; i < chars.length; i++) {
+      buffer.write(RegExp.escape(chars[i]));
+      buffer.write(r'[591-5C7]*');
+      if (i < chars.length - 1) {
+        buffer.write(optionalQuotesAndMarks);
+      }
+    }
+
+    return buffer.toString();
   }
+
+  static _PreparedHighlightData _prepareHighlightData({
+    required String plainText,
+    required String query,
+    required Map<String, Map<String, bool>> searchOptions,
+    required Map<int, List<String>> alternativeWords,
+    required Map<String, String> spacingValues,
+    required int searchDistance,
+    required bool fallbackToIndividualWords,
+  }) {
+    final searchTerms = SearchQueryBuilder.splitQueryWords(query);
+    if (plainText.isEmpty || searchTerms.isEmpty) {
+      return const _PreparedHighlightData(
+        plainText: '',
+        exactMatches: [],
+        individualWordMatches: [],
+        approximateMatches: [],
+        allMatches: [],
+      );
+    }
+
+    final effectiveSpacingValues = SearchQueryBuilder.effectiveSpacingValues(
+      wordCount: searchTerms.length,
+      spacingValues: spacingValues,
+      searchDistance: searchDistance,
+    );
+
+    final patternsByWord = <List<_TokenPattern>>[];
+    final approximateTerms = <String>[];
+    for (int i = 0; i < searchTerms.length; i++) {
+      final word = searchTerms[i];
+      final wordOptions =
+          searchOptions[SearchQueryBuilder.buildWordKey(word, i)] ??
+              const <String, bool>{};
+      final alternatives = alternativeWords[i] ?? const <String>[];
+      approximateTerms.addAll(
+        _buildExpandedTermsForWord(
+          word,
+          wordOptions,
+          alternatives: alternatives,
+        ),
+      );
+      patternsByWord.add(
+        _buildPatternsForWord(
+          word,
+          wordOptions,
+          alternatives: alternatives,
+        ),
+      );
+    }
+
+    final exactMatches = _collectPhraseWordMatches(
+      plainText,
+      patternsByWord,
+      customSpacing: effectiveSpacingValues,
+    );
+
+    final individualWordMatches = fallbackToIndividualWords
+        ? _mergeOverlappingRanges(
+            _collectWordMatchesByWord(
+                    _collectSearchTokens(plainText), patternsByWord)
+                .expand((matches) => matches)
+                .toList(growable: false),
+          )
+        : const <_SnippetMatchRange>[];
+
+    final approximateMatches =
+        SearchQueryBuilder.hasTypoToleranceEnabled(searchOptions)
+            ? _selectApproximateMatches(
+                plainText: plainText,
+                searchTerms: approximateTerms,
+                exactMatches: exactMatches,
+                fallbackMatches: individualWordMatches,
+              )
+            : const <_SnippetMatchRange>[];
+
+    final allMatches = _mergeOverlappingRanges(
+      exactMatches.isNotEmpty
+          ? [...exactMatches, ...approximateMatches]
+          : fallbackToIndividualWords
+              ? [...individualWordMatches, ...approximateMatches]
+              : approximateMatches,
+    );
+
+    return _PreparedHighlightData(
+      plainText: plainText,
+      exactMatches: exactMatches,
+      individualWordMatches: individualWordMatches,
+      approximateMatches: approximateMatches,
+      allMatches: allMatches,
+    );
+  }
+
+  static List<_SnippetMatchRange> _selectApproximateMatches({
+    required String plainText,
+    required List<String> searchTerms,
+    required List<_SnippetMatchRange> exactMatches,
+    required List<_SnippetMatchRange> fallbackMatches,
+  }) {
+    final approxCandidates = _collectApproximateMatches(
+      plainText,
+      searchTerms,
+      existingMatches: exactMatches.isNotEmpty ? exactMatches : fallbackMatches,
+    );
+
+    if (approxCandidates.isEmpty) {
+      return const <_SnippetMatchRange>[];
+    }
+
+    return exactMatches.isNotEmpty
+        ? _selectApproximateMatchesNearExactMatches(
+            approxCandidates,
+            exactMatches,
+          )
+        : _selectApproximateMatchesForSnippet(
+            approxCandidates,
+            plainTextLength: plainText.length,
+          );
+  }
+
+  static List<List<_SnippetMatchRange>> _collectWordMatchesByWord(
+    List<_SearchToken> tokens,
+    List<List<_TokenPattern>> patternsByWord,
+  ) {
+    return patternsByWord.map((patterns) {
+      final wordMatches = <_SnippetMatchRange>[];
+      for (final token in tokens) {
+        for (final pattern in patterns) {
+          final match = pattern.regex.firstMatch(token.text);
+          if (match == null) {
+            continue;
+          }
+
+          final highlightedText = match.group(1);
+          if (highlightedText == null || highlightedText.isEmpty) {
+            continue;
+          }
+
+          final groupStart = token.text.indexOf(highlightedText, match.start);
+          if (groupStart == -1) {
+            continue;
+          }
+
+          final groupEnd = groupStart + highlightedText.length;
+
+          wordMatches.add(
+            _SnippetMatchRange(
+              token.start + groupStart,
+              token.start + groupEnd,
+            ),
+          );
+        }
+      }
+
+      wordMatches.sort((a, b) => a.start.compareTo(b.start));
+      return _mergeOverlappingRanges(wordMatches);
+    }).toList(growable: false);
+  }
+
+  static List<_SearchToken> _collectSearchTokens(String plainText) {
+    final tokens = <_SearchToken>[];
+    for (final match
+        in RegExp(r'[א-תA-Za-z0-9"״׳\u0591-\u05C7]+').allMatches(plainText)) {
+      final token = match.group(0);
+      if (token == null || token.isEmpty) {
+        continue;
+      }
+      tokens.add(_SearchToken(token, match.start, match.end));
+    }
+    return tokens;
+  }
+
+  static List<_TokenPattern> _buildPatternsForWord(
+    String word,
+    Map<String, bool> wordOptions, {
+    required List<String> alternatives,
+  }) {
+    final terms = _buildExpandedTermsForWord(
+      word,
+      wordOptions,
+      alternatives: alternatives,
+    );
+
+    final patterns = <_TokenPattern>[];
+    for (final term in terms) {
+      patterns.addAll(_buildPatternsForSingleTerm(term, wordOptions));
+    }
+    return patterns;
+  }
+
+  static List<String> _buildExpandedTermsForWord(
+    String word,
+    Map<String, bool> wordOptions, {
+    required List<String> alternatives,
+  }) {
+    final hasFullPartialSpelling = wordOptions['כתיב מלא/חסר'] == true;
+    final baseTerms = <String>[word, ...alternatives]
+        .map((term) => term.trim())
+        .where((term) => term.isNotEmpty);
+
+    final expandedTerms = <String>{};
+    for (final term in baseTerms) {
+      if (hasFullPartialSpelling) {
+        expandedTerms.addAll(
+          SearchRegexPatterns.generateFullPartialSpellingVariations(term),
+        );
+      } else {
+        expandedTerms.add(term);
+      }
+    }
+
+    return expandedTerms.toList(growable: false);
+  }
+
+  static List<_TokenPattern> _buildPatternsForSingleTerm(
+    String term,
+    Map<String, bool> wordOptions,
+  ) {
+    final hasPrefix = wordOptions['קידומות'] == true;
+    final hasSuffix = wordOptions['סיומות'] == true;
+    final hasGrammaticalPrefixes = wordOptions['קידומות דקדוקיות'] == true;
+    final hasGrammaticalSuffixes = wordOptions['סיומות דקדוקיות'] == true;
+    final hasPartialWord = wordOptions['חלק ממילה'] == true;
+    return [
+      _TokenPattern(
+        RegExp(
+          '^(?:${_buildTokenPatternForLiteral(
+            term,
+            hasPrefix: hasPrefix,
+            hasSuffix: hasSuffix,
+            hasGrammaticalPrefixes: hasGrammaticalPrefixes,
+            hasGrammaticalSuffixes: hasGrammaticalSuffixes,
+            hasPartialWord: hasPartialWord,
+          )})'
+          r'$',
+          caseSensitive: false,
+        ),
+      ),
+    ];
+  }
+
+  /// בניית תבנית רגקס שמאפשרת מרכאות וניקוד אופציונליים בין תווים.
+  static String _termToRegexPattern(String term) {
+    const optionalQuotesAndMarks = r'["״׳]?[\u0591-\u05C7]*';
+    final chars = term.split('');
+    if (chars.isEmpty) {
+      return '';
+    }
+
+    final buffer = StringBuffer();
+    for (var i = 0; i < chars.length; i++) {
+      buffer.write(RegExp.escape(chars[i]));
+      buffer.write(r'[\u0591-\u05C7]*');
+      if (i < chars.length - 1) {
+        buffer.write(optionalQuotesAndMarks);
+      }
+    }
+
+    return buffer.toString();
+  }
+
+  static String _buildTokenPatternForLiteral(
+    String literal, {
+    required bool hasPrefix,
+    required bool hasSuffix,
+    required bool hasGrammaticalPrefixes,
+    required bool hasGrammaticalSuffixes,
+    required bool hasPartialWord,
+  }) {
+    final captured = '(${_termToRegexPattern(literal)})';
+
+    if (hasPrefix && hasSuffix) {
+      return literal.length <= 3
+          ? '.{0,3}$captured.{0,3}'
+          : '.{0,2}$captured.{0,2}';
+    }
+
+    if (hasGrammaticalPrefixes && hasGrammaticalSuffixes) {
+      return '$_grammaticalPrefixPattern$captured$_grammaticalSuffixPattern';
+    }
+
+    if (hasPrefix) {
+      if (literal.length <= 1) {
+        return '.{1,5}$captured';
+      }
+      if (literal.length <= 2) {
+        return '.{1,4}$captured';
+      }
+      if (literal.length <= 3) {
+        return '.{1,3}$captured';
+      }
+      return '.*$captured';
+    }
+
+    if (hasSuffix) {
+      if (literal.length <= 1) {
+        return '$captured.{1,7}';
+      }
+      if (literal.length <= 2) {
+        return '$captured.{1,6}';
+      }
+      if (literal.length <= 3) {
+        return '$captured.{1,5}';
+      }
+      return '$captured.*';
+    }
+
+    if (hasGrammaticalPrefixes) {
+      return '$_grammaticalPrefixPattern$captured';
+    }
+
+    if (hasGrammaticalSuffixes) {
+      return '$captured$_grammaticalSuffixPattern';
+    }
+
+    if (hasPartialWord) {
+      return literal.length <= 3
+          ? '.{0,3}$captured.{0,3}'
+          : '.{0,2}$captured.{0,2}';
+    }
+
+    return captured;
+  }
+
+  static const String _grammaticalPrefixPattern =
+      r'(?:ו|מ|דא|א|כש|כ|ב|ש|ל|ה|ד)?(?:כ|ב|ש|ל|ה|ד)?(?:ה)?';
+
+  static const String _grammaticalSuffixPattern =
+      r'(?:ותי|ותַי|ותיך|ותֶיךָ|ותַיִךְ|ותיו|ותָיו|ותיה|ותֶיהָ|ותינו|ותֵינוּ|ותיכם|ותֵיכם|ותיכן|ותֵיכן|ותיהם|ותֵיהם|ותיהן|ותֵיהן|יות|יי|יַי|יך|יךָ|יִךְ|יו|יה|יא|תא|יהָ|ינו|יכם|יכן|יהם|יהן|י|ך|ךָ|ךְ|ו|ה|הּ|נו|כם|כן|ם|ן|ים|ות)?';
 
   static List<InlineSpan> _buildTextSpans(
     String text,
@@ -628,4 +1084,18 @@ class SnippetBuilder {
 
     return spans;
   }
+}
+
+class _SearchToken {
+  final String text;
+  final int start;
+  final int end;
+
+  const _SearchToken(this.text, this.start, this.end);
+}
+
+class _TokenPattern {
+  final RegExp regex;
+
+  const _TokenPattern(this.regex);
 }

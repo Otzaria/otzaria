@@ -56,25 +56,31 @@ class DualAdaptiveReaderPane extends StatelessWidget {
   }
 
   Widget _buildOverlayPane({
+    required BuildContext context,
     required bool isVisible,
     required bool isLeftPane,
     required double width,
     required Widget child,
   }) {
-    return Positioned(
+    final isRtl = Directionality.of(context) == TextDirection.rtl;
+    // In RTL the left pane is physically on the right (start), so it slides in
+    // from the right. In LTR it slides in from the left.
+    final hiddenOffset = isLeftPane
+        ? (isRtl ? const Offset(1, 0) : const Offset(-1, 0))
+        : (isRtl ? const Offset(-1, 0) : const Offset(1, 0));
+
+    return PositionedDirectional(
       top: 0,
       bottom: 0,
-      left: isLeftPane ? 0 : null,
-      right: isLeftPane ? null : 0,
+      start: isLeftPane ? 0 : null,
+      end: isLeftPane ? null : 0,
       width: width,
       child: IgnorePointer(
         ignoring: !isVisible,
         child: AnimatedSlide(
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeOut,
-          offset: isVisible
-              ? Offset.zero
-              : (isLeftPane ? const Offset(-1, 0) : const Offset(1, 0)),
+          offset: isVisible ? Offset.zero : hiddenOffset,
           child: ReaderSidePanelShell(
             alignment: isLeftPane
                 ? AlignmentDirectional.centerEnd
@@ -172,6 +178,7 @@ class DualAdaptiveReaderPane extends StatelessWidget {
               ),
             if (showLeftPane)
               _buildOverlayPane(
+                context: context,
                 isVisible: showLeftPane,
                 isLeftPane: true,
                 width: leftPaneWidth,
@@ -179,6 +186,7 @@ class DualAdaptiveReaderPane extends StatelessWidget {
               ),
             if (showRightPane)
               _buildOverlayPane(
+                context: context,
                 isVisible: showRightPane,
                 isLeftPane: false,
                 width: rightPaneWidth,

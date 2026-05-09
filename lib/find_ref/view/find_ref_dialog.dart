@@ -83,21 +83,24 @@ class _FindRefDialogState extends State<FindRefDialog> {
 
   Future<void> _openRef(DbReferenceResult ref) async {
     Book? book;
-    try {
-      final library = await DataRepository.instance.library;
-      book = _findBookInLibrary(library, ref.title);
-    } catch (e) {
-      debugPrint('Error searching library: $e');
+
+    if (ref.isPdf && ref.filePath.isNotEmpty) {
+      // Use filePath directly — library search may return a same-titled text book
+      book = PdfBook(title: ref.title, path: ref.filePath);
+    } else {
+      try {
+        final library = await DataRepository.instance.library;
+        book = _findBookInLibrary(library, ref.title);
+      } catch (e) {
+        debugPrint('Error searching library: $e');
+      }
+      book ??= TextBook(title: ref.title);
     }
 
     if (!mounted) return;
-
-    book ??= ref.isPdf
-        ? PdfBook(title: ref.title, path: ref.filePath)
-        : TextBook(title: ref.title);
-
     Navigator.of(context).pop();
-    openBook(context, book, ref.segment.toInt(), '');
+    openBook(context, book, ref.segment.toInt(), '',
+        ignoreHistory: ref.isPdf);
   }
 
   Book? _findBookInLibrary(Category category, String title) {
