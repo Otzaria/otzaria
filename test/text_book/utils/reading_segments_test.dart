@@ -6,25 +6,25 @@ void main() {
     test('keeps one segment per source line when continuous mode is disabled',
         () {
       final segments = buildReadingSegments(
-        const ['שורה א', 'שורה ב'],
+        const ['line a', 'line b'],
         continuous: false,
       );
 
       expect(segments, hasLength(2));
-      expect(segments[0].text, 'שורה א');
+      expect(segments[0].text, 'line a');
       expect(segments[0].sourceLineIndices, [0]);
-      expect(segments[1].text, 'שורה ב');
+      expect(segments[1].text, 'line b');
       expect(segments[1].sourceLineIndices, [1]);
     });
 
     test('joins regular lines until the next HTML header', () {
       final segments = buildReadingSegments(
         const [
-          '<h2>כותרת</h2>',
-          'שורה א',
-          'שורה ב',
-          '<h3>כותרת משנה</h3>',
-          'שורה ג',
+          '<h2>header</h2>',
+          'line a',
+          'line b',
+          '<h3>subheader</h3>',
+          'line c',
         ],
         continuous: true,
       );
@@ -32,22 +32,22 @@ void main() {
       expect(segments, hasLength(4));
       expect(segments[0].isHeader, isTrue);
       expect(segments[0].sourceLineIndices, [0]);
-      expect(segments[1].text, 'שורה א שורה ב');
+      expect(segments[1].text, 'line a line b');
       expect(segments[1].sourceLineIndices, [1, 2]);
       expect(segments[2].isHeader, isTrue);
       expect(segments[2].sourceLineIndices, [3]);
-      expect(segments[3].text, 'שורה ג');
+      expect(segments[3].text, 'line c');
       expect(segments[3].sourceLineIndices, [4]);
     });
 
     test('keeps ranges that map text offsets back to source lines', () {
       final segments = buildReadingSegments(
-        const ['אבג', 'דהו'],
+        const ['abc', 'def'],
         continuous: true,
       );
 
       final segment = segments.single;
-      expect(segment.text, 'אבג דהו');
+      expect(segment.text, 'abc def');
       expect(segment.lineForTextOffset(0), 0);
       expect(segment.lineForTextOffset(2), 0);
       expect(segment.lineForTextOffset(4), 1);
@@ -56,7 +56,7 @@ void main() {
 
     test('maps visible segment indices back to all visible source lines', () {
       final segments = buildReadingSegments(
-        const ['<h2>כותרת</h2>', 'א', 'ב', '<h2>עוד</h2>', 'ג'],
+        const ['<h2>header</h2>', 'a', 'b', '<h2>next</h2>', 'c'],
         continuous: true,
       );
 
@@ -64,7 +64,10 @@ void main() {
       expect(sourceLineIndicesForSegments(segments, const [0, 2]), [0, 3]);
       expect(segmentIndexForLine(segments, 2), 1);
       expect(segmentIndexForLine(segments, 4), 3);
+      expect(lineFractionWithinSegment(segments[1], 1), 0);
+      expect(lineFractionWithinSegment(segments[1], 2), 0.5);
     });
+
     test('maps a large visible segment to the visible source-line slice', () {
       final segments = buildReadingSegments(
         List<String>.generate(100, (index) => 'line $index'),

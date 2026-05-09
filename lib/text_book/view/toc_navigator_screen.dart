@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -11,6 +12,9 @@ import 'package:flutter/scheduler.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
+import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
+import 'package:otzaria/text_book/utils/reading_segments.dart';
 import 'package:otzaria/text_book/view/toc_filter.dart';
 
 class TocViewer extends StatefulWidget {
@@ -162,12 +166,24 @@ class _TocViewerState extends State<TocViewer>
         _isManuallyScrolling = false;
         _lastScrolledTocIndex = null;
       });
-      // תמיד השתמש ב-scrollController - זה עובד גם בצורת הדף
-      widget.scrollController.scrollTo(
-        index: entry.index,
+      final state = context.read<TextBookBloc>().state;
+      if (state is! TextBookLoaded) {
+        return;
+      }
+      unawaited(scrollToSourceLine(
+        scrollController: widget.scrollController,
+        scrollOffsetController: state.scrollOffsetController,
+        positionsListener: state.positionsListener,
+        segments: buildReadingSegments(
+          state.content,
+          continuous: context.read<SettingsBloc>().state.continuousReadingMode,
+        ),
+        lineIndex: entry.index,
+        viewportExtent:
+            context.size?.height ?? MediaQuery.sizeOf(context).height,
         duration: const Duration(milliseconds: 250),
         curve: Curves.ease,
-      );
+      ));
       if (Platform.isAndroid) {
         widget.closeLeftPaneCallback();
       }

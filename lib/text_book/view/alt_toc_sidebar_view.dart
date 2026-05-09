@@ -16,8 +16,11 @@ import 'package:otzaria/search/utils/find_match_utils.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
+import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
+import 'package:otzaria/text_book/utils/reading_segments.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
@@ -119,6 +122,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
         visit(child);
       }
     }
+
     for (final root in _structureRoots[structureId] ?? []) {
       visit(root);
     }
@@ -345,11 +349,24 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
     if (link.path2 == widget.book.title) {
       // Ensure index is at least 0 to prevent RangeError
       final index = (link.index2 - 1).clamp(0, double.maxFinite).toInt();
-      widget.scrollController.scrollTo(
-        index: index,
+      final state = context.read<TextBookBloc>().state;
+      if (state is! TextBookLoaded) {
+        return;
+      }
+      unawaited(scrollToSourceLine(
+        scrollController: widget.scrollController,
+        scrollOffsetController: state.scrollOffsetController,
+        positionsListener: state.positionsListener,
+        segments: buildReadingSegments(
+          state.content,
+          continuous: context.read<SettingsBloc>().state.continuousReadingMode,
+        ),
+        lineIndex: index,
+        viewportExtent:
+            context.size?.height ?? MediaQuery.sizeOf(context).height,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
-      );
+      ));
 
       if (Platform.isAndroid) {
         widget.closeLeftPaneCallback();

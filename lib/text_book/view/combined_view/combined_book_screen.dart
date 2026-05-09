@@ -42,6 +42,7 @@ import 'package:otzaria/utils/text/word_at_position.dart';
 import 'package:otzaria/plugins/services/context_menu_registry.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/utils/fluent_icon_resolver.dart';
+import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
 import 'package:otzaria/text_book/utils/reading_segments.dart';
 import 'package:otzaria/text_book/view/widgets/continuous_reading_paragraph.dart';
 
@@ -204,18 +205,10 @@ class _CombinedViewState extends State<CombinedView> {
           state.visibleIndices.isNotEmpty) {
         _hasScrolledToInitialPosition = true;
         final initialIndex = state.visibleIndices.first;
-        final initialItemIndex = segmentIndexForLine(
-          _readingSegmentsForCurrentMode(),
-          initialIndex,
-        );
         debugPrint('DEBUG: גלילה אוטומטית למיקום שמור: $initialIndex');
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted && widget.tab.scrollController.isAttached) {
-            widget.tab.scrollController.scrollTo(
-              index: initialItemIndex,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
-            );
+            unawaited(_scrollToSourceLine(initialIndex));
           }
         });
       }
@@ -294,6 +287,26 @@ class _CombinedViewState extends State<CombinedView> {
   List<ReadingSegment> _readingSegmentsForCurrentMode() {
     final continuous = context.read<SettingsBloc>().state.continuousReadingMode;
     return buildReadingSegments(widget.data, continuous: continuous);
+  }
+
+  Future<void> _scrollToSourceLine(
+    int lineIndex, {
+    double alignment = 0.05,
+    Duration duration = const Duration(milliseconds: 300),
+  }) {
+    return scrollToSourceLine(
+      scrollController: widget.tab.scrollController,
+      scrollOffsetController: widget.tab.mainOffsetController,
+      positionsListener: widget.tab.positionsListener,
+      segments: _readingSegmentsForCurrentMode(),
+      lineIndex: lineIndex,
+      viewportExtent: _viewportHeight > 0
+          ? _viewportHeight
+          : (context.size?.height ?? MediaQuery.sizeOf(context).height),
+      alignment: alignment,
+      duration: duration,
+      curve: Curves.easeInOut,
+    );
   }
 
   void _addTextBookEventIfOpen(TextBookEvent event) {
@@ -1277,7 +1290,9 @@ class _CombinedViewState extends State<CombinedView> {
             child: ValueListenableBuilder<String?>(
               valueListenable: _savedSelectedText,
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4.0),
+                padding: EdgeInsets.symmetric(
+                  vertical: continuous ? 0.0 : 4.0,
+                ),
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     return BlocBuilder<SettingsBloc, SettingsState>(

@@ -106,6 +106,7 @@ class TextBookTab extends OpenedTab {
       ),
       scrollController: scrollController,
       positionsListener: positionsListener,
+      scrollOffsetController: mainOffsetController,
     );
 
     // הוספת listener לעדכון האינדקס כשה-state משתנה

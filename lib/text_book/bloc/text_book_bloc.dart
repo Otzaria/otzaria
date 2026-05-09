@@ -43,6 +43,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   }) _quickPreviewLoader;
   final ItemScrollController scrollController;
   final ItemPositionsListener positionsListener;
+  final ScrollOffsetController? scrollOffsetController;
 
   Timer? _debounceTimer;
   Timer? _highlightTimer;
@@ -69,6 +70,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     required TextBookInitial initialState,
     required this.scrollController,
     required this.positionsListener,
+    this.scrollOffsetController,
   })  : _quickPreviewLoader = quickPreviewLoader ??
             SqliteDataProvider.instance.getBookQuickPreview,
         super(initialState) {
@@ -413,6 +415,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         searchDistance: searchDistance,
         scrollController: scrollController,
         positionsListener: positionsListener,
+        scrollOffsetController: scrollOffsetController,
         currentTitle: currentTitle,
         visibleLinks: emptyVisibleLinks,
         selectedTextForNote: state is TextBookLoaded

@@ -163,6 +163,14 @@ int segmentIndexForLine(List<ReadingSegment> segments, int lineIndex) {
   return segments.length - 1;
 }
 
+double lineFractionWithinSegment(ReadingSegment segment, int lineIndex) {
+  final lineOffset = segment.sourceLineIndices.indexOf(lineIndex);
+  if (lineOffset <= 0 || segment.sourceLineIndices.length <= 1) {
+    return 0;
+  }
+  return lineOffset / segment.sourceLineIndices.length;
+}
+
 List<int> sourceLineIndicesForSegments(
   List<ReadingSegment> segments,
   Iterable<int> segmentIndices,
