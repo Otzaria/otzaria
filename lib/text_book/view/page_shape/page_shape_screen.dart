@@ -714,8 +714,6 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                               widget.openBookCallback,
                                           scrollController:
                                               state.scrollController,
-                                          scrollOffsetController:
-                                              widget.scrollOffsetController,
                                           positionsListener:
                                               state.positionsListener,
                                           isMainText: true,

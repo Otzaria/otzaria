@@ -1556,15 +1556,17 @@ class _CombinedViewState extends State<CombinedView> {
       final style = backgroundColor == null
           ? baseTextStyle
           : baseTextStyle.copyWith(backgroundColor: backgroundColor);
+      final htmlText = _continuousLineHtml(
+        widget.data[lineIndex],
+        state: state,
+        settingsState: settingsState,
+      );
 
       lines.add(
         ContinuousReadingParagraphLine(
           lineIndex: lineIndex,
-          text: _continuousLineText(
-            widget.data[lineIndex],
-            state: state,
-            settingsState: settingsState,
-          ),
+          text: utils.stripHtmlIfNeeded(htmlText).trim(),
+          inlineSpans: buildInlineHtmlSpans(htmlText, style),
           style: style,
         ),
       );
@@ -1573,24 +1575,23 @@ class _CombinedViewState extends State<CombinedView> {
     return lines;
   }
 
-  String _continuousLineText(
+  String _continuousLineHtml(
     String rawText, {
     required TextBookLoaded state,
     required SettingsState settingsState,
   }) {
-    var text = utils.stripHtmlIfNeeded(rawText).trim();
-    if (state.removeNikud) {
-      text = utils.removeVolwels(text);
-    } else if (!settingsState.showTeamim) {
-      text = utils.removeTeamim(text);
-    }
-    if (state.removePunctuation) {
-      text = utils.removePunctuation(text);
-    }
-    if (settingsState.replaceHolyNames) {
-      text = utils.replaceHolyNames(text);
-    }
-    return text;
+    return TextRendererService.processText(
+      rawText.trim(),
+      RenderSettings(
+        removeNikud: state.removeNikud,
+        removePunctuation: state.removePunctuation,
+        removeTeamim: !settingsState.showTeamim,
+        replaceHolyNames: settingsState.replaceHolyNames,
+        fontSize: widget.textSize,
+        fontFamily: settingsState.fontFamily,
+        lineHeight: settingsState.lineHeight,
+      ),
+    );
   }
 
   /// בדיקה אם יש מפרשים לאינדקס מסוים

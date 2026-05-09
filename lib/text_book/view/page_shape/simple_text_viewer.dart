@@ -1362,7 +1362,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                       searchMode: widget.isMainText
                           ? state.searchMode
                           : SearchMode.exact,
-                        searchDistance:
+                      searchDistance:
                           widget.isMainText ? state.searchDistance : 0,
                       fontSize: widget.fontSize,
                       fontFamily: widget.fontFamily ?? settingsState.fontFamily,
@@ -1485,15 +1485,17 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       final style = backgroundColor == null
           ? baseTextStyle
           : baseTextStyle.copyWith(backgroundColor: backgroundColor);
+      final htmlText = _continuousLineHtml(
+        widget.content[lineIndex],
+        state: state,
+        settingsState: settingsState,
+      );
 
       lines.add(
         ContinuousReadingParagraphLine(
           lineIndex: lineIndex,
-          text: _continuousLineText(
-            widget.content[lineIndex],
-            state: state,
-            settingsState: settingsState,
-          ),
+          text: utils.stripHtmlIfNeeded(htmlText).trim(),
+          inlineSpans: buildInlineHtmlSpans(htmlText, style),
           style: style,
         ),
       );
@@ -1502,24 +1504,23 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     return lines;
   }
 
-  String _continuousLineText(
+  String _continuousLineHtml(
     String rawText, {
     required TextBookLoaded state,
     required SettingsState settingsState,
   }) {
-    var text = utils.stripHtmlIfNeeded(rawText).trim();
-    if (state.removeNikud) {
-      text = utils.removeVolwels(text);
-    } else if (!settingsState.showTeamim) {
-      text = utils.removeTeamim(text);
-    }
-    if (state.removePunctuation) {
-      text = utils.removePunctuation(text);
-    }
-    if (settingsState.replaceHolyNames) {
-      text = utils.replaceHolyNames(text);
-    }
-    return text;
+    return TextRendererService.processText(
+      rawText.trim(),
+      RenderSettings(
+        removeNikud: state.removeNikud,
+        removePunctuation: state.removePunctuation,
+        removeTeamim: !settingsState.showTeamim,
+        replaceHolyNames: settingsState.replaceHolyNames,
+        fontSize: widget.fontSize,
+        fontFamily: widget.fontFamily ?? settingsState.fontFamily,
+        lineHeight: settingsState.lineHeight,
+      ),
+    );
   }
 
   /// בניית תפריט החלפת מפרש
