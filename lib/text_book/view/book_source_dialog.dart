@@ -5,43 +5,87 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// המרת שם המקור לטקסט מתאים עם קישור
+/// תומך בשמות המקורות כפי שהם מאוחסנים ב-DB (case-insensitive)
 Map<String, String> getSourceDisplayInfo(String source) {
   final normalized = source.trim().toLowerCase();
-  switch (normalized) {
-    case 'ben-yehuda':
-      return {'text': 'פרוייקט בן-יהודה', 'url': 'https://benyehuda.org/'};
-    case 'dicta':
-      return {'text': 'ספריית דיקטה', 'url': 'https://library.dicta.org.il/'};
-    case 'onyourway':
-      return {'text': 'ובלכתך בדרך', 'url': 'https://mobile.tora.ws/'};
-    case 'orayta':
-      return {
-        'text': 'אורייתא',
-        'url': 'https://github.com/MosheWagner/Orayta-Books'
-      };
-    case 'sefaria':
-      return {'text': 'ספריא', 'url': 'https://www.sefaria.org/texts'};
-    case 'morebooks':
-      return {'text': 'ספרים פרטיים או מקורות נוספים', 'url': ''};
-    case 'wiki_jewish_books':
-      return {
-        'text': 'אוצר הספרים היהודי השיתופי',
-        'url': 'https://wiki.jewishbooks.org.il/'
-      };
-    case 'tashma':
-      return {'text': 'תא שמע', 'url': 'https://tashma.co.il/'};
-    case 'toratemet':
-      return {
-        'text': 'תורת אמת',
-        'url': 'http://www.toratemetfreeware.com/index.html?downloads;1;'
-      };
-    case 'wikisource':
-      return {'text': 'ויקיטקסט', 'url': 'https://he.wikisource.org/wiki'};
-    case 'pninim':
-      return {'text': 'פנינים', 'url': 'https://pninim.org/'};
-    default:
-      return {'text': source, 'url': ''};
+  
+  // השמות המדויקים מה-DB (case-insensitive):
+  // Sefaria, Ben-YehudaToOtzaria, DictaToOtzaria, MoreBooks,
+  // OnYourWayToOtzaria, OraytaToOtzaria, ToratEmetToOtzaria, Unknown,
+  // pninimToOtzaria, sefariaToOtzaria, wikiJewishBooksToOtzaria,
+  // wikisourceToOtzaria, tashmaToOtzaria
+  
+  // ספריא
+  if (normalized == 'sefaria' || normalized == 'sefariatootzaria') {
+    return {'text': 'ספריא', 'url': 'https://www.sefaria.org/texts'};
   }
+  
+  // פרוייקט בן-יהודה
+  if (normalized == 'ben-yehuda' || normalized == 'ben-yehudatootzaria') {
+    return {'text': 'פרוייקט בן-יהודה', 'url': 'https://benyehuda.org/'};
+  }
+  
+  // ספריית דיקטה
+  if (normalized == 'dictatootzaria') {
+    return {'text': 'ספריית דיקטה', 'url': 'https://library.dicta.org.il/'};
+  }
+  
+  // ובלכתך בדרך
+  if (normalized == 'onyourwaytootzaria') {
+    return {'text': 'ובלכתך בדרך', 'url': 'https://mobile.tora.ws/'};
+  }
+  
+  // אורייתא
+  if (normalized == 'oraytatootzaria') {
+    return {
+      'text': 'אורייתא',
+      'url': 'https://github.com/MosheWagner/Orayta-Books'
+    };
+  }
+  
+  // תורת אמת
+  if (normalized.contains('toratemet')) {
+    return {
+      'text': 'תורת אמת',
+      'url': 'http://www.toratemetfreeware.com/index.html?downloads;1;'
+    };
+  }
+  
+  // תא שמע
+  if (normalized == 'tashmatootzaria') {
+    return {'text': 'תא שמע', 'url': 'https://tashma.co.il/'};
+  }
+  
+  // פנינים
+  if (normalized == 'pninimtootzaria') {
+    return {'text': 'פנינים', 'url': 'https://pninim.org/'};
+  }
+  
+  // אוצר הספרים היהודי השיתופי
+  if (normalized == 'wikijewishbookstootzaria') {
+    return {
+      'text': 'אוצר הספרים היהודי השיתופי',
+      'url': 'https://wiki.jewishbooks.org.il/'
+    };
+  }
+  
+  // ויקיטקסט
+  if (normalized == 'wikisourcetootzaria') {
+    return {'text': 'ויקיטקסט', 'url': 'https://he.wikisource.org/wiki'};
+  }
+  
+  // ספרים פרטיים או מקורות נוספים
+  if (normalized == 'morebooks') {
+    return {'text': 'ספרים פרטיים או מקורות נוספים', 'url': ''};
+  }
+  
+  // מקור לא ידוע
+  if (normalized == 'unknown') {
+    return {'text': 'מקור לא ידוע', 'url': ''};
+  }
+  
+  // אם לא נמצא התאמה מדויקת, מחזירים את המקור המקורי
+  return {'text': source, 'url': ''};
 }
 
 /// הצגת דיאלוג אודות הספר
