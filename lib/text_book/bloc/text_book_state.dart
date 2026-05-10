@@ -4,6 +4,7 @@ import 'package:otzaria/models/links.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
+import 'package:otzaria/text_book/utils/reading_segments.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 
 String _searchOptionsSignature(Map<String, Map<String, bool>> options) {
@@ -143,6 +144,8 @@ class TextBookLoaded extends TextBookState {
   final int? selectedTextStart;
   final int? selectedTextEnd;
   final int? highlightedLine;
+  final bool continuousReadingMode;
+  final List<ReadingSegment> readingSegments;
 
   // Editor state
   final bool isEditorOpen;
@@ -195,6 +198,8 @@ class TextBookLoaded extends TextBookState {
     this.selectedTextStart,
     this.selectedTextEnd,
     this.highlightedLine,
+    this.continuousReadingMode = false,
+    this.readingSegments = const [],
     this.isEditorOpen = false,
     this.editorIndex,
     this.editorSectionId,
@@ -236,6 +241,8 @@ class TextBookLoaded extends TextBookState {
       selectedTextStart: null,
       selectedTextEnd: null,
       highlightedLine: null,
+      continuousReadingMode: false,
+      readingSegments: const [],
       isEditorOpen: false,
       editorIndex: null,
       editorSectionId: null,
@@ -282,6 +289,8 @@ class TextBookLoaded extends TextBookState {
     int? selectedTextEnd,
     int? highlightedLine,
     bool clearHighlight = false,
+    bool? continuousReadingMode,
+    List<ReadingSegment>? readingSegments,
     bool? isEditorOpen,
     int? editorIndex,
     String? editorSectionId,
@@ -328,6 +337,9 @@ class TextBookLoaded extends TextBookState {
       selectedTextEnd: selectedTextEnd ?? this.selectedTextEnd,
       highlightedLine:
           clearHighlight ? null : (highlightedLine ?? this.highlightedLine),
+      continuousReadingMode:
+          continuousReadingMode ?? this.continuousReadingMode,
+      readingSegments: readingSegments ?? this.readingSegments,
       isEditorOpen: isEditorOpen ?? this.isEditorOpen,
       editorIndex: editorIndex ?? this.editorIndex,
       editorSectionId: editorSectionId ?? this.editorSectionId,
@@ -369,6 +381,8 @@ class TextBookLoaded extends TextBookState {
         selectedTextStart,
         selectedTextEnd,
         highlightedLine,
+        continuousReadingMode,
+        readingSegments.length,
         isEditorOpen,
         editorIndex,
         editorSectionId,

@@ -51,6 +51,11 @@ class ReadingSegmentViewport {
   });
 }
 
+final Expando<List<ReadingSegment>> _lineSegmentsCache =
+    Expando<List<ReadingSegment>>('lineReadingSegments');
+final Expando<List<ReadingSegment>> _continuousSegmentsCache =
+    Expando<List<ReadingSegment>>('continuousReadingSegments');
+
 bool isReadingHeaderLine(String line) {
   final headerPattern = RegExp(r'^\s*<h[1-6]', caseSensitive: false);
   return headerPattern.hasMatch(line);
@@ -61,7 +66,12 @@ List<ReadingSegment> buildReadingSegments(
   required bool continuous,
 }) {
   if (!continuous) {
-    return [
+    final cached = _lineSegmentsCache[lines];
+    if (cached != null) {
+      return cached;
+    }
+
+    final segments = [
       for (var index = 0; index < lines.length; index++)
         ReadingSegment(
           text: lines[index],
@@ -76,6 +86,13 @@ List<ReadingSegment> buildReadingSegments(
           isHeader: isReadingHeaderLine(lines[index]),
         ),
     ];
+    _lineSegmentsCache[lines] = segments;
+    return segments;
+  }
+
+  final cached = _continuousSegmentsCache[lines];
+  if (cached != null) {
+    return cached;
   }
 
   final segments = <ReadingSegment>[];
@@ -140,6 +157,7 @@ List<ReadingSegment> buildReadingSegments(
   }
 
   flushParagraph();
+  _continuousSegmentsCache[lines] = segments;
   return segments;
 }
 

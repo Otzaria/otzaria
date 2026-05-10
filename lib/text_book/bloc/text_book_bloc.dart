@@ -13,7 +13,6 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/services/nikud_display_service.dart';
-import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_commentary_selection.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
@@ -29,6 +28,12 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   static const int _linkLookBehindLines = 25;
   static const int _linkLookAheadLines = 50;
   static const int _linksReloadThresholdLines = 20;
+  static const int _initialContentLookBehindLines = 80;
+  static const int _initialContentLookAheadLines = 180;
+  static const int _contentLookBehindLines = 120;
+  static const int _contentLookAheadLines = 260;
+  static const int _contentWarmChunkLines = 220;
+  static const int _contentReloadThresholdLines = 60;
   static const Duration _visibleIndicesDebounceDuration =
       Duration(milliseconds: 160);
   static const String _allTargetBookTitlesSignature =
@@ -53,6 +58,13 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   String? _loadedLinksBookTitle;
   String? _loadedLinksTargetBookTitlesSignature;
   String? _activeLinksTargetBookTitlesSignature;
+  String? _loadedContentBookTitle;
+  int? _loadedContentStart;
+  int? _loadedContentEnd;
+  int? _loadedContentTotalLines;
+  bool _isLoadingContentRange = false;
+  bool _pendingContentRangeReload = false;
+  bool _isWarmingContentCache = false;
   String? _cachedPageShapeTargetBookTitlesKey;
   List<String>? _cachedPageShapeTargetBookTitles;
   bool _isLoadingLinks = false;
@@ -83,6 +95,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     on<UpdateCommentators>(_onUpdateCommentators);
     on<ToggleNikud>(_onToggleNikud);
     on<TogglePunctuation>(_onTogglePunctuation);
+    on<UpdateTextBookContinuousReadingMode>(
+        _onUpdateTextBookContinuousReadingMode);
     on<UpdateVisibleIndecies>(_onUpdateVisibleIndecies);
     on<UpdateSelectedIndex>(_onUpdateSelectedIndex);
     on<HighlightLine>(_onHighlightLine);
@@ -90,6 +104,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     on<TogglePinLeftPane>(_onTogglePinLeftPane);
     on<UpdateSearchText>(_onUpdateSearchText);
     on<ApplyFullBookContent>(_onApplyFullBookContent);
+    on<ApplyBookContentRange>(_onApplyBookContentRange);
     on<CreateNoteFromToolbar>(_onCreateNoteFromToolbar);
     on<UpdateSelectedTextForNote>(_onUpdateSelectedTextForNote);
     on<UpdateLinks>(_onUpdateLinks);
@@ -251,27 +266,51 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     try {
       final tocFuture = repository.getTableOfContents(book);
 
-      String content = await repository.getBookContent(book);
       List<String>? contentLines;
-      if (content.isEmpty) {
-        final preview = await _quickPreviewLoader(
-          book.title,
-          visibleIndices.first,
-          categoryId: book.categoryId,
-          fileType: book.fileType,
+      if (state is TextBookLoaded && event.preserveState) {
+        contentLines = (state as TextBookLoaded).content;
+      } else {
+        final initialRange = await repository.getBookContentRange(
+          book,
+          startLine: visibleIndices.first - _initialContentLookBehindLines,
+          endLine: visibleIndices.first + _initialContentLookAheadLines,
         );
 
-        if (preview != null && preview.isNotEmpty) {
-          final previewStartLine =
-              (visibleIndices.first - 10).clamp(0, visibleIndices.first);
-          contentLines = buildPreviewLines(preview, previewStartLine);
-          _loadFullBookInBackground(book);
+        if (initialRange != null) {
+          contentLines = _contentWithAppliedRange(initialRange);
+          _markLoadedContentRange(
+            book,
+            initialRange.startLine,
+            initialRange.endLine,
+            totalLines: initialRange.totalLines,
+          );
         } else {
-          content = await repository.getBookContent(book);
+          final preview = await _quickPreviewLoader(
+            book.title,
+            visibleIndices.first,
+            categoryId: book.categoryId,
+            fileType: book.fileType,
+          );
+
+          if (preview != null && preview.isNotEmpty) {
+            final previewStartLine =
+                (visibleIndices.first - 10).clamp(0, visibleIndices.first);
+            contentLines = buildPreviewLines(preview, previewStartLine);
+            _loadFullBookInBackground(book);
+          }
         }
       }
 
-      contentLines ??= await splitContentLines(content);
+      if (contentLines == null) {
+        final content = await repository.getBookContent(book);
+        contentLines = await splitContentLines(content);
+        _markLoadedContentRange(
+          book,
+          0,
+          contentLines.isEmpty ? 0 : contentLines.length - 1,
+          totalLines: contentLines.length,
+        );
+      }
 
       final tableOfContents = await tocFuture;
 
@@ -302,6 +341,10 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
       const List<Link> emptyLinks = [];
       const List<Link> emptyVisibleLinks = [];
+      final readingSegments = buildReadingSegments(
+        contentLines,
+        continuous: event.continuousReadingMode,
+      );
 
       if (_positionListenerCallback != null) {
         positionsListener.itemPositions
@@ -404,6 +447,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
             ? preservedRemoveNikud
             : removeNikud,
         isTanach: isTanach,
+        continuousReadingMode: event.continuousReadingMode,
+        readingSegments: readingSegments,
         visibleIndices: visibleIndices,
         pinLeftPane: preservedPinLeftPane ??
             (Settings.getValue<bool>('key-pin-sidebar') ?? false),
@@ -430,6 +475,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       ));
 
       _resetLoadedLinksWindow(book);
+
+      _loadContentRangeInBackground(book, visibleIndices);
+      _warmContentCacheInBackground(book);
 
       _loadLinksInBackground(book, visibleIndices);
 
@@ -632,6 +680,28 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     }
   }
 
+  void _onUpdateTextBookContinuousReadingMode(
+    UpdateTextBookContinuousReadingMode event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is! TextBookLoaded) {
+      return;
+    }
+
+    final currentState = state as TextBookLoaded;
+    if (currentState.continuousReadingMode == event.enabled) {
+      return;
+    }
+
+    emit(currentState.copyWith(
+      continuousReadingMode: event.enabled,
+      readingSegments: buildReadingSegments(
+        currentState.content,
+        continuous: event.enabled,
+      ),
+    ));
+  }
+
   void _onUpdateVisibleIndecies(
     UpdateVisibleIndecies event,
     Emitter<TextBookState> emit,
@@ -701,6 +771,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
               index == null && currentState.selectedIndex != null,
           visibleLinks: visibleLinks,
         ));
+
+        _loadContentRangeInBackground(currentState.book, event.visibleIndecies);
 
         if (_shouldLoadLinksForVisibleIndicesChange(currentState)) {
           _loadLinksInBackground(
@@ -923,14 +995,6 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         currentIndices.last != nextIndices.last;
   }
 
-  bool _isContinuousReadingModeEnabled() {
-    return Settings.getValue<bool>(
-          SettingsRepository.keyContinuousReadingMode,
-          defaultValue: false,
-        ) ??
-        false;
-  }
-
   List<int> _resolveVisibleSourceIndices(
     TextBookLoaded state,
     Iterable<ItemPosition> visibleItemPositions,
@@ -940,17 +1004,13 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       return const [];
     }
 
-    if (!_isContinuousReadingModeEnabled()) {
+    if (!state.continuousReadingMode) {
       return itemPositions.map((position) => position.index).toSet().toList()
         ..sort();
     }
 
-    final segments = buildReadingSegments(
-      state.content,
-      continuous: true,
-    );
     return sourceLineIndicesForSegmentViewports(
-      segments,
+      state.readingSegments,
       itemPositions.map(
         (position) => ReadingSegmentViewport(
           segmentIndex: position.index,
@@ -1065,7 +1125,62 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       return;
     }
 
-    emit(currentState.copyWith(content: event.content));
+    emit(currentState.copyWith(
+      content: event.content,
+      readingSegments: buildReadingSegments(
+        event.content,
+        continuous: currentState.continuousReadingMode,
+      ),
+    ));
+    _markLoadedContentRange(
+      currentState.book,
+      0,
+      event.content.isEmpty ? 0 : event.content.length - 1,
+      totalLines: event.content.length,
+    );
+  }
+
+  void _onApplyBookContentRange(
+    ApplyBookContentRange event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is! TextBookLoaded) {
+      return;
+    }
+
+    final currentState = state as TextBookLoaded;
+    if (currentState.book.title != event.bookTitle || event.lines.isEmpty) {
+      return;
+    }
+
+    final nextContent = List<String>.of(currentState.content);
+    final targetLength = event.startLine + event.lines.length;
+    if (nextContent.length < targetLength) {
+      nextContent.addAll(
+        List<String>.filled(targetLength - nextContent.length, ''),
+      );
+    }
+
+    for (var offset = 0; offset < event.lines.length; offset++) {
+      final targetIndex = event.startLine + offset;
+      if (targetIndex >= 0 && targetIndex < nextContent.length) {
+        nextContent[targetIndex] = event.lines[offset];
+      }
+    }
+
+    _markLoadedContentRange(
+      currentState.book,
+      event.startLine,
+      event.startLine + event.lines.length - 1,
+      totalLines: event.totalLines,
+    );
+    emit(currentState.copyWith(
+      content: nextContent,
+      readingSegments: buildReadingSegments(
+        nextContent,
+        continuous: currentState.continuousReadingMode,
+      ),
+    ));
   }
 
   void _onCreateNoteFromToolbar(
@@ -1100,6 +1215,170 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     }
 
     return super.close();
+  }
+
+  List<String> _contentWithAppliedRange(BookContentRange range) {
+    final content = List<String>.filled(range.endLine + 1, '');
+    for (var offset = 0; offset < range.lines.length; offset++) {
+      final targetIndex = range.startLine + offset;
+      if (targetIndex >= 0 && targetIndex < content.length) {
+        content[targetIndex] = range.lines[offset];
+      }
+    }
+    return content;
+  }
+
+  void _markLoadedContentRange(
+    TextBook book,
+    int startLine,
+    int endLine, {
+    int? totalLines,
+  }) {
+    if (_loadedContentBookTitle != book.title) {
+      _loadedContentBookTitle = book.title;
+      _loadedContentStart = null;
+      _loadedContentEnd = null;
+      _loadedContentTotalLines = null;
+    }
+
+    _loadedContentTotalLines = totalLines ?? _loadedContentTotalLines;
+    _loadedContentStart = _loadedContentStart == null
+        ? startLine
+        : (_loadedContentStart! < startLine ? _loadedContentStart : startLine);
+    _loadedContentEnd = _loadedContentEnd == null
+        ? endLine
+        : (_loadedContentEnd! > endLine ? _loadedContentEnd : endLine);
+  }
+
+  bool _isContentWindowSufficient(TextBook book, int startLine, int endLine) {
+    if (_loadedContentBookTitle != book.title ||
+        _loadedContentStart == null ||
+        _loadedContentEnd == null) {
+      return false;
+    }
+
+    final normalizedStart = startLine < 0 ? 0 : startLine;
+    final hasStartMargin = normalizedStart == 0 && _loadedContentStart == 0 ||
+        normalizedStart >= _loadedContentStart! + _contentReloadThresholdLines;
+    return hasStartMargin &&
+        endLine <= _loadedContentEnd! - _contentReloadThresholdLines;
+  }
+
+  ({int startLine, int endLine}) _calculateContentWindow(
+    List<int> visibleIndices,
+  ) {
+    final firstVisible = visibleIndices.isEmpty ? 0 : visibleIndices.first;
+    final lastVisible =
+        visibleIndices.isEmpty ? firstVisible : visibleIndices.last;
+
+    return (
+      startLine: firstVisible - _contentLookBehindLines,
+      endLine: lastVisible + _contentLookAheadLines,
+    );
+  }
+
+  void _loadContentRangeInBackground(
+    TextBook book,
+    List<int> visibleIndices, {
+    bool force = false,
+  }) async {
+    final window = _calculateContentWindow(visibleIndices);
+    if (!force &&
+        _isContentWindowSufficient(book, window.startLine, window.endLine)) {
+      return;
+    }
+
+    if (_isLoadingContentRange) {
+      _pendingContentRangeReload = true;
+      return;
+    }
+
+    _isLoadingContentRange = true;
+    try {
+      final range = await repository.getBookContentRange(
+        book,
+        startLine: window.startLine,
+        endLine: window.endLine,
+      );
+      if (range != null && !isClosed) {
+        add(ApplyBookContentRange(
+          bookTitle: book.title,
+          startLine: range.startLine,
+          totalLines: range.totalLines,
+          lines: range.lines,
+        ));
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint(
+            '⚠️ TextBookBloc::loadContentRange failed for ${book.title}: $e');
+      }
+    } finally {
+      _isLoadingContentRange = false;
+      if (_pendingContentRangeReload && !isClosed) {
+        _pendingContentRangeReload = false;
+        final currentState = state;
+        if (currentState is TextBookLoaded &&
+            currentState.book.title == book.title) {
+          _loadContentRangeInBackground(
+            book,
+            currentState.visibleIndices,
+            force: true,
+          );
+        }
+      }
+    }
+  }
+
+  void _warmContentCacheInBackground(TextBook book) async {
+    if (_isWarmingContentCache) {
+      return;
+    }
+
+    _isWarmingContentCache = true;
+    try {
+      while (!isClosed) {
+        final currentState = state;
+        if (currentState is! TextBookLoaded ||
+            currentState.book.title != book.title) {
+          return;
+        }
+
+        final totalLines = _loadedContentTotalLines;
+        if (totalLines == null) {
+          return;
+        }
+
+        final nextStart = (_loadedContentEnd ?? -1) + 1;
+        if (nextStart >= totalLines) {
+          return;
+        }
+
+        final range = await repository.getBookContentRange(
+          book,
+          startLine: nextStart,
+          endLine: nextStart + _contentWarmChunkLines - 1,
+        );
+        if (range == null || range.lines.isEmpty) {
+          return;
+        }
+
+        if (isClosed) {
+          return;
+        }
+
+        add(ApplyBookContentRange(
+          bookTitle: book.title,
+          startLine: range.startLine,
+          totalLines: range.totalLines,
+          lines: range.lines,
+        ));
+
+        await Future<void>.delayed(Duration.zero);
+      }
+    } finally {
+      _isWarmingContentCache = false;
+    }
   }
 
   void _loadFullBookInBackground(TextBook book) async {

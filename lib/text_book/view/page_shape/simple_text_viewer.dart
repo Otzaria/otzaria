@@ -38,6 +38,7 @@ import 'package:otzaria/utils/text/word_at_position.dart';
 import 'package:otzaria/plugins/services/context_menu_registry.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/utils/fluent_icon_resolver.dart';
+import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
 import 'package:otzaria/text_book/utils/reading_segments.dart';
 import 'package:otzaria/text_book/view/widgets/continuous_reading_paragraph.dart';
 
@@ -120,6 +121,23 @@ int resolvePageShapeNavigationBaseIndex({
   return selectedIndex ?? 0;
 }
 
+/// מחזירה את שורת המקור שיש לשמר בעת מעבר בין תצוגת שורות לתצוגה רציפה.
+///
+/// השורה הראשונה שנראית על המסך היא העוגן המדויק ביותר; אם אין מידע גלילה
+/// זמין, משתמשים בשורה המסומנת כגיבוי.
+int? resolveDisplayModeRestoreLineIndex({
+  required List<int> visibleIndices,
+  required int? selectedIndex,
+  required int contentLength,
+}) {
+  final targetIndex =
+      visibleIndices.isNotEmpty ? visibleIndices.first : selectedIndex;
+  if (targetIndex == null || targetIndex < 0 || targetIndex >= contentLength) {
+    return null;
+  }
+  return targetIndex;
+}
+
 /// תצוגת טקסט פשוטה - משמשת גם לטקסט המרכזי וגם למפרשים
 class SimpleTextViewer extends StatefulWidget {
   final List<String> content;
@@ -176,6 +194,11 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   String? _savedSelectedText;
   int? _savedSelectedIndex;
   int _initialScrollRestoreAttempts = 0;
+  bool? _lastContinuousReadingMode;
+  int? _pendingDisplayModeRestoreLineIndex;
+  List<String>? _cachedReadingSegmentContent;
+  bool? _cachedReadingSegmentContinuous;
+  List<ReadingSegment> _cachedReadingSegments = const [];
   final Map<String, Future<bool>> _removeNikudCache = {};
   final DictionaryLookupRepository _dictionaryLookupRepository =
       DictionaryLookupRepository.instance;
@@ -362,6 +385,55 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     return true;
   }
 
+  void _preserveScrollAfterDisplayModeChange({
+    required TextBookLoaded state,
+    required SettingsState settingsState,
+    required bool continuous,
+  }) {
+    final previousContinuous = _lastContinuousReadingMode;
+    _lastContinuousReadingMode = continuous;
+
+    if (!widget.isMainText ||
+        !widget.useInternalScroll ||
+        previousContinuous == null ||
+        previousContinuous == continuous) {
+      return;
+    }
+
+    final targetIndex = resolveDisplayModeRestoreLineIndex(
+      visibleIndices: state.visibleIndices,
+      selectedIndex: state.selectedIndex,
+      contentLength: widget.content.length,
+    );
+    if (targetIndex == null) {
+      return;
+    }
+
+    _pendingDisplayModeRestoreLineIndex = targetIndex;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted ||
+          _pendingDisplayModeRestoreLineIndex != targetIndex ||
+          !_scrollController.isAttached) {
+        return;
+      }
+
+      await scrollToSourceLine(
+        scrollController: _scrollController,
+        scrollOffsetController: state.scrollOffsetController,
+        positionsListener: _positionsListener,
+        segments: _readingSegments(settingsState),
+        lineIndex: targetIndex,
+        viewportExtent:
+            context.size?.height ?? MediaQuery.sizeOf(context).height,
+        duration: Duration.zero,
+      );
+
+      if (mounted && _pendingDisplayModeRestoreLineIndex == targetIndex) {
+        _pendingDisplayModeRestoreLineIndex = null;
+      }
+    });
+  }
+
   Future<bool> _resolveSelectionRemoveNikud(
     TextBookLoaded state,
     SettingsState settingsState,
@@ -410,10 +482,17 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   }
 
   List<ReadingSegment> _readingSegments(SettingsState settingsState) {
-    return buildReadingSegments(
-      widget.content,
-      continuous: _isContinuousReadingMode(settingsState),
-    );
+    final continuous = _isContinuousReadingMode(settingsState);
+    if (!identical(_cachedReadingSegmentContent, widget.content) ||
+        _cachedReadingSegmentContinuous != continuous) {
+      _cachedReadingSegmentContent = widget.content;
+      _cachedReadingSegmentContinuous = continuous;
+      _cachedReadingSegments = buildReadingSegments(
+        widget.content,
+        continuous: continuous,
+      );
+    }
+    return _cachedReadingSegments;
   }
 
   int _segmentIndexForSourceLine(
@@ -1077,6 +1156,11 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                   final settingsState = context.watch<SettingsBloc>().state;
                   final readingSegments = _readingSegments(settingsState);
                   final continuous = _isContinuousReadingMode(settingsState);
+                  _preserveScrollAfterDisplayModeChange(
+                    state: state,
+                    settingsState: settingsState,
+                    continuous: continuous,
+                  );
 
                   return SelectionArea(
                     // ביטול תפריט ברירת המחדל של Flutter - נשתמש רק ב-ContextMenuRegion
@@ -1454,13 +1538,18 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         _requestKeyboardFocus('line-tap-$lineIndex');
         setState(() {
           _savedSelectedText = null;
-          _savedSelectedIndex = null;
+          _savedSelectedIndex = lineIndex;
         });
         if (isLineSelected) {
           context.read<TextBookBloc>().add(const UpdateSelectedIndex(null));
         } else {
           context.read<TextBookBloc>().add(UpdateSelectedIndex(lineIndex));
         }
+      },
+      onLineSecondaryTap: (lineIndex) {
+        setState(() {
+          _savedSelectedIndex = lineIndex;
+        });
       },
     );
   }

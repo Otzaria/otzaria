@@ -47,7 +47,7 @@ Future<void> scrollToSourceLine({
     return;
   }
 
-  await Future<void>.delayed(const Duration(milliseconds: 40));
+  await WidgetsBinding.instance.endOfFrame;
 
   ItemPosition? itemPosition;
   for (final position in positionsListener.itemPositions.value) {

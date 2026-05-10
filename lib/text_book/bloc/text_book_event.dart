@@ -12,6 +12,7 @@ class LoadContent extends TextBookEvent {
   final double fontSize;
   final bool showSplitView;
   final bool removeNikud;
+  final bool continuousReadingMode;
   final bool preserveState; // Whether to preserve current state during reload
   final bool loadCommentators; // Whether to load commentators
   final bool
@@ -25,6 +26,7 @@ class LoadContent extends TextBookEvent {
     required this.fontSize,
     required this.showSplitView,
     required this.removeNikud,
+    this.continuousReadingMode = false,
     this.preserveState = false, // Default to false for backward compatibility
     this.loadCommentators = true, // Default to true for backward compatibility
     this.forceCloseLeftPane = false, // Default to false
@@ -37,11 +39,21 @@ class LoadContent extends TextBookEvent {
         fontSize,
         showSplitView,
         removeNikud,
+        continuousReadingMode,
         preserveState,
         loadCommentators,
         forceCloseLeftPane,
         preserveRemoveNikud,
       ];
+}
+
+class UpdateTextBookContinuousReadingMode extends TextBookEvent {
+  final bool enabled;
+
+  const UpdateTextBookContinuousReadingMode(this.enabled);
+
+  @override
+  List<Object?> get props => [enabled];
 }
 
 class UpdateFontSize extends TextBookEvent {
@@ -200,6 +212,23 @@ class ApplyFullBookContent extends TextBookEvent {
 
   @override
   List<Object?> get props => [bookTitle, content];
+}
+
+class ApplyBookContentRange extends TextBookEvent {
+  final String bookTitle;
+  final int startLine;
+  final int totalLines;
+  final List<String> lines;
+
+  const ApplyBookContentRange({
+    required this.bookTitle,
+    required this.startLine,
+    required this.totalLines,
+    required this.lines,
+  });
+
+  @override
+  List<Object?> get props => [bookTitle, startLine, totalLines, lines];
 }
 
 class CreateNoteFromToolbar extends TextBookEvent {

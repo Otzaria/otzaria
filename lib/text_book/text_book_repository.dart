@@ -11,6 +11,20 @@ import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'dart:io';
 import 'dart:isolate';
 
+class BookContentRange {
+  final int startLine;
+  final int endLine;
+  final int totalLines;
+  final List<String> lines;
+
+  const BookContentRange({
+    required this.startLine,
+    required this.endLine,
+    required this.totalLines,
+    required this.lines,
+  });
+}
+
 class TextBookRepository {
   final FileSystemData _fileSystem;
   final SqliteDataProvider _sqliteProvider;
@@ -73,6 +87,30 @@ class TextBookRepository {
 
     // Last resort: keep existing behavior.
     return '';
+  }
+
+  Future<BookContentRange?> getBookContentRange(
+    TextBook book, {
+    required int startLine,
+    required int endLine,
+  }) async {
+    final range = await _sqliteProvider.getBookTextRangeFromDb(
+      book.title,
+      startLine: startLine,
+      endLine: endLine,
+      categoryId: book.categoryId,
+      fileType: book.fileType ?? 'txt',
+    );
+    if (range == null || range.text.isEmpty) {
+      return null;
+    }
+
+    return BookContentRange(
+      startLine: range.startLine,
+      endLine: range.endLine,
+      totalLines: range.totalLines,
+      lines: range.text.split('\n'),
+    );
   }
 
   Future<List<Link>> getBookLinksInRange(

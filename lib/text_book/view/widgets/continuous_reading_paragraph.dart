@@ -29,6 +29,7 @@ class ContinuousReadingParagraph extends StatefulWidget {
   final List<ContinuousReadingParagraphLine> lines;
   final TextStyle baseStyle;
   final ValueChanged<int> onLineTap;
+  final ValueChanged<int>? onLineSecondaryTap;
   final TextDirection textDirection;
   final TextAlign textAlign;
 
@@ -37,6 +38,7 @@ class ContinuousReadingParagraph extends StatefulWidget {
     required this.lines,
     required this.baseStyle,
     required this.onLineTap,
+    this.onLineSecondaryTap,
     this.textDirection = TextDirection.rtl,
     this.textAlign = TextAlign.justify,
   });
@@ -85,20 +87,54 @@ class _ContinuousReadingParagraphState
       }
     }
 
-    return Text.rich(
-      TextSpan(style: widget.baseStyle, children: spans),
-      textDirection: widget.textDirection,
-      textAlign: widget.textAlign,
+    final textSpan = TextSpan(style: widget.baseStyle, children: spans);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Text.rich(
+          textSpan,
+          textDirection: widget.textDirection,
+          textAlign: _effectiveTextAlign(
+            textSpan: textSpan,
+            constraints: constraints,
+            textScaler: MediaQuery.textScalerOf(context),
+          ),
+        );
+      },
     );
+  }
+
+  TextAlign _effectiveTextAlign({
+    required InlineSpan textSpan,
+    required BoxConstraints constraints,
+    required TextScaler textScaler,
+  }) {
+    if (widget.textAlign != TextAlign.justify || !constraints.hasBoundedWidth) {
+      return widget.textAlign;
+    }
+
+    final textPainter = TextPainter(
+      text: textSpan,
+      textAlign: TextAlign.start,
+      textDirection: widget.textDirection,
+      textScaler: textScaler,
+    )..layout(maxWidth: constraints.maxWidth);
+
+    final visualLineCount = textPainter.computeLineMetrics().length;
+    textPainter.dispose();
+
+    return visualLineCount <= 1 ? TextAlign.start : widget.textAlign;
   }
 
   void _rebuildRecognizers() {
     _disposeRecognizers();
     for (var i = 0; i < widget.lines.length; i++) {
-      _recognizers.add(
-        TapGestureRecognizer()
-          ..onTap = () => widget.onLineTap(widget.lines[i].lineIndex),
-      );
+      final recognizer = TapGestureRecognizer()
+        ..onTap = () => widget.onLineTap(widget.lines[i].lineIndex);
+      if (widget.onLineSecondaryTap != null) {
+        recognizer.onSecondaryTap =
+            () => widget.onLineSecondaryTap!(widget.lines[i].lineIndex);
+      }
+      _recognizers.add(recognizer);
     }
   }
 

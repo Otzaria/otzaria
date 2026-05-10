@@ -154,6 +154,43 @@ class SqliteDataProvider {
     }
   }
 
+  Future<({int startLine, int endLine, int totalLines, String text})?>
+      getBookTextRangeFromDb(
+    String title, {
+    required int startLine,
+    required int endLine,
+    int? categoryId,
+    String? fileType,
+  }) async {
+    if (!_isInitialized) {
+      await initialize();
+    }
+    if (!_isInitialized) return null;
+
+    try {
+      final book = await _resolveBook(
+        title,
+        categoryId: categoryId,
+        fileType: fileType,
+      );
+      if (book == null || book.totalLines <= 0) return null;
+
+      final normalizedStart = startLine.clamp(0, book.totalLines - 1);
+      final normalizedEnd = endLine.clamp(normalizedStart, book.totalLines - 1);
+      final lines =
+          await _repository.getLines(book.id, normalizedStart, normalizedEnd);
+
+      return (
+        startLine: normalizedStart,
+        endLine: normalizedEnd,
+        totalLines: book.totalLines,
+        text: migrationLinesToText(lines),
+      );
+    } catch (e) {
+      return null;
+    }
+  }
+
   /// Retrieves the full text content of a book from the database
   Future<String?> getBookTextFromDb(String title,
       [int? categoryId, String? fileType]) async {

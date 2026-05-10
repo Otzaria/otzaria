@@ -30,6 +30,35 @@ void main() {
     await Settings.init(cacheProvider: MemoryCacheProvider());
   });
 
+  test('display mode change keeps the visible source line', () {
+    expect(
+      resolveDisplayModeRestoreLineIndex(
+        visibleIndices: const [42, 43, 44],
+        selectedIndex: 7,
+        contentLength: 100,
+      ),
+      42,
+    );
+
+    expect(
+      resolveDisplayModeRestoreLineIndex(
+        visibleIndices: const [],
+        selectedIndex: 7,
+        contentLength: 100,
+      ),
+      7,
+    );
+
+    expect(
+      resolveDisplayModeRestoreLineIndex(
+        visibleIndices: const [150],
+        selectedIndex: 7,
+        contentLength: 100,
+      ),
+      isNull,
+    );
+  });
+
   testWidgets('לחיצה על אינדיקטור הערה פותחת את טאב ההערות הפנימי',
       (tester) async {
     final textBookBloc = _TestTextBookBloc(_loadedState());
@@ -243,7 +272,64 @@ void main() {
     expect(enlargedFontSize, greaterThan(regularFontSize));
     expect(enlargedNote.style?.fontStyle, FontStyle.italic);
   });
+
+  testWidgets('מצב טקסט רציף לא מיישר מקטע קצר לשני הצדדים', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 500,
+            child: ContinuousReadingParagraph(
+              lines: [
+                ContinuousReadingParagraphLine(
+                  lineIndex: 0,
+                  text: 'מקטע קצר',
+                  style: TextStyle(fontSize: 20),
+                ),
+              ],
+              baseStyle: TextStyle(fontSize: 20),
+              onLineTap: _noopLineTap,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final richText = tester.widget<RichText>(find.byType(RichText));
+
+    expect(richText.textAlign, TextAlign.start);
+  });
+
+  testWidgets('מצב טקסט רציף משאיר justify למקטע שנשבר לכמה שורות',
+      (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 120,
+            child: ContinuousReadingParagraph(
+              lines: [
+                ContinuousReadingParagraphLine(
+                  lineIndex: 0,
+                  text: 'זהו מקטע ארוך מספיק כדי להישבר לכמה שורות בתצוגה צרה',
+                  style: TextStyle(fontSize: 20),
+                ),
+              ],
+              baseStyle: TextStyle(fontSize: 20),
+              onLineTap: _noopLineTap,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final richText = tester.widget<RichText>(find.byType(RichText));
+
+    expect(richText.textAlign, TextAlign.justify);
+  });
 }
+
+void _noopLineTap(int lineIndex) {}
 
 String _flattenText(List<InlineSpan> spans) {
   final buffer = StringBuffer();

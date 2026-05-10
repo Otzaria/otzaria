@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
@@ -84,8 +86,8 @@ void main() {
 
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
-  expect(repository.getBookLinksInRangeCalls, 1);
-  expect(repository.lastTargetBookTitles, isEmpty);
+      expect(repository.getBookLinksInRangeCalls, 1);
+      expect(repository.lastTargetBookTitles, isEmpty);
 
       await bloc.close();
     });
@@ -634,6 +636,51 @@ void main() {
         await bloc.close();
       },
     );
+    test('LoadContent מציג preview לפני שטעינת הספר המלא הסתיימה', () async {
+      final repository = _DelayedContentTextBookRepository();
+      final bloc = _createBloc(
+        repository: repository,
+        showPageShapeView: false,
+        quickPreviewLoader: (
+          String title,
+          int currentLine, {
+          int? categoryId,
+          String? fileType,
+        }) async {
+          return 'שורת preview 10\nשורת preview 11';
+        },
+      );
+
+      bloc.add(
+        const LoadContent(
+          fontSize: 20,
+          showSplitView: false,
+          removeNikud: false,
+          loadCommentators: false,
+        ),
+      );
+
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      var state = bloc.state;
+      expect(state, isA<TextBookLoaded>());
+      expect(
+        (state as TextBookLoaded).content,
+        contains('שורת preview 10'),
+      );
+      expect(repository.getBookContentCalls, 1);
+
+      repository.completeFullContent(
+        List.generate(30, (index) => 'שורה מלאה $index').join('\n'),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      state = bloc.state;
+      expect((state as TextBookLoaded).content.length, 30);
+      expect(state.content.first, 'שורה מלאה 0');
+
+      await bloc.close();
+    });
   });
 }
 
@@ -679,6 +726,24 @@ class _FakeTextBookRepository extends TextBookRepository {
   }
 
   @override
+  Future<BookContentRange?> getBookContentRange(
+    TextBook book, {
+    required int startLine,
+    required int endLine,
+  }) async {
+    final contentLines = List.generate(40, (index) => 'line $index');
+    final normalizedStart = startLine.clamp(0, contentLines.length - 1);
+    final normalizedEnd =
+        endLine.clamp(normalizedStart, contentLines.length - 1);
+    return BookContentRange(
+      startLine: normalizedStart,
+      endLine: normalizedEnd,
+      totalLines: contentLines.length,
+      lines: contentLines.sublist(normalizedStart, normalizedEnd + 1),
+    );
+  }
+
+  @override
   Future<List<TocEntry>> getTableOfContents(TextBook book) async {
     return const [];
   }
@@ -707,6 +772,41 @@ class _EmptyContentTextBookRepository extends _FakeTextBookRepository {
   @override
   Future<String> getBookContent(TextBook book) async {
     return '';
+  }
+
+  @override
+  Future<BookContentRange?> getBookContentRange(
+    TextBook book, {
+    required int startLine,
+    required int endLine,
+  }) async {
+    return null;
+  }
+}
+
+class _DelayedContentTextBookRepository extends _FakeTextBookRepository {
+  final Completer<String> _fullContentCompleter = Completer<String>();
+  int getBookContentCalls = 0;
+
+  @override
+  Future<String> getBookContent(TextBook book) async {
+    getBookContentCalls++;
+    return _fullContentCompleter.future;
+  }
+
+  @override
+  Future<BookContentRange?> getBookContentRange(
+    TextBook book, {
+    required int startLine,
+    required int endLine,
+  }) async {
+    return null;
+  }
+
+  void completeFullContent(String content) {
+    if (!_fullContentCompleter.isCompleted) {
+      _fullContentCompleter.complete(content);
+    }
   }
 }
 
