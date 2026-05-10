@@ -176,7 +176,7 @@ class ExternalUriRouter {
 
       final indexParam = uri.queryParameters['index']?.trim();
       final parsedIndex = int.tryParse(indexParam ?? '');
-      final page = (parsedIndex != null && parsedIndex >= 0) ? parsedIndex : null;
+      final page = (parsedIndex != null && parsedIndex >= 1) ? parsedIndex : null;
 
       return OpenPdfBookAction(bookId, page: page);
     }
