@@ -3588,32 +3588,31 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             ? 'העתק קישור ישיר'
             : 'העתק קישור ישיר (לא זמין לספר זה)',
         onPressed: null,
-        submenuItems: () {
-          final bookId = widget.tab.book.id;
-          return [
-            ActionButtonData(
-              widget: const SizedBox.shrink(),
-              icon: FluentIcons.link_24_regular,
-              tooltip: 'העתק קישור ישיר לספר זה',
-              onPressed: bookId != null
-                  ? () => copyLinkToClipboard(buildBookLink(bookId))
-                  : null,
-            ),
-            ActionButtonData(
-              widget: const SizedBox.shrink(),
-              icon: FluentIcons.link_multiple_24_regular,
-              tooltip: 'העתק קישור ישיר לעמוד זה',
-              onPressed: bookId != null
-                  ? () {
+        submenuItems: widget.tab.book.id != null
+            ? () {
+                final bookId = widget.tab.book.id!;
+                return [
+                  ActionButtonData(
+                    widget: const SizedBox.shrink(),
+                    icon: FluentIcons.link_24_regular,
+                    tooltip: 'העתק קישור ישיר לספר זה',
+                    onPressed: () =>
+                        copyLinkToClipboard(buildBookLink(bookId)),
+                  ),
+                  ActionButtonData(
+                    widget: const SizedBox.shrink(),
+                    icon: FluentIcons.link_multiple_24_regular,
+                    tooltip: 'העתק קישור ישיר לעמוד זה',
+                    onPressed: () {
                       final page =
                           widget.tab.pdfViewerController.pageNumber ??
                               widget.tab.pageNumber;
                       copyLinkToClipboard(buildSectionLink(bookId, page));
-                    }
-                  : null,
-            ),
-          ];
-        }(),
+                    },
+                  ),
+                ];
+              }()
+            : null,
       ),
       if (widget.isInCombinedView)
         ActionButtonData(
