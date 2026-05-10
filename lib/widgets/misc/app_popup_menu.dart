@@ -835,17 +835,48 @@ PopupMenuEntry<T> buildAppSubmenuPopupMenuItem<T>({
   IconData? icon,
   required List<Widget> menuChildren,
 }) {
+  final colorScheme = Theme.of(context).colorScheme;
   return buildAppCustomPopupMenuItem<T>(
     context: context,
     metrics: metrics,
-    child: SubmenuButton(
-      menuChildren: menuChildren,
-      style: buildAppSubmenuItemStyle(context, metrics),
-      child: buildAppMenuRowContent(
-        context,
-        metrics,
-        label: label,
-        icon: icon,
+    child: Directionality(
+      textDirection: TextDirection.rtl,
+      child: SubmenuButton(
+        alignmentOffset: const Offset(0, -8),
+        menuStyle: const MenuStyle(
+          alignment: AlignmentDirectional.topEnd,
+        ),
+        menuChildren: menuChildren,
+        style: buildAppSubmenuItemStyle(context, metrics),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(
+                icon,
+                size: metrics.iconSize,
+                color: colorScheme.onSurface,
+              ),
+              const SizedBox(width: 8),
+            ],
+            Text(
+              label,
+              textDirection: TextDirection.rtl,
+              style: TextStyle(
+                fontFamily: 'Roboto',
+                fontSize: metrics.fontSize,
+                fontWeight: metrics.itemFontWeight,
+                color: colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              FluentIcons.chevron_right_24_regular,
+              size: metrics.iconSize * 0.75,
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ],
+        ),
       ),
     ),
   );

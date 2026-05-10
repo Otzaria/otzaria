@@ -366,6 +366,7 @@ class PdfBook extends FileBook {
 
   factory PdfBook.fromJson(Map<String, dynamic> json) {
     return PdfBook(
+      id: json['id'] as int?,
       title: json['title'],
       path: json['path'],
       categoryPath: json['categoryPath'],
@@ -379,6 +380,7 @@ class PdfBook extends FileBook {
   @override
   Map<String, dynamic> toJson() {
     return {
+      'id': id,
       'title': title,
       'path': path,
       'type': 'PdfBook',

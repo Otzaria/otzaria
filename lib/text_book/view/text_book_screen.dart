@@ -726,6 +726,18 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     super.dispose();
   }
 
+  // --- העתקת קישור ישיר ---
+
+  String _buildBookLink(int bookId) => 'otzaria://open/book/$bookId';
+
+  String _buildSectionLink(int bookId, int index) =>
+      'otzaria://open/book/$bookId?index=${index.clamp(0, double.maxFinite.toInt())}';
+
+  Future<void> _copyLinkToClipboard(String url) async {
+    await Clipboard.setData(ClipboardData(text: url));
+    UiSnack.show('הקישור הועתק ללוח');
+  }
+
   void _openPersonalNotesForCurrentView(TextBookLoaded state) {
     if (state.showPageShapeView) {
       _pageShapeSidebarTabNotifier.value = 1;
@@ -1634,6 +1646,36 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           tooltip: 'אודות הספר',
           onPressed: () => showBookSourceDialog(context, state),
         ),
+
+      // העתק קישור ישיר
+      ActionButtonData(
+        widget: const SizedBox.shrink(),
+        icon: FluentIcons.link_24_regular,
+        tooltip: 'העתק קישור ישיר',
+        onPressed: null,
+        submenuItems: [
+          ActionButtonData(
+            widget: const SizedBox.shrink(),
+            icon: FluentIcons.link_24_regular,
+            tooltip: 'העתק קישור ישיר לספר זה',
+            onPressed: () => _copyLinkToClipboard(
+              _buildBookLink(state.book.id ?? 0),
+            ),
+          ),
+          ActionButtonData(
+            widget: const SizedBox.shrink(),
+            icon: FluentIcons.link_multiple_24_regular,
+            tooltip: 'העתק קישור ישיר למקטע זה',
+            onPressed: () {
+              final index =
+                  state.positionsListener.itemPositions.value.isNotEmpty
+                      ? state.positionsListener.itemPositions.value.first.index
+                      : 0;
+              _copyLinkToClipboard(_buildSectionLink(state.book.id ?? 0, index));
+            },
+          ),
+        ],
+      ),
 
       // תת-תפריט "פעולות נוספות" - רק בתצוגה משולבת
       if (widget.isInCombinedView)

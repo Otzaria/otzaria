@@ -3579,6 +3579,40 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           tooltip: 'הדפס',
           onPressed: () => _handlePrintPress(context),
         ),
+      // העתק קישור ישיר
+      ActionButtonData(
+        widget: const SizedBox.shrink(),
+        icon: FluentIcons.link_24_regular,
+        tooltip: widget.tab.book.id != null
+            ? 'העתק קישור ישיר'
+            : 'העתק קישור ישיר (לא זמין לספר זה)',
+        onPressed: null,
+        submenuItems: [
+          ActionButtonData(
+            widget: const SizedBox.shrink(),
+            icon: FluentIcons.link_24_regular,
+            tooltip: 'העתק קישור ישיר לספר זה',
+            onPressed: widget.tab.book.id != null
+                ? () => _copyLinkToClipboard(
+                      _buildBookLink(widget.tab.book.id!),
+                    )
+                : null,
+          ),
+          ActionButtonData(
+            widget: const SizedBox.shrink(),
+            icon: FluentIcons.link_multiple_24_regular,
+            tooltip: 'העתק קישור ישיר לעמוד זה',
+            onPressed: widget.tab.book.id != null
+                ? () {
+                    final page = widget.tab.pdfViewerController.pageNumber ??
+                        widget.tab.pageNumber;
+                    _copyLinkToClipboard(
+                        _buildSectionLink(widget.tab.book.id!, page));
+                  }
+                : null,
+          ),
+        ],
+      ),
       if (widget.isInCombinedView)
         ActionButtonData(
           widget: const SizedBox.shrink(),
@@ -3623,6 +3657,18 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     if (!context.mounted) return;
 
     openBook(context, textBook, index ?? 0, '', ignoreHistory: true);
+  }
+
+  // --- העתקת קישור ישיר ---
+
+  String _buildBookLink(int bookId) => 'otzaria://open/book/$bookId';
+
+  String _buildSectionLink(int bookId, int index) =>
+      'otzaria://open/book/$bookId?index=${index.clamp(0, double.maxFinite.toInt())}';
+
+  Future<void> _copyLinkToClipboard(String url) async {
+    await Clipboard.setData(ClipboardData(text: url));
+    UiSnack.show('הקישור הועתק ללוח');
   }
 
   void _handleBookmarkPress(BuildContext context) {
