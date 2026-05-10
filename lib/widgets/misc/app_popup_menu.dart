@@ -863,7 +863,6 @@ PopupMenuEntry<T> buildAppSubmenuPopupMenuItem<T>({
               label,
               textDirection: TextDirection.rtl,
               style: TextStyle(
-                fontFamily: 'Roboto',
                 fontSize: metrics.fontSize,
                 fontWeight: metrics.itemFontWeight,
                 color: colorScheme.onSurface,
