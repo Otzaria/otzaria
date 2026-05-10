@@ -840,40 +840,39 @@ PopupMenuEntry<T> buildAppSubmenuPopupMenuItem<T>({
   return buildAppCustomPopupMenuItem<T>(
     context: context,
     metrics: metrics,
-    enabled: true,
+    enabled: onSelected != null,
     child: Builder(
       builder: (innerContext) => InkWell(
-        onTap: () async {
-          final renderBox =
-              innerContext.findRenderObject() as RenderBox?;
-          if (renderBox == null) return;
-          final overlay = Overlay.of(innerContext)
-              .context
-              .findRenderObject() as RenderBox;
-          final overlaySize = overlay.size;
-          final itemRect = MatrixUtils.transformRect(
-            renderBox.getTransformTo(overlay),
-            Offset.zero & renderBox.size,
-          );
-          // פתח תפריט לצד המתאים — ימין ב-LTR, שמאל ב-RTL
-          // אם אין מקום, Flutter יתאים אוטומטית
-          final double xPos = isRtl ? itemRect.left : itemRect.right;
-          final selected = await showMenu<T>(
-            context: innerContext,
-            position: RelativeRect.fromRect(
-              Rect.fromLTWH(xPos, itemRect.top, 0, 0),
-              Offset.zero & overlaySize,
-            ),
-            items: menuChildren,
-          );
-          if (selected != null) {
-            onSelected?.call(selected);
-            // סגור גם את התפריט הראשי
-            if (innerContext.mounted) {
-              Navigator.of(innerContext).pop();
-            }
-          }
-        },
+        onTap: onSelected == null
+            ? null
+            : () async {
+                final renderBox =
+                    innerContext.findRenderObject() as RenderBox?;
+                if (renderBox == null) return;
+                final overlay = Overlay.of(innerContext)
+                    .context
+                    .findRenderObject() as RenderBox;
+                final overlaySize = overlay.size;
+                final itemRect = MatrixUtils.transformRect(
+                  renderBox.getTransformTo(overlay),
+                  Offset.zero & renderBox.size,
+                );
+                // תמיד פתח לצד ימין (itemRect.right) — התפריט הראשי תמיד בצד שמאל
+                final selected = await showMenu<T>(
+                  context: innerContext,
+                  position: RelativeRect.fromRect(
+                    Rect.fromLTWH(itemRect.right, itemRect.top, 0, 0),
+                    Offset.zero & overlaySize,
+                  ),
+                  items: menuChildren,
+                );
+                if (selected != null) {
+                  onSelected.call(selected);
+                  if (innerContext.mounted) {
+                    Navigator.of(innerContext).pop();
+                  }
+                }
+              },
         borderRadius: BorderRadius.circular(metrics.itemBorderRadius),
         child: buildAppMenuRowContent(
           context,
@@ -881,9 +880,10 @@ PopupMenuEntry<T> buildAppSubmenuPopupMenuItem<T>({
           label: label,
           icon: icon,
           trailing: Icon(
+            // ב-RTL התפריט נפתח ימינה → חץ ימינה
             isRtl
-                ? FluentIcons.chevron_left_24_regular
-                : FluentIcons.chevron_right_24_regular,
+                ? FluentIcons.chevron_right_24_regular
+                : FluentIcons.chevron_left_24_regular,
             size: metrics.iconSize * 0.75,
           ),
         ),
