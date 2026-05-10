@@ -909,7 +909,7 @@ class SnippetBuilder {
     for (final match
         // מחריגים ־ (U+05BE) ו-׀ (U+05C0) מהטווח כדי שמילים מופרדות במקף יפוצלו
         // לטוקנים נפרדים — sanitizeQuery ממיר ־ לרווח בשאילתה.
-        in RegExp(r'[א-תA-Za-z0-9\u0591-\u05BD\u05BF\u05C1-\u05C7]+')
+        in RegExp(r'''[א-תA-Za-z0-9֑-ֽֿׁ-ׇ]+(?:['׳](?![א-תA-Za-z0-9֑-ֽֿׁ-ׇ]))?''')
             .allMatches(plainText)) {
       final token = match.group(0);
       if (token == null || token.isEmpty) {

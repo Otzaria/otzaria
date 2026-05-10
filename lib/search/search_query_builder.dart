@@ -26,17 +26,20 @@ class SearchQueryBuilder {
 
   static String buildWordKey(String word, int index) => '${word}_$index';
 
-  /// רגקס לפיצול מילות חיפוש: רווחים, גרשיים וגרש לועזיים.
-  /// גרשיים/גרש מתפרשים כמפריד מילים כי הטוקנייזר של Tantivy מפצל עליהם
-  /// ממילא בעת האינדוקס — כך שהשאילתה תואמת את המבנה באינדקס
-  /// (למשל `רמב"ם` באינדקס נשמר כשני טוקנים: `רמב`, `ם`).
-  static final RegExp _queryWordSplitter = RegExp(r'''[\s"']+''');
+  /// רגקס לחילוץ מילות חיפוש:
+  /// - `"` תמיד מפריד (גרשיים — מפצל `ז"ל` לשני טוקנים).
+  /// - `'` בסוף מילה נשמר כחלק מהטוקן (כך `תוס'` נשאר `תוס'`).
+  /// - `'` באמצע מילה מפריד (`ד'אש` → `ד` + `אש`).
+  /// תואם את התנהגות HebrewTokenizer בצד ה-Rust.
+  static final RegExp _tokenExtractor = RegExp(
+    r"""[א-ת֐-ׇA-Za-z0-9]+(?:'(?![א-ת֐-ׇA-Za-z0-9]))?""",
+  );
 
   static List<String> splitQueryWords(String query) {
     final cleanedQuery = sanitizeQuery(query);
-    return cleanedQuery
-        .trim()
-        .split(_queryWordSplitter)
+    return _tokenExtractor
+        .allMatches(cleanedQuery.trim())
+        .map((m) => m.group(0)!)
         .where((w) => w.isNotEmpty)
         .toList();
   }

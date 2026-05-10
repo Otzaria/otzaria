@@ -337,13 +337,14 @@ void main() {
       expect(regexTerms, ['ר', 'ן']);
     });
 
-    test('מילה בודדת עם גרש סופי → לא נכלל ברגקס', () {
-      // ה' (קיצור לשם הוי"ה) — הגרש מופרד, נשאר טוקן יחיד `ה`,
-      // ולא `ה'` שלא קיים באינדקס.
+    test("מילה בודדת עם גרש סופי → נשמר כחלק מהטוקן", () {
+      // ה' (קיצור לשם הוי"ה) — הגרש בסוף נשמר כחלק מהטוקן `ה'`
+      // כך שחיפוש `ה'` לא ימצא `ה` לבד.
+      // תואם את HebrewTokenizer שמאנדקס תוס' כטוקן `תוס'`.
       final params = SearchQueryBuilder.prepareQueryParams(
           "ה'", false, 0, null, null, null);
       final regexTerms = params['regexTerms'] as List<String>;
-      expect(regexTerms, ['ה']);
+      expect(regexTerms, ["ה'"]);
     });
 
     test('צירוף ראשי תיבות ומילה רגילה → טוקנים סמוכים', () {
