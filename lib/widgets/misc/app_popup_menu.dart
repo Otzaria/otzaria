@@ -40,6 +40,8 @@ class AppContextMenuEntry {
   final bool enabled;
   final bool isDivider;
   final bool isDestructive;
+  final bool isSelected;
+  final bool isHighlighted;
   final VoidCallback? onTap;
   final Widget? trailing;
 
@@ -56,6 +58,8 @@ class AppContextMenuEntry {
     this.icon,
     this.enabled = true,
     this.isDestructive = false,
+    this.isSelected = false,
+    this.isHighlighted = false,
     this.onTap,
     this.trailing,
     this.children,
@@ -70,6 +74,8 @@ class AppContextMenuEntry {
         enabled = false,
         isDivider = true,
         isDestructive = false,
+        isSelected = false,
+        isHighlighted = false,
         onTap = null,
         trailing = null,
         children = null,
@@ -617,15 +623,12 @@ Widget buildAppMenuRowContent(
   bool enabled = true,
 }) {
   final colorScheme = Theme.of(context).colorScheme;
-  // M3: selectedContainer = primaryContainer (ללא גבול, ממלא שורה שלמה)
-  final selectedBackground =
-      colorScheme.primaryContainer.withValues(alpha: 0.95);
   final foregroundColor = !enabled
       ? colorScheme.onSurface.withValues(alpha: 0.38)
       : isDestructive
           ? colorScheme.error
           : isSelected
-              ? colorScheme.onPrimaryContainer
+              ? colorScheme.primary
               : colorScheme.onSurface;
 
   final hasTrailingWidget = isSelected || trailing != null;
@@ -650,7 +653,7 @@ Widget buildAppMenuRowContent(
       );
 
   final row = Row(
-    mainAxisSize: trailing != null ? MainAxisSize.max : MainAxisSize.min,
+    mainAxisSize: (isSelected || trailing != null) ? MainAxisSize.max : MainAxisSize.min,
     children: [
       if (icon != null) ...[
         Icon(icon, size: metrics.iconSize, color: foregroundColor),
@@ -668,11 +671,11 @@ Widget buildAppMenuRowContent(
                 ),
         ),
       ),
-      // סימן ✓ לפריט נבחר (תמיד, בכל סוג תפריט)
       if (isSelected) ...[
-        const SizedBox(width: 8),
+        const Spacer(),
+        const SizedBox(width: 6),
         Icon(
-          FluentIcons.checkmark_24_regular,
+          FluentIcons.checkmark_circle_24_filled,
           size: metrics.iconSize,
           color: foregroundColor,
         ),
@@ -697,8 +700,6 @@ Widget buildAppMenuRowContent(
       minWidth: metrics.menuMinWidth,
       minHeight: metrics.itemHeight,
     ),
-    // צבע מלא שורה — ללא עיגול פינות וללא גבול
-    color: isSelected ? selectedBackground : null,
     padding: metrics.itemPadding,
     alignment: AlignmentDirectional.centerStart,
     child: row,

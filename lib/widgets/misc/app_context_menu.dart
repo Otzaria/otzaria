@@ -431,6 +431,21 @@ class _AppContextMenuRegionState extends State<AppContextMenuRegion> {
         );
       }
 
+      if (entry.isHighlighted) {
+        return _HoverableHighlightedRow(
+          key: widget.menuItemKeysByLabel?[entry.label ?? ''],
+          label: entry.label ?? '',
+          icon: entry.icon,
+          metrics: metrics,
+          onTap: entry.enabled
+              ? () {
+                  _closeContextMenu();
+                  entry.onTap?.call();
+                }
+              : null,
+        );
+      }
+
       return MenuItemButton(
         key: widget.menuItemKeysByLabel?[entry.label ?? ''],
         style: buildAppSubmenuItemStyle(context, metrics),
@@ -448,6 +463,7 @@ class _AppContextMenuRegionState extends State<AppContextMenuRegion> {
           labelWidget: entry.labelWidget,
           icon: entry.icon,
           trailing: entry.trailing,
+          isSelected: entry.isSelected,
           isDestructive: entry.isDestructive,
           enabled: entry.enabled,
         ),
@@ -579,6 +595,7 @@ class _AppContextMenuRegionState extends State<AppContextMenuRegion> {
           labelWidget: entry.labelWidget,
           icon: entry.icon,
           trailing: entry.trailing,
+          isSelected: entry.isSelected,
           isDestructive: entry.isDestructive,
           enabled: entry.enabled,
         ),
@@ -829,5 +846,66 @@ class _AppContextMenuPanel extends StatelessWidget {
             ),
           ),
         ));
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// _HoverableHighlightedRow — שורת תפריט מודגשת בעיצוב pill
+// משמשת לפריטים עם isHighlighted: true (כגון "פתח חלונית" ו"בחר מפרשים מרובים")
+// ═══════════════════════════════════════════════════════════════════════════
+
+class _HoverableHighlightedRow extends StatelessWidget {
+  final String label;
+  final IconData? icon;
+  final VoidCallback? onTap;
+  final AppMenuMetrics metrics;
+
+  const _HoverableHighlightedRow({
+    super.key,
+    required this.label,
+    required this.icon,
+    required this.onTap,
+    required this.metrics,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final primary = colorScheme.primary;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          height: metrics.itemHeight,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            border: Border.all(color: primary, width: 1.5),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Row(
+              mainAxisSize: MainAxisSize.max,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: metrics.fontSize,
+                    color: primary,
+                  ),
+                ),
+                if (icon != null) ...[
+                  const Spacer(),
+                  const SizedBox(width: 6),
+                  Icon(icon, size: metrics.iconSize, color: primary),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

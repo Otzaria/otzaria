@@ -195,6 +195,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   // קבוצות מפרשים לסדר בתפריט
   List<CommentatorGroup> _commentatorGroups = [];
 
+  final ValueNotifier<int> _openPdfFilterNotifier = ValueNotifier<int>(0);
+
   // Named listeners for proper cleanup
   late final VoidCallback _leftPaneTabControllerListener;
   late final VoidCallback _showLeftPaneListener;
@@ -636,9 +638,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
     AppContextMenuEntry buildItem(String commentator) => AppContextMenuEntry(
           label: commentator,
-          icon: widget.tab.activeCommentators.contains(commentator)
-              ? FluentIcons.checkmark_24_regular
-              : null,
+          isSelected: widget.tab.activeCommentators.contains(commentator),
           onTap: () => _toggleCommentator(commentator),
         );
 
@@ -692,17 +692,26 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     );
 
     final commentatorChildren = <AppContextMenuEntry>[
-      if (shouldShowOpenPaneEntry) ...[
+      if (shouldShowOpenPaneEntry)
         AppContextMenuEntry(
           label: 'פתח את חלונית המפרשים',
           icon: FluentIcons.panel_right_24_regular,
+          isHighlighted: true,
           onTap: () => _openCommentaryPane(),
         ),
-        const AppContextMenuEntry.divider(),
-      ],
+      AppContextMenuEntry(
+        label: 'בחר מפרשים מרובים',
+        icon: FluentIcons.filter_24_regular,
+        isHighlighted: true,
+        onTap: () {
+          _openCommentaryPane();
+          _openPdfFilterNotifier.value++;
+        },
+      ),
+      const AppContextMenuEntry.divider(),
       AppContextMenuEntry(
         label: 'הצג את כל המפרשים',
-        icon: allActive ? FluentIcons.checkmark_24_regular : null,
+        isSelected: allActive,
         onTap: () => _toggleAllCommentators(relevantCommentators),
       ),
       if (relevantCommentators.isNotEmpty) const AppContextMenuEntry.divider(),
@@ -2962,6 +2971,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         _bloc.add(const pdf_events.ToggleRightPane(show: false));
       },
       initialTabIndex: _rightPaneInitialTabIndex,
+      openFilterNotifier: _openPdfFilterNotifier,
     );
   }
 

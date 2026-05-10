@@ -40,6 +40,8 @@ class CommentaryListBase extends StatefulWidget {
   final List<CommentatorGroup>? commentatorGroupsOverride;
   final String? bookTitleOverride;
   final ValueChanged<List<String>>? onSelectedCommentatorsOverrideChanged;
+  final ValueNotifier<int>? openFilterNotifier;
+  final ValueNotifier<int>? closeFilterNotifier;
 
   const CommentaryListBase({
     super.key,
@@ -54,6 +56,8 @@ class CommentaryListBase extends StatefulWidget {
     this.commentatorGroupsOverride,
     this.bookTitleOverride,
     this.onSelectedCommentatorsOverrideChanged,
+    this.openFilterNotifier,
+    this.closeFilterNotifier,
   });
 
   @override
@@ -158,6 +162,8 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
     super.initState();
     // האזנה לשינויים במיקום הגלילה כדי לשמור את המיקום האחרון
     _itemPositionsListener.itemPositions.addListener(_updateLastScrollIndex);
+    widget.openFilterNotifier?.addListener(_onOpenFilterRequest);
+    widget.closeFilterNotifier?.addListener(_onCloseFilterRequest);
   }
 
   @override
@@ -209,10 +215,26 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
     });
   }
 
+  void _onOpenFilterRequest() {
+    setState(() {
+      _showCommentatorsFilter = true;
+      _userInteractedWithFilter = false;
+    });
+  }
+
+  void _onCloseFilterRequest() {
+    setState(() {
+      _showCommentatorsFilter = false;
+      _userInteractedWithFilter = false;
+    });
+  }
+
   @override
   void dispose() {
     _searchUpdateDebounce?.cancel();
     _itemPositionsListener.itemPositions.removeListener(_updateLastScrollIndex);
+    widget.openFilterNotifier?.removeListener(_onOpenFilterRequest);
+    widget.closeFilterNotifier?.removeListener(_onCloseFilterRequest);
     _searchController.dispose();
     _savedSelectedText.dispose();
     _lastSelectedLink.dispose();

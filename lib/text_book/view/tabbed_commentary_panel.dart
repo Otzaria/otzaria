@@ -21,6 +21,8 @@ class TabbedCommentaryPanel extends StatefulWidget {
   final int? initialTabIndex; // אינדקס הכרטיסייה הראשונית
   final Function(int)? onTabChanged; // callback כשהטאב משתנה
   final bool showSplitView; // האם במצב מפוצל (true) או מפרשים למטה (false)
+  final ValueNotifier<int>? openCommentatorsFilterNotifier;
+  final ValueNotifier<int>? closeCommentatorsFilterNotifier;
 
   const TabbedCommentaryPanel({
     super.key,
@@ -31,6 +33,8 @@ class TabbedCommentaryPanel extends StatefulWidget {
     this.initialTabIndex,
     this.onTabChanged,
     this.showSplitView = true,
+    this.openCommentatorsFilterNotifier,
+    this.closeCommentatorsFilterNotifier,
   });
 
   @override
@@ -165,6 +169,9 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
                       fontSize: widget.fontSize,
                       showSearch: widget.showSearch,
                       selectedCommentatorsOverride: state.activeCommentators,
+                      openFilterNotifier: widget.openCommentatorsFilterNotifier,
+                      closeFilterNotifier:
+                          widget.closeCommentatorsFilterNotifier,
                       onSelectedCommentatorsOverrideChanged: (commentators) {
                         context
                             .read<TextBookBloc>()

@@ -55,6 +55,7 @@ class CombinedView extends StatefulWidget {
     this.isPreviewMode = false,
     this.onOpenPersonalNotes,
     this.onOpenCommentatorsPane,
+    this.onOpenCommentatorsPaneWithFilter,
     this.onOpenLinksPane,
     this.isPaneOpen,
   });
@@ -69,6 +70,7 @@ class CombinedView extends StatefulWidget {
   final bool isPreviewMode;
   final VoidCallback? onOpenPersonalNotes;
   final VoidCallback? onOpenCommentatorsPane;
+  final VoidCallback? onOpenCommentatorsPaneWithFilter;
   final VoidCallback? onOpenLinksPane;
   final bool Function()? isPaneOpen;
 
@@ -326,7 +328,7 @@ class _CombinedViewState extends State<CombinedView> {
     return [
       AppContextMenuEntry(
         label: 'הצג את כל $groupName',
-        icon: groupActive ? FluentIcons.checkmark_24_regular : null,
+        isSelected: groupActive,
         onTap: () {
           _selectParagraphForContextMenu(paragraphIndex);
           final current = List<String>.from(st.activeCommentators);
@@ -346,7 +348,7 @@ class _CombinedViewState extends State<CombinedView> {
         final bool isActive = st.activeCommentators.contains(title);
         return AppContextMenuEntry(
           label: title,
-          icon: isActive ? FluentIcons.checkmark_24_regular : null,
+          isSelected: isActive,
           onTap: () {
             _selectParagraphForContextMenu(paragraphIndex);
             final current = List<String>.from(st.activeCommentators);
@@ -403,20 +405,31 @@ class _CombinedViewState extends State<CombinedView> {
     );
 
     final commentatorChildren = <AppContextMenuEntry>[
-      if (shouldShowOpenPaneEntry) ...[
+      if (shouldShowOpenPaneEntry)
         AppContextMenuEntry(
           label: 'פתח את חלונית המפרשים',
           icon: FluentIcons.panel_right_24_regular,
+          isHighlighted: true,
           onTap: () {
             _selectParagraphForContextMenu(paragraphIndex);
             _openCommentatorsPane(isAdding: true);
           },
         ),
+      if (widget.onOpenCommentatorsPaneWithFilter != null)
+        AppContextMenuEntry(
+          label: 'בחר מפרשים מרובים',
+          icon: FluentIcons.filter_24_regular,
+          isHighlighted: true,
+          onTap: () {
+            _selectParagraphForContextMenu(paragraphIndex);
+            widget.onOpenCommentatorsPaneWithFilter!();
+          },
+        ),
+      if (shouldShowOpenPaneEntry || widget.onOpenCommentatorsPaneWithFilter != null)
         const AppContextMenuEntry.divider(),
-      ],
       AppContextMenuEntry(
         label: 'הצג את כל המפרשים',
-        icon: allActive ? FluentIcons.checkmark_24_regular : null,
+        isSelected: allActive,
         onTap: () {
           _selectParagraphForContextMenu(paragraphIndex);
           context.read<TextBookBloc>().add(

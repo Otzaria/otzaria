@@ -43,6 +43,7 @@ class PdfCommentaryPanel extends StatefulWidget {
   final double fontSize;
   final VoidCallback? onClose;
   final int? initialTabIndex;
+  final ValueNotifier<int>? openFilterNotifier;
 
   const PdfCommentaryPanel({
     super.key,
@@ -53,6 +54,7 @@ class PdfCommentaryPanel extends StatefulWidget {
     required this.fontSize,
     this.onClose,
     this.initialTabIndex,
+    this.openFilterNotifier,
   });
 
   @override
@@ -147,7 +149,14 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       vsync: this,
       initialIndex: widget.initialTabIndex ?? 0,
     );
+    widget.openFilterNotifier?.addListener(_onOpenFilterRequest);
     _loadCommentatorGroups();
+  }
+
+  void _onOpenFilterRequest() {
+    if (mounted) {
+      setState(() => _showFilterTab = true);
+    }
   }
 
   Future<void> _loadCommentatorGroups() async {
@@ -217,6 +226,7 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
   @override
   void dispose() {
     _searchUpdateDebounce?.cancel();
+    widget.openFilterNotifier?.removeListener(_onOpenFilterRequest);
     _tabController.dispose();
     super.dispose();
   }

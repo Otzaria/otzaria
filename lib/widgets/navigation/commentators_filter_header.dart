@@ -18,7 +18,7 @@ class CommentatorsFilterHeader extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(FluentIcons.arrow_right_24_regular),
+            icon: const Icon(FluentIcons.arrow_left_24_regular),
             tooltip: 'חזרה למפרשים',
             onPressed: onBack,
           ),

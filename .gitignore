@@ -116,3 +116,5 @@ temp/
 seforim.db-shm
 .gitignore
 seforim.db-wal
+
+nuget.exe

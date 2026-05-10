@@ -52,6 +52,10 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
   bool _isHovering = false; // מצב ריחוף על הטאב
   final ValueNotifier<String?> _savedSelectedText =
       ValueNotifier<String?>(null); // טקסט נבחר לתפריט הקשר
+  final ValueNotifier<int> _openCommentatorsFilterNotifier =
+      ValueNotifier<int>(0);
+  final ValueNotifier<int> _closeCommentatorsFilterNotifier =
+      ValueNotifier<int>(0);
 
   @override
   void initState() {
@@ -237,6 +241,10 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                       onClosePane: _togglePane,
                       initialTabIndex: _currentTabIndex,
                       showSplitView: widget.showSplitView,
+                      openCommentatorsFilterNotifier:
+                          _openCommentatorsFilterNotifier,
+                      closeCommentatorsFilterNotifier:
+                          _closeCommentatorsFilterNotifier,
                       onTabChanged: (index) {
                         debugPrint(
                             'DEBUG: Tab changed to $index, showSplitView: ${widget.showSplitView}');
@@ -275,8 +283,21 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                       onOpenCommentatorsPane: () {
                         setState(() {
                           _paneOpen = true;
+                        });
+                        Future.delayed(const Duration(milliseconds: 280), () {
+                          if (!mounted) return;
+                          _closeCommentatorsFilterNotifier.value++;
+                          setState(() {
+                            _currentTabIndex = 0;
+                          });
+                        });
+                      },
+                      onOpenCommentatorsPaneWithFilter: () {
+                        setState(() {
+                          _paneOpen = true;
                           _currentTabIndex = 0;
                         });
+                        _openCommentatorsFilterNotifier.value++;
                       },
                       onOpenLinksPane: () {
                         setState(() {
