@@ -848,7 +848,9 @@ PopupMenuEntry<T> buildAppSubmenuPopupMenuItem<T>({
                 final renderBox =
                     innerContext.findRenderObject() as RenderBox?;
                 if (renderBox == null) return;
-                final overlay = Overlay.of(innerContext)
+                final overlayState = Overlay.maybeOf(innerContext);
+                if (overlayState == null) return;
+                final overlay = overlayState.context.findRenderObject() as RenderBox;
                     .context
                     .findRenderObject() as RenderBox;
                 final overlaySize = overlay.size;
