@@ -1651,7 +1651,9 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       ActionButtonData(
         widget: const SizedBox.shrink(),
         icon: FluentIcons.link_24_regular,
-        tooltip: 'העתק קישור ישיר',
+        tooltip: state.book.id != null
+            ? 'העתק קישור ישיר'
+            : 'העתק קישור ישיר (לא זמין לספר זה)',
         onPressed: null,
         submenuItems: [
           ActionButtonData(
