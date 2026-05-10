@@ -3664,7 +3664,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   String _buildBookLink(int bookId) => 'otzaria://open/book/$bookId';
 
   String _buildSectionLink(int bookId, int index) =>
-      'otzaria://open/book/$bookId?index=${index.clamp(0, double.maxFinite.toInt())}';
+      'otzaria://open/book/$bookId?index=${index < 0 ? 0 : index}';
 
   Future<void> _copyLinkToClipboard(String url) async {
     await Clipboard.setData(ClipboardData(text: url));
