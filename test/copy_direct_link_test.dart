@@ -2,12 +2,8 @@
 // Feature: copy-direct-link, Property 1: book link format
 // Feature: copy-direct-link, Property 2: section link format
 
+import 'package:otzaria/utils/book_link_builder.dart';
 import 'package:test/test.dart';
-
-// הלוגיקה הטהורה — מועתקת מ-link_helpers.dart לצורך בדיקה ללא תלות ב-Flutter
-String buildBookLink(int bookId) => 'otzaria://open/book/$bookId';
-String buildSectionLink(int bookId, int index) =>
-    'otzaria://open/book/$bookId?index=${index < 0 ? 0 : index}';
 
 void main() {
   group('copy-direct-link — buildBookLink', () {
@@ -78,10 +74,8 @@ void main() {
         for (int index = -5; index <= 50; index += 5) {
           final link = buildSectionLink(bookId, index);
           final expectedIndex = index < 0 ? 0 : index;
-          expect(
-              link,
-              equals(
-                  'otzaria://open/book/$bookId?index=$expectedIndex'),
+          expect(link,
+              equals('otzaria://open/book/$bookId?index=$expectedIndex'),
               reason: 'bookId=$bookId, index=$index');
         }
       }

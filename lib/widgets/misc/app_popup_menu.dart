@@ -847,27 +847,15 @@ PopupMenuEntry<T> buildAppSubmenuPopupMenuItem<T>({
         ),
         menuChildren: menuChildren,
         style: buildAppSubmenuItemStyle(context, metrics),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: metrics.iconSize),
-              const SizedBox(width: 8),
-            ],
-            Text(
-              label,
-              textDirection: TextDirection.rtl,
-              style: TextStyle(
-                fontSize: metrics.fontSize,
-                fontWeight: metrics.itemFontWeight,
-              ),
-            ),
-            const SizedBox(width: 4),
-            Icon(
-              FluentIcons.chevron_right_24_regular,
-              size: metrics.iconSize * 0.75,
-            ),
-          ],
+        child: buildAppMenuRowContent(
+          context,
+          metrics,
+          label: label,
+          icon: icon,
+          trailing: Icon(
+            FluentIcons.chevron_right_24_regular,
+            size: metrics.iconSize * 0.75,
+          ),
         ),
       ),
     ),
