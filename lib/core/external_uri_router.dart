@@ -34,6 +34,15 @@ class OpenBookAction extends ExternalUriAction {
   });
 }
 
+/// פתיחת ספר PDF לפי מזהה משותף עם ה-TextBook ב-DB.
+///
+/// [page] — מספר עמוד התחלתי (אופציונלי).
+class OpenPdfBookAction extends ExternalUriAction {
+  final int bookId;
+  final int? page;
+  const OpenPdfBookAction(this.bookId, {this.page});
+}
+
 /// בקשת התקנה של תוסף ממאגר חיצוני.
 class InstallPluginAction extends ExternalUriAction {
   final PluginStoreInstallRequest request;
@@ -59,9 +68,11 @@ class RunSearchAction extends ExternalUriAction {
 /// * `otzaria://open/settings`              – הגדרות
 /// * `otzaria://open/tools`                 – מסך הכלים
 /// * `otzaria://open/tool/<tool-id>`        – לשונית כלי לפי מזהה מלא
-/// * `otzaria://open/book/<id>`             – פתיחת ספר בעיון לפי מזהה DB
+/// * `otzaria://open/book/<id>`             – פתיחת ספר טקסט בעיון לפי מזהה DB
 ///   - `?index=<n>` קפיצה לסעיף התחלתי (n >= 0)
 ///   - `?q=<text>`  מחרוזת חיפוש להדגשה
+/// * `otzaria://open/pdf/<id>`              – פתיחת ספר PDF לפי מזהה DB (משותף עם TextBook)
+///   - `?index=<n>` קפיצה לעמוד התחלתי (n >= 0)
 /// * `otzaria://plugin/install?url=<download>` – התקנת תוסף
 ///   - `&overwrite=true|false` דריסת תוסף קיים
 ///
@@ -155,6 +166,20 @@ class ExternalUriRouter {
         index: index,
         searchQuery: searchQuery,
       );
+    }
+
+    if (segments.length == 2 && firstLower == 'pdf') {
+      final bookId = int.tryParse(segments[1].trim());
+      if (bookId == null || bookId <= 0) {
+        return null;
+      }
+
+      final indexParam = uri.queryParameters['index']?.trim();
+      final parsedIndex =
+          indexParam == null || indexParam.isEmpty ? null : int.tryParse(indexParam);
+      final page = (parsedIndex != null && parsedIndex >= 0) ? parsedIndex : null;
+
+      return OpenPdfBookAction(bookId, page: page);
     }
 
     return null;

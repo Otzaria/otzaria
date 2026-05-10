@@ -575,6 +575,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
           index: index,
           searchQuery: searchQuery,
         ));
+      case OpenPdfBookAction(:final bookId, :final page):
+        unawaited(_openPdfBookByExternalId(bookId, page: page));
       case InstallPluginAction(:final request):
         context.read<NavigationBloc>().add(const NavigateToScreen(Screen.more));
         context.read<PluginSystemBloc>().add(
@@ -610,6 +612,19 @@ class MainWindowScreenState extends State<MainWindowScreen>
       return;
     }
     openBook(context, book, index ?? 0, searchQuery ?? '');
+  }
+
+  Future<void> _openPdfBookByExternalId(int bookId, {int? page}) async {
+    final library = await DataRepository.instance.library;
+    if (!mounted) return;
+    final book = library.getAllBooks().firstWhereOrNull(
+          (b) => b is PdfBook && b.id == bookId,
+        );
+    if (book == null) {
+      UiSnack.showError('ספר ה-PDF עם המזהה $bookId לא נמצא בספרייה');
+      return;
+    }
+    openBook(context, book, page ?? 1, '');
   }
 
   void _openToolWhenAvailable(String toolId, {int attemptsLeft = 6}) {

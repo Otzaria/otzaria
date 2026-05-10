@@ -3597,7 +3597,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                     icon: FluentIcons.link_24_regular,
                     tooltip: 'העתק קישור ישיר לספר זה',
                     onPressed: () =>
-                        copyLinkToClipboard(buildBookLink(bookId)),
+                        copyLinkToClipboard(buildPdfBookLink(bookId)),
                   ),
                   ActionButtonData(
                     widget: const SizedBox.shrink(),
@@ -3607,7 +3607,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                       final page =
                           widget.tab.pdfViewerController.pageNumber ??
                               widget.tab.pageNumber;
-                      copyLinkToClipboard(buildSectionLink(bookId, page));
+                      copyLinkToClipboard(buildPdfPageLink(bookId, page));
                     },
                   ),
                 ];
