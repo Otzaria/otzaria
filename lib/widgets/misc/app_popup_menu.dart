@@ -868,6 +868,10 @@ PopupMenuEntry<T> buildAppSubmenuPopupMenuItem<T>({
           );
           if (selected != null) {
             onSelected?.call(selected);
+            // סגור גם את התפריט הראשי
+            if (innerContext.mounted) {
+              Navigator.of(innerContext).pop();
+            }
           }
         },
         borderRadius: BorderRadius.circular(metrics.itemBorderRadius),
