@@ -229,31 +229,28 @@ class _ResponsiveActionBarState extends State<ResponsiveActionBar> {
               // אם יש submenuItems, נבנה תת-תפריט
               if (action.submenuItems != null &&
                   action.submenuItems!.isNotEmpty) {
+                final subEntries = action.submenuItems!
+                    .map((subAction) => buildAppPopupMenuItem<ActionButtonData>(
+                          context,
+                          AppMenuEntry<ActionButtonData>(
+                            value: subAction,
+                            label: subAction.tooltip ?? '',
+                            icon: subAction.icon,
+                            enabled: subAction.onPressed != null,
+                          ),
+                          menuMetrics,
+                          null,
+                          key: widget.menuItemKeysByTooltip?[
+                              subAction.tooltip ?? ''],
+                        ))
+                    .toList();
                 return buildAppSubmenuPopupMenuItem<ActionButtonData>(
                   context: context,
                   metrics: menuMetrics,
                   label: action.tooltip ?? '',
                   icon: action.icon,
-                  menuChildren: action.submenuItems!.map((subAction) {
-                    return MenuItemButton(
-                      leadingIcon: subAction.icon != null
-                          ? Icon(subAction.icon, size: menuMetrics.iconSize)
-                          : null,
-                      style: buildAppSubmenuItemStyle(context, menuMetrics),
-                      onPressed: () {
-                        Navigator.of(context).pop(); // סוגר את התפריט הראשי
-                        subAction.onPressed?.call();
-                      },
-                      child: KeyedSubtree(
-                        key: widget
-                            .menuItemKeysByTooltip?[subAction.tooltip ?? ''],
-                        child: Text(
-                          subAction.tooltip ?? '',
-                          textDirection: TextDirection.rtl,
-                        ),
-                      ),
-                    );
-                  }).toList(),
+                  menuChildren: subEntries,
+                  onSelected: (subAction) => subAction.onPressed?.call(),
                 );
               }
 

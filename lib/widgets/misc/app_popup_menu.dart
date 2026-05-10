@@ -833,20 +833,44 @@ PopupMenuEntry<T> buildAppSubmenuPopupMenuItem<T>({
   required AppMenuMetrics metrics,
   required String label,
   IconData? icon,
-  required List<Widget> menuChildren,
+  required List<PopupMenuEntry<T>> menuChildren,
+  ValueChanged<T>? onSelected,
 }) {
   return buildAppCustomPopupMenuItem<T>(
     context: context,
     metrics: metrics,
-    child: Directionality(
-      textDirection: TextDirection.rtl,
-      child: SubmenuButton(
-        alignmentOffset: const Offset(0, -8),
-        menuStyle: const MenuStyle(
-          alignment: AlignmentDirectional.topEnd,
-        ),
-        menuChildren: menuChildren,
-        style: buildAppSubmenuItemStyle(context, metrics),
+    child: Builder(
+      builder: (innerContext) => InkWell(
+        onTap: () async {
+          final renderBox =
+              innerContext.findRenderObject() as RenderBox?;
+          if (renderBox == null) return;
+          final overlay = Overlay.of(innerContext)
+              .context
+              .findRenderObject() as RenderBox;
+          final itemRect = MatrixUtils.transformRect(
+            renderBox.getTransformTo(overlay),
+            Offset.zero & renderBox.size,
+          );
+          // פתח תפריט חדש לצד ימין של הפריט, בלי לסגור את הראשי
+          final selected = await showMenu<T>(
+            context: innerContext,
+            position: RelativeRect.fromRect(
+              Rect.fromLTWH(
+                itemRect.right,
+                itemRect.top,
+                0,
+                0,
+              ),
+              Offset.zero & overlay.size,
+            ),
+            items: menuChildren,
+          );
+          if (selected != null) {
+            onSelected?.call(selected);
+          }
+        },
+        borderRadius: BorderRadius.circular(metrics.itemBorderRadius),
         child: buildAppMenuRowContent(
           context,
           metrics,
