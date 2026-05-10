@@ -180,6 +180,8 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
   void dispose() {
     _controller.dispose();
     _savedSelectedText.dispose();
+    _openCommentatorsFilterNotifier.dispose();
+    _closeCommentatorsFilterNotifier.dispose();
     super.dispose();
   }
 

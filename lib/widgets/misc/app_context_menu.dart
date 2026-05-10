@@ -874,9 +874,10 @@ class _HoverableHighlightedRow extends StatelessWidget {
     final primary = colorScheme.primary;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-      child: GestureDetector(
+      child: InkWell(
         onTap: onTap,
-        child: Container(
+        borderRadius: BorderRadius.circular(8),
+        child: Ink(
           height: metrics.itemHeight,
           padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(

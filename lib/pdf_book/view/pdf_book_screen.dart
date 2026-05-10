@@ -2339,6 +2339,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     _pdfViewFocusNode.dispose();
     _settingsSub.cancel();
     _bloc.close();
+    _openPdfFilterNotifier.dispose();
 
     // לא מוחקים את הקובץ הזמני - הוא משותף בין tabs
     // הקבצים יימחקו אוטומטית כשהמערכת תנקה את temp directory
