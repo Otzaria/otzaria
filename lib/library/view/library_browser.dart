@@ -940,7 +940,8 @@ class _LibraryBrowserState extends State<LibraryBrowser>
           child: _buildSearchResultsGrid(books, displayLimit),
         );
       }
-      final categoryItems = _buildCategoryContent(state.currentCategory!);
+      final categoryItems =
+          _buildCategoryContent(state.currentCategory!, settingsState);
       if (categoryItems.isEmpty) {
         final repo = context.read<FocusRepository>();
         return Center(
@@ -964,7 +965,10 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     return _buildListView(state.currentCategory!);
   }
 
-  List<Widget> _buildCategoryContent(Category category) {
+  List<Widget> _buildCategoryContent(
+    Category category,
+    SettingsState settingsState,
+  ) {
     final List<Widget> items = [];
     final filteredBooks = category.books.toList();
     final filteredSubCategories = category.subCategories.toList();
@@ -979,20 +983,33 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       );
     }
 
-    final allItems = <Widget>[
-      ...filteredSubCategories.map(
-        (c) => KeyedSubtree(
-          key: _tourCategoryKeys.putIfAbsent(c.path, GlobalKey.new),
-          child: CategoryGridItem(
-            category: c,
-            onCategoryClickCallback: () => _openCategory(c),
+    final autoExpandSubcategories =
+        settingsState.libraryAutoExpandSubcategories && category is! Library;
+    final allItems = <Widget>[];
+
+    if (autoExpandSubcategories) {
+      allItems.addAll(filteredBooks.map(_buildBookItem));
+      for (final subCategory in filteredSubCategories) {
+        allItems.add(Center(child: HeaderItem(category: subCategory)));
+        allItems.addAll(_buildExpandedSubcategoryItems(subCategory));
+      }
+    } else {
+      allItems.addAll(
+        filteredSubCategories.map(
+          (c) => KeyedSubtree(
+            key: _tourCategoryKeys.putIfAbsent(c.path, GlobalKey.new),
+            child: CategoryGridItem(
+              category: c,
+              onCategoryClickCallback: () => _openCategory(c),
+            ),
           ),
         ),
-      ),
-    ];
+      );
+    }
 
     var attachedTourKey = false;
-    for (final book in filteredBooks) {
+    for (final book
+        in autoExpandSubcategories ? const <Book>[] : filteredBooks) {
       final item = _buildBookItem(book);
       final isTourBook = _tourPreviewBook != null &&
           !attachedTourKey &&
@@ -1011,6 +1028,25 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     }
     items.add(MyGridView(items: allItems));
     return items;
+  }
+
+  Iterable<Widget> _buildExpandedSubcategoryItems(Category category) {
+    final books = category.books.toList()
+      ..sort((a, b) => a.order.compareTo(b.order));
+    final subCategories = category.subCategories.toList()
+      ..sort(
+        (a, b) => _normalizeOrder(a.order).compareTo(_normalizeOrder(b.order)),
+      );
+
+    return [
+      ...subCategories.map(
+        (c) => CategoryGridItem(
+          category: c,
+          onCategoryClickCallback: () => _openCategory(c),
+        ),
+      ),
+      ...books.map(_buildBookItem),
+    ];
   }
 
   Widget _buildBookItem(

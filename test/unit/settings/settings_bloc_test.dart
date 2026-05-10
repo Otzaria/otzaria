@@ -57,6 +57,7 @@ void main() {
         'isFullscreen': false,
         'libraryViewMode': 'grid',
         'libraryShowPreview': true,
+        'libraryAutoExpandSubcategories': true,
         'enablePerBookSettings': true,
         'pdfBookViewByDefault': false,
         'shortcuts': <String, String>{},
@@ -110,6 +111,8 @@ void main() {
             isFullscreen: mockSettings['isFullscreen'] as bool,
             libraryViewMode: mockSettings['libraryViewMode'] as String,
             libraryShowPreview: mockSettings['libraryShowPreview'] as bool,
+            libraryAutoExpandSubcategories:
+                mockSettings['libraryAutoExpandSubcategories'] as bool,
             shortcuts: const {},
             enablePerBookSettings:
                 mockSettings['enablePerBookSettings'] as bool,
@@ -299,6 +302,22 @@ void main() {
         ],
         verify: (_) {
           verify(mockRepository.updateAutoSyncCatalogs(true)).called(1);
+        },
+      );
+    });
+
+    group('UpdateLibraryAutoExpandSubcategories', () {
+      blocTest<SettingsBloc, SettingsState>(
+        'emits updated state when UpdateLibraryAutoExpandSubcategories is added',
+        build: () => settingsBloc,
+        act: (bloc) =>
+            bloc.add(const UpdateLibraryAutoExpandSubcategories(false)),
+        expect: () => [
+          settingsBloc.state.copyWith(libraryAutoExpandSubcategories: false),
+        ],
+        verify: (_) {
+          verify(mockRepository.updateLibraryAutoExpandSubcategories(false))
+              .called(1);
         },
       );
     });

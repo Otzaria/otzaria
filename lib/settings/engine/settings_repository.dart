@@ -41,6 +41,8 @@ class SettingsRepository {
   static const String keyIsFullscreen = 'key-is-fullscreen';
   static const String keyLibraryViewMode = 'key-library-view-mode';
   static const String keyLibraryShowPreview = 'key-library-show-preview';
+  static const String keyLibraryAutoExpandSubcategories =
+      'key-library-auto-expand-subcategories';
   static const String keyEnablePerBookSettings = 'key-enable-per-book-settings';
   static const String keyPdfBookViewByDefault = 'key-pdf-book-view-by-default';
   static const String keyOfflineMode = 'key-offline-mode';
@@ -231,6 +233,10 @@ class SettingsRepository {
       ),
       'libraryShowPreview': _settings.getValue<bool>(
         keyLibraryShowPreview,
+        defaultValue: true,
+      ),
+      'libraryAutoExpandSubcategories': _settings.getValue<bool>(
+        keyLibraryAutoExpandSubcategories,
         defaultValue: true,
       ),
       'shortcuts': await getShortcuts(),
@@ -467,6 +473,10 @@ class SettingsRepository {
 
   Future<void> updateLibraryShowPreview(bool value) async {
     await _settings.setValue(keyLibraryShowPreview, value);
+  }
+
+  Future<void> updateLibraryAutoExpandSubcategories(bool value) async {
+    await _settings.setValue(keyLibraryAutoExpandSubcategories, value);
   }
 
   Future<void> updateEnablePerBookSettings(bool value) async {
@@ -751,6 +761,7 @@ class SettingsRepository {
     await _settings.setValue(keyIsFullscreen, false);
     await _settings.setValue(keyLibraryViewMode, 'grid');
     await _settings.setValue(keyLibraryShowPreview, true);
+    await _settings.setValue(keyLibraryAutoExpandSubcategories, true);
     await _settings.setValue(keyEnablePerBookSettings, false);
     await _settings.setValue(keyPdfBookViewByDefault, false);
     await _settings.setValue(keySoftwareAndBookUpdatesEnabled, true);

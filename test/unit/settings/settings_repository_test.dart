@@ -256,6 +256,15 @@ void main() {
           .called(1);
     });
 
+    test(
+        'updateLibraryAutoExpandSubcategories calls setValue on settings wrapper',
+        () async {
+      await repository.updateLibraryAutoExpandSubcategories(false);
+      verify(mockSettingsWrapper.setValue(
+              SettingsRepository.keyLibraryAutoExpandSubcategories, false))
+          .called(1);
+    });
+
     test('loadSettings initializes defaults when fontFamily is null', () async {
 // Setup mock to return null for fontFamily (indicating first launch)
       when(mockSettingsWrapper.getValue<String?>(

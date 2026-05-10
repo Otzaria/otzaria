@@ -51,6 +51,14 @@ class LibrarySettingsTab extends StatefulWidget {
       keywords: ['hebrewbooks', 'היברובוקס'],
     ),
     SettingsSearchEntry(
+      id: 'library.display.auto_expand_subcategories',
+      title: 'פתח תיקיות פנימיות אוטומטית',
+      subtitle: 'בחירה האם קטגוריה מציגה את תוכן התיקיות שבתוכה',
+      tab: SettingsTab.library,
+      cardId: 'library.display',
+      keywords: ['תיקיות', 'קטגוריות', 'פתיחה אוטומטית'],
+    ),
+    SettingsSearchEntry(
       id: 'library.custom_folders',
       title: 'תיקיות מותאמות אישית',
       subtitle: 'הוסף תיקיות ספרים נוספות',

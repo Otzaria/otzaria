@@ -66,6 +66,23 @@ class LibrarySettingsPanel extends StatelessWidget {
                         .add(UpdateLibraryShowPreview(value));
                   },
                 ),
+                SwitchSettingsTile(
+                  leading: const Icon(FluentIcons.folder_open_24_regular),
+                  title: const Text('פתח תיקיות פנימיות אוטומטית',
+                      style: kSettingsTitleStyle),
+                  subtitle: Text(
+                    state.libraryAutoExpandSubcategories
+                        ? 'כניסה לקטגוריה תציג גם את תוכן התיקיות שבתוכה'
+                        : 'כניסה לקטגוריה תשאיר את התיקיות שבתוכה סגורות',
+                    style: kSettingsSubtitleStyle,
+                  ),
+                  value: state.libraryAutoExpandSubcategories,
+                  onChanged: (value) {
+                    context.read<SettingsBloc>().add(
+                          UpdateLibraryAutoExpandSubcategories(value),
+                        );
+                  },
+                ),
               ],
             ),
 
