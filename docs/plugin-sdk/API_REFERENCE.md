@@ -1258,6 +1258,67 @@ async function scheduleReminder(title, body, dateTime) {
 }
 ```
 
+---
+
+## ⚠️ הרשאת `network.access` — דרישה מיוחדת: PR לאוצריא
+
+הצהרה על ההרשאה `network.access` ב-`manifest.json` **אינה מספיקה** כדי שתוסף יוכל לגשת לרשת. בפועל, רשימת ה-URLs המאושרים מנוהלת **בקוד אוצריא עצמו** ולא במניפסט של התוסף — בקובץ:
+
+[`lib/plugins/models/plugin_network_allowlist.dart`](../../lib/plugins/models/plugin_network_allowlist.dart) → הקבוע `pluginNetworkAllowlist`.
+
+### תהליך הוספת URL חדש
+
+כל תוסף שזקוק לגישה ל-URL כלשהו ברשת **חייב לפתוח Pull Request** למאגר אוצריא שמוסיף את ה-URLs הרלוונטיים לקובץ הנ"ל. ללא PR שאושר ומוזג — ה-URL ייחסם ב-runtime עם `403 Forbidden`, גם אם המשתמש אישר את הרשאת `network.access`.
+
+### חובה: כתובות מדויקות בלבד
+
+חובה לכלול **כתובות URL מדויקות ומלאות**, ולא דומיינים גנריים:
+
+✅ **נכון** — כתובת מדויקת לנתיב הספציפי הנדרש:
+```dart
+const List<String> pluginNetworkAllowlist = <String>[
+  'https://api.example.com/v1/specific-endpoint',
+  'https://github.com/Otzaria/otzaria-library',
+  'https://raw.githubusercontent.com/MyOrg/my-plugin-data/main',
+];
+```
+
+❌ **אסור** — כתובות גנריות שמתירות גישה רחבה מדי:
+```dart
+const List<String> pluginNetworkAllowlist = <String>[
+  'https://github.com',          // ❌ פותח את כל גיטהאב
+  'https://api.example.com',     // ❌ פותח את כל ה-API
+  'https://googleapis.com',      // ❌ פותח את כל שירותי גוגל
+];
+```
+
+### איך ההתאמה עובדת
+
+ההתאמה היא **תואמת קידומת** — URL מאושר אם הוא:
+- שווה בדיוק לקידומת ברשימה, **או**
+- מתחיל בקידומת ואחריה אחד מ-`/`, `?`, `#`.
+
+לדוגמה, אם ברשימה מופיע `https://github.com/Otzaria/otzaria-library`:
+
+| URL | מאושר? |
+|-----|--------|
+| `https://github.com/Otzaria/otzaria-library` | ✅ |
+| `https://github.com/Otzaria/otzaria-library/releases/latest` | ✅ |
+| `https://github.com/Otzaria/otzaria-library?tab=readme` | ✅ |
+| `https://github.com/` | ❌ (נתיב הורה) |
+| `https://github.com/Otzaria/another-repo` | ❌ (נתיב אחר תחת אותו דומיין) |
+| `https://github.com/Otzaria/otzaria-library2` | ❌ (קידומת תואמת חלקית — לא מסתיימת בגבול נתיב) |
+
+### תוכן ה-PR שיש לפתוח
+
+ב-PR יש לכלול:
+
+1. **את ה-URLs המדויקים** (כולל scheme `https://`, host, ונתיב מלא ככל האפשר).
+2. **שם התוסף** ומזההו (`id` מה-manifest).
+3. **הסבר קצר** למה התוסף זקוק לכל URL — לאיזה תכלית, ואילו נתונים עוברים.
+4. **קישור למאגר התוסף** או ל-manifest שלו, כדי שניתן יהיה לאמת.
+
+> **עיקרון:** רוצה לאשר רק את הנתיבים המינימליים שהתוסף באמת צריך. אם בעתיד נדרש URL נוסף — יש לפתוח PR נוסף.
 
 ---
 

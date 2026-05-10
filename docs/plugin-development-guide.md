@@ -138,8 +138,8 @@ my-plugin/
 | `homepage` | `""` | כתובת לדף הבית של התוסף, למשל עמוד GitHub, תיעוד, או אתר פרויקט |
 | `icon` | `null` | נתיב לאייקון (PNG, 64×64 מומלץ) |
 | `maxAppVersion` | `null` | גרסת אוצריא המקסימלית הנתמכת |
-| `network.enabled` | `false` | האם לאפשר גישה לרשת |
-| `network.allowlist` | `[]` | רשימת domains מותרים (נדרש אם `enabled: true`) |
+| `network.enabled` | `false` | האם להצהיר על שימוש ברשת (חובה כדי להפעיל את מנגנון הרשת בתוסף) |
+| `network.allowlist` | `[]` | **שדה הצהרתי בלבד** — לתיעוד/שקיפות מול המשתמש. רשימת ה-URLs שאליהם תוסף יכול לגשת בפועל מנוהלת אך ורק על-ידי אוצריא בקוד (`pluginNetworkAllowlist` ב-[`lib/plugins/models/plugin_network_allowlist.dart`](../lib/plugins/models/plugin_network_allowlist.dart)). הצהרה ב-manifest **אינה** מעניקה גישה. |
 | `contributes.toolTab.title` | שם התוסף | כותרת הטאב |
 | `contributes.toolTab.order` | `900` | סדר הופעה בטאבים (מספר נמוך = קודם) |
 | `contributes.toolTab.defaultPinned` | `true` | האם להצמיד אוטומטית בהתקנה |
@@ -448,7 +448,7 @@ const { data: keys } = await Otzaria.call('storage.list');
 | `plugin.storage.write` | כתיבה ל-storage פרטי |
 | `published_data.write` | פרסום נתונים לאפליקציה |
 | `ui.feedback` | הצגת הודעות ודיאלוגים |
-| `network.access` | גישה לרשת (דורש `network.enabled: true` + allowlist) |
+| `network.access` | גישה לרשת (דורש `network.enabled: true` במניפסט + שה-URL מופיע ב-allowlist הגלובלי של אוצריא בקוד) |
 
 > **עיקרון מינימום הרשאות:** בקש רק את מה שאתה צריך בפועל.
 
@@ -474,8 +474,13 @@ const { data: keys } = await Otzaria.call('storage.list');
 
 ### רשת
 - חסומה כברירת מחדל
-- כדי לאפשר: `network.enabled: true` + `network.allowlist: ["api.example.com"]`
-- רק domains שב-allowlist מותרים
+- כדי שתוסף יוכל לגשת לרשת חייבות להתקיים **שלוש שכבות** במצטבר:
+  1. **הצהרה במניפסט** — `network.enabled: true` (וגם `network.access` ב-`permissions`).
+  2. **אישור המשתמש** — המשתמש אישר את הרשאת `network.access` בעת ההתקנה.
+  3. **רשימת ה-URLs המאושרים בקוד אוצריא** — ה-URL חייב להיות תואם קידומת לאחד מהערכים ב-`pluginNetworkAllowlist` בקובץ [`lib/plugins/models/plugin_network_allowlist.dart`](../lib/plugins/models/plugin_network_allowlist.dart). זוהי **שכבת האבטחה הקשה** — היא לא ניתנת לעקיפה ע"י הצהרת התוסף.
+- ההתאמה היא **התאמת קידומת מלאה** — אם ברשימה רשום `https://github.com/Otzaria/otzaria-library`, יותרו רק URLs שמתחילים במחרוזת זו (ואחריה `/`, `?`, `#` או סוף המחרוזת). `https://github.com/` או `https://github.com/Otzaria/another-repo` ייחסמו.
+- ה-`network.allowlist` במניפסט הוא **שדה הצהרתי בלבד** — שימושי לשקיפות מול המשתמש בעת ההתקנה, אך אינו מעניק גישה בפועל.
+- אם תוסף מבקש גישה ל-URL שאינו ב-allowlist הגלובלי, יש לפנות למתחזקי אוצריא בבקשה להוסיף אותו.
 
 ### window.open
 חסום לחלוטין מטעמי אבטחה.
@@ -635,5 +640,5 @@ zip -r hebrew-calendar-demo.otzplugin \
 
 ## תמיכה
 
-- GitHub Issues: https://github.com/Sivan22/otzaria/issues
+- GitHub Issues: https://github.com/Otzaria/otzaria/issues
 - תג: `plugin-sdk`
