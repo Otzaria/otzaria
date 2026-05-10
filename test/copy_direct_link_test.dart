@@ -10,7 +10,7 @@ import 'package:test/test.dart';
 String buildBookLink(int bookId) => 'otzaria://open/book/$bookId';
 
 String buildSectionLink(int bookId, int index) =>
-    'otzaria://open/book/$bookId?index=${index.clamp(0, double.maxFinite.toInt())}';
+    'otzaria://open/book/$bookId?index=${index < 0 ? 0 : index}';
 
 void main() {
   group('copy-direct-link — buildBookLink', () {
