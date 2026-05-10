@@ -1,5 +1,5 @@
-/// לוגיקה טהורה לבניית קישורי deep link לספרים.
-/// קובץ זה אינו תלוי ב-Flutter ולכן ניתן לבדיקה עם dart test רגיל.
+// לוגיקה טהורה לבניית קישורי deep link לספרים.
+// קובץ זה אינו תלוי ב-Flutter ולכן ניתן לבדיקה עם dart test רגיל.
 
 /// בניית קישור ישיר לספר לפי מזהה
 String buildBookLink(int bookId) => 'otzaria://open/book/$bookId';
