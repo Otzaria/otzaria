@@ -37,6 +37,8 @@
 | `otzaria://open/book/<id>` | פותח ספר בעיון לפי מזהה מסד הנתונים |
 | `otzaria://open/book/<id>?index=<n>` | פותח את הספר בסעיף `n` (אינדקס לא שלילי). |
 | `otzaria://open/book/<id>?q=<text>` | פותח את הספר עם מחרוזת חיפוש להדגשה. ניתן לשלב עם `index`. |
+| `otzaria://open/pdf/<id>` | פותח ספר PDF לפי מזהה משותף עם ה-TextBook במסד הנתונים |
+| `otzaria://open/pdf/<id>?index=<n>` | פותח את ספר ה-PDF בעמוד `n` (מספר עמוד חיובי). |
 
 **דוגמאות:**
 
@@ -50,6 +52,8 @@ otzaria://open/book/1234?index=42
 otzaria://open/book/1234?q=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA
 otzaria://open/book/1234?index=42&q=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA
 otzaria://open/search?q=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA
+otzaria://open/pdf/120
+otzaria://open/pdf/120?index=17
 ```
 
 **הערות על קידוד:** טקסט בעברית ב‑`q=` חייב להיות URL‑encoded (UTF‑8). ערך `index` שלילי או לא מספרי מתעלם — הספר ייפתח בתחילתו. `q=` ריק מתעלם.
