@@ -836,9 +836,11 @@ PopupMenuEntry<T> buildAppSubmenuPopupMenuItem<T>({
   required List<PopupMenuEntry<T>> menuChildren,
   ValueChanged<T>? onSelected,
 }) {
+  final isRtl = Directionality.of(context) == TextDirection.rtl;
   return buildAppCustomPopupMenuItem<T>(
     context: context,
     metrics: metrics,
+    enabled: true,
     child: Builder(
       builder: (innerContext) => InkWell(
         onTap: () async {
@@ -848,21 +850,19 @@ PopupMenuEntry<T> buildAppSubmenuPopupMenuItem<T>({
           final overlay = Overlay.of(innerContext)
               .context
               .findRenderObject() as RenderBox;
+          final overlaySize = overlay.size;
           final itemRect = MatrixUtils.transformRect(
             renderBox.getTransformTo(overlay),
             Offset.zero & renderBox.size,
           );
-          // פתח תפריט חדש לצד ימין של הפריט, בלי לסגור את הראשי
+          // פתח תפריט לצד המתאים — ימין ב-LTR, שמאל ב-RTL
+          // אם אין מקום, Flutter יתאים אוטומטית
+          final double xPos = isRtl ? itemRect.left : itemRect.right;
           final selected = await showMenu<T>(
             context: innerContext,
             position: RelativeRect.fromRect(
-              Rect.fromLTWH(
-                itemRect.right,
-                itemRect.top,
-                0,
-                0,
-              ),
-              Offset.zero & overlay.size,
+              Rect.fromLTWH(xPos, itemRect.top, 0, 0),
+              Offset.zero & overlaySize,
             ),
             items: menuChildren,
           );
@@ -881,7 +881,9 @@ PopupMenuEntry<T> buildAppSubmenuPopupMenuItem<T>({
           label: label,
           icon: icon,
           trailing: Icon(
-            FluentIcons.chevron_right_24_regular,
+            isRtl
+                ? FluentIcons.chevron_left_24_regular
+                : FluentIcons.chevron_right_24_regular,
             size: metrics.iconSize * 0.75,
           ),
         ),
