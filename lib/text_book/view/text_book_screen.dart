@@ -1670,13 +1670,15 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             widget: const SizedBox.shrink(),
             icon: FluentIcons.link_multiple_24_regular,
             tooltip: 'העתק קישור ישיר למקטע זה',
-            onPressed: () {
-              final index =
-                  state.positionsListener.itemPositions.value.isNotEmpty
-                      ? state.positionsListener.itemPositions.value.first.index
-                      : 0;
-              _copyLinkToClipboard(_buildSectionLink(state.book.id ?? 0, index));
-            },
+            onPressed: state.book.id != null
+                ? () {
+                    final index =
+                        state.positionsListener.itemPositions.value.isNotEmpty
+                            ? state.positionsListener.itemPositions.value.first.index
+                            : 0;
+                    _copyLinkToClipboard(_buildSectionLink(state.book.id!, index));
+                  }
+                : null,
           ),
         ],
       ),
