@@ -444,14 +444,13 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
     final targetIndex =
         (lineNumber - 1).clamp(0, state.content.length - 1).toInt();
 
-    final settingsState = context.read<SettingsBloc>().state;
     await scrollToSourceLine(
       scrollController: state.scrollController,
       scrollOffsetController: widget.scrollOffsetController,
       positionsListener: state.positionsListener,
       segments: buildReadingSegments(
         state.content,
-        continuous: settingsState.continuousReadingMode,
+        continuous: state.continuousReadingMode,
       ),
       lineIndex: targetIndex,
       viewportExtent: context.size?.height ?? MediaQuery.sizeOf(context).height,

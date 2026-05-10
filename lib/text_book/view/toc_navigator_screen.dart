@@ -12,7 +12,6 @@ import 'package:flutter/scheduler.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
-import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
 import 'package:otzaria/text_book/utils/reading_segments.dart';
 import 'package:otzaria/text_book/view/toc_filter.dart';
@@ -176,7 +175,7 @@ class _TocViewerState extends State<TocViewer>
         positionsListener: state.positionsListener,
         segments: buildReadingSegments(
           state.content,
-          continuous: context.read<SettingsBloc>().state.continuousReadingMode,
+          continuous: state.continuousReadingMode,
         ),
         lineIndex: entry.index,
         viewportExtent:

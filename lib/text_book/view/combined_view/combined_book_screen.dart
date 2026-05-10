@@ -287,7 +287,8 @@ class _CombinedViewState extends State<CombinedView> {
   }
 
   List<ReadingSegment> _readingSegmentsForCurrentMode() {
-    final continuous = context.read<SettingsBloc>().state.continuousReadingMode;
+    final state = context.read<TextBookBloc>().state;
+    final continuous = state is TextBookLoaded && state.continuousReadingMode;
     return _readingSegmentsForMode(continuous);
   }
 
@@ -901,9 +902,11 @@ class _CombinedViewState extends State<CombinedView> {
   ) {
     return RenderSettings(
       removeNikud: state.removeNikud,
-      removePunctuation: state.removePunctuation,
-      removeTeamim: !settingsState.showTeamim,
+      removePunctuation: state.isTanach ? false : state.removePunctuation,
+      removeTeamim:
+          state.isTanach ? state.removePunctuation : !settingsState.showTeamim,
       replaceHolyNames: settingsState.replaceHolyNames,
+      showSubtitles: state.showSubtitles,
       searchText: state.searchText,
       searchOptions: state.searchOptions,
       alternativeWords: state.alternativeWords,
@@ -944,9 +947,8 @@ class _CombinedViewState extends State<CombinedView> {
           builder: (context, constraints) {
             // שומר את גובה הבלוק בפועל לשימוש בחישובי הגלילה
             _viewportHeight = constraints.maxHeight;
-            final settingsState = context.watch<SettingsBloc>().state;
             final readingSegments =
-                _readingSegmentsForMode(settingsState.continuousReadingMode);
+                _readingSegmentsForMode(state.continuousReadingMode);
 
             return SelectionArea(
               key: _selectionAreaKey,
@@ -1109,7 +1111,7 @@ class _CombinedViewState extends State<CombinedView> {
                                       state,
                                       const <int, List<PersonalNote>>{},
                                       readingSegments[index],
-                                      settingsState.continuousReadingMode);
+                                      state.continuousReadingMode);
                                 },
                               ),
                             )
@@ -1143,7 +1145,7 @@ class _CombinedViewState extends State<CombinedView> {
                                       state,
                                       noteMap,
                                       readingSegments,
-                                      settingsState.continuousReadingMode,
+                                      state.continuousReadingMode,
                                     );
                                   },
                                 ),
@@ -1399,9 +1401,14 @@ class _CombinedViewState extends State<CombinedView> {
                               'html_${widget.tab.book.title}_$primaryLineIndex'),
                           settings: RenderSettings(
                             removeNikud: state.removeNikud,
-                            removePunctuation: state.removePunctuation,
-                            removeTeamim: !settingsState.showTeamim,
+                            removePunctuation: state.isTanach
+                                ? false
+                                : state.removePunctuation,
+                            removeTeamim: state.isTanach
+                                ? state.removePunctuation
+                                : !settingsState.showTeamim,
                             replaceHolyNames: settingsState.replaceHolyNames,
+                            showSubtitles: state.showSubtitles,
                             searchText: state.searchText,
                             searchOptions: state.searchOptions,
                             alternativeWords: state.alternativeWords,
@@ -1612,9 +1619,12 @@ class _CombinedViewState extends State<CombinedView> {
       rawText.trim(),
       RenderSettings(
         removeNikud: state.removeNikud,
-        removePunctuation: state.removePunctuation,
-        removeTeamim: !settingsState.showTeamim,
+        removePunctuation: state.isTanach ? false : state.removePunctuation,
+        removeTeamim: state.isTanach
+            ? state.removePunctuation
+            : !settingsState.showTeamim,
         replaceHolyNames: settingsState.replaceHolyNames,
+        showSubtitles: state.showSubtitles,
         fontSize: widget.textSize,
         fontFamily: settingsState.fontFamily,
         lineHeight: settingsState.lineHeight,

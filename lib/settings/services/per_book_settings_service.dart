@@ -183,12 +183,16 @@ class TextBookPerBookSettings {
   final bool? commentatorsBelow; // true = מתחת, false = בצד
   final bool? removeNikud;
   final bool? removePunctuation;
+  final bool? continuousReadingMode;
+  final bool? showSubtitles;
 
   TextBookPerBookSettings({
     this.fontSize,
     this.commentatorsBelow,
     this.removeNikud,
     this.removePunctuation,
+    this.continuousReadingMode,
+    this.showSubtitles,
   });
 
   Map<String, dynamic> toJson() => {
@@ -196,6 +200,9 @@ class TextBookPerBookSettings {
         if (commentatorsBelow != null) 'commentatorsBelow': commentatorsBelow,
         if (removeNikud != null) 'removeNikud': removeNikud,
         if (removePunctuation != null) 'removePunctuation': removePunctuation,
+        if (continuousReadingMode != null)
+          'continuousReadingMode': continuousReadingMode,
+        if (showSubtitles != null) 'showSubtitles': showSubtitles,
       };
 
   factory TextBookPerBookSettings.fromJson(Map<String, dynamic> json) {
@@ -204,6 +211,8 @@ class TextBookPerBookSettings {
       commentatorsBelow: json['commentatorsBelow'] as bool?,
       removeNikud: json['removeNikud'] as bool?,
       removePunctuation: json['removePunctuation'] as bool?,
+      continuousReadingMode: json['continuousReadingMode'] as bool?,
+      showSubtitles: json['showSubtitles'] as bool?,
     );
   }
 
@@ -259,15 +268,16 @@ class PdfBookPerBookSettings {
 
   Map<String, dynamic> toJson() => {
         if (zoom != null) 'zoom': zoom,
-        if (activeCommentators != null) 'activeCommentators': activeCommentators,
+        if (activeCommentators != null)
+          'activeCommentators': activeCommentators,
         if (layoutMode != null) 'layoutMode': layoutMode!.name,
       };
 
   factory PdfBookPerBookSettings.fromJson(Map<String, dynamic> json) {
     return PdfBookPerBookSettings(
       zoom: json['zoom'] as double?,
-      activeCommentators: (json['activeCommentators'] as List<dynamic>?)
-          ?.cast<String>(),
+      activeCommentators:
+          (json['activeCommentators'] as List<dynamic>?)?.cast<String>(),
       layoutMode: json['layoutMode'] != null
           ? PdfLayoutMode.values.firstWhere(
               (e) => e.name == json['layoutMode'],

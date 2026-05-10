@@ -407,14 +407,13 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     if (loadedState is! TextBookLoaded) {
       return;
     }
-    final settingsState = context.read<SettingsBloc>().state;
     unawaited(scrollToSourceLine(
       scrollController: widget.scrollControler,
       scrollOffsetController: loadedState.scrollOffsetController,
       positionsListener: loadedState.positionsListener,
       segments: buildReadingSegments(
         loadedState.content,
-        continuous: settingsState.continuousReadingMode,
+        continuous: loadedState.continuousReadingMode,
       ),
       lineIndex: result.index,
       viewportExtent: context.size?.height ?? MediaQuery.sizeOf(context).height,

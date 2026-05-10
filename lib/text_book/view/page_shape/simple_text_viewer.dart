@@ -478,7 +478,10 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   }
 
   bool _isContinuousReadingMode(SettingsState settingsState) {
-    return widget.isMainText && settingsState.continuousReadingMode;
+    final state = context.read<TextBookBloc>().state;
+    return widget.isMainText &&
+        state is TextBookLoaded &&
+        state.continuousReadingMode;
   }
 
   List<ReadingSegment> _readingSegments(SettingsState settingsState) {
@@ -530,9 +533,11 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   }) {
     return RenderSettings(
       removeNikud: removeNikud,
-      removePunctuation: state.removePunctuation,
-      removeTeamim: !settingsState.showTeamim,
+      removePunctuation: state.isTanach ? false : state.removePunctuation,
+      removeTeamim:
+          state.isTanach ? state.removePunctuation : !settingsState.showTeamim,
       replaceHolyNames: settingsState.replaceHolyNames,
+      showSubtitles: widget.isMainText ? state.showSubtitles : true,
       searchText: widget.isMainText ? state.searchText : '',
       searchOptions: widget.isMainText ? state.searchOptions : const {},
       alternativeWords: widget.isMainText ? state.alternativeWords : const {},
@@ -1431,9 +1436,14 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                     widgetKey: ValueKey('html_simple_text_$primaryLineIndex'),
                     settings: RenderSettings(
                       removeNikud: snapshot.data ?? state.removeNikud,
-                      removePunctuation: state.removePunctuation,
-                      removeTeamim: !settingsState.showTeamim,
+                      removePunctuation:
+                          state.isTanach ? false : state.removePunctuation,
+                      removeTeamim: state.isTanach
+                          ? state.removePunctuation
+                          : !settingsState.showTeamim,
                       replaceHolyNames: settingsState.replaceHolyNames,
+                      showSubtitles:
+                          widget.isMainText ? state.showSubtitles : true,
                       searchText: searchText,
                       searchOptions:
                           widget.isMainText ? state.searchOptions : const {},
@@ -1602,9 +1612,12 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       rawText.trim(),
       RenderSettings(
         removeNikud: state.removeNikud,
-        removePunctuation: state.removePunctuation,
-        removeTeamim: !settingsState.showTeamim,
+        removePunctuation: state.isTanach ? false : state.removePunctuation,
+        removeTeamim: state.isTanach
+            ? state.removePunctuation
+            : !settingsState.showTeamim,
         replaceHolyNames: settingsState.replaceHolyNames,
+        showSubtitles: widget.isMainText ? state.showSubtitles : true,
         fontSize: widget.fontSize,
         fontFamily: widget.fontFamily ?? settingsState.fontFamily,
         lineHeight: settingsState.lineHeight,

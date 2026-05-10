@@ -97,6 +97,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     on<TogglePunctuation>(_onTogglePunctuation);
     on<UpdateTextBookContinuousReadingMode>(
         _onUpdateTextBookContinuousReadingMode);
+    on<UpdateTextBookShowSubtitles>(_onUpdateTextBookShowSubtitles);
     on<UpdateVisibleIndecies>(_onUpdateVisibleIndecies);
     on<UpdateSelectedIndex>(_onUpdateSelectedIndex);
     on<HighlightLine>(_onHighlightLine);
@@ -448,6 +449,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
             : removeNikud,
         isTanach: isTanach,
         continuousReadingMode: event.continuousReadingMode,
+        showSubtitles: state is TextBookLoaded
+            ? (state as TextBookLoaded).showSubtitles
+            : true,
         readingSegments: readingSegments,
         visibleIndices: visibleIndices,
         pinLeftPane: preservedPinLeftPane ??
@@ -700,6 +704,22 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         continuous: event.enabled,
       ),
     ));
+  }
+
+  void _onUpdateTextBookShowSubtitles(
+    UpdateTextBookShowSubtitles event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is! TextBookLoaded) {
+      return;
+    }
+
+    final currentState = state as TextBookLoaded;
+    if (currentState.showSubtitles == event.show) {
+      return;
+    }
+
+    emit(currentState.copyWith(showSubtitles: event.show));
   }
 
   void _onUpdateVisibleIndecies(

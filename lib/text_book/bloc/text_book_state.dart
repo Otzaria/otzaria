@@ -145,6 +145,7 @@ class TextBookLoaded extends TextBookState {
   final int? selectedTextEnd;
   final int? highlightedLine;
   final bool continuousReadingMode;
+  final bool showSubtitles;
   final List<ReadingSegment> readingSegments;
 
   // Editor state
@@ -199,6 +200,7 @@ class TextBookLoaded extends TextBookState {
     this.selectedTextEnd,
     this.highlightedLine,
     this.continuousReadingMode = false,
+    this.showSubtitles = true,
     this.readingSegments = const [],
     this.isEditorOpen = false,
     this.editorIndex,
@@ -242,6 +244,7 @@ class TextBookLoaded extends TextBookState {
       selectedTextEnd: null,
       highlightedLine: null,
       continuousReadingMode: false,
+      showSubtitles: true,
       readingSegments: const [],
       isEditorOpen: false,
       editorIndex: null,
@@ -290,6 +293,7 @@ class TextBookLoaded extends TextBookState {
     int? highlightedLine,
     bool clearHighlight = false,
     bool? continuousReadingMode,
+    bool? showSubtitles,
     List<ReadingSegment>? readingSegments,
     bool? isEditorOpen,
     int? editorIndex,
@@ -339,6 +343,7 @@ class TextBookLoaded extends TextBookState {
           clearHighlight ? null : (highlightedLine ?? this.highlightedLine),
       continuousReadingMode:
           continuousReadingMode ?? this.continuousReadingMode,
+      showSubtitles: showSubtitles ?? this.showSubtitles,
       readingSegments: readingSegments ?? this.readingSegments,
       isEditorOpen: isEditorOpen ?? this.isEditorOpen,
       editorIndex: editorIndex ?? this.editorIndex,
@@ -382,6 +387,7 @@ class TextBookLoaded extends TextBookState {
         selectedTextEnd,
         highlightedLine,
         continuousReadingMode,
+        showSubtitles,
         readingSegments.length,
         isEditorOpen,
         editorIndex,

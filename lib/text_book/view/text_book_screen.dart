@@ -62,6 +62,46 @@ import 'package:pdf/widgets.dart' as pw;
 const String _viewModeSplit = 'split';
 const String _viewModeBelow = 'below';
 const String _viewModePage = 'page';
+const String _styleActionContinuous = 'style_continuous';
+const String _styleActionSubtitles = 'style_subtitles';
+const String _styleActionFontIncrease = 'style_font_increase';
+const String _styleActionFontDecrease = 'style_font_decrease';
+const String _styleActionNikud = 'style_nikud';
+const String _styleActionPunctuation = 'style_punctuation';
+
+bool _supportsContinuousReadingMode(TextBook book, {required bool isTanach}) {
+  if (isTanach) {
+    return true;
+  }
+
+  final categoryText = [
+    book.heCategories,
+    book.categoryPath,
+    book.title,
+  ].whereType<String>().join(' ');
+
+  return categoryText.contains('גמרא') ||
+      categoryText.contains('תלמוד') ||
+      categoryText.contains('בבלי') ||
+      categoryText.contains('ירושלמי') ||
+      categoryText.contains('ש"ס');
+}
+
+bool _hasSubtitleHeadings(TextBookLoaded state) {
+  final headingPattern = RegExp(
+    r'(<h[2-6]\b|^\s{0,3}#{2,6}\s+)',
+    caseSensitive: false,
+    multiLine: true,
+  );
+  return state.content.any(headingPattern.hasMatch);
+}
+
+bool _removeTeamimForState(
+  TextBookLoaded state,
+  SettingsState settingsState,
+) {
+  return state.isTanach ? state.removePunctuation : !settingsState.showTeamim;
+}
 
 final GlobalKey textBookNavigationTourTargetKey = GlobalKey(
   debugLabel: 'text_book_navigation_tour_target',
@@ -457,7 +497,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           data: Future.value(''),
           bookId: state.book.title,
           removeNikud: state.removeNikud,
-          removeTaamim: !settingsState.showTeamim,
+          removeTaamim: _removeTeamimForState(state, settingsState),
           createPdfOverride: (PdfPageFormat format) async {
             final doc = pw.Document(compress: false);
             final img = pw.MemoryImage(png);
@@ -491,7 +531,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         activeCommentators: state.activeCommentators,
         startLine: state.visibleIndices.first,
         removeNikud: state.removeNikud,
-        removeTaamim: !context.read<SettingsBloc>().state.showTeamim,
+        removeTaamim:
+            _removeTeamimForState(state, context.read<SettingsBloc>().state),
         tableOfContents: state.tableOfContents,
       ),
     );
@@ -559,8 +600,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     // שמירת הגדרות נוכחיות כדי לזהות שינויים
     double previousFontSize = context.read<SettingsBloc>().state.fontSize;
     String previousFontFamily = context.read<SettingsBloc>().state.fontFamily;
-    bool previousContinuousReadingMode =
-        context.read<SettingsBloc>().state.continuousReadingMode;
     SettingsState previousSettingsState = context.read<SettingsBloc>().state;
 
     _settingsSub = context.read<SettingsBloc>().stream.listen((state) {
@@ -575,21 +614,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         final currentState = context.read<TextBookBloc>().state;
         if (currentState is TextBookLoaded) {
           context.read<TextBookBloc>().add(UpdateFontSize(state.fontSize));
-        }
-      }
-
-      if (state.continuousReadingMode != previousContinuousReadingMode) {
-        previousContinuousReadingMode = state.continuousReadingMode;
-
-        if (!mounted) return;
-
-        final currentState = context.read<TextBookBloc>().state;
-        if (currentState is TextBookLoaded) {
-          context.read<TextBookBloc>().add(
-                UpdateTextBookContinuousReadingMode(
-                  state.continuousReadingMode,
-                ),
-              );
         }
       }
 
@@ -611,7 +635,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                   fontSize: state.fontSize,
                   showSplitView: currentState.showSplitView,
                   removeNikud: state.defaultRemoveNikud,
-                  continuousReadingMode: state.continuousReadingMode,
+                  continuousReadingMode: currentState.continuousReadingMode,
                   forceCloseLeftPane: widget.isInCombinedView,
                   preserveState: true,
                   // שמירת מצב הניקוד הנוכחי של המשתמש רק כשרק הגופן
@@ -696,6 +720,19 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         if (settings.removePunctuation != null) {
           textBookBloc.add(TogglePunctuation(settings.removePunctuation!));
         }
+        final supportsContinuousReading = _supportsContinuousReadingMode(
+          state.book,
+          isTanach: state.isTanach,
+        );
+        if (supportsContinuousReading &&
+            settings.continuousReadingMode != null) {
+          textBookBloc.add(UpdateTextBookContinuousReadingMode(
+              settings.continuousReadingMode!));
+        }
+        if (settings.showSubtitles != null) {
+          textBookBloc
+              .add(UpdateTextBookShowSubtitles(settings.showSubtitles!));
+        }
         break;
       }
     }
@@ -717,7 +754,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           ? false
           : (Settings.getValue<bool>('key-splited-view') ?? false),
       removeNikud: settingsBloc.state.defaultRemoveNikud,
-      continuousReadingMode: settingsBloc.state.continuousReadingMode,
+      continuousReadingMode: false,
       preserveState: true,
       // בתצוגה משולבת, חלונית הצד תמיד סגורה
       forceCloseLeftPane: widget.isInCombinedView,
@@ -928,8 +965,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                               ? false
                               : state.splitedView,
                           removeNikud: settingsState.defaultRemoveNikud,
-                          continuousReadingMode:
-                              settingsState.continuousReadingMode,
+                          continuousReadingMode: false,
                           // בתצוגה משולבת, חלונית הצד תמיד סגורה
                           forceCloseLeftPane: widget.isInCombinedView,
                         ),
@@ -1407,31 +1443,13 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         },
       ),
 
-      // 3) Nikud Button
+      // 3) Text style menu
       ActionButtonData(
-        widget: _buildNikudButton(context, state),
-        icon: state.removeNikud
-            ? FluentIcons.text_font_24_regular
-            : FluentIcons.text_font_info_24_regular,
-        tooltip: state.removeNikud ? 'הצג ניקוד' : 'הסתר ניקוד',
-        onPressed: () async {
-          final newValue = !state.removeNikud;
-          context.read<TextBookBloc>().add(ToggleNikud(newValue));
-          await _savePerBookSettingsDirectly(context, state,
-              removeNikud: newValue);
-        },
+        widget: _buildTextStyleMenuButton(context, state),
+        icon: FluentIcons.text_font_size_24_regular,
+        tooltip: 'עיצוב הטקסט',
+        submenuItems: _buildTextStyleSubmenuActions(context, state),
       ),
-
-      // 3b) Punctuation Button - מוסתר בספרי תנ"ך
-      if (!state.isTanach)
-        ActionButtonData(
-          widget: _buildPunctuationButton(context, state),
-          icon: state.removePunctuation
-              ? FluentIcons.text_quote_24_regular
-              : FluentIcons.text_clear_formatting_24_regular,
-          tooltip: state.removePunctuation ? 'הצג פיסוק' : 'הסתר פיסוק',
-          onPressed: () => _toggleAndSavePunctuation(context, state),
-        ),
 
       // 4) Search Button
       ActionButtonData(
@@ -1443,30 +1461,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         icon: FluentIcons.search_24_regular,
         tooltip: 'חיפוש',
         onPressed: _openSearchFromToolbar,
-      ),
-
-      // 5) Zoom In Button
-      ActionButtonData(
-        widget: _buildZoomInButton(context, state),
-        icon: FluentIcons.zoom_in_24_regular,
-        tooltip: 'הגדל את גודל הטקסט',
-        onPressed: () async {
-          final newSize = min(50.0, state.fontSize + 3);
-          context.read<TextBookBloc>().add(UpdateFontSize(newSize));
-          await _savePerBookSettingsDirectly(context, state, fontSize: newSize);
-        },
-      ),
-
-      // 6) Zoom Out Button
-      ActionButtonData(
-        widget: _buildZoomOutButton(context, state),
-        icon: FluentIcons.zoom_out_24_regular,
-        tooltip: 'הקטן את גודל הטקסט',
-        onPressed: () async {
-          final newSize = max(15.0, state.fontSize - 3);
-          context.read<TextBookBloc>().add(UpdateFontSize(newSize));
-          await _savePerBookSettingsDirectly(context, state, fontSize: newSize);
-        },
       ),
 
       // 7) Navigation Buttons - רק אם לא בתצוגה משולבת
@@ -1794,20 +1788,231 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     );
   }
 
-  Widget _buildNikudButton(BuildContext context, TextBookLoaded state) {
-    return IconButton(
-      onPressed: () async {
+  Widget _buildTextStyleMenuButton(BuildContext context, TextBookLoaded state) {
+    final supportsContinuousReading = _supportsContinuousReadingMode(
+      state.book,
+      isTanach: state.isTanach,
+    );
+    final hasSubtitles = _hasSubtitleHeadings(state);
+    final marksLabel = state.isTanach ? 'טעמים' : 'פיסוק';
+
+    return AppPopupMenuButton<String>(
+      tooltip: 'עיצוב הטקסט',
+      icon: const Text(
+        'א׳',
+        textDirection: TextDirection.rtl,
+        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+      ),
+      entries: [
+        if (supportsContinuousReading)
+          AppMenuEntry(
+            value: _styleActionContinuous,
+            label: 'עימוד - טקסט רציף',
+            icon: state.continuousReadingMode
+                ? FluentIcons.text_align_justify_24_filled
+                : FluentIcons.text_align_justify_24_regular,
+            trailing: Switch(
+              value: state.continuousReadingMode,
+              onChanged: null,
+            ),
+          ),
+        if (hasSubtitles)
+          AppMenuEntry(
+            value: _styleActionSubtitles,
+            label: 'כותרות משנה',
+            icon: state.showSubtitles
+                ? FluentIcons.text_header_2_24_filled
+                : FluentIcons.text_header_2_24_regular,
+            trailing: Switch(
+              value: state.showSubtitles,
+              onChanged: null,
+            ),
+          ),
+        const AppMenuEntry(
+          value: _styleActionFontDecrease,
+          label: 'הקטן גודל גופן',
+          icon: FluentIcons.subtract_circle_24_regular,
+        ),
+        AppMenuEntry(
+          value: _styleActionFontIncrease,
+          label: 'הגדל גודל גופן',
+          icon: FluentIcons.add_circle_24_regular,
+          trailing: Text(
+            state.fontSize.round().toString(),
+            textDirection: TextDirection.rtl,
+          ),
+        ),
+        AppMenuEntry(
+          value: _styleActionNikud,
+          label: 'ניקוד',
+          icon: state.removeNikud
+              ? FluentIcons.text_font_24_regular
+              : FluentIcons.text_font_info_24_regular,
+          trailing: Switch(
+            value: !state.removeNikud,
+            onChanged: null,
+          ),
+        ),
+        AppMenuEntry(
+          value: _styleActionPunctuation,
+          label: marksLabel,
+          icon: state.removePunctuation
+              ? FluentIcons.text_quote_24_regular
+              : FluentIcons.text_clear_formatting_24_regular,
+          trailing: Switch(
+            value: !state.removePunctuation,
+            onChanged: null,
+          ),
+        ),
+      ],
+      onSelected: (value) => _handleTextStyleMenuSelection(
+        context,
+        state,
+        value,
+      ),
+    );
+  }
+
+  List<ActionButtonData> _buildTextStyleSubmenuActions(
+    BuildContext context,
+    TextBookLoaded state,
+  ) {
+    final supportsContinuousReading = _supportsContinuousReadingMode(
+      state.book,
+      isTanach: state.isTanach,
+    );
+    final hasSubtitles = _hasSubtitleHeadings(state);
+    final marksLabel = state.isTanach ? 'טעמים' : 'פיסוק';
+
+    return [
+      if (supportsContinuousReading)
+        ActionButtonData(
+          widget: const SizedBox.shrink(),
+          icon: state.continuousReadingMode
+              ? FluentIcons.text_align_justify_24_filled
+              : FluentIcons.text_align_justify_24_regular,
+          tooltip:
+              state.continuousReadingMode ? 'עימוד: רגיל' : 'עימוד: טקסט רציף',
+          onPressed: () => _handleTextStyleMenuSelection(
+            context,
+            state,
+            _styleActionContinuous,
+          ),
+        ),
+      if (hasSubtitles)
+        ActionButtonData(
+          widget: const SizedBox.shrink(),
+          icon: state.showSubtitles
+              ? FluentIcons.text_header_2_24_filled
+              : FluentIcons.text_header_2_24_regular,
+          tooltip: state.showSubtitles ? 'הסתר כותרות משנה' : 'הצג כותרות משנה',
+          onPressed: () => _handleTextStyleMenuSelection(
+            context,
+            state,
+            _styleActionSubtitles,
+          ),
+        ),
+      ActionButtonData(
+        widget: const SizedBox.shrink(),
+        icon: FluentIcons.subtract_circle_24_regular,
+        tooltip: 'הקטן גודל גופן',
+        onPressed: () => _handleTextStyleMenuSelection(
+          context,
+          state,
+          _styleActionFontDecrease,
+        ),
+      ),
+      ActionButtonData(
+        widget: const SizedBox.shrink(),
+        icon: FluentIcons.add_circle_24_regular,
+        tooltip: 'הגדל גודל גופן',
+        onPressed: () => _handleTextStyleMenuSelection(
+          context,
+          state,
+          _styleActionFontIncrease,
+        ),
+      ),
+      ActionButtonData(
+        widget: const SizedBox.shrink(),
+        icon: state.removeNikud
+            ? FluentIcons.text_font_24_regular
+            : FluentIcons.text_font_info_24_regular,
+        tooltip: state.removeNikud ? 'הצג ניקוד' : 'הסתר ניקוד',
+        onPressed: () => _handleTextStyleMenuSelection(
+          context,
+          state,
+          _styleActionNikud,
+        ),
+      ),
+      ActionButtonData(
+        widget: const SizedBox.shrink(),
+        icon: state.removePunctuation
+            ? FluentIcons.text_quote_24_regular
+            : FluentIcons.text_clear_formatting_24_regular,
+        tooltip:
+            state.removePunctuation ? 'הצג $marksLabel' : 'הסתר $marksLabel',
+        onPressed: () => _handleTextStyleMenuSelection(
+          context,
+          state,
+          _styleActionPunctuation,
+        ),
+      ),
+    ];
+  }
+
+  Future<void> _handleTextStyleMenuSelection(
+    BuildContext context,
+    TextBookLoaded state,
+    String value,
+  ) async {
+    switch (value) {
+      case _styleActionContinuous:
+        if (!_supportsContinuousReadingMode(state.book,
+            isTanach: state.isTanach)) {
+          return;
+        }
+        final newValue = !state.continuousReadingMode;
+        context
+            .read<TextBookBloc>()
+            .add(UpdateTextBookContinuousReadingMode(newValue));
+        await _savePerBookSettingsDirectly(
+          context,
+          state,
+          continuousReadingMode: newValue,
+        );
+        break;
+      case _styleActionSubtitles:
+        final newValue = !state.showSubtitles;
+        context.read<TextBookBloc>().add(UpdateTextBookShowSubtitles(newValue));
+        await _savePerBookSettingsDirectly(
+          context,
+          state,
+          showSubtitles: newValue,
+        );
+        break;
+      case _styleActionFontIncrease:
+        final newSize = min(50.0, state.fontSize + 3);
+        context.read<TextBookBloc>().add(UpdateFontSize(newSize));
+        await _savePerBookSettingsDirectly(context, state, fontSize: newSize);
+        break;
+      case _styleActionFontDecrease:
+        final newSize = max(15.0, state.fontSize - 3);
+        context.read<TextBookBloc>().add(UpdateFontSize(newSize));
+        await _savePerBookSettingsDirectly(context, state, fontSize: newSize);
+        break;
+      case _styleActionNikud:
         final newValue = !state.removeNikud;
         context.read<TextBookBloc>().add(ToggleNikud(newValue));
-        // שמירה עם הערך החדש
-        await _savePerBookSettingsDirectly(context, state,
-            removeNikud: newValue);
-      },
-      icon: Icon(state.removeNikud
-          ? FluentIcons.text_font_24_regular
-          : FluentIcons.text_font_info_24_regular),
-      tooltip: state.removeNikud ? 'הצג ניקוד' : 'הסתר ניקוד',
-    );
+        await _savePerBookSettingsDirectly(
+          context,
+          state,
+          removeNikud: newValue,
+        );
+        break;
+      case _styleActionPunctuation:
+        await _toggleAndSavePunctuation(context, state);
+        break;
+    }
   }
 
   Future<void> _toggleAndSavePunctuation(
@@ -1816,16 +2021,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     context.read<TextBookBloc>().add(TogglePunctuation(newValue));
     await _savePerBookSettingsDirectly(context, state,
         removePunctuation: newValue);
-  }
-
-  Widget _buildPunctuationButton(BuildContext context, TextBookLoaded state) {
-    return IconButton(
-      onPressed: () => _toggleAndSavePunctuation(context, state),
-      icon: Icon(state.removePunctuation
-          ? FluentIcons.text_quote_24_regular
-          : FluentIcons.text_clear_formatting_24_regular),
-      tooltip: state.removePunctuation ? 'הצג פיסוק' : 'הסתר פיסוק',
-    );
   }
 
   Widget _buildBookmarkButton(BuildContext context, TextBookLoaded state) {
@@ -1868,30 +2063,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       onPressed: _openSearchFromToolbar,
       icon: const Icon(FluentIcons.search_24_regular),
       tooltip: 'חיפוש (${shortcut.toUpperCase()})',
-    );
-  }
-
-  Widget _buildZoomInButton(BuildContext context, TextBookLoaded state) {
-    return IconButton(
-      icon: const Icon(FluentIcons.zoom_in_24_regular),
-      tooltip: 'הגדל את גודל הטקסט (CTRL + +)',
-      onPressed: () async {
-        final newSize = min(50.0, state.fontSize + 3);
-        context.read<TextBookBloc>().add(UpdateFontSize(newSize));
-        await _savePerBookSettingsDirectly(context, state, fontSize: newSize);
-      },
-    );
-  }
-
-  Widget _buildZoomOutButton(BuildContext context, TextBookLoaded state) {
-    return IconButton(
-      icon: const Icon(FluentIcons.zoom_out_24_regular),
-      tooltip: 'הקטן את גודל הטקסט (CTRL + -)',
-      onPressed: () async {
-        final newSize = max(15.0, state.fontSize - 3);
-        context.read<TextBookBloc>().add(UpdateFontSize(newSize));
-        await _savePerBookSettingsDirectly(context, state, fontSize: newSize);
-      },
     );
   }
 
@@ -2071,7 +2242,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             activeCommentators: state.activeCommentators,
             startLine: state.visibleIndices.first,
             removeNikud: state.removeNikud,
-            removeTaamim: !settingsState.showTeamim,
+            removeTaamim: _removeTeamimForState(state, settingsState),
             tableOfContents: state.tableOfContents,
           ),
         );
@@ -2594,7 +2765,7 @@ bool _handleGlobalKeyEvent(KeyEvent event, BuildContext context,
         activeCommentators: state.activeCommentators,
         startLine: state.visibleIndices.first,
         removeNikud: state.removeNikud,
-        removeTaamim: !settingsState.showTeamim,
+        removeTaamim: _removeTeamimForState(state, settingsState),
         tableOfContents: state.tableOfContents,
       ),
     );
@@ -2703,6 +2874,8 @@ Future<void> _savePerBookSettingsDirectly(
   bool? showSplitView,
   bool? removeNikud,
   bool? removePunctuation,
+  bool? continuousReadingMode,
+  bool? showSubtitles,
 }) async {
   final settingsBloc = context.read<SettingsBloc>();
   if (!settingsBloc.state.enablePerBookSettings) {
@@ -2723,6 +2896,8 @@ Future<void> _savePerBookSettingsDirectly(
   bool? newCommentatorsBelow = existingSettings?.commentatorsBelow;
   bool? newRemoveNikud = existingSettings?.removeNikud;
   bool? newRemovePunctuation = existingSettings?.removePunctuation;
+  bool? newContinuousReadingMode = existingSettings?.continuousReadingMode;
+  bool? newShowSubtitles = existingSettings?.showSubtitles;
 
   // עדכון רק השדה שהשתנה
   if (fontSize != null) {
@@ -2746,11 +2921,21 @@ Future<void> _savePerBookSettingsDirectly(
     newRemovePunctuation = removePunctuation ? true : null;
   }
 
+  if (continuousReadingMode != null) {
+    newContinuousReadingMode = continuousReadingMode ? true : null;
+  }
+
+  if (showSubtitles != null) {
+    newShowSubtitles = showSubtitles ? null : false;
+  }
+
   // אם כל השדות null, מוחקים את הקובץ כולו
   if (newFontSize == null &&
       newCommentatorsBelow == null &&
       newRemoveNikud == null &&
-      newRemovePunctuation == null) {
+      newRemovePunctuation == null &&
+      newContinuousReadingMode == null &&
+      newShowSubtitles == null) {
     await TextBookPerBookSettings.delete(state.book.title);
     return;
   }
@@ -2761,6 +2946,8 @@ Future<void> _savePerBookSettingsDirectly(
     commentatorsBelow: newCommentatorsBelow,
     removeNikud: newRemoveNikud,
     removePunctuation: newRemovePunctuation,
+    continuousReadingMode: newContinuousReadingMode,
+    showSubtitles: newShowSubtitles,
   );
 
   await settings.save(state.book.title);

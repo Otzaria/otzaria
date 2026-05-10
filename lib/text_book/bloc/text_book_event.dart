@@ -56,6 +56,15 @@ class UpdateTextBookContinuousReadingMode extends TextBookEvent {
   List<Object?> get props => [enabled];
 }
 
+class UpdateTextBookShowSubtitles extends TextBookEvent {
+  final bool show;
+
+  const UpdateTextBookShowSubtitles(this.show);
+
+  @override
+  List<Object?> get props => [show];
+}
+
 class UpdateFontSize extends TextBookEvent {
   final double fontSize;
 

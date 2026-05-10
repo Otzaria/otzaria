@@ -16,7 +16,6 @@ import 'package:otzaria/search/utils/find_match_utils.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
-import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
@@ -359,7 +358,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
         positionsListener: state.positionsListener,
         segments: buildReadingSegments(
           state.content,
-          continuous: context.read<SettingsBloc>().state.continuousReadingMode,
+          continuous: state.continuousReadingMode,
         ),
         lineIndex: index,
         viewportExtent:
