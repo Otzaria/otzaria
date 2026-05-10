@@ -54,6 +54,7 @@ import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
 import 'package:otzaria/settings/services/nikud_display_service.dart';
 import 'package:otzaria/text_book/view/page_shape/page_shape_settings_dialog.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
+import 'package:otzaria/utils/link_helpers.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -724,18 +725,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     _pageShapeSidebarTabNotifier.dispose();
     _settingsSub.cancel();
     super.dispose();
-  }
-
-  // --- העתקת קישור ישיר ---
-
-  String _buildBookLink(int bookId) => 'otzaria://open/book/$bookId';
-
-  String _buildSectionLink(int bookId, int index) =>
-      'otzaria://open/book/$bookId?index=${index < 0 ? 0 : index}';
-
-  Future<void> _copyLinkToClipboard(String url) async {
-    await Clipboard.setData(ClipboardData(text: url));
-    UiSnack.show('הקישור הועתק ללוח');
   }
 
   void _openPersonalNotesForCurrentView(TextBookLoaded state) {
@@ -1651,36 +1640,36 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       ActionButtonData(
         widget: const SizedBox.shrink(),
         icon: FluentIcons.link_24_regular,
-        tooltip: state.book.id != null
-            ? 'העתק קישור ישיר'
-            : 'העתק קישור ישיר (לא זמין לספר זה)',
+        tooltip: 'העתק קישור ישיר',
         onPressed: null,
-        submenuItems: [
-          ActionButtonData(
-            widget: const SizedBox.shrink(),
-            icon: FluentIcons.link_24_regular,
-            tooltip: 'העתק קישור ישיר לספר זה',
-            onPressed: state.book.id != null
-                ? () => _copyLinkToClipboard(
-                      _buildBookLink(state.book.id!),
-                    )
-                : null,
-          ),
-          ActionButtonData(
-            widget: const SizedBox.shrink(),
-            icon: FluentIcons.link_multiple_24_regular,
-            tooltip: 'העתק קישור ישיר למקטע זה',
-            onPressed: state.book.id != null
-                ? () {
-                    final index =
-                        state.positionsListener.itemPositions.value.isNotEmpty
-                            ? state.positionsListener.itemPositions.value.first.index
-                            : 0;
-                    _copyLinkToClipboard(_buildSectionLink(state.book.id!, index));
-                  }
-                : null,
-          ),
-        ],
+        submenuItems: () {
+          final bookId = state.book.id;
+          return [
+            ActionButtonData(
+              widget: const SizedBox.shrink(),
+              icon: FluentIcons.link_24_regular,
+              tooltip: 'העתק קישור ישיר לספר זה',
+              onPressed: bookId != null
+                  ? () => copyLinkToClipboard(buildBookLink(bookId))
+                  : null,
+            ),
+            ActionButtonData(
+              widget: const SizedBox.shrink(),
+              icon: FluentIcons.link_multiple_24_regular,
+              tooltip: 'העתק קישור ישיר למקטע זה',
+              onPressed: bookId != null
+                  ? () {
+                      final index = state
+                              .positionsListener.itemPositions.value.isNotEmpty
+                          ? state.positionsListener.itemPositions.value.first
+                              .index
+                          : 0;
+                      copyLinkToClipboard(buildSectionLink(bookId, index));
+                    }
+                  : null,
+            ),
+          ];
+        }(),
       ),
 
       // תת-תפריט "פעולות נוספות" - רק בתצוגה משולבת

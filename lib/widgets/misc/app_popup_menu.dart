@@ -835,7 +835,6 @@ PopupMenuEntry<T> buildAppSubmenuPopupMenuItem<T>({
   IconData? icon,
   required List<Widget> menuChildren,
 }) {
-  final colorScheme = Theme.of(context).colorScheme;
   return buildAppCustomPopupMenuItem<T>(
     context: context,
     metrics: metrics,
@@ -852,11 +851,7 @@ PopupMenuEntry<T> buildAppSubmenuPopupMenuItem<T>({
           mainAxisSize: MainAxisSize.min,
           children: [
             if (icon != null) ...[
-              Icon(
-                icon,
-                size: metrics.iconSize,
-                color: colorScheme.onSurface,
-              ),
+              Icon(icon, size: metrics.iconSize),
               const SizedBox(width: 8),
             ],
             Text(
@@ -865,14 +860,12 @@ PopupMenuEntry<T> buildAppSubmenuPopupMenuItem<T>({
               style: TextStyle(
                 fontSize: metrics.fontSize,
                 fontWeight: metrics.itemFontWeight,
-                color: colorScheme.onSurface,
               ),
             ),
             const SizedBox(width: 4),
             Icon(
               FluentIcons.chevron_right_24_regular,
               size: metrics.iconSize * 0.75,
-              color: colorScheme.onSurfaceVariant,
             ),
           ],
         ),

@@ -53,6 +53,7 @@ import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/printing/printing_helpers.dart';
 import 'package:otzaria/printing/view/printing_screen.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
+import 'package:otzaria/utils/link_helpers.dart';
 
 final GlobalKey pdfBookNavigationTourTargetKey = GlobalKey(
   debugLabel: 'pdf_book_navigation_tour_target',
@@ -3587,31 +3588,32 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             ? 'העתק קישור ישיר'
             : 'העתק קישור ישיר (לא זמין לספר זה)',
         onPressed: null,
-        submenuItems: [
-          ActionButtonData(
-            widget: const SizedBox.shrink(),
-            icon: FluentIcons.link_24_regular,
-            tooltip: 'העתק קישור ישיר לספר זה',
-            onPressed: widget.tab.book.id != null
-                ? () => _copyLinkToClipboard(
-                      _buildBookLink(widget.tab.book.id!),
-                    )
-                : null,
-          ),
-          ActionButtonData(
-            widget: const SizedBox.shrink(),
-            icon: FluentIcons.link_multiple_24_regular,
-            tooltip: 'העתק קישור ישיר לעמוד זה',
-            onPressed: widget.tab.book.id != null
-                ? () {
-                    final page = widget.tab.pdfViewerController.pageNumber ??
-                        widget.tab.pageNumber;
-                    _copyLinkToClipboard(
-                        _buildSectionLink(widget.tab.book.id!, page));
-                  }
-                : null,
-          ),
-        ],
+        submenuItems: () {
+          final bookId = widget.tab.book.id;
+          return [
+            ActionButtonData(
+              widget: const SizedBox.shrink(),
+              icon: FluentIcons.link_24_regular,
+              tooltip: 'העתק קישור ישיר לספר זה',
+              onPressed: bookId != null
+                  ? () => copyLinkToClipboard(buildBookLink(bookId))
+                  : null,
+            ),
+            ActionButtonData(
+              widget: const SizedBox.shrink(),
+              icon: FluentIcons.link_multiple_24_regular,
+              tooltip: 'העתק קישור ישיר לעמוד זה',
+              onPressed: bookId != null
+                  ? () {
+                      final page =
+                          widget.tab.pdfViewerController.pageNumber ??
+                              widget.tab.pageNumber;
+                      copyLinkToClipboard(buildSectionLink(bookId, page));
+                    }
+                  : null,
+            ),
+          ];
+        }(),
       ),
       if (widget.isInCombinedView)
         ActionButtonData(
@@ -3657,18 +3659,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     if (!context.mounted) return;
 
     openBook(context, textBook, index ?? 0, '', ignoreHistory: true);
-  }
-
-  // --- העתקת קישור ישיר ---
-
-  String _buildBookLink(int bookId) => 'otzaria://open/book/$bookId';
-
-  String _buildSectionLink(int bookId, int index) =>
-      'otzaria://open/book/$bookId?index=${index < 0 ? 0 : index}';
-
-  Future<void> _copyLinkToClipboard(String url) async {
-    await Clipboard.setData(ClipboardData(text: url));
-    UiSnack.show('הקישור הועתק ללוח');
   }
 
   void _handleBookmarkPress(BuildContext context) {
