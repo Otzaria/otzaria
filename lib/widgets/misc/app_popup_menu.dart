@@ -836,7 +836,6 @@ PopupMenuEntry<T> buildAppSubmenuPopupMenuItem<T>({
   required List<PopupMenuEntry<T>> menuChildren,
   ValueChanged<T>? onSelected,
 }) {
-  final isRtl = Directionality.of(context) == TextDirection.rtl;
   return buildAppCustomPopupMenuItem<T>(
     context: context,
     metrics: metrics,
@@ -857,11 +856,16 @@ PopupMenuEntry<T> buildAppSubmenuPopupMenuItem<T>({
                   renderBox.getTransformTo(overlay),
                   Offset.zero & renderBox.size,
                 );
-                // תמיד פתח לצד ימין (itemRect.right) — התפריט הראשי תמיד בצד שמאל
+                // חשב את צד הפתיחה לפי מיקום הפריט במסך:
+                // אם הפריט בחצי הימני של המסך — פתח שמאלה, אחרת ימינה
+                final openToRight =
+                    itemRect.center.dx < overlaySize.width / 2;
+                final xPos =
+                    openToRight ? itemRect.right : itemRect.left;
                 final selected = await showMenu<T>(
                   context: innerContext,
                   position: RelativeRect.fromRect(
-                    Rect.fromLTWH(itemRect.right, itemRect.top, 0, 0),
+                    Rect.fromLTWH(xPos, itemRect.top, 0, 0),
                     Offset.zero & overlaySize,
                   ),
                   items: menuChildren,
@@ -880,10 +884,8 @@ PopupMenuEntry<T> buildAppSubmenuPopupMenuItem<T>({
           label: label,
           icon: icon,
           trailing: Icon(
-            // ב-RTL התפריט נפתח ימינה → חץ ימינה
-            isRtl
-                ? FluentIcons.chevron_right_24_regular
-                : FluentIcons.chevron_left_24_regular,
+            // החץ מצביע לכיוון פתיחת התת-תפריט (ימינה)
+            FluentIcons.chevron_right_24_regular,
             size: metrics.iconSize * 0.75,
           ),
         ),
