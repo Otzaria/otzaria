@@ -627,6 +627,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
           .where((b) => b is TextBook && b.title == title)
           .firstOrNull;
       final pdfBook = PdfBook(
+        id: matchingTextBook?.id,
         title: title,
         category: targetCategory,
         path: entity.path,
