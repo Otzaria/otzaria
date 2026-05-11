@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
+import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/pdf_book/view/pdf_commentary_panel.dart';
 import 'package:otzaria/models/books.dart';
@@ -72,7 +73,9 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen> {
       setState(() {
         _textLines = text.split('\n');
       });
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('שגיאה בטעינת תוכן טקסט: $e');
+    }
   }
 
   @override
@@ -157,7 +160,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen> {
 
   Widget _buildHeader(
     BuildContext context, {
-    required dynamic sourceTab,
+    required PdfBookTab sourceTab,
     required List<String> previewLines,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -347,7 +350,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen> {
                                 ? FluentIcons.chevron_up_24_regular
                                 : FluentIcons.chevron_down_24_regular,
                             size: 12,
-                            color: colorScheme.onSurface.withOpacity(0.5),
+                            color: colorScheme.onSurface.withValues(alpha: 0.5),
                           ),
                           const SizedBox(width: 4),
                           Expanded(
@@ -358,7 +361,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen> {
                                   .bodySmall
                                   ?.copyWith(
                                       color: colorScheme.onSurface
-                                          .withOpacity(0.7)),
+                                          .withValues(alpha: 0.7)),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1,
                               textDirection: TextDirection.rtl,
@@ -450,7 +453,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen> {
                         Icon(
                           FluentIcons.chevron_down_24_regular,
                           size: 10,
-                          color: colorScheme.onSurface.withOpacity(0.4),
+                          color: colorScheme.onSurface.withValues(alpha: 0.4),
                         ),
                       if (overflows) const SizedBox(height: 2),
                     ],

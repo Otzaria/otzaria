@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/models/books.dart';
@@ -621,7 +621,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen> {
                                   FluentIcons.chevron_down_24_regular,
                                   size: 10,
                                   color: colorScheme.onSurface
-                                      .withOpacity(0.4),
+                                      .withValues(alpha: 0.4),
                                 ),
                               if (overflows) const SizedBox(height: 2),
                             ],
