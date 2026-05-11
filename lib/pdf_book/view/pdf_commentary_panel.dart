@@ -12,6 +12,8 @@ import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
+import 'package:otzaria/tabs/models/commentators_tab.dart';
+import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/pdf_book/view/pdf_commentary_content.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
@@ -382,9 +384,31 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
                   const BoxConstraints(minWidth: 36, minHeight: 40),
               tooltip: 'פתח כרטסיית מפרשים',
               icon: const Icon(FluentIcons.arrow_expand_24_regular),
-              onPressed: () => context.read<TabsBloc>().add(
-                    AddTab(PdfCommentatorsTab(sourceTab: widget.tab)),
-                  ),
+              onPressed: () async {
+                final library = await DataRepository.instance.library;
+                if (!context.mounted) return;
+                TextBook? textBook =
+                    library.findBookByTitle(widget.tab.book.title, TextBook)
+                        as TextBook?;
+                textBook ??=
+                    library.findBookByTitleFlexible(
+                            widget.tab.book.title, TextBook)
+                        as TextBook?;
+                if (textBook != null) {
+                  final textTab = TextBookTab(
+                    book: textBook,
+                    index: widget.tab.currentTextLineNumber ?? 0,
+                    commentators: const [],
+                  );
+                  context
+                      .read<TabsBloc>()
+                      .add(AddTab(CommentatorsTab(sourceTab: textTab)));
+                } else {
+                  context.read<TabsBloc>().add(
+                        AddTab(PdfCommentatorsTab(sourceTab: widget.tab)),
+                      );
+                }
+              },
             ),
           ],
           onTap: (index) {
@@ -396,19 +420,19 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
             Tab(
               icon: Icon(FluentIcons.book_24_regular, size: 18),
               iconMargin: EdgeInsets.only(bottom: 2),
-              height: 48,
+              height: 54,
               child: Text('מפרשים', style: TextStyle(fontSize: 12)),
             ),
             Tab(
               icon: Icon(FluentIcons.link_24_regular, size: 18),
               iconMargin: EdgeInsets.only(bottom: 2),
-              height: 48,
+              height: 54,
               child: Text('קישורים', style: TextStyle(fontSize: 12)),
             ),
             Tab(
               icon: Icon(FluentIcons.note_24_regular, size: 18),
               iconMargin: EdgeInsets.only(bottom: 2),
-              height: 48,
+              height: 54,
               child: Text('הערות', style: TextStyle(fontSize: 12)),
             ),
           ],

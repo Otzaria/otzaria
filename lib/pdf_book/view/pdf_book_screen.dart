@@ -2566,7 +2566,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
               showRightPane: showRightPane,
               rightPaneContent: _buildRightPaneContent(),
               rightPaneWidth: rightPaneWidth,
-              rightMinPaneWidth: 250,
+              rightMinPaneWidth: 320,
               rightMaxPaneWidth: 600,
               onRightPaneWidthChanged: (nextWidth) {
                 _bloc.add(pdf_events.UpdateRightPaneWidth(nextWidth));
