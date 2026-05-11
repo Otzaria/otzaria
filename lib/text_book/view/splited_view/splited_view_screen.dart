@@ -255,6 +255,7 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                       onClosePane: _togglePane,
                       initialTabIndex: _currentTabIndex,
                       showSplitView: widget.showSplitView,
+                      tab: widget.tab,
                       openCommentatorsFilterNotifier:
                           _openCommentatorsFilterNotifier,
                       closeCommentatorsFilterNotifier:

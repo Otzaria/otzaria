@@ -42,6 +42,12 @@ class CommentaryListBase extends StatefulWidget {
   final ValueChanged<List<String>>? onSelectedCommentatorsOverrideChanged;
   final ValueNotifier<int>? openFilterNotifier;
   final ValueNotifier<int>? closeFilterNotifier;
+  // כאשר מסופק, CommentaryListBase ישתמש בו לחיפוש ולא יציג שורת חיפוש פנימית
+  final TextEditingController? externalSearchController;
+  final ValueNotifier<int>? externalCurrentIndexNotifier;
+  final ValueNotifier<int>? externalTotalResultsNotifier;
+  /// כשהדגל מופעל, ישתמש ב-availableCommentators (כל מפרשי הספר) ולא ב-activeCommentators
+  final bool useAvailableCommentators;
 
   const CommentaryListBase({
     super.key,
@@ -58,6 +64,10 @@ class CommentaryListBase extends StatefulWidget {
     this.onSelectedCommentatorsOverrideChanged,
     this.openFilterNotifier,
     this.closeFilterNotifier,
+    this.externalSearchController,
+    this.externalCurrentIndexNotifier,
+    this.externalTotalResultsNotifier,
+    this.useAvailableCommentators = false,
   });
 
   @override
@@ -103,7 +113,13 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
   List<Link> _orderedLinks = [];
 
   List<String> _selectedCommentators(TextBookLoaded state) {
-    return widget.selectedCommentatorsOverride ?? state.activeCommentators;
+    if (widget.selectedCommentatorsOverride != null) {
+      return widget.selectedCommentatorsOverride!;
+    }
+    if (widget.useAvailableCommentators) {
+      return state.availableCommentators;
+    }
+    return state.activeCommentators;
   }
 
   String _buildGroupingSignature(List<Link> links) {
@@ -157,6 +173,35 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
     return -1;
   }
 
+  // מתודות ציבוריות לניווט בחיפוש (למשל מ-CommentatorsTabScreen)
+  void navigateSearchPrev() {
+    if (_currentSearchIndexNotifier.value > 0) {
+      _currentSearchIndexNotifier.value--;
+      _scrollToSearchResult();
+    }
+  }
+
+  void navigateSearchNext() {
+    if (_currentSearchIndexNotifier.value < _totalSearchResultsNotifier.value - 1) {
+      _currentSearchIndexNotifier.value++;
+      _scrollToSearchResult();
+    }
+  }
+
+  ValueNotifier<int> get totalSearchResultsNotifier => _totalSearchResultsNotifier;
+  ValueNotifier<int> get currentSearchIndexNotifier => _currentSearchIndexNotifier;
+
+  void _onExternalSearchChanged() {
+    final text = widget.externalSearchController!.text;
+    if (_searchQueryNotifier.value != text) {
+      _searchQueryNotifier.value = text;
+      _currentSearchIndexNotifier.value = 0;
+      _totalSearchResultsNotifier.value = 0;
+      _searchResultsPerLink.clear();
+      _pendingCounts.clear();
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -164,6 +209,18 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
     _itemPositionsListener.itemPositions.addListener(_updateLastScrollIndex);
     widget.openFilterNotifier?.addListener(_onOpenFilterRequest);
     widget.closeFilterNotifier?.addListener(_onCloseFilterRequest);
+    // חיפוש חיצוני
+    widget.externalSearchController?.addListener(_onExternalSearchChanged);
+    if (widget.externalTotalResultsNotifier != null) {
+      _totalSearchResultsNotifier.addListener(() {
+        widget.externalTotalResultsNotifier!.value = _totalSearchResultsNotifier.value;
+      });
+    }
+    if (widget.externalCurrentIndexNotifier != null) {
+      _currentSearchIndexNotifier.addListener(() {
+        widget.externalCurrentIndexNotifier!.value = _currentSearchIndexNotifier.value;
+      });
+    }
   }
 
   @override
@@ -235,6 +292,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
     _itemPositionsListener.itemPositions.removeListener(_updateLastScrollIndex);
     widget.openFilterNotifier?.removeListener(_onOpenFilterRequest);
     widget.closeFilterNotifier?.removeListener(_onCloseFilterRequest);
+    widget.externalSearchController?.removeListener(_onExternalSearchChanged);
     _searchController.dispose();
     _savedSelectedText.dispose();
     _lastSelectedLink.dispose();
@@ -487,6 +545,8 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
           }
           return !listEquals(
                   previous.activeCommentators, current.activeCommentators) ||
+              !listEquals(previous.availableCommentators,
+                  current.availableCommentators) ||
               previous.links != current.links || // השוואת רפרנס לביצועים
               !listEquals(previous.visibleIndices, current.visibleIndices) ||
               previous.selectedIndex != current.selectedIndex ||
@@ -517,6 +577,12 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
           Widget buildList() {
             return Builder(
               builder: (context) {
+                // כשמשתמשים ב-availableCommentators, ממתינים שהם ייטענו
+                if (widget.useAvailableCommentators &&
+                    state.availableCommentators.isEmpty) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
                 // בודק מראש אם יש קישורים רלוונטיים לאינדקסים הנוכחיים
                 final currentIndexesRaw = widget.indexes ??
                     (state.selectedIndex != null
@@ -555,7 +621,9 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                 // אם אין קישורים רלוונטיים
                 if (!hasRelevantLinks) {
                   // אם יש מפרשים זמינים אבל לא נבחרו בכלל - פתח אוטומטית את מסך הבחירה
+                  // (לא במצב useAvailableCommentators — שם מוצג הכל אוטומטית)
                   if (widget.showSearch &&
+                      !widget.useAvailableCommentators &&
                       hasAnyCommentaryLinks &&
                       selectedCommentators.isEmpty &&
                       !_showCommentatorsFilter) {
@@ -741,6 +809,16 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                     : CommentatorsListView(
                         onCommentatorSelected: _closeCommentatorsFilter,
                       ),
+              );
+            }
+
+            // כאשר חיפוש חיצוני — מסתיר שורת חיפוש פנימית, רק רשימה
+            if (widget.externalSearchController != null) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(fit: FlexFit.loose, child: buildList()),
+                ],
               );
             }
 

@@ -340,3 +340,14 @@ class OpenFullFileEditor extends TextBookEvent {
   @override
   List<Object?> get props => [];
 }
+
+/// טוען את כל הקישורים (ללא סינון מפרשים) עבור טווח שורות נתון.
+/// משמש לכרטסיית מפרשים עצמאית.
+class LoadAllLinksForIndices extends TextBookEvent {
+  final List<int> indices;
+
+  const LoadAllLinksForIndices(this.indices);
+
+  @override
+  List<Object?> get props => [indices];
+}

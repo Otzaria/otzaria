@@ -201,6 +201,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   late final VoidCallback _leftPaneTabControllerListener;
   late final VoidCallback _showLeftPaneListener;
   late final VoidCallback _toggleNavPaneListener;
+  late final VoidCallback _toggleCommentatorsPaneListener;
 
   Future<void> _runInitialSearchIfNeeded() async {
     final controller = widget.tab.searchController;
@@ -449,6 +450,19 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       }
     };
     widget.tab.toggleNavPaneNotifier.addListener(_toggleNavPaneListener);
+
+    _toggleCommentatorsPaneListener = () {
+      final current = _bloc.state;
+      if (current is PdfBookLoaded) {
+        if (current.showRightPane) {
+          _bloc.add(const pdf_events.ToggleRightPane(show: false));
+        } else {
+          _openCommentaryPane();
+        }
+      }
+    };
+    widget.tab.toggleCommentatorsPaneNotifier
+        .addListener(_toggleCommentatorsPaneListener);
   }
 
   Future<void> _loadInitialLayoutMode() async {
@@ -2343,6 +2357,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     _leftPaneTabController?.removeListener(_leftPaneTabControllerListener);
     widget.tab.showLeftPane.removeListener(_showLeftPaneListener);
     widget.tab.toggleNavPaneNotifier.removeListener(_toggleNavPaneListener);
+    widget.tab.toggleCommentatorsPaneNotifier
+        .removeListener(_toggleCommentatorsPaneListener);
     _leftPaneTabController?.dispose();
     _searchFieldFocusNode.dispose();
     _navigationFieldFocusNode.dispose();

@@ -7,8 +7,11 @@ import 'package:otzaria/widgets/layout/commentators_filter_screen.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
+import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
+import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
+import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/pdf_book/view/pdf_commentary_content.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
@@ -44,6 +47,15 @@ class PdfCommentaryPanel extends StatefulWidget {
   final VoidCallback? onClose;
   final int? initialTabIndex;
   final ValueNotifier<int>? openFilterNotifier;
+  /// כשאמת — מציג כמסך מלא (כמו CommentatorsTabScreen) ללא כרטיסיות פאנל
+  final bool isFullScreen;
+  /// override לטווח השורות בטקסט (לכרטסייה עצמאית)
+  final int? lineStartOverride;
+  final int? lineEndOverride;
+  /// חיפוש חיצוני — כשמסופק, מסתיר שורת חיפוש פנימית
+  final TextEditingController? externalSearchController;
+  final ValueNotifier<int>? externalTotalResultsNotifier;
+  final ValueNotifier<int>? externalCurrentIndexNotifier;
 
   const PdfCommentaryPanel({
     super.key,
@@ -55,13 +67,19 @@ class PdfCommentaryPanel extends StatefulWidget {
     this.onClose,
     this.initialTabIndex,
     this.openFilterNotifier,
+    this.isFullScreen = false,
+    this.lineStartOverride,
+    this.lineEndOverride,
+    this.externalSearchController,
+    this.externalTotalResultsNotifier,
+    this.externalCurrentIndexNotifier,
   });
 
   @override
-  State<PdfCommentaryPanel> createState() => _PdfCommentaryPanelState();
+  State<PdfCommentaryPanel> createState() => PdfCommentaryPanelState();
 }
 
-class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
+class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   bool _showFilterTab = false;
@@ -150,7 +168,23 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       initialIndex: widget.initialTabIndex ?? 0,
     );
     widget.openFilterNotifier?.addListener(_onOpenFilterRequest);
+    widget.externalSearchController?.addListener(_onExternalSearchChanged);
     _loadCommentatorGroups();
+  }
+
+  void _onExternalSearchChanged() {
+    final text = widget.externalSearchController!.text;
+    if (!mounted) return;
+    setState(() {
+      _searchQuery = text;
+      _currentSearchIndex = 0;
+      if (text.isEmpty) {
+        _searchResultsPerLink.clear();
+        _totalSearchResults = 0;
+      }
+    });
+    widget.externalTotalResultsNotifier?.value = _totalSearchResults;
+    widget.externalCurrentIndexNotifier?.value = _currentSearchIndex;
   }
 
   void _onOpenFilterRequest() {
@@ -227,8 +261,27 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
   void dispose() {
     _searchUpdateDebounce?.cancel();
     widget.openFilterNotifier?.removeListener(_onOpenFilterRequest);
+    widget.externalSearchController?.removeListener(_onExternalSearchChanged);
     _tabController.dispose();
     super.dispose();
+  }
+
+  /// ניווט לתוצאת חיפוש קודמת (להפעלה מ-PdfCommentatorsTabScreen)
+  void navigateSearchPrev() {
+    if (_currentSearchIndex > 0) {
+      setState(() => _currentSearchIndex--);
+      widget.externalCurrentIndexNotifier?.value = _currentSearchIndex;
+      _scrollToSearchResult();
+    }
+  }
+
+  /// ניווט לתוצאת חיפוש הבאה (להפעלה מ-PdfCommentatorsTabScreen)
+  void navigateSearchNext() {
+    if (_currentSearchIndex < _totalSearchResults - 1) {
+      setState(() => _currentSearchIndex++);
+      widget.externalCurrentIndexNotifier?.value = _currentSearchIndex;
+      _scrollToSearchResult();
+    }
   }
 
   void _updateSearchResultsCount(Link link, int count) {
@@ -267,6 +320,8 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
             _totalSearchResults > 0) {
           _currentSearchIndex = 0;
         }
+        widget.externalTotalResultsNotifier?.value = _totalSearchResults;
+        widget.externalCurrentIndexNotifier?.value = _currentSearchIndex;
       });
     });
   }
@@ -295,12 +350,43 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
 
   @override
   Widget build(BuildContext context) {
+    if (widget.isFullScreen) {
+      // במצב fullscreen: הכותרת + הניווט מופעלים מ-PdfCommentatorsTabScreen.
+      // הפאנל מציג רק את תוכן המפרשים (כולל שורת חיפוש ופילטר)
+      return SelectionArea(
+        contextMenuBuilder: (context, selectableRegionState) {
+          return const SizedBox.shrink();
+        },
+        onSelectionChanged: (selection) {
+          if (selection != null && selection.plainText.isNotEmpty) {
+            setState(() {
+              _savedSelectedText = selection.plainText;
+            });
+          }
+        },
+        child: _buildCommentariesView(),
+      );
+    }
+
     return Column(
       children: [
         // שורת הכרטיסיות
         PanelTabHeader(
           controller: _tabController,
           onClose: widget.onClose,
+          extraActions: [
+            IconButton(
+              iconSize: 18,
+              padding: EdgeInsets.zero,
+              constraints:
+                  const BoxConstraints(minWidth: 36, minHeight: 40),
+              tooltip: 'פתח כרטסיית מפרשים',
+              icon: const Icon(FluentIcons.arrow_expand_24_regular),
+              onPressed: () => context.read<TabsBloc>().add(
+                    AddTab(PdfCommentatorsTab(sourceTab: widget.tab)),
+                  ),
+            ),
+          ],
           onTap: (index) {
             if (index == 0 && _showFilterTab) {
               setState(() => _showFilterTab = false);
@@ -548,7 +634,8 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
 
     return Column(
       children: [
-        _buildSearchBar(),
+        // במצב fullscreen עם חיפוש חיצוני, מסתיר שורת חיפוש פנימית
+        if (widget.externalSearchController == null) _buildSearchBar(),
         Expanded(
           child: _buildCommentariesListContent(),
         ),
@@ -1069,7 +1156,7 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
   }
 
   _PdfVisibleContentCache? _getVisibleContent() {
-    final currentLine = widget.tab.currentTextLineNumber;
+    final currentLine = widget.lineStartOverride ?? widget.tab.currentTextLineNumber;
     if (currentLine == null) {
       _visibleContentCache = null;
       return null;
@@ -1140,7 +1227,8 @@ class _PdfCommentaryPanelState extends State<PdfCommentaryPanel>
   }
 
   ({int startLine, int endLine}) _getCurrentRange(int currentLine) {
-    final endLine = widget.tab.currentTextLineNumberEnd ?? currentLine + 50;
+    final endLine = widget.lineEndOverride ??
+        (widget.tab.currentTextLineNumberEnd ?? currentLine + 50);
     return (startLine: currentLine, endLine: endLine);
   }
 

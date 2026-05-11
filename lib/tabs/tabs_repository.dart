@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:hive_ce/hive.dart';
 import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria/tabs/models/commentators_tab.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/utils/file/hive_utils.dart';
 import 'package:flutter/foundation.dart';
@@ -14,13 +15,30 @@ class TabsRepository {
     try {
       final box = Hive.box('tabs');
       final rawTabs = box.get(_tabsBoxKey, defaultValue: []) as List;
-      return List<OpenedTab>.from(
-        rawTabs.map((e) => OpenedTab.fromJson(castMap(e))).toList(),
-      );
+      final tabs = <OpenedTab>[];
+      for (final e in rawTabs) {
+        try {
+          final tab = _tabFromJson(castMap(e));
+          if (tab != null) tabs.add(tab);
+        } catch (tabError) {
+          debugPrint('⚠️ Skipping tab that failed to restore: $tabError');
+        }
+      }
+      return tabs;
     } catch (e) {
       debugPrint('⚠️ Error loading tabs from disk: $e');
       return [];
     }
+  }
+
+  /// כמו OpenedTab.fromJson אבל תומך גם ב-CommentatorsTab
+  /// מדלג על PdfCommentatorsTab כי אינו ניתן לשחזור (תלוי ב-sourceTab חי)
+  OpenedTab? _tabFromJson(Map<String, dynamic> json) {
+    if (json['type'] == 'PdfCommentatorsTab') return null;
+    if (json['type'] == 'CommentatorsTab') {
+      return CommentatorsTab.fromJson(json);
+    }
+    return OpenedTab.fromJson(json);
   }
 
   int loadCurrentTabIndex() {

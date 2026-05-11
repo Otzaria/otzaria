@@ -52,6 +52,9 @@ class PdfBookTab extends OpenedTab {
   /// מפעיל החלפת מצב פתיחה/סגירה של חלונית הניווט
   final ValueNotifier<int> toggleNavPaneNotifier = ValueNotifier<int>(0);
 
+  /// מפעיל החלפת מצב פתיחה/סגירה של חלונית המפרשים (לקיצור מקשים)
+  final ValueNotifier<int> toggleCommentatorsPaneNotifier = ValueNotifier<int>(0);
+
   /// PDF headings mapping for commentaries and links
   PdfHeadings? pdfHeadings;
 
@@ -156,6 +159,7 @@ class PdfBookTab extends OpenedTab {
     showLeftPane.dispose();
     pinLeftPane.dispose();
     toggleNavPaneNotifier.dispose();
+    toggleCommentatorsPaneNotifier.dispose();
     super.dispose();
   }
 

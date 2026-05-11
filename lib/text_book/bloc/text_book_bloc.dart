@@ -54,6 +54,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   List<String>? _cachedPageShapeTargetBookTitles;
   bool _isLoadingLinks = false;
   bool _pendingLinksReload = false;
+  List<int>? _pendingForceLoadIndices;
+  bool _pendingForceLoadAll = false;
   bool _awaitingInitialPageShapeVisibleSync = false;
 
   TextBookBloc({
@@ -91,6 +93,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     on<UpdateLinks>(_onUpdateLinks);
     on<UpdateAvailableCommentators>(_onUpdateAvailableCommentators);
     on<RefreshLinksForCurrentWindow>(_onRefreshLinksForCurrentWindow);
+    on<LoadAllLinksForIndices>(_onLoadAllLinksForIndices);
   }
 
   @visibleForTesting
@@ -1085,6 +1088,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     List<int> visibleIndices, {
     bool force = false,
     Iterable<String>? targetBookTitlesOverride,
+    bool forceLoadAll = false,
   }) async {
     final runtimeStateBeforeWindowCheck = state;
     if (!force &&
@@ -1097,12 +1101,21 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
     if (_isLoadingLinks) {
       _pendingLinksReload = true;
+      // שמור את ה-indices המבוקשים אם זו טעינה מאולצת (forceLoadAll)
+      if (forceLoadAll) {
+        _pendingForceLoadIndices = List<int>.of(visibleIndices);
+        _pendingForceLoadAll = true;
+      }
       return;
     }
 
     List<String>? targetBookTitles;
     var targetBookTitlesSignature = _allTargetBookTitlesSignature;
-    if (targetBookTitlesOverride != null) {
+    if (forceLoadAll) {
+      // null = ללא פילטר — מחזיר את כל הקישורים כולל מפרשים
+      targetBookTitles = null;
+      targetBookTitlesSignature = _allTargetBookTitlesSignature;
+    } else if (targetBookTitlesOverride != null) {
       targetBookTitles = _normalizeTargetBookTitles(targetBookTitlesOverride);
       targetBookTitlesSignature = _targetBookTitlesSignature(targetBookTitles);
     } else {
@@ -1171,10 +1184,27 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           targetBookTitlesSignature,
         );
         if (_pendingLinksReload || windowOutdated) {
-          _loadLinksInBackground(
-            latestState.book,
-            latestState.visibleIndices,
-          );
+          // אם ממתין טעינה מאולצת (LoadAllLinksForIndices), השתמש ב-indices שנשמרו
+          final pendingIndices = _pendingForceLoadIndices;
+          final pendingForce = _pendingForceLoadAll;
+          _pendingForceLoadIndices = null;
+          _pendingForceLoadAll = false;
+          if (pendingForce && pendingIndices != null) {
+            _loadLinksInBackground(
+              latestState.book,
+              pendingIndices,
+              force: true,
+              forceLoadAll: true,
+            );
+          } else if (!forceLoadAll) {
+            // במצב forceLoadAll (כרטסיית מפרשים עצמאית), אין לבצע תיקון windowOutdated
+            // כי visibleIndices תקוע ב-startIndex ותיקון כזה יחליף את ה-commentary
+            // links שנטענו זה עתה ב-links ריקים (targetBookTitles=[]).
+            _loadLinksInBackground(
+              latestState.book,
+              latestState.visibleIndices,
+            );
+          }
         }
       }
     } catch (e) {
@@ -1247,6 +1277,20 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       currentState.book,
       currentState.visibleIndices,
       force: true,
+    );
+  }
+
+  void _onLoadAllLinksForIndices(
+    LoadAllLinksForIndices event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is! TextBookLoaded) return;
+    final currentState = state as TextBookLoaded;
+    _loadLinksInBackground(
+      currentState.book,
+      event.indices,
+      force: true,
+      forceLoadAll: true,
     );
   }
 

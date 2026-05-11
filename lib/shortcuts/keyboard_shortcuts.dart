@@ -133,6 +133,8 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
       final tab = context.read<TabsBloc>().state.currentTab;
       if (tab is TextBookTab) {
         tab.toggleCommentatorsPaneNotifier.value++;
+      } else if (tab is PdfBookTab) {
+        tab.toggleCommentatorsPaneNotifier.value++;
       }
       return KeyEventResult.handled;
     }

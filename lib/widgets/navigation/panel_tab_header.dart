@@ -7,6 +7,7 @@ class PanelTabHeader extends StatelessWidget {
   final List<Widget> tabs;
   final VoidCallback? onClose;
   final ValueChanged<int>? onTap;
+  final List<Widget> extraActions;
 
   const PanelTabHeader({
     super.key,
@@ -14,14 +15,13 @@ class PanelTabHeader extends StatelessWidget {
     required this.tabs,
     this.onClose,
     this.onTap,
+    this.extraActions = const [],
   });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return SizedBox(
-      height: 60,
-      child: Container(
+    return Container(
         decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(
@@ -45,6 +45,7 @@ class PanelTabHeader extends StatelessWidget {
                 onTap: onTap,
               ),
             ),
+            ...extraActions,
             IconButton(
               iconSize: 18,
               padding: EdgeInsets.zero,
@@ -54,7 +55,6 @@ class PanelTabHeader extends StatelessWidget {
             ),
           ],
         ),
-      ),
     );
   }
 }
