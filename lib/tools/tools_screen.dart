@@ -699,13 +699,14 @@ class ToolsScreenState extends State<ToolsScreen>
             onPressed: () => showModalBottomSheet(
               context: context,
               isScrollControlled: true,
-              builder: (_) => SizedBox(
+              builder: (modalContext) => SizedBox(
                 height: MediaQuery.of(context).size.height * 0.6,
                 child: PluginSidePanel(
                   onPluginSelected: (plugin) {
                     Navigator.of(context).pop();
                     openPluginTransiently(plugin);
                   },
+                  onClose: () => Navigator.of(context).pop(),
                 ),
               ),
             ),
@@ -948,6 +949,7 @@ class ToolsScreenState extends State<ToolsScreen>
                               onPluginSelected: (plugin) {
                                 openPluginTransiently(plugin);
                               },
+                              onClose: () => setState(() => _isPanelOpen = false),
                             ),
                           ),
                         ],

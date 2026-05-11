@@ -16,11 +16,13 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 class PluginSidePanel extends StatelessWidget {
   final Function(InstalledPlugin)? onPluginSelected;
   final bool showDevTools;
-  
+  final VoidCallback? onClose;
+
   const PluginSidePanel({
-    super.key, 
+    super.key,
     this.onPluginSelected,
     this.showDevTools = kDebugMode,
+    this.onClose,
   });
 
   Future<void> _installPlugin(BuildContext context) async {
@@ -52,6 +54,13 @@ class PluginSidePanel extends StatelessWidget {
             padding: const EdgeInsets.all(16.0),
             child: Row(
               children: [
+                if (onClose != null)
+                  IconButton(
+                    icon: const Icon(FluentIcons.dismiss_24_regular),
+                    tooltip: 'סגור',
+                    onPressed: onClose,
+                    iconSize: 20,
+                  ),
                 const Expanded(
                   child: Text(
                     'תוספים',
