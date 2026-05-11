@@ -1955,6 +1955,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
                     child: PluginInstallScreen(
                       manifest: state.manifest,
                       tempDirPath: state.tempDirPath,
+                      previousVersion: state.previousVersion,
                     ),
                   ),
                 );

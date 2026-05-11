@@ -37,6 +37,9 @@ class _FakeInstallerService extends PluginInstallerService {
 
   @override
   Future<void> cancelInstall(String tempDirPath) async {}
+
+  @override
+  Future<void> finalizeInstall(String tempDirPath, dynamic manifest) async {}
 }
 
 /// מאפשר emit ידני מחוץ לבלוק בטסטים בלבד.
@@ -49,12 +52,15 @@ class _TestableBloc extends PluginSystemBloc {
   void testEmit(PluginSystemState state) => emit(state);
 }
 
-PluginManifest _manifest({List<String> permissions = const []}) =>
+PluginManifest _manifest({
+  List<String> permissions = const [],
+  String version = '1.0.0',
+}) =>
     PluginManifest(
       schemaVersion: 1,
       id: 'test.plugin',
       name: 'תוסף בדיקה',
-      version: '1.0.0',
+      version: version,
       description: 'תיאור תוסף',
       author: 'בודק',
       homepage: 'https://test.com',
@@ -74,8 +80,9 @@ PluginManifest _manifest({List<String> permissions = const []}) =>
 Future<void> _openDialog(
   WidgetTester tester,
   _TestableBloc bloc,
-  PluginManifest manifest,
-) async {
+  PluginManifest manifest, {
+  String? previousVersion,
+}) async {
   // Dialog height = screen_height - 2*60. Content ~570px → צריך מסך גבוה מ-690px.
   tester.view.physicalSize = const Size(800, 900);
   tester.view.devicePixelRatio = 1.0;
@@ -98,6 +105,7 @@ Future<void> _openDialog(
                   child: PluginInstallScreen(
                     manifest: manifest,
                     tempDirPath: '/tmp/t',
+                    previousVersion: previousVersion,
                   ),
                 ),
               ),
@@ -228,5 +236,53 @@ void main() {
 
     expect(find.byType(Dialog), findsOneWidget);
     expect(find.byType(PluginInstallScreen), findsOneWidget);
+  });
+
+  // ── מצב עדכון ──
+
+  testWidgets('עדכון — כותרת AppBar היא "אישור עדכון תוסף"', (tester) async {
+    await _openDialog(tester, bloc, _manifest(), previousVersion: '1.0.0');
+
+    expect(find.text('אישור עדכון תוסף'), findsOneWidget);
+    expect(find.text('אישור התקנת תוסף'), findsNothing);
+  });
+
+  testWidgets('התקנה ראשונה — כותרת AppBar היא "אישור התקנת תוסף"',
+      (tester) async {
+    await _openDialog(tester, bloc, _manifest());
+
+    expect(find.text('אישור התקנת תוסף'), findsOneWidget);
+    expect(find.text('אישור עדכון תוסף'), findsNothing);
+  });
+
+  testWidgets('עדכון — מוצגת שורת מעבר גרסאות עם חץ', (tester) async {
+    await _openDialog(tester, bloc,
+        _manifest(version: '2.0.0'), previousVersion: '1.0.0');
+
+    expect(find.text('1.0.0  →  2.0.0'), findsOneWidget);
+    expect(find.text('עדכון גרסה'), findsOneWidget);
+  });
+
+  testWidgets('התקנה ראשונה — מוצגת שורת "גרסה" רגילה', (tester) async {
+    await _openDialog(tester, bloc, _manifest(version: '2.0.0'));
+
+    expect(find.text('גרסה'), findsOneWidget);
+    expect(find.text('2.0.0'), findsOneWidget);
+  });
+
+  testWidgets('עדכון — כפתור פעולה מציג "עדכן"', (tester) async {
+    await _openDialog(tester, bloc, _manifest(), previousVersion: '0.9.0');
+
+    await tester.ensureVisible(find.text('עדכן'));
+    expect(find.text('עדכן'), findsOneWidget);
+    expect(find.text('התקן'), findsNothing);
+  });
+
+  testWidgets('התקנה ראשונה — כפתור פעולה מציג "התקן"', (tester) async {
+    await _openDialog(tester, bloc, _manifest());
+
+    await tester.ensureVisible(find.text('התקן'));
+    expect(find.text('התקן'), findsOneWidget);
+    expect(find.text('עדכן'), findsNothing);
   });
 }

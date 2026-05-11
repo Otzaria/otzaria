@@ -54,12 +54,17 @@ class PluginSystemOverwriteRequired extends PluginSystemState {
 class PluginSystemInstallRequiresPermissions extends PluginSystemState {
   final PluginManifest manifest;
   final String tempDirPath;
+  /// גרסה מותקנת קודמת — null אם זו התקנה ראשונה.
+  final String? previousVersion;
 
   const PluginSystemInstallRequiresPermissions({
     required this.manifest,
     required this.tempDirPath,
+    this.previousVersion,
   });
 
+  bool get isUpdate => previousVersion != null;
+
   @override
-  List<Object?> get props => [manifest, tempDirPath];
+  List<Object?> get props => [manifest, tempDirPath, previousVersion];
 }

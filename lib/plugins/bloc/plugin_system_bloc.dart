@@ -139,6 +139,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
       emit(PluginSystemInstallRequiresPermissions(
         manifest: prepareInfo.manifest,
         tempDirPath: prepareInfo.tempDirPath,
+        previousVersion: prepareInfo.previousVersion,
       ));
     } on PluginOverwriteException catch (e) {
       emit(PluginSystemOverwriteRequired(
@@ -170,6 +171,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
       emit(PluginSystemInstallRequiresPermissions(
         manifest: prepareInfo.manifest,
         tempDirPath: prepareInfo.tempDirPath,
+        previousVersion: prepareInfo.previousVersion,
       ));
     } on PluginOverwriteException catch (e) {
       UiSnack.show(
