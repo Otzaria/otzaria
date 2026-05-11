@@ -142,9 +142,14 @@ class PluginSidePanel extends StatelessWidget {
                               icon: const Icon(FluentIcons.settings_24_regular),
                               tooltip: 'הגדרות תוסף',
                               onPressed: () async {
-                                final result = await Navigator.of(context).push(MaterialPageRoute(
-                                  builder: (context) => PluginSettingsScreen(plugin: plugin),
-                                ));
+                                final result = await showDialog<bool>(
+                                  context: context,
+                                  barrierDismissible: false,
+                                  builder: (_) => BlocProvider<PluginSystemBloc>.value(
+                                    value: context.read<PluginSystemBloc>(),
+                                    child: PluginSettingsScreen(plugin: plugin),
+                                  ),
+                                );
                                 if (result == true && onPluginSelected != null) {
                                   if (context.mounted) {
                                     context.read<NavigationBloc>().add(const NavigateToScreen(Screen.more));

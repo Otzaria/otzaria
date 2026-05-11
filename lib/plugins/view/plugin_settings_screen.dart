@@ -56,7 +56,10 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen> {
         }
       }
 
-      return Scaffold(
+      return Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 60),
+        clipBehavior: Clip.antiAlias,
+        child: Scaffold(
         appBar: AppBar(title: Text('הגדרות תוסף: ${currentPlugin.name}')),
         body: ListView(
           padding: const EdgeInsets.all(16),
@@ -211,6 +214,7 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen> {
             ]
           ],
         ),
+      ),
       );
     });
   }
