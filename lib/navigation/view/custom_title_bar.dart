@@ -667,9 +667,9 @@ class _CustomTitleBarState extends State<CustomTitleBar>
                               );
                             },
                           )
-                        else
+                        else if (tab is TextBookTab)
                           ValueListenableBuilder<String>(
-                            valueListenable: (tab as TextBookTab).currentTitle,
+                            valueListenable: tab.currentTitle,
                             builder: (context, currentTitleValue, child) {
                               final tooltipMessage =
                                   currentTitleValue.isNotEmpty
@@ -680,7 +680,9 @@ class _CustomTitleBarState extends State<CustomTitleBar>
                                 child: Text(truncate(tab.title, 12)),
                               );
                             },
-                          ),
+                          )
+                        else
+                          Text(truncate(tab.title, 12)),
                         Tooltip(
                           preferBelow: false,
                           message: closeTabShortcut.toUpperCase(),
