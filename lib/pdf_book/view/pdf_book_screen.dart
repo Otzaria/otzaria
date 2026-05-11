@@ -2539,7 +2539,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             final leftPaneWidth =
                 state is PdfBookLoaded ? state.sidebarWidth : 300.0;
             final rightPaneWidth =
-                state is PdfBookLoaded ? state.rightPaneWidth : 300.0;
+                (state is PdfBookLoaded ? state.rightPaneWidth : 320.0)
+                    .clamp(320.0, 600.0);
             final showLeftPane =
                 state is PdfBookLoaded ? state.showLeftPane : false;
             final showRightPane =
