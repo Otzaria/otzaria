@@ -27,6 +27,9 @@ import 'package:otzaria/utils/navigation/book_open_coordinator.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/plugins/view/plugin_dev_error_view.dart';
 import 'package:otzaria/plugins/view/webview_environment_holder.dart';
+import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
+import 'package:otzaria/plugins/bloc/plugin_system_event.dart';
+import 'package:otzaria/plugins/services/plugin_store_link_parser.dart';
 
 // ---------------------------------------------------------------------------
 // Stub SDK — injected at AT_DOCUMENT_START before any page JS runs.
@@ -85,6 +88,7 @@ class _PluginTabPageState extends State<PluginTabPage> {
   late final PluginBridgeHandler _bridge;
   late final PluginBridgeAdapter _adapter;
   late final PluginRegistryRepository _pluginRegistryRepository;
+  late final PluginSystemBloc _pluginSystemBloc;
   bool _hasError = false;
   String? _devErrorMessage;
 
@@ -94,6 +98,7 @@ class _PluginTabPageState extends State<PluginTabPage> {
   @override
   void initState() {
     super.initState();
+    _pluginSystemBloc = context.read<PluginSystemBloc>();
     localHtmlPath =
         '${widget.plugin.resolvedRootPath}/${widget.plugin.entrypointPath}';
     final historyBloc = context.read<HistoryBloc>();
@@ -157,6 +162,9 @@ class _PluginTabPageState extends State<PluginTabPage> {
               confirmText: 'המשך',
             ) ==
             true;
+      },
+      requestPluginInstall: (downloadUrl) {
+        _pluginSystemBloc.add(InstallRemotePluginRequested(downloadUrl));
       },
     );
 
@@ -331,6 +339,17 @@ class _PluginTabPageState extends State<PluginTabPage> {
           final uri = navigationAction.request.url;
           if (uri == null) return NavigationActionPolicy.CANCEL;
 
+          if (uri.scheme == 'otzaria') {
+            final request = PluginStoreLinkParser.parseUri(uri);
+            if (request != null) {
+              _pluginSystemBloc.add(InstallRemotePluginRequested(
+                request.downloadUri.toString(),
+                forceOverwrite: request.forceOverwrite,
+              ));
+            }
+            return NavigationActionPolicy.CANCEL;
+          }
+
           if (uri.scheme == 'file') {
             final normalizedUri = p.normalize(uri.toFilePath());
             final normalizedInstall =
@@ -478,7 +497,10 @@ class _PluginTabPageState extends State<PluginTabPage> {
         }
       },
       onReceivedError: (controller, request, error) {
-        if (mounted) setState(() => _hasError = true);
+        // only fail the view for the entrypoint file load itself
+        if (request.url.scheme == 'file') {
+          if (mounted) setState(() => _hasError = true);
+        }
       },
       onConsoleMessage: (controller, consoleMessage) {
         try {
