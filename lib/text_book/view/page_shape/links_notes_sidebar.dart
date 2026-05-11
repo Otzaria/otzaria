@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/personal_notes/widgets/personal_notes_sidebar.dart';
 import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart';
 import 'package:otzaria/text_book/view/selected_line_links_view.dart';
 import 'package:otzaria/widgets/navigation/panel_tab_header.dart';
 
@@ -15,6 +16,7 @@ class LinksNotesSidebar extends StatefulWidget {
   final VoidCallback onClosePane;
   final int initialTabIndex;
   final ValueChanged<int>? onTabChanged;
+  final SelectionSyncController? selectionSyncController;
 
   const LinksNotesSidebar({
     super.key,
@@ -26,6 +28,7 @@ class LinksNotesSidebar extends StatefulWidget {
     required this.onClosePane,
     this.initialTabIndex = 0,
     this.onTabChanged,
+    this.selectionSyncController,
   });
 
   @override
@@ -83,14 +86,16 @@ class _LinksNotesSidebarState extends State<LinksNotesSidebar>
                 icon: Icon(FluentIcons.link_24_regular, size: 18),
                 iconMargin: EdgeInsets.only(bottom: 2),
                 height: 48,
-                child: Text('קישורים', style: TextStyle(fontSize: 12),
+                child: Text('קישורים',
+                    style: TextStyle(fontSize: 12),
                     textDirection: TextDirection.rtl),
               ),
               Tab(
                 icon: Icon(FluentIcons.note_24_regular, size: 18),
                 iconMargin: EdgeInsets.only(bottom: 2),
                 height: 48,
-                child: Text('הערות', style: TextStyle(fontSize: 12),
+                child: Text('הערות',
+                    style: TextStyle(fontSize: 12),
                     textDirection: TextDirection.rtl),
               ),
             ],
@@ -102,6 +107,7 @@ class _LinksNotesSidebarState extends State<LinksNotesSidebar>
                 SelectedLineLinksView(
                   openBookCallback: widget.openBookCallback,
                   fontSize: widget.fontSize,
+                  selectionSyncController: widget.selectionSyncController,
                   showVisibleLinksIfNoSelection: widget.initialTabIndex == 0,
                 ),
                 PersonalNotesSidebar(

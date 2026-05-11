@@ -9,6 +9,7 @@ import 'package:otzaria/text_book/view/selected_line_links_view.dart';
 import 'package:otzaria/personal_notes/widgets/personal_notes_sidebar.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:otzaria/text_book/view/commentators_list_screen.dart';
+import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart';
 import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
 import 'package:otzaria/widgets/navigation/panel_tab_header.dart';
 
@@ -21,6 +22,7 @@ class TabbedCommentaryPanel extends StatefulWidget {
   final int? initialTabIndex; // אינדקס הכרטיסייה הראשונית
   final Function(int)? onTabChanged; // callback כשהטאב משתנה
   final bool showSplitView; // האם במצב מפוצל (true) או מפרשים למטה (false)
+  final SelectionSyncController? selectionSyncController;
 
   const TabbedCommentaryPanel({
     super.key,
@@ -31,6 +33,7 @@ class TabbedCommentaryPanel extends StatefulWidget {
     this.initialTabIndex,
     this.onTabChanged,
     this.showSplitView = true,
+    this.selectionSyncController,
   });
 
   @override
@@ -137,14 +140,14 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
                             ),
                           ),
                           Tab(
-                            icon:
-                                const Icon(FluentIcons.link_24_regular, size: 18),
+                            icon: const Icon(FluentIcons.link_24_regular,
+                                size: 18),
                             iconMargin: const EdgeInsets.only(bottom: 2),
                             child: _tabLabel('קישורים'),
                           ),
                           Tab(
-                            icon:
-                                const Icon(FluentIcons.note_24_regular, size: 18),
+                            icon: const Icon(FluentIcons.note_24_regular,
+                                size: 18),
                             iconMargin: const EdgeInsets.only(bottom: 2),
                             child: _tabLabel('הערות'),
                           ),
@@ -164,6 +167,7 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
                       openBookCallback: widget.openBookCallback,
                       fontSize: widget.fontSize,
                       showSearch: widget.showSearch,
+                      selectionSyncController: widget.selectionSyncController,
                       selectedCommentatorsOverride: state.activeCommentators,
                       onSelectedCommentatorsOverrideChanged: (commentators) {
                         context
@@ -179,6 +183,7 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
                   SelectedLineLinksView(
                     openBookCallback: widget.openBookCallback,
                     fontSize: widget.fontSize,
+                    selectionSyncController: widget.selectionSyncController,
                     showVisibleLinksIfNoSelection:
                         widget.initialTabIndex == 1, // אם נפתח ישירות לקישורים
                   ),

@@ -16,6 +16,7 @@ import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/utils/ui/context_menu_utils.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
+import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart';
 
 @visibleForTesting
 RenderSettings buildSelectedLinkRenderSettings({
@@ -69,12 +70,14 @@ class SelectedLineLinksView extends StatefulWidget {
   final double fontSize;
   final bool
       showVisibleLinksIfNoSelection; // האם להציג קישורים נראים אם אין בחירה
+  final SelectionSyncController? selectionSyncController;
 
   const SelectedLineLinksView({
     super.key,
     required this.openBookCallback,
     required this.fontSize,
     this.showVisibleLinksIfNoSelection = false,
+    this.selectionSyncController,
   });
 
   @override
@@ -93,16 +96,50 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
   final Set<String> _linksWithSearchResults = {}; // קישורים עם תוצאות חיפוש
   String? _savedSelectedText; // טקסט נבחר לתפריט הקשר
   Link? _savedSelectedLink; // ה-link שממנו נבחר הטקסט
+  final Object _selectionOwner = Object();
+  int _selectionRevision = 0;
 
   @override
   void initState() {
     super.initState();
+    widget.selectionSyncController?.addListener(_handleExternalSelectionChange);
   }
 
   @override
   void dispose() {
+    widget.selectionSyncController
+        ?.removeListener(_handleExternalSelectionChange);
     _searchController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant SelectedLineLinksView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectionSyncController != widget.selectionSyncController) {
+      oldWidget.selectionSyncController
+          ?.removeListener(_handleExternalSelectionChange);
+      widget.selectionSyncController
+          ?.addListener(_handleExternalSelectionChange);
+    }
+  }
+
+  void _handleExternalSelectionChange() {
+    final controller = widget.selectionSyncController;
+    if (controller == null ||
+        identical(controller.activeOwner, _selectionOwner)) {
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _selectionRevision = controller.revision;
+      _savedSelectedText = null;
+      _savedSelectedLink = null;
+    });
   }
 
   @override
@@ -440,20 +477,26 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
     }
 
     return SelectionArea(
+      key: ValueKey(
+        'selected_link_${buildSelectedLinkInstanceKey(link)}_$_selectionRevision',
+      ),
       contextMenuBuilder: (context, selectableRegionState) {
         return const SizedBox.shrink();
       },
       onSelectionChanged: (selection) {
         if (selection != null && selection.plainText.isNotEmpty) {
+          widget.selectionSyncController?.activate(_selectionOwner);
           _savedSelectedText = selection.plainText;
           _savedSelectedLink = link;
-        } else if (selection == null) {
+        } else if (selection == null || selection.plainText.trim().isEmpty) {
+          widget.selectionSyncController?.clear(_selectionOwner);
           _savedSelectedText = null;
           _savedSelectedLink = null;
         }
       },
       child: AppContextMenuRegion(
-        menuBuilder: (menuCtx, _) => ContextMenuUtils.buildCommentaryContextMenu(
+        menuBuilder: (menuCtx, _) =>
+            ContextMenuUtils.buildCommentaryContextMenu(
           context: menuCtx,
           link: link,
           openBookCallback: widget.openBookCallback,
