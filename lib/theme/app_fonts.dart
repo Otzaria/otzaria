@@ -2,7 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'
-    show TargetPlatform, defaultTargetPlatform, kIsWeb;
+    show TargetPlatform, defaultTargetPlatform, kIsWeb, visibleForTesting;
 import 'package:system_fonts/system_fonts.dart' show SystemFonts;
 import 'package:otzaria/utils/file/font_file_reader.dart';
 
@@ -89,6 +89,28 @@ class AppFonts {
   }
 
   static bool _sfntSupportsHebrew(Uint8List data) {
+    // TTC (TrueType Collection): magic "ttcf" at offset 0.
+    // numFonts at offset 8; font offsets start at offset 12.
+    if (data.length >= 16 &&
+        data[0] == 0x74 && data[1] == 0x74 &&
+        data[2] == 0x63 && data[3] == 0x66) {
+      final numFonts =
+          (data[8] << 24) | (data[9] << 16) | (data[10] << 8) | data[11];
+      for (int i = 0; i < numFonts; i++) {
+        final offsetPos = 12 + i * 4;
+        if (offsetPos + 4 > data.length) break;
+        final fontOffset = (data[offsetPos] << 24) |
+            (data[offsetPos + 1] << 16) |
+            (data[offsetPos + 2] << 8) |
+            data[offsetPos + 3];
+        if (fontOffset <= 0 || fontOffset >= data.length) continue;
+        if (_sfntSupportsHebrew(Uint8List.sublistView(data, fontOffset))) {
+          return true;
+        }
+      }
+      return false;
+    }
+
     // Hebrew blocks to detect:
     // - U+0590..U+05FF (Hebrew)
     // - U+FB1D..U+FB4F (Hebrew Presentation Forms)
@@ -315,6 +337,10 @@ class AppFonts {
       // אם לא ניתן לטעון, נשאיר את fallback של Flutter לעשות את שלו.
     }
   }
+
+  @visibleForTesting
+  static bool debugSfntSupportsHebrew(Uint8List data) =>
+      _sfntSupportsHebrew(data);
 }
 
 /// מידע על גופן
