@@ -1369,6 +1369,11 @@ class PluginBridgeAdapter {
         if (cb == null) throw Exception('error.unavailable: install not wired');
         cb(url);
         return true;
+      case 'listInstalled':
+        final installed = await _pluginRepo.getAllPlugins();
+        return installed
+            .map((p) => {'name': p.name, 'version': p.version})
+            .toList();
       default:
         throw Exception('Unknown action in plugin: $action');
     }
