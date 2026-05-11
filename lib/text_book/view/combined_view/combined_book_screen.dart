@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:otzaria/text_book/utils/visible_index.dart';
@@ -133,12 +133,12 @@ bool shouldShowOpenLinksPaneEntry({
   return hasLinks && !isLinksTabActive;
 }
 
-/// פריט "בחר מפרשים מרובים" יוצג כשיש callback `onOpenCommentatorsPaneWithFilter`
-/// וטאב המפרשים אינו פעיל בחלונית הצד. הכלל זהה גם במצב "מפרשים מתחת":
-/// אם המשתמש כבר פתח את חלונית הצד על המפרשים, אין צורך בפריט.
+/// ╫ñ╫¿╫ש╫ר "╫ס╫ק╫¿ ╫₧╫ñ╫¿╫⌐╫ש╫¥ ╫₧╫¿╫ץ╫ס╫ש╫¥" ╫ש╫ץ╫ª╫ע ╫¢╫⌐╫ש╫⌐ callback `onOpenCommentatorsPaneWithFilter`
+/// ╫ץ╫ר╫נ╫ס ╫פ╫₧╫ñ╫¿╫⌐╫ש╫¥ ╫נ╫ש╫á╫ץ ╫ñ╫ó╫ש╫£ ╫ס╫ק╫£╫ץ╫á╫ש╫¬ ╫פ╫ª╫ף. ╫פ╫¢╫£╫£ ╫צ╫פ╫פ ╫ע╫¥ ╫ס╫₧╫ª╫ס "╫₧╫ñ╫¿╫⌐╫ש╫¥ ╫₧╫¬╫ק╫¬":
+/// ╫נ╫¥ ╫פ╫₧╫⌐╫¬╫₧╫⌐ ╫¢╫ס╫¿ ╫ñ╫¬╫ק ╫נ╫¬ ╫ק╫£╫ץ╫á╫ש╫¬ ╫פ╫ª╫ף ╫ó╫£ ╫פ╫₧╫ñ╫¿╫⌐╫ש╫¥, ╫נ╫ש╫ƒ ╫ª╫ץ╫¿╫ת ╫ס╫ñ╫¿╫ש╫ר.
 ///
-/// בניגוד ל-[shouldShowOpenCommentatorsPaneEntry], הפריט הזה לא תלוי
-/// ב-`hasSelectedCommentators` — מטרתו לאפשר בחירה גם כשהבחירה ריקה.
+/// ╫ס╫á╫ש╫ע╫ץ╫ף ╫£-[shouldShowOpenCommentatorsPaneEntry], ╫פ╫ñ╫¿╫ש╫ר ╫פ╫צ╫פ ╫£╫נ ╫¬╫£╫ץ╫ש
+/// ╫ס-`hasSelectedCommentators` Γאפ ╫₧╫ר╫¿╫¬╫ץ ╫£╫נ╫ñ╫⌐╫¿ ╫ס╫ק╫ש╫¿╫פ ╫ע╫¥ ╫¢╫⌐╫פ╫ס╫ק╫ש╫¿╫פ ╫¿╫ש╫º╫פ.
 @visibleForTesting
 bool shouldShowSelectCommentatorsEntry({
   required bool hasOpenCommentatorsPaneWithFilterCallback,
@@ -147,15 +147,15 @@ bool shouldShowSelectCommentatorsEntry({
   return hasOpenCommentatorsPaneWithFilterCallback && !isCommentatorsTabActive;
 }
 
-/// קובע האם צריך לבנות מחדש את ה-SelectionArea החיצוני בתגובה לשינוי בעלות
-/// ב-[SelectionSyncController]. הבנייה מחדש מתבצעת על-ידי קידום ערך
-/// `_selectionAreaRevision` ששימש כ-`ValueKey` של ה-SelectionArea — ולכן
-/// היא משחזרת את כל עץ הצאצאים, כולל `_CommentaryCard` במצב 'מפרשים מתחת'.
+/// ╫º╫ץ╫ס╫ó ╫פ╫נ╫¥ ╫ª╫¿╫ש╫ת ╫£╫ס╫á╫ץ╫¬ ╫₧╫ק╫ף╫⌐ ╫נ╫¬ ╫פ-SelectionArea ╫פ╫ק╫ש╫ª╫ץ╫á╫ש ╫ס╫¬╫ע╫ץ╫ס╫פ ╫£╫⌐╫ש╫á╫ץ╫ש ╫ס╫ó╫£╫ץ╫¬
+/// ╫ס-[SelectionSyncController]. ╫פ╫ס╫á╫ש╫ש╫פ ╫₧╫ק╫ף╫⌐ ╫₧╫¬╫ס╫ª╫ó╫¬ ╫ó╫£-╫ש╫ף╫ש ╫º╫ש╫ף╫ץ╫¥ ╫ó╫¿╫ת
+/// `_selectionAreaRevision` ╫⌐╫⌐╫ש╫₧╫⌐ ╫¢-`ValueKey` ╫⌐╫£ ╫פ-SelectionArea Γאפ ╫ץ╫£╫¢╫ƒ
+/// ╫פ╫ש╫נ ╫₧╫⌐╫ק╫צ╫¿╫¬ ╫נ╫¬ ╫¢╫£ ╫ó╫Ñ ╫פ╫ª╫נ╫ª╫נ╫ש╫¥, ╫¢╫ץ╫£╫£ `_CommentaryCard` ╫ס╫₧╫ª╫ס '╫₧╫ñ╫¿╫⌐╫ש╫¥ ╫₧╫¬╫ק╫¬'.
 ///
-/// מטרת הבנייה היא לנקות בחירה ויזואלית של ה-SelectionArea שלנו כשאזור אחר
-/// תפס בעלות. אם אין לנו בחירה משלנו — אין מה לנקות, ו-rebuild רק יהרוס
-/// את עץ הצאצאים (במצב 'מפרשים מתחת' זה גורם לטעינה מחדש של המפרשים בכל
-/// פעם שמנסים לסמן בהם טקסט).
+/// ╫₧╫ר╫¿╫¬ ╫פ╫ס╫á╫ש╫ש╫פ ╫פ╫ש╫נ ╫£╫á╫º╫ץ╫¬ ╫ס╫ק╫ש╫¿╫פ ╫ץ╫ש╫צ╫ץ╫נ╫£╫ש╫¬ ╫⌐╫£ ╫פ-SelectionArea ╫⌐╫£╫á╫ץ ╫¢╫⌐╫נ╫צ╫ץ╫¿ ╫נ╫ק╫¿
+/// ╫¬╫ñ╫í ╫ס╫ó╫£╫ץ╫¬. ╫נ╫¥ ╫נ╫ש╫ƒ ╫£╫á╫ץ ╫ס╫ק╫ש╫¿╫פ ╫₧╫⌐╫£╫á╫ץ Γאפ ╫נ╫ש╫ƒ ╫₧╫פ ╫£╫á╫º╫ץ╫¬, ╫ץ-rebuild ╫¿╫º ╫ש╫פ╫¿╫ץ╫í
+/// ╫נ╫¬ ╫ó╫Ñ ╫פ╫ª╫נ╫ª╫נ╫ש╫¥ (╫ס╫₧╫ª╫ס '╫₧╫ñ╫¿╫⌐╫ש╫¥ ╫₧╫¬╫ק╫¬' ╫צ╫פ ╫ע╫ץ╫¿╫¥ ╫£╫ר╫ó╫ש╫á╫פ ╫₧╫ק╫ף╫⌐ ╫⌐╫£ ╫פ╫₧╫ñ╫¿╫⌐╫ש╫¥ ╫ס╫¢╫£
+/// ╫ñ╫ó╫¥ ╫⌐╫₧╫á╫í╫ש╫¥ ╫£╫í╫₧╫ƒ ╫ס╫פ╫¥ ╫ר╫º╫í╫ר).
 @visibleForTesting
 bool shouldRebuildSelectionAreaOnExternalChange({
   required Object? activeOwner,
@@ -168,32 +168,32 @@ bool shouldRebuildSelectionAreaOnExternalChange({
 }
 
 class _CombinedViewState extends State<CombinedView> {
-  // שמירת הטקסט הנבחר האחרון
+  // ╫⌐╫₧╫ש╫¿╫¬ ╫פ╫ר╫º╫í╫ר ╫פ╫á╫ס╫ק╫¿ ╫פ╫נ╫ק╫¿╫ץ╫ƒ
   final ValueNotifier<String?> _savedSelectedText =
       ValueNotifier<String?>(null);
-  // שמירת האינדקס של השורה שממנה הטקסט הודגש
+  // ╫⌐╫₧╫ש╫¿╫¬ ╫פ╫נ╫ש╫á╫ף╫º╫í ╫⌐╫£ ╫פ╫⌐╫ץ╫¿╫פ ╫⌐╫₧╫₧╫á╫פ ╫פ╫ר╫º╫í╫ר ╫פ╫ץ╫ף╫ע╫⌐
   final ValueNotifier<int?> _savedSelectedIndex = ValueNotifier<int?>(null);
-  // שמירת reference ל-BLoC לשימוש ב-listeners
+  // ╫⌐╫₧╫ש╫¿╫¬ reference ╫£-BLoC ╫£╫⌐╫ש╫₧╫ץ╫⌐ ╫ס-listeners
   late final TextBookBloc _textBookBloc;
 
   bool _hasScrolledToInitialPosition = false;
 
-  // מנהל בחירת טקסט משופר
+  // ╫₧╫á╫פ╫£ ╫ס╫ק╫ש╫¿╫¬ ╫ר╫º╫í╫ר ╫₧╫⌐╫ץ╫ñ╫¿
   late final TextSelectionManager _selectionManager;
 
   int _selectionAreaRevision = 0;
   final Object _selectionOwner = Object();
 
-  // listener לניקוי בחירה - נשמור אותו כדי להסיר אותו ב-dispose
+  // listener ╫£╫á╫ש╫º╫ץ╫ש ╫ס╫ק╫ש╫¿╫פ - ╫á╫⌐╫₧╫ץ╫¿ ╫נ╫ץ╫¬╫ץ ╫¢╫ף╫ש ╫£╫פ╫í╫ש╫¿ ╫נ╫ץ╫¬╫ץ ╫ס-dispose
   void _onSelectionModeChanged() {
     if (!_selectionManager.isInSelectionMode && mounted) {
-      // כשיוצאים ממצב בחירה, קוראים ל-setState כדי לכפות בנייה מחדש
-      // של SelectionArea ולנקות את הבחירה באופן ויזואלי.
+      // ╫¢╫⌐╫ש╫ץ╫ª╫נ╫ש╫¥ ╫₧╫₧╫ª╫ס ╫ס╫ק╫ש╫¿╫פ, ╫º╫ץ╫¿╫נ╫ש╫¥ ╫£-setState ╫¢╫ף╫ש ╫£╫¢╫ñ╫ץ╫¬ ╫ס╫á╫ש╫ש╫פ ╫₧╫ק╫ף╫⌐
+      // ╫⌐╫£ SelectionArea ╫ץ╫£╫á╫º╫ץ╫¬ ╫נ╫¬ ╫פ╫ס╫ק╫ש╫¿╫פ ╫ס╫נ╫ץ╫ñ╫ƒ ╫ץ╫ש╫צ╫ץ╫נ╫£╫ש.
       setState(() {});
     }
   }
 
-  /// פתיחת חלון הצד של המפרשים רק אם מוסיפים מפרשים ומפרשים מוגדרים בצד הטקסט (לא מתחת)
+  /// ╫ñ╫¬╫ש╫ק╫¬ ╫ק╫£╫ץ╫ƒ ╫פ╫ª╫ף ╫⌐╫£ ╫פ╫₧╫ñ╫¿╫⌐╫ש╫¥ ╫¿╫º ╫נ╫¥ ╫₧╫ץ╫í╫ש╫ñ╫ש╫¥ ╫₧╫ñ╫¿╫⌐╫ש╫¥ ╫ץ╫₧╫ñ╫¿╫⌐╫ש╫¥ ╫₧╫ץ╫ע╫ף╫¿╫ש╫¥ ╫ס╫ª╫ף ╫פ╫ר╫º╫í╫ר (╫£╫נ ╫₧╫¬╫ק╫¬)
   void _openCommentatorsPane({required bool isAdding}) {
     if (isAdding &&
         !widget.showCommentaryAsExpansionTiles &&
@@ -206,7 +206,7 @@ class _CombinedViewState extends State<CombinedView> {
 
   bool _didRequestInitialFocus = false;
 
-  // שמירת גובה הבלוק בפועל לחישובים דינאמיים
+  // ╫⌐╫₧╫ש╫¿╫¬ ╫ע╫ץ╫ס╫פ ╫פ╫ס╫£╫ץ╫º ╫ס╫ñ╫ץ╫ó╫£ ╫£╫ק╫ש╫⌐╫ץ╫ס╫ש╫¥ ╫ף╫ש╫á╫נ╫₧╫ש╫ש╫¥
   double _viewportHeight = 0;
   List<String>? _cachedReadingSegmentContent;
   bool? _cachedReadingSegmentContinuous;
@@ -223,13 +223,13 @@ class _CombinedViewState extends State<CombinedView> {
       _previewScrollController = ScrollController();
     }
     _focusNode = FocusNode();
-    // שמירת ה-BLoC מראש
+    // ╫⌐╫₧╫ש╫¿╫¬ ╫פ-BLoC ╫₧╫¿╫נ╫⌐
     _textBookBloc = context.read<TextBookBloc>();
 
-    // אתחול מנהל הבחירה
+    // ╫נ╫¬╫ק╫ץ╫£ ╫₧╫á╫פ╫£ ╫פ╫ס╫ק╫ש╫¿╫פ
     _selectionManager = TextSelectionManager();
 
-    // האזנה לשינויים במצב הבחירה כדי לכפות rebuild של SelectionArea
+    // ╫פ╫נ╫צ╫á╫פ ╫£╫⌐╫ש╫á╫ץ╫ש╫ש╫¥ ╫ס╫₧╫ª╫ס ╫פ╫ס╫ק╫ש╫¿╫פ ╫¢╫ף╫ש ╫£╫¢╫ñ╫ץ╫¬ rebuild ╫⌐╫£ SelectionArea
     _selectionManager.addListener(_onSelectionModeChanged);
     widget.selectionSyncController?.addListener(_handleExternalSelectionChange);
 
@@ -240,19 +240,19 @@ class _CombinedViewState extends State<CombinedView> {
           .add(LoadPersonalNotes(widget.tab.book.title));
     });
 
-    // האזנה לשינויים במיקומי הפריטים כדי לאפס את הבחירה בגלילה
+    // ╫פ╫נ╫צ╫á╫פ ╫£╫⌐╫ש╫á╫ץ╫ש╫ש╫¥ ╫ס╫₧╫ש╫º╫ץ╫₧╫ש ╫פ╫ñ╫¿╫ש╫ר╫ש╫¥ ╫¢╫ף╫ש ╫£╫נ╫ñ╫í ╫נ╫¬ ╫פ╫ס╫ק╫ש╫¿╫פ ╫ס╫ע╫£╫ש╫£╫פ
     widget.tab.positionsListener.itemPositions.addListener(_onScroll);
-    // עדכון האינדקס ב-tab בזמן אמת
+    // ╫ó╫ף╫¢╫ץ╫ƒ ╫פ╫נ╫ש╫á╫ף╫º╫í ╫ס-tab ╫ס╫צ╫₧╫ƒ ╫נ╫₧╫¬
     widget.tab.positionsListener.itemPositions.addListener(_updateTabIndex);
 
-    // האזנה לשינויים ב-state כדי לגלול למיקום הנכון בפעם הראשונה
+    // ╫פ╫נ╫צ╫á╫פ ╫£╫⌐╫ש╫á╫ץ╫ש╫ש╫¥ ╫ס-state ╫¢╫ף╫ש ╫£╫ע╫£╫ץ╫£ ╫£╫₧╫ש╫º╫ץ╫¥ ╫פ╫á╫¢╫ץ╫ƒ ╫ס╫ñ╫ó╫¥ ╫פ╫¿╫נ╫⌐╫ץ╫á╫פ
     _textBookBloc.stream.listen((state) {
       if (state is TextBookLoaded &&
           !_hasScrolledToInitialPosition &&
           state.visibleIndices.isNotEmpty) {
         _hasScrolledToInitialPosition = true;
         final initialIndex = state.visibleIndices.first;
-        debugPrint('DEBUG: גלילה אוטומטית למיקום שמור: $initialIndex');
+        debugPrint('DEBUG: ╫ע╫£╫ש╫£╫פ ╫נ╫ץ╫ר╫ץ╫₧╫ר╫ש╫¬ ╫£╫₧╫ש╫º╫ץ╫¥ ╫⌐╫₧╫ץ╫¿: $initialIndex');
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted && widget.tab.scrollController.isAttached) {
             unawaited(_scrollToSourceLine(initialIndex));
@@ -261,8 +261,8 @@ class _CombinedViewState extends State<CombinedView> {
       }
     });
 
-    // מוודא שהפוקוס מגיע לאזור הקריאה מיד אחרי פתיחת ספר
-    // כדי שגלילה בחיצים תעבוד בלי לחיצה בעכבר, אך בלי לגנוב פוקוס משדות טקסט.
+    // ╫₧╫ץ╫ץ╫ף╫נ ╫⌐╫פ╫ñ╫ץ╫º╫ץ╫í ╫₧╫ע╫ש╫ó ╫£╫נ╫צ╫ץ╫¿ ╫פ╫º╫¿╫ש╫נ╫פ ╫₧╫ש╫ף ╫נ╫ק╫¿╫ש ╫ñ╫¬╫ש╫ק╫¬ ╫í╫ñ╫¿
+    // ╫¢╫ף╫ש ╫⌐╫ע╫£╫ש╫£╫פ ╫ס╫ק╫ש╫ª╫ש╫¥ ╫¬╫ó╫ס╫ץ╫ף ╫ס╫£╫ש ╫£╫ק╫ש╫ª╫פ ╫ס╫ó╫¢╫ס╫¿, ╫נ╫ת ╫ס╫£╫ש ╫£╫ע╫á╫ץ╫ס ╫ñ╫ץ╫º╫ץ╫í ╫₧╫⌐╫ף╫ץ╫¬ ╫ר╫º╫í╫ר.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _didRequestInitialFocus) return;
       _didRequestInitialFocus = true;
@@ -336,11 +336,11 @@ class _CombinedViewState extends State<CombinedView> {
     widget.onSelectedTextChanged?.call(null);
   }
 
-  // עדכון האינדקס הנוכחי ב-tab
+  // ╫ó╫ף╫¢╫ץ╫ƒ ╫פ╫נ╫ש╫á╫ף╫º╫í ╫פ╫á╫ץ╫¢╫ק╫ש ╫ס-tab
   void _updateTabIndex() {
     final positions = widget.tab.positionsListener.itemPositions.value;
     if (positions.isNotEmpty) {
-      // שומר את האינדקס של הפריט הראשון הנראה
+      // ╫⌐╫ץ╫₧╫¿ ╫נ╫¬ ╫פ╫נ╫ש╫á╫ף╫º╫í ╫⌐╫£ ╫פ╫ñ╫¿╫ש╫ר ╫פ╫¿╫נ╫⌐╫ץ╫ƒ ╫פ╫á╫¿╫נ╫פ
       final segments = _readingSegmentsForCurrentMode();
       final visiblePositions = positions
           .where(
@@ -410,10 +410,10 @@ class _CombinedViewState extends State<CombinedView> {
     _textBookBloc.add(event);
   }
 
-  // פונקציה שתשלח אירוע איפוס ל-selectedIndex אם יש גלילה משמעותית
+  // ╫ñ╫ץ╫á╫º╫ª╫ש╫פ ╫⌐╫¬╫⌐╫£╫ק ╫נ╫ש╫¿╫ץ╫ó ╫נ╫ש╫ñ╫ץ╫í ╫£-selectedIndex ╫נ╫¥ ╫ש╫⌐ ╫ע╫£╫ש╫£╫פ ╫₧╫⌐╫₧╫ó╫ץ╫¬╫ש╫¬
   void _onScroll() {
-    // אנחנו רוצים את הלוגיקה הזו רק בתצוגה המפוצלת (SimpleBookView לשעבר)
-    // שבה המפרשים מוצגים בפאנל צד (כלומר: לא ExpansionTiles)
+    // ╫נ╫á╫ק╫á╫ץ ╫¿╫ץ╫ª╫ש╫¥ ╫נ╫¬ ╫פ╫£╫ץ╫ע╫ש╫º╫פ ╫פ╫צ╫ץ ╫¿╫º ╫ס╫¬╫ª╫ץ╫ע╫פ ╫פ╫₧╫ñ╫ץ╫ª╫£╫¬ (SimpleBookView ╫£╫⌐╫ó╫ס╫¿)
+    // ╫⌐╫ס╫פ ╫פ╫₧╫ñ╫¿╫⌐╫ש╫¥ ╫₧╫ץ╫ª╫ע╫ש╫¥ ╫ס╫ñ╫נ╫á╫£ ╫ª╫ף (╫¢╫£╫ץ╫₧╫¿: ╫£╫נ ExpansionTiles)
     if (widget.showCommentaryAsExpansionTiles) return;
 
     final state = _textBookBloc.state;
@@ -422,7 +422,7 @@ class _CombinedViewState extends State<CombinedView> {
     final currentSelectedIndex = state.selectedIndex;
 
     if (currentSelectedIndex != null) {
-      // אם האינדקס הנבחר כבר לא נראה (האינדקסים הנראים שונו עקב גלילה)
+      // ╫נ╫¥ ╫פ╫נ╫ש╫á╫ף╫º╫í ╫פ╫á╫ס╫ק╫¿ ╫¢╫ס╫¿ ╫£╫נ ╫á╫¿╫נ╫פ (╫פ╫נ╫ש╫á╫ף╫º╫í╫ש╫¥ ╫פ╫á╫¿╫נ╫ש╫¥ ╫⌐╫ץ╫á╫ץ ╫ó╫º╫ס ╫ע╫£╫ש╫£╫פ)
       final visibleIndices = state.visibleIndices;
       if (!visibleIndices.contains(currentSelectedIndex)) {
         _addTextBookEventIfOpen(const UpdateSelectedIndex(null));
@@ -430,7 +430,7 @@ class _CombinedViewState extends State<CombinedView> {
     }
   }
 
-  // מעקב אחר האינדקס הנוכחי שנבחר (לשימוש בהעתקה עם כותרות)
+  // ╫₧╫ó╫º╫ס ╫נ╫ק╫¿ ╫פ╫נ╫ש╫á╫ף╫º╫í ╫פ╫á╫ץ╫¢╫ק╫ש ╫⌐╫á╫ס╫ק╫¿ (╫£╫⌐╫ש╫₧╫ץ╫⌐ ╫ס╫פ╫ó╫¬╫º╫פ ╫ó╫¥ ╫¢╫ץ╫¬╫¿╫ץ╫¬)
   final ValueNotifier<int?> _currentSelectedIndex = ValueNotifier<int?>(null);
 
   void _prefetchDictionaryLookups(String? selectedText) {
@@ -452,7 +452,7 @@ class _CombinedViewState extends State<CombinedView> {
     }
   }
 
-  /// helper קטן שמחזיר רשימת AppContextMenuEntry מקבוצה אחת
+  /// helper ╫º╫ר╫ƒ ╫⌐╫₧╫ק╫צ╫ש╫¿ ╫¿╫⌐╫ש╫₧╫¬ AppContextMenuEntry ╫₧╫º╫ס╫ץ╫ª╫פ ╫נ╫ק╫¬
   List<AppContextMenuEntry> _buildGroup(
     String groupName,
     List<String>? group,
@@ -464,7 +464,7 @@ class _CombinedViewState extends State<CombinedView> {
         group.every((title) => st.activeCommentators.contains(title));
     return [
       AppContextMenuEntry(
-        label: 'הצג את כל $groupName',
+        label: '╫פ╫ª╫ע ╫נ╫¬ ╫¢╫£ $groupName',
         trailing:
             groupActive ? const Icon(FluentIcons.checkmark_24_regular) : null,
         onTap: () {
@@ -503,18 +503,18 @@ class _CombinedViewState extends State<CombinedView> {
     ];
   }
 
-  // בניית תפריט קונטקסט לאינדקס ספציפי של פסקה
+  // ╫ס╫á╫ש╫ש╫¬ ╫¬╫ñ╫¿╫ש╫ר ╫º╫ץ╫á╫ר╫º╫í╫ר ╫£╫נ╫ש╫á╫ף╫º╫í ╫í╫ñ╫ª╫ש╫ñ╫ש ╫⌐╫£ ╫ñ╫í╫º╫פ
   List<AppContextMenuEntry> _buildContextMenuForIndex(
       TextBookLoaded state,
       int paragraphIndex,
       BuildContext menuContext,
       String? selectedText,
       Offset tapPosition) {
-    // מצב תצוגה מקדימה — תפריט מינימלי
+    // ╫₧╫ª╫ס ╫¬╫ª╫ץ╫ע╫פ ╫₧╫º╫ף╫ש╫₧╫פ Γאפ ╫¬╫ñ╫¿╫ש╫ר ╫₧╫ש╫á╫ש╫₧╫£╫ש
     if (widget.isPreviewMode) {
       return [
         AppContextMenuEntry(
-          label: 'העתק',
+          label: '╫פ╫ó╫¬╫º',
           icon: FluentIcons.copy_24_regular,
           enabled: selectedText != null && selectedText.trim().isNotEmpty,
           onTap: () => _copyFormattedText(selectedText),
@@ -523,12 +523,12 @@ class _CombinedViewState extends State<CombinedView> {
     }
 
     final groups = state.commentatorGroups;
-    final tanachGroup = CommentatorGroup.groupByTitle(groups, 'תורה שבכתב');
-    final chazalGroup = CommentatorGroup.groupByTitle(groups, 'חז"ל');
-    final rishonimGroup = CommentatorGroup.groupByTitle(groups, 'ראשונים');
-    final acharonimGroup = CommentatorGroup.groupByTitle(groups, 'אחרונים');
-    final modernGroup = CommentatorGroup.groupByTitle(groups, 'מחברי זמננו');
-    final ungroupedGroup = CommentatorGroup.groupByTitle(groups, 'שאר מפרשים');
+    final tanachGroup = CommentatorGroup.groupByTitle(groups, '╫¬╫ץ╫¿╫פ ╫⌐╫ס╫¢╫¬╫ס');
+    final chazalGroup = CommentatorGroup.groupByTitle(groups, '╫ק╫צ"╫£');
+    final rishonimGroup = CommentatorGroup.groupByTitle(groups, '╫¿╫נ╫⌐╫ץ╫á╫ש╫¥');
+    final acharonimGroup = CommentatorGroup.groupByTitle(groups, '╫נ╫ק╫¿╫ץ╫á╫ש╫¥');
+    final modernGroup = CommentatorGroup.groupByTitle(groups, '╫₧╫ק╫ס╫¿╫ש ╫צ╫₧╫á╫á╫ץ');
+    final ungroupedGroup = CommentatorGroup.groupByTitle(groups, '╫⌐╫נ╫¿ ╫₧╫ñ╫¿╫⌐╫ש╫¥');
 
     final allActive = state.activeCommentators
         .toSet()
@@ -553,7 +553,7 @@ class _CombinedViewState extends State<CombinedView> {
     final commentatorChildren = <AppContextMenuEntry>[
       if (shouldShowOpenPaneEntry)
         AppContextMenuEntry(
-          label: 'פתח מפרשים בחלונית צד',
+          label: '╫ñ╫¬╫ק ╫₧╫ñ╫¿╫⌐╫ש╫¥ ╫ס╫ק╫£╫ץ╫á╫ש╫¬ ╫ª╫ף',
           onTap: () {
             _selectParagraphForContextMenu(paragraphIndex);
             _openCommentatorsPane(isAdding: true);
@@ -561,7 +561,7 @@ class _CombinedViewState extends State<CombinedView> {
         ),
       if (shouldShowSelectEntry)
         AppContextMenuEntry(
-          label: 'פתח בחירת מפרשים בחלונית צד',
+          label: '╫ñ╫¬╫ק ╫ס╫ק╫ש╫¿╫¬ ╫₧╫ñ╫¿╫⌐╫ש╫¥ ╫ס╫ק╫£╫ץ╫á╫ש╫¬ ╫ª╫ף',
           onTap: () {
             _selectParagraphForContextMenu(paragraphIndex);
             widget.onOpenCommentatorsPaneWithFilter!();
@@ -570,7 +570,7 @@ class _CombinedViewState extends State<CombinedView> {
       if (shouldShowOpenPaneEntry || shouldShowSelectEntry)
         const AppContextMenuEntry.divider(),
       AppContextMenuEntry(
-        label: 'הצג את כל המפרשים',
+        label: '╫פ╫ª╫ע ╫נ╫¬ ╫¢╫£ ╫פ╫₧╫ñ╫¿╫⌐╫ש╫¥',
         trailing:
             allActive ? const Icon(FluentIcons.checkmark_24_regular) : null,
         onTap: () {
@@ -627,7 +627,7 @@ class _CombinedViewState extends State<CombinedView> {
     List<AppContextMenuEntry> buildLinkChildren() => [
           if (showOpenLinksPaneEntry) ...[
             AppContextMenuEntry(
-              label: 'פתח קישורים בחלונית צד',
+              label: '╫ñ╫¬╫ק ╫º╫ש╫⌐╫ץ╫¿╫ש╫¥ ╫ס╫ק╫£╫ץ╫á╫ש╫¬ ╫ª╫ף',
               onTap: () => widget.onOpenLinksPane?.call(),
             ),
             const AppContextMenuEntry.divider(),
@@ -658,8 +658,8 @@ class _CombinedViewState extends State<CombinedView> {
 
     return [
       () {
-        // החיפוש עובד תמיד על טקסט ללא ניקוד וטעמים — מנקים פעם אחת
-        // לשימוש גם בתווית התפריט וגם בשאילתת החיפוש בפועל.
+        // ╫פ╫ק╫ש╫ñ╫ץ╫⌐ ╫ó╫ץ╫ס╫ף ╫¬╫₧╫ש╫ף ╫ó╫£ ╫ר╫º╫í╫ר ╫£╫£╫נ ╫á╫ש╫º╫ץ╫ף ╫ץ╫ר╫ó╫₧╫ש╫¥ Γאפ ╫₧╫á╫º╫ש╫¥ ╫ñ╫ó╫¥ ╫נ╫ק╫¬
+        // ╫£╫⌐╫ש╫₧╫ץ╫⌐ ╫ע╫¥ ╫ס╫¬╫ץ╫ץ╫ש╫¬ ╫פ╫¬╫ñ╫¿╫ש╫ר ╫ץ╫ע╫¥ ╫ס╫⌐╫נ╫ש╫£╫¬╫¬ ╫פ╫ק╫ש╫ñ╫ץ╫⌐ ╫ס╫ñ╫ץ╫ó╫£.
         final rawText = selectedText?.trim() ?? '';
         final cleanedText = utils.hasNikud(rawText)
             ? utils.removeVolwels(rawText).trim()
@@ -667,19 +667,19 @@ class _CombinedViewState extends State<CombinedView> {
         final hasSelectedText = cleanedText.isNotEmpty;
         final preview = hasSelectedText ? previewForLabel(cleanedText) : '';
         return AppContextMenuEntry(
-          label: 'חיפוש',
+          label: '╫ק╫ש╫ñ╫ץ╫⌐',
           icon: FluentIcons.search_24_regular,
           enabled: hasSelectedText,
           children: hasSelectedText
               ? [
                   AppContextMenuEntry(
-                    label: "חפש '$preview' בספר זה",
+                    label: "╫ק╫ñ╫⌐ '$preview' ╫ס╫í╫ñ╫¿ ╫צ╫פ",
                     icon: FluentIcons.book_search_24_regular,
                     onTap: () =>
                         widget.openLeftPaneTab(1, searchText: cleanedText),
                   ),
                   AppContextMenuEntry(
-                    label: "חפש '$preview' בכל הספרים",
+                    label: "╫ק╫ñ╫⌐ '$preview' ╫ס╫¢╫£ ╫פ╫í╫ñ╫¿╫ש╫¥",
                     icon: FluentIcons.library_24_regular,
                     onTap: () => openGlobalSearch(
                       context,
@@ -692,13 +692,13 @@ class _CombinedViewState extends State<CombinedView> {
         );
       }(),
       AppContextMenuEntry(
-        label: 'מפרשים',
+        label: '╫₧╫ñ╫¿╫⌐╫ש╫¥',
         icon: FluentIcons.book_24_regular,
         enabled: state.availableCommentators.isNotEmpty,
         children: commentatorChildren,
       ),
       AppContextMenuEntry(
-        label: 'קישורים',
+        label: '╫º╫ש╫⌐╫ץ╫¿╫ש╫¥',
         icon: FluentIcons.link_24_regular,
         enabled: paragraphLinks.isNotEmpty,
         childrenBuilder: buildLinkChildren,
@@ -722,12 +722,12 @@ class _CombinedViewState extends State<CombinedView> {
       })(),
       const AppContextMenuEntry.divider(),
       AppContextMenuEntry(
-        label: 'הוסף הערה אישית',
+        label: '╫פ╫ץ╫í╫ú ╫פ╫ó╫¿╫פ ╫נ╫ש╫⌐╫ש╫¬',
         icon: FluentIcons.note_add_24_regular,
         onTap: () => _showNoteEditor(selectedText),
       ),
       AppContextMenuEntry(
-        label: 'דווח על טעות בספר',
+        label: '╫ף╫ץ╫ץ╫ק ╫ó╫£ ╫ר╫ó╫ץ╫¬ ╫ס╫í╫ñ╫¿',
         icon: FluentIcons.error_circle_24_regular,
         onTap: () => _openErrorReportDialog(
           selectedText ?? '',
@@ -736,23 +736,23 @@ class _CombinedViewState extends State<CombinedView> {
       ),
       const AppContextMenuEntry.divider(),
       AppContextMenuEntry(
-        label: 'העתק',
+        label: '╫פ╫ó╫¬╫º',
         icon: FluentIcons.copy_24_regular,
         enabled: selectedText != null && selectedText.trim().isNotEmpty,
         onTap: () => _copyFormattedText(selectedText),
       ),
       AppContextMenuEntry(
-        label: 'העתק את כל הפסקה',
+        label: '╫פ╫ó╫¬╫º ╫נ╫¬ ╫¢╫£ ╫פ╫ñ╫í╫º╫פ',
         icon: FluentIcons.document_copy_24_regular,
         enabled: paragraphIndex >= 0 && paragraphIndex < widget.data.length,
         onTap: () => _copyParagraphByIndex(paragraphIndex),
       ),
       AppContextMenuEntry(
-        label: 'העתק טקסט מוצג',
+        label: '╫פ╫ó╫¬╫º ╫ר╫º╫í╫ר ╫₧╫ץ╫ª╫ע',
         icon: FluentIcons.document_copy_24_regular,
         onTap: _copyVisibleText,
       ),
-      // פריטי תפריט מפלאגינים
+      // ╫ñ╫¿╫ש╫ר╫ש ╫¬╫ñ╫¿╫ש╫ר ╫₧╫ñ╫£╫נ╫ע╫ש╫á╫ש╫¥
       ...() {
         final pluginItems = ContextMenuRegistry.instance.getAll();
         if (pluginItems.isEmpty) return const <AppContextMenuEntry>[];
@@ -795,7 +795,7 @@ class _CombinedViewState extends State<CombinedView> {
     }
   }
 
-  /// פתיחת דיאלוג דיווח על טעות בספר
+  /// ╫ñ╫¬╫ש╫ק╫¬ ╫ף╫ש╫נ╫£╫ץ╫ע ╫ף╫ש╫ץ╫ץ╫ק ╫ó╫£ ╫ר╫ó╫ץ╫¬ ╫ס╫í╫ñ╫¿
   void _openErrorReportDialog(
     String selectedText, {
     int? fallbackLineIndex,
@@ -813,14 +813,14 @@ class _CombinedViewState extends State<CombinedView> {
     );
   }
 
-  /// העתקת פסקה לפי אינדקס (משתמש ב־widget.data[index] ומייצר גם HTML)
+  /// ╫פ╫ó╫¬╫º╫¬ ╫ñ╫í╫º╫פ ╫£╫ñ╫ש ╫נ╫ש╫á╫ף╫º╫í (╫₧╫⌐╫¬╫₧╫⌐ ╫ס╓╛widget.data[index] ╫ץ╫₧╫ש╫ש╫ª╫¿ ╫ע╫¥ HTML)
   Future<void> _copyParagraphByIndex(int index) async {
     if (index < 0 || index >= widget.data.length) return;
 
     final text = widget.data[index];
     if (text.trim().isEmpty) return;
 
-    // קבלת ההגדרות הנוכחיות
+    // ╫º╫ס╫£╫¬ ╫פ╫פ╫ע╫ף╫¿╫ץ╫¬ ╫פ╫á╫ץ╫¢╫ק╫ש╫ץ╫¬
     final settingsState = context.read<SettingsBloc>().state;
     final textBookState = context.read<TextBookBloc>().state;
 
@@ -833,7 +833,7 @@ class _CombinedViewState extends State<CombinedView> {
     String finalText = plainText;
     String finalHtmlText = processedText;
 
-    // אם צריך להוסיף כותרות
+    // ╫נ╫¥ ╫ª╫¿╫ש╫ת ╫£╫פ╫ץ╫í╫ש╫ú ╫¢╫ץ╫¬╫¿╫ץ╫¬
     if (settingsState.copyWithHeaders != 'none' &&
         textBookState is TextBookLoaded) {
       final bookName = CopyUtils.extractBookName(textBookState.book);
@@ -873,12 +873,12 @@ class _CombinedViewState extends State<CombinedView> {
     await SystemClipboard.instance?.write([item]);
   }
 
-  /// העתקת הטקסט המוצג במסך ללוח
+  /// ╫פ╫ó╫¬╫º╫¬ ╫פ╫ר╫º╫í╫ר ╫פ╫₧╫ץ╫ª╫ע ╫ס╫₧╫í╫ת ╫£╫£╫ץ╫ק
   void _copyVisibleText() async {
     final state = context.read<TextBookBloc>().state;
     if (state is! TextBookLoaded || state.visibleIndices.isEmpty) return;
 
-    // איסוף כל הטקסט הנראה במסך
+    // ╫נ╫ש╫í╫ץ╫ú ╫¢╫£ ╫פ╫ר╫º╫í╫ר ╫פ╫á╫¿╫נ╫פ ╫ס╫₧╫í╫ת
     final visibleTexts = <String>[];
     for (final index in state.visibleIndices) {
       if (index >= 0 && index < widget.data.length) {
@@ -890,12 +890,12 @@ class _CombinedViewState extends State<CombinedView> {
 
     final combinedText = visibleTexts.join('\n\n');
 
-    // קבלת ההגדרות הנוכחיות
+    // ╫º╫ס╫£╫¬ ╫פ╫פ╫ע╫ף╫¿╫ץ╫¬ ╫פ╫á╫ץ╫¢╫ק╫ש╫ץ╫¬
     final settingsState = context.read<SettingsBloc>().state;
 
     String finalText = combinedText;
 
-    // אם צריך להוסיף כותרות
+    // ╫נ╫¥ ╫ª╫¿╫ש╫ת ╫£╫פ╫ץ╫í╫ש╫ú ╫¢╫ץ╫¬╫¿╫ץ╫¬
     if (settingsState.copyWithHeaders != 'none') {
       final bookName = CopyUtils.extractBookName(state.book);
       final firstVisibleIndex = state.visibleIndices.first;
@@ -928,7 +928,7 @@ class _CombinedViewState extends State<CombinedView> {
     await SystemClipboard.instance?.write([item]);
   }
 
-  /// עיצוב טקסט כ-HTML עם הגדרות הגופן הנוכחיות
+  /// ╫ó╫ש╫ª╫ץ╫ס ╫ר╫º╫í╫ר ╫¢-HTML ╫ó╫¥ ╫פ╫ע╫ף╫¿╫ץ╫¬ ╫פ╫ע╫ץ╫ñ╫ƒ ╫פ╫á╫ץ╫¢╫ק╫ש╫ץ╫¬
   String _formatTextAsHtml(String text) {
     final settingsState = context.read<SettingsBloc>().state;
     return CopyUtils.buildStyledHtml(
@@ -938,7 +938,7 @@ class _CombinedViewState extends State<CombinedView> {
     );
   }
 
-  /// העתקת טקסט מעוצב (HTML) ללוח
+  /// ╫פ╫ó╫¬╫º╫¬ ╫ר╫º╫í╫ר ╫₧╫ó╫ץ╫ª╫ס (HTML) ╫£╫£╫ץ╫ק
   Future<void> _copyFormattedText([String? capturedText]) async {
     final plainText = capturedText ?? _savedSelectedText.value;
 
@@ -946,7 +946,7 @@ class _CombinedViewState extends State<CombinedView> {
     debugPrint('_currentSelectedIndex: ${_currentSelectedIndex.value}');
 
     if (plainText == null || plainText.trim().isEmpty) {
-      UiSnack.show('אנא בחר טקסט להעתקה');
+      UiSnack.show('╫נ╫á╫נ ╫ס╫ק╫¿ ╫ר╫º╫í╫ר ╫£╫פ╫ó╫¬╫º╫פ');
       return;
     }
 
@@ -966,24 +966,24 @@ class _CombinedViewState extends State<CombinedView> {
       );
     } catch (e) {
       if (mounted) {
-        UiSnack.showError('שגיאה בהעתקה מעוצבת: $e');
+        UiSnack.showError('╫⌐╫ע╫ש╫נ╫פ ╫ס╫פ╫ó╫¬╫º╫פ ╫₧╫ó╫ץ╫ª╫ס╫¬: $e');
       }
     }
   }
 
-  /// הצגת עורך ההערות
+  /// ╫פ╫ª╫ע╫¬ ╫ó╫ץ╫¿╫ת ╫פ╫פ╫ó╫¿╫ץ╫¬
   Future<void> _showNoteEditor([String? capturedText]) async {
     final state = _textBookBloc.state;
     if (state is! TextBookLoaded) return;
 
     final selectedText = capturedText ?? _savedSelectedText.value;
 
-    // משתמש בשורה שממנה הודגש טקסט (אם קיים), אחרת בשורה הנבחרת, אחרת בשורה הראשונה הנראית
+    // ╫₧╫⌐╫¬╫₧╫⌐ ╫ס╫⌐╫ץ╫¿╫פ ╫⌐╫₧╫₧╫á╫פ ╫פ╫ץ╫ף╫ע╫⌐ ╫ר╫º╫í╫ר (╫נ╫¥ ╫º╫ש╫ש╫¥), ╫נ╫ק╫¿╫¬ ╫ס╫⌐╫ץ╫¿╫פ ╫פ╫á╫ס╫ק╫¿╫¬, ╫נ╫ק╫¿╫¬ ╫ס╫⌐╫ץ╫¿╫פ ╫פ╫¿╫נ╫⌐╫ץ╫á╫פ ╫פ╫á╫¿╫נ╫ש╫¬
     final currentIndex = _savedSelectedIndex.value ??
         state.selectedIndex ??
         (state.visibleIndices.isNotEmpty ? state.visibleIndices.first : 0);
 
-    // קבלת הטקסט המזהה של השורה - אם יש טקסט נבחר, משתמשים בו (אחרי הסרת ניקוד), אחרת בטקסט המזהה (כמו שיוצג ככותרת)
+    // ╫º╫ס╫£╫¬ ╫פ╫ר╫º╫í╫ר ╫פ╫₧╫צ╫פ╫פ ╫⌐╫£ ╫פ╫⌐╫ץ╫¿╫פ - ╫נ╫¥ ╫ש╫⌐ ╫ר╫º╫í╫ר ╫á╫ס╫ק╫¿, ╫₧╫⌐╫¬╫₧╫⌐╫ש╫¥ ╫ס╫ץ (╫נ╫ק╫¿╫ש ╫פ╫í╫¿╫¬ ╫á╫ש╫º╫ץ╫ף), ╫נ╫ק╫¿╫¬ ╫ס╫ר╫º╫í╫ר ╫פ╫₧╫צ╫פ╫פ (╫¢╫₧╫ץ ╫⌐╫ש╫ץ╫ª╫ע ╫¢╫¢╫ץ╫¬╫¿╫¬)
     final referenceText = selectedText?.trim().isNotEmpty == true
         ? removeHebrewDiacritics(selectedText!.trim())
         : extractDisplayTextFromLines(
@@ -992,7 +992,7 @@ class _CombinedViewState extends State<CombinedView> {
             excludeBookTitle: widget.tab.book.title,
           );
 
-    // טען טיוטה אם קיימת
+    // ╫ר╫ó╫ƒ ╫ר╫ש╫ץ╫ר╫פ ╫נ╫¥ ╫º╫ש╫ש╫₧╫¬
     final draftService = PersonalNoteDraftService();
     final draft = await draftService.loadDraft(
       bookId: widget.tab.book.title,
@@ -1001,7 +1001,7 @@ class _CombinedViewState extends State<CombinedView> {
 
     if (!mounted) return;
 
-    // שלח event לפתיחת מצב יצירה בסיידבר
+    // ╫⌐╫£╫ק event ╫£╫ñ╫¬╫ש╫ק╫¬ ╫₧╫ª╫ס ╫ש╫ª╫ש╫¿╫פ ╫ס╫í╫ש╫ש╫ף╫ס╫¿
     context.read<PersonalNotesBloc>().add(StartCreatingPersonalNote(
           bookId: widget.tab.book.title,
           lineNumber: currentIndex + 1,
@@ -1012,7 +1012,7 @@ class _CombinedViewState extends State<CombinedView> {
               draft?.contentFormat ?? PersonalNoteContentFormat.plain,
         ));
 
-    // פתח את חלונית ההערות
+    // ╫ñ╫¬╫ק ╫נ╫¬ ╫ק╫£╫ץ╫á╫ש╫¬ ╫פ╫פ╫ó╫¿╫ץ╫¬
     widget.onOpenPersonalNotes?.call();
   }
 
@@ -1063,7 +1063,7 @@ class _CombinedViewState extends State<CombinedView> {
         }
         return LayoutBuilder(
           builder: (context, constraints) {
-            // שומר את גובה הבלוק בפועל לשימוש בחישובי הגלילה
+            // ╫⌐╫ץ╫₧╫¿ ╫נ╫¬ ╫ע╫ץ╫ס╫פ ╫פ╫ס╫£╫ץ╫º ╫ס╫ñ╫ץ╫ó╫£ ╫£╫⌐╫ש╫₧╫ץ╫⌐ ╫ס╫ק╫ש╫⌐╫ץ╫ס╫ש ╫פ╫ע╫£╫ש╫£╫פ
             _viewportHeight = constraints.maxHeight;
             final settingsState = context.watch<SettingsBloc>().state;
             final readingSegments =
@@ -1071,7 +1071,7 @@ class _CombinedViewState extends State<CombinedView> {
 
             return SelectionArea(
               key: ValueKey('combined_selection_$_selectionAreaRevision'),
-              // SelectionArea אחד לכל הרשימה - מאפשר בחירה רציפה בין פסקאות
+              // SelectionArea ╫נ╫ק╫ף ╫£╫¢╫£ ╫פ╫¿╫⌐╫ש╫₧╫פ - ╫₧╫נ╫ñ╫⌐╫¿ ╫ס╫ק╫ש╫¿╫פ ╫¿╫ª╫ש╫ñ╫פ ╫ס╫ש╫ƒ ╫ñ╫í╫º╫נ╫ץ╫¬
               contextMenuBuilder: (context, selectableRegionState) {
                 return const SizedBox.shrink();
               },
@@ -1084,19 +1084,19 @@ class _CombinedViewState extends State<CombinedView> {
                   return;
                 }
                 widget.selectionSyncController?.activate(_selectionOwner);
-                // כניסה למצב בחירה כשיש טקסט נבחר
+                // ╫¢╫á╫ש╫í╫פ ╫£╫₧╫ª╫ס ╫ס╫ק╫ש╫¿╫פ ╫¢╫⌐╫ש╫⌐ ╫ר╫º╫í╫ר ╫á╫ס╫ק╫¿
                 if (!_selectionManager.isInSelectionMode) {
-                  // שימוש באינדקס העליון הנראה במקום 0
+                  // ╫⌐╫ש╫₧╫ץ╫⌐ ╫ס╫נ╫ש╫á╫ף╫º╫í ╫פ╫ó╫£╫ש╫ץ╫ƒ ╫פ╫á╫¿╫נ╫פ ╫ס╫₧╫º╫ץ╫¥ 0
                   _selectionManager.setAnchor(topmostVisibleIndex(
                       widget.tab.positionsListener.itemPositions.value));
                 }
 
-                // חשוב: כדי ש-Ctrl+C יעבוד מיד אחרי סימון טקסט עם העכבר
-                // נוודא שהפוקוס נמצא על אזור הקריאה.
+                // ╫ק╫⌐╫ץ╫ס: ╫¢╫ף╫ש ╫⌐-Ctrl+C ╫ש╫ó╫ס╫ץ╫ף ╫₧╫ש╫ף ╫נ╫ק╫¿╫ש ╫í╫ש╫₧╫ץ╫ƒ ╫ר╫º╫í╫ר ╫ó╫¥ ╫פ╫ó╫¢╫ס╫¿
+                // ╫á╫ץ╫ץ╫ף╫נ ╫⌐╫פ╫ñ╫ץ╫º╫ץ╫í ╫á╫₧╫ª╫נ ╫ó╫£ ╫נ╫צ╫ץ╫¿ ╫פ╫º╫¿╫ש╫נ╫פ.
                 _focusNode.requestFocus();
 
-                // מחשב את מספר השורה המדויק של הטקסט המודגש
-                // משתמש באותה לוגיקה כמו בדיווח שגיאות
+                // ╫₧╫ק╫⌐╫ס ╫נ╫¬ ╫₧╫í╫ñ╫¿ ╫פ╫⌐╫ץ╫¿╫פ ╫פ╫₧╫ף╫ץ╫ש╫º ╫⌐╫£ ╫פ╫ר╫º╫í╫ר ╫פ╫₧╫ץ╫ף╫ע╫⌐
+                // ╫₧╫⌐╫¬╫₧╫⌐ ╫ס╫נ╫ץ╫¬╫פ ╫£╫ץ╫ע╫ש╫º╫פ ╫¢╫₧╫ץ ╫ס╫ף╫ש╫ץ╫ץ╫ק ╫⌐╫ע╫ש╫נ╫ץ╫¬
                 final TextBookLoaded? loadedState =
                     _textBookBloc.state is TextBookLoaded
                         ? _textBookBloc.state as TextBookLoaded
@@ -1106,7 +1106,7 @@ class _CombinedViewState extends State<CombinedView> {
 
                 if (loadedState != null) {
                   final settingsState = context.read<SettingsBloc>().state;
-                  // מקבל את השורה הראשונה הנראית
+                  // ╫₧╫º╫ס╫£ ╫נ╫¬ ╫פ╫⌐╫ץ╫¿╫פ ╫פ╫¿╫נ╫⌐╫ץ╫á╫פ ╫פ╫á╫¿╫נ╫ש╫¬
                   final baseIndex = loadedState.visibleIndices.isNotEmpty
                       ? loadedState.visibleIndices.first
                       : 0;
@@ -1120,17 +1120,17 @@ class _CombinedViewState extends State<CombinedView> {
                     visibleLines: visibleLines,
                   );
 
-                  // מוצא את המיקום של הטקסט המודגש
+                  // ╫₧╫ץ╫ª╫נ ╫נ╫¬ ╫פ╫₧╫ש╫º╫ץ╫¥ ╫⌐╫£ ╫פ╫ר╫º╫í╫ר ╫פ╫₧╫ץ╫ף╫ע╫⌐
                   final selectionStart = visibleText.indexOf(fixedPlain);
 
                   if (selectionStart >= 0) {
-                    // סופר כמה שורות יש לפני הטקסט המודגש
+                    // ╫í╫ץ╫ñ╫¿ ╫¢╫₧╫פ ╫⌐╫ץ╫¿╫ץ╫¬ ╫ש╫⌐ ╫£╫ñ╫á╫ש ╫פ╫ר╫º╫í╫ר ╫פ╫₧╫ץ╫ף╫ע╫⌐
                     final before = visibleText.substring(0, selectionStart);
                     final offset = '\n'.allMatches(before).length;
                     foundIndex = baseIndex + offset;
                   }
 
-                  // fallback: אם לא הצלחנו לחשב אינדקס, נשתמש בשורה שנבחרה (אם קיימת)
+                  // fallback: ╫נ╫¥ ╫£╫נ ╫פ╫ª╫£╫ק╫á╫ץ ╫£╫ק╫⌐╫ס ╫נ╫ש╫á╫ף╫º╫í, ╫á╫⌐╫¬╫₧╫⌐ ╫ס╫⌐╫ץ╫¿╫פ ╫⌐╫á╫ס╫ק╫¿╫פ (╫נ╫¥ ╫º╫ש╫ש╫₧╫¬)
                   foundIndex ??= loadedState.selectedIndex;
                 }
 
@@ -1140,7 +1140,7 @@ class _CombinedViewState extends State<CombinedView> {
                   _currentSelectedIndex.value = foundIndex;
                   widget.onSelectedTextChanged?.call(fixedPlain);
 
-                  // שליחת event לפלאגינים עם ה-index המדויק
+                  // ╫⌐╫£╫ש╫ק╫¬ event ╫£╫ñ╫£╫נ╫ע╫ש╫á╫ש╫¥ ╫ó╫¥ ╫פ-index ╫פ╫₧╫ף╫ץ╫ש╫º
                   final selectionText = fixedPlain?.trim() ?? '';
                   if (selectionText.isNotEmpty && loadedState != null) {
                     unawaited(PluginRuntimeDispatcher.instance.dispatchEvent(
@@ -1171,12 +1171,12 @@ class _CombinedViewState extends State<CombinedView> {
                       LogicalKeyboardKey.control,
                       LogicalKeyboardKey.insert,
                     ): const _CopySelectedTextIntent(),
-                    // macOS (למקרה שמריצים שם)
+                    // macOS (╫£╫₧╫º╫¿╫פ ╫⌐╫₧╫¿╫ש╫ª╫ש╫¥ ╫⌐╫¥)
                     LogicalKeySet(
                       LogicalKeyboardKey.meta,
                       LogicalKeyboardKey.keyC,
                     ): const _CopySelectedTextIntent(),
-                    // Esc לניקוי בחירה
+                    // Esc ╫£╫á╫ש╫º╫ץ╫ש ╫ס╫ק╫ש╫¿╫פ
                     LogicalKeySet(
                       LogicalKeyboardKey.escape,
                     ): const ClearSelectionIntent(),
@@ -1201,7 +1201,7 @@ class _CombinedViewState extends State<CombinedView> {
                           CallbackAction<ClearSelectionIntent>(
                         onInvoke: (_) {
                           _selectionManager.exitSelectionMode();
-                          // ניקוי הבחירה ב-SelectionArea
+                          // ╫á╫ש╫º╫ץ╫ש ╫פ╫ס╫ק╫ש╫¿╫פ ╫ס-SelectionArea
                           _savedSelectedText.value = null;
                           _savedSelectedIndex.value = null;
                           _currentSelectedIndex.value = null;
@@ -1352,7 +1352,7 @@ class _CombinedViewState extends State<CombinedView> {
       key: PageStorageKey('segment-${segment.startLineIndex}'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // הטקסט של הספר - ללא SelectionArea נפרד, כי יש SelectionArea כללי
+        // ╫פ╫ר╫º╫í╫ר ╫⌐╫£ ╫פ╫í╫ñ╫¿ - ╫£╫£╫נ SelectionArea ╫á╫ñ╫¿╫ף, ╫¢╫ש ╫ש╫⌐ SelectionArea ╫¢╫£╫£╫ש
         AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeInOut,
@@ -1362,7 +1362,7 @@ class _CombinedViewState extends State<CombinedView> {
           child: EnhancedGestureDetector(
             behavior: HitTestBehavior.translucent,
             onDragSelectionStart: () {
-              // כניסה למצב בחירה בגלל drag
+              // ╫¢╫á╫ש╫í╫פ ╫£╫₧╫ª╫ס ╫ס╫ק╫ש╫¿╫פ ╫ס╫ע╫£╫£ drag
               if (!_selectionManager.isInSelectionMode) {
                 _selectionManager.setAnchor(actionLineIndex());
               }
@@ -1372,37 +1372,37 @@ class _CombinedViewState extends State<CombinedView> {
                 return;
               }
               _focusNode.requestFocus();
-              // מאפס את הטקסט השמור כשלוחצים על הפסקה
+              // ╫₧╫נ╫ñ╫í ╫נ╫¬ ╫פ╫ר╫º╫í╫ר ╫פ╫⌐╫₧╫ץ╫¿ ╫¢╫⌐╫£╫ץ╫ק╫ª╫ש╫¥ ╫ó╫£ ╫פ╫ñ╫í╫º╫פ
               if (mounted) {
                 _savedSelectedText.value = null;
                 _savedSelectedIndex.value = null;
                 _currentSelectedIndex.value = null;
                 widget.onSelectedTextChanged?.call(null);
               }
-              // פשוט מעדכן את selectedIndex - זה יגרום לבנייה מחדש
+              // ╫ñ╫⌐╫ץ╫ר ╫₧╫ó╫ף╫¢╫ƒ ╫נ╫¬ selectedIndex - ╫צ╫פ ╫ש╫ע╫¿╫ץ╫¥ ╫£╫ס╫á╫ש╫ש╫פ ╫₧╫ק╫ף╫⌐
               if (isSelected) {
                 _addTextBookEventIfOpen(const UpdateSelectedIndex(null));
               } else {
                 _addTextBookEventIfOpen(UpdateSelectedIndex(primaryLineIndex));
 
-                // גלילה אוטומטית כך שהקטע יהיה בראש העמוד
-                // רק אם יש מפרשים להצגה ואנחנו במצב ExpansionTiles
+                // ╫ע╫£╫ש╫£╫פ ╫נ╫ץ╫ר╫ץ╫₧╫ר╫ש╫¬ ╫¢╫ת ╫⌐╫פ╫º╫ר╫ó ╫ש╫פ╫ש╫פ ╫ס╫¿╫נ╫⌐ ╫פ╫ó╫₧╫ץ╫ף
+                // ╫¿╫º ╫נ╫¥ ╫ש╫⌐ ╫₧╫ñ╫¿╫⌐╫ש╫¥ ╫£╫פ╫ª╫ע╫פ ╫ץ╫נ╫á╫ק╫á╫ץ ╫ס╫₧╫ª╫ס ExpansionTiles
                 if (widget.showCommentaryAsExpansionTiles &&
                     _hasCommentaries(state, primaryLineIndex)) {
-                  // מחכים שה-UI יתעדכן עם פתיחת המפרש, ואז קופצים למיקום
+                  // ╫₧╫ק╫¢╫ש╫¥ ╫⌐╫פ-UI ╫ש╫¬╫ó╫ף╫¢╫ƒ ╫ó╫¥ ╫ñ╫¬╫ש╫ק╫¬ ╫פ╫₧╫ñ╫¿╫⌐, ╫ץ╫נ╫צ ╫º╫ץ╫ñ╫ª╫ש╫¥ ╫£╫₧╫ש╫º╫ץ╫¥
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     Future.delayed(const Duration(milliseconds: 300), () {
                       if (mounted && widget.tab.scrollController.isAttached) {
-                        // גלילה חכמה: נגלול כך שהטקסט הבא (index + 1) יהיה בתחתית
-                        // המפרשים תופסים עד 75% מהבלוק
-                        // נרצה שהטקסט הבא יהיה ב-90% מהבלוק (כלומר 10% מלמטה)
-                        // כך נוודא שרואים: 15% טקסט למעלה, 75% מפרשים, 10% טקסט למטה
+                        // ╫ע╫£╫ש╫£╫פ ╫ק╫¢╫₧╫פ: ╫á╫ע╫£╫ץ╫£ ╫¢╫ת ╫⌐╫פ╫ר╫º╫í╫ר ╫פ╫ס╫נ (index + 1) ╫ש╫פ╫ש╫פ ╫ס╫¬╫ק╫¬╫ש╫¬
+                        // ╫פ╫₧╫ñ╫¿╫⌐╫ש╫¥ ╫¬╫ץ╫ñ╫í╫ש╫¥ ╫ó╫ף 75% ╫₧╫פ╫ס╫£╫ץ╫º
+                        // ╫á╫¿╫ª╫פ ╫⌐╫פ╫ר╫º╫í╫ר ╫פ╫ס╫נ ╫ש╫פ╫ש╫פ ╫ס-90% ╫₧╫פ╫ס╫£╫ץ╫º (╫¢╫£╫ץ╫₧╫¿ 10% ╫₧╫£╫₧╫ר╫פ)
+                        // ╫¢╫ת ╫á╫ץ╫ץ╫ף╫נ ╫⌐╫¿╫ץ╫נ╫ש╫¥: 15% ╫ר╫º╫í╫ר ╫£╫₧╫ó╫£╫פ, 75% ╫₧╫ñ╫¿╫⌐╫ש╫¥, 10% ╫ר╫º╫í╫ר ╫£╫₧╫ר╫פ
                         final nextIndex =
                             (index + 1).clamp(0, widget.data.length - 1);
                         widget.tab.scrollController.scrollTo(
                           index: nextIndex,
                           alignment:
-                              0.9, // הטקסט הבא יהיה ב-90% מלמעלה (כלומר 10% מלמטה)
+                              0.9, // ╫פ╫ר╫º╫í╫ר ╫פ╫ס╫נ ╫ש╫פ╫ש╫פ ╫ס-90% ╫₧╫£╫₧╫ó╫£╫פ (╫¢╫£╫ץ╫₧╫¿ 10% ╫₧╫£╫₧╫ר╫פ)
                           duration: const Duration(milliseconds: 300),
                           curve: Curves.easeInOut,
                         );
@@ -1413,25 +1413,25 @@ class _CombinedViewState extends State<CombinedView> {
               }
             },
             onDoubleTap: () {
-              // Double-click → בחירת פסקה שלמה
-              // הערה: SelectionArea של Flutter לא תומך בבחירה פרוגרמטית,
-              // לכן הפיצ'ר הזה לא מומש במלואו. SelectionArea יבצע את פעולת
-              // ברירת המחדל שלו (בחירת מילה). לבחירת פסקה, המשתמש יכול
-              // להשתמש ב-Shift+Click או Drag.
+              // Double-click Γזע ╫ס╫ק╫ש╫¿╫¬ ╫ñ╫í╫º╫פ ╫⌐╫£╫₧╫פ
+              // ╫פ╫ó╫¿╫פ: SelectionArea ╫⌐╫£ Flutter ╫£╫נ ╫¬╫ץ╫₧╫ת ╫ס╫ס╫ק╫ש╫¿╫פ ╫ñ╫¿╫ץ╫ע╫¿╫₧╫ר╫ש╫¬,
+              // ╫£╫¢╫ƒ ╫פ╫ñ╫ש╫ª'╫¿ ╫פ╫צ╫פ ╫£╫נ ╫₧╫ץ╫₧╫⌐ ╫ס╫₧╫£╫ץ╫נ╫ץ. SelectionArea ╫ש╫ס╫ª╫ó ╫נ╫¬ ╫ñ╫ó╫ץ╫£╫¬
+              // ╫ס╫¿╫ש╫¿╫¬ ╫פ╫₧╫ק╫ף╫£ ╫⌐╫£╫ץ (╫ס╫ק╫ש╫¿╫¬ ╫₧╫ש╫£╫פ). ╫£╫ס╫ק╫ש╫¿╫¬ ╫ñ╫í╫º╫פ, ╫פ╫₧╫⌐╫¬╫₧╫⌐ ╫ש╫¢╫ץ╫£
+              // ╫£╫פ╫⌐╫¬╫₧╫⌐ ╫ס-Shift+Click ╫נ╫ץ Drag.
               _focusNode.requestFocus();
               _selectionManager.enterDoubleClickMode(actionLineIndex());
             },
             onShiftClick: () {
-              // Shift+Click → בחירת טווח
+              // Shift+Click Γזע ╫ס╫ק╫ש╫¿╫¬ ╫ר╫ץ╫ץ╫ק
               _focusNode.requestFocus();
               if (!_selectionManager.hasAnchor()) {
-                // אם אין anchor, קובעים אותו
+                // ╫נ╫¥ ╫נ╫ש╫ƒ anchor, ╫º╫ץ╫ס╫ó╫ש╫¥ ╫נ╫ץ╫¬╫ץ
                 _selectionManager.setAnchor(actionLineIndex());
               }
-              // SelectionArea יטפל בבחירת הטווח
+              // SelectionArea ╫ש╫ר╫ñ╫£ ╫ס╫ס╫ק╫ש╫¿╫¬ ╫פ╫ר╫ץ╫ץ╫ק
             },
             onSecondaryTapDown: (details) {
-              // שומר את האינדקס הנוכחי לשימוש בתפריט ההקשר
+              // ╫⌐╫ץ╫₧╫¿ ╫נ╫¬ ╫פ╫נ╫ש╫á╫ף╫º╫í ╫פ╫á╫ץ╫¢╫ק╫ש ╫£╫⌐╫ש╫₧╫ץ╫⌐ ╫ס╫¬╫ñ╫¿╫ש╫ר ╫פ╫פ╫º╫⌐╫¿
               if (mounted) {
                 _currentSelectedIndex.value = actionLineIndex();
               }
@@ -1448,8 +1448,8 @@ class _CombinedViewState extends State<CombinedView> {
                       builder: (context, settingsState) {
                         var textMaxWidth = settingsState.textMaxWidth;
 
-                        // אם הערך שלילי, זו רמה שצריך לחשב לפי גודל המסך
-                        // למשל -2 = רמה 2 = 90% מרוחב המסך
+                        // ╫נ╫¥ ╫פ╫ó╫¿╫ת ╫⌐╫£╫ש╫£╫ש, ╫צ╫ץ ╫¿╫₧╫פ ╫⌐╫ª╫¿╫ש╫ת ╫£╫ק╫⌐╫ס ╫£╫ñ╫ש ╫ע╫ץ╫ף╫£ ╫פ╫₧╫í╫ת
+                        // ╫£╫₧╫⌐╫£ -2 = ╫¿╫₧╫פ 2 = 90% ╫₧╫¿╫ץ╫ק╫ס ╫פ╫₧╫í╫ת
                         if (textMaxWidth < 0) {
                           final level = (-textMaxWidth).toInt();
                           final widthPercent = 1.0 - (level * 0.05);
@@ -1490,8 +1490,8 @@ class _CombinedViewState extends State<CombinedView> {
 
                         String data = widget.data[primaryLineIndex];
 
-                        // הוספת קישורים מבוססי תווים לפני כל עיבוד אחר
-                        // כי start/end מתייחסים לטקסט המקורי
+                        // ╫פ╫ץ╫í╫ñ╫¬ ╫º╫ש╫⌐╫ץ╫¿╫ש╫¥ ╫₧╫ס╫ץ╫í╫í╫ש ╫¬╫ץ╫ץ╫ש╫¥ ╫£╫ñ╫á╫ש ╫¢╫£ ╫ó╫ש╫ס╫ץ╫ף ╫נ╫ק╫¿
+                        // ╫¢╫ש start/end ╫₧╫¬╫ש╫ש╫ק╫í╫ש╫¥ ╫£╫ר╫º╫í╫ר ╫פ╫₧╫º╫ץ╫¿╫ש
                         String dataWithLinks = data;
                         if (settingsState.enableHtmlLinks) {
                           try {
@@ -1507,13 +1507,13 @@ class _CombinedViewState extends State<CombinedView> {
                                   addInlineLinksToText(data, linksForLine);
                             }
                           } catch (e) {
-                            // אם יש שגיאה, פשוט נשתמש בטקסט המקורי
+                            // ╫נ╫¥ ╫ש╫⌐ ╫⌐╫ע╫ש╫נ╫פ, ╫ñ╫⌐╫ץ╫ר ╫á╫⌐╫¬╫₧╫⌐ ╫ס╫ר╫º╫í╫ר ╫פ╫₧╫º╫ץ╫¿╫ש
                             dataWithLinks = data;
                           }
                         }
 
-                        // הדגשה ממוקדת מקישור עומק: רק על הסעיף שצוין, ובלי
-                        // להפעיל את שאר אפשרויות החיפוש (כתיב מלא/חסר וכו').
+                        // ╫פ╫ף╫ע╫⌐╫פ ╫₧╫₧╫ץ╫º╫ף╫¬ ╫₧╫º╫ש╫⌐╫ץ╫¿ ╫ó╫ץ╫₧╫º: ╫¿╫º ╫ó╫£ ╫פ╫í╫ó╫ש╫ú ╫⌐╫ª╫ץ╫ש╫ƒ, ╫ץ╫ס╫£╫ש
+                        // ╫£╫פ╫ñ╫ó╫ש╫£ ╫נ╫¬ ╫⌐╫נ╫¿ ╫נ╫ñ╫⌐╫¿╫ץ╫ש╫ץ╫¬ ╫פ╫ק╫ש╫ñ╫ץ╫⌐ (╫¢╫¬╫ש╫ס ╫₧╫£╫נ/╫ק╫í╫¿ ╫ץ╫¢╫ץ').
                         final isPinpointTarget =
                             state.pinpointHighlightIndex == index &&
                                 state.pinpointHighlightText != null &&
@@ -1603,13 +1603,13 @@ class _CombinedViewState extends State<CombinedView> {
                               showDialog<void>(
                                 context: context,
                                 builder: (context) => AlertDialog(
-                                  title: const Text('הערה לשורה זו'),
+                                  title: const Text('╫פ╫ó╫¿╫פ ╫£╫⌐╫ץ╫¿╫פ ╫צ╫ץ'),
                                   content: PersonalNoteContentView(note: note),
                                   actions: [
                                     TextButton(
                                       onPressed: () =>
                                           Navigator.of(context).pop(),
-                                      child: const Text('סגור'),
+                                      child: const Text('╫í╫ע╫ץ╫¿'),
                                     ),
                                   ],
                                 ),
@@ -1659,7 +1659,7 @@ class _CombinedViewState extends State<CombinedView> {
             ),
           ),
         ),
-        // המפרשים - ללא SelectionArea נפרד, כי יש SelectionArea כללי
+        // ╫פ╫₧╫ñ╫¿╫⌐╫ש╫¥ - ╫£╫£╫נ SelectionArea ╫á╫ñ╫¿╫ף, ╫¢╫ש ╫ש╫⌐ SelectionArea ╫¢╫£╫£╫ש
         if (widget.showCommentaryAsExpansionTiles &&
             isSelected &&
             _hasCommentaries(state, selectedLineIndex))
@@ -1816,9 +1816,9 @@ class _CombinedViewState extends State<CombinedView> {
     );
   }
 
-  /// בדיקה אם יש מפרשים לאינדקס מסוים
+  /// ╫ס╫ף╫ש╫º╫פ ╫נ╫¥ ╫ש╫⌐ ╫₧╫ñ╫¿╫⌐╫ש╫¥ ╫£╫נ╫ש╫á╫ף╫º╫í ╫₧╫í╫ץ╫ש╫¥
   bool _hasCommentaries(TextBookLoaded state, int index) {
-    // בדיקה אם יש קישורים רלוונטיים לאינדקס הזה
+    // ╫ס╫ף╫ש╫º╫פ ╫נ╫¥ ╫ש╫⌐ ╫º╫ש╫⌐╫ץ╫¿╫ש╫¥ ╫¿╫£╫ץ╫ץ╫á╫ר╫ש╫ש╫¥ ╫£╫נ╫ש╫á╫ף╫º╫í ╫פ╫צ╫פ
     final lineLinks = state.linksByLine[index + 1];
     if (lineLinks == null || lineLinks.isEmpty) return false;
 
@@ -1876,9 +1876,9 @@ class _CommentaryCardState extends State<_CommentaryCard> {
 
   @override
   Widget build(BuildContext context) {
-    // חישוב גובה המפרשים לפי גובה הבלוק בפועל (לא כל המסך):
-    // המפרשים יהיו 75% מגובה הבלוק
-    // השאר (25%) יתחלק: 15% למעלה (טקסט), 10% למטה (טקסט)
+    // ╫ק╫ש╫⌐╫ץ╫ס ╫ע╫ץ╫ס╫פ ╫פ╫₧╫ñ╫¿╫⌐╫ש╫¥ ╫£╫ñ╫ש ╫ע╫ץ╫ס╫פ ╫פ╫ס╫£╫ץ╫º ╫ס╫ñ╫ץ╫ó╫£ (╫£╫נ ╫¢╫£ ╫פ╫₧╫í╫ת):
+    // ╫פ╫₧╫ñ╫¿╫⌐╫ש╫¥ ╫ש╫פ╫ש╫ץ 75% ╫₧╫ע╫ץ╫ס╫פ ╫פ╫ס╫£╫ץ╫º
+    // ╫פ╫⌐╫נ╫¿ (25%) ╫ש╫¬╫ק╫£╫º: 15% ╫£╫₧╫ó╫£╫פ (╫ר╫º╫í╫ר), 10% ╫£╫₧╫ר╫פ (╫ר╫º╫í╫ר)
     final maxHeight = widget.viewportHeight > 0
         ? widget.viewportHeight * 0.75
         : MediaQuery.of(context).size.height * 0.75;
@@ -1887,10 +1887,10 @@ class _CommentaryCardState extends State<_CommentaryCard> {
       builder: (context, constraints) {
         return BlocBuilder<SettingsBloc, SettingsState>(
           builder: (context, settingsState) {
-            // שימוש באותו רוחב מקסימלי כמו הטקסט
+            // ╫⌐╫ש╫₧╫ץ╫⌐ ╫ס╫נ╫ץ╫¬╫ץ ╫¿╫ץ╫ק╫ס ╫₧╫º╫í╫ש╫₧╫£╫ש ╫¢╫₧╫ץ ╫פ╫ר╫º╫í╫ר
             var textMaxWidth = settingsState.textMaxWidth;
 
-            // אם הערך שלילי, זו רמה שצריך לחשב לפי גודל המסך
+            // ╫נ╫¥ ╫פ╫ó╫¿╫ת ╫⌐╫£╫ש╫£╫ש, ╫צ╫ץ ╫¿╫₧╫פ ╫⌐╫ª╫¿╫ש╫ת ╫£╫ק╫⌐╫ס ╫£╫ñ╫ש ╫ע╫ץ╫ף╫£ ╫פ╫₧╫í╫ת
             if (textMaxWidth < 0) {
               final level = (-textMaxWidth).toInt();
               final widthPercent = 1.0 - (level * 0.05);
@@ -1923,7 +1923,7 @@ class _CommentaryCardState extends State<_CommentaryCard> {
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
                     maxHeight: maxHeight,
-                    minHeight: 50, // מינימום גובה למניעת בעיות layout
+                    minHeight: 50, // ╫₧╫ש╫á╫ש╫₧╫ץ╫¥ ╫ע╫ץ╫ס╫פ ╫£╫₧╫á╫ש╫ó╫¬ ╫ס╫ó╫ש╫ץ╫¬ layout
                   ),
                   child: CommentaryListBase(
                     key: _commentaryKey,
@@ -1938,7 +1938,7 @@ class _CommentaryCardState extends State<_CommentaryCard> {
               ),
             );
 
-            // אם יש רוחב מקסימלי, נמרכז את המפרשים באותו רוחב כמו הטקסט
+            // ╫נ╫¥ ╫ש╫⌐ ╫¿╫ץ╫ק╫ס ╫₧╫º╫í╫ש╫₧╫£╫ש, ╫á╫₧╫¿╫¢╫צ ╫נ╫¬ ╫פ╫₧╫ñ╫¿╫⌐╫ש╫¥ ╫ס╫נ╫ץ╫¬╫ץ ╫¿╫ץ╫ק╫ס ╫¢╫₧╫ץ ╫פ╫ר╫º╫í╫ר
             if (textMaxWidth > 0) {
               return Center(
                 child: ConstrainedBox(

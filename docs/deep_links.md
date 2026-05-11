@@ -36,9 +36,9 @@
 | `otzaria://open/tool/<tool-id>` | פותח לשונית כלי לפי מזהה מלא — תומך גם בתוספים מוצמדים |
 | `otzaria://open/book/<id>` | פותח ספר בעיון לפי מזהה מסד הנתונים |
 | `otzaria://open/book/<id>?index=<n>` | פותח את הספר בסעיף `n` (אינדקס לא שלילי). |
-<<<<<<< HEAD
-| `otzaria://open/book/<id>?q=<text>` | פותח את הספר עם מחרוזת חיפוש להדגשה בכל הספר ופותח גם את חלונית החיפוש. ניתן לשלב עם `index`. |
-| `otzaria://open/book/<id>?index=<n>&highlight=<text>` | פתיחה ישירה של סעיף `n` והדגשת כל המופעים של `<text>` **רק בסעיף הזה**, ללא פתיחת חלונית חיפוש. דורש `index=<n>` במקביל; אם גם `q=` סופק — `highlight=` גובר. |
+| `otzaria://open/book/<id>?q=<text>` | פותח את הספר עם מחרוזת חיפוש להדגשה. ניתן לשלב עם `index`. |
+| `otzaria://open/book/<id>?index=<n>&mark` | פותח את הספר בסעיף `n` ומדגיש את כל רקע המקטע בצהוב. |
+| `otzaria://open/book/<id>?index=<n>&m=<text>` | פותח את הספר בסעיף `n` ומדגיש את הטקסט `text` בצהוב בתוך המקטע. |
 | `otzaria://open/pdf/<id>` | פותח ספר PDF לפי מזהה משותף עם ה-TextBook במסד הנתונים |
 | `otzaria://open/pdf/<id>?index=<n>` | פותח את ספר ה-PDF בעמוד `n` (מספר עמוד חיובי). |
 
@@ -53,18 +53,20 @@ otzaria://open/book/1234
 otzaria://open/book/1234?index=42
 otzaria://open/book/1234?q=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA
 otzaria://open/book/1234?index=42&q=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA
-otzaria://open/book/1234?index=42&highlight=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA
+otzaria://open/book/1234?index=42&mark
+otzaria://open/book/1234?index=42&m=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA
 otzaria://open/search?q=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA
 otzaria://open/pdf/120
 otzaria://open/pdf/120?index=17
 ```
 
-**הערות על קידוד:** טקסט בעברית ב‑`q=`/`highlight=` חייב להיות URL‑encoded (UTF‑8). ערך `index` שלילי או לא מספרי מתעלם — הספר ייפתח בתחילתו. `q=` ריק מתעלם. `highlight=` בלי `index=` מתעלם (אין משמעות ל"איזה סעיף"). אם גם `q=` וגם `highlight=` סופקו — `highlight=` גובר ו‑`q=` נופל, כדי לא לערבב חיפוש כללי עם הדגשה ממוקדת.
+**הערות על קידוד:** טקסט בעברית ב‑`q=` ו-`m=` חייב להיות URL‑encoded (UTF‑8). ערך `index` שלילי או לא מספרי מתעלם — הספר ייפתח בתחילתו. `q=` ריק מתעלם. `m=` ריק או רווחים בלבד מתעלם.
 
-**הבדל בין `q=` ל‑`highlight=`:**
-
-- `q=<text>` — חיפוש כללי בספר. מדגיש את כל המופעים בכל הסעיפים, פותח את חלונית החיפוש בצד, ומאפשר ניווט בין תוצאות. מתאים ל"מצא לי X בכל הספר".
-- `index=<n>&highlight=<text>` — קישור ישיר. גולל לסעיף `n`, מדגיש את כל המופעים של `<text>` **רק באותו סעיף**, ולא פותח חלונית חיפוש. מתאים ל"קח אותי לטקסט הזה כאן".
+**הבדל בין `mark` ל-`m=`:**
+- `?mark` — מדגיש את **כל רקע המקטע** בצהוב (הדגשת שורה שלמה).
+- `?m=<text>` — מדגיש **טקסט ספציפי** בתוך המקטע בצהוב (הדגשת מילים בלבד).
+- ניתן לשלב `mark` עם `q=` (חיפוש פעיל + הדגשת שורה).
+- ניתן לשלב `m=` עם `q=` (חיפוש פעיל + הדגשת טקסט ספציפי).
 
 **רגישות לאותיות גדולות/קטנות:** הסכמה, ה‑host, ושמות הפעולה (`calendar`, `library`, `book`, `tool`, וכד') כולם case‑insensitive — `OTZARIA://OPEN/CALENDAR` ו‑`otzaria://Open/Book/1234` תקפים בדיוק כמו הצורה הקטנה. הערכים (tool id, מזהי ספרים, כתובות `url=`) נשמרים כפי שהם.
 
@@ -223,7 +225,7 @@ _externalActivationWatchSub = queueFile.parent.watch().listen((event) {
 |---------|--------|------|
 | `OpenScreenAction(Screen)` | `otzaria://open/library`, `/settings`, ... | מסך עליון |
 | `OpenToolAction(String toolId)` | `otzaria://open/calendar`, `/tool/<id>`, ... | לשונית כלי |
-| `OpenBookAction(int bookId, {int? index, String? searchQuery, String? pinpointHighlight})` | `otzaria://open/book/<id>?index=<n>&q=<text>` או `?index=<n>&highlight=<text>` | ספר בעיון. `pinpointHighlight` מדגיש רק בסעיף `index`, `searchQuery` מדגיש בכל הספר. שניהם נדחים זה את זה. |
+| `OpenBookAction(int bookId, {int? index, String? searchQuery, bool markSection, String? markText})` | `otzaria://open/book/<id>?index=<n>&q=<text>&mark&m=<text>` | ספר בעיון |
 | `RunSearchAction(String query)` | `otzaria://open/search?q=<text>` | חיפוש מלא בלשונית חדשה |
 | `InstallPluginAction(PluginStoreInstallRequest)` | `otzaria://plugin/install?url=...` | התקנת תוסף מהחנות |
 | `InstallLocalPluginAction(String archivePath)` | `otzaria://plugin/install-local?path=<abs>` | התקנת תוסף מקובץ `.otzplugin` מקומי (לחיצה כפולה על קובץ משויך) |
@@ -239,7 +241,7 @@ _externalActivationWatchSub = queueFile.parent.watch().listen((event) {
 3. `_dispatchExternalUriAction` עם `switch` יחיד על ה‑sealed class:
    - **`OpenScreenAction`** — שולח `NavigateToScreen` ל‑NavigationBloc.
    - **`OpenToolAction`** — שולח `NavigateToScreen(Screen.more)` ואז `moreScreenKey.currentState?.requestOpenTool(toolId)` עם retry מדורג ב‑`_openToolWhenAvailable` עד שה‑state מוכן. ב‑[`ToolsScreen.requestOpenTool`](../lib/tools/tools_screen.dart) יש תור pending — אם ה‑descriptor של הכלי עוד לא נטען (תוסף שעוד לא הגיע מ‑PluginSystemBloc), הבקשה מחכה לרענון הבא של descriptors. אחרי 5 שניות בלי הצלחה — `UiSnack.showError`.
-   - **`OpenBookAction`** — `await DataRepository.instance.library`, מחפש לפי `b.id`. אם נמצא — `openBook(context, book, index ?? 0, searchQuery ?? '')`. אם לא — `UiSnack.showError`.
+   - **`OpenBookAction`** — `await DataRepository.instance.library`, מחפש לפי `b.id`. אם נמצא — `openBook(context, book, index ?? 0, searchQuery ?? '', markSection: markSection, markText: markText)`. אם לא — `UiSnack.showError`.
    - **`RunSearchAction`** — יוצר `SearchingTab` חדש עם הקוורי, מוסיף ל‑`HistoryBloc` ול‑`TabsBloc`, ומנווט ל‑`Screen.search`. ה‑`UpdateSearchQuery` מופעל אוטומטית מ‑`TantivyFullTextSearch.initState` ברגע שהלשונית מוצגת.
    - **`InstallPluginAction`** — `NavigateToScreen(Screen.more)` + `InstallRemotePluginRequested` ל‑PluginSystemBloc.
    - **`InstallLocalPluginAction`** — `InstallPluginRequested(archivePath)` ל‑PluginSystemBloc. הדיאלוג נפתח אוטומטית דרך `BlocListener` כשמתקבל `PluginSystemInstallRequiresPermissions`.

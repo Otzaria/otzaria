@@ -22,21 +22,23 @@ class OpenToolAction extends ExternalUriAction {
 /// פתיחת ספר בעיון לפי מזהה הספר ב-DB.
 ///
 /// [index] — אינדקס סעיף התחלתי (אופציונלי). מתעלמים מערכים שליליים.
-/// [searchQuery] — מחרוזת חיפוש להדגשה בכל הספר (אופציונלי). פותח גם את חלונית
-/// החיפוש בספר. מתאים ל"חיפוש בכל הספר".
-/// [pinpointHighlight] — תת-מחרוזת להדגשה ממוקדת **רק בתוך הסעיף שצוין ב-[index]**,
-/// בלי לפתוח חלונית חיפוש. כל מופעי המחרוזת באותו סעיף יודגשו. מתאים לקישור ישיר
-/// לטקסט מסוים בתוך מקטע. מתעלמים אם [index] לא צוין.
+/// [searchQuery] — מחרוזת חיפוש להדגשה (אופציונלי).
+/// [markSection] — כאשר `true`, מדגיש את כל תוכן המקטע ב-[index].
+/// [markText] — כאשר מוגדר, מדגיש את הטקסט הספציפי הזה בתוך המקטע.
+///
+/// סדר עדיפות להדגשה: [markText] > [markSection] > [searchQuery].
 class OpenBookAction extends ExternalUriAction {
   final int bookId;
   final int? index;
   final String? searchQuery;
-  final String? pinpointHighlight;
+  final bool markSection;
+  final String? markText;
   const OpenBookAction(
     this.bookId, {
     this.index,
     this.searchQuery,
-    this.pinpointHighlight,
+    this.markSection = false,
+    this.markText,
   });
 }
 
@@ -82,10 +84,10 @@ class RunSearchAction extends ExternalUriAction {
 /// * `otzaria://open/tool/<tool-id>`        – לשונית כלי לפי מזהה מלא
 /// * `otzaria://open/book/<id>`             – פתיחת ספר טקסט בעיון לפי מזהה DB
 ///   - `?index=<n>` קפיצה לסעיף התחלתי (n >= 0)
-///   - `?q=<text>`  מחרוזת חיפוש להדגשה בכל הספר (פותח גם חלונית חיפוש)
-///   - `?highlight=<text>` הדגשה ממוקדת לכל המופעים של `<text>` **רק בסעיף `index`**,
-///     בלי לפתוח חלונית חיפוש. דורש `index=<n>` במקביל; אחרת מתעלמים.
-///     אם גם `q=` וגם `highlight=` סופקו — `highlight=` גובר.
+///   - `?q=<text>`  מחרוזת חיפוש להדגשה
+///   - `?mark`      הדגשת כל תוכן המקטע ב-index (דגל ללא ערך)
+///   - `?m=<text>`  הדגשת טקסט ספציפי בתוך המקטע (URL-encoded)
+///   - סדר עדיפות להדגשה: m > mark > q
 /// * `otzaria://open/pdf/<id>`              – פתיחת ספר PDF לפי מזהה DB (משותף עם TextBook)
 ///   - `?index=<n>` קפיצה לעמוד התחלתי (n >= 0)
 /// * `otzaria://plugin/install?url=<download>` – התקנת תוסף
@@ -193,28 +195,22 @@ class ExternalUriRouter {
           indexParam == null || indexParam.isEmpty ? null : int.tryParse(indexParam);
       final index = (parsedIndex != null && parsedIndex >= 0) ? parsedIndex : null;
 
-      final rawHighlight = uri.queryParameters['highlight']?.trim();
-      // הדגשה ממוקדת לסעיף דורשת אינדקס; בלעדיו אין משמעות ל"איזה סעיף".
-      final pinpointHighlight = (rawHighlight == null ||
-              rawHighlight.isEmpty ||
-              index == null)
-          ? null
-          : rawHighlight;
-
-      // אם נבחרה הדגשה ממוקדת — היא גוברת על q= הכללי, כדי לא לפתוח חלונית
-      // חיפוש בנוסף להדגשה הממוקדת.
       final rawQuery = uri.queryParameters['q']?.trim();
-      final searchQuery = (pinpointHighlight != null ||
-              rawQuery == null ||
-              rawQuery.isEmpty)
-          ? null
-          : rawQuery;
+      final searchQuery = (rawQuery == null || rawQuery.isEmpty) ? null : rawQuery;
+
+      // mark — דגל בוליאני: קיים ב-queryParameters גם ללא ערך (?mark) וגם עם ערך ריק (?mark=)
+      final markSection = uri.queryParameters.containsKey('mark');
+
+      // m — טקסט ספציפי לסימון; מתעלמים מערך ריק או רווחים בלבד
+      final rawMark = uri.queryParameters['m']?.trim();
+      final markText = (rawMark == null || rawMark.isEmpty) ? null : rawMark;
 
       return OpenBookAction(
         bookId,
         index: index,
         searchQuery: searchQuery,
-        pinpointHighlight: pinpointHighlight,
+        markSection: markSection,
+        markText: markText,
       );
     }
 

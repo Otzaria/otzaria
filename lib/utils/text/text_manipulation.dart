@@ -381,6 +381,7 @@ String highLight(
   Map<String, String> spacingValues = const {},
   bool isFuzzy = false,
   int searchDistance = 0,
+  bool yellowBackground = false,
 }) {
   if (searchQuery.isEmpty) return data;
 
@@ -496,10 +497,14 @@ String highLight(
 
   if (matches.isEmpty) return data;
 
-  // אם לא צוין אינדקס נוכחי, נדגיש את כל התוצאות באדום
+  // אם לא צוין אינדקס נוכחי, נדגיש את כל התוצאות
   if (currentIndex == -1) {
     String result = data;
     int offset = 0;
+
+    final style = yellowBackground
+        ? 'background-color: yellow; color: inherit'
+        : 'color: red';
 
     for (final highlightMatch in matches) {
       final match = highlightMatch.match;
@@ -507,7 +512,7 @@ String highLight(
       final replacement = _highlightMatchedSearchWords(
         matchedText,
         highlightMatch.ranges,
-        'color: red',
+        style,
       );
 
       final start = match.start + offset;
