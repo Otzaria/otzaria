@@ -618,6 +618,29 @@ void main() {
         findsOneWidget,
       );
     });
+
+    testWidgets('details field receives focus automatically on open',
+        (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: RegularReportTab(
+              selectedText: 'טקסט לבדיקה',
+              fontSize: 18,
+              state: _loadedState(),
+              directReportTargetLabel: 'אוצריא',
+              onActionSelected: (_, __) {},
+              onCancel: () {},
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      final textField = tester.widget<TextField>(find.byType(TextField));
+      expect(textField.focusNode?.hasFocus ?? textField.autofocus, isTrue);
+    });
   });
 }
 
