@@ -24,7 +24,6 @@ import 'package:otzaria/plugins/bloc/plugin_system_event.dart';
 import 'package:otzaria/plugins/view/plugin_side_panel.dart';
 import 'package:otzaria/plugins/view/plugin_tab_page.dart';
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
-import 'package:otzaria/plugins/view/plugin_install_screen.dart';
 import 'package:otzaria/plugins/utils/fluent_icon_resolver.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/settings/settings_card.dart';
@@ -935,18 +934,6 @@ class ToolsScreenState extends State<ToolsScreen>
               context.read<PluginSystemBloc>().add(LoadPlugins());
             }
           });
-        } else if (state is PluginSystemInstallRequiresPermissions) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => BlocProvider.value(
-                value: context.read<PluginSystemBloc>(),
-                child: PluginInstallScreen(
-                  manifest: state.manifest,
-                  tempDirPath: state.tempDirPath,
-                ),
-              ),
-            ),
-          );
         }
       },
       child: Theme(

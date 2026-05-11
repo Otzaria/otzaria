@@ -58,25 +58,28 @@ class _PluginInstallScreenState extends State<PluginInstallScreen> {
     final hasPermissions = widget.manifest.permissions.isNotEmpty;
     final colorScheme = Theme.of(context).colorScheme;
 
-    return PopScope(
-      // מניעת יציאה בלי ניקוי — Back של מערכת מטופל ידנית
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _onCancel();
-      },
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text(
-            'אישור התקנת תוסף',
-            textDirection: TextDirection.rtl,
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 60),
+      clipBehavior: Clip.antiAlias,
+      child: PopScope(
+        // מניעת יציאה בלי ניקוי — Back של מערכת מטופל ידנית
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) _onCancel();
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text(
+              'אישור התקנת תוסף',
+              textDirection: TextDirection.rtl,
+            ),
+            leading: IconButton(
+              icon: const Icon(FluentIcons.dismiss_24_regular),
+              tooltip: 'ביטול',
+              onPressed: _onCancel,
+            ),
           ),
-          leading: IconButton(
-            icon: const Icon(FluentIcons.dismiss_24_regular),
-            tooltip: 'ביטול',
-            onPressed: _onCancel,
-          ),
-        ),
-        body: ListView(
+          body: ListView(
           padding: const EdgeInsets.all(16),
           children: [
             // ===== כרטיס פרטי התוסף =====
@@ -222,6 +225,7 @@ class _PluginInstallScreenState extends State<PluginInstallScreen> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 }

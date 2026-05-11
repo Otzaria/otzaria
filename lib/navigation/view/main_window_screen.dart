@@ -87,6 +87,7 @@ import 'package:otzaria/tour/models/tour_step.dart';
 import 'package:otzaria/tour/tour_target_keys.dart';
 import 'package:otzaria/tour/view/tour_overlay_screen.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/plugins/view/plugin_install_screen.dart';
 import 'package:otzaria/utils/navigation/open_book.dart';
 
 class MainWindowScreen extends StatefulWidget {
@@ -620,7 +621,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
       case OpenPdfBookAction(:final bookId, :final page):
         unawaited(_openPdfBookByExternalId(bookId, page: page));
       case InstallPluginAction(:final request):
-        context.read<NavigationBloc>().add(const NavigateToScreen(Screen.more));
         context.read<PluginSystemBloc>().add(
               InstallRemotePluginRequested(
                 request.downloadUri.toString(),
@@ -1943,9 +1943,23 @@ class MainWindowScreenState extends State<MainWindowScreen>
             },
           ),
           BlocListener<PluginSystemBloc, PluginSystemState>(
-            listenWhen: (previous, current) =>
-                false, // Only interested in permission changed, wait, plugin system state doesn't track this perfectly yet.
-            listener: (context, state) {},
+            listenWhen: (_, current) =>
+                current is PluginSystemInstallRequiresPermissions,
+            listener: (context, state) {
+              if (state is PluginSystemInstallRequiresPermissions) {
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (_) => BlocProvider.value(
+                    value: context.read<PluginSystemBloc>(),
+                    child: PluginInstallScreen(
+                      manifest: state.manifest,
+                      tempDirPath: state.tempDirPath,
+                    ),
+                  ),
+                );
+              }
+            },
           ),
         ],
         child: BlocBuilder<NavigationBloc, NavigationState>(
