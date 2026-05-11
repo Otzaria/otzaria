@@ -67,11 +67,18 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
     }
     // טען את רוחב הפאנל מההגדרות
     _leftPaneWidth = context.read<SettingsBloc>().state.commentaryPaneWidth;
+    // האזן לבקשות toggle מקיצור מקשים גלובלי
+    widget.tab.toggleCommentatorsPaneNotifier.addListener(_onTogglePaneRequest);
   }
 
   @override
   void didUpdateWidget(SplitedViewScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // עדכון listener אם הטאב השתנה
+    if (oldWidget.tab != widget.tab) {
+      oldWidget.tab.toggleCommentatorsPaneNotifier.removeListener(_onTogglePaneRequest);
+      widget.tab.toggleCommentatorsPaneNotifier.addListener(_onTogglePaneRequest);
+    }
     // אם showSplitView השתנה או initialTabIndex השתנה, מעדכן את הטאב
     if (oldWidget.showSplitView != widget.showSplitView ||
         oldWidget.initialTabIndex != widget.initialTabIndex) {
@@ -178,11 +185,16 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
 
   @override
   void dispose() {
+    widget.tab.toggleCommentatorsPaneNotifier.removeListener(_onTogglePaneRequest);
     _controller.dispose();
     _savedSelectedText.dispose();
     _openCommentatorsFilterNotifier.dispose();
     _closeCommentatorsFilterNotifier.dispose();
     super.dispose();
+  }
+
+  void _onTogglePaneRequest() {
+    _togglePane();
   }
 
   @override

@@ -45,6 +45,8 @@ class ShortcutValidator {
     'key-shortcut-calendar-create-event',
     'key-shortcut-calendar-toggle-view',
     'key-shortcut-shamor-zachor-cycle-filter',
+    'key-shortcut-toggle-nav-pane',
+    'key-shortcut-toggle-commentators-pane',
   ];
 
   /// Default values for shortcuts
@@ -71,6 +73,8 @@ class ShortcutValidator {
     'key-shortcut-calendar-create-event': 'ctrl+shift+n',
     'key-shortcut-calendar-toggle-view': 'ctrl+shift+e',
     'key-shortcut-shamor-zachor-cycle-filter': 'ctrl+e',
+    'key-shortcut-toggle-nav-pane': 'ctrl+shift+l',
+    'key-shortcut-toggle-commentators-pane': 'ctrl+shift+c',
   };
 
   /// Shortcut names for display
@@ -98,6 +102,8 @@ class ShortcutValidator {
     'key-shortcut-calendar-toggle-view': 'לוח שנה: מעבר בין תצוגות',
     'key-shortcut-shamor-zachor-cycle-filter':
         'שמור וזכור: מעבר בין הסינונים',
+    'key-shortcut-toggle-nav-pane': 'פתח/סגור חלונית ניווט',
+    'key-shortcut-toggle-commentators-pane': 'פתח/סגור חלונית מפרשים',
   };
 
   /// Check for conflicts in current shortcuts

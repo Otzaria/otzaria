@@ -46,6 +46,9 @@ class TextBookTab extends OpenedTab {
   /// הכותרת הנוכחית של המיקום בספר (למשל "בראשית פרק ד")
   final currentTitle = ValueNotifier<String>("");
 
+  /// מפעיל החלפת מצב פתיחה/סגירה של חלונית המפרשים (הגדלת הערך = toggle)
+  final ValueNotifier<int> toggleCommentatorsPaneNotifier = ValueNotifier<int>(0);
+
   List<String>? commentators;
   bool _lastSplitView = false;
   bool _lastShowPageShapeView = false;
@@ -127,6 +130,7 @@ class TextBookTab extends OpenedTab {
   void dispose() {
     _stateSubscription?.cancel();
     currentTitle.dispose();
+    toggleCommentatorsPaneNotifier.dispose();
     bloc.close();
     super.dispose();
   }

@@ -76,6 +76,8 @@ class ShortcutsSettingsTab extends StatelessWidget {
     'ctrl+9': 'CTRL + 9',
     'ctrl+comma': 'CTRL + ,',
     'ctrl+shift+b': 'CTRL + SHIFT + B',
+    'ctrl+shift+c': 'CTRL + SHIFT + C',
+    'ctrl+shift+l': 'CTRL + SHIFT + L',
     'ctrl+shift+w': 'CTRL + SHIFT + W',
   };
 
@@ -243,6 +245,20 @@ class ShortcutsSettingsTab extends StatelessWidget {
                   label: 'סגור כל הספרים',
                   defaultShortcut: 'ctrl+shift+w',
                   icon: FluentIcons.dismiss_24_regular,
+                  allShortcuts: _shortcutsList,
+                ),
+                _ShortcutTile(
+                  settingKey: 'key-shortcut-toggle-nav-pane',
+                  label: 'פתח/סגור חלונית ניווט',
+                  defaultShortcut: 'ctrl+shift+l',
+                  icon: FluentIcons.panel_left_24_regular,
+                  allShortcuts: _shortcutsList,
+                ),
+                _ShortcutTile(
+                  settingKey: 'key-shortcut-toggle-commentators-pane',
+                  label: 'פתח/סגור חלונית מפרשים',
+                  defaultShortcut: 'ctrl+shift+c',
+                  icon: FluentIcons.book_open_24_regular,
                   allShortcuts: _shortcutsList,
                 ),
               ],

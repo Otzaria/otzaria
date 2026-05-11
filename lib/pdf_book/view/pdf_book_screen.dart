@@ -200,6 +200,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   // Named listeners for proper cleanup
   late final VoidCallback _leftPaneTabControllerListener;
   late final VoidCallback _showLeftPaneListener;
+  late final VoidCallback _toggleNavPaneListener;
 
   Future<void> _runInitialSearchIfNeeded() async {
     final controller = widget.tab.searchController;
@@ -440,6 +441,14 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       }
     };
     widget.tab.showLeftPane.addListener(_showLeftPaneListener);
+
+    _toggleNavPaneListener = () {
+      final current = _bloc.state;
+      if (current is PdfBookLoaded) {
+        _setLeftPaneVisibility(!current.showLeftPane);
+      }
+    };
+    widget.tab.toggleNavPaneNotifier.addListener(_toggleNavPaneListener);
   }
 
   Future<void> _loadInitialLayoutMode() async {
@@ -2333,6 +2342,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     pdfController.removeListener(_onPdfViewerControllerUpdate);
     _leftPaneTabController?.removeListener(_leftPaneTabControllerListener);
     widget.tab.showLeftPane.removeListener(_showLeftPaneListener);
+    widget.tab.toggleNavPaneNotifier.removeListener(_toggleNavPaneListener);
     _leftPaneTabController?.dispose();
     _searchFieldFocusNode.dispose();
     _navigationFieldFocusNode.dispose();

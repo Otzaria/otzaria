@@ -49,6 +49,9 @@ class PdfBookTab extends OpenedTab {
   ///a flag that tells if the left pane should be pinned on scrolling
   final pinLeftPane = ValueNotifier<bool>(false);
 
+  /// מפעיל החלפת מצב פתיחה/סגירה של חלונית הניווט
+  final ValueNotifier<int> toggleNavPaneNotifier = ValueNotifier<int>(0);
+
   /// PDF headings mapping for commentaries and links
   PdfHeadings? pdfHeadings;
 
@@ -152,6 +155,7 @@ class PdfBookTab extends OpenedTab {
     currentTitle.dispose();
     showLeftPane.dispose();
     pinLeftPane.dispose();
+    toggleNavPaneNotifier.dispose();
     super.dispose();
   }
 
