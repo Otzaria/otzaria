@@ -1,0 +1,2 @@
+# Generated Dart files - keep LF to avoid spurious diffs on Windows
+*.g.dart text eol=lf
