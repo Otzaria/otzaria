@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/utils/ui/color_utils.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/settings/engine/settings_wrapper.dart';
@@ -120,11 +120,11 @@ class SettingsRepository {
       'followSystemTheme':
           _settings.getValue<bool>(keyFollowSystemTheme, defaultValue: false),
       'seedColor': ColorUtils.colorFromString(
-        _settings.getValue<String>(keySwatchColor, defaultValue: '#ff2c1b02'),
+        _settings.getValue<String>(keySwatchColor, defaultValue: ColorUtils.colorToString(AppSeedColors.defaultLight)),
       ),
       'darkSeedColor': ColorUtils.colorFromString(
         _settings.getValue<String>(keyDarkSwatchColor,
-            defaultValue: '#ffce93d8'),
+            defaultValue: ColorUtils.colorToString(AppSeedColors.defaultDark)),
       ),
       'textMaxWidth':
           _settings.getValue<double>(keyTextMaxWidth, defaultValue: -1),
@@ -717,8 +717,8 @@ class SettingsRepository {
   /// Write all default settings to persistent storage
   Future<void> _writeDefaultsToStorage() async {
     await _settings.setValue(keyDarkMode, false);
-    await _settings.setValue(keySwatchColor, '#ff2c1b02');
-    await _settings.setValue(keyDarkSwatchColor, '#ffce93d8');
+    await _settings.setValue(keySwatchColor, ColorUtils.colorToString(AppSeedColors.defaultLight));
+    await _settings.setValue(keyDarkSwatchColor, ColorUtils.colorToString(AppSeedColors.defaultDark));
     await _settings.setValue(keyTextMaxWidth, -1.0);
     await _settings.setValue(keyFontSize, 25.0);
     await _settings.setValue(keyFontFamily, AppFonts.defaultFont);

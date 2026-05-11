@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/theme/app_seed_colors.dart';
 
 class ColorUtils {
   static Color colorFromString(String? colorString) {
     if (colorString == null) {
-      return const Color(0xff2c1b02); // Default color
+      return AppSeedColors.defaultLight;
     }
     if (colorString.startsWith('#')) {
       colorString = colorString.substring(1);

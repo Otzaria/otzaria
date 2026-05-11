@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:equatable/equatable.dart';
+import 'package:otzaria/theme/app_seed_colors.dart';
 
 class SettingsState extends Equatable {
   final bool isDarkMode;
@@ -91,8 +92,8 @@ class SettingsState extends Equatable {
     return const SettingsState(
       isDarkMode: false,
       followSystemTheme: false,
-      seedColor: Color(0xFF2C1B02),
-      darkSeedColor: Color(0xFFCE93D8), // סגול בהיר למצב כהה
+      seedColor: AppSeedColors.defaultLight,
+      darkSeedColor: AppSeedColors.defaultDark,
       textMaxWidth:
           -1, // רוחב מקסימלי לטקסט (-1 = רמה 1 = 95% כברירת מחדל, 0 = ללא הגבלה)
       fontSize: 16,
