@@ -644,8 +644,8 @@ void main() {
       },
     );
 
-    group('הדגשה ממוקדת מ-deep link', () {
-      test('ApplyPinpointHighlight מגדיר אינדקס וטקסט ומנקה searchText',
+    group('הדגשה מ-deep link', () {
+      test('ApplyMarkHighlight מגדיר highlightText ו-permanentHighlightLine',
           () async {
         final repository = _FakeTextBookRepository();
         final bloc =
@@ -659,32 +659,20 @@ void main() {
         ));
         await Future<void>.delayed(const Duration(milliseconds: 50));
 
-        // קודם נדמה שהיה חיפוש פעיל בטאב
-        bloc.add(const UpdateSearchText(
-          'שאלה ישנה',
-          searchOptions: {},
-          alternativeWords: {},
-          spacingValues: {},
-        ));
-        await Future<void>.delayed(const Duration(milliseconds: 30));
-
-        bloc.add(const ApplyPinpointHighlight(
-          sectionIndex: 7,
-          text: 'בראשית',
+        bloc.add(const ApplyMarkHighlight(
+          highlightText: 'בראשית',
+          permanentHighlightLine: 7,
         ));
         await Future<void>.delayed(const Duration(milliseconds: 30));
 
         final state = bloc.state as TextBookLoaded;
-        expect(state.pinpointHighlightIndex, 7);
-        expect(state.pinpointHighlightText, 'בראשית');
-        // הדגשה ממוקדת מנקה את החיפוש הכללי כדי שלא יתערבב עם ההדגשה הסעיפית.
-        expect(state.searchText, isEmpty);
-        expect(state.searchMode, SearchMode.exact);
+        expect(state.highlightText, 'בראשית');
+        expect(state.permanentHighlightLine, 7);
 
         await bloc.close();
       });
 
-      test('UpdateSearchText מנקה pinpoint קודם', () async {
+      test('ApplyMarkHighlight עם permanentHighlightLine=null מנקה הדגשה', () async {
         final repository = _FakeTextBookRepository();
         final bloc =
             _createBloc(repository: repository, showPageShapeView: false);
@@ -697,31 +685,22 @@ void main() {
         ));
         await Future<void>.delayed(const Duration(milliseconds: 50));
 
-        bloc.add(const ApplyPinpointHighlight(
-          sectionIndex: 3,
-          text: 'תורה',
+        bloc.add(const ApplyMarkHighlight(
+          highlightText: 'תורה',
+          permanentHighlightLine: 3,
         ));
         await Future<void>.delayed(const Duration(milliseconds: 30));
 
-        bloc.add(const UpdateSearchText(
-          'חיפוש חדש',
-          searchOptions: {},
-          alternativeWords: {},
-          spacingValues: {},
-        ));
+        bloc.add(const ApplyMarkHighlight());
         await Future<void>.delayed(const Duration(milliseconds: 30));
 
         final state = bloc.state as TextBookLoaded;
-        expect(state.pinpointHighlightIndex, isNull,
-            reason:
-                'חיפוש ידני חדש חייב לנקות הדגשה ממוקדת קודמת — אחרת ההדגשה תחסום את החיפוש בשאר הסעיפים.');
-        expect(state.pinpointHighlightText, isNull);
-        expect(state.searchText, 'חיפוש חדש');
+        expect(state.permanentHighlightLine, isNull);
 
         await bloc.close();
       });
 
-      test('ApplyPinpointHighlight מתעלם מטקסט ריק', () async {
+      test('ApplyMarkHighlight עם highlightText ריק', () async {
         final repository = _FakeTextBookRepository();
         final bloc =
             _createBloc(repository: repository, showPageShapeView: false);
@@ -734,15 +713,15 @@ void main() {
         ));
         await Future<void>.delayed(const Duration(milliseconds: 50));
 
-        bloc.add(const ApplyPinpointHighlight(
-          sectionIndex: 5,
-          text: '',
+        bloc.add(const ApplyMarkHighlight(
+          highlightText: '',
+          permanentHighlightLine: 5,
         ));
         await Future<void>.delayed(const Duration(milliseconds: 30));
 
         final state = bloc.state as TextBookLoaded;
-        expect(state.pinpointHighlightIndex, isNull);
-        expect(state.pinpointHighlightText, isNull);
+        expect(state.highlightText, '');
+        expect(state.permanentHighlightLine, 5);
 
         await bloc.close();
       });

@@ -145,6 +145,9 @@ class RenderSettings {
   /// האם ליישר טקסט ב-justify
   final bool justifyText;
 
+  /// האם להשתמש ברקע צהוב להדגשה (במקום צבע אדום)
+  final bool highlightYellowBackground;
+
   const RenderSettings({
     this.removeNikud = false,
     this.removePunctuation = false,
@@ -164,6 +167,7 @@ class RenderSettings {
     this.enableInlineLinks = false,
     this.formatParentheses = true,
     this.justifyText = true,
+    this.highlightYellowBackground = false,
   });
 
   /// יוצר עותק עם שינויים
@@ -186,6 +190,7 @@ class RenderSettings {
     bool? enableInlineLinks,
     bool? formatParentheses,
     bool? justifyText,
+    bool? highlightYellowBackground,
   }) {
     return RenderSettings(
       removeNikud: removeNikud ?? this.removeNikud,
@@ -206,6 +211,7 @@ class RenderSettings {
       enableInlineLinks: enableInlineLinks ?? this.enableInlineLinks,
       formatParentheses: formatParentheses ?? this.formatParentheses,
       justifyText: justifyText ?? this.justifyText,
+      highlightYellowBackground: highlightYellowBackground ?? this.highlightYellowBackground,
     );
   }
 
@@ -230,7 +236,8 @@ class RenderSettings {
         lineHeight == other.lineHeight &&
         enableInlineLinks == other.enableInlineLinks &&
         formatParentheses == other.formatParentheses &&
-        justifyText == other.justifyText;
+        justifyText == other.justifyText &&
+        highlightYellowBackground == other.highlightYellowBackground;
   }
 
   @override
@@ -254,6 +261,7 @@ class RenderSettings {
       enableInlineLinks,
       formatParentheses,
       justifyText,
+      highlightYellowBackground,
     );
   }
 }

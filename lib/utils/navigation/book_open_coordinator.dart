@@ -1,6 +1,7 @@
 import 'package:collection/collection.dart';
-import 'package:otzaria/history/bloc/history_bloc.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
+import 'package:otzaria/history/bloc/history_state.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
@@ -13,7 +14,7 @@ import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
 
 class BookOpenCoordinator {
   final TabsBloc tabsBloc;
-  final HistoryBloc historyBloc;
+  final Bloc<HistoryEvent, HistoryState> historyBloc;
   final NavigationBloc navigationBloc;
 
   const BookOpenCoordinator({
@@ -22,32 +23,26 @@ class BookOpenCoordinator {
     required this.navigationBloc,
   });
 
-  void openBook(
+  Future<void> openBook(
     Book book,
     int index,
     String searchQuery, {
     bool ignoreHistory = false,
-    bool requiresStableLayout = false,
-    String? pinpointHighlight,
-  }) {
+    bool markSection = false,
+    String? markText,
+  }) async {
     final tabsState = tabsBloc.state;
     if (tabsState.hasOpenTabs) {
       historyBloc.add(CaptureStateForHistory(tabsState.currentTab!));
     }
 
-    // deep link עם הדגשה ממוקדת מציין במפורש סעיף יעד; חייבים לכבד אותו במדויק
-    // (גם כש‑index=0) ולא ליפול חזרה להיסטוריית קריאה — אחרת ההדגשה תופיע במקום
-    // הלא נכון ביחס לסעיף שהמשתמש ביקש.
-    final hasPinpoint =
-        pinpointHighlight != null && pinpointHighlight.isNotEmpty;
-
     final historyState = historyBloc.state;
-    final lastOpened = (ignoreHistory || hasPinpoint)
+    final lastOpened = ignoreHistory
         ? null
         : historyState.history
             .firstWhereOrNull((b) => b.book.title == book.title);
 
-    final initialIndex = (ignoreHistory || hasPinpoint || index != 0)
+    final initialIndex = (ignoreHistory || index != 0)
         ? index
         : (lastOpened?.index ?? 0);
     final initialCommentators = lastOpened?.commentatorsToShow;
@@ -57,19 +52,31 @@ class BookOpenCoordinator {
     final savedViewMode =
         PageShapeSettingsManager.getViewModePreference(book.title);
 
+    // חישוב highlightText ו-permanentHighlightLine לפי סדר עדיפות
+    // permanentHighlightLine: מדגיש רקע שורה שלמה (ל-?mark)
+    // highlightText: מדגיש טקסט ספציפי בשורה הספציפית (ל-?m=)
+    String effectiveHighlightText = '';
+    int? effectivePermanentHighlightLine;
+
+    if (markText != null) {
+      // ?m=<text>: הדגשת טקסט ספציפי — רק highlightText, ללא רקע שורה
+      effectiveHighlightText = markText;
+      effectivePermanentHighlightLine = index; // לדעת באיזו שורה להדגיש
+    } else if (markSection) {
+      // ?mark: הדגשת רקע שורה שלמה
+      effectivePermanentHighlightLine = index;
+    }
+
+    // searchQuery משמש לחיפוש פעיל (חלונית חיפוש); highlight fields להדגשה בלבד
     final tab = OpenedTab.fromBook(
       book,
       initialIndex,
       searchText: searchQuery,
+      highlightText: effectiveHighlightText,
+      permanentHighlightLine: effectivePermanentHighlightLine,
       commentators: initialCommentators,
       openLeftPane: shouldOpenLeftPane,
       showPageShapeView: savedViewMode,
-      requiresStableLayout: requiresStableLayout,
-      pinpointHighlight: pinpointHighlight,
-      // שמירת הסעיף שהמשתמש ביקש בפירוש; משמש את מסלול ה‑reuse של TabsBloc
-      // כדי לדעת על איזה סעיף להחיל את ההדגשה גם אם הטאב הקיים נפתח באינדקס
-      // אחר.
-      pinpointHighlightSectionIndex: hasPinpoint ? initialIndex : null,
     );
     tabsBloc.add(OpenOrFocusTab(tab));
 

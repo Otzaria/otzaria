@@ -543,7 +543,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
     // אם יש טקסט חיפוש (searchText), נתחיל בלשונית 'חיפוש' (שנמצאת במקום ה-2)
     // אחרת, נתחיל בלשונית 'ניווט' (שנמצאת במקום ה-0)
-    // הערה: נעדכן את זה שוב אחרי הבדיקה של כותרות
+    // highlightText לא פותח את חלונית החיפוש
     final int initialIndex = widget.tab.searchText.isNotEmpty ? 2 : 0;
 
     // יוצרים את בקר הלשוניות עם האינדקס ההתחלתי שקבענו

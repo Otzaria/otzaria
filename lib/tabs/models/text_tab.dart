@@ -25,6 +25,10 @@ class TextBookTab extends OpenedTab {
 
   /// The initial search text for this tab.
   final String searchText;
+  /// טקסט להדגשה בלבד — לא מפעיל חלונית חיפוש.
+  final String highlightText;
+  /// שורה להדגשת רקע קבועה — משמש ל-?mark deep link.
+  final int? permanentHighlightLine;
   final Map<String, Map<String, bool>> searchOptions;
   final Map<int, List<String>> alternativeWords;
   final Map<String, String> spacingValues;
@@ -74,6 +78,8 @@ class TextBookTab extends OpenedTab {
     required this.book,
     required this.index,
     this.searchText = '',
+    this.highlightText = '',
+    this.permanentHighlightLine,
     this.searchOptions = const {},
     this.alternativeWords = const {},
     this.spacingValues = const {},
@@ -99,39 +105,30 @@ class TextBookTab extends OpenedTab {
     _lastSplitView = effectiveSplitedView;
     _lastShowPageShapeView = effectiveShowPageShapeView;
 
-    // Initialize the bloc with initial state. ב‑production תמיד נבנה bloc חדש;
-    // ה‑blocOverride קיים רק לטסטים שצריכים להזריק bloc עם repository מזויף
-    // ולהביא אותו ל‑Loaded בלי תשתית קבצים אמיתית.
-    bloc = blocOverride ??
-        TextBookBloc(
-          repository: TextBookRepository(
-            fileSystem: FileSystemData.instance,
-          ),
-          // [EDITING DISABLED] overridesRepository: LocalOverridesRepository(),
-          initialState: TextBookInitial.named(
-            book,
-            index,
-            openLeftPane,
-            commentators ?? [],
-            searchText: searchText,
-            searchOptions: searchOptions,
-            alternativeWords: alternativeWords,
-            spacingValues: spacingValues,
-            searchMode: searchMode,
-            splitedView: effectiveSplitedView,
-            showPageShapeView: effectiveShowPageShapeView,
-            pinpointHighlightIndex:
-                pinpointHighlight != null && pinpointHighlight!.isNotEmpty
-                    ? (pinpointHighlightSectionIndex ?? index)
-                    : null,
-            pinpointHighlightText:
-                pinpointHighlight != null && pinpointHighlight!.isNotEmpty
-                    ? pinpointHighlight
-                    : null,
-          ),
-          scrollController: scrollController,
-          positionsListener: positionsListener,
-        );
+    // Initialize the bloc with initial state
+    bloc = TextBookBloc(
+      repository: TextBookRepository(
+        fileSystem: FileSystemData.instance,
+      ),
+      // [EDITING DISABLED] overridesRepository: LocalOverridesRepository(),
+      initialState: TextBookInitial.named(
+        book,
+        index,
+        openLeftPane,
+        commentators ?? [],
+        searchText: searchText,
+        searchOptions: searchOptions,
+        alternativeWords: alternativeWords,
+        spacingValues: spacingValues,
+        searchMode: searchMode,
+        splitedView: effectiveSplitedView,
+        showPageShapeView: effectiveShowPageShapeView,
+        highlightText: highlightText,
+        permanentHighlightLine: permanentHighlightLine,
+      ),
+      scrollController: scrollController,
+      positionsListener: positionsListener,
+    );
 
     // הוספת listener לעדכון האינדקס כשה-state משתנה
     _stateSubscription = bloc.stream.listen((state) {

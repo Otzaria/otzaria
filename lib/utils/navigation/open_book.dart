@@ -9,7 +9,8 @@ import 'package:otzaria/utils/navigation/book_open_coordinator.dart';
 void openBook(BuildContext context, Book book, int index, String searchQuery,
     {bool ignoreHistory = false,
     bool requiresStableLayout = false,
-    String? pinpointHighlight}) {
+    bool markSection = false,
+    String? markText}) {
   final coordinator = BookOpenCoordinator(
     tabsBloc: context.read<TabsBloc>(),
     historyBloc: context.read<HistoryBloc>(),
@@ -20,7 +21,7 @@ void openBook(BuildContext context, Book book, int index, String searchQuery,
     index,
     searchQuery,
     ignoreHistory: ignoreHistory,
-    requiresStableLayout: requiresStableLayout,
-    pinpointHighlight: pinpointHighlight,
+    markSection: markSection,
+    markText: markText,
   );
 }

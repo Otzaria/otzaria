@@ -146,12 +146,28 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     );
 
     if (matchingIndex != null) {
-      // אם הטאב החדש מבקש הדגשה ממוקדת (deep link), נעביר אותה ל‑bloc של
-      // הטאב הקיים — אחרת ה‑highlight החדש היה נזרק עם ה‑dispose.
-      _propagatePinpointHighlightToExistingTab(
-        existingTab: state.tabs[matchingIndex],
-        incomingTab: event.tab,
-      );
+      // אם הלשונית החדשה מכילה highlight, נעדכן את הלשונית הקיימת
+      final newTab = event.tab;
+      if (newTab is TextBookTab &&
+          (newTab.highlightText.isNotEmpty ||
+              newTab.permanentHighlightLine != null)) {
+        final existingTab = state.tabs[matchingIndex];
+        final textTab = existingTab is TextBookTab
+            ? existingTab
+            : (existingTab is CombinedTab
+                ? (existingTab.rightTab is TextBookTab
+                    ? existingTab.rightTab as TextBookTab
+                    : existingTab.leftTab is TextBookTab
+                        ? existingTab.leftTab as TextBookTab
+                        : null)
+                : null);
+        if (textTab != null && textTab.bloc.state is TextBookLoaded) {
+          textTab.bloc.add(ApplyMarkHighlight(
+            highlightText: newTab.highlightText,
+            permanentHighlightLine: newTab.permanentHighlightLine,
+          ));
+        }
+      }
       event.tab.dispose();
       final tabsToSave = state.tabs;
       final modeToSave = state.sideBySideMode;
@@ -161,70 +177,6 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     }
 
     await _onAddTab(AddTab(event.tab), emit);
-  }
-
-  void _propagatePinpointHighlightToExistingTab({
-    required OpenedTab existingTab,
-    required OpenedTab incomingTab,
-  }) {
-    if (incomingTab is! TextBookTab) return;
-    final pinpoint = incomingTab.pinpointHighlight;
-    if (pinpoint == null || pinpoint.isEmpty) return;
-    // pinpointHighlightSectionIndex נשמר על הטאב מהקואורדינטור עם הסעיף
-    // המקורי שהמשתמש ביקש בקישור; ה‑index של הטאב כבר עלול להשתנות אם
-    // הקואורדינטור החיל fallback להיסטוריה (במסלול שאינו pinpoint).
-    final sectionIndex =
-        incomingTab.pinpointHighlightSectionIndex ?? incomingTab.index;
-
-    final TextBookTab? targetText = _resolveTextBookTab(
-      existingTab,
-      incomingTab,
-    );
-    if (targetText == null) return;
-
-    void dispatch() {
-      targetText.bloc.add(ApplyPinpointHighlight(
-        sectionIndex: sectionIndex,
-        text: pinpoint,
-      ));
-    }
-
-    if (targetText.bloc.state is TextBookLoaded) {
-      dispatch();
-      return;
-    }
-
-    // הטאב הקיים אולי עדיין בטעינה ראשונית — נמתין להגעה ל‑Loaded פעם אחת.
-    late StreamSubscription<TextBookState> sub;
-    sub = targetText.bloc.stream.listen((state) {
-      if (state is TextBookLoaded) {
-        dispatch();
-        sub.cancel();
-      }
-    });
-  }
-
-  TextBookTab? _resolveTextBookTab(
-    OpenedTab existingTab,
-    TextBookTab incomingTab,
-  ) {
-    if (existingTab is TextBookTab) {
-      return existingTab;
-    }
-    // ב‑side‑by‑side צריך להחיל את ה‑pinpoint על הצד שמתאים בזהות חזקה (book id
-    // / category id), לא רק כותרת — כדי שלא לעדכן בטעות צד עם ספר שונה
-    // ששם הקובץ שלו זהה.
-    if (existingTab is CombinedTab) {
-      final right = existingTab.rightTab;
-      if (right is TextBookTab && _isSameBook(right, incomingTab)) {
-        return right;
-      }
-      final left = existingTab.leftTab;
-      if (left is TextBookTab && _isSameBook(left, incomingTab)) {
-        return left;
-      }
-    }
-    return null;
   }
 
   Future<int?> _findMatchingTopLevelTabIndex(
