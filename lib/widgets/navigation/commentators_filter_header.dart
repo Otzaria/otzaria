@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/widgets/misc/rtl_icon.dart';
 
 class CommentatorsFilterHeader extends StatelessWidget {
   final VoidCallback onBack;
@@ -18,7 +19,7 @@ class CommentatorsFilterHeader extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(FluentIcons.arrow_left_24_regular),
+            icon: const RtlIcon(FluentIcons.arrow_left_24_regular),
             tooltip: 'חזרה למפרשים',
             onPressed: onBack,
           ),
