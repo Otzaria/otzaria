@@ -19,7 +19,6 @@ import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
-import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import '../test_helpers/memory_cache_provider.dart';
@@ -294,81 +293,6 @@ void main() {
     expect(capturedSearchOptions, isEmpty);
     expect(capturedAlternativeWords, isEmpty);
     expect(capturedSpacingValues, isEmpty);
-  });
-
-  testWidgets('דיאלוג חדש משחזר מצב levenshtein ישן כאפשרות שגיאות כתיב',
-      (WidgetTester tester) async {
-    final historyBloc = MockHistoryBloc();
-    final indexingBloc = MockIndexingBloc();
-    final navigationBloc = MockNavigationBloc();
-    final theme = ThemeData(
-      useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFB85C38)),
-    );
-
-    await Settings.setValue<String>('key-last-search-typing', 'חכמה בינה');
-    await Settings.setValue<String>('key-last-search-mode', 'levenshtein');
-    await Settings.setValue<bool>('key-last-search-typo-tolerance', true);
-
-    Map<String, Map<String, bool>>? capturedSearchOptions;
-    SearchMode? capturedSearchMode;
-
-    whenListen(
-      historyBloc,
-      const Stream<HistoryState>.empty(),
-      initialState: HistoryLoaded([]),
-    );
-    whenListen(
-      indexingBloc,
-      const Stream<IndexingState>.empty(),
-      initialState: IndexingInitial(),
-    );
-    whenListen(
-      navigationBloc,
-      const Stream<NavigationState>.empty(),
-      initialState: const NavigationState(currentScreen: Screen.search),
-    );
-
-    addTearDown(() async {
-      await Settings.setValue<String>('key-last-search-typing', '');
-      await Settings.setValue<String>('key-last-search-mode', 'advanced');
-      await Settings.setValue<bool>('key-last-search-typo-tolerance', false);
-      await tester.binding.setSurfaceSize(null);
-      await historyBloc.close();
-      await indexingBloc.close();
-      await navigationBloc.close();
-    });
-
-    await tester.binding.setSurfaceSize(const Size(1400, 900));
-    await tester.pumpWidget(_buildDialogHarness(
-      theme: theme,
-      historyBloc: historyBloc,
-      indexingBloc: indexingBloc,
-      navigationBloc: navigationBloc,
-      dialog: SearchDialog(
-        onSearch: (
-          query,
-          searchOptions,
-          alternativeWords,
-          spacingValues,
-          searchMode,
-          distance,
-        ) {
-          capturedSearchOptions = searchOptions;
-          capturedSearchMode = searchMode;
-        },
-      ),
-    ));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byTooltip('חפש'));
-    await tester.pumpAndSettle();
-
-    expect(capturedSearchMode, SearchMode.advanced);
-    expect(capturedSearchOptions, {
-      'חכמה_0': {SearchQueryBuilder.typoToleranceOptionKey: true},
-      'בינה_1': {SearchQueryBuilder.typoToleranceOptionKey: true},
-    });
   });
 
   testWidgets('בדיאלוג צר בתוך ספר אין overflow כששדה המרחק מוצג',

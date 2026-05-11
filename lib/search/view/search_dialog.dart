@@ -90,25 +90,6 @@ class _SearchDialogState extends State<SearchDialog> {
   bool get _usesStagedSubmit =>
       widget.onSearch != null || widget.returnResultOnSubmit;
 
-  /// משחזר טולרנס שגיאות-כתיב למשתמשים שעלו מגרסה בה היה מפתח
-  /// `key-last-search-mode=levenshtein` או `key-last-search-typo-tolerance=true`.
-  /// מורח את האפשרות לכל מילה (כפי שהפורמט הפר-מילה דורש), כדי שהמעבר
-  /// בין הגרסאות לא יפיל למשתמש הקיים את ההגדרה שהוא הסתמך עליה.
-  void _restoreLegacyTypoToleranceOptions(String query) {
-    final words = SearchQueryBuilder.splitQueryWords(query);
-    for (var i = 0; i < words.length; i++) {
-      final wordKey = SearchQueryBuilder.buildWordKey(words[i], i);
-      _searchTab.searchOptions[wordKey] = {
-        SearchQueryBuilder.typoToleranceOptionKey: true,
-      };
-    }
-    if (words.isNotEmpty) {
-      // ההגדרות הקודמות חלות פר-מילה, לכן עוברים למצב פר-מילה כדי
-      // שיוצגו ויפעלו.
-      _searchTab.useGlobalSearchOptions.value = false;
-    }
-  }
-
   @override
   void initState() {
     super.initState();
@@ -122,22 +103,16 @@ class _SearchDialogState extends State<SearchDialog> {
           Settings.getValue<String>('key-last-search-typing') ?? '';
       final lastMode =
           Settings.getValue<String>('key-last-search-mode') ?? 'advanced';
-      final lastTypoTolerance =
-          Settings.getValue<bool>('key-last-search-typo-tolerance') ?? false;
 
       _searchTab = SearchingTab("חיפוש", lastTyping);
 
       final searchMode = switch (lastMode) {
         'fuzzy' => SearchMode.fuzzy,
         'exact' => SearchMode.exact,
-        'levenshtein' => SearchMode.advanced,
         _ => SearchMode.advanced,
       };
 
       _searchTab.searchBloc.add(SetSearchMode(searchMode));
-      if (lastMode == 'levenshtein' || lastTypoTolerance) {
-        _restoreLegacyTypoToleranceOptions(lastTyping);
-      }
     }
 
     final persisted = SearchScopePreferences.load();
