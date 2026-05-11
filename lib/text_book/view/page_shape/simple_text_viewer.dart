@@ -38,6 +38,7 @@ import 'package:otzaria/utils/text/word_at_position.dart';
 import 'package:otzaria/plugins/services/context_menu_registry.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/utils/fluent_icon_resolver.dart';
+import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart';
 
 /// מחזירה האם אירוע המקלדת צריך להניע גלילה רציפה בצורת הדף.
 bool shouldHandlePageShapeNavigationKeyEvent(KeyEvent event) {
@@ -167,6 +168,7 @@ class SimpleTextViewer extends StatefulWidget {
   final ValueChanged<String?>?
       onOpenSearch; // callback לפתיחת חיפוש עם הטקסט הנבחר
   final TextBook? reportBook;
+  final SelectionSyncController? selectionSyncController;
 
   const SimpleTextViewer({
     super.key,
@@ -185,6 +187,7 @@ class SimpleTextViewer extends StatefulWidget {
     this.onOpenSidebarTab,
     this.onOpenSearch,
     this.reportBook,
+    this.selectionSyncController,
   });
 
   @override
@@ -209,6 +212,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   final Map<String, Future<bool>> _removeNikudCache = {};
   final DictionaryLookupRepository _dictionaryLookupRepository =
       DictionaryLookupRepository.instance;
+  final Object _selectionOwner = Object();
+  int _selectionRevision = 0;
 
   bool _isTextInputFocused() {
     return isTextInputFocusNode(FocusManager.instance.primaryFocus);
@@ -353,6 +358,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         }
       });
     }
+
+    widget.selectionSyncController?.addListener(_handleExternalSelectionChange);
   }
 
   bool _handleCommentaryCopyKeyEvent(KeyEvent event) {
@@ -379,6 +386,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
 
   @override
   void dispose() {
+    widget.selectionSyncController
+        ?.removeListener(_handleExternalSelectionChange);
     if (widget.isMainText) {
       FocusManager.instance.removeListener(_handleGlobalFocusChange);
     }
@@ -388,6 +397,39 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     }
     _keyboardFocusNode?.dispose();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant SimpleTextViewer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectionSyncController != widget.selectionSyncController) {
+      oldWidget.selectionSyncController
+          ?.removeListener(_handleExternalSelectionChange);
+      widget.selectionSyncController
+          ?.addListener(_handleExternalSelectionChange);
+    }
+  }
+
+  void _handleExternalSelectionChange() {
+    final controller = widget.selectionSyncController;
+    if (controller == null ||
+        identical(controller.activeOwner, _selectionOwner)) {
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _selectionRevision = controller.revision;
+      _savedSelectedText = null;
+      _savedSelectedIndex = null;
+    });
+
+    if (!widget.isMainText && _lastActiveCommentary == this) {
+      _lastActiveCommentary = null;
+    }
   }
 
   @override
@@ -720,8 +762,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   }
 
   /// תפריט הקשר
-  List<AppContextMenuEntry> _buildContextMenu(
-      TextBookLoaded state, int index, BuildContext menuContext, Offset tapPosition, String? capturedText) {
+  List<AppContextMenuEntry> _buildContextMenu(TextBookLoaded state, int index,
+      BuildContext menuContext, Offset tapPosition, String? capturedText) {
     List<AppContextMenuEntry> commentatorItems = [];
     if (!widget.isMainText && widget.bookTitle != null) {
       commentatorItems = _buildCommentatorSwitchMenu(state);
@@ -882,7 +924,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   }
 
   /// יצירת הערה לשורה הנוכחית
-  Future<void> _createNoteForCurrentLine(int index, [String? capturedText]) async {
+  Future<void> _createNoteForCurrentLine(int index,
+      [String? capturedText]) async {
     final state = context.read<TextBookBloc>().state;
     if (state is! TextBookLoaded) return;
 
@@ -1119,10 +1162,20 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                   }
 
                   return SelectionArea(
+                    key: ValueKey(
+                      '${widget.isMainText ? 'main' : 'commentary'}_selection_$_selectionRevision',
+                    ),
                     // ביטול תפריט ברירת המחדל של Flutter - נשתמש רק ב-ContextMenuRegion
                     contextMenuBuilder: (context, selectableRegionState) =>
                         const SizedBox.shrink(),
                     onSelectionChanged: (selection) {
+                      if (selection != null &&
+                          selection.plainText.trim().isNotEmpty) {
+                        widget.selectionSyncController
+                            ?.activate(_selectionOwner);
+                      } else {
+                        widget.selectionSyncController?.clear(_selectionOwner);
+                      }
                       _handleSelectionChange(selection?.plainText);
                       _requestKeyboardFocus('selection-changed');
                       if (!widget.isMainText) {
@@ -1289,7 +1342,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         });
       },
       child: AppContextMenuRegion(
-        menuBuilder: (menuCtx, tapPos) => _buildContextMenu(state, index, menuCtx, tapPos, savedTextAtBuild),
+        menuBuilder: (menuCtx, tapPos) =>
+            _buildContextMenu(state, index, menuCtx, tapPos, savedTextAtBuild),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeInOut,
@@ -1350,11 +1404,9 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                   : (hasPinpoint
                       ? ''
                       : (widget.isMainText ? state.searchText : ''));
-              final useStateSearchSettings =
-                  widget.isMainText && !hasPinpoint;
-              final effectiveSearchMode = useStateSearchSettings
-                  ? state.searchMode
-                  : SearchMode.exact;
+              final useStateSearchSettings = widget.isMainText && !hasPinpoint;
+              final effectiveSearchMode =
+                  useStateSearchSettings ? state.searchMode : SearchMode.exact;
 
               final textWidget = FutureBuilder<bool>(
                 future: removeNikudFuture,
@@ -1378,12 +1430,10 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                       spacingValues: useStateSearchSettings
                           ? state.spacingValues
                           : const {},
-                      isFuzzySearch:
-                          effectiveSearchMode == SearchMode.fuzzy,
+                      isFuzzySearch: effectiveSearchMode == SearchMode.fuzzy,
                       searchMode: effectiveSearchMode,
-                      searchDistance: useStateSearchSettings
-                          ? state.searchDistance
-                          : 0,
+                      searchDistance:
+                          useStateSearchSettings ? state.searchDistance : 0,
                       fontSize: widget.fontSize,
                       fontFamily: widget.fontFamily ?? settingsState.fontFamily,
                       lineHeight: settingsState.lineHeight,

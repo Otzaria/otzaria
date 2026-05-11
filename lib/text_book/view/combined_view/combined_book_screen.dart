@@ -31,6 +31,7 @@ import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
 import 'package:otzaria/text_book/view/selection/text_selection_manager.dart';
+import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart';
 import 'package:otzaria/text_book/view/selection/enhanced_gesture_detector.dart';
 import 'package:otzaria/text_book/view/selection/selection_persistence.dart';
 import 'package:otzaria/text_book/view/selection/selected_text_copy.dart';
@@ -58,6 +59,7 @@ class CombinedView extends StatefulWidget {
     this.onOpenCommentatorsPane,
     this.onOpenLinksPane,
     this.isPaneOpen,
+    this.selectionSyncController,
   });
 
   final List<String> data;
@@ -72,6 +74,7 @@ class CombinedView extends StatefulWidget {
   final VoidCallback? onOpenCommentatorsPane;
   final VoidCallback? onOpenLinksPane;
   final bool Function()? isPaneOpen;
+  final SelectionSyncController? selectionSyncController;
 
   @override
   State<CombinedView> createState() => _CombinedViewState();
@@ -135,8 +138,8 @@ class _CombinedViewState extends State<CombinedView> {
   // מנהל בחירת טקסט משופר
   late final TextSelectionManager _selectionManager;
 
-  // מפתח גלובלי ל-SelectionArea כדי לכפות rebuild
-  final GlobalKey _selectionAreaKey = GlobalKey();
+  int _selectionAreaRevision = 0;
+  final Object _selectionOwner = Object();
 
   // listener לניקוי בחירה - נשמור אותו כדי להסיר אותו ב-dispose
   void _onSelectionModeChanged() {
@@ -182,6 +185,7 @@ class _CombinedViewState extends State<CombinedView> {
 
     // האזנה לשינויים במצב הבחירה כדי לכפות rebuild של SelectionArea
     _selectionManager.addListener(_onSelectionModeChanged);
+    widget.selectionSyncController?.addListener(_handleExternalSelectionChange);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -235,6 +239,12 @@ class _CombinedViewState extends State<CombinedView> {
   @override
   void didUpdateWidget(covariant CombinedView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectionSyncController != widget.selectionSyncController) {
+      oldWidget.selectionSyncController
+          ?.removeListener(_handleExternalSelectionChange);
+      widget.selectionSyncController
+          ?.addListener(_handleExternalSelectionChange);
+    }
     if (oldWidget.tab.book.title != widget.tab.book.title) {
       context
           .read<PersonalNotesBloc>()
@@ -251,9 +261,32 @@ class _CombinedViewState extends State<CombinedView> {
     _savedSelectedIndex.dispose();
     _currentSelectedIndex.dispose();
     _focusNode.dispose();
+    widget.selectionSyncController
+        ?.removeListener(_handleExternalSelectionChange);
     _selectionManager.removeListener(_onSelectionModeChanged);
     _selectionManager.dispose();
     super.dispose();
+  }
+
+  void _handleExternalSelectionChange() {
+    final controller = widget.selectionSyncController;
+    if (controller == null ||
+        identical(controller.activeOwner, _selectionOwner)) {
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    _selectionManager.exitSelectionMode();
+    setState(() {
+      _selectionAreaRevision = controller.revision;
+      _savedSelectedText.value = null;
+      _savedSelectedIndex.value = null;
+      _currentSelectedIndex.value = null;
+    });
+    widget.onSelectedTextChanged?.call(null);
   }
 
   // עדכון האינדקס הנוכחי ב-tab
@@ -883,7 +916,7 @@ class _CombinedViewState extends State<CombinedView> {
             _viewportHeight = constraints.maxHeight;
 
             return SelectionArea(
-              key: _selectionAreaKey,
+              key: ValueKey('combined_selection_$_selectionAreaRevision'),
               // SelectionArea אחד לכל הרשימה - מאפשר בחירה רציפה בין פסקאות
               contextMenuBuilder: (context, selectableRegionState) {
                 return const SizedBox.shrink();
@@ -891,10 +924,12 @@ class _CombinedViewState extends State<CombinedView> {
               onSelectionChanged: (selection) {
                 final plain = selection?.plainText;
                 if (!shouldPersistSelectedText(plain)) {
+                  widget.selectionSyncController?.clear(_selectionOwner);
                   _selectionManager.exitSelectionMode();
                   _savedSelectedText.value = null;
                   return;
                 }
+                widget.selectionSyncController?.activate(_selectionOwner);
                 // כניסה למצב בחירה כשיש טקסט נבחר
                 if (!_selectionManager.isInSelectionMode) {
                   // שימוש באינדקס העליון הנראה במקום 0
@@ -1393,6 +1428,7 @@ class _CombinedViewState extends State<CombinedView> {
             textSize: widget.textSize,
             openBookCallback: widget.openBookCallback,
             viewportHeight: _viewportHeight,
+            selectionSyncController: widget.selectionSyncController,
           ),
       ],
     );
@@ -1438,6 +1474,7 @@ class _CommentaryCard extends StatefulWidget {
   final double textSize;
   final Function(OpenedTab) openBookCallback;
   final double viewportHeight;
+  final SelectionSyncController? selectionSyncController;
 
   const _CommentaryCard({
     super.key,
@@ -1445,6 +1482,7 @@ class _CommentaryCard extends StatefulWidget {
     required this.textSize,
     required this.openBookCallback,
     required this.viewportHeight,
+    this.selectionSyncController,
   });
 
   @override
@@ -1511,6 +1549,7 @@ class _CommentaryCardState extends State<_CommentaryCard> {
                     fontSize: widget.textSize,
                     openBookCallback: widget.openBookCallback,
                     showSearch: false,
+                    selectionSyncController: widget.selectionSyncController,
                     shrinkWrap: true,
                   ),
                 ),
