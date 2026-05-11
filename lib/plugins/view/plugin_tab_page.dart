@@ -243,6 +243,7 @@ class _PluginTabPageState extends State<PluginTabPage> {
 
   @override
   void dispose() {
+    _adapter.dispose();
     PluginRuntimeDispatcher.instance
         .unregisterController(widget.plugin.pluginId);
     PluginRuntimeDispatcher.instance

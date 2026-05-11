@@ -182,8 +182,14 @@ class PluginBridgeAdapter {
         _notificationService = notificationService ?? NotificationService(),
         _databaseService = databaseService ?? PluginDatabaseService();
 
+  final HttpClient _httpClient = HttpClient();
+
   // bookId → index → PluginHighlight (in-memory, per adapter instance)
   final Map<String, Map<int, PluginHighlight>> _highlights = {};
+
+  void dispose() {
+    _httpClient.close(force: true);
+  }
 
   Future<dynamic> execute(
       String domain, String action, Map<String, dynamic> args) async {
@@ -1402,16 +1408,11 @@ class PluginBridgeAdapter {
           throw Exception('error.forbidden: URL not in plugin network allowlist');
         }
 
-        final client = HttpClient();
-        try {
-          final request = await client.getUrl(uri);
-          request.headers.set(HttpHeaders.acceptHeader, 'application/json');
-          final response = await request.close();
-          final body = await response.transform(utf8.decoder).join();
-          return {'status': response.statusCode, 'body': body};
-        } finally {
-          client.close();
-        }
+        final request = await _httpClient.getUrl(uri);
+        request.headers.set(HttpHeaders.acceptHeader, 'application/json');
+        final response = await request.close();
+        final body = await response.transform(utf8.decoder).join();
+        return {'status': response.statusCode, 'body': body};
 
       default:
         throw Exception('Unknown action in network: $action');
