@@ -770,34 +770,45 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     }
 
     final lineLinks = state.linksByLine[index + 1] ?? const <Link>[];
-    List<AppContextMenuEntry> buildLinksItems() => lineLinks
-        .where((link) =>
-            !LinkTypes.isCommentaryOrTargum(link.connectionType) &&
-            link.start == null &&
-            link.end == null)
-        .map((link) => AppContextMenuEntry(
-              label: link.fallbackDisplayReference,
-              labelWidget: FutureBuilder<String>(
-                future: link.displayReference,
-                builder: (context, snapshot) => Text(
-                  snapshot.data ?? link.fallbackDisplayReference,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textDirection: TextDirection.rtl,
+    List<AppContextMenuEntry> buildLinksItems() {
+      final items = <AppContextMenuEntry>[];
+      if (widget.onOpenSidebarTab != null) {
+        items.add(AppContextMenuEntry(
+          label: 'פתח חלונית קישורים',
+          icon: FluentIcons.panel_right_24_regular,
+          onTap: () => widget.onOpenSidebarTab!(0),
+        ));
+        items.add(const AppContextMenuEntry.divider());
+      }
+      items.addAll(lineLinks
+          .where((link) =>
+              !LinkTypes.isCommentaryOrTargum(link.connectionType) &&
+              link.start == null &&
+              link.end == null)
+          .map((link) => AppContextMenuEntry(
+                label: link.fallbackDisplayReference,
+                labelWidget: FutureBuilder<String>(
+                  future: link.displayReference,
+                  builder: (context, snapshot) => Text(
+                    snapshot.data ?? link.fallbackDisplayReference,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textDirection: TextDirection.rtl,
+                  ),
                 ),
-              ),
-              onTap: () => widget.openBookCallback(
-                TextBookTab(
-                  book: TextBook(title: utils.getTitleFromPath(link.path2)),
-                  index: link.index2 - 1,
-                  openLeftPane: (Settings.getValue<bool>('key-pin-sidebar') ??
-                          false) ||
-                      (Settings.getValue<bool>('key-default-sidebar-open') ??
-                          false),
+                onTap: () => widget.openBookCallback(
+                  TextBookTab(
+                    book: TextBook(title: utils.getTitleFromPath(link.path2)),
+                    index: link.index2 - 1,
+                    openLeftPane: (Settings.getValue<bool>('key-pin-sidebar') ??
+                            false) ||
+                        (Settings.getValue<bool>('key-default-sidebar-open') ??
+                            false),
+                  ),
                 ),
-              ),
-            ))
-        .toList();
+              )));
+      return items;
+    }
 
     final hasLinkItems = lineLinks.any((link) =>
         !LinkTypes.isCommentaryOrTargum(link.connectionType) &&
