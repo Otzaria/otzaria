@@ -11,8 +11,7 @@ import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/widgets/misc/commentators_filter_button.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
-import 'package:otzaria/widgets/smart_text/render_settings.dart';
+
 
 const _kAllChapter = -1;
 
@@ -33,7 +32,6 @@ class CommentatorsTabScreen extends StatefulWidget {
 class _CommentatorsTabScreenState extends State<CommentatorsTabScreen> {
   TocEntry? _selectedChapter;
   int _selectedVerseIdx = _kAllChapter;
-  bool _previewExpanded = false;
 
   final _searchController = TextEditingController();
   final _totalResultsNotifier = ValueNotifier<int>(0);
@@ -41,6 +39,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen> {
   final _openFilterNotifier = ValueNotifier<int>(0);
 
   final _commentaryKey = GlobalKey<CommentaryListBaseState>();
+  bool _searchExpanded = false;
 
   @override
   void initState() {
@@ -181,7 +180,6 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen> {
     setState(() {
       _selectedChapter = ch;
       _selectedVerseIdx = _kAllChapter;
-      _previewExpanded = false;
     });
     // טוען links לכל הפרק
     final ci = chapters.indexOf(ch);
@@ -308,6 +306,30 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen> {
     );
   }
 
+  void _selectVerseAndLoad(int verseIdx, List<TocEntry> chapters) {
+    setState(() => _selectedVerseIdx = verseIdx);
+    if (verseIdx == _kAllChapter) {
+      _onChapterSelected(_selectedChapter!, chapters);
+    } else if (_selectedChapter != null &&
+        verseIdx < _selectedChapter!.children.length) {
+      final verse = _selectedChapter!.children[verseIdx];
+      final int endIdx = (verseIdx + 1 < _selectedChapter!.children.length)
+          ? _selectedChapter!.children[verseIdx + 1].index - 1
+          : verse.index + 50;
+      final count = (endIdx - verse.index + 1).clamp(1, 200);
+      _triggerLinkLoad(List.generate(count, (j) => verse.index + j));
+    }
+  }
+
+  void _selectParaAndLoad(int paraIdx, List<TocEntry> chapters) {
+    setState(() => _selectedVerseIdx = paraIdx);
+    if (paraIdx == _kAllChapter) {
+      _onChapterSelected(_selectedChapter!, chapters);
+    } else if (_selectedChapter != null) {
+      _triggerLinkLoad([_selectedChapter!.index + paraIdx]);
+    }
+  }
+
   Widget _buildHeader(
     BuildContext context, {
     required TextBookLoaded state,
@@ -319,319 +341,350 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen> {
   }) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    // אוסף שורות תוכן עבור האינדקסים הנבחרים
-    final previewLines = effectiveIndexes == null
-        ? const <String>[]
-        : effectiveIndexes
-            .where((i) => i >= 0 && i < state.content.length)
-            .map((i) => state.content[i].trim())
-            .where((l) => l.isNotEmpty)
-            .toList();
+    // בנייה של טקסט preview עבור הפסקה הנבחרת
+    String previewText = '';
+    if (effectiveIndexes != null && effectiveIndexes.isNotEmpty) {
+      final lines = effectiveIndexes
+          .where((i) => i >= 0 && i < state.content.length)
+          .map((i) => state.content[i]
+              .replaceAll(RegExp(r'<[^>]*>'), '')
+              .replaceAll(RegExp(r'&[a-zA-Z]+;'), ' ')
+              .replaceAll('&nbsp;', ' ')
+              .trim())
+          .where((l) => l.isNotEmpty)
+          .toList();
+      if (lines.isNotEmpty) {
+        if (_selectedVerseIdx == _kAllChapter) {
+          previewText = lines.join('\n');
+        } else {
+          previewText = lines.first;
+        }
+      }
+    }
 
-    final hasPreview = previewLines.isNotEmpty;
+    // חישוב ניווט לפסוק/פסקה
+    final verseCount = hasVerses ? (_selectedChapter?.children.length ?? 0) : 0;
+    final lineCount = (!hasVerses && _selectedChapter != null)
+        ? _chapterLineCount(chapters, _selectedChapter!)
+        : 0;
+    final hasNavItems = hasVerses ? verseCount > 0 : lineCount > 1;
+    final listIdx = _selectedVerseIdx == _kAllChapter ? 0 : _selectedVerseIdx + 1;
+    final maxListIdx = hasVerses ? verseCount : lineCount;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest,
-        border: Border(bottom: BorderSide(color: Theme.of(context).dividerColor)),
-      ),
-      padding: const EdgeInsetsDirectional.only(start: 8, end: 8, top: 6, bottom: 6),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // שורה 1: שם ספר
-          Row(
-            children: [
-              const Icon(FluentIcons.book_24_regular, size: 16),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  'מפרשים | ${state.book.title}',
-                  style: Theme.of(context).textTheme.titleSmall,
-                  overflow: TextOverflow.ellipsis,
-                ),
+    // פריטי dropdown פסוק/פסקה
+    final verseItems = [
+      _kAllChapter,
+      if (hasVerses)
+        ...List.generate(_selectedChapter?.children.length ?? 0, (i) => i)
+      else
+        ...List.generate(lineCount, (i) => i),
+    ];
+    String verseItemLabel(int i) => i == _kAllChapter
+        ? 'כל ה$chapterLabel'
+        : hasVerses
+            ? _selectedChapter!.children[i].text
+            : 'פסקה ${i + 1}';
+
+    final bodySmall = Theme.of(context).textTheme.bodySmall;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 380;
+        final showSearchField = !isNarrow || _searchExpanded;
+
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          decoration: BoxDecoration(
+            color: colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: colorScheme.outlineVariant),
+            boxShadow: [
+              BoxShadow(
+                color: colorScheme.shadow.withValues(alpha: 0.08),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          // שורה 2: כל הפקדים באותה שורה עם Flexible
-          Row(
-            children: [
-              // Dropdown פרק
-              if (chapters.isNotEmpty)
-                Flexible(
-                  flex: 3,
-                  child: _CompactDropdown<int>(
-                    items: List.generate(chapters.length, (i) => i),
-                    labelOf: (i) => chapters[i].text,
-                    selected: _selectedChapter == null
-                        ? null
-                        : () {
-                            final i = chapters.indexOf(_selectedChapter!);
-                            return i >= 0 ? i : null;
-                          }(),
-                    hint: chapterLabel,
-                    onChanged: (i) {
-                      if (i != null) {
-                        setState(() {
-                          _selectedChapter = chapters[i];
-                          _selectedVerseIdx = _kAllChapter;
-                        });
-                        _onChapterSelected(chapters[i], chapters);
-                      }
-                    },
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: IntrinsicHeight(
+              child: Row(
+                children: [
+                  // ── Section 1: filter + title ─────────────────────────────
+                  Expanded(
+                    flex: 2,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CommentatorsFilterButton(
+                            isActive: false,
+                            onPressed: () => _openFilterNotifier.value++,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                                minWidth: 26, minHeight: 26),
+                            iconSize: 15,
+                          ),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              'מפרשים על ${state.book.title}',
+                              style: bodySmall?.copyWith(
+                                  fontWeight: FontWeight.bold),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-              // Dropdown פסוק
-              if (hasVerses) ...[
-                const SizedBox(width: 4),
-                Flexible(
-                  flex: 3,
-                  child: _CompactDropdown<int>(
-                    items: [
-                      _kAllChapter,
-                      ...List.generate(_selectedChapter!.children.length, (i) => i)
-                    ],
-                    labelOf: (i) => i == _kAllChapter
-                        ? 'כל ה$chapterLabel'
-                        : _selectedChapter!.children[i].text,
-                    selected: _selectedVerseIdx,
-                    hint: verseLabel,
-                    onChanged: (i) {
-                      if (i != null) {
-                        setState(() {
-                          _selectedVerseIdx = i;
-                          _previewExpanded = false;
-                        });
-                        if (i == _kAllChapter) {
-                          _onChapterSelected(_selectedChapter!, chapters);
-                        } else if (i < _selectedChapter!.children.length) {
-                          final verse = _selectedChapter!.children[i];
-                          final int endIdx;
-                          if (i + 1 < _selectedChapter!.children.length) {
-                            endIdx = _selectedChapter!.children[i + 1].index - 1;
-                          } else {
-                            endIdx = verse.index + 50;
-                          }
-                          final count = (endIdx - verse.index + 1).clamp(1, 200);
-                          _triggerLinkLoad(
-                              List.generate(count, (j) => verse.index + j));
-                        }
-                      }
-                    },
-                  ),
-                ),
-              ],
-              // Dropdown שורה/פסקה (לספרים ללא מבנה פסוק ב-TOC)
-              if (!hasVerses && _selectedChapter != null) ...() {
-                final lineCount =
-                    _chapterLineCount(chapters, _selectedChapter!);
-                if (lineCount <= 1) return const <Widget>[];
-                return [
-                  const SizedBox(width: 4),
-                  Flexible(
-                    flex: 3,
-                    child: _CompactDropdown<int>(
-                      items: [
-                        _kAllChapter,
-                        ...List.generate(lineCount, (i) => i),
-                      ],
-                      labelOf: (i) =>
-                          i == _kAllChapter ? 'כל ה$chapterLabel' : 'פסקה ${i + 1}',
-                      selected: _selectedVerseIdx,
-                      hint: 'פסקה',
-                      onChanged: (i) {
-                        if (i != null) {
-                          setState(() {
-                            _selectedVerseIdx = i;
-                            _previewExpanded = false;
-                          });
-                          if (i == _kAllChapter) {
-                            _onChapterSelected(_selectedChapter!, chapters);
-                          } else {
-                            _triggerLinkLoad([_selectedChapter!.index + i]);
-                          }
+                  // ── Section 2: chapter dropdown ───────────────────────────
+                  if (chapters.isNotEmpty) ...[
+                    const _VDiv(),
+                    Expanded(
+                      flex: 2,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<int>(
+                            value: _selectedChapter == null
+                                ? null
+                                : () {
+                                    final i =
+                                        chapters.indexOf(_selectedChapter!);
+                                    return i >= 0 ? i : null;
+                                  }(),
+                            isExpanded: true,
+                            isDense: true,
+                            alignment: AlignmentDirectional.centerStart,
+                            hint: Text(chapterLabel,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.start,
+                                style: bodySmall),
+                            icon: const SizedBox.shrink(),
+                            iconSize: 0,
+                            items: List.generate(
+                              chapters.length,
+                              (i) => DropdownMenuItem<int>(
+                                value: i,
+                                alignment: AlignmentDirectional.centerStart,
+                                child: Text(chapters[i].text,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.start,
+                                    style: bodySmall),
+                              ),
+                            ),
+                            onChanged: (i) {
+                              if (i != null) {
+                                setState(() {
+                                  _selectedChapter = chapters[i];
+                                  _selectedVerseIdx = _kAllChapter;
+                                });
+                                _onChapterSelected(chapters[i], chapters);
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                  // ── Section 3: nav + verse dropdown ──────────────────────
+                  if (hasNavItems && _selectedChapter != null) ...[
+                    const _VDiv(),
+                    _NavArrow(
+                      icon: FluentIcons.chevron_left_24_regular,
+                      enabled: listIdx > 0,
+                      onPressed: () {
+                        final newListIdx = listIdx - 1;
+                        final newIdx =
+                            newListIdx == 0 ? _kAllChapter : newListIdx - 1;
+                        if (hasVerses) {
+                          _selectVerseAndLoad(newIdx, chapters);
+                        } else {
+                          _selectParaAndLoad(newIdx, chapters);
                         }
                       },
                     ),
-                  ),
-                ];
-              }(),
-              const SizedBox(width: 4),
-              // כפתור בחירת מפרשים
-              CommentatorsFilterButton(
-                isActive: false,
-                onPressed: () => _openFilterNotifier.value++,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                iconSize: 18,
-              ),
-              const SizedBox(width: 4),
-              // שדה חיפוש — באותה שורה
-              Flexible(
-                flex: 4,
-                child: ValueListenableBuilder<int>(
-                  valueListenable: _totalResultsNotifier,
-                  builder: (context, total, _) {
-                    return ValueListenableBuilder<int>(
-                      valueListenable: _currentIdxNotifier,
-                      builder: (context, currentIdx, _) {
-                        return RtlTextField(
-                          controller: _searchController,
-                          decoration: InputDecoration(
-                            hintText: 'חיפוש...',
-                            prefixIcon: const Icon(
-                                FluentIcons.search_24_regular, size: 16),
-                            suffixIcon: _searchController.text.isNotEmpty
-                                ? Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      if (total > 1) ...[
-                                        Text('${currentIdx + 1}/$total',
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodySmall),
-                                        IconButton(
-                                          icon: const Icon(
-                                              FluentIcons
-                                                  .chevron_up_24_regular,
-                                              size: 16),
-                                          padding: EdgeInsets.zero,
-                                          constraints: const BoxConstraints(
-                                              minWidth: 24, minHeight: 24),
-                                          onPressed: currentIdx > 0
-                                              ? () => _commentaryKey
-                                                  .currentState
-                                                  ?.navigateSearchPrev()
-                                              : null,
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(
-                                              FluentIcons
-                                                  .chevron_down_24_regular,
-                                              size: 16),
-                                          padding: EdgeInsets.zero,
-                                          constraints: const BoxConstraints(
-                                              minWidth: 24, minHeight: 24),
-                                          onPressed: currentIdx < total - 1
-                                              ? () => _commentaryKey
-                                                  .currentState
-                                                  ?.navigateSearchNext()
-                                              : null,
-                                        ),
-                                      ],
-                                      IconButton(
-                                        icon: const Icon(
-                                            FluentIcons.dismiss_24_regular,
-                                            size: 16),
-                                        padding: EdgeInsets.zero,
-                                        constraints: const BoxConstraints(
-                                            minWidth: 24, minHeight: 24),
-                                        onPressed: () {
-                                          _searchController.clear();
-                                          setState(() {});
-                                        },
-                                      ),
-                                    ],
-                                  )
-                                : null,
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 80),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 4, vertical: 2),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<int>(
+                            value: _selectedVerseIdx,
+                            isExpanded: true,
                             isDense: true,
-                            contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 6),
-                            border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8.0)),
+                            hint: Text(hasVerses ? verseLabel : 'פסקה',
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: bodySmall),
+                            icon: const SizedBox.shrink(),
+                            iconSize: 0,
+                            items: verseItems
+                                .map((i) => DropdownMenuItem<int>(
+                                      value: i,
+                                      alignment: AlignmentDirectional.center,
+                                      child: Text(verseItemLabel(i),
+                                          overflow: TextOverflow.ellipsis,
+                                          textAlign: TextAlign.center,
+                                          style: bodySmall),
+                                    ))
+                                .toList(),
+                            onChanged: (i) {
+                              if (i == null) return;
+                              if (hasVerses) {
+                                _selectVerseAndLoad(i, chapters);
+                              } else {
+                                _selectParaAndLoad(i, chapters);
+                              }
+                            },
                           ),
-                          onChanged: (_) => setState(() {}),
-                        );
+                        ),
+                      ),
+                    ),
+                    _NavArrow(
+                      icon: FluentIcons.chevron_right_24_regular,
+                      enabled: listIdx < maxListIdx,
+                      onPressed: () {
+                        final newListIdx = listIdx + 1;
+                        final newIdx =
+                            newListIdx == 0 ? _kAllChapter : newListIdx - 1;
+                        if (hasVerses) {
+                          _selectVerseAndLoad(newIdx, chapters);
+                        } else {
+                          _selectParaAndLoad(newIdx, chapters);
+                        }
                       },
-                    );
-                  },
-                ),
+                    ),
+                  ],
+                  // ── Section 4: preview ────────────────────────────────────
+                  if (previewText.isNotEmpty) ...[
+                    const _VDiv(),
+                    Expanded(
+                      flex: 2,
+                      child: _TextPreviewButton(
+                        text: previewText,
+                        naked: false,
+                        canOpen: previewText
+                                .split(RegExp(r'\s+'))
+                                .where((w) => w.isNotEmpty)
+                                .length >
+                            3,
+                      ),
+                    ),
+                  ],
+                  // ── Section 5: search ─────────────────────────────────────
+                  const _VDiv(),
+                  if (showSearchField)
+                    Expanded(
+                      flex: 3,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 4),
+                        child: _buildSearchField(context,
+                            showCollapseButton: isNarrow),
+                      ),
+                    )
+                  else
+                    IconButton(
+                      icon: const Icon(FluentIcons.search_24_regular, size: 16),
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      constraints:
+                          const BoxConstraints(minWidth: 36, minHeight: 36),
+                      tooltip: 'חיפוש',
+                      onPressed: () =>
+                          setState(() => _searchExpanded = true),
+                    ),
+                ],
               ),
-            ],
+            ),
           ),
-          // שורה 3: תצוגת הטקסט (expandable, inline)
-          if (hasPreview) ...[
-            const SizedBox(height: 4),
-            LayoutBuilder(builder: (context, constraints) {
-              final plainText = previewLines.first
-                  .replaceAll(RegExp(r'<[^>]*>'), '')
-                  .replaceAll('&nbsp;', ' ')
-                  .trim();
-              final textStyle =
-                  Theme.of(context).textTheme.bodySmall ?? const TextStyle();
-              // בדיקה אם הטקסט גולש — אם כן, מציגים חץ הרחבה
-              final tp = TextPainter(
-                text: TextSpan(text: plainText, style: textStyle),
-                maxLines: 1,
-                textDirection: TextDirection.rtl,
-              )..layout(maxWidth: constraints.maxWidth - 24);
-              final overflows = tp.didExceedMaxLines || previewLines.length > 1;
+        );
+      },
+    );
+  }
 
-              return GestureDetector(
-                onTap: overflows
-                    ? () => setState(
-                        () => _previewExpanded = !_previewExpanded)
+  Widget _buildSearchField(BuildContext context,
+      {bool showCollapseButton = false}) {
+    return ValueListenableBuilder<int>(
+      valueListenable: _totalResultsNotifier,
+      builder: (context, total, _) => ValueListenableBuilder<int>(
+        valueListenable: _currentIdxNotifier,
+        builder: (context, currentIdx, _) => RtlTextField(
+          controller: _searchController,
+          onChanged: (_) => setState(() {}),
+          decoration: InputDecoration(
+            hintText: 'חיפוש...',
+            prefixIcon: const Icon(FluentIcons.search_24_regular, size: 16),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            suffixIcon: _searchController.text.isNotEmpty
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (total > 1) ...[
+                        Text('${currentIdx + 1}/$total',
+                            style: Theme.of(context).textTheme.bodySmall),
+                        IconButton(
+                          icon: const Icon(FluentIcons.chevron_up_24_regular,
+                              size: 16),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                              minWidth: 24, minHeight: 24),
+                          onPressed: currentIdx > 0
+                              ? () => _commentaryKey.currentState
+                                  ?.navigateSearchPrev()
+                              : null,
+                        ),
+                        IconButton(
+                          icon: const Icon(
+                              FluentIcons.chevron_down_24_regular, size: 16),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                              minWidth: 24, minHeight: 24),
+                          onPressed: currentIdx < total - 1
+                              ? () => _commentaryKey.currentState
+                                  ?.navigateSearchNext()
+                              : null,
+                        ),
+                      ],
+                      IconButton(
+                        icon: const Icon(FluentIcons.dismiss_24_regular,
+                            size: 16),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                            minWidth: 24, minHeight: 24),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() {
+                            if (showCollapseButton) _searchExpanded = false;
+                          });
+                        },
+                      ),
+                    ],
+                  )
+                : showCollapseButton
+                    ? IconButton(
+                        icon: const Icon(FluentIcons.dismiss_24_regular,
+                            size: 16),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                            minWidth: 24, minHeight: 24),
+                        onPressed: () =>
+                            setState(() => _searchExpanded = false),
+                      )
                     : null,
-                child: Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: colorScheme.surface,
-                    borderRadius: BorderRadius.circular(8),
-                    border:
-                        Border.all(color: colorScheme.outlineVariant),
-                  ),
-                  clipBehavior: Clip.hardEdge,
-                  child: AnimatedSize(
-                    duration: const Duration(milliseconds: 180),
-                    curve: Curves.easeInOut,
-                    child: _previewExpanded
-                        ? ConstrainedBox(
-                            constraints:
-                                const BoxConstraints(maxHeight: 160),
-                            child: SingleChildScrollView(
-                              padding: const EdgeInsets.all(8),
-                              child: SmartTextWidget(
-                                text: previewLines.join('\n'),
-                                settings: RenderSettings(
-                                  removeNikud: state.removeNikud,
-                                  fontSize: state.fontSize * 0.82,
-                                  lineHeight: 1.6,
-                                ),
-                              ),
-                            ),
-                          )
-                        : Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Padding(
-                                padding: const EdgeInsetsDirectional.only(
-                                    start: 8, end: 8, top: 5, bottom: 5),
-                                child: Text(
-                                  plainText,
-                                  style: textStyle,
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 1,
-                                ),
-                              ),
-                              // חץ הרחבה — רק אם הטקסט גולש
-                              if (overflows)
-                                Icon(
-                                  FluentIcons.chevron_down_24_regular,
-                                  size: 10,
-                                  color: colorScheme.onSurface
-                                      .withValues(alpha: 0.4),
-                                ),
-                              if (overflows) const SizedBox(height: 2),
-                            ],
-                          ),
-                  ),
-                ),
-              );
-            }),
-          ],
-        ],
+            isDense: true,
+            border:
+                OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),
+          ),
+        ),
       ),
     );
   }
@@ -639,60 +692,201 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen> {
   String _tocLabel(List<TocEntry> entries, String fallback) {
     if (entries.isEmpty) return fallback;
     final text = entries.first.text.trim();
-    // רק המילה הראשונה — למשל "דף א" → "דף", "פרק ב" → "פרק"
-    final match = RegExp(r'^([\u05d0-\u05ea]+)').firstMatch(text);
+    final match = RegExp(r'^([א-ת]+)').firstMatch(text);
     final base = match?.group(1)?.trim() ?? '';
     return base.isNotEmpty ? base : fallback;
   }
 }
 
-class _CompactDropdown<T> extends StatelessWidget {
-  final List<T> items;
-  final String Function(T) labelOf;
-  final T? selected;
-  final String hint;
-  final ValueChanged<T?> onChanged;
+// ─── Divider אנכי קומפקטי לתוך ה-pill ────────────────────────────────────────
 
-  const _CompactDropdown({
-    required this.items,
-    required this.labelOf,
-    required this.selected,
-    required this.hint,
-    required this.onChanged,
+class _VDiv extends StatelessWidget {
+  const _VDiv();
+
+  @override
+  Widget build(BuildContext context) => VerticalDivider(
+        width: 1,
+        indent: 6,
+        endIndent: 6,
+        color: Theme.of(context).colorScheme.outlineVariant,
+      );
+}
+
+// ─── כפתור חץ ניווט קומפקטי ───────────────────────────────────────────────
+
+class _NavArrow extends StatelessWidget {
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback onPressed;
+
+  const _NavArrow({
+    required this.icon,
+    required this.enabled,
+    required this.onPressed,
   });
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return DropdownButtonHideUnderline(
-      child: Container(
-        height: 30,
-        padding: const EdgeInsetsDirectional.only(start: 8, end: 2),
-        decoration: BoxDecoration(
-          color: colorScheme.surface,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: colorScheme.outlineVariant),
+    return SizedBox(
+      width: 30,
+      height: 36,
+      child: IconButton(
+        padding: EdgeInsets.zero,
+        icon: Icon(icon, size: 18),
+        onPressed: enabled ? onPressed : null,
+        style: IconButton.styleFrom(
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
-        child: DropdownButton<T>(
-          isExpanded: true,
-          value: selected,
-          hint: Text(hint,
-              style: Theme.of(context).textTheme.bodySmall,
-              overflow: TextOverflow.ellipsis),
-          items: items
-              .map((item) => DropdownMenuItem<T>(
-                    value: item,
-                    child: Text(
-                      labelOf(item),
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ))
-              .toList(),
-          onChanged: onChanged,
-          style: Theme.of(context).textTheme.bodySmall,
-          icon: const Icon(Icons.arrow_drop_down, size: 16),
-          isDense: true,
+      ),
+    );
+  }
+}
+
+
+
+// ─── כפתור preview עם overlay ──────────────────────────────────────────────
+
+class _TextPreviewButton extends StatefulWidget {
+  final String text;
+  final bool naked;
+  final bool canOpen;
+  const _TextPreviewButton(
+      {required this.text, this.naked = false, this.canOpen = true});
+
+  @override
+  State<_TextPreviewButton> createState() => _TextPreviewButtonState();
+}
+
+class _TextPreviewButtonState extends State<_TextPreviewButton> {
+  OverlayEntry? _entry;
+  final _layerLink = LayerLink();
+
+  void _toggle() {
+    if (!widget.canOpen) return;
+    if (_entry != null) {
+      _close();
+      return;
+    }
+    _entry = OverlayEntry(
+      builder: (ctx) => Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: _close,
+            ),
+          ),
+          CompositedTransformFollower(
+            link: _layerLink,
+            showWhenUnlinked: false,
+            targetAnchor: Alignment.bottomCenter,
+            followerAnchor: Alignment.topCenter,
+            offset: const Offset(0, 2),
+            child: Material(
+              elevation: 4,
+              borderRadius: BorderRadius.circular(8),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 200, maxWidth: 320),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(10),
+                  child: Text(
+                    widget.text,
+                    style: const TextStyle(fontSize: 13),
+                    textDirection: TextDirection.rtl,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    Overlay.of(context).insert(_entry!);
+    setState(() {});
+  }
+
+  void _close() {
+    _entry?.remove();
+    _entry = null;
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void didUpdateWidget(_TextPreviewButton old) {
+    super.didUpdateWidget(old);
+    if (old.text != widget.text && _entry != null) _close();
+  }
+
+  @override
+  void dispose() {
+    _entry?.remove();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isOpen = _entry != null;
+
+    // מצב naked — אייקון בלבד (לשימוש בתוך ה-pill)
+    if (widget.naked) {
+      return CompositedTransformTarget(
+        link: _layerLink,
+        child: IconButton(
+          onPressed: _toggle,
+          icon: Icon(
+            isOpen
+                ? FluentIcons.chevron_up_24_regular
+                : FluentIcons.text_description_24_regular,
+            size: 16,
+            color: isOpen
+                ? colorScheme.primary
+                : colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+          tooltip: isOpen ? 'סגור תצוגה' : 'תצוגה מקדימה',
+        ),
+      );
+    }
+
+    return CompositedTransformTarget(
+      link: _layerLink,
+      child: GestureDetector(
+        onTap: _toggle,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                isOpen
+                    ? FluentIcons.chevron_up_24_regular
+                    : FluentIcons.text_description_24_regular,
+                size: 13,
+                color: !widget.canOpen
+                    ? colorScheme.onSurface.withValues(alpha: 0.35)
+                    : isOpen
+                        ? colorScheme.primary
+                        : colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  widget.text,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: !widget.canOpen
+                            ? colorScheme.onSurface.withValues(alpha: 0.45)
+                            : colorScheme.onSurface.withValues(alpha: 0.75),
+                      ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                  textDirection: TextDirection.rtl,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
