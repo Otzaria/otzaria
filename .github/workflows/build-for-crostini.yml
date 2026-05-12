@@ -23,8 +23,11 @@ jobs:
         run: |
           sudo apt update -y
           sudo apt install -y \
-            build-essential ninja-build libgtk-3-dev \
-            clang cmake git pkg-config liblzma-dev \
+            build-essential ninja-build clang cmake git \
+            libgtk-3-dev liblzma-dev \
+            libwpewebkit-1.0-dev \
+            libwpebackend-fdo-1.0-dev \
+            libwebkit2gtk-4.1-dev \
             libstdc++-12-dev
      
       - name: Upgrade Flutter dependencies
