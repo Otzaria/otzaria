@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -25,6 +26,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
   int _selectedIndex = 0;
   final Map<int, GlobalKey> _itemKeys = {};
   FocusRestorer? _focusRestorer;
+  Timer? _searchDebounce;
 
   @override
   void initState() {
@@ -54,6 +56,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     final restorer = _focusRestorer;
     if (restorer != null) FocusRepository().unregisterActiveRestorer(restorer);
     super.dispose();
@@ -183,6 +186,8 @@ class _FindRefDialogState extends State<FindRefDialog> {
                       suffixIcon: IconButton(
                         icon: const Icon(FluentIcons.dismiss_24_regular),
                         onPressed: () {
+                          _searchDebounce?.cancel();
+                          _searchDebounce = null;
                           focusRepository.findRefSearchController.clear();
                           BlocProvider.of<FindRefBloc>(context)
                               .add(ClearSearchRequested());
@@ -194,11 +199,13 @@ class _FindRefDialogState extends State<FindRefDialog> {
                     ),
                     controller: focusRepository.findRefSearchController,
                     onChanged: (ref) {
-                      BlocProvider.of<FindRefBloc>(context)
-                          .add(SearchRefRequested(ref));
-                      setState(() {
-                        _selectedIndex = 0;
-                      });
+                      setState(() => _selectedIndex = 0);
+                      _searchDebounce?.cancel();
+                      _searchDebounce = Timer(
+                        const Duration(milliseconds: 150),
+                        () => BlocProvider.of<FindRefBloc>(context)
+                            .add(SearchRefRequested(ref)),
+                      );
                     },
                     onSubmitted: (value) {
                       // פתיחת המקור הנבחר בלחיצה על אנטר
