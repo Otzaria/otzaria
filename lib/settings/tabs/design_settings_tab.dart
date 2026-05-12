@@ -15,6 +15,8 @@ import 'package:otzaria/widgets/widgets_exports.dart';
 
 enum _SidebarMode { pinned, openOnBook, closed }
 
+enum _ThemeMode { light, system, dark }
+
 /// טאב הגדרות עיצוב
 class DesignSettingsTab extends StatelessWidget {
   const DesignSettingsTab({super.key});
@@ -163,8 +165,8 @@ class DesignSettingsTab extends StatelessWidget {
                           leading: Icon(state.isFullscreen
                               ? FluentIcons.full_screen_minimize_24_regular
                               : FluentIcons.full_screen_maximize_24_regular),
-                          title: const Text('מסך מלא',
-                              style: kSettingsTitleStyle),
+                          title:
+                              const Text('מסך מלא', style: kSettingsTitleStyle),
                           subtitle: const Text('החלף מצב מסך מלא',
                               style: kSettingsSubtitleStyle),
                           trailing: Switch(
@@ -189,63 +191,68 @@ class DesignSettingsTab extends StatelessWidget {
                   cardId: 'design.theme',
                   child: SettingsCard(
                     title: 'ערכת נושא',
-                  children: [
-                    SwitchSettingsTile(
-                      leading: const Icon(FluentIcons.settings_24_regular),
-                      title: const Text('מעקב אחר צבע המערכת',
-                          style: kSettingsTitleStyle),
-                      subtitle: Text(
-                          state.followSystemTheme ? 'מופעל' : 'לא מופעל',
-                          style: kSettingsSubtitleStyle),
-                      value: state.followSystemTheme,
-                      onChanged: (value) {
-                        context
-                            .read<SettingsBloc>()
-                            .add(UpdateFollowSystemTheme(value));
-                      },
-                    ),
-                    SwitchSettingsTile(
-                      leading: const Icon(FluentIcons.weather_moon_24_regular),
-                      title: const Text('מצב כהה', style: kSettingsTitleStyle),
-                      subtitle: Text(state.isDarkMode ? 'מופעל' : 'לא מופעל',
-                          style: kSettingsSubtitleStyle),
-                      value: state.isDarkMode,
-                      enabled: !state.followSystemTheme,
-                      onChanged: state.followSystemTheme
-                          ? null
-                          : (value) {
-                              context
-                                  .read<SettingsBloc>()
-                                  .add(UpdateDarkMode(value));
+                    children: [
+                      SegmentedSettingsTile<_ThemeMode>(
+                        icon: FluentIcons.weather_sunny_24_regular,
+                        title: 'מצב ערכת נושא',
+                        subtitle: state.followSystemTheme
+                            ? 'התוכנה תתאים את המראה באופן אוטומטי להגדרות מערכת ההפעלה'
+                            : state.isDarkMode
+                                ? 'התוכנה תשתמש בצבעים כהים'
+                                : 'התוכנה תשתמש בצבעים בהירים',
+                        options: const [
+                          SegmentOption(value: _ThemeMode.light, label: 'בהיר'),
+                          SegmentOption(
+                              value: _ThemeMode.system, label: 'מערכת'),
+                          SegmentOption(value: _ThemeMode.dark, label: 'כהה'),
+                        ],
+                        currentValue: state.followSystemTheme
+                            ? _ThemeMode.system
+                            : state.isDarkMode
+                                ? _ThemeMode.dark
+                                : _ThemeMode.light,
+                        onChanged: (mode) {
+                          if (mode == _ThemeMode.system) {
+                            context
+                                .read<SettingsBloc>()
+                                .add(UpdateFollowSystemTheme(true));
+                          } else {
+                            context
+                                .read<SettingsBloc>()
+                                .add(UpdateFollowSystemTheme(false));
+                            context
+                                .read<SettingsBloc>()
+                                .add(UpdateDarkMode(mode == _ThemeMode.dark));
+                          }
+                        },
+                      ),
+                      ClipRect(
+                        child: Align(
+                          alignment: Alignment.topCenter,
+                          heightFactor: 0.92,
+                          child: ColorPickerSettingsTile(
+                            key: ValueKey(
+                                'color-picker-${state.isDarkMode ? 'dark' : 'light'}'),
+                            title: 'צבע בסיס',
+                            leading: const Icon(FluentIcons.color_24_regular),
+                            settingKey: state.isDarkMode
+                                ? 'key-dark-swatch-color'
+                                : 'key-swatch-color',
+                            onChange: (color) {
+                              if (state.isDarkMode) {
+                                context
+                                    .read<SettingsBloc>()
+                                    .add(UpdateDarkSeedColor(color));
+                              } else {
+                                context
+                                    .read<SettingsBloc>()
+                                    .add(UpdateSeedColor(color));
+                              }
                             },
-                    ),
-                    ClipRect(
-                      child: Align(
-                        alignment: Alignment.topCenter,
-                        heightFactor: 0.92,
-                        child: ColorPickerSettingsTile(
-                          key: ValueKey(
-                              'color-picker-${state.isDarkMode ? 'dark' : 'light'}'),
-                          title: 'צבע בסיס',
-                          leading: const Icon(FluentIcons.color_24_regular),
-                          settingKey: state.isDarkMode
-                              ? 'key-dark-swatch-color'
-                              : 'key-swatch-color',
-                          onChange: (color) {
-                            if (state.isDarkMode) {
-                              context
-                                  .read<SettingsBloc>()
-                                  .add(UpdateDarkSeedColor(color));
-                            } else {
-                              context
-                                  .read<SettingsBloc>()
-                                  .add(UpdateSeedColor(color));
-                            }
-                          },
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
                   ),
                 ),
 
@@ -288,44 +295,44 @@ class DesignSettingsTab extends StatelessWidget {
                   cardId: 'design.tabs',
                   child: SettingsCard(
                     title: 'כרטיסיות הספרים',
-                  children: [
-                    if (!(Platform.isAndroid || Platform.isIOS))
+                    children: [
+                      if (!(Platform.isAndroid || Platform.isIOS))
+                        SwitchSettingsTile(
+                          leading: const Icon(FluentIcons.list_24_regular),
+                          title: const Text(
+                            'תפריטים קומפקטיים',
+                            style: kSettingsTitleStyle,
+                          ),
+                          subtitle: Text(
+                            state.compactMenuMode
+                                ? 'התפריטים יוצגו בצפיפות עבודה בסגנון Chrome'
+                                : 'התפריטים יוצגו במרווח נוח ובגרסה הרגילה',
+                            style: kSettingsSubtitleStyle,
+                          ),
+                          value: state.compactMenuMode,
+                          onChanged: (value) {
+                            context
+                                .read<SettingsBloc>()
+                                .add(UpdateCompactMenuMode(value));
+                          },
+                        ),
                       SwitchSettingsTile(
-                        leading: const Icon(FluentIcons.list_24_regular),
-                        title: const Text(
-                          'תפריטים קומפקטיים',
-                          style: kSettingsTitleStyle,
-                        ),
+                        leading: const Icon(FluentIcons.tab_24_regular),
+                        title: const Text('הצגת כרטיסיות בימין',
+                            style: kSettingsTitleStyle),
                         subtitle: Text(
-                          state.compactMenuMode
-                              ? 'התפריטים יוצגו בצפיפות עבודה בסגנון Chrome'
-                              : 'התפריטים יוצגו במרווח נוח ובגרסה הרגילה',
-                          style: kSettingsSubtitleStyle,
-                        ),
-                        value: state.compactMenuMode,
+                            state.alignTabsToRight
+                                ? 'הכרטיסיות יהיו בצד ימין'
+                                : 'הכרטיסיות יהיו במרכז החלון',
+                            style: kSettingsSubtitleStyle),
+                        value: state.alignTabsToRight,
                         onChanged: (value) {
                           context
                               .read<SettingsBloc>()
-                              .add(UpdateCompactMenuMode(value));
+                              .add(UpdateAlignTabsToRight(value));
                         },
                       ),
-                    SwitchSettingsTile(
-                      leading: const Icon(FluentIcons.tab_24_regular),
-                      title: const Text('הצגת כרטיסיות בימין',
-                          style: kSettingsTitleStyle),
-                      subtitle: Text(
-                          state.alignTabsToRight
-                              ? 'הכרטיסיות יהיו בצד ימין'
-                              : 'הכרטיסיות יהיו במרכז החלון',
-                          style: kSettingsSubtitleStyle),
-                      value: state.alignTabsToRight,
-                      onChanged: (value) {
-                        context
-                            .read<SettingsBloc>()
-                            .add(UpdateAlignTabsToRight(value));
-                      },
-                    ),
-                  ],
+                    ],
                   ),
                 ),
 
@@ -336,99 +343,99 @@ class DesignSettingsTab extends StatelessWidget {
                   cardId: 'design.layout',
                   child: SettingsCard(
                     title: 'חלוניות עזר',
-                  children: [
-                    SegmentedSettingsTile<_SidebarMode>(
-                      title: 'חלונית ניווט בין כותרות',
-                      subtitle: state.pinSidebar
-                          ? 'החלונית תוצג באופן קבוע'
-                          : state.defaultSidebarOpen
-                              ? 'החלונית תוצג בפתיחת ספר ותיסגר בעת גלילה'
-                              : 'החלונית לא תוצג אוטומטית עם פתיחת הספר',
-                      icon: FluentIcons.panel_left_24_regular,
-                      options: const [
-                        SegmentOption(
-                            value: _SidebarMode.pinned, label: 'הצגה'),
-                        SegmentOption(
-                            value: _SidebarMode.openOnBook, label: 'אוטומטי'),
-                        SegmentOption(
-                            value: _SidebarMode.closed, label: 'הסתרה'),
-                      ],
-                      currentValue: state.pinSidebar
-                          ? _SidebarMode.pinned
-                          : state.defaultSidebarOpen
-                              ? _SidebarMode.openOnBook
-                              : _SidebarMode.closed,
-                      onChanged: (mode) {
-                        if (mode == _SidebarMode.pinned) {
-                          context
-                              .read<SettingsBloc>()
-                              .add(UpdatePinSidebar(true));
-                          context
-                              .read<SettingsBloc>()
-                              .add(const UpdateDefaultSidebarOpen(true));
-                        } else if (mode == _SidebarMode.openOnBook) {
-                          context
-                              .read<SettingsBloc>()
-                              .add(UpdatePinSidebar(false));
-                          context
-                              .read<SettingsBloc>()
-                              .add(const UpdateDefaultSidebarOpen(true));
-                        } else {
-                          context
-                              .read<SettingsBloc>()
-                              .add(UpdatePinSidebar(false));
-                          context
-                              .read<SettingsBloc>()
-                              .add(const UpdateDefaultSidebarOpen(false));
-                        }
-                      },
-                    ),
-                    SwitchSettingsTile(
-                      title: const Text('פתיחת הערות אישיות במצב סגור',
-                          style: kSettingsTitleStyle),
-                      subtitle: Text(
-                          state.personalNotesCollapsedByDefault
-                              ? 'רשימות ההערות יוצגו כשהן סגורות'
-                              : 'רשימות ההערות יוצגו כשהן פתוחות',
-                          style: kSettingsSubtitleStyle),
-                      value: state.personalNotesCollapsedByDefault,
-                      onChanged: (value) {
-                        context
-                            .read<SettingsBloc>()
-                            .add(UpdatePersonalNotesCollapsedByDefault(value));
-                      },
-                    ),
-                    StatefulBuilder(
-                      builder: (context, setState) {
-                        final splitedView =
-                            Settings.getValue<bool>('key-splited-view') ??
-                                false;
-                        return SwitchSettingsTile(
-                          title: const Text('הצגת המפרשים בחלונית בצד',
-                              style: kSettingsTitleStyle),
-                          subtitle: Text(
-                              splitedView
-                                  ? 'המפרשים יוצגו בחלונית מפוצלת'
-                                  : 'המפרשים יוצגו בתוך הטקסט',
-                              style: kSettingsSubtitleStyle),
-                          value: splitedView,
-                          onChanged: (value) {
-                            setState(() {
-                              Settings.setValue<bool>(
-                                  'key-splited-view', value);
-                              final settingsBloc = context.read<SettingsBloc>();
-                              PerBookSettings.cleanupRedundantSettings(
-                                defaultFontSize: settingsBloc.state.fontSize,
-                                defaultRemoveNikud:
-                                    settingsBloc.state.defaultRemoveNikud,
-                                defaultShowSplitView: value,
-                              );
-                            });
-                          },
-                        );
-                      },
-                    ),
-                  ],
+                    children: [
+                      SegmentedSettingsTile<_SidebarMode>(
+                        title: 'חלונית ניווט בין כותרות',
+                        subtitle: state.pinSidebar
+                            ? 'החלונית תוצג באופן קבוע'
+                            : state.defaultSidebarOpen
+                                ? 'החלונית תוצג בפתיחת ספר ותיסגר בעת גלילה'
+                                : 'החלונית לא תוצג אוטומטית עם פתיחת הספר',
+                        icon: FluentIcons.panel_left_24_regular,
+                        options: const [
+                          SegmentOption(
+                              value: _SidebarMode.pinned, label: 'הצגה'),
+                          SegmentOption(
+                              value: _SidebarMode.openOnBook, label: 'אוטומטי'),
+                          SegmentOption(
+                              value: _SidebarMode.closed, label: 'הסתרה'),
+                        ],
+                        currentValue: state.pinSidebar
+                            ? _SidebarMode.pinned
+                            : state.defaultSidebarOpen
+                                ? _SidebarMode.openOnBook
+                                : _SidebarMode.closed,
+                        onChanged: (mode) {
+                          if (mode == _SidebarMode.pinned) {
+                            context
+                                .read<SettingsBloc>()
+                                .add(UpdatePinSidebar(true));
+                            context
+                                .read<SettingsBloc>()
+                                .add(const UpdateDefaultSidebarOpen(true));
+                          } else if (mode == _SidebarMode.openOnBook) {
+                            context
+                                .read<SettingsBloc>()
+                                .add(UpdatePinSidebar(false));
+                            context
+                                .read<SettingsBloc>()
+                                .add(const UpdateDefaultSidebarOpen(true));
+                          } else {
+                            context
+                                .read<SettingsBloc>()
+                                .add(UpdatePinSidebar(false));
+                            context
+                                .read<SettingsBloc>()
+                                .add(const UpdateDefaultSidebarOpen(false));
+                          }
+                        },
+                      ),
+                      SwitchSettingsTile(
+                        title: const Text('פתיחת הערות אישיות במצב סגור',
+                            style: kSettingsTitleStyle),
+                        subtitle: Text(
+                            state.personalNotesCollapsedByDefault
+                                ? 'רשימות ההערות יוצגו כשהן סגורות'
+                                : 'רשימות ההערות יוצגו כשהן פתוחות',
+                            style: kSettingsSubtitleStyle),
+                        value: state.personalNotesCollapsedByDefault,
+                        onChanged: (value) {
+                          context.read<SettingsBloc>().add(
+                              UpdatePersonalNotesCollapsedByDefault(value));
+                        },
+                      ),
+                      StatefulBuilder(
+                        builder: (context, setState) {
+                          final splitedView =
+                              Settings.getValue<bool>('key-splited-view') ??
+                                  false;
+                          return SwitchSettingsTile(
+                            title: const Text('הצגת המפרשים בחלונית בצד',
+                                style: kSettingsTitleStyle),
+                            subtitle: Text(
+                                splitedView
+                                    ? 'המפרשים יוצגו בחלונית מפוצלת'
+                                    : 'המפרשים יוצגו בתוך הטקסט',
+                                style: kSettingsSubtitleStyle),
+                            value: splitedView,
+                            onChanged: (value) {
+                              setState(() {
+                                Settings.setValue<bool>(
+                                    'key-splited-view', value);
+                                final settingsBloc =
+                                    context.read<SettingsBloc>();
+                                PerBookSettings.cleanupRedundantSettings(
+                                  defaultFontSize: settingsBloc.state.fontSize,
+                                  defaultRemoveNikud:
+                                      settingsBloc.state.defaultRemoveNikud,
+                                  defaultShowSplitView: value,
+                                );
+                              });
+                            },
+                          );
+                        },
+                      ),
+                    ],
                   ),
                 ),
               ],
