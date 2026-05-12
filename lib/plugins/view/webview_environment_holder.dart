@@ -36,7 +36,12 @@ class WebViewEnvironmentHolder {
     await Directory(webviewDataFolder).create(recursive: true);
 
     _environment = await WebViewEnvironment.create(
-      settings: WebViewEnvironmentSettings(userDataFolder: webviewDataFolder),
+      settings: WebViewEnvironmentSettings(
+        userDataFolder: webviewDataFolder,
+        onNewBrowserVersionAvailable: null,
+        onBrowserProcessExited: null,
+        onProcessInfosChanged: null,
+      ),
     );
   }
 
