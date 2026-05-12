@@ -11,7 +11,10 @@ section: x11
 
 installed_size: 50000
 
-dependencies: []
+dependencies:
+  - libgtk-3-0
+  - libblkid1
+  - liblzma5
 
 essential: false
 
