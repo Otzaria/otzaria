@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:math';
@@ -31,6 +32,7 @@ class _ProgressiveScrollState extends State<ProgressiveScroll> {
   bool _isKeyPressed = false;
   int _scrollDirection = 0; // 1 for down, -1 for up, 0 for no scroll
   double _timePressedInSeconds = 0;
+  Timer? _scrollTickTimer;
   late final FocusNode _focusNode;
   bool _isLocalFocusNode = false;
 
@@ -48,6 +50,7 @@ class _ProgressiveScrollState extends State<ProgressiveScroll> {
 
   @override
   void dispose() {
+    _scrollTickTimer?.cancel();
     if (_isLocalFocusNode) {
       _focusNode.dispose();
     }
@@ -55,7 +58,8 @@ class _ProgressiveScrollState extends State<ProgressiveScroll> {
   }
 
   void _startScrolling() {
-    Future.delayed(const Duration(milliseconds: 16), () {
+    _scrollTickTimer?.cancel();
+    _scrollTickTimer = Timer(const Duration(milliseconds: 16), () {
       if (_isKeyPressed) {
         _timePressedInSeconds += 0.016; // 16 milliseconds in seconds
         double t = _timePressedInSeconds;

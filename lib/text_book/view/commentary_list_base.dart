@@ -95,6 +95,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
   bool _userInteractedWithFilter =
       false; // האם המשתמש בחר בעצמו בתוך פאנל הסינון
   final FocusNode _focusNode = FocusNode();
+  final FocusNode _searchFocusNode = FocusNode();
   final Object _selectionOwner = Object();
   int _selectionRevision = 0;
 
@@ -234,6 +235,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
     _currentSearchIndexNotifier.dispose();
     _totalSearchResultsNotifier.dispose();
     _focusNode.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -481,7 +483,9 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
       onLinkSelected: (link, text) {
         _savedSelectedText.value = text;
         _lastSelectedLink.value = link;
-        _focusNode.requestFocus();
+        if (!_searchFocusNode.hasFocus) {
+          _focusNode.requestFocus();
+        }
       },
       onLinkSelectionCleared: () {
         _savedSelectedText.value = null;
@@ -787,6 +791,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                                   valueListenable: _currentSearchIndexNotifier,
                                   builder: (context, currentIndex, ___) {
                                     return RtlTextField(
+                                      focusNode: _searchFocusNode,
                                       controller: _searchController,
                                       decoration: InputDecoration(
                                         hintText: 'חפש בתוך המפרשים המוצגים...',
@@ -880,6 +885,12 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                                           _totalSearchResultsNotifier.value = 0;
                                           _searchResultsPerLink.clear();
                                           _pendingCounts.clear();
+                                          WidgetsBinding.instance
+                                              .addPostFrameCallback((_) {
+                                            if (mounted) {
+                                              _searchFocusNode.requestFocus();
+                                            }
+                                          });
                                         }
                                       },
                                     );
