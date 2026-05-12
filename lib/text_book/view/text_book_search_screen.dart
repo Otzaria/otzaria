@@ -83,6 +83,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
   SearchMode _searchMode = SearchMode.exact;
   int _searchDistance = 0;
   int? _selectedSearchResultIndex;
+  final ItemScrollController _resultsScrollController = ItemScrollController();
 
   bool get _isSimpleSearch =>
       !_forceSearchEngine && _searchMode == SearchMode.exact;
@@ -371,16 +372,53 @@ class TextBookSearchViewState extends State<TextBookSearchView>
   }
 
   void _applySearchResults(List<TextSearchResult> results) {
+    int? closestIndex;
+    if (results.isNotEmpty) {
+      final state = context.read<TextBookBloc>().state;
+      if (state is TextBookLoaded && state.visibleIndices.isNotEmpty) {
+        final currentLine = state.visibleIndices.first;
+        final idx = results.indexWhere((r) => r.index >= currentLine);
+        if (idx > 0) closestIndex = idx;
+      }
+    }
+
     setState(() {
       searchResults = results;
       _isSearching = false;
-      if (results.isEmpty) {
-        _selectedSearchResultIndex = null;
-      } else if (_selectedSearchResultIndex == null ||
-          _selectedSearchResultIndex! >= results.length) {
-        _selectedSearchResultIndex = 0;
-      }
+      _selectedSearchResultIndex = closestIndex; // null = אין בחירה (תוצאה ריקה)
     });
+
+    if (closestIndex != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollResultsToIndex(closestIndex!);
+      });
+    }
+  }
+
+  /// מחזיר את האינדקס הוויזואלי (בתוך הרשימה המקובצת) של תוצאה.
+  /// אם התוצאה פותחת קטע חדש, מחזיר את אינדקס הכותרת (כדי שתהיה גלויה).
+  int _visualIndexForResultListIndex(int target) {
+    int idx = 0;
+    String? lastAddress;
+    for (var i = 0; i < searchResults.length; i++) {
+      final r = searchResults[i];
+      final isNewSection = r.address != lastAddress;
+      if (isNewSection) {
+        lastAddress = r.address;
+        if (i == target) return idx; // גלול לכותרת
+        idx++;
+      }
+      if (i == target) return idx;
+      idx++;
+    }
+    return 0;
+  }
+
+  /// גולל את רשימת התוצאות לאינדקס הוויזואלי המדויק.
+  void _scrollResultsToIndex(int resultListIndex) {
+    if (!mounted) return;
+    final visualIdx = _visualIndexForResultListIndex(resultListIndex);
+    _resultsScrollController.jumpTo(index: visualIdx, alignment: 0.0);
   }
 
   void _navigateToSearchResult(
@@ -449,6 +487,11 @@ class TextBookSearchViewState extends State<TextBookSearchView>
   }
 
   @override
+  void dispose() {
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     super.build(context);
 
@@ -476,7 +519,8 @@ class TextBookSearchViewState extends State<TextBookSearchView>
       resultCountString: searchResults.isNotEmpty
           ? 'נמצאו ${searchResults.length} תוצאות'
           : null,
-      resultsWidget: ListView.builder(
+      resultsWidget: ScrollablePositionedList.builder(
+        itemScrollController: _resultsScrollController,
         padding: const EdgeInsets.all(16),
         itemCount: items.length,
         itemBuilder: (context, index) {

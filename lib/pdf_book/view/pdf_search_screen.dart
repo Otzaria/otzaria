@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart';
+import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/book_facet.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
@@ -185,6 +186,52 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
     }
   }
 
+  void _scheduleScrollToCurrentPage() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !scrollController.hasClients) return;
+      final maxExtent = scrollController.position.maxScrollExtent;
+      if (maxExtent <= 0) return;
+
+      final pdfState = context.read<PdfBookBloc>().state;
+      if (pdfState is! PdfBookLoaded) return;
+      final currentPage = pdfState.currentPageNumber;
+
+      // בנה רשימת דפים ממוינת מהתוצאות
+      final pages = _searchResults
+          .map((r) => _getPdfPageNumber(r))
+          .toSet()
+          .toList()
+        ..sort();
+      if (pages.isEmpty) return;
+
+      final targetPage = pages.firstWhere(
+        (p) => p >= currentPage,
+        orElse: () => pages.first,
+      );
+
+      // כל דף = 1 כותרת + N תוצאות → חשב אינדקס ויזואלי
+      int visualIdx = 0;
+      int totalItems = 0;
+      for (final page in pages) {
+        final count =
+            _searchResults.where((r) => _getPdfPageNumber(r) == page).length;
+        totalItems += 1 + count;
+      }
+      for (final page in pages) {
+        if (page == targetPage) break;
+        final count =
+            _searchResults.where((r) => _getPdfPageNumber(r) == page).length;
+        visualIdx += 1 + count;
+      }
+
+      if (totalItems <= 0) return;
+      final fraction = visualIdx / totalItems;
+      scrollController.jumpTo(
+        (fraction * maxExtent).clamp(0.0, maxExtent),
+      );
+    });
+  }
+
   @override
   void dispose() {
     scrollController.dispose();
@@ -263,6 +310,7 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
         _searchResults = results;
         _isSearching = false;
       });
+      _scheduleScrollToCurrentPage();
     } catch (e) {
       if (!mounted) return;
       setState(() {
