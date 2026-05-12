@@ -26,6 +26,8 @@ import 'package:otzaria/plugins/view/plugin_tab_page.dart';
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
 import 'package:otzaria/plugins/utils/fluent_icon_resolver.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
+import 'package:otzaria/settings/engine/settings_bloc.dart';
+import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/settings/settings_card.dart';
 import 'package:otzaria/tour/tour_target_keys.dart';
 
@@ -387,6 +389,12 @@ class ToolsScreenState extends State<ToolsScreen>
   }
 
   void openPluginTransiently(InstalledPlugin plugin) {
+    final isOfflineMode = context.read<SettingsBloc>().state.isOfflineMode;
+    if (isOfflineMode && plugin.requiresNetwork) {
+      UiSnack.showError(
+          'התוסף "${plugin.name}" דורש חיבור אינטרנט ולא ניתן לפתוח אותו במצב מנותק');
+      return;
+    }
     if (plugin.pinned) {
       // לתוסף שמוצמד-ללשוניות יש (או יהיה) descriptor רגיל. מנתבים דרך
       // requestOpenTool כדי לקבל את מנגנון ה-pending/timeout במקרה שה-bloc
@@ -399,7 +407,10 @@ class ToolsScreenState extends State<ToolsScreen>
     _setSelectedToolId(plugin.pluginId);
     final blocState = context.read<PluginSystemBloc>().state;
     if (blocState is PluginSystemLoaded) {
-      _rebuildTabs(blocState.pinnedPlugins, transient: _transientPlugin);
+      _rebuildTabs(
+        blocState.pinnedPlugins.filterForOfflineMode(isOfflineMode),
+        transient: _transientPlugin,
+      );
     }
   }
 
@@ -499,7 +510,11 @@ class ToolsScreenState extends State<ToolsScreen>
       _didInitFromBloc = true;
       final state = context.read<PluginSystemBloc>().state;
       if (state is PluginSystemLoaded) {
-        _applyTabState(state.pinnedPlugins, notify: false);
+        final isOfflineMode = context.read<SettingsBloc>().state.isOfflineMode;
+        _applyTabState(
+          state.pinnedPlugins.filterForOfflineMode(isOfflineMode),
+          notify: false,
+        );
       }
     }
   }
@@ -526,6 +541,29 @@ class ToolsScreenState extends State<ToolsScreen>
       _clearPendingTool();
       _changeTab(index);
       return;
+    }
+
+    // ה-descriptor לא נמצא בלשוניות הנוכחיות. בודקים אם מדובר בתוסף שכן מותקן
+    // אבל סונן מהתצוגה בגלל מצב מנותק — כדי להחזיר שגיאה תיאורית במקום
+    // "הכלי לא נמצא" המטעה.
+    final isOfflineMode = context.read<SettingsBloc>().state.isOfflineMode;
+    if (isOfflineMode) {
+      final blocState = context.read<PluginSystemBloc>().state;
+      if (blocState is PluginSystemLoaded) {
+        InstalledPlugin? hiddenPlugin;
+        for (final p in blocState.plugins) {
+          if (p.pluginId == toolId) {
+            hiddenPlugin = p;
+            break;
+          }
+        }
+        if (hiddenPlugin != null && hiddenPlugin.requiresNetwork) {
+          _clearPendingTool();
+          UiSnack.showError(
+              'התוסף "${hiddenPlugin.name}" דורש חיבור אינטרנט ולא ניתן לפתוח אותו במצב מנותק');
+          return;
+        }
+      }
     }
 
     // ה-descriptor עדיין לא קיים — קורה בעיקר עם תוספים לפני ש-PluginSystemLoaded
@@ -904,38 +942,65 @@ class ToolsScreenState extends State<ToolsScreen>
 
     final bgColor = AppSurfaces.panelBackground(context);
 
-    return BlocListener<PluginSystemBloc, PluginSystemState>(
-      listener: (context, state) {
-        if (state is PluginSystemLoaded) {
-          if (_transientPlugin != null) {
-            final updatedTransient = state.plugins.firstWhere(
-                (p) => p.pluginId == _transientPlugin!.pluginId,
-                orElse: () => _transientPlugin!);
-            _transientPlugin = updatedTransient;
-          }
-          _rebuildTabs(state.pinnedPlugins, transient: _transientPlugin);
-        } else if (state is PluginSystemOverwriteRequired) {
-          showWarningDialog(
-            context: context,
-            title: 'התוסף כבר קיים',
-            content:
-                'התוסף "${state.pluginName}" בגרסה ${state.version} כבר מותקן.',
-            subtitle: 'האם ברצונך להתקין מחדש ולדרוס אותו?',
-            cancelText: 'ביטול',
-            confirmText: 'התקן מחדש',
-          ).then((value) {
-            if (!context.mounted) return;
-            if (value == true) {
-              context.read<PluginSystemBloc>().add(
-                    InstallPluginRequested(state.archivePath,
-                        forceOverwrite: true),
-                  );
-            } else {
-              context.read<PluginSystemBloc>().add(LoadPlugins());
+    return MultiBlocListener(
+      listeners: [
+        BlocListener<SettingsBloc, SettingsState>(
+          listenWhen: (prev, curr) => prev.isOfflineMode != curr.isOfflineMode,
+          listener: (context, settingsState) {
+            final blocState = context.read<PluginSystemBloc>().state;
+            if (blocState is! PluginSystemLoaded) return;
+            // אם התוסף ה-transient דורש אינטרנט ועברנו למצב מנותק — נסגור אותו.
+            if (settingsState.isOfflineMode &&
+                _transientPlugin != null &&
+                _transientPlugin!.requiresNetwork) {
+              _transientPlugin = null;
             }
-          });
-        }
-      },
+            _rebuildTabs(
+              blocState.pinnedPlugins
+                  .filterForOfflineMode(settingsState.isOfflineMode),
+              transient: _transientPlugin,
+            );
+          },
+        ),
+        BlocListener<PluginSystemBloc, PluginSystemState>(
+          listener: (context, state) {
+            if (state is PluginSystemLoaded) {
+              if (_transientPlugin != null) {
+                final updatedTransient = state.plugins.firstWhere(
+                    (p) => p.pluginId == _transientPlugin!.pluginId,
+                    orElse: () => _transientPlugin!);
+                _transientPlugin = updatedTransient;
+              }
+              final isOfflineMode =
+                  context.read<SettingsBloc>().state.isOfflineMode;
+              _rebuildTabs(
+                state.pinnedPlugins.filterForOfflineMode(isOfflineMode),
+                transient: _transientPlugin,
+              );
+            } else if (state is PluginSystemOverwriteRequired) {
+              showWarningDialog(
+                context: context,
+                title: 'התוסף כבר קיים',
+                content:
+                    'התוסף "${state.pluginName}" בגרסה ${state.version} כבר מותקן.',
+                subtitle: 'האם ברצונך להתקין מחדש ולדרוס אותו?',
+                cancelText: 'ביטול',
+                confirmText: 'התקן מחדש',
+              ).then((value) {
+                if (!context.mounted) return;
+                if (value == true) {
+                  context.read<PluginSystemBloc>().add(
+                        InstallPluginRequested(state.archivePath,
+                            forceOverwrite: true),
+                      );
+                } else {
+                  context.read<PluginSystemBloc>().add(LoadPlugins());
+                }
+              });
+            }
+          },
+        ),
+      ],
       child: Theme(
         data: Theme.of(context).copyWith(
           scaffoldBackgroundColor: bgColor,

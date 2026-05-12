@@ -20,6 +20,10 @@ class InstalledPlugin {
   bool get isDevelopment => sourceType == 'development';
   String get resolvedRootPath => isDevelopment ? devRootPath! : installPath;
 
+  /// האם התוסף מצהיר על שימוש ברשת. תוסף כזה מוסתר מהממשק כאשר אוצריא נמצאת
+  /// במצב 'מנותק' (`SettingsState.isOfflineMode`).
+  bool get requiresNetwork => manifest.networkEnabled;
+
   InstalledPlugin({
     required this.pluginId,
     required this.name,
@@ -108,5 +112,14 @@ class InstalledPlugin {
       sourceType: sourceType ?? this.sourceType,
       devRootPath: clearDevRootPath ? null : (devRootPath ?? this.devRootPath),
     );
+  }
+}
+
+/// סינון תוספים לפי מצב 'מנותק' של אוצריא — תוספים שדורשים אינטרנט מוסתרים
+/// מהממשק כאשר המשתמש הפעיל את מצב 'מנותק'.
+extension OfflineModePluginFilter on List<InstalledPlugin> {
+  List<InstalledPlugin> filterForOfflineMode(bool isOfflineMode) {
+    if (!isOfflineMode) return this;
+    return where((p) => !p.requiresNetwork).toList();
   }
 }

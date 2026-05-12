@@ -241,12 +241,13 @@ class MainWindowScreenState extends State<MainWindowScreen>
   }
 
   /// מחזיר את רשימת התוספים המוצמדים-לסרגל מתוך ה-state, או רשימה ריקה כשאין.
+  /// במצב 'מנותק' תוספים שדורשים אינטרנט מסוננים החוצה.
   static List<InstalledPlugin> _pinnedNavRailFromState(
     PluginSystemState state,
+    bool isOfflineMode,
   ) {
-    return state is PluginSystemLoaded
-        ? state.pluginsPinnedToNavRail
-        : const <InstalledPlugin>[];
+    if (state is! PluginSystemLoaded) return const <InstalledPlugin>[];
+    return state.pluginsPinnedToNavRail.filterForOfflineMode(isOfflineMode);
   }
 
   @override
@@ -2071,9 +2072,15 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                                           _pinnedNavRailIdsChanged,
                                                       builder: (context,
                                                           pluginState) {
+                                                        final isOfflineMode = context
+                                                            .select<SettingsBloc,
+                                                                    bool>(
+                                                                (b) => b.state
+                                                                    .isOfflineMode);
                                                         final pinnedPlugins =
                                                             _pinnedNavRailFromState(
-                                                                pluginState);
+                                                                pluginState,
+                                                                isOfflineMode);
                                                         return ValueListenableBuilder<
                                                             String?>(
                                                           valueListenable:
@@ -2203,9 +2210,14 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                           buildWhen:
                                               _pinnedNavRailIdsChanged,
                                           builder: (context, pluginState) {
+                                            final isOfflineMode = context
+                                                .select<SettingsBloc, bool>(
+                                                    (b) => b.state
+                                                        .isOfflineMode);
                                             final pinnedPlugins =
                                                 _pinnedNavRailFromState(
-                                                    pluginState);
+                                                    pluginState,
+                                                    isOfflineMode);
                                             return ValueListenableBuilder<
                                                 String?>(
                                               valueListenable:

@@ -11,6 +11,7 @@ import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/view/plugin_settings_screen.dart';
+import 'package:otzaria/settings/engine/settings_bloc.dart';
 
 class PluginSidePanel extends StatelessWidget {
   final Function(InstalledPlugin)? onPluginSelected;
@@ -93,10 +94,17 @@ class PluginSidePanel extends StatelessWidget {
                   );
                 }
                 if (state is PluginSystemLoaded) {
-                  final plugins = state.plugins;
+                  final isOfflineMode = context
+                      .select<SettingsBloc, bool>((b) => b.state.isOfflineMode);
+                  final plugins = state.plugins.filterForOfflineMode(isOfflineMode);
                   if (plugins.isEmpty) {
-                    return const Center(
-                      child: Text('לא הותקנו תוספים'),
+                    return Center(
+                      child: Text(
+                        isOfflineMode && state.plugins.isNotEmpty
+                            ? 'כל התוספים המותקנים דורשים אינטרנט\nוהוסתרו במצב מנותק'
+                            : 'לא הותקנו תוספים',
+                        textAlign: TextAlign.center,
+                      ),
                     );
                   }
                   return ListView.builder(
