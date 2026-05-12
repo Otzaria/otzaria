@@ -112,10 +112,7 @@ dependencies:
   markdown: ^7.3.1
   system_fonts: ^1.0.1
   flutter_quill: ^11.5.0
-  flutter_inappwebview:
-    git:
-      url: https://github.com/Y-PLONI/flutter_inappwebview
-      path: flutter_inappwebview
+  flutter_inappwebview: ^6.1.5
 
 dependency_overrides:
   #  it forces the version of the intl package to be 0.19.0 across all dependencies, even if some packages specify a different compatible version.
