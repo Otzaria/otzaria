@@ -192,12 +192,13 @@ class _SearchWorkerHost {
 void _searchWorkerMain(SendPort mainSendPort) {
   final commandPort = ReceivePort();
   mainSendPort.send(commandPort.sendPort);
-  final runtime = _SearchWorkerRuntime(mainSendPort);
+  final runtime = SectionSearchWorkerRuntime(mainSendPort);
   commandPort.listen(runtime.onMessage);
 }
 
-class _SearchWorkerRuntime {
-  _SearchWorkerRuntime(this._mainSendPort);
+@visibleForTesting
+class SectionSearchWorkerRuntime {
+  SectionSearchWorkerRuntime(this._mainSendPort);
 
   final SendPort _mainSendPort;
   Map<String, dynamic>? _queuedRequest;
@@ -226,62 +227,67 @@ class _SearchWorkerRuntime {
         final request = _queuedRequest!;
         _queuedRequest = null;
         final requestId = request['requestId'] as int;
-        final content = (request['content'] as List<dynamic>).cast<String>();
-        final query = request['query'] as String;
 
-        final results = <Map<String, dynamic>>[];
-        final address = <String>[];
-        bool canceled = false;
+        try {
+          final content = (request['content'] as List<dynamic>).cast<String>();
+          final query = request['query'] as String;
 
-        for (int i = 0; i < content.length; i++) {
-          final line = content[i];
+          final results = <Map<String, dynamic>>[];
+          final address = <String>[];
+          bool canceled = false;
 
-          if (line.contains('<h') && !line.startsWith('<h1')) {
-            _updateAddress(address, line);
+          for (int i = 0; i < content.length; i++) {
+            final line = content[i];
+
+            if (line.contains('<h') && !line.startsWith('<h1')) {
+              _updateAddress(address, line);
+            }
+
+            final cleanLine =
+                utils.removeVolwels(utils.stripHtmlIfNeeded(line));
+            if (_containsWholeWord(cleanLine, query)) {
+              results.add({
+                'index': i,
+                'snippet': cleanLine,
+                'address': utils
+                    .removeVolwels(utils.stripHtmlIfNeeded(address.join(', '))),
+                'query': query,
+              });
+              if (results.length >= _maxSearchResults) {
+                break;
+              }
+            }
+
+            if ((i + 1) % _searchChunkSize == 0) {
+              await Future<void>.delayed(Duration.zero);
+              if (_queuedRequest != null) {
+                canceled = true;
+                break;
+              }
+            }
           }
 
-          final cleanLine = utils.removeVolwels(utils.stripHtmlIfNeeded(line));
-          if (_containsWholeWord(cleanLine, query)) {
-            results.add({
-              'index': i,
-              'snippet': cleanLine,
-              'address':
-                  utils.removeVolwels(utils.stripHtmlIfNeeded(address.join(', '))),
-              'query': query,
+          if (canceled) {
+            _mainSendPort.send({
+              'type': 'canceled',
+              'requestId': requestId,
             });
-            if (results.length >= _maxSearchResults) {
-              break;
-            }
+            continue;
           }
 
-          if ((i + 1) % _searchChunkSize == 0) {
-            await Future<void>.delayed(Duration.zero);
-            if (_queuedRequest != null) {
-              canceled = true;
-              break;
-            }
-          }
-        }
-
-        if (canceled) {
           _mainSendPort.send({
-            'type': 'canceled',
+            'type': 'result',
             'requestId': requestId,
+            'results': results,
           });
-          continue;
+        } catch (error) {
+          _mainSendPort.send({
+            'type': 'error',
+            'requestId': requestId,
+            'message': error.toString(),
+          });
         }
-
-        _mainSendPort.send({
-          'type': 'result',
-          'requestId': requestId,
-          'results': results,
-        });
       }
-    } catch (error) {
-      _mainSendPort.send({
-        'type': 'error',
-        'message': error.toString(),
-      });
     } finally {
       _isProcessing = false;
     }

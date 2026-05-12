@@ -223,13 +223,11 @@ class TextBookSearchViewState extends State<TextBookSearchView>
 
     if (queryChanged || searchConfigurationChanged) {
       _syncBlocSearchTextState();
-      if (widget.initialQuery.isNotEmpty) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            _searchTextUpdated();
-          }
-        });
-      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _searchTextUpdated();
+        }
+      });
     }
   }
 

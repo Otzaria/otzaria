@@ -22,6 +22,82 @@ void main() {
     await Settings.init(cacheProvider: MemoryCacheProvider());
   });
 
+  testWidgets('איפוס initialQuery חיצוני מנקה תוצאות חיפוש קיימות',
+      (tester) async {
+    final textBookBloc = _TestTextBookBloc(_loadedState());
+    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    final focusNode = FocusNode();
+
+    addTearDown(textBookBloc.close);
+    addTearDown(settingsBloc.close);
+    addTearDown(focusNode.dispose);
+    addTearDown(resetSectionSearchWorkerForTesting);
+
+    Future<List<TextSearchResult>> simpleSearchRunner(
+      List<String> content,
+      String query,
+    ) async {
+      if (query.isEmpty) return const [];
+      return [
+        TextSearchResult(
+          snippet: 'תוצאה עבור $query',
+          index: 0,
+          query: query,
+          address: 'כתובת-$query',
+        ),
+      ];
+    }
+
+    String queryProp = '';
+    late StateSetter outerSetState;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<TextBookBloc>.value(value: textBookBloc),
+            BlocProvider<SettingsBloc>.value(value: settingsBloc),
+          ],
+          child: StatefulBuilder(
+            builder: (context, setState) {
+              outerSetState = setState;
+              return Scaffold(
+                body: TextBookSearchView(
+                  data: 'אב אברהם',
+                  scrollControler: ItemScrollController(),
+                  focusNode: focusNode,
+                  closeLeftPaneCallback: () {},
+                  initialQuery: queryProp,
+                  simpleSearchRunner: simpleSearchRunner,
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump();
+
+    // ההורה מחיל חיפוש דרך initialQuery
+    outerSetState(() {
+      queryProp = 'אב';
+    });
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('כתובת-אב'), findsOneWidget);
+
+    // ההורה מאפס את initialQuery לריק — צריך לנקות תוצאות
+    outerSetState(() {
+      queryProp = '';
+    });
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('כתובת-אב'), findsNothing);
+  });
+
   testWidgets('חיפוש ישן לא דורס תוצאות של חיפוש חדש יותר', (tester) async {
     final textBookBloc = _TestTextBookBloc(_loadedState());
     final settingsBloc = _TestSettingsBloc(SettingsState.initial());
