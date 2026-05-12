@@ -65,6 +65,10 @@ class _DiscoveredBook {
   /// (size or mtime) changed. Phase 2 only updates metadata; no insert needed.
   final int? existingBookId;
 
+  /// Non-null when DOCX conversion failed (e.g. unsupported encoding).
+  /// Books with this field set are counted as failures and not inserted.
+  final String? conversionError;
+
   const _DiscoveredBook({
     required this.path,
     required this.title,
@@ -74,6 +78,7 @@ class _DiscoveredBook {
     required this.categoryPath,
     this.tocEntries,
     this.existingBookId,
+    this.conversionError,
   });
 }
 
@@ -174,6 +179,7 @@ Future<void> _collectBookFilesRecursive(
 
         // Genuinely new book — parse TOC for TXT / DOCX.
         List<_RawTocEntry>? rawToc;
+        String? conversionError;
         if (fileType == 'txt') {
           try {
             final content = await entity.readAsString();
@@ -187,10 +193,14 @@ Future<void> _collectBookFilesRecursive(
           try {
             final bytes = await entity.readAsBytes();
             final content = docxToText(bytes, title);
-            final parsed = TocParser.parseEntriesFromContent(content);
-            rawToc = _flattenTocToRaw(parsed);
-          } catch (_) {
-            // TOC parse failure is non-fatal.
+            try {
+              final parsed = TocParser.parseEntriesFromContent(content);
+              rawToc = _flattenTocToRaw(parsed);
+            } catch (_) {
+              // TOC parse failure is non-fatal — book still inserted without TOC.
+            }
+          } catch (e) {
+            conversionError = e.toString();
           }
         }
         // PDF: rawToc stays null — parsed on the main isolate.
@@ -203,6 +213,7 @@ Future<void> _collectBookFilesRecursive(
           lastModified: lastModified,
           categoryPath: categoryPath,
           tocEntries: rawToc,
+          conversionError: conversionError,
         ));
       }
     } catch (e) {
@@ -448,12 +459,14 @@ class ScanResult {
   final int updatedBooks;
   final int failedBooks;
   final Object? fatalError;
+  final List<(String title, String reason)> failedDetails;
 
   const ScanResult({
     this.addedBooks = 0,
     this.updatedBooks = 0,
     this.failedBooks = 0,
     this.fatalError,
+    this.failedDetails = const [],
   });
 
   bool get isSuccess => fatalError == null;
@@ -973,6 +986,11 @@ class DatabaseLibraryProvider implements LibraryProvider {
         if (book != null && book.isFileBacked && book.filePath != null) {
           final file = File(book.filePath!);
           if (await file.exists()) {
+            if ((book.fileType ?? '').toLowerCase() == 'docx') {
+              final bytes = await file.readAsBytes();
+              final t = title;
+              return await Isolate.run(() => docxToText(bytes, t));
+            }
             return await file.readAsString();
           }
         }
@@ -1877,6 +1895,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
     int added = 0;
     int updated = 0;
     int failed = 0;
+    final failedDetails = <(String, String)>[];
 
     try {
       final dir = Directory(folderPath);
@@ -1899,6 +1918,12 @@ class DatabaseLibraryProvider implements LibraryProvider {
       // This is deliberately light: unchanged books were already filtered in
       // Phase 1, so no TOC parse or DB read happens here for them.
       for (final book in discovered) {
+        if (book.conversionError != null) {
+          debugPrint('⚠️ DOCX conversion failed for ${book.title}: ${book.conversionError}');
+          failedDetails.add((book.title, book.conversionError!));
+          failed++;
+          continue;
+        }
         try {
           if (book.existingBookId != null) {
             // Metadata-only update (file changed since last scan).
@@ -1960,7 +1985,10 @@ class DatabaseLibraryProvider implements LibraryProvider {
       debugPrint('📁 Finished scanning custom folder: $folderPath '
           '(added=$added, updated=$updated, failed=$failed)');
       return ScanResult(
-          addedBooks: added, updatedBooks: updated, failedBooks: failed);
+          addedBooks: added,
+          updatedBooks: updated,
+          failedBooks: failed,
+          failedDetails: failedDetails);
     } catch (e) {
       debugPrint('⚠️ Scan failed for $folderPath: $e');
       return ScanResult(fatalError: e);

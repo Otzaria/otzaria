@@ -80,10 +80,15 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
       if (result.isSuccess) {
         _libraryBloc.add(RefreshLibrary());
         if (result.hasPartialFailure) {
+          final failedMsg = result.failedDetails.isNotEmpty
+              ? result.failedDetails
+                  .map((d) => '"${d.$1}": ${d.$2}')
+                  .join('\n')
+              : 'כשל: ${result.failedBooks}';
           emit(state.copyWith(
             isSyncing: false,
             error:
-                '${result.addedBooks} ספרים נוספו, ${result.updatedBooks} עודכנו (כשל: ${result.failedBooks})',
+                '${result.addedBooks} ספרים נוספו, ${result.updatedBooks} עודכנו\n$failedMsg',
           ));
         } else {
           emit(state.copyWith(isSyncing: false));
