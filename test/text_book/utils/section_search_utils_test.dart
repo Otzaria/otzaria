@@ -2,6 +2,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/text_book/utils/section_search_utils.dart';
 
 void main() {
+  tearDown(() async {
+    await resetSectionSearchWorkerForTesting();
+  });
+
   group('searchInContent - whole word matching', () {
     test('finds exact whole-word match', () async {
       final results = await searchInContent(

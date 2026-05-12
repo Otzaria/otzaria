@@ -1,11 +1,13 @@
+import 'dart:async';
+import 'dart:isolate';
+
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/text_book/models/search_results.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 
-/// Maximum number of search results to return
 const int _maxSearchResults = 1000;
+const int _searchChunkSize = 128;
 
-/// Updates the address list with a new header line
 void _updateAddress(List<String> address, String line) {
   if (line.length < 4) {
     address.add(line);
@@ -13,7 +15,8 @@ void _updateAddress(List<String> address, String line) {
   }
 
   final index = address.indexWhere(
-      (e) => e.length >= 4 && e.substring(0, 4) == line.substring(0, 4));
+    (e) => e.length >= 4 && e.substring(0, 4) == line.substring(0, 4),
+  );
 
   if (index != -1) {
     address.removeRange(index, address.length);
@@ -27,8 +30,6 @@ bool _isHebrewLetter(int codeUnit) {
       (codeUnit >= 0xFB1D && codeUnit <= 0xFBB1);
 }
 
-/// Returns true only if [query] appears as a whole word in [text]
-/// (not surrounded by Hebrew letters on either side).
 bool _containsWholeWord(String text, String query) {
   if (!text.contains(query)) return false;
 
@@ -46,55 +47,260 @@ bool _containsWholeWord(String text, String query) {
   return false;
 }
 
-/// Search logic executed in isolate for better performance
-List<TextSearchResult> _searchIsolate(Map<String, dynamic> args) {
-  final List<String> content = args['content'] as List<String>;
-  final String query = args['query'] as String;
+class _SearchWorkerHost {
+  _SearchWorkerHost._();
 
-  final results = <TextSearchResult>[];
-  const searchStart = 0;
-  final searchEnd = content.length - 1;
+  static final _SearchWorkerHost instance = _SearchWorkerHost._();
 
-  final address = <String>[];
-  for (int i = 0; i <= searchStart && i < content.length; i++) {
-    final line = content[i];
-    if (line.contains('<h') && !line.startsWith('<h1')) {
-      _updateAddress(address, line);
+  ReceivePort? _receivePort;
+  SendPort? _workerSendPort;
+  Isolate? _isolate;
+  Future<void>? _startFuture;
+  Completer<void>? _startCompleter;
+  int _nextRequestId = 0;
+  final Map<int, Completer<List<TextSearchResult>>> _pending = {};
+
+  Future<List<TextSearchResult>> search({
+    required List<String> content,
+    required String query,
+  }) async {
+    await _ensureStarted();
+
+    final requestId = ++_nextRequestId;
+    final completer = Completer<List<TextSearchResult>>();
+    _pending[requestId] = completer;
+
+    _workerSendPort!.send({
+      'type': 'search',
+      'requestId': requestId,
+      'content': content,
+      'query': query,
+    });
+
+    return completer.future;
+  }
+
+  Future<void> _ensureStarted() {
+    if (_workerSendPort != null) {
+      return Future.value();
+    }
+
+    final existingStart = _startFuture;
+    if (existingStart != null) {
+      return existingStart;
+    }
+
+    final completer = Completer<void>();
+    _startCompleter = completer;
+    _startFuture = completer.future;
+    _receivePort = ReceivePort();
+    _receivePort!.listen(_handleMessage);
+
+    Isolate.spawn<SendPort>(
+      _searchWorkerMain,
+      _receivePort!.sendPort,
+    ).then((isolate) {
+      _isolate = isolate;
+    }).catchError((Object error, StackTrace stackTrace) {
+      _startFuture = null;
+      final startCompleter = _startCompleter;
+      _startCompleter = null;
+      _receivePort?.close();
+      _receivePort = null;
+      if (startCompleter != null && !startCompleter.isCompleted) {
+        startCompleter.completeError(error, stackTrace);
+      }
+    });
+
+    return completer.future;
+  }
+
+  void _handleMessage(dynamic message) {
+    if (message is SendPort) {
+      _workerSendPort = message;
+      final startCompleter = _startCompleter;
+      _startCompleter = null;
+      _startFuture = null;
+      if (startCompleter != null && !startCompleter.isCompleted) {
+        startCompleter.complete();
+      }
+      return;
+    }
+
+    if (message is! Map) {
+      return;
+    }
+
+    final requestId = message['requestId'] as int?;
+    if (requestId == null) {
+      return;
+    }
+
+    final completer = _pending.remove(requestId);
+    if (completer == null || completer.isCompleted) {
+      return;
+    }
+
+    final type = message['type'] as String?;
+    switch (type) {
+      case 'result':
+        final rawResults = message['results'] as List<dynamic>? ?? const [];
+        completer.complete(
+          rawResults
+              .cast<Map<dynamic, dynamic>>()
+              .map(
+                (raw) => TextSearchResult(
+                  index: raw['index'] as int,
+                  snippet: raw['snippet'] as String,
+                  address: raw['address'] as String,
+                  query: raw['query'] as String,
+                ),
+              )
+              .toList(growable: false),
+        );
+        break;
+      case 'canceled':
+        completer.complete(const []);
+        break;
+      case 'error':
+        completer.completeError(
+          StateError(message['message'] as String? ?? 'Search worker failed'),
+        );
+        break;
     }
   }
 
-  for (int i = searchStart; i <= searchEnd && i < content.length; i++) {
-    final line = content[i];
-
-    if (line.contains('<h') && !line.startsWith('<h1')) {
-      _updateAddress(address, line);
+  @visibleForTesting
+  Future<void> resetForTesting() async {
+    for (final completer in _pending.values) {
+      if (!completer.isCompleted) {
+        completer.complete(const []);
+      }
     }
-
-    final cleanLine = utils.removeVolwels(utils.stripHtmlIfNeeded(line));
-    if (_containsWholeWord(cleanLine, query)) {
-      results.add(TextSearchResult(
-        index: i,
-        snippet: cleanLine,
-        address:
-            utils.removeVolwels(utils.stripHtmlIfNeeded(address.join(', '))),
-        query: query,
-      ));
-      if (results.length >= _maxSearchResults) break;
-    }
+    _pending.clear();
+    _receivePort?.close();
+    _receivePort = null;
+    _workerSendPort = null;
+    _startFuture = null;
+    _startCompleter = null;
+    _nextRequestId = 0;
+    _isolate?.kill(priority: Isolate.immediate);
+    _isolate = null;
   }
-
-  return results;
 }
 
-/// Performs search within the provided content
+void _searchWorkerMain(SendPort mainSendPort) {
+  final commandPort = ReceivePort();
+  mainSendPort.send(commandPort.sendPort);
+  final runtime = _SearchWorkerRuntime(mainSendPort);
+  commandPort.listen(runtime.onMessage);
+}
+
+class _SearchWorkerRuntime {
+  _SearchWorkerRuntime(this._mainSendPort);
+
+  final SendPort _mainSendPort;
+  Map<String, dynamic>? _queuedRequest;
+  bool _isProcessing = false;
+
+  void onMessage(dynamic message) {
+    if (message is! Map) {
+      return;
+    }
+
+    final type = message['type'];
+    if (type != 'search') {
+      return;
+    }
+
+    _queuedRequest = Map<String, dynamic>.from(message);
+    if (!_isProcessing) {
+      unawaited(_processLoop());
+    }
+  }
+
+  Future<void> _processLoop() async {
+    _isProcessing = true;
+    try {
+      while (_queuedRequest != null) {
+        final request = _queuedRequest!;
+        _queuedRequest = null;
+        final requestId = request['requestId'] as int;
+        final content = (request['content'] as List<dynamic>).cast<String>();
+        final query = request['query'] as String;
+
+        final results = <Map<String, dynamic>>[];
+        final address = <String>[];
+        bool canceled = false;
+
+        for (int i = 0; i < content.length; i++) {
+          final line = content[i];
+
+          if (line.contains('<h') && !line.startsWith('<h1')) {
+            _updateAddress(address, line);
+          }
+
+          final cleanLine = utils.removeVolwels(utils.stripHtmlIfNeeded(line));
+          if (_containsWholeWord(cleanLine, query)) {
+            results.add({
+              'index': i,
+              'snippet': cleanLine,
+              'address':
+                  utils.removeVolwels(utils.stripHtmlIfNeeded(address.join(', '))),
+              'query': query,
+            });
+            if (results.length >= _maxSearchResults) {
+              break;
+            }
+          }
+
+          if ((i + 1) % _searchChunkSize == 0) {
+            await Future<void>.delayed(Duration.zero);
+            if (_queuedRequest != null) {
+              canceled = true;
+              break;
+            }
+          }
+        }
+
+        if (canceled) {
+          _mainSendPort.send({
+            'type': 'canceled',
+            'requestId': requestId,
+          });
+          continue;
+        }
+
+        _mainSendPort.send({
+          'type': 'result',
+          'requestId': requestId,
+          'results': results,
+        });
+      }
+    } catch (error) {
+      _mainSendPort.send({
+        'type': 'error',
+        'message': error.toString(),
+      });
+    } finally {
+      _isProcessing = false;
+    }
+  }
+}
+
 Future<List<TextSearchResult>> searchInContent({
   required List<String> content,
   required String query,
 }) async {
   if (query.isEmpty || content.isEmpty) return [];
 
-  return compute(_searchIsolate, {
-    'content': content,
-    'query': query,
-  });
+  return _SearchWorkerHost.instance.search(
+    content: content,
+    query: query,
+  );
+}
+
+@visibleForTesting
+Future<void> resetSectionSearchWorkerForTesting() {
+  return _SearchWorkerHost.instance.resetForTesting();
 }
