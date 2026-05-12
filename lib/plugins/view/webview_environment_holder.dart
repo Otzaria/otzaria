@@ -36,12 +36,7 @@ class WebViewEnvironmentHolder {
     await Directory(webviewDataFolder).create(recursive: true);
 
     _environment = await WebViewEnvironment.create(
-      settings: WebViewEnvironmentSettings(
-        userDataFolder: webviewDataFolder,
-        onNewBrowserVersionAvailable: null,
-        onBrowserProcessExited: null,
-        onProcessInfosChanged: null,
-      ),
+      settings: WebViewEnvironmentSettings(userDataFolder: webviewDataFolder),
     );
   }
 
@@ -53,10 +48,6 @@ class WebViewEnvironmentHolder {
     final environment = _environment;
     _environment = null;
     if (environment == null) return;
-
-    environment.onNewBrowserVersionAvailable = null;
-    environment.onBrowserProcessExited = null;
-    environment.onProcessInfosChanged = null;
 
     try {
       await environment.dispose();
@@ -71,10 +62,6 @@ class WebViewEnvironmentHolder {
     _environment = null;
 
     if (environment != null) {
-      environment.onNewBrowserVersionAvailable = null;
-      environment.onBrowserProcessExited = null;
-      environment.onProcessInfosChanged = null;
-
       try {
         await environment.dispose();
       } catch (_) {}
