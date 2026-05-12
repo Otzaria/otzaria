@@ -16,6 +16,7 @@ import 'package:otzaria/models/links.dart' as otz_links;
 import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart' as pdf_events;
 import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
+import 'package:otzaria/pdf_book/utils/pdf_spread_layout.dart';
 import 'package:otzaria/pdf_book/view/pdf_page_number_display.dart';
 import 'package:otzaria/pdf_book/view/pdf_commentary_panel.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
@@ -474,6 +475,19 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     return (startLine: startLine, endLine: endLine);
   }
 
+  /// מחזיר את טווח עמודי הספירייד עבור עמוד נתון.
+  /// בתצוגה רגילה — עמוד יחיד. בתצוגת ספר — שני עמודים (למעט עמוד 1 הבודד,
+  /// או עמוד אחרון במסמך עם מספר עמודים זוגי).
+  ({int startPage, int endPageExclusive}) _spreadPageRangeFor(int pageNumber) {
+    final controller = widget.tab.pdfViewerController;
+    final int? totalPages = controller.isReady ? controller.pageCount : null;
+    return pdfSpreadPageRange(
+      pageNumber,
+      bookView: _isBookViewModeActive(),
+      totalPages: totalPages,
+    );
+  }
+
   Future<({int start, int? end})> _resolveTextLineNumberForPage(
     int pageNumber, {
     String? resolvedTitle,
@@ -481,13 +495,14 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     debugPrint(
         '📖 [PDF-DEBUG] _resolveTextLineNumberForPage: page=$pageNumber resolvedTitle="$resolvedTitle"');
     final outline = widget.tab.outline.value ?? const <PdfOutlineNode>[];
+    final range = _spreadPageRangeFor(pageNumber);
     if (outline.isNotEmpty) {
       final textIndex =
-          await pdfToTextPage(widget.tab.book, outline, pageNumber, context);
+          await pdfToTextPage(widget.tab.book, outline, range.startPage, context);
       if (textIndex != null) {
         if (!mounted) return (start: textIndex + 1, end: null);
         final nextIndex = await pdfToTextPage(
-            widget.tab.book, outline, pageNumber + 1, context);
+            widget.tab.book, outline, range.endPageExclusive, context);
         debugPrint(
             '📖 [PDF-DEBUG] pdfToTextPage → raw=$textIndex → start=${textIndex + 1}, end=${nextIndex ?? "null (last page)"}');
         return (start: textIndex + 1, end: nextIndex);
@@ -498,8 +513,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     }
 
     final title = resolvedTitle ??
-        await refFromPageNumber(pageNumber, outline, widget.tab.book.title);
-    debugPrint('📖 [PDF-DEBUG] title for page $pageNumber = "$title"');
+        await refFromPageNumber(range.startPage, outline, widget.tab.book.title);
+    debugPrint('📖 [PDF-DEBUG] title for page ${range.startPage} = "$title"');
     if (widget.tab.pdfHeadings != null && title.isNotEmpty) {
       final lineNumber = widget.tab.pdfHeadings!.getLineNumberForHeading(title);
       debugPrint(
@@ -513,8 +528,29 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     }
 
     debugPrint(
-        '📖 [PDF-DEBUG] fallback: returning pageNumber=$pageNumber as lineNumber');
-    return (start: pageNumber, end: null);
+        '📖 [PDF-DEBUG] fallback: returning pageNumber=${range.startPage} as lineNumber');
+    return (start: range.startPage, end: null);
+  }
+
+  /// מחזיר שני ערכי כותרת לעמוד נתון:
+  /// - [single] משמש כמפתח לחיפוש בכותרות (תמיד עמוד יחיד)
+  /// - [display] משמש להצגה למשתמש (שני עמודי הספירייד בתצוגת ספר, אם הם שונים)
+  Future<({String single, String display})> _resolveTitlesForPage(
+      int pageNumber) async {
+    final outline = widget.tab.outline.value ?? const <PdfOutlineNode>[];
+    final bookTitle = widget.tab.book.title;
+    final range = _spreadPageRangeFor(pageNumber);
+    final firstTitle =
+        await refFromPageNumber(range.startPage, outline, bookTitle);
+    final spans = range.endPageExclusive - range.startPage > 1;
+    if (!spans) {
+      return (single: firstTitle, display: firstTitle);
+    }
+    final secondTitle =
+        await refFromPageNumber(range.startPage + 1, outline, bookTitle);
+    final display = pdfCombineSpreadTitles(firstTitle, secondTitle);
+    final single = firstTitle.isEmpty ? secondTitle : firstTitle;
+    return (single: single, display: display);
   }
 
   ({List<String> commentators, List<otz_links.Link> links})
@@ -959,13 +995,12 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
         // חישוב currentTextLineNumber אחרי טעינת ה-outline
         final targetPage = initialTargetPage;
-        final targetTitle = await refFromPageNumber(
-            targetPage, widget.tab.outline.value ?? [], widget.tab.book.title);
+        final targetTitles = await _resolveTitlesForPage(targetPage);
         if (!mounted) return;
-        widget.tab.currentTitle.value = targetTitle;
+        widget.tab.currentTitle.value = targetTitles.display;
         final initialResolved = await _resolveTextLineNumberForPage(
           targetPage,
-          resolvedTitle: targetTitle,
+          resolvedTitle: targetTitles.single,
         );
         if (!mounted) return;
         widget.tab.currentTextLineNumber = initialResolved.start;
@@ -1180,10 +1215,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     return state is PdfBookLoaded && state.layoutMode == PdfLayoutMode.bookView;
   }
 
-  int _spreadStartPageFor(int pageNumber) {
-    if (pageNumber <= 1) return 1;
-    return pageNumber.isEven ? pageNumber : pageNumber - 1;
-  }
+  int _spreadStartPageFor(int pageNumber) => pdfSpreadStartPage(pageNumber);
 
   Rect? _spreadRectForPageLayout(PdfPageLayout layout, int spreadStartPage) {
     final pageLayouts = layout.pageLayouts;
@@ -2288,16 +2320,12 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       final currentPage = widget.tab.pdfViewerController.isReady
           ? (widget.tab.pdfViewerController.pageNumber ?? widget.tab.pageNumber)
           : widget.tab.pageNumber;
-      final currentTitle = await refFromPageNumber(
-        currentPage,
-        widget.tab.outline.value ?? const <PdfOutlineNode>[],
-        widget.tab.book.title,
-      );
+      final currentTitles = await _resolveTitlesForPage(currentPage);
       if (!mounted) return;
-      widget.tab.currentTitle.value = currentTitle;
+      widget.tab.currentTitle.value = currentTitles.display;
       final resolved = await _resolveTextLineNumberForPage(
         currentPage,
-        resolvedTitle: currentTitle,
+        resolvedTitle: currentTitles.single,
       );
       if (!mounted) return;
       widget.tab.currentTextLineNumber = resolved.start;
@@ -2393,17 +2421,20 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     widget.tab.pageNumber = newPage;
     final token = _lastComputedForPage = newPage;
 
-    widget.tab.currentTitle.value = 'עמוד $newPage';
+    final immediateRange = _spreadPageRangeFor(newPage);
+    widget.tab.currentTitle.value =
+        immediateRange.endPageExclusive - immediateRange.startPage > 1
+            ? 'עמודים ${immediateRange.startPage}-${immediateRange.endPageExclusive - 1}'
+            : 'עמוד $newPage';
 
-    final title = await refFromPageNumber(
-        newPage, widget.tab.outline.value ?? [], widget.tab.book.title);
+    final titles = await _resolveTitlesForPage(newPage);
     if (!mounted) return;
     if (token == _lastComputedForPage) {
-      widget.tab.currentTitle.value = title;
+      widget.tab.currentTitle.value = titles.display;
 
       final resolved = await _resolveTextLineNumberForPage(
         newPage,
-        resolvedTitle: title,
+        resolvedTitle: titles.single,
       );
       if (!mounted) return;
       widget.tab.currentTextLineNumber = resolved.start;
