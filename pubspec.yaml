@@ -86,7 +86,6 @@ dependencies:
   path: ^1.9.1
   http: ^1.6.0
   zstandard: ^1.5.0
-  zstandard_native: ^1.5.0
   ffi: ^2.2.0
   googleapis: ^16.0.0
   googleapis_auth: ^2.3.0
