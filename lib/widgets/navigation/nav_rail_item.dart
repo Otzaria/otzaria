@@ -9,19 +9,9 @@
 //  • AnimatedDefaultTextStyle לאנימציית צבע הטקסט
 //  • תמיכה ב-Tooltip לקיצורי מקלדת
 //
-// **שימוש:**
-// ```dart
-// NavRailItem(
-//   icon: FluentIcons.library_24_regular,
-//   iconFilled: FluentIcons.library_24_filled,
-//   label: 'ספרייה',
-//   isSelected: _currentIndex == 0,
-//   onTap: () => _navigate(0),
-//   tooltip: 'Ctrl+L',
-// )
-// ```
 
 import 'package:flutter/material.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 
 class NavRailItem extends StatelessWidget {
   /// אייקון רגיל (כשלא נבחר)
@@ -81,7 +71,7 @@ class NavRailItem extends StatelessWidget {
         isSelected && iconFilled != null ? iconFilled! : icon,
         key: ValueKey<bool>(isSelected),
         size: 24,
-        color: isSelected ? cs.onSecondaryContainer : cs.onSurfaceVariant,
+        color: NavItemColors.foreground(cs, isSelected),
       ),
     );
 
@@ -111,9 +101,9 @@ class NavRailItem extends StatelessWidget {
                 curve: Curves.easeInOutCubicEmphasized,
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? cs.secondaryContainer
+                      ? NavItemColors.indicator(cs, true)
                       : isTourHighlighted
-                          ? cs.primary.withAlpha((0.08 * 255).round())
+                          ? NavItemColors.hover(cs)
                           : Colors.transparent,
                   borderRadius: BorderRadius.circular(16),
                 ),
@@ -138,11 +128,9 @@ class NavRailItem extends StatelessWidget {
               curve: Curves.easeInOutCubicEmphasized,
               style: TextStyle(
                 fontSize: 11,
-                color: isSelected
-                    ? cs.onSecondaryContainer
-                    : isTourHighlighted
-                        ? cs.primary
-                        : cs.onSurfaceVariant,
+                color: isTourHighlighted
+                    ? cs.primary
+                    : NavItemColors.foreground(cs, isSelected),
                 fontWeight:
                     isTourHighlighted ? FontWeight.bold : FontWeight.normal,
               ),

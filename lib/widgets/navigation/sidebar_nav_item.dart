@@ -29,6 +29,7 @@
 // ```
 
 import 'package:flutter/material.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 
 class SidebarNavItem extends StatelessWidget {
   /// אייקון רגיל (כשלא נבחר) — חובה אם לא מסופק [imageAsset]
@@ -70,8 +71,7 @@ class SidebarNavItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    final iconColor =
-        isSelected ? cs.onSecondaryContainer : cs.onSurfaceVariant;
+    final iconColor = NavItemColors.foreground(cs, isSelected);
 
     // ── בניית ווידג'ט האייקון ──────────────────────────────────────────────
     final Widget iconWidget = imageAsset != null
@@ -95,20 +95,11 @@ class SidebarNavItem extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.symmetric(vertical: verticalPadding),
       child: Material(
-        color: isSelected ? cs.secondaryContainer : Colors.transparent,
+        color: NavItemColors.indicator(cs, isSelected),
         borderRadius: BorderRadius.circular(28),
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(28),
-          overlayColor: WidgetStateProperty.resolveWith((states) {
-            if (states.contains(WidgetState.hovered)) {
-              return cs.primary.withValues(alpha: 0.08);
-            }
-            if (states.contains(WidgetState.pressed)) {
-              return cs.primary.withValues(alpha: 0.12);
-            }
-            return null;
-          }),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             child: Row(
@@ -122,9 +113,7 @@ class SidebarNavItem extends StatelessWidget {
                       fontSize: 14,
                       fontWeight:
                           isSelected ? FontWeight.bold : FontWeight.normal,
-                      color: isSelected
-                          ? cs.onSecondaryContainer
-                          : cs.onSurfaceVariant,
+                      color: NavItemColors.foreground(cs, isSelected),
                     ),
                     child: Text(label),
                   ),
@@ -171,19 +160,16 @@ class TopNavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final iconColor =
-        isSelected ? cs.onSecondaryContainer : cs.onSurfaceVariant;
-    final textColor =
-        isSelected ? cs.onSecondaryContainer : cs.onSurfaceVariant;
+    final iconColor = NavItemColors.foreground(cs, isSelected);
     final animatedTextStyle = TextStyle(
       fontSize: 14,
       fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-      color: textColor,
+      color: iconColor,
     );
     final reservedTextStyle = TextStyle(
       fontSize: 14,
       fontWeight: FontWeight.bold,
-      color: textColor,
+      color: iconColor,
     );
     final textDirection = Directionality.of(context);
     final textPainter = TextPainter(
@@ -218,20 +204,11 @@ class TopNavItem extends StatelessWidget {
     return SizedBox(
       width: width,
       child: Material(
-        color: isSelected ? cs.secondaryContainer : Colors.transparent,
+        color: NavItemColors.indicator(cs, isSelected),
         borderRadius: BorderRadius.circular(10),
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(10),
-          overlayColor: WidgetStateProperty.resolveWith((states) {
-            if (states.contains(WidgetState.hovered)) {
-              return cs.primary.withValues(alpha: 0.08);
-            }
-            if (states.contains(WidgetState.pressed)) {
-              return cs.primary.withValues(alpha: 0.12);
-            }
-            return null;
-          }),
           child: ConstrainedBox(
             constraints: const BoxConstraints(minWidth: 64, minHeight: 36),
             child: Padding(

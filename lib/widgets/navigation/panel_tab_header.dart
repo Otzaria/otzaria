@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 
 /// Header משותף לכל הפנלים עם טאב בר וכפתור סגירה.
 class PanelTabHeader extends StatelessWidget {
@@ -36,10 +37,10 @@ class PanelTabHeader extends StatelessWidget {
               child: TabBar(
                 controller: controller,
                 tabs: tabs,
-                labelColor: colorScheme.primary,
+                labelColor: NavItemColors.foreground(colorScheme, true),
                 unselectedLabelColor:
-                    colorScheme.onSurface.withValues(alpha: 0.6),
-                indicatorColor: colorScheme.primary,
+                    NavItemColors.foreground(colorScheme, false),
+                indicatorColor: NavItemColors.foreground(colorScheme, true),
                 dividerColor: Colors.transparent,
                 splashBorderRadius: BorderRadius.circular(12),
                 onTap: onTap,

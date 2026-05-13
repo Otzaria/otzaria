@@ -38,6 +38,25 @@ class AppTokens {
   static const double dragHandleRegularHitSize = 24;
 }
 
+/// צבעים אחידים לפריטי ניווט (NavRailItem, SidebarNavItem, TopNavItem)
+class NavItemColors {
+  NavItemColors._();
+
+  /// צבע אייקון וטקסט
+  static Color foreground(ColorScheme cs, bool isSelected) =>
+      isSelected ? cs.onSecondaryContainer : cs.onSurfaceVariant;
+
+  /// צבע רקע האינדיקטור
+  static Color indicator(ColorScheme cs, bool isSelected) =>
+      isSelected ? cs.secondaryContainer : Colors.transparent;
+
+  /// צבע hover / tour highlight
+  static Color hover(ColorScheme cs) => cs.primary.withValues(alpha: 0.08);
+
+  /// צבע טקסט tooltip
+  static Color tooltipForeground(ColorScheme cs) => cs.onSurfaceVariant;
+}
+
 /// סגנונות טקסט מובנים לשימוש עקבי בכל האפליקציה
 class AppTextStyles {
   AppTextStyles._();
