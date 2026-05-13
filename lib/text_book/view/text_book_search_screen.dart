@@ -385,7 +385,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
       if (state is TextBookLoaded && state.visibleIndices.isNotEmpty) {
         final currentLine = state.visibleIndices.first;
         final idx = results.indexWhere((r) => r.index >= currentLine);
-        if (idx > 0) closestIndex = idx;
+        if (idx != -1) closestIndex = idx;
       }
     }
 
@@ -495,6 +495,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
 
   @override
   void dispose() {
+    searchTextController.dispose();
     super.dispose();
   }
 

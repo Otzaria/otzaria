@@ -209,22 +209,22 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
         orElse: () => pages.first,
       );
 
-      // כל דף = 1 כותרת + N תוצאות → חשב אינדקס ויזואלי
+      // חישוב אינדקס ויזואלי במעבר אחד — O(N+M)
+      final totalItems = pages.length + _searchResults.length;
+      if (totalItems <= 0) return;
+
       int visualIdx = 0;
-      int totalItems = 0;
-      for (final page in pages) {
-        final count =
-            _searchResults.where((r) => _getPdfPageNumber(r) == page).length;
-        totalItems += 1 + count;
-      }
+      int resultIdx = 0;
       for (final page in pages) {
         if (page == targetPage) break;
-        final count =
-            _searchResults.where((r) => _getPdfPageNumber(r) == page).length;
-        visualIdx += 1 + count;
+        visualIdx++; // כותרת הדף
+        while (resultIdx < _searchResults.length &&
+            _getPdfPageNumber(_searchResults[resultIdx]) == page) {
+          visualIdx++;
+          resultIdx++;
+        }
       }
 
-      if (totalItems <= 0) return;
       final fraction = visualIdx / totalItems;
       scrollController.jumpTo(
         (fraction * maxExtent).clamp(0.0, maxExtent),
