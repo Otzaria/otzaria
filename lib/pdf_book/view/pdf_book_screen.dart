@@ -2834,15 +2834,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   Widget _buildLeftPaneContent() {
     return Column(
       children: [
-        Container(
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: Theme.of(context).dividerColor,
-                width: 1,
-              ),
-            ),
-          ),
+        SizedBox(
+          height: AppTokens.panelTabHeight,
           child: Row(
             children: [
               Expanded(
@@ -2868,7 +2861,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                       Theme.of(context).colorScheme, false),
                   indicatorColor: NavItemColors.foreground(
                       Theme.of(context).colorScheme, true),
-                  dividerColor: Colors.transparent,
                   splashBorderRadius: BorderRadius.circular(AppTokens.radiusMD),
                 ),
               ),

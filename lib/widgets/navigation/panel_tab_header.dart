@@ -3,29 +3,33 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 
 /// טאב סטנדרטי לשימוש בכל פנלי האפליקציה.
-/// כל ערכי הגודל והמרווחים מוגדרים כאן בלבד.
+/// כל ערכי הגודל והמרווחים מוגדרים ב-AppTokens.
+/// כאשר [label] הוא null — מוצג אייקון בלבד (מצב compact).
 class PanelTab extends StatelessWidget {
-  static const double _iconSize = 16;
-  static const double _fontSize = 11;
-  static const double _tabHeight = 44;
-  static const EdgeInsets _iconMargin = EdgeInsets.only(bottom: 1);
-
   final IconData icon;
-  final String label;
+  final String? label;
 
   const PanelTab({
     super.key,
     required this.icon,
-    required this.label,
+    this.label,
   });
 
   @override
   Widget build(BuildContext context) {
+    final lbl = label;
+    if (lbl == null) {
+      return Tab(
+        icon: Icon(icon, size: AppTokens.panelTabIconSize),
+        height: AppTokens.panelTabHeight,
+      );
+    }
     return Tab(
-      icon: Icon(icon, size: _iconSize),
-      iconMargin: _iconMargin,
-      height: _tabHeight,
-      child: Text(label, style: const TextStyle(fontSize: _fontSize)),
+      icon: Icon(icon, size: AppTokens.panelTabIconSize),
+      iconMargin: AppTokens.panelTabIconMargin,
+      height: AppTokens.panelTabHeight,
+      child: Text(lbl,
+          style: const TextStyle(fontSize: AppTokens.panelTabFontSize)),
     );
   }
 }
@@ -49,40 +53,29 @@ class PanelTabHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return SizedBox(
-      height: 60,
-      child: Container(
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: Theme.of(context).dividerColor,
-              width: 1,
+      height: AppTokens.panelTabHeight,
+      child: Row(
+        children: [
+          Expanded(
+            child: TabBar(
+              controller: controller,
+              tabs: tabs,
+              labelColor: NavItemColors.foreground(colorScheme, true),
+              unselectedLabelColor:
+                  NavItemColors.foreground(colorScheme, false),
+              indicatorColor: NavItemColors.foreground(colorScheme, true),
+              splashBorderRadius: BorderRadius.circular(AppTokens.radiusMD),
+              onTap: onTap,
             ),
           ),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: TabBar(
-                controller: controller,
-                tabs: tabs,
-                labelColor: NavItemColors.foreground(colorScheme, true),
-                unselectedLabelColor:
-                    NavItemColors.foreground(colorScheme, false),
-                indicatorColor: NavItemColors.foreground(colorScheme, true),
-                dividerColor: Colors.transparent,
-                splashBorderRadius: BorderRadius.circular(AppTokens.radiusMD),
-                onTap: onTap,
-              ),
-            ),
-            IconButton(
-              iconSize: 18,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-              icon: const Icon(FluentIcons.dismiss_24_regular),
-              onPressed: onClose,
-            ),
-          ],
-        ),
+          IconButton(
+            iconSize: 18,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+            icon: const Icon(FluentIcons.dismiss_24_regular),
+            onPressed: onClose,
+          ),
+        ],
       ),
     );
   }

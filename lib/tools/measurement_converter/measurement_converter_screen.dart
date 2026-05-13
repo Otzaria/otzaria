@@ -444,7 +444,6 @@ class _MeasurementConverterScreenState
 
   @override
   Widget build(BuildContext context) {
-    final bgColor = AppSurfaces.panelBackground(context);
     final cs = Theme.of(context).colorScheme;
     final showOpinion = _shouldShowOpinionSelector();
     final hasResult = _resultController.text.isNotEmpty;
@@ -745,7 +744,7 @@ class _MeasurementConverterScreenState
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final isWide = constraints.maxWidth >= 700;
-                  return _buildAdaptiveContent(bgColor, isWide: isWide);
+                  return _buildAdaptiveContent(isWide: isWide);
                 },
               ),
             ),
@@ -830,7 +829,7 @@ class _MeasurementConverterScreenState
   //  אדפטיבי: AdaptiveSidePane
   // ════════════════════════════════════════════════════════════════════════════
 
-  Widget _buildAdaptiveContent(Color bgColor, {required bool isWide}) {
+  Widget _buildAdaptiveContent({required bool isWide}) {
     return AdaptiveSidePane(
       isOpen: isWide ? _sidebarVisible : _narrowShowCategories,
       alignment:
@@ -883,18 +882,15 @@ class _MeasurementConverterScreenState
               ),
             ),
       paneContent: _buildCategoriesPane(
-        bgColor,
         closeOnSelect: !isWide,
       ),
     );
   }
 
-  Widget _buildCategoriesPane(
-    Color bgColor, {
+  Widget _buildCategoriesPane({
     required bool closeOnSelect,
   }) {
     return Container(
-      color: AppSurfaces.solidPanelBackground(context),
       padding: const EdgeInsets.symmetric(
         vertical: AppTokens.spaceMD,
         horizontal: AppTokens.spaceSM,
@@ -1155,9 +1151,8 @@ class _MeasurementConverterScreenState
           color: isSelected ? cs.secondaryContainer : cs.surface,
           borderRadius: BorderRadius.circular(AppTokens.radiusSM),
           border: Border.all(
-            color: isSelected
-                ? cs.secondary
-                : cs.outline.withValues(alpha: 0.25),
+            color:
+                isSelected ? cs.secondary : cs.outline.withValues(alpha: 0.25),
             width: isSelected ? 1.5 : 1.0,
           ),
         ),

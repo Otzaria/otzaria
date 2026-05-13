@@ -2346,79 +2346,67 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     return Column(
       children: [
         SizedBox(
-          height: 44,
-          child: Container(
-            decoration: BoxDecoration(
-              border: Border(
-                bottom: BorderSide(
-                  color: Theme.of(context).dividerColor,
-                  width: 1,
+          height: AppTokens.panelTabHeight,
+          child: Row(
+            children: [
+              Expanded(
+                child: TabBar(
+                  controller: tabController,
+                  tabs: [
+                    const PanelTab(
+                      icon: FluentIcons.navigation_24_regular,
+                      label: 'ניווט',
+                    ),
+                    if (_hasAltTitles)
+                      const PanelTab(
+                        icon: FluentIcons.list_24_regular,
+                        label: 'כותרות',
+                      ),
+                    const PanelTab(
+                      icon: FluentIcons.search_24_regular,
+                      label: 'חיפוש',
+                    ),
+                  ],
+                  labelColor: NavItemColors.foreground(
+                      Theme.of(context).colorScheme, true),
+                  unselectedLabelColor: NavItemColors.foreground(
+                      Theme.of(context).colorScheme, false),
+                  indicatorColor: NavItemColors.foreground(
+                      Theme.of(context).colorScheme, true),
+                  splashBorderRadius: BorderRadius.circular(AppTokens.radiusMD),
                 ),
               ),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TabBar(
-                    controller: tabController,
-                    tabs: [
-                      const PanelTab(
-                        icon: FluentIcons.navigation_24_regular,
-                        label: 'ניווט',
-                      ),
-                      if (_hasAltTitles)
-                        const PanelTab(
-                          icon: FluentIcons.list_24_regular,
-                          label: 'כותרות',
-                        ),
-                      const PanelTab(
-                        icon: FluentIcons.search_24_regular,
-                        label: 'חיפוש',
-                      ),
-                    ],
-                    labelColor: NavItemColors.foreground(
-                        Theme.of(context).colorScheme, true),
-                    unselectedLabelColor: NavItemColors.foreground(
-                        Theme.of(context).colorScheme, false),
-                    indicatorColor: NavItemColors.foreground(
-                        Theme.of(context).colorScheme, true),
-                    dividerColor: Colors.transparent,
-                    splashBorderRadius: BorderRadius.circular(AppTokens.radiusMD),
-                  ),
-                ),
-                if (MediaQuery.of(context).size.width >= 600)
-                  IconButton(
-                    onPressed:
-                        (Settings.getValue<bool>('key-pin-sidebar') ?? false)
-                            ? null
-                            : () => context.read<TextBookBloc>().add(
-                                  TogglePinLeftPane(!state.pinLeftPane),
-                                ),
-                    icon: AnimatedRotation(
-                      turns: (state.pinLeftPane ||
-                              (Settings.getValue<bool>('key-pin-sidebar') ??
-                                  false))
-                          ? -0.125
-                          : 0.0,
-                      duration: const Duration(milliseconds: 200),
-                      child: Icon(
-                        (state.pinLeftPane ||
-                                (Settings.getValue<bool>('key-pin-sidebar') ??
-                                    false))
-                            ? FluentIcons.pin_24_filled
-                            : FluentIcons.pin_24_regular,
-                      ),
-                    ),
-                    color: (state.pinLeftPane ||
+              if (MediaQuery.of(context).size.width >= 600)
+                IconButton(
+                  onPressed:
+                      (Settings.getValue<bool>('key-pin-sidebar') ?? false)
+                          ? null
+                          : () => context.read<TextBookBloc>().add(
+                                TogglePinLeftPane(!state.pinLeftPane),
+                              ),
+                  icon: AnimatedRotation(
+                    turns: (state.pinLeftPane ||
                             (Settings.getValue<bool>('key-pin-sidebar') ??
                                 false))
-                        ? Theme.of(context).colorScheme.primary
-                        : null,
-                    isSelected: state.pinLeftPane ||
-                        (Settings.getValue<bool>('key-pin-sidebar') ?? false),
+                        ? -0.125
+                        : 0.0,
+                    duration: const Duration(milliseconds: 200),
+                    child: Icon(
+                      (state.pinLeftPane ||
+                              (Settings.getValue<bool>('key-pin-sidebar') ??
+                                  false))
+                          ? FluentIcons.pin_24_filled
+                          : FluentIcons.pin_24_regular,
+                    ),
                   ),
-              ],
-            ),
+                  color: (state.pinLeftPane ||
+                          (Settings.getValue<bool>('key-pin-sidebar') ?? false))
+                      ? Theme.of(context).colorScheme.primary
+                      : null,
+                  isSelected: state.pinLeftPane ||
+                      (Settings.getValue<bool>('key-pin-sidebar') ?? false),
+                ),
+            ],
           ),
         ),
         Expanded(

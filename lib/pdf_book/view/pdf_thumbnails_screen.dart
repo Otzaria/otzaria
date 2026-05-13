@@ -85,77 +85,71 @@ class _ThumbnailsViewState extends State<ThumbnailsView>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return Container(
-      color: Theme.of(context)
-          .colorScheme
-          .surface, // צבע הרקע בכרטיסיית 'דפים' בתפריט הצידי
-      child: widget.documentRef == null
-          ? null
-          : PdfDocumentViewBuilder(
-              documentRef: widget.documentRef!,
-              builder: (context, document) =>
-                  NotificationListener<ScrollNotification>(
-                onNotification: (notification) {
-                  if (notification is ScrollStartNotification &&
-                      notification.dragDetails != null) {
-                    setState(() {
-                      _isManuallyScrolling = true;
-                    });
-                  } else if (notification is ScrollEndNotification) {
-                    setState(() {
-                      _isManuallyScrolling = false;
-                    });
-                  }
-                  return false;
-                },
-                child: ListView.builder(
-                  key: const PageStorageKey('pdfThumbnails'),
-                  controller: _scrollController,
-                  itemCount: document?.pages.length ?? 0,
-                  itemBuilder: (context, index) {
-                    final isSelected = widget.controller != null &&
-                        widget.controller!.isReady &&
-                        widget.controller!.pageNumber == index + 1;
-                    return Container(
-                      margin: const EdgeInsets.all(8),
-                      height: 250,
-                      decoration: isSelected
-                          ? BoxDecoration(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .secondaryContainer,
-                              border: Border.all(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .outlineVariant,
-                              ),
-                              borderRadius: BorderRadius.circular(4),
-                            )
-                          : null,
-                      child: Column(
-                        children: [
-                          SizedBox(
-                            height: 220,
-                            child: InkWell(
-                              onTap: () => widget.controller?.goToPage(
-                                pageNumber: index + 1,
-                                anchor: PdfPageAnchor.top,
-                              ),
-                              child: PdfPageView(
-                                document: document,
-                                pageNumber: index + 1,
-                                alignment: Alignment.center,
-                              ),
+    return widget.documentRef == null
+        ? const SizedBox.shrink()
+        : PdfDocumentViewBuilder(
+            documentRef: widget.documentRef!,
+            builder: (context, document) =>
+                NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                if (notification is ScrollStartNotification &&
+                    notification.dragDetails != null) {
+                  setState(() {
+                    _isManuallyScrolling = true;
+                  });
+                } else if (notification is ScrollEndNotification) {
+                  setState(() {
+                    _isManuallyScrolling = false;
+                  });
+                }
+                return false;
+              },
+              child: ListView.builder(
+                key: const PageStorageKey('pdfThumbnails'),
+                controller: _scrollController,
+                itemCount: document?.pages.length ?? 0,
+                itemBuilder: (context, index) {
+                  final isSelected = widget.controller != null &&
+                      widget.controller!.isReady &&
+                      widget.controller!.pageNumber == index + 1;
+                  return Container(
+                    margin: const EdgeInsets.all(8),
+                    height: 250,
+                    decoration: isSelected
+                        ? BoxDecoration(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .secondaryContainer,
+                            border: Border.all(
+                              color:
+                                  Theme.of(context).colorScheme.outlineVariant,
+                            ),
+                            borderRadius: BorderRadius.circular(4),
+                          )
+                        : null,
+                    child: Column(
+                      children: [
+                        SizedBox(
+                          height: 220,
+                          child: InkWell(
+                            onTap: () => widget.controller?.goToPage(
+                              pageNumber: index + 1,
+                              anchor: PdfPageAnchor.top,
+                            ),
+                            child: PdfPageView(
+                              document: document,
+                              pageNumber: index + 1,
+                              alignment: Alignment.center,
                             ),
                           ),
-                          Text('${index + 1}'),
-                        ],
-                      ),
-                    );
-                  },
-                ),
+                        ),
+                        Text('${index + 1}'),
+                      ],
+                    ),
+                  );
+                },
               ),
             ),
-    );
+          );
   }
 }

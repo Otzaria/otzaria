@@ -92,15 +92,6 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
     super.dispose();
   }
 
-  Widget _tabLabel(String text) => Text(
-        text,
-        style: const TextStyle(fontSize: 12),
-        maxLines: 1,
-        softWrap: false,
-        overflow: TextOverflow.ellipsis,
-        textAlign: TextAlign.center,
-      );
-
   @override
   Widget build(BuildContext context) {
     return TextBookStateBuilder(
@@ -112,44 +103,32 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
               builder: (context, constraints) {
                 // מתחת לסף זה - הצג אייקונים בלבד (ללא טקסט)
                 final isCompact = constraints.maxWidth < 270;
-                final firstTabIcon = Icon(
-                  widget.showSplitView
-                      ? FluentIcons.book_24_regular
-                      : FluentIcons.settings_24_regular,
-                  size: 18,
-                );
+                final firstTabIconData = widget.showSplitView
+                    ? FluentIcons.book_24_regular
+                    : FluentIcons.settings_24_regular;
                 return PanelTabHeader(
                   controller: _tabController,
                   onClose: widget.onClosePane,
                   tabs: isCompact
                       ? [
-                          Tab(icon: firstTabIcon),
-                          const Tab(
-                            icon: Icon(FluentIcons.link_24_regular, size: 18),
-                          ),
-                          const Tab(
-                            icon: Icon(FluentIcons.note_24_regular, size: 18),
-                          ),
+                          PanelTab(icon: firstTabIconData),
+                          const PanelTab(icon: FluentIcons.link_24_regular),
+                          const PanelTab(icon: FluentIcons.note_24_regular),
                         ]
                       : [
-                          Tab(
-                            icon: firstTabIcon,
-                            iconMargin: const EdgeInsets.only(bottom: 2),
-                            child: _tabLabel(
-                              widget.showSplitView ? 'מפרשים' : 'סינון מפרשים',
-                            ),
+                          PanelTab(
+                            icon: firstTabIconData,
+                            label: widget.showSplitView
+                                ? 'מפרשים'
+                                : 'סינון מפרשים',
                           ),
-                          Tab(
-                            icon: const Icon(FluentIcons.link_24_regular,
-                                size: 18),
-                            iconMargin: const EdgeInsets.only(bottom: 2),
-                            child: _tabLabel('קישורים'),
+                          const PanelTab(
+                            icon: FluentIcons.link_24_regular,
+                            label: 'קישורים',
                           ),
-                          Tab(
-                            icon: const Icon(FluentIcons.note_24_regular,
-                                size: 18),
-                            iconMargin: const EdgeInsets.only(bottom: 2),
-                            child: _tabLabel('הערות'),
+                          const PanelTab(
+                            icon: FluentIcons.note_24_regular,
+                            label: 'הערות',
                           ),
                         ],
                 );

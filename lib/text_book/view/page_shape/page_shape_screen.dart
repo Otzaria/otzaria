@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
@@ -35,6 +34,7 @@ import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/buttons/action_buttons.dart';
 import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart';
 
@@ -1028,22 +1028,26 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                             SizedBox(
                               width: _leftSidebarWidth ??
                                   MediaQuery.of(context).size.width * 0.22,
-                              child: LinksNotesSidebar(
-                                bookId: state.book.title,
-                                categoryId: state.book.categoryId,
-                                openBookCallback: widget.openBookCallback,
-                                fontSize: state.fontSize,
-                                selectionSyncController:
-                                    _selectionSyncController,
-                                onNavigateToLine: (lineNumber) =>
-                                    _navigateToLine(state, lineNumber),
-                                onClosePane: _toggleLeftSidebar,
-                                initialTabIndex: _leftSidebarTabIndex,
-                                onTabChanged: (index) {
-                                  setState(() {
-                                    _leftSidebarTabIndex = index;
-                                  });
-                                },
+                              child: Material(
+                                color:
+                                    AppSurfaces.solidPanelBackground(context),
+                                child: LinksNotesSidebar(
+                                  bookId: state.book.title,
+                                  categoryId: state.book.categoryId,
+                                  openBookCallback: widget.openBookCallback,
+                                  fontSize: state.fontSize,
+                                  selectionSyncController:
+                                      _selectionSyncController,
+                                  onNavigateToLine: (lineNumber) =>
+                                      _navigateToLine(state, lineNumber),
+                                  onClosePane: _toggleLeftSidebar,
+                                  initialTabIndex: _leftSidebarTabIndex,
+                                  onTabChanged: (index) {
+                                    setState(() {
+                                      _leftSidebarTabIndex = index;
+                                    });
+                                  },
+                                ),
                               ),
                             ),
                           ],

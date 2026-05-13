@@ -33,6 +33,12 @@ class AppTokens {
   static const Duration animPanelSlide = Duration(milliseconds: 300);
   static const Duration animSlow = Duration(milliseconds: 400);
 
+  // ── Panel Tab Header ——————————————————————————
+  static const double panelTabHeight = 44;
+  static const double panelTabIconSize = 16;
+  static const double panelTabFontSize = 11;
+  static const EdgeInsets panelTabIconMargin = EdgeInsets.only(bottom: 1);
+
   // ── Drag Handle ——————————————————————————————
   static const double dragHandleCompactHitSize = 18;
   static const double dragHandleRegularHitSize = 24;

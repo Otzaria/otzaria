@@ -72,54 +72,41 @@ class _LinksNotesSidebarState extends State<LinksNotesSidebar>
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Material(
-      color: colorScheme.surface,
-      child: Column(
-        children: [
-          PanelTabHeader(
+    return Column(
+      children: [
+        PanelTabHeader(
+          controller: _tabController,
+          onClose: widget.onClosePane,
+          tabs: const [
+            PanelTab(
+              icon: FluentIcons.link_24_regular,
+              label: 'קישורים',
+            ),
+            PanelTab(
+              icon: FluentIcons.note_24_regular,
+              label: 'הערות',
+            ),
+          ],
+        ),
+        Expanded(
+          child: TabBarView(
             controller: _tabController,
-            onClose: widget.onClosePane,
-            tabs: const [
-              Tab(
-                icon: Icon(FluentIcons.link_24_regular, size: 18),
-                iconMargin: EdgeInsets.only(bottom: 2),
-                height: 48,
-                child: Text('קישורים',
-                    style: TextStyle(fontSize: 12),
-                    textDirection: TextDirection.rtl),
+            children: [
+              SelectedLineLinksView(
+                openBookCallback: widget.openBookCallback,
+                fontSize: widget.fontSize,
+                selectionSyncController: widget.selectionSyncController,
+                showVisibleLinksIfNoSelection: widget.initialTabIndex == 0,
               ),
-              Tab(
-                icon: Icon(FluentIcons.note_24_regular, size: 18),
-                iconMargin: EdgeInsets.only(bottom: 2),
-                height: 48,
-                child: Text('הערות',
-                    style: TextStyle(fontSize: 12),
-                    textDirection: TextDirection.rtl),
+              PersonalNotesSidebar(
+                bookId: widget.bookId,
+                categoryId: widget.categoryId,
+                onNavigateToLine: widget.onNavigateToLine,
               ),
             ],
           ),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                SelectedLineLinksView(
-                  openBookCallback: widget.openBookCallback,
-                  fontSize: widget.fontSize,
-                  selectionSyncController: widget.selectionSyncController,
-                  showVisibleLinksIfNoSelection: widget.initialTabIndex == 0,
-                ),
-                PersonalNotesSidebar(
-                  bookId: widget.bookId,
-                  categoryId: widget.categoryId,
-                  onNavigateToLine: widget.onNavigateToLine,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
