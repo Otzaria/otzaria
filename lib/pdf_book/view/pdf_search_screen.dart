@@ -20,6 +20,7 @@ import 'package:otzaria/text_book/utils/search_query_sync.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/navigation/search_pane_base.dart';
 import 'package:pdfrx/pdfrx.dart';
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:search_engine/search_engine.dart';
 
 class PdfBookSearchView extends StatefulWidget {
@@ -70,7 +71,7 @@ class PdfBookSearchView extends StatefulWidget {
 
 class _PdfBookSearchViewState extends State<PdfBookSearchView> {
   final SearchRepository _searchRepository = SearchRepository();
-  final ScrollController scrollController = ScrollController();
+  final ItemScrollController _resultsScrollController = ItemScrollController();
 
   bool _isSearching = false;
   List<SearchResult> _searchResults = [];
@@ -188,15 +189,12 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
 
   void _scheduleScrollToCurrentPage() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !scrollController.hasClients) return;
-      final maxExtent = scrollController.position.maxScrollExtent;
-      if (maxExtent <= 0) return;
+      if (!mounted) return;
 
       final pdfState = context.read<PdfBookBloc>().state;
       if (pdfState is! PdfBookLoaded) return;
       final currentPage = pdfState.currentPageNumber;
 
-      // בנה רשימת דפים ממוינת מהתוצאות
       final pages = _searchResults
           .map((r) => _getPdfPageNumber(r))
           .toSet()
@@ -209,10 +207,7 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
         orElse: () => pages.first,
       );
 
-      // חישוב אינדקס ויזואלי במעבר אחד — O(N+M)
-      final totalItems = pages.length + _searchResults.length;
-      if (totalItems <= 0) return;
-
+      // חישוב אינדקס ויזואלי — O(N+M)
       int visualIdx = 0;
       int resultIdx = 0;
       for (final page in pages) {
@@ -225,16 +220,12 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
         }
       }
 
-      final fraction = visualIdx / totalItems;
-      scrollController.jumpTo(
-        (fraction * maxExtent).clamp(0.0, maxExtent),
-      );
+      _resultsScrollController.jumpTo(index: visualIdx, alignment: 0.0);
     });
   }
 
   @override
   void dispose() {
-    scrollController.dispose();
     widget.textSearcher.removeListener(_onTextSearcherMatchesChanged);
     widget.searchController.removeListener(_searchTextUpdated);
     _pdfHighlightDebounce?.cancel();
@@ -357,9 +348,9 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
       resultCountString: _searchResults.isNotEmpty
           ? 'נמצאו ${_searchResults.length} תוצאות'
           : null,
-      resultsWidget: ListView.builder(
+      resultsWidget: ScrollablePositionedList.builder(
         key: Key(widget.searchController.text),
-        controller: scrollController,
+        itemScrollController: _resultsScrollController,
         padding: const EdgeInsets.symmetric(vertical: 8),
         itemCount: items.length,
         itemBuilder: (context, index) {
