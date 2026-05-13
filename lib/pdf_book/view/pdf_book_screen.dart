@@ -3,6 +3,7 @@ import 'dart:math';
 import 'dart:async';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:flutter/rendering.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
@@ -2867,12 +2868,12 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                       child: Text('דפים', style: TextStyle(fontSize: 11)),
                     ),
                   ],
-                  labelColor: Theme.of(context).colorScheme.primary,
-                  unselectedLabelColor: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.6),
-                  indicatorColor: Theme.of(context).colorScheme.primary,
+                  labelColor: NavItemColors.foreground(
+                      Theme.of(context).colorScheme, true),
+                  unselectedLabelColor: NavItemColors.foreground(
+                      Theme.of(context).colorScheme, false),
+                  indicatorColor: NavItemColors.foreground(
+                      Theme.of(context).colorScheme, true),
                   dividerColor: Colors.transparent,
                   splashBorderRadius: BorderRadius.circular(12),
                 ),
