@@ -23,9 +23,10 @@ jobs:
         shell: bash
         run: |
           sudo apt update -y
+          sudo apt upgrade -y
           sudo apt install -y \
             build-essential ninja-build clang cmake git \
-            libgtk-3-dev liblzma-dev curl xz-utils zstd \
+            libgtk-3-dev liblzma-dev libzstd-dev curl xz-utils zstd \
             libcurl4-openssl-dev \
             libwpewebkit-1.0-dev \
             libwpebackend-fdo-1.0-dev \
@@ -66,15 +67,16 @@ jobs:
           tar -czf otzaria-linux-app.tar.gz -C build/linux/x64/release/bundle .
 
       - name: Prepare full bundle
+        if: false
         shell: bash
         run: |
           LIBRARY=library_db
           BUNDLE=otzaria-linux-full
 
           mkdir -p $LIBRARY
-          curl -L --fail https://github.com/Otzaria/SeforimLibrary/releases/latest/download/seforim.db.zst -o $LIBRARY/seforim.db.zst
-          curl -L --fail https://github.com/Otzaria/otzar-HB_catalog/releases/latest/download/otzar-HB_catalog.db.zst -o $LIBRARY/otzar-HB_catalog.db.zst
-          curl -L --fail https://github.com/Otzaria/otzaria-library/releases/latest/download/talmud_bavli_latest.tar.zst -o $LIBRARY/talmud_bavli_latest.tar.zst
+          curl -LSsf https://github.com/Otzaria/SeforimLibrary/releases/latest/download/seforim.db.zst -o $LIBRARY/seforim.db.zst
+          curl -LSsf https://github.com/Otzaria/otzar-HB_catalog/releases/latest/download/otzar-HB_catalog.db.zst -o $LIBRARY/otzar-HB_catalog.db.zst
+          curl -LSsf https://github.com/Otzaria/otzaria-library/releases/latest/download/talmud_bavli_latest.tar.zst -o $LIBRARY/talmud_bavli_latest.tar.zst
 
           rm -rf $BUNDLE
           mkdir -p $BUNDLE $BUNDLE/Otzaria
@@ -86,7 +88,7 @@ jobs:
 
           tar -czf otzaria-linux-full.tar.gz -C $BUNDLE .
 
-      - name: Upload Linux DEB package
+      - name: Upload linux deb package
         if: steps.find_packages.outputs.deb_file != ''
         uses: actions/upload-artifact@v7
         with:
