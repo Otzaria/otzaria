@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/navigation/panel_tab_header.dart';
 import 'package:flutter/rendering.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
@@ -2361,24 +2362,18 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                   child: TabBar(
                     controller: tabController,
                     tabs: [
-                      const Tab(
-                        icon: Icon(FluentIcons.navigation_24_regular, size: 16),
-                        iconMargin: EdgeInsets.only(bottom: 1),
-                        height: 44,
-                        child: Text('ניווט', style: TextStyle(fontSize: 11)),
+                      const PanelTab(
+                        icon: FluentIcons.navigation_24_regular,
+                        label: 'ניווט',
                       ),
                       if (_hasAltTitles)
-                        const Tab(
-                          icon: Icon(FluentIcons.list_24_regular, size: 16),
-                          iconMargin: EdgeInsets.only(bottom: 1),
-                          height: 44,
-                          child: Text('כותרות', style: TextStyle(fontSize: 11)),
+                        const PanelTab(
+                          icon: FluentIcons.list_24_regular,
+                          label: 'כותרות',
                         ),
-                      const Tab(
-                        icon: Icon(FluentIcons.search_24_regular, size: 16),
-                        iconMargin: EdgeInsets.only(bottom: 1),
-                        height: 44,
-                        child: Text('חיפוש', style: TextStyle(fontSize: 11)),
+                      const PanelTab(
+                        icon: FluentIcons.search_24_regular,
+                        label: 'חיפוש',
                       ),
                     ],
                     labelColor: NavItemColors.foreground(
@@ -2388,7 +2383,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                     indicatorColor: NavItemColors.foreground(
                         Theme.of(context).colorScheme, true),
                     dividerColor: Colors.transparent,
-                    splashBorderRadius: BorderRadius.circular(12),
+                    splashBorderRadius: BorderRadius.circular(AppTokens.radiusMD),
                   ),
                 ),
                 if (MediaQuery.of(context).size.width >= 600)
