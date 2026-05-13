@@ -91,14 +91,13 @@ class AppThemeData {
     Color darkSeedColor, {
     required bool compactMenuMode,
   }) {
-    final cs = ColorScheme.dark(
+    final cs = ColorScheme.fromSeed(
+      seedColor: darkSeedColor,
+      brightness: Brightness.dark,
+    ).copyWith(
       surface: AppColors.darkScaffold,
       surfaceContainer: AppColors.darkCard,
       onSurface: AppColors.darkOnSurface,
-      primary: darkSeedColor,
-      onPrimary: Colors.white,
-      secondary: darkSeedColor.withValues(alpha: 0.7),
-      onSecondary: Colors.white,
       outline: AppColors.darkOutline,
     );
     final compactMenus = _usesCompactMenus(compactMenuMode);
