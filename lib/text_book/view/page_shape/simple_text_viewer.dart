@@ -1294,9 +1294,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     final isSelected = widget.isMainText && state.selectedIndex == index;
     final isHighlighted = widget.isMainText && state.highlightedLine == index;
     // permanentHighlightLine מדגיש רקע רק כאשר אין highlightText (כלומר ?mark בלבד)
-    final isPermanentHighlight = widget.isMainText &&
-        state.permanentHighlightLine == index &&
-        state.highlightText.isEmpty;
+    final isPermanentHighlight = widget.isMainText && state.isPermanentHighlight(index);
 
     // בדיקה חדשה - האם השורה מודגשת כפרשן קשור (מקומי)
     final isCommentaryHighlighted = !widget.isMainText &&
@@ -1413,10 +1411,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
               // הדגשת טקסט חיפוש רק בטקסט המרכזי
               // highlightText מוגבל לשורה הספציפית בלבד (permanentHighlightLine)
               final searchText = widget.isMainText
-                  ? ((state.highlightText.isNotEmpty &&
-                          state.permanentHighlightLine == index)
-                      ? state.highlightText
-                      : state.searchText)
+                  ? state.getEffectiveSearchText(index)
                   : '';
 
               final textWidget = FutureBuilder<bool>(
@@ -1433,8 +1428,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                       replaceHolyNames: settingsState.replaceHolyNames,
                       searchText: searchText,
                       highlightYellowBackground: widget.isMainText &&
-                          state.highlightText.isNotEmpty &&
-                          state.permanentHighlightLine == index,
+                          state.isHighlightYellowBackground(index),
                       searchOptions:
                           widget.isMainText ? state.searchOptions : const {},
                       alternativeWords:

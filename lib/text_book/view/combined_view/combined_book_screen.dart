@@ -1144,8 +1144,7 @@ class _CombinedViewState extends State<CombinedView> {
     final isSelected = state.selectedIndex == index;
     final isHighlighted = state.highlightedLine == index;
     // permanentHighlightLine מדגיש רקע רק כאשר אין highlightText (כלומר ?mark בלבד)
-    final isPermanentHighlight = state.permanentHighlightLine == index &&
-        state.highlightText.isEmpty;
+    final isPermanentHighlight = state.isPermanentHighlight(index);
     final notesForLine = noteMap[index + 1] ?? const <PersonalNote>[];
 
     final theme = Theme.of(context);
@@ -1300,12 +1299,8 @@ class _CombinedViewState extends State<CombinedView> {
                             removeTeamim: !settingsState.showTeamim,
                             replaceHolyNames: settingsState.replaceHolyNames,
                             // highlightText מוגבל לשורה הספציפית בלבד
-                            searchText: (state.highlightText.isNotEmpty &&
-                                    state.permanentHighlightLine == index)
-                                ? state.highlightText
-                                : state.searchText,
-                            highlightYellowBackground: state.highlightText.isNotEmpty &&
-                                state.permanentHighlightLine == index,
+                            searchText: state.getEffectiveSearchText(index),
+                            highlightYellowBackground: state.isHighlightYellowBackground(index),
                             searchOptions: state.searchOptions,
                             alternativeWords: state.alternativeWords,
                             spacingValues: state.spacingValues,

@@ -153,15 +153,16 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
               newTab.permanentHighlightLine != null ||
               newTab.pinpointHighlight != null)) {
         final existingTab = state.tabs[matchingIndex];
-        final textTab = existingTab is TextBookTab
-            ? existingTab
-            : (existingTab is CombinedTab
-                ? (existingTab.rightTab is TextBookTab
-                    ? existingTab.rightTab as TextBookTab
-                    : existingTab.leftTab is TextBookTab
-                        ? existingTab.leftTab as TextBookTab
-                        : null)
-                : null);
+        TextBookTab? textTab;
+        if (existingTab is TextBookTab) {
+          textTab = existingTab;
+        } else if (existingTab is CombinedTab) {
+          if (existingTab.rightTab is TextBookTab) {
+            textTab = existingTab.rightTab as TextBookTab;
+          } else if (existingTab.leftTab is TextBookTab) {
+            textTab = existingTab.leftTab as TextBookTab;
+          }
+        }
         if (textTab != null) {
           if (newTab.pinpointHighlight != null) {
             textTab.bloc.add(ApplyPinpointHighlight(
