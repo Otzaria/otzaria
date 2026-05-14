@@ -36,6 +36,10 @@ class SearchRegexPatterns {
   /// רגקס להסרת ניקוד וטעמים
   static final RegExp vowelsAndCantillation = RegExp(r'[\u0591-\u05C7]');
 
+  /// רגקס להסרת ניקוד בלבד, בלי טעמי המקרא
+  static final RegExp nikudOnly =
+      RegExp(r'[\u05B0-\u05BC\u05C1-\u05C2\u05C4-\u05C5\u05C7]');
+
   /// רגקס להסרת טעמים בלבד
   static final RegExp cantillationOnly = RegExp(r'[\u0591-\u05AF]');
 

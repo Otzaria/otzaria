@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 class ReadingLineRange {
   final int lineIndex;
   final int start;
@@ -17,12 +19,14 @@ class ReadingSegment {
   final List<int> sourceLineIndices;
   final List<ReadingLineRange> lineRanges;
   final bool isHeader;
+  final bool isVirtualHeader;
 
   const ReadingSegment({
     required this.text,
     required this.sourceLineIndices,
     required this.lineRanges,
     required this.isHeader,
+    this.isVirtualHeader = false,
   });
 
   int get startLineIndex => sourceLineIndices.first;
@@ -64,8 +68,34 @@ bool isReadingHeaderLine(String line) {
 List<ReadingSegment> buildReadingSegments(
   List<String> lines, {
   required bool continuous,
+  Map<int, List<String>> subtitleHeadingsByLine = const {},
 }) {
+  final hasSubtitleHeadings = subtitleHeadingsByLine.isNotEmpty;
+
   if (!continuous) {
+    if (hasSubtitleHeadings) {
+      final segments = <ReadingSegment>[];
+      for (var index = 0; index < lines.length; index++) {
+        segments
+            .addAll(_subtitleHeadingSegments(subtitleHeadingsByLine, index));
+        segments.add(
+          ReadingSegment(
+            text: lines[index],
+            sourceLineIndices: [index],
+            lineRanges: [
+              ReadingLineRange(
+                lineIndex: index,
+                start: 0,
+                end: lines[index].length,
+              ),
+            ],
+            isHeader: isReadingHeaderLine(lines[index]),
+          ),
+        );
+      }
+      return segments;
+    }
+
     final cached = _lineSegmentsCache[lines];
     if (cached != null) {
       return cached;
@@ -90,9 +120,11 @@ List<ReadingSegment> buildReadingSegments(
     return segments;
   }
 
-  final cached = _continuousSegmentsCache[lines];
-  if (cached != null) {
-    return cached;
+  if (!hasSubtitleHeadings) {
+    final cached = _continuousSegmentsCache[lines];
+    if (cached != null) {
+      return cached;
+    }
   }
 
   final segments = <ReadingSegment>[];
@@ -134,6 +166,15 @@ List<ReadingSegment> buildReadingSegments(
 
   for (var index = 0; index < lines.length; index++) {
     final line = lines[index];
+    final subtitleSegments = _subtitleHeadingSegments(
+      subtitleHeadingsByLine,
+      index,
+    );
+    if (subtitleSegments.isNotEmpty) {
+      flushParagraph();
+      segments.addAll(subtitleSegments);
+    }
+
     if (isReadingHeaderLine(line)) {
       flushParagraph();
       segments.add(
@@ -157,8 +198,39 @@ List<ReadingSegment> buildReadingSegments(
   }
 
   flushParagraph();
-  _continuousSegmentsCache[lines] = segments;
+  if (!hasSubtitleHeadings) {
+    _continuousSegmentsCache[lines] = segments;
+  }
   return segments;
+}
+
+List<ReadingSegment> _subtitleHeadingSegments(
+  Map<int, List<String>> subtitleHeadingsByLine,
+  int lineIndex,
+) {
+  final titles = subtitleHeadingsByLine[lineIndex];
+  if (titles == null || titles.isEmpty) {
+    return const [];
+  }
+
+  const htmlEscape = HtmlEscape();
+  return [
+    for (final title in titles)
+      if (title.trim().isNotEmpty)
+        ReadingSegment(
+          text: '<h2>${htmlEscape.convert(title.trim())}</h2>',
+          sourceLineIndices: [lineIndex],
+          lineRanges: [
+            ReadingLineRange(
+              lineIndex: lineIndex,
+              start: 0,
+              end: title.trim().length,
+            ),
+          ],
+          isHeader: true,
+          isVirtualHeader: true,
+        ),
+  ];
 }
 
 int segmentIndexForLine(List<ReadingSegment> segments, int lineIndex) {

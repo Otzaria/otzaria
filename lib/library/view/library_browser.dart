@@ -985,31 +985,34 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
     final autoExpandSubcategories =
         settingsState.libraryAutoExpandSubcategories && category is! Library;
-    final allItems = <Widget>[];
-
     if (autoExpandSubcategories) {
-      allItems.addAll(filteredBooks.map(_buildBookItem));
-      for (final subCategory in filteredSubCategories) {
-        allItems.add(Center(child: HeaderItem(category: subCategory)));
-        allItems.addAll(_buildExpandedSubcategoryItems(subCategory));
+      if (filteredBooks.isNotEmpty) {
+        items
+            .add(MyGridView(items: filteredBooks.map(_buildBookItem).toList()));
       }
-    } else {
-      allItems.addAll(
-        filteredSubCategories.map(
-          (c) => KeyedSubtree(
-            key: _tourCategoryKeys.putIfAbsent(c.path, GlobalKey.new),
-            child: CategoryGridItem(
-              category: c,
-              onCategoryClickCallback: () => _openCategory(c),
-            ),
-          ),
-        ),
-      );
+      for (final subCategory in filteredSubCategories) {
+        items.add(Center(child: HeaderItem(category: subCategory)));
+        items.add(MyGridView(
+          items: _buildExpandedSubcategoryItems(subCategory).toList(),
+        ));
+      }
+      return items;
     }
 
+    final allItems = <Widget>[
+      ...filteredSubCategories.map(
+        (c) => KeyedSubtree(
+          key: _tourCategoryKeys.putIfAbsent(c.path, GlobalKey.new),
+          child: CategoryGridItem(
+            category: c,
+            onCategoryClickCallback: () => _openCategory(c),
+          ),
+        ),
+      ),
+    ];
+
     var attachedTourKey = false;
-    for (final book
-        in autoExpandSubcategories ? const <Book>[] : filteredBooks) {
+    for (final book in filteredBooks) {
       final item = _buildBookItem(book);
       final isTourBook = _tourPreviewBook != null &&
           !attachedTourKey &&

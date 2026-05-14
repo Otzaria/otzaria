@@ -166,7 +166,10 @@ class _CombinedViewState extends State<CombinedView> {
   double _viewportHeight = 0;
   List<String>? _cachedReadingSegmentContent;
   bool? _cachedReadingSegmentContinuous;
+  bool? _cachedReadingSegmentShowSubtitles;
   List<ReadingSegment> _cachedReadingSegments = const [];
+  bool? _lastContinuousReadingMode;
+  int? _pendingDisplayModeRestoreLineIndex;
 
   ScrollController? _previewScrollController;
   final DictionaryLookupRepository _dictionaryLookupRepository =
@@ -293,13 +296,22 @@ class _CombinedViewState extends State<CombinedView> {
   }
 
   List<ReadingSegment> _readingSegmentsForMode(bool continuous) {
+    final state = context.read<TextBookBloc>().state;
+    final showSubtitles = state is TextBookLoaded && state.showSubtitles;
+    final subtitleHeadingsByLine =
+        state is TextBookLoaded && state.showSubtitles
+            ? state.subtitleHeadingsByLine
+            : const <int, List<String>>{};
     if (!identical(_cachedReadingSegmentContent, widget.data) ||
-        _cachedReadingSegmentContinuous != continuous) {
+        _cachedReadingSegmentContinuous != continuous ||
+        _cachedReadingSegmentShowSubtitles != showSubtitles) {
       _cachedReadingSegmentContent = widget.data;
       _cachedReadingSegmentContinuous = continuous;
+      _cachedReadingSegmentShowSubtitles = showSubtitles;
       _cachedReadingSegments = buildReadingSegments(
         widget.data,
         continuous: continuous,
+        subtitleHeadingsByLine: subtitleHeadingsByLine,
       );
     }
     return _cachedReadingSegments;
@@ -323,6 +335,46 @@ class _CombinedViewState extends State<CombinedView> {
       duration: duration,
       curve: Curves.easeInOut,
     );
+  }
+
+  void _preserveScrollAfterDisplayModeChange(
+    TextBookLoaded state,
+    bool continuous,
+  ) {
+    final previousContinuous = _lastContinuousReadingMode;
+    _lastContinuousReadingMode = continuous;
+
+    if (previousContinuous == null || previousContinuous == continuous) {
+      return;
+    }
+
+    final targetIndex = state.visibleIndices.isNotEmpty
+        ? state.visibleIndices.first
+        : state.selectedIndex;
+    if (targetIndex == null ||
+        targetIndex < 0 ||
+        targetIndex >= widget.data.length) {
+      return;
+    }
+
+    _pendingDisplayModeRestoreLineIndex = targetIndex;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted ||
+          _pendingDisplayModeRestoreLineIndex != targetIndex ||
+          !widget.tab.scrollController.isAttached) {
+        return;
+      }
+
+      await _scrollToSourceLine(
+        targetIndex,
+        alignment: 0.05,
+        duration: Duration.zero,
+      );
+
+      if (mounted && _pendingDisplayModeRestoreLineIndex == targetIndex) {
+        _pendingDisplayModeRestoreLineIndex = null;
+      }
+    });
   }
 
   void _addTextBookEventIfOpen(TextBookEvent event) {
@@ -949,6 +1001,10 @@ class _CombinedViewState extends State<CombinedView> {
             _viewportHeight = constraints.maxHeight;
             final readingSegments =
                 _readingSegmentsForMode(state.continuousReadingMode);
+            _preserveScrollAfterDisplayModeChange(
+              state,
+              state.continuousReadingMode,
+            );
 
             return SelectionArea(
               key: _selectionAreaKey,
@@ -1371,7 +1427,9 @@ class _CombinedViewState extends State<CombinedView> {
                           );
                         }
 
-                        String data = widget.data[primaryLineIndex];
+                        String data = segment.isVirtualHeader
+                            ? segment.text
+                            : widget.data[primaryLineIndex];
 
                         // הוספת קישורים מבוססי תווים לפני כל עיבוד אחר
                         // כי start/end מתייחסים לטקסט המקורי

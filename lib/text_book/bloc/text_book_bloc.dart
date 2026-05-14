@@ -11,6 +11,7 @@ import 'package:otzaria/utils/text/ref_helper.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
+import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/services/nikud_display_service.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dart';
@@ -155,6 +156,34 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       selectedIndex: state.selectedIndex,
       nextVisibleIndices: nextVisibleIndices,
     );
+  }
+
+  Future<Map<int, List<String>>> _loadSubtitleHeadingsByLine(
+    TextBook book,
+  ) async {
+    try {
+      final structures = await DatabaseLibraryProvider.instance
+          .getAlternativeStructuresForBook(book.title);
+      if (structures.isEmpty) {
+        return const {};
+      }
+
+      final headingsByLine = <int, List<String>>{};
+      for (final structure in structures) {
+        final entries = await DatabaseLibraryProvider.instance
+            .getAltTocLineIndices(structure.id);
+        for (final entry in entries) {
+          headingsByLine
+              .putIfAbsent(entry.lineIndex, () => <String>[])
+              .add(entry.text);
+        }
+      }
+
+      return headingsByLine;
+    } catch (e) {
+      debugPrint('Error loading alternative headings: $e');
+      return const {};
+    }
   }
 
   @visibleForTesting
@@ -342,9 +371,15 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
       const List<Link> emptyLinks = [];
       const List<Link> emptyVisibleLinks = [];
+      final subtitleHeadingsByLine = await _loadSubtitleHeadingsByLine(book);
+      final showSubtitles = state is TextBookLoaded
+          ? (state as TextBookLoaded).showSubtitles
+          : true;
       final readingSegments = buildReadingSegments(
         contentLines,
         continuous: event.continuousReadingMode,
+        subtitleHeadingsByLine:
+            showSubtitles ? subtitleHeadingsByLine : const {},
       );
 
       if (_positionListenerCallback != null) {
@@ -449,9 +484,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
             : removeNikud,
         isTanach: isTanach,
         continuousReadingMode: event.continuousReadingMode,
-        showSubtitles: state is TextBookLoaded
-            ? (state as TextBookLoaded).showSubtitles
-            : true,
+        showSubtitles: showSubtitles,
+        subtitleHeadingsByLine: subtitleHeadingsByLine,
         readingSegments: readingSegments,
         visibleIndices: visibleIndices,
         pinLeftPane: preservedPinLeftPane ??
@@ -702,6 +736,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       readingSegments: buildReadingSegments(
         currentState.content,
         continuous: event.enabled,
+        subtitleHeadingsByLine: currentState.showSubtitles
+            ? currentState.subtitleHeadingsByLine
+            : const {},
       ),
     ));
   }
@@ -719,7 +756,15 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       return;
     }
 
-    emit(currentState.copyWith(showSubtitles: event.show));
+    emit(currentState.copyWith(
+      showSubtitles: event.show,
+      readingSegments: buildReadingSegments(
+        currentState.content,
+        continuous: currentState.continuousReadingMode,
+        subtitleHeadingsByLine:
+            event.show ? currentState.subtitleHeadingsByLine : const {},
+      ),
+    ));
   }
 
   void _onUpdateVisibleIndecies(
@@ -1024,7 +1069,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       return const [];
     }
 
-    if (!state.continuousReadingMode) {
+    if (!state.continuousReadingMode &&
+        state.readingSegments.length == state.content.length) {
       return itemPositions.map((position) => position.index).toSet().toList()
         ..sort();
     }
@@ -1150,6 +1196,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       readingSegments: buildReadingSegments(
         event.content,
         continuous: currentState.continuousReadingMode,
+        subtitleHeadingsByLine: currentState.showSubtitles
+            ? currentState.subtitleHeadingsByLine
+            : const {},
       ),
     ));
     _markLoadedContentRange(
@@ -1199,6 +1248,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       readingSegments: buildReadingSegments(
         nextContent,
         continuous: currentState.continuousReadingMode,
+        subtitleHeadingsByLine: currentState.showSubtitles
+            ? currentState.subtitleHeadingsByLine
+            : const {},
       ),
     ));
   }

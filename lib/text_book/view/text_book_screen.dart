@@ -15,6 +15,7 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/settings/settings_exports.dart' hide UpdateFontSize;
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
@@ -85,15 +86,6 @@ bool _supportsContinuousReadingMode(TextBook book, {required bool isTanach}) {
       categoryText.contains('בבלי') ||
       categoryText.contains('ירושלמי') ||
       categoryText.contains('ש"ס');
-}
-
-bool _hasSubtitleHeadings(TextBookLoaded state) {
-  final headingPattern = RegExp(
-    r'(<h[2-6]\b|^\s{0,3}#{2,6}\s+)',
-    caseSensitive: false,
-    multiLine: true,
-  );
-  return state.content.any(headingPattern.hasMatch);
 }
 
 bool _removeTeamimForState(
@@ -663,20 +655,9 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       if (hasAltTitles != _hasAltTitles) {
         setState(() {
           _hasAltTitles = hasAltTitles;
-
-          // Recreate tab controller with correct length
-          final int newLength = hasAltTitles ? 3 : 2;
-          // Adjust index if needed
-          int newIndex = tabController.index;
-          if (newIndex >= newLength) {
-            newIndex = newLength - 1;
-          }
-
-          tabController.dispose();
-          tabController = TabController(
-            length: newLength,
-            vsync: this,
-            initialIndex: newIndex,
+          final currentState = context.read<TextBookBloc>().state;
+          _syncLeftPaneTabController(
+            currentState is TextBookLoaded && _showAltTitlesTab(),
           );
         });
       }
@@ -767,6 +748,23 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
   bool _hasAltTitles = true; // נניח שיש בהתחלה, נעדכן אחרי בדיקה
 
+  bool _showAltTitlesTab() => _hasAltTitles;
+
+  void _syncLeftPaneTabController(bool showAltTitles) {
+    final expectedLength = showAltTitles ? 3 : 2;
+    if (tabController.length == expectedLength) {
+      return;
+    }
+
+    final newIndex = tabController.index.clamp(0, expectedLength - 1);
+    tabController.dispose();
+    tabController = TabController(
+      length: expectedLength,
+      vsync: this,
+      initialIndex: newIndex,
+    );
+  }
+
   @override
   void dispose() {
     // ביטול רישום ה-FocusNode מ-FocusRepository (שימוש בהפניה שנשמרה)
@@ -803,7 +801,10 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     if (index == 1) {
       // אם מבקשים אינדקס 1, זה יכול להיות חיפוש או כותרות
       // נבדוק אם יש כותרות חלופיות - אם כן, חיפוש הוא באינדקס 2
-      targetIndex = _hasAltTitles ? 2 : 1;
+      final currentState = context.read<TextBookBloc>().state;
+      final showAltTitles =
+          currentState is TextBookLoaded && _showAltTitlesTab();
+      targetIndex = showAltTitles ? 2 : 1;
 
       // אם זה חיפוש ויש טקסט, נעדכן את טקסט החיפוש
       if (searchText != null && searchText.trim().isNotEmpty) {
@@ -816,7 +817,9 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     tabController.index = validIndex;
 
     // אם זה חיפוש, נתן פוקוס לשדה החיפוש
-    if (targetIndex == (_hasAltTitles ? 2 : 1)) {
+    final currentState = context.read<TextBookBloc>().state;
+    final showAltTitles = currentState is TextBookLoaded && _showAltTitlesTab();
+    if (targetIndex == (showAltTitles ? 2 : 1)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           textSearchFocusNode.requestFocus();
@@ -1793,17 +1796,13 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       state.book,
       isTanach: state.isTanach,
     );
-    final hasSubtitles = _hasSubtitleHeadings(state);
+    final hasSubtitles = _hasAltTitles;
     final marksLabel = state.isTanach ? 'טעמים' : 'פיסוק';
 
     return AppPopupMenuButton<String>(
       tooltip: 'עיצוב הטקסט',
-      icon: const Text(
-        'א׳',
-        textDirection: TextDirection.rtl,
-        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
-      ),
-      entries: [
+      icon: const Icon(FluentIcons.text_font_size_24_regular),
+      itemBuilder: (menuContext) => [
         if (supportsContinuousReading)
           AppMenuEntry(
             value: _styleActionContinuous,
@@ -1819,29 +1818,16 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         if (hasSubtitles)
           AppMenuEntry(
             value: _styleActionSubtitles,
-            label: 'כותרות משנה',
+            label: 'כותרות בתוך הספר',
             icon: state.showSubtitles
-                ? FluentIcons.text_header_2_24_filled
-                : FluentIcons.text_header_2_24_regular,
+                ? FluentIcons.list_24_filled
+                : FluentIcons.list_24_regular,
             trailing: Switch(
               value: state.showSubtitles,
               onChanged: null,
             ),
           ),
-        const AppMenuEntry(
-          value: _styleActionFontDecrease,
-          label: 'הקטן גודל גופן',
-          icon: FluentIcons.subtract_circle_24_regular,
-        ),
-        AppMenuEntry(
-          value: _styleActionFontIncrease,
-          label: 'הגדל גודל גופן',
-          icon: FluentIcons.add_circle_24_regular,
-          trailing: Text(
-            state.fontSize.round().toString(),
-            textDirection: TextDirection.rtl,
-          ),
-        ),
+        _buildFontSizeMenuItem(menuContext, context, state),
         AppMenuEntry(
           value: _styleActionNikud,
           label: 'ניקוד',
@@ -1864,11 +1850,80 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             onChanged: null,
           ),
         ),
-      ],
+      ].map<PopupMenuEntry<String>>((entry) {
+        if (entry is PopupMenuEntry<String>) {
+          return entry;
+        }
+        return buildAppPopupMenuItem<String>(
+          menuContext,
+          entry as AppMenuEntry<String>,
+          Theme.of(menuContext).extension<AppMenuMetrics>() ??
+              AppMenuMetrics.create(compactMenus: false),
+          null,
+        );
+      }).toList(),
       onSelected: (value) => _handleTextStyleMenuSelection(
         context,
         state,
         value,
+      ),
+    );
+  }
+
+  PopupMenuEntry<String> _buildFontSizeMenuItem(
+    BuildContext menuContext,
+    BuildContext ownerContext,
+    TextBookLoaded state,
+  ) {
+    final theme = Theme.of(ownerContext);
+    final colorScheme = theme.colorScheme;
+
+    return PopupMenuItem<String>(
+      enabled: false,
+      height: 52,
+      padding: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Row(
+          textDirection: TextDirection.rtl,
+          children: [
+            IconButton(
+              tooltip: 'הגדל גודל גופן',
+              icon: const Icon(FluentIcons.zoom_in_24_regular),
+              color: colorScheme.onSurface,
+              onPressed: () {
+                _handleTextStyleMenuSelection(
+                  ownerContext,
+                  state,
+                  _styleActionFontIncrease,
+                );
+              },
+            ),
+            Expanded(
+              child: Text(
+                'גודל גופן ${state.fontSize.round()}',
+                textAlign: TextAlign.center,
+                textDirection: TextDirection.rtl,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurface,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: 'הקטן גודל גופן',
+              icon: const Icon(FluentIcons.zoom_out_24_regular),
+              color: colorScheme.onSurface,
+              onPressed: () {
+                _handleTextStyleMenuSelection(
+                  ownerContext,
+                  state,
+                  _styleActionFontDecrease,
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1881,7 +1936,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       state.book,
       isTanach: state.isTanach,
     );
-    final hasSubtitles = _hasSubtitleHeadings(state);
+    final hasSubtitles = _hasAltTitles;
     final marksLabel = state.isTanach ? 'טעמים' : 'פיסוק';
 
     return [
@@ -1903,9 +1958,11 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         ActionButtonData(
           widget: const SizedBox.shrink(),
           icon: state.showSubtitles
-              ? FluentIcons.text_header_2_24_filled
-              : FluentIcons.text_header_2_24_regular,
-          tooltip: state.showSubtitles ? 'הסתר כותרות משנה' : 'הצג כותרות משנה',
+              ? FluentIcons.list_24_filled
+              : FluentIcons.list_24_regular,
+          tooltip: state.showSubtitles
+              ? 'הסתר כותרות בתוך הספר'
+              : 'הצג כותרות בתוך הספר',
           onPressed: () => _handleTextStyleMenuSelection(
             context,
             state,
@@ -1914,7 +1971,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         ),
       ActionButtonData(
         widget: const SizedBox.shrink(),
-        icon: FluentIcons.subtract_circle_24_regular,
+        icon: FluentIcons.zoom_out_24_regular,
         tooltip: 'הקטן גודל גופן',
         onPressed: () => _handleTextStyleMenuSelection(
           context,
@@ -1924,7 +1981,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       ),
       ActionButtonData(
         widget: const SizedBox.shrink(),
-        icon: FluentIcons.add_circle_24_regular,
+        icon: FluentIcons.zoom_in_24_regular,
         tooltip: 'הגדל גודל גופן',
         onPressed: () => _handleTextStyleMenuSelection(
           context,
@@ -2521,11 +2578,13 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   }
 
   Widget _buildLeftPaneContent(TextBookLoaded state) {
+    final showAltTitles = _showAltTitlesTab();
+    _syncLeftPaneTabController(showAltTitles);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (state.showLeftPane && !Platform.isAndroid && !_isInitialFocusDone) {
         final hasSearchText = state.searchText.trim().isNotEmpty;
         if (hasSearchText) {
-          if (tabController.index == (_hasAltTitles ? 2 : 1)) {
+          if (tabController.index == (showAltTitles ? 2 : 1)) {
             textSearchFocusNode.requestFocus();
           } else if (tabController.index == 0) {
             navigationSearchFocusNode.requestFocus();
@@ -2559,7 +2618,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                         height: 44,
                         child: Text('ניווט', style: TextStyle(fontSize: 11)),
                       ),
-                      if (_hasAltTitles)
+                      if (showAltTitles)
                         const Tab(
                           icon: Icon(FluentIcons.list_24_regular, size: 16),
                           iconMargin: EdgeInsets.only(bottom: 1),
@@ -2623,7 +2682,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             controller: tabController,
             children: [
               _buildTocViewer(context, state),
-              if (_hasAltTitles)
+              if (showAltTitles)
                 AltTocSidebarView(
                   book: widget.tab.book,
                   closeLeftPaneCallback: () => context
@@ -2640,7 +2699,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                     context.read<TextBookBloc>().add(
                           const ToggleLeftPane(true),
                         );
-                    tabController.index = _hasAltTitles ? 2 : 1;
+                    tabController.index = showAltTitles ? 2 : 1;
                     textSearchFocusNode.requestFocus();
                   },
                 },

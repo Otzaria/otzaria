@@ -139,7 +139,8 @@ void main() {
       expect(result, contains('<span style="color: red">נָבוֹן</span>'));
     });
 
-    test('multi-word with nikud and searchDistance - highlights both words', () {
+    test('multi-word with nikud and searchDistance - highlights both words',
+        () {
       const text = 'וְעַתָּה יֵרֶא פַּרְעֹה אִישׁ נָבוֹן וְחָכָם';
       final result = highLight(
         text,
@@ -149,6 +150,18 @@ void main() {
 
       expect(result, contains('<span style="color: red">פַּרְעֹה</span>'));
       expect(result, contains('<span style="color: red">נָבוֹן</span>'));
+    });
+  });
+
+  group('removeVolwels', () {
+    test('removes nikud but keeps cantillation marks', () {
+      const alef = '\u05D0';
+      const qamats = '\u05B8';
+      const etnachta = '\u0591';
+
+      final result = removeVolwels('$alef$qamats$etnachta');
+
+      expect(result, '$alef$etnachta');
     });
   });
 

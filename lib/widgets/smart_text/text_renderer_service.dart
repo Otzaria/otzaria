@@ -15,10 +15,6 @@ class TextRendererService {
   static String processText(String rawText, RenderSettings settings) {
     String processed = rawText;
 
-    if (!settings.showSubtitles) {
-      processed = _removeSubtitleHeadings(processed);
-    }
-
     // 0. תיקון סדר סימוני הערות (<sup>) ב-RTL
     processed = _fixFootnoteMarkers(processed);
     // 0b. עיצוב טקסט ההערות המודפסות בתוך השורה (גופן קטן ונטוי)
@@ -64,23 +60,6 @@ class TextRendererService {
     }
 
     return processed;
-  }
-
-  static String _removeSubtitleHeadings(String text) {
-    return text
-        .replaceAll(
-          RegExp(
-            r'<h[2-6]\b[^>]*>.*?</h[2-6]>',
-            caseSensitive: false,
-            dotAll: true,
-          ),
-          '',
-        )
-        .replaceAll(
-          RegExp(r'^\s{0,3}#{2,6}\s+.*$', multiLine: true),
-          '',
-        )
-        .trim();
   }
 
   /// מתקן תגי <sup> כדי למנוע היפוך סדר ב-RTL

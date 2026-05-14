@@ -24,7 +24,7 @@ String truncate(String text, int length) {
 
 String removeVolwels(String s) {
   s = s.replaceAll('־', ' ').replaceAll('׀', ' ').replaceAll('|', ' ');
-  return s.replaceAll(SearchRegexPatterns.vowelsAndCantillation, '');
+  return s.replaceAll(SearchRegexPatterns.nikudOnly, '');
 }
 
 /// הסרת סימני פיסוק מטקסט

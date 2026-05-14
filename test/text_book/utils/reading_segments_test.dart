@@ -17,6 +17,40 @@ void main() {
       expect(segments[1].sourceLineIndices, [1]);
     });
 
+    test('inserts alternative headings before their source line', () {
+      final segments = buildReadingSegments(
+        const ['line a', 'line b'],
+        continuous: false,
+        subtitleHeadingsByLine: const {
+          1: ['פרשת בראשית'],
+        },
+      );
+
+      expect(segments, hasLength(3));
+      expect(segments[1].isVirtualHeader, isTrue);
+      expect(segments[1].text, '<h2>פרשת בראשית</h2>');
+      expect(segments[1].sourceLineIndices, [1]);
+      expect(segments[2].text, 'line b');
+      expect(segmentIndexForLine(segments, 1), 1);
+    });
+
+    test('alternative headings split continuous paragraphs', () {
+      final segments = buildReadingSegments(
+        const ['line a', 'line b', 'line c'],
+        continuous: true,
+        subtitleHeadingsByLine: const {
+          1: ['כותרת'],
+        },
+      );
+
+      expect(segments, hasLength(3));
+      expect(segments[0].text, 'line a');
+      expect(segments[1].isVirtualHeader, isTrue);
+      expect(segments[1].sourceLineIndices, [1]);
+      expect(segments[2].text, 'line b line c');
+      expect(segments[2].sourceLineIndices, [1, 2]);
+    });
+
     test('joins regular lines until the next HTML header', () {
       final segments = buildReadingSegments(
         const [

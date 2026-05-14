@@ -27,6 +27,13 @@ String _alternativeWordsSignature(Map<int, List<String>> words) {
   return keys.map((key) => '$key:${words[key]!.join(',')}').join('|');
 }
 
+String _subtitleHeadingsSignature(Map<int, List<String>> headings) {
+  if (headings.isEmpty) return '';
+
+  final keys = headings.keys.toList()..sort();
+  return keys.map((key) => '$key:${headings[key]!.join(',')}').join('|');
+}
+
 String _spacingValuesSignature(Map<String, String> values) {
   if (values.isEmpty) return '';
 
@@ -146,6 +153,7 @@ class TextBookLoaded extends TextBookState {
   final int? highlightedLine;
   final bool continuousReadingMode;
   final bool showSubtitles;
+  final Map<int, List<String>> subtitleHeadingsByLine;
   final List<ReadingSegment> readingSegments;
 
   // Editor state
@@ -201,6 +209,7 @@ class TextBookLoaded extends TextBookState {
     this.highlightedLine,
     this.continuousReadingMode = false,
     this.showSubtitles = true,
+    this.subtitleHeadingsByLine = const {},
     this.readingSegments = const [],
     this.isEditorOpen = false,
     this.editorIndex,
@@ -245,6 +254,7 @@ class TextBookLoaded extends TextBookState {
       highlightedLine: null,
       continuousReadingMode: false,
       showSubtitles: true,
+      subtitleHeadingsByLine: const {},
       readingSegments: const [],
       isEditorOpen: false,
       editorIndex: null,
@@ -294,6 +304,7 @@ class TextBookLoaded extends TextBookState {
     bool clearHighlight = false,
     bool? continuousReadingMode,
     bool? showSubtitles,
+    Map<int, List<String>>? subtitleHeadingsByLine,
     List<ReadingSegment>? readingSegments,
     bool? isEditorOpen,
     int? editorIndex,
@@ -344,6 +355,8 @@ class TextBookLoaded extends TextBookState {
       continuousReadingMode:
           continuousReadingMode ?? this.continuousReadingMode,
       showSubtitles: showSubtitles ?? this.showSubtitles,
+      subtitleHeadingsByLine:
+          subtitleHeadingsByLine ?? this.subtitleHeadingsByLine,
       readingSegments: readingSegments ?? this.readingSegments,
       isEditorOpen: isEditorOpen ?? this.isEditorOpen,
       editorIndex: editorIndex ?? this.editorIndex,
@@ -388,6 +401,7 @@ class TextBookLoaded extends TextBookState {
         highlightedLine,
         continuousReadingMode,
         showSubtitles,
+        _subtitleHeadingsSignature(subtitleHeadingsByLine),
         readingSegments.length,
         isEditorOpen,
         editorIndex,

@@ -198,6 +198,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   int? _pendingDisplayModeRestoreLineIndex;
   List<String>? _cachedReadingSegmentContent;
   bool? _cachedReadingSegmentContinuous;
+  bool? _cachedReadingSegmentShowSubtitles;
   List<ReadingSegment> _cachedReadingSegments = const [];
   final Map<String, Future<bool>> _removeNikudCache = {};
   final DictionaryLookupRepository _dictionaryLookupRepository =
@@ -485,14 +486,26 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   }
 
   List<ReadingSegment> _readingSegments(SettingsState settingsState) {
+    final textBookState = context.read<TextBookBloc>().state;
     final continuous = _isContinuousReadingMode(settingsState);
+    final showSubtitles = widget.isMainText &&
+        textBookState is TextBookLoaded &&
+        textBookState.showSubtitles;
+    final subtitleHeadingsByLine = widget.isMainText &&
+            textBookState is TextBookLoaded &&
+            textBookState.showSubtitles
+        ? textBookState.subtitleHeadingsByLine
+        : const <int, List<String>>{};
     if (!identical(_cachedReadingSegmentContent, widget.content) ||
-        _cachedReadingSegmentContinuous != continuous) {
+        _cachedReadingSegmentContinuous != continuous ||
+        _cachedReadingSegmentShowSubtitles != showSubtitles) {
       _cachedReadingSegmentContent = widget.content;
       _cachedReadingSegmentContinuous = continuous;
+      _cachedReadingSegmentShowSubtitles = showSubtitles;
       _cachedReadingSegments = buildReadingSegments(
         widget.content,
         continuous: continuous,
+        subtitleHeadingsByLine: subtitleHeadingsByLine,
       );
     }
     return _cachedReadingSegments;
@@ -510,12 +523,14 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     Iterable<ItemPosition> itemPositions,
   ) {
     final positions = itemPositions.toList();
-    if (!_isContinuousReadingMode(settingsState)) {
+    final segments = _readingSegments(settingsState);
+    if (!_isContinuousReadingMode(settingsState) &&
+        segments.length == widget.content.length) {
       return positions.map((position) => position.index).toSet().toList()
         ..sort();
     }
     return sourceLineIndicesForSegmentViewports(
-      _readingSegments(settingsState),
+      segments,
       positions.map(
         (position) => ReadingSegmentViewport(
           segmentIndex: position.index,
@@ -1385,7 +1400,9 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                 );
               }
 
-              final data = widget.content[primaryLineIndex];
+              final data = segment.isVirtualHeader
+                  ? segment.text
+                  : widget.content[primaryLineIndex];
               final targetTitle =
                   widget.isMainText ? state.book.title : widget.bookTitle;
               // אם המשתמש לחץ על כפתור ניקוד (override), נשתמש בערך מה-state
