@@ -73,9 +73,9 @@ jobs:
           BUNDLE=otzaria-linux-full
 
           mkdir -p $LIBRARY
-          curl -LSsf https://github.com/Otzaria/SeforimLibrary/releases/latest/download/seforim.db.zst -o $LIBRARY/seforim.db.zst
-          curl -LSsf https://github.com/Otzaria/otzar-HB_catalog/releases/latest/download/otzar-HB_catalog.db.zst -o $LIBRARY/otzar-HB_catalog.db.zst
-          curl -LSsf https://github.com/Otzaria/otzaria-library/releases/latest/download/talmud_bavli_latest.tar.zst -o $LIBRARY/talmud_bavli_latest.tar.zst
+          curl -Lf https://github.com/Otzaria/SeforimLibrary/releases/latest/download/seforim.db.zst -o $LIBRARY/seforim.db.zst
+          curl -Lf https://github.com/Otzaria/otzar-HB_catalog/releases/latest/download/otzar-HB_catalog.db.zst -o $LIBRARY/otzar-HB_catalog.db.zst
+          curl -Lf https://github.com/Otzaria/otzaria-library/releases/latest/download/talmud_bavli_latest.tar.zst -o $LIBRARY/talmud_bavli_latest.tar.zst
 
           rm -rf $BUNDLE
           mkdir -p $BUNDLE $BUNDLE/Otzaria
