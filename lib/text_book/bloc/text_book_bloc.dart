@@ -87,7 +87,6 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     on<HighlightLine>(_onHighlightLine);
     on<ClearHighlightedLine>(_onClearHighlightedLine);
     on<ApplyMarkHighlight>(_onApplyMarkHighlight);
-    on<ApplyPinpointHighlight>(_onApplyPinpointHighlight);
     on<TogglePinLeftPane>(_onTogglePinLeftPane);
     on<UpdateSearchText>(_onUpdateSearchText);
     on<ApplyFullBookContent>(_onApplyFullBookContent);
@@ -431,10 +430,10 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         selectedTextEnd: state is TextBookLoaded
             ? (state as TextBookLoaded).selectedTextEnd
             : null,
-        highlightText: highlightText,
-        permanentHighlightLine: permanentHighlightLine,
-        pinpointHighlightIndex: _pendingPinpoint?.sectionIndex ?? pinpointHighlightIndex,
-        pinpointHighlightText: _pendingPinpoint?.text ?? pinpointHighlightText,
+        highlightText: _pendingPinpoint?.text ?? highlightText,
+        permanentHighlightLine: _pendingPinpoint?.sectionIndex ?? permanentHighlightLine,
+        pinpointHighlightIndex: pinpointHighlightIndex,
+        pinpointHighlightText: pinpointHighlightText,
       ));
 
       _pendingPinpoint = null;
@@ -990,34 +989,24 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   }
 
   /// מחיל highlight מ-deep link על לשונית קיימת.
+  /// אם ה-bloc עדיין ב-Initial/Loading, שומר כ-pending ומחיל כשמגיע ל-Loaded.
   void _onApplyMarkHighlight(
     ApplyMarkHighlight event,
-    Emitter<TextBookState> emit,
-  ) {
-    if (state is! TextBookLoaded) return;
-    final currentState = state as TextBookLoaded;
-    emit(currentState.copyWith(
-      highlightText: event.highlightText,
-      permanentHighlightLine: event.permanentHighlightLine,
-      clearPermanentHighlight: event.permanentHighlightLine == null,
-    ));
-  }
-
-  /// מחיל הדגשה ממוקדת (pinpoint) מ-deep link על לשונית קיימת.
-  /// אם ה-bloc עדיין ב-Initial/Loading, שומר כ-pending ומחיל כשמגיע ל-Loaded.
-  void _onApplyPinpointHighlight(
-    ApplyPinpointHighlight event,
     Emitter<TextBookState> emit,
   ) {
     if (state is TextBookLoaded) {
       final currentState = state as TextBookLoaded;
       emit(currentState.copyWith(
-        pinpointHighlightText: event.highlightText,
-        pinpointHighlightIndex: event.sectionIndex,
+        highlightText: event.highlightText,
+        permanentHighlightLine: event.permanentHighlightLine,
+        clearPermanentHighlight: event.permanentHighlightLine == null,
       ));
     } else {
       // Initial או Loading — שומרים כ-pending, יוחל ב-_onLoadContent
-      _pendingPinpoint = (text: event.highlightText, sectionIndex: event.sectionIndex);
+      _pendingPinpoint = (
+        text: event.highlightText,
+        sectionIndex: event.permanentHighlightLine,
+      );
     }
   }
 

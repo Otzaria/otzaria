@@ -12,7 +12,6 @@ import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
-import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
 
 class TabsBloc extends Bloc<TabsEvent, TabsState> {
@@ -150,31 +149,25 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       final newTab = event.tab;
       if (newTab is TextBookTab &&
           (newTab.highlightText.isNotEmpty ||
-              newTab.permanentHighlightLine != null ||
-              newTab.pinpointHighlight != null)) {
+              newTab.permanentHighlightLine != null)) {
         final existingTab = state.tabs[matchingIndex];
         TextBookTab? textTab;
         if (existingTab is TextBookTab) {
           textTab = existingTab;
         } else if (existingTab is CombinedTab) {
-          if (existingTab.rightTab is TextBookTab) {
+          if (existingTab.rightTab is TextBookTab &&
+              _isSameBook(existingTab.rightTab as TextBookTab, newTab)) {
             textTab = existingTab.rightTab as TextBookTab;
-          } else if (existingTab.leftTab is TextBookTab) {
+          } else if (existingTab.leftTab is TextBookTab &&
+              _isSameBook(existingTab.leftTab as TextBookTab, newTab)) {
             textTab = existingTab.leftTab as TextBookTab;
           }
         }
         if (textTab != null) {
-          if (newTab.pinpointHighlight != null) {
-            textTab.bloc.add(ApplyPinpointHighlight(
-              highlightText: newTab.pinpointHighlight!,
-              sectionIndex: newTab.pinpointHighlightSectionIndex,
-            ));
-          } else if (textTab.bloc.state is TextBookLoaded) {
-            textTab.bloc.add(ApplyMarkHighlight(
-              highlightText: newTab.highlightText,
-              permanentHighlightLine: newTab.permanentHighlightLine,
-            ));
-          }
+          textTab.bloc.add(ApplyMarkHighlight(
+            highlightText: newTab.highlightText,
+            permanentHighlightLine: newTab.permanentHighlightLine,
+          ));
         }
       }
       event.tab.dispose();
