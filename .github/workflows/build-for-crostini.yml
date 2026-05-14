@@ -23,7 +23,6 @@ jobs:
         shell: bash
         run: |
           sudo apt update -y
-          sudo apt upgrade -y
           sudo apt install -y \
             clang cmake git ninja-build pkg-config \
             curl xz-utils zstd \
