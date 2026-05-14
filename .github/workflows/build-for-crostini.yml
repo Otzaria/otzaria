@@ -51,14 +51,15 @@ jobs:
           flutter clean
           flutter build linux --release
 
-      - name: Find libzstandard library
-        id: find_library
+      - name: Create app bundle
         shell: bash
         run: |
-          SO_FILE=$(find . -type f -name 'libzstandard*.so')
-          if [ -n "$SO_FILE" ]; then
-            echo $SO_FILE
+          LIBZSTD=$(find . -type f -name 'libzstandard_linux.so' | head -n 1)
+          if [ -n "$LIBZSTD" ]; then
+            cp "$LIBZSTD" build/linux/x64/release/bundle/lib
           fi
+
+          tar -czf otzaria-linux-app.tar.gz -C build/linux/x64/release/bundle .
 
       - name: Activate flutter_distributor
         run: dart pub global activate flutter_distributor
@@ -66,7 +67,7 @@ jobs:
       - name: Build Linux DEB package
         run: flutter_distributor release --name=production --jobs=release-linux-deb
 
-      - name: Find and prepare Linux packages
+      - name: Find Linux package
         id: find_packages
         shell: bash
         run: |
@@ -76,9 +77,6 @@ jobs:
             echo "deb_file=$DEB_FILE" >> $GITHUB_OUTPUT
             echo "deb_name=$(basename $DEB_FILE)" >> $GITHUB_OUTPUT
           fi
-
-          # Create linux app bundle
-          tar -czf otzaria-linux-app.tar.gz -C build/linux/x64/release/bundle .
 
       - name: Prepare full bundle
         if: false
