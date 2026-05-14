@@ -51,6 +51,15 @@ jobs:
           flutter clean
           flutter build linux --release
 
+      - name: Find libzstandard library
+        id: find_library
+        shell: bash
+        run: |
+          SO_FILE=$(find . -type f -name 'libzstandard*.so')
+          if [ -n "$SO_FILE" ]; then
+            echo $SO_FILE
+          fi
+
       - name: Activate flutter_distributor
         run: dart pub global activate flutter_distributor
 
