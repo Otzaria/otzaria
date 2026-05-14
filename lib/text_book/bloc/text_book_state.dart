@@ -428,6 +428,21 @@ class TextBookLoaded extends TextBookState {
     );
   }
 
+  /// האם השורה [index] מודגשת כרקע קבוע (ללא highlightText פעיל).
+  bool isPermanentHighlight(int index) =>
+      permanentHighlightLine == index && highlightText.isEmpty;
+
+  /// האם השורה [index] מודגשת ברקע צהוב (highlightText + permanentHighlightLine).
+  bool isHighlightYellowBackground(int index) =>
+      highlightText.isNotEmpty && permanentHighlightLine == index;
+
+  /// מחרוזת החיפוש האפקטיבית לשורה [index]:
+  /// אם יש highlightText ממוקד לשורה זו — מחזיר אותו, אחרת את searchText הרגיל.
+  String getEffectiveSearchText(int index) =>
+      (highlightText.isNotEmpty && permanentHighlightLine == index)
+          ? highlightText
+          : searchText;
+
   @override
   List<Object?> get props => [
         book.title,
