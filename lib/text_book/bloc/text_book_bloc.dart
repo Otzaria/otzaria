@@ -56,6 +56,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   bool _pendingLinksReload = false;
   bool _awaitingInitialPageShapeVisibleSync = false;
 
+  // pinpoint highlight שממתין להחלה כשה-bloc יגיע ל-Loaded
+  ({String text, int? sectionIndex})? _pendingPinpoint;
+
   TextBookBloc({
     required this.repository,
     Future<String?> Function(
@@ -84,6 +87,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     on<HighlightLine>(_onHighlightLine);
     on<ClearHighlightedLine>(_onClearHighlightedLine);
     on<ApplyMarkHighlight>(_onApplyMarkHighlight);
+    on<ApplyPinpointHighlight>(_onApplyPinpointHighlight);
     on<TogglePinLeftPane>(_onTogglePinLeftPane);
     on<UpdateSearchText>(_onUpdateSearchText);
     on<ApplyFullBookContent>(_onApplyFullBookContent);
@@ -429,9 +433,11 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
             : null,
         highlightText: highlightText,
         permanentHighlightLine: permanentHighlightLine,
-        pinpointHighlightIndex: pinpointHighlightIndex,
-        pinpointHighlightText: pinpointHighlightText,
+        pinpointHighlightIndex: _pendingPinpoint?.sectionIndex ?? pinpointHighlightIndex,
+        pinpointHighlightText: _pendingPinpoint?.text ?? pinpointHighlightText,
       ));
+
+      _pendingPinpoint = null;
 
       _resetLoadedLinksWindow(book);
 
@@ -995,6 +1001,24 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       permanentHighlightLine: event.permanentHighlightLine,
       clearPermanentHighlight: event.permanentHighlightLine == null,
     ));
+  }
+
+  /// מחיל הדגשה ממוקדת (pinpoint) מ-deep link על לשונית קיימת.
+  /// אם ה-bloc עדיין ב-Initial/Loading, שומר כ-pending ומחיל כשמגיע ל-Loaded.
+  void _onApplyPinpointHighlight(
+    ApplyPinpointHighlight event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is TextBookLoaded) {
+      final currentState = state as TextBookLoaded;
+      emit(currentState.copyWith(
+        pinpointHighlightText: event.highlightText,
+        pinpointHighlightIndex: event.sectionIndex,
+      ));
+    } else {
+      // Initial או Loading — שומרים כ-pending, יוחל ב-_onLoadContent
+      _pendingPinpoint = (text: event.highlightText, sectionIndex: event.sectionIndex);
+    }
   }
 
   void _onTogglePinLeftPane(

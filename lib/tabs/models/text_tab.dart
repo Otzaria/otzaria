@@ -106,11 +106,10 @@ class TextBookTab extends OpenedTab {
     _lastShowPageShapeView = effectiveShowPageShapeView;
 
     // Initialize the bloc with initial state
-    bloc = TextBookBloc(
+    bloc = blocOverride ?? TextBookBloc(
       repository: TextBookRepository(
         fileSystem: FileSystemData.instance,
       ),
-      // [EDITING DISABLED] overridesRepository: LocalOverridesRepository(),
       initialState: TextBookInitial.named(
         book,
         index,
