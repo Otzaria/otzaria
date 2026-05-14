@@ -16,8 +16,12 @@ import 'file_sync_service.dart';
 /// [QueryLoader] is pre-initialised on the main isolate and its cache is
 /// forwarded in the payload, avoiding any [rootBundle] access inside the
 /// worker isolate.
+///
+/// [dbPath] — נתיב `seforim.db` (לתוכן רשמי + links).
+/// [userBooksDbPath] — נתיב `user_books.db` (לתיקיות מותאמות אישית).
 Future<FileSyncResult> runCustomFoldersDbSyncInIsolate({
   required String dbPath,
+  required String userBooksDbPath,
   required String libraryPath,
   required List<CustomFolder> customFolders,
   String folderName = '',
@@ -27,6 +31,7 @@ Future<FileSyncResult> runCustomFoldersDbSyncInIsolate({
     final payload = <String, Object?>{
       'queryCache': QueryLoader.cacheSnapshot,
       'dbPath': dbPath,
+      'userBooksDbPath': userBooksDbPath,
       'libraryPath': libraryPath,
       'folderName': folderName,
       'customFolders': customFolders.map((f) => f.toJson()).toList(),
@@ -49,8 +54,12 @@ Future<FileSyncResult> runCustomFoldersDbSyncInIsolate({
 /// [folderCategoryId] and [personalCategoryId] must be resolved by the
 /// caller on the main isolate before invoking this function.
 /// Serialised through the same [DatabaseLibraryProvider.operationQueue].
+///
+/// [userBooksDbPath] — נתיב `user_books.db` (שם נמצאות התיקיות המותאמות).
+/// [dbPath] — נתיב `seforim.db`. נדרש כי `FileSyncService` מצפה לשני repos.
 Future<void> runDeleteFolderFromDbInIsolate({
   required String dbPath,
+  required String userBooksDbPath,
   required int folderCategoryId,
   required int personalCategoryId,
 }) {
@@ -61,6 +70,7 @@ Future<void> runDeleteFolderFromDbInIsolate({
     final payload = <String, Object?>{
       'queryCache': QueryLoader.cacheSnapshot,
       'dbPath': dbPath,
+      'userBooksDbPath': userBooksDbPath,
       'folderCategoryId': folderCategoryId,
       'personalCategoryId': personalCategoryId,
     };
@@ -77,6 +87,7 @@ Future<Map<String, Object?>> _syncWorkerEntryPoint(
   );
 
   final dbPath = payload['dbPath'] as String;
+  final userBooksDbPath = payload['userBooksDbPath'] as String;
   final libraryPath = payload['libraryPath'] as String;
   final folderName = (payload['folderName'] as String?) ?? '';
   final rawFolders =
@@ -86,7 +97,15 @@ Future<Map<String, Object?>> _syncWorkerEntryPoint(
   final database = MyDatabase.withPath(dbPath);
   final repository = SeforimRepository(database);
   await repository.ensureInitialized();
-  final service = FileSyncService.createForWorker(repository);
+
+  final userBooksDatabase = MyDatabase.withPath(userBooksDbPath);
+  final userBooksRepository = SeforimRepository(userBooksDatabase);
+  await userBooksRepository.ensureInitialized();
+
+  final service = FileSyncService.createForWorker(
+    repository,
+    userBooksRepository: userBooksRepository,
+  );
 
   try {
     final result = await service.syncCustomFoldersWithInputs(
@@ -105,6 +124,7 @@ Future<Map<String, Object?>> _syncWorkerEntryPoint(
     };
   } finally {
     database.close();
+    userBooksDatabase.close();
   }
 }
 
@@ -114,18 +134,28 @@ Future<void> _deleteWorkerEntryPoint(Map<String, Object?> payload) async {
   );
 
   final dbPath = payload['dbPath'] as String;
+  final userBooksDbPath = payload['userBooksDbPath'] as String;
   final folderCategoryId = payload['folderCategoryId'] as int;
   final personalCategoryId = payload['personalCategoryId'] as int;
 
   final database = MyDatabase.withPath(dbPath);
   final repository = SeforimRepository(database);
   await repository.ensureInitialized();
-  final service = FileSyncService.createForWorker(repository);
+
+  final userBooksDatabase = MyDatabase.withPath(userBooksDbPath);
+  final userBooksRepository = SeforimRepository(userBooksDatabase);
+  await userBooksRepository.ensureInitialized();
+
+  final service = FileSyncService.createForWorker(
+    repository,
+    userBooksRepository: userBooksRepository,
+  );
 
   try {
     await service.deleteFolderFromDatabase(
         folderCategoryId, personalCategoryId);
   } finally {
     database.close();
+    userBooksDatabase.close();
   }
 }

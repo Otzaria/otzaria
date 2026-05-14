@@ -55,6 +55,8 @@ void main() {
 
       expect(FocusManager.instance.primaryFocus, isNotNull);
 
+      // עדכון shortcuts מטריגר rebuild של ה-FocusScope; לפני התיקון
+      // FocusScopeNode חדש בכל rebuild היה זורק שגיאה כששדה טקסט מחזיק focus.
       settingsController.add(
         SettingsState.initial().copyWith(
           shortcuts: const {
@@ -62,9 +64,6 @@ void main() {
           },
         ),
       );
-
-      await tester.pump();
-      await tester.binding.reassembleApplication();
       await tester.pump();
 
       expect(tester.takeException(), isNull);

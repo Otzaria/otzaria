@@ -36,7 +36,10 @@
 | `otzaria://open/tool/<tool-id>` | פותח לשונית כלי לפי מזהה מלא — תומך גם בתוספים מוצמדים |
 | `otzaria://open/book/<id>` | פותח ספר בעיון לפי מזהה מסד הנתונים |
 | `otzaria://open/book/<id>?index=<n>` | פותח את הספר בסעיף `n` (אינדקס לא שלילי). |
-| `otzaria://open/book/<id>?q=<text>` | פותח את הספר עם מחרוזת חיפוש להדגשה. ניתן לשלב עם `index`. |
+| `otzaria://open/book/<id>?q=<text>` | פותח את הספר עם מחרוזת חיפוש להדגשה בכל הספר ופותח גם את חלונית החיפוש. ניתן לשלב עם `index`. |
+| `otzaria://open/book/<id>?index=<n>&highlight=<text>` | פתיחה ישירה של סעיף `n` והדגשת כל המופעים של `<text>` **רק בסעיף הזה**, ללא פתיחת חלונית חיפוש. דורש `index=<n>` במקביל; אם גם `q=` סופק — `highlight=` גובר. |
+| `otzaria://open/pdf/<id>` | פותח ספר PDF לפי מזהה משותף עם ה-TextBook במסד הנתונים |
+| `otzaria://open/pdf/<id>?index=<n>` | פותח את ספר ה-PDF בעמוד `n` (מספר עמוד חיובי). |
 
 **דוגמאות:**
 
@@ -49,10 +52,18 @@ otzaria://open/book/1234
 otzaria://open/book/1234?index=42
 otzaria://open/book/1234?q=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA
 otzaria://open/book/1234?index=42&q=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA
+otzaria://open/book/1234?index=42&highlight=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA
 otzaria://open/search?q=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA
+otzaria://open/pdf/120
+otzaria://open/pdf/120?index=17
 ```
 
-**הערות על קידוד:** טקסט בעברית ב‑`q=` חייב להיות URL‑encoded (UTF‑8). ערך `index` שלילי או לא מספרי מתעלם — הספר ייפתח בתחילתו. `q=` ריק מתעלם.
+**הערות על קידוד:** טקסט בעברית ב‑`q=`/`highlight=` חייב להיות URL‑encoded (UTF‑8). ערך `index` שלילי או לא מספרי מתעלם — הספר ייפתח בתחילתו. `q=` ריק מתעלם. `highlight=` בלי `index=` מתעלם (אין משמעות ל"איזה סעיף"). אם גם `q=` וגם `highlight=` סופקו — `highlight=` גובר ו‑`q=` נופל, כדי לא לערבב חיפוש כללי עם הדגשה ממוקדת.
+
+**הבדל בין `q=` ל‑`highlight=`:**
+
+- `q=<text>` — חיפוש כללי בספר. מדגיש את כל המופעים בכל הסעיפים, פותח את חלונית החיפוש בצד, ומאפשר ניווט בין תוצאות. מתאים ל"מצא לי X בכל הספר".
+- `index=<n>&highlight=<text>` — קישור ישיר. גולל לסעיף `n`, מדגיש את כל המופעים של `<text>` **רק באותו סעיף**, ולא פותח חלונית חיפוש. מתאים ל"קח אותי לטקסט הזה כאן".
 
 **רגישות לאותיות גדולות/קטנות:** הסכמה, ה‑host, ושמות הפעולה (`calendar`, `library`, `book`, `tool`, וכד') כולם case‑insensitive — `OTZARIA://OPEN/CALENDAR` ו‑`otzaria://Open/Book/1234` תקפים בדיוק כמו הצורה הקטנה. הערכים (tool id, מזהי ספרים, כתובות `url=`) נשמרים כפי שהם.
 
@@ -211,7 +222,7 @@ _externalActivationWatchSub = queueFile.parent.watch().listen((event) {
 |---------|--------|------|
 | `OpenScreenAction(Screen)` | `otzaria://open/library`, `/settings`, ... | מסך עליון |
 | `OpenToolAction(String toolId)` | `otzaria://open/calendar`, `/tool/<id>`, ... | לשונית כלי |
-| `OpenBookAction(int bookId, {int? index, String? searchQuery})` | `otzaria://open/book/<id>?index=<n>&q=<text>` | ספר בעיון |
+| `OpenBookAction(int bookId, {int? index, String? searchQuery, String? pinpointHighlight})` | `otzaria://open/book/<id>?index=<n>&q=<text>` או `?index=<n>&highlight=<text>` | ספר בעיון. `pinpointHighlight` מדגיש רק בסעיף `index`, `searchQuery` מדגיש בכל הספר. שניהם נדחים זה את זה. |
 | `RunSearchAction(String query)` | `otzaria://open/search?q=<text>` | חיפוש מלא בלשונית חדשה |
 | `InstallPluginAction(PluginStoreInstallRequest)` | `otzaria://plugin/install?url=...` | התקנת תוסף |
 

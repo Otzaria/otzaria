@@ -1,7 +1,5 @@
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:otzaria/core/app_paths.dart';
 
@@ -13,13 +11,6 @@ import 'package:otzaria/core/app_paths.dart';
 /// הגדרת נתיב מפורש תחת APPDATA פותרת זאת.
 class WebViewEnvironmentHolder {
   static WebViewEnvironment? _environment;
-  // Private native shutdown hook.
-  // Keep the channel/method name in sync with
-  // flutter_inappwebview_windows/windows/in_app_webview/in_app_webview_manager.h
-  // and its prepareForEngineShutdown handler.
-  static const MethodChannel _nativeShutdownChannel = MethodChannel(
-    'com.pichillilorenzo/flutter_inappwebview_manager',
-  );
 
   /// מחזיר את ה-WebViewEnvironment שנוצר באתחול, או null בפלטפורמות שאינן Windows.
   static WebViewEnvironment? get environment => _environment;
@@ -56,39 +47,5 @@ class WebViewEnvironmentHolder {
     try {
       await environment.dispose();
     } catch (_) {}
-  }
-
-  /// Tears down the current Windows WebView environment before process exit.
-  static Future<void> shutdownForAppExit() async {
-    if (!Platform.isWindows) return;
-
-    final environment = _environment;
-    _environment = null;
-
-    if (environment != null) {
-      environment.onNewBrowserVersionAvailable = null;
-      environment.onBrowserProcessExited = null;
-      environment.onProcessInfosChanged = null;
-
-      try {
-        await environment.dispose();
-      } catch (_) {}
-    }
-
-    // Yield once so widget disposal triggered by the close flow can progress
-    // before the native layer starts draining the shared dispatcher queue.
-    await Future<void>.delayed(Duration.zero);
-
-    if (kDebugMode) {
-      debugPrint(
-        'WebViewEnvironmentHolder: requesting native prepareForEngineShutdown',
-      );
-    }
-    await _nativeShutdownChannel.invokeMethod('prepareForEngineShutdown');
-    if (kDebugMode) {
-      debugPrint(
-        'WebViewEnvironmentHolder: native prepareForEngineShutdown completed',
-      );
-    }
   }
 }

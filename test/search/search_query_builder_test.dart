@@ -13,13 +13,14 @@ void main() {
       expect(SearchQueryBuilder.sanitizeQuery('תורה, ומצוות'), 'תורה ומצוות');
     });
 
-    test('מסיר גרשיים', () {
-      expect(SearchQueryBuilder.sanitizeQuery("ה'"), 'ה');
+    test('שומר גרש וגרשיים לועזיים', () {
+      expect(SearchQueryBuilder.sanitizeQuery("ה'"), "ה'");
+      expect(SearchQueryBuilder.sanitizeQuery('רמב"ם'), 'רמב"ם');
     });
 
-    test('מסיר גרשיים עבריים (״ ו-׳)', () {
-      expect(SearchQueryBuilder.sanitizeQuery('ר״ן'), 'רן');
-      expect(SearchQueryBuilder.sanitizeQuery("א׳"), 'א');
+    test('ממיר גרשיים וגרש עבריים ללועזיים (״→", ׳→\')', () {
+      expect(SearchQueryBuilder.sanitizeQuery('ר״ן'), 'ר"ן');
+      expect(SearchQueryBuilder.sanitizeQuery("א׳"), "א'");
     });
 
     test('מסיר סימני שאלה וקריאה', () {
@@ -44,9 +45,8 @@ void main() {
       expect(SearchQueryBuilder.sanitizeQuery('a\\b|c'), 'abc');
     });
 
-    test('query עם רק תווים מיוחדים → ריק', () {
-      expect(SearchQueryBuilder.sanitizeQuery('*!?.,'), '');
-      expect(SearchQueryBuilder.sanitizeQuery('"..."'), '');
+    test('query עם רק תווים מוסרים → ריק', () {
+      expect(SearchQueryBuilder.sanitizeQuery('*!?.,;'), '');
     });
 
     test('query טהור עברי נשמר', () {
@@ -60,8 +60,7 @@ void main() {
 
     test('ממיר מקף עברי (־) לרווח רגיל', () {
       expect(SearchQueryBuilder.sanitizeQuery('אל־משה'), 'אל משה');
-      expect(SearchQueryBuilder.sanitizeQuery('ויאמר־אלהים'),
-          'ויאמר אלהים');
+      expect(SearchQueryBuilder.sanitizeQuery('ויאמר־אלהים'), 'ויאמר אלהים');
     });
   });
 
@@ -314,11 +313,56 @@ void main() {
     });
 
     test('query עם רק תווים מוסרים → regexTerms ריק', () {
-      // sanitizeQuery מסיר: , ! ? \' " ״ ׳ : * ( ) [ ] { } ^ $ | \\ + . ~ `
+      // sanitizeQuery מסיר: , ! ? : * ( ) [ ] { } ^ $ | \\ + . ~ `
+      // splitQueryWords מפצל גם על: " ' ״ ׳ (גרשיים/גרש)
       final params = SearchQueryBuilder.prepareQueryParams(
           '!?.,*', false, 0, null, null, null);
       final regexTerms = params['regexTerms'] as List<String>;
       expect(regexTerms, isEmpty);
+    });
+
+    test('ראשי תיבות עם גרשיים לועזיים → מתפצלים לטוקנים נפרדים', () {
+      // הטוקנייזר של Tantivy מפצל את `רמב"ם` ל-`רמב`,`ם` באינדוקס,
+      // לכן השאילתה חייבת לשלוח phrase של 2 טוקנים.
+      final params = SearchQueryBuilder.prepareQueryParams(
+          'רמב"ם', false, 0, null, null, null);
+      final regexTerms = params['regexTerms'] as List<String>;
+      expect(regexTerms, ['רמב', 'ם']);
+    });
+
+    test('ראשי תיבות עם גרשיים עבריים → מתפצלים לטוקנים נפרדים', () {
+      final params = SearchQueryBuilder.prepareQueryParams(
+          'ר״ן', false, 0, null, null, null);
+      final regexTerms = params['regexTerms'] as List<String>;
+      expect(regexTerms, ['ר', 'ן']);
+    });
+
+    test("מילה בודדת עם גרש סופי → נשמר כחלק מהטוקן", () {
+      // ה' (קיצור לשם הוי"ה) — הגרש בסוף נשמר כחלק מהטוקן `ה'`
+      // כך שחיפוש `ה'` לא ימצא `ה` לבד.
+      // תואם את HebrewTokenizer שמאנדקס תוס' כטוקן `תוס'`.
+      final params = SearchQueryBuilder.prepareQueryParams(
+          "ה'", false, 0, null, null, null);
+      final regexTerms = params['regexTerms'] as List<String>;
+      expect(regexTerms, ["ה'"]);
+    });
+
+    test('צירוף ראשי תיבות ומילה רגילה → טוקנים סמוכים', () {
+      final params = SearchQueryBuilder.prepareQueryParams(
+          'רמב"ם משה', false, 0, null, null, null);
+      final regexTerms = params['regexTerms'] as List<String>;
+      expect(regexTerms, ['רמב', 'ם', 'משה']);
+    });
+
+    test("ז\"ל → phrase של ['ז','ל'] (לא מילה אחת ולא 'למה זה')", () {
+      // הטקסט באינדקס: `הרב פלוני ז"ל` ⇒ Tantivy מפצל ל-`הרב`,`פלוני`,`ז`,`ל`.
+      // השאילתה צריכה לבקש שני טוקנים סמוכים, בדיוק `ז` ו-`ל`,
+      // כך שטקסטים כמו `למה זה` (טוקנים `למה`,`זה`) לא יתפסו.
+      final params =
+          SearchQueryBuilder.prepareQueryParams('ז"ל', false, 0, null, null, null);
+      final regexTerms = params['regexTerms'] as List<String>;
+      expect(regexTerms, ['ז', 'ל']);
+      expect(params['effectiveSlop'], 0);
     });
   });
 
@@ -577,9 +621,9 @@ void main() {
 
   // ──────────────────────────────────────────────────────────────────────────
   group('תרחישי הבאג: אופרטורים ריקים', () {
-    test('sanitize של query עם רק גרשיים → regexTerms ריק, לא קורס', () {
+    test('sanitize של query עם רק תווים מוסרים → regexTerms ריק, לא קורס', () {
       final params = SearchQueryBuilder.prepareQueryParams(
-          '"""', false, 0, null, null, null);
+          '!?.,;', false, 0, null, null, null);
       final regexTerms = params['regexTerms'] as List<String>;
       expect(regexTerms, isEmpty);
     });

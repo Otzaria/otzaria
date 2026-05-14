@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/tools/calendar/calendar_screen.dart';
 import 'package:otzaria/tools/calendar/dialogs/calendar_event_dialog.dart';
-import 'package:otzaria/tools/calendar/dialogs/jump_to_date_dialog.dart';
+import 'package:otzaria/tools/calendar/dialogs/jump_to_date_dialog.dart'
+    show JumpToDatePanel;
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_print_helpers.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -39,32 +40,29 @@ void main() {
     testWidgets('jump to date defaults to the active date', (tester) async {
       final initialDate = DateTime(2026, 4, 3);
       DateTime? selectedDate;
+      bool confirmed = false;
 
       await tester.pumpWidget(
         MaterialApp(
-          home: Builder(
-            builder: (context) => Scaffold(
-              body: TextButton(
-                onPressed: () async {
-                  selectedDate = await showJumpToDateDialog(
-                    context: context,
-                    parseInputDate: (_) => null,
-                    initialDate: initialDate,
-                  );
-                },
-                child: const Text('open'),
-              ),
+          home: Scaffold(
+            body: JumpToDatePanel(
+              selectedDate: initialDate,
+              currentDate: initialDate,
+              onDateChanged: (d) => selectedDate = d,
+              onCancel: () {},
+              onConfirm: () {
+                confirmed = true;
+                selectedDate ??= initialDate;
+              },
             ),
           ),
         ),
       );
 
-      await tester.tap(find.text('open'));
-      await tester.pumpAndSettle();
-
       await tester.tap(find.text('פתח'));
       await tester.pumpAndSettle();
 
+      expect(confirmed, isTrue);
       expect(selectedDate, initialDate);
     });
 

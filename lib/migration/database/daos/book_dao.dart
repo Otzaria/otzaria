@@ -271,60 +271,6 @@ class BookDao {
     return db.lastInsertRowId;
   }
 
-  Future<int> insertBookWithId(
-    int id,
-    int categoryId,
-    int sourceId,
-    String title,
-    String? heShortDesc,
-    double orderIndex,
-    int totalLines,
-    bool isBaseBook, {
-    bool hasTargumConnection = false,
-    bool hasReferenceConnection = false,
-    bool hasSourceConnection = false,
-    bool hasCommentaryConnection = false,
-    bool hasOtherConnection = false,
-    bool hasAltStructures = false,
-    bool hasTeamim = false,
-    bool hasNekudot = false,
-    bool isPersonal = false,
-    String? filePath,
-    String? fileType,
-    int? fileSize,
-    int? lastModified,
-    int? pages,
-    String? volume,
-  }) async {
-    final db = await database;
-    db.execute(_queries['insertWithId']!, [
-      id,
-      categoryId,
-      sourceId,
-      title,
-      heShortDesc,
-      orderIndex,
-      totalLines,
-      (isBaseBook ? 1 : 0),
-      hasTargumConnection ? 1 : 0,
-      hasReferenceConnection ? 1 : 0,
-      hasSourceConnection ? 1 : 0,
-      hasCommentaryConnection ? 1 : 0,
-      hasOtherConnection ? 1 : 0,
-      hasAltStructures ? 1 : 0,
-      hasTeamim ? 1 : 0,
-      hasNekudot ? 1 : 0,
-      isPersonal ? 1 : 0,
-      filePath,
-      fileType,
-      fileSize,
-      lastModified,
-      pages,
-      volume,
-    ]);
-    return db.lastInsertRowId;
-  }
-
   Future<int> updateBookTotalLines(int id, int totalLines) async {
     final db = await database;
     db.execute(_queries['updateTotalLines']!, [totalLines, id]);

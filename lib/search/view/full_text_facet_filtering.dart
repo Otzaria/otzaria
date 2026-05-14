@@ -89,13 +89,15 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
   }
 
   void _setFacet(BuildContext context, String facet) {
-    final searchMode =
-        context.read<SearchBloc>().state.configuration.searchMode;
+    final searchBloc = context.read<SearchBloc>();
+    final searchMode = searchBloc.state.configuration.searchMode;
     final normalizedParameters = SearchQueryBuilder.normalizeParametersForMode(
       searchMode,
       customSpacing: widget.tab.spacingValues,
       alternativeWords: widget.tab.alternativeWords,
-      searchOptions: widget.tab.searchOptions,
+      searchOptions: widget.tab.effectiveSearchOptions(
+        query: searchBloc.state.searchQuery,
+      ),
     );
     context.read<SearchBloc>().add(SetFacet(
           facet,

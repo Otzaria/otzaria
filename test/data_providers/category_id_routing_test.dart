@@ -67,13 +67,21 @@ class _FakeProvider implements LibraryProvider {
 
   @override
   Future<String?> getBookText(
-      String title, int categoryId, String fileType) async {
+    String title,
+    int categoryId,
+    String fileType, {
+    bool preferUserBooks = false,
+  }) async {
     return null;
   }
 
   @override
   Future<List<TocEntry>?> getBookToc(
-      String title, int categoryId, String fileType) async {
+    String title,
+    int categoryId,
+    String fileType, {
+    bool preferUserBooks = false,
+  }) async {
     return null;
   }
 

@@ -35,11 +35,20 @@ abstract class LibraryProvider {
   Future<bool> hasBook(String title, int categoryId, String fileType);
 
   /// Gets the text content of a book
-  Future<String?> getBookText(String title, int categoryId, String fileType);
+  Future<String?> getBookText(
+    String title,
+    int categoryId,
+    String fileType, {
+    bool preferUserBooks = false,
+  });
 
   /// Gets the table of contents for a book
   Future<List<TocEntry>?> getBookToc(
-      String title, int categoryId, String fileType);
+    String title,
+    int categoryId,
+    String fileType, {
+    bool preferUserBooks = false,
+  });
 
   /// Gets all book titles available in this provider
   Future<Set<String>> getAvailableBookTitles();

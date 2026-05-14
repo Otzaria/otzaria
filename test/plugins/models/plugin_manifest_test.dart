@@ -3,7 +3,7 @@ import 'package:otzaria/plugins/models/plugin_manifest.dart';
 
 void main() {
   group('PluginManifest', () {
-    test('parses icon metadata and resolves filled font family', () {
+    test('parses tool tab icon name', () {
       final manifest = PluginManifest.fromJson({
         'schemaVersion': 1,
         'id': 'test.plugin.icon',
@@ -13,23 +13,19 @@ void main() {
         'contributes': {
           'toolTab': {
             'title': 'Icon Plugin',
-            'iconCodepoint': 983704,
-            'iconVariant': 'filled',
+            'iconName': 'calendar_24_filled',
           },
         },
       });
 
-      expect(manifest.toolTabIconCodepoint, 983704);
-      expect(manifest.toolTabIconVariant, 'filled');
-      expect(manifest.toolTabIconFontFamily, 'FluentSystemIcons-Filled');
+      expect(manifest.toolTabIconName, 'calendar_24_filled');
 
       final toolTab = (manifest.toJson()['contributes']
           as Map<String, dynamic>)['toolTab'] as Map<String, dynamic>;
-      expect(toolTab['iconCodepoint'], 983704);
-      expect(toolTab['iconVariant'], 'filled');
+      expect(toolTab['iconName'], 'calendar_24_filled');
     });
 
-    test('defaults to regular font family when variant is omitted', () {
+    test('icon name is null when omitted', () {
       final manifest = PluginManifest.fromJson({
         'schemaVersion': 1,
         'id': 'test.plugin.default.icon',
@@ -39,13 +35,11 @@ void main() {
         'contributes': {
           'toolTab': {
             'title': 'Default Icon Plugin',
-            'iconCodepoint': 983685,
           },
         },
       });
 
-      expect(manifest.toolTabIconVariant, isNull);
-      expect(manifest.toolTabIconFontFamily, 'FluentSystemIcons-Regular');
+      expect(manifest.toolTabIconName, isNull);
     });
   });
 }

@@ -63,6 +63,12 @@ class TextBookInitial extends TextBookState {
   final bool splitedView;
   final bool showPageShapeView;
 
+  /// אינדקס הסעיף שבו מותר לבצע הדגשה ממוקדת (deep link). null = אין הדגשה כזו.
+  final int? pinpointHighlightIndex;
+
+  /// הטקסט להדגשה ממוקדת בסעיף [pinpointHighlightIndex]. null = אין.
+  final String? pinpointHighlightText;
+
   const TextBookInitial(
       super.book, super.index, super.showLeftPane, super.commentators,
       [this.searchText = '',
@@ -72,7 +78,9 @@ class TextBookInitial extends TextBookState {
       this.searchMode = SearchMode.exact,
       this.searchDistance = 0,
       this.splitedView = true,
-      this.showPageShapeView = false]);
+      this.showPageShapeView = false,
+      this.pinpointHighlightIndex,
+      this.pinpointHighlightText]);
 
   // קונסטרקטור עם פרמטרים בשם
   const TextBookInitial.named(
@@ -88,6 +96,8 @@ class TextBookInitial extends TextBookState {
     this.searchDistance = 0,
     bool? splitedView,
     this.showPageShapeView = false,
+    this.pinpointHighlightIndex,
+    this.pinpointHighlightText,
   }) : splitedView = splitedView ?? false; // ברירת מחדל: מפרשים מתחת
 
   @override
@@ -101,6 +111,8 @@ class TextBookInitial extends TextBookState {
         searchDistance,
         splitedView,
         showPageShapeView,
+        pinpointHighlightIndex,
+        pinpointHighlightText,
       ];
 }
 
@@ -155,6 +167,12 @@ class TextBookLoaded extends TextBookState {
   final bool showSubtitles;
   final Map<int, List<String>> subtitleHeadingsByLine;
   final List<ReadingSegment> readingSegments;
+
+  /// אינדקס הסעיף שבו מבוצעת הדגשה ממוקדת (deep link). null = אין.
+  final int? pinpointHighlightIndex;
+
+  /// הטקסט להדגשה ממוקדת באותו סעיף. null = אין.
+  final String? pinpointHighlightText;
 
   // Editor state
   final bool isEditorOpen;
@@ -211,6 +229,8 @@ class TextBookLoaded extends TextBookState {
     this.showSubtitles = true,
     this.subtitleHeadingsByLine = const {},
     this.readingSegments = const [],
+    this.pinpointHighlightIndex,
+    this.pinpointHighlightText,
     this.isEditorOpen = false,
     this.editorIndex,
     this.editorSectionId,
@@ -306,6 +326,9 @@ class TextBookLoaded extends TextBookState {
     bool? showSubtitles,
     Map<int, List<String>>? subtitleHeadingsByLine,
     List<ReadingSegment>? readingSegments,
+    int? pinpointHighlightIndex,
+    String? pinpointHighlightText,
+    bool clearPinpointHighlight = false,
     bool? isEditorOpen,
     int? editorIndex,
     String? editorSectionId,
@@ -358,6 +381,12 @@ class TextBookLoaded extends TextBookState {
       subtitleHeadingsByLine:
           subtitleHeadingsByLine ?? this.subtitleHeadingsByLine,
       readingSegments: readingSegments ?? this.readingSegments,
+      pinpointHighlightIndex: clearPinpointHighlight
+          ? null
+          : (pinpointHighlightIndex ?? this.pinpointHighlightIndex),
+      pinpointHighlightText: clearPinpointHighlight
+          ? null
+          : (pinpointHighlightText ?? this.pinpointHighlightText),
       isEditorOpen: isEditorOpen ?? this.isEditorOpen,
       editorIndex: editorIndex ?? this.editorIndex,
       editorSectionId: editorSectionId ?? this.editorSectionId,
@@ -403,6 +432,8 @@ class TextBookLoaded extends TextBookState {
         showSubtitles,
         _subtitleHeadingsSignature(subtitleHeadingsByLine),
         readingSegments.length,
+        pinpointHighlightIndex,
+        pinpointHighlightText,
         isEditorOpen,
         editorIndex,
         editorSectionId,

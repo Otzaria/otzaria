@@ -4,12 +4,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:window_manager/window_manager.dart';
-import '../migration/database/daos/database.dart';
 import 'package:otzaria/core/pre_close_registry.dart';
 import 'package:otzaria/core/window_persistence.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
-import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
-import 'package:otzaria/plugins/view/webview_environment_holder.dart';
+import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 /// Callback type for fullscreen state changes
@@ -17,6 +15,10 @@ typedef FullscreenCallback = void Function(bool isFullscreen);
 
 /// Window listener that handles window events properly to prevent crashes
 class AppWindowListener extends WindowListener {
+  static const MethodChannel _processControlChannel = MethodChannel(
+    'otzaria/process_control',
+  );
+
   FullscreenCallback? onFullscreenChanged;
 
   /// נקרא לאחר אירועי מצב חלון דיסקרטיים שעלולים לגרום לאיבוד פוקוס:
@@ -25,6 +27,7 @@ class AppWindowListener extends WindowListener {
 
   /// נקרא בכל אירוע resize רציף — מיועד ל-debounced restore.
   VoidCallback? onWindowResizeOccurred;
+  bool _isClosing = false;
 
   Future<void> _runBestEffortShutdownStep(
     String stepName,
@@ -42,6 +45,16 @@ class AppWindowListener extends WindowListener {
         debugPrint('WebView shutdown step failed ($stepName): $e');
       }
     }
+  }
+
+  Future<void> _armForceExitWatchdog() async {
+    if (kIsWeb || !Platform.isWindows) {
+      return;
+    }
+
+    await _processControlChannel.invokeMethod('armForceExitWatchdog', {
+      'timeoutMs': 15000,
+    });
   }
 
   @override
@@ -64,28 +77,25 @@ class AppWindowListener extends WindowListener {
 
   @override
   void onWindowClose() async {
+    if (_isClosing) {
+      return;
+    }
+    _isClosing = true;
+
     if (kDebugMode) {
       debugPrint('Window close requested');
     }
 
     await _runBestEffortShutdownStep(
-      'prepareForAppShutdown',
-      PluginRuntimeDispatcher.instance.prepareForAppShutdown,
-      timeout: const Duration(seconds: 2),
-    );
-    await Future<void>.delayed(Duration.zero);
-    await _runBestEffortShutdownStep(
-      'shutdownForAppExit',
-      WebViewEnvironmentHolder.shutdownForAppExit,
-      // This step includes the native dispatcher-queue drain, so keep the
-      // timeout looser than the Dart-side pre-close step.
-      timeout: const Duration(seconds: 8),
+      'armForceExitWatchdog',
+      _armForceExitWatchdog,
+      timeout: const Duration(seconds: 1),
     );
 
     // Step 1: Non-critical cleanup — errors here must not block Hive.close().
     try {
-      MyDatabase().close();
-      SqliteDataProvider.instance.dispose();
+      await UserBooksDatabaseHolder.instance.close();
+      await SqliteDataProvider.instance.dispose();
     } catch (e) {
       if (kDebugMode) print('Non-critical cleanup error: $e');
     }
@@ -127,6 +137,13 @@ class AppWindowListener extends WindowListener {
 
       if (!kIsWeb &&
           (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+        if (Platform.isWindows) {
+          // window_manager.destroy() posts WM_QUIT on Windows. Awaiting it can
+          // stop the Flutter engine before the Dart continuation reaches exit().
+          exit(0);
+        }
+
+        await windowManager.setPreventClose(false);
         // סגירה רגילה דרך ה-WindowManager
         await windowManager.destroy();
       }

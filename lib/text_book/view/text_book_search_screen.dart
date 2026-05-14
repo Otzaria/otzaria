@@ -50,6 +50,10 @@ class TextBookSearchView extends StatefulWidget {
   final Map<String, String> initialSpacingValues;
   final SearchMode initialSearchMode;
   final int initialSearchDistance;
+  final Future<List<TextSearchResult>> Function(
+    List<String> content,
+    String query,
+  )? simpleSearchRunner;
 
   const TextBookSearchView({
     super.key,
@@ -63,6 +67,7 @@ class TextBookSearchView extends StatefulWidget {
     this.initialSpacingValues = const {},
     this.initialSearchMode = SearchMode.exact,
     this.initialSearchDistance = 0,
+    this.simpleSearchRunner,
   });
 
   @override
@@ -86,6 +91,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
   SearchMode _searchMode = SearchMode.exact;
   int _searchDistance = 0;
   int? _selectedSearchResultIndex;
+  int _activeSearchRequestId = 0;
 
   bool get _isSimpleSearch =>
       !_forceSearchEngine && _searchMode == SearchMode.exact;
@@ -220,13 +226,11 @@ class TextBookSearchViewState extends State<TextBookSearchView>
 
     if (queryChanged || searchConfigurationChanged) {
       _syncBlocSearchTextState();
-      if (widget.initialQuery.isNotEmpty) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            _searchTextUpdated();
-          }
-        });
-      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _searchTextUpdated();
+        }
+      });
     }
   }
 
@@ -274,6 +278,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
   }
 
   Future<void> _searchTextUpdated() async {
+    final requestId = ++_activeSearchRequestId;
     String query = searchTextController.text.trim();
     if (query.isEmpty ||
         (!_isSimpleSearch && (_bookPath == null || _bookTitle == null))) {
@@ -293,13 +298,15 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     });
 
     if (_isSimpleSearch) {
-      final results = await searchInContent(
-        content: _content,
-        query: query,
-      );
+      final effectiveResults = widget.simpleSearchRunner != null
+          ? await widget.simpleSearchRunner!(_content, query)
+          : await searchInContent(
+              content: _content,
+              query: query,
+            );
 
-      if (mounted) {
-        _applySearchResults(results);
+      if (mounted && requestId == _activeSearchRequestId) {
+        _applySearchResults(effectiveResults);
       }
       return;
     }
@@ -358,12 +365,12 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         'filteredResults=${results.length}, title="$expectedTitle"',
       );
 
-      if (mounted) {
+      if (mounted && requestId == _activeSearchRequestId) {
         _applySearchResults(_convertSearchResults(results));
       }
     } catch (e) {
       debugPrint('Search error: $e');
-      if (mounted) {
+      if (mounted && requestId == _activeSearchRequestId) {
         setState(() {
           searchResults = [];
           _isSearching = false;

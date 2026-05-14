@@ -27,8 +27,7 @@
       "title": "לוח שנה",
       "order": 100,
       "defaultPinned": true,
-      "iconCodepoint": 983685,
-      "iconVariant": "regular"
+      "iconName": "calendar_24_regular"
     },
     "publishedDataTypes": ["calendar.event"]
   }

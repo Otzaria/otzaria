@@ -115,7 +115,14 @@ void _openDafYomiBookInCategory(
 Future<void> _openBook(BuildContext context, Book book, String daf) async {
   final index = await findReference(book, 'דף ${daf.trim()}') ?? 0;
   if (!context.mounted) return;
-  openBook(context, book, index, '', ignoreHistory: true);
+  openBook(
+    context,
+    book,
+    index,
+    '',
+    ignoreHistory: true,
+    requiresStableLayout: true,
+  );
 }
 
 /// מוצא את האינדקס של הפניה בספר (PDF או טקסט)
@@ -203,7 +210,8 @@ Future<void> _openBookFromRefHelper(
     final index = await findReference(book, ref);
     if (!context.mounted) return;
     if (index != null) {
-      openBook(context, book, index, '', ignoreHistory: true);
+      openBook(context, book, index, '',
+          ignoreHistory: true, requiresStableLayout: bookType == PdfBook);
     } else {
       UiSnack.showError(UiSnack.sectionNotFound);
     }

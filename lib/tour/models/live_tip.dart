@@ -9,6 +9,33 @@ enum LiveTipId {
   commentaryHint,
 }
 
+class LiveTipStorage {
+  static const String resolvedTipsKey = 'live_tips_resolved';
+
+  static String encode(Set<LiveTipId> tips) {
+    final names = tips.map((tip) => tip.name).toList()..sort();
+    return names.join(',');
+  }
+
+  static Set<LiveTipId> decode(String? raw) {
+    if (raw == null || raw.isEmpty) {
+      return <LiveTipId>{};
+    }
+    final result = <LiveTipId>{};
+    for (final name in raw.split(',')) {
+      final trimmed = name.trim();
+      if (trimmed.isEmpty) continue;
+      for (final tip in LiveTipId.values) {
+        if (tip.name == trimmed) {
+          result.add(tip);
+          break;
+        }
+      }
+    }
+    return result;
+  }
+}
+
 enum TourInteractionType {
   currentTabChanged,
   openedTextBook,

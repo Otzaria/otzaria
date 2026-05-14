@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
+import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/migration/models/toc_entry.dart' as migration_models;
 
 /// מודל לניהול קבצי headings של PDF
@@ -20,40 +20,22 @@ class PdfHeadings {
     String bookTitle, {
     int? categoryId,
     String? filePath,
+    bool preferUserBooks = false,
   }) async {
     try {
-      final provider = SqliteDataProvider.instance;
-      if (!provider.isInitialized) {
-        await provider.initialize();
-      }
-
-      final repository = provider.repository;
-      if (repository == null) {
-        debugPrint('Database repository not initialized');
-        return null;
-      }
-
-      // חיפוש לפי filePath תחילה - מזהה מדויק שמונע החזרת ספר שגוי
-      // כשכמה ספרים חולקים אותה כותרת
-      var book = filePath != null
-          ? await repository.getExternalBookByFilePath(filePath)
-          : null;
-
-      // fallback לפי כותרת כאשר אין filePath או לא נמצא
-      if (book == null) {
-        book = categoryId != null
-            ? await repository.getBookByTitleAndCategory(bookTitle, categoryId)
-            : null;
-        book ??= await repository.getBookByTitle(bookTitle);
-      }
-
-      if (book == null) {
+      final resolvedBook = await BookDatabaseResolver.resolveBook(
+        title: bookTitle,
+        categoryId: categoryId,
+        filePath: filePath,
+        preferUserBooks: preferUserBooks,
+      );
+      if (resolvedBook == null) {
         debugPrint('Book not found in DB for headings: $bookTitle');
         return null;
       }
 
-      return await loadFromDatabaseByBookId(
-        book.id,
+      return await _loadFromResolvedBook(
+        resolvedBook,
         bookTitle: bookTitle,
       );
     } catch (e) {
@@ -62,43 +44,28 @@ class PdfHeadings {
     }
   }
 
-  /// טוען headings עבור ספר PDF מתוך ה-DB לפי מזהה ספר.
-  static Future<PdfHeadings?> loadFromDatabaseByBookId(
-    int bookId, {
+  static Future<PdfHeadings?> _loadFromResolvedBook(
+    ResolvedDbBookRecord resolvedBook, {
     String? bookTitle,
   }) async {
     try {
-      final provider = SqliteDataProvider.instance;
-      if (!provider.isInitialized) {
-        await provider.initialize();
-      }
-
-      final repository = provider.repository;
-      if (repository == null) {
-        debugPrint('Database repository not initialized');
-        return null;
-      }
-
-      final tocEntries = await repository.getBookTocs(bookId);
+      final tocEntries =
+          await resolvedBook.repository.getBookTocs(resolvedBook.book.id);
       final headingsMap = buildHeadingsMapFromTocEntries(tocEntries);
 
       if (headingsMap.isEmpty) {
-        debugPrint('No PDF headings found in DB for bookId: $bookId');
+        debugPrint(
+            'No PDF headings found in DB for bookId: ${resolvedBook.book.id}');
         return null;
-      }
-
-      String resolvedTitle = bookTitle ?? '';
-      if (resolvedTitle.isEmpty) {
-        final book = await repository.getBook(bookId);
-        resolvedTitle = book?.title ?? '';
       }
 
       return PdfHeadings(
         headingsMap: headingsMap,
-        bookTitle: resolvedTitle,
+        bookTitle: bookTitle ?? resolvedBook.book.title,
       );
     } catch (e) {
-      debugPrint('Error loading headings from DB for bookId $bookId: $e');
+      debugPrint(
+          'Error loading headings from DB for bookId ${resolvedBook.book.id}: $e');
       return null;
     }
   }

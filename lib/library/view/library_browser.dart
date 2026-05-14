@@ -918,51 +918,59 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     if (state.library == null || state.currentCategory == null) {
       return const Center(child: SizedBox.shrink());
     }
-    final settingsState = context.read<SettingsBloc>().state;
-    if (settingsState.libraryViewMode == 'grid') {
-      if (state.searchResults != null) {
-        final books = state.searchResults!;
-        if (books.isEmpty) {
-          final repo = context.read<FocusRepository>();
-          return Center(
-            child: Text(
-              repo.librarySearchController.text.isNotEmpty
-                  ? 'אין תוצאות עבור "${repo.librarySearchController.text}"'
-                  : 'אין פריטים להצגה בתיקייה זו',
-              style: Theme.of(context).textTheme.titleMedium,
-              textAlign: TextAlign.center,
-            ),
+    return BlocSelector<LibraryBloc, LibraryState, bool>(
+      selector: (s) => s.isSearching,
+      builder: (ctx, isSearching) {
+        if (isSearching) {
+          return const Center(child: _SearchingIndicator());
+        }
+        final settingsState = context.read<SettingsBloc>().state;
+        if (settingsState.libraryViewMode == 'grid') {
+          if (state.searchResults != null) {
+            final books = state.searchResults!;
+            if (books.isEmpty) {
+              final repo = context.read<FocusRepository>();
+              return Center(
+                child: Text(
+                  repo.librarySearchController.text.isNotEmpty
+                      ? 'אין תוצאות עבור "${repo.librarySearchController.text}"'
+                      : 'אין פריטים להצגה בתיקייה זו',
+                  style: Theme.of(context).textTheme.titleMedium,
+                  textAlign: TextAlign.center,
+                ),
+              );
+            }
+            final displayLimit = min(books.length, 100);
+            return SingleChildScrollView(
+              key: PageStorageKey(state.currentCategory),
+              child: _buildSearchResultsGrid(books, displayLimit),
+            );
+          }
+          final categoryItems =
+              _buildCategoryContent(state.currentCategory!, settingsState);
+          if (categoryItems.isEmpty) {
+            final repo = context.read<FocusRepository>();
+            return Center(
+              child: Text(
+                repo.librarySearchController.text.isNotEmpty
+                    ? 'אין תוצאות עבור "${repo.librarySearchController.text}"'
+                    : 'אין פריטים להצגה בתיקייה זו',
+                style: Theme.of(context).textTheme.titleMedium,
+                textAlign: TextAlign.center,
+              ),
+            );
+          }
+          return SingleChildScrollView(
+            key: PageStorageKey(state.currentCategory),
+            child: Column(children: categoryItems),
           );
         }
-        final displayLimit = min(books.length, 100);
-        return SingleChildScrollView(
-          key: PageStorageKey(state.currentCategory),
-          child: _buildSearchResultsGrid(books, displayLimit),
-        );
-      }
-      final categoryItems =
-          _buildCategoryContent(state.currentCategory!, settingsState);
-      if (categoryItems.isEmpty) {
-        final repo = context.read<FocusRepository>();
-        return Center(
-          child: Text(
-            repo.librarySearchController.text.isNotEmpty
-                ? 'אין תוצאות עבור "${repo.librarySearchController.text}"'
-                : 'אין פריטים להצגה בתיקייה זו',
-            style: Theme.of(context).textTheme.titleMedium,
-            textAlign: TextAlign.center,
-          ),
-        );
-      }
-      return SingleChildScrollView(
-        key: PageStorageKey(state.currentCategory),
-        child: Column(children: categoryItems),
-      );
-    }
-    if (state.searchResults != null) {
-      return _buildSearchListView(state.searchResults!);
-    }
-    return _buildListView(state.currentCategory!);
+        if (state.searchResults != null) {
+          return _buildSearchListView(state.searchResults!);
+        }
+        return _buildListView(state.currentCategory!);
+      },
+    );
   }
 
   List<Widget> _buildCategoryContent(
@@ -1995,6 +2003,38 @@ class _LibraryBrowserState extends State<LibraryBrowser>
           ),
         ],
       ),
+    );
+  }
+}
+
+// ── _SearchingIndicator ───────────────────────────────────────────────────────
+
+class _SearchingIndicator extends StatelessWidget {
+  const _SearchingIndicator();
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 36,
+          height: 36,
+          child: CircularProgressIndicator(
+            strokeWidth: 3,
+            color: cs.primary,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'מחפש...',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: cs.onSurfaceVariant,
+              ),
+          textDirection: TextDirection.rtl,
+        ),
+      ],
     );
   }
 }

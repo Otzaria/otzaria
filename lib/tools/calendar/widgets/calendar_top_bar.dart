@@ -13,19 +13,22 @@
 //
 // החיצים ותאריך תמיד בשורה עליונה, במיקום קבוע שלא זז עם שינוי אורך התאריך.
 
+import 'dart:math' as math;
+
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kosher_dart/kosher_dart.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tools/calendar/utils/calendar_cubit.dart';
+import 'package:otzaria/tools/calendar/dialogs/jump_to_date_dialog.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_side_panel.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
-import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/buttons/action_buttons.dart';
 import 'package:otzaria/core/ui_snack.dart';
-import 'package:otzaria/widgets/text/rtl_text_field.dart';
+import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 
 // הרוחב שמתחתיו עוברים לשורה שנייה
 const double _kTopBarNarrowBreakpoint = 540.0;
@@ -35,8 +38,6 @@ const double _kMonthDateAreaWidth = 252.0;
 const double _kWeekDateAreaWidth = 344.0;
 const double _kMonthDateNavGap = 20.0;
 const double _kWeekDateNavGap = 12.0;
-const double _kWideQuickActionsOffsetMonth = 256.0;
-const double _kWideQuickActionsOffsetWeek = 306.0;
 
 class CalendarTopBar extends StatefulWidget {
   final CalendarState state;
@@ -52,6 +53,9 @@ class CalendarTopBar extends StatefulWidget {
   final VoidCallback onToggleSettingsPanel;
   final VoidCallback onPrint;
   final VoidCallback onToggleSidebar;
+  final bool isJumpToDateSearchOpen;
+  final VoidCallback onToggleJumpToDateSearch;
+  final VoidCallback onCloseJumpToDateSearch;
   final DateTime? Function(String input) parseInputDate;
   final ValueChanged<DateTime> onJumpToDateSelected;
 
@@ -70,6 +74,9 @@ class CalendarTopBar extends StatefulWidget {
     required this.onToggleSettingsPanel,
     required this.onPrint,
     required this.onToggleSidebar,
+    required this.isJumpToDateSearchOpen,
+    required this.onToggleJumpToDateSearch,
+    required this.onCloseJumpToDateSearch,
     required this.parseInputDate,
     required this.onJumpToDateSelected,
   });
@@ -78,8 +85,76 @@ class CalendarTopBar extends StatefulWidget {
   State<CalendarTopBar> createState() => _CalendarTopBarState();
 }
 
-class _CalendarTopBarState extends State<CalendarTopBar> {
-  final GlobalKey _jumpButtonKey = GlobalKey();
+class _CalendarTopBarState extends State<CalendarTopBar>
+    with WidgetsBindingObserver {
+  late final TextEditingController _jumpDateController;
+  late final FocusNode _jumpDateFocusNode;
+  late final FocusNode _dialogFocusNode;
+  late DateTime _pendingJumpDate;
+  final GlobalKey _jumpSearchBarKey = GlobalKey();
+  final OverlayPortalController _overlayPortalController =
+      OverlayPortalController();
+
+  @override
+  void initState() {
+    super.initState();
+    _jumpDateController = TextEditingController();
+    _jumpDateFocusNode = FocusNode(debugLabel: 'calendarJumpDateSearch');
+    _dialogFocusNode = FocusNode(debugLabel: 'calendarJumpDateDialog');
+    _pendingJumpDate = widget.state.selectedGregorianDate;
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // סגירת החיפוש כשהאפליקציה עוברת לרקע או מאבדת פוקוס
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden) {
+      if (widget.isJumpToDateSearchOpen) {
+        widget.onCloseJumpToDateSearch();
+      }
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant CalendarTopBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.isJumpToDateSearchOpen && widget.isJumpToDateSearchOpen) {
+      _prepareJumpDateSearch();
+      // show() נדחה ל-postFrameCallback כדי לוודא שה-layout של שדה החיפוש
+      // הסתיים לפני ש-_buildDialogOverlay מנסה לקרוא localToGlobal.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _overlayPortalController.show();
+        _jumpDateFocusNode.requestFocus();
+      });
+    }
+    if (oldWidget.isJumpToDateSearchOpen && !widget.isJumpToDateSearchOpen) {
+      // hide() נדחה ל-postFrameCallback כדי להימנע מקריאת setState
+      // על ה-OverlayPortal בזמן שה-build frame עדיין פעיל.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (_overlayPortalController.isShowing) {
+          _overlayPortalController.hide();
+        }
+      });
+    }
+    if (oldWidget.state.selectedGregorianDate !=
+            widget.state.selectedGregorianDate &&
+        !widget.isJumpToDateSearchOpen) {
+      _pendingJumpDate = widget.state.selectedGregorianDate;
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _jumpDateController.dispose();
+    _jumpDateFocusNode.dispose();
+    _dialogFocusNode.dispose();
+    super.dispose();
+  }
 
   String _formatWeekHebrewRange(CalendarState state) {
     final selected = state.selectedGregorianDate;
@@ -166,6 +241,263 @@ class _CalendarTopBarState extends State<CalendarTopBar> {
     );
   }
 
+  String _formatInputDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  String _buildCurrentDateHint() {
+    final s = widget.state;
+    final heb = s.calendarView == CalendarView.week
+        ? _formatWeekHebrewRange(s)
+        : '${formatHebrewDay(s.selectedJewishDate.getJewishDayOfMonth())} '
+            '${getHebrewMonthNameFor(s.selectedJewishDate)} '
+            '${numberToHebrewWithoutQuotes(s.selectedJewishDate.getJewishYear())}';
+    final greg = s.calendarView == CalendarView.week
+        ? _formatWeekGregorianRange(s)
+        : '${s.selectedGregorianDate.day} ${getGregorianMonthName(s.selectedGregorianDate.month)} ${s.selectedGregorianDate.year}';
+    return '$heb • $greg';
+  }
+
+  void _prepareJumpDateSearch() {
+    _pendingJumpDate = clampJumpToDate(widget.state.selectedGregorianDate);
+    _jumpDateController.clear();
+  }
+
+  void _handleJumpDateChanged(String value) {
+    final input = value.trim();
+    if (input.isEmpty) {
+      setState(() {
+        _pendingJumpDate = widget.state.selectedGregorianDate;
+      });
+      return;
+    }
+    final result = widget.parseInputDate(input);
+    if (result == null) return;
+    setState(() {
+      _pendingJumpDate = clampJumpToDate(result);
+    });
+  }
+
+  void _refocusSearchWithSelection() {
+    _jumpDateFocusNode.requestFocus();
+    _jumpDateController.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: _jumpDateController.text.length,
+    );
+  }
+
+  void _submitJumpDateSearch() {
+    final input = _jumpDateController.text.trim();
+    final result =
+        input.isEmpty ? _pendingJumpDate : widget.parseInputDate(input);
+    if (result == null) {
+      UiSnack.showError('לא הצלחנו לפרש את התאריך.');
+      _refocusSearchWithSelection();
+      return;
+    }
+    if (!isJumpToDateInRange(result)) {
+      UiSnack.showError('התאריך מחוץ לטווח הנתמך.');
+      _refocusSearchWithSelection();
+      return;
+    }
+    widget.onCloseJumpToDateSearch();
+    widget.onJumpToDateSelected(result);
+  }
+
+  void _focusDialog() {
+    FocusManager.instance.primaryFocus?.unfocus();
+    _dialogFocusNode.requestFocus();
+  }
+
+  void _movePendingDateByDays(int days) {
+    setState(() {
+      _pendingJumpDate = clampJumpToDate(
+        _pendingJumpDate.add(Duration(days: days)),
+      );
+      _jumpDateController.text = _formatInputDate(_pendingJumpDate);
+    });
+  }
+
+  KeyEventResult _handleDialogKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) {
+      return KeyEventResult.ignored;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.escape ||
+        event.logicalKey == LogicalKeyboardKey.backspace) {
+      widget.onCloseJumpToDateSearch();
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+      _submitJumpDateSearch();
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+      _movePendingDateByDays(-1);
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+      _movePendingDateByDays(1);
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      _movePendingDateByDays(-7);
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      _movePendingDateByDays(7);
+      return KeyEventResult.handled;
+    }
+
+    return KeyEventResult.ignored;
+  }
+
+  // ── Overlay dialog ────────────────────────────────────────────────────────
+
+  Widget _buildDialogOverlay(BuildContext overlayCtx) {
+    final anchorBox =
+        _jumpSearchBarKey.currentContext?.findRenderObject() as RenderBox?;
+    if (anchorBox == null || !anchorBox.hasSize) return const SizedBox.shrink();
+
+    // קואורדינטות גלובליות (ה-Overlay בד"כ מכסה כל המסך)
+    final anchorOffset = anchorBox.localToGlobal(Offset.zero);
+    final anchorSize = anchorBox.size;
+    final screenSize = MediaQuery.sizeOf(context);
+    // תיקון narrow screen: הבטח שהגבול העליון של clamp לא יהיה קטן מהתחתון
+    final maxAllowedWidth = math.max(1.0, screenSize.width - 32.0);
+    final safeDialogWidth =
+        math.min(anchorSize.width.clamp(320.0, 420.0), maxAllowedWidth);
+    final rawLeft = anchorOffset.dx + anchorSize.width - safeDialogWidth;
+    final maxLeft = math.max(16.0, screenSize.width - safeDialogWidth - 16.0);
+    final dialogLeft = rawLeft.clamp(16.0, maxLeft);
+    final dialogTop = anchorOffset.dy + anchorSize.height + 4;
+    final cs = Theme.of(context).colorScheme;
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // Barrier — translucent: מזהה את ה-tap (לסגירה) אך מאפשר
+        // לאירועים לעבור דרכו גם לוידג'טים שמתחת (כגון לוח השנה).
+        Positioned(
+          top: anchorOffset.dy + anchorSize.height,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: widget.onCloseJumpToDateSearch,
+          ),
+        ),
+        // הדיאלוג — עטוף ב-Focus+CallbackShortcuts לקיצורי מקלדת
+        Positioned(
+          left: dialogLeft,
+          top: dialogTop,
+          width: safeDialogWidth,
+          child: CallbackShortcuts(
+            bindings: {
+              const SingleActivator(LogicalKeyboardKey.escape):
+                  widget.onCloseJumpToDateSearch,
+              const SingleActivator(LogicalKeyboardKey.enter):
+                  _submitJumpDateSearch,
+            },
+            child: Focus(
+              focusNode: _dialogFocusNode,
+              onKeyEvent: _handleDialogKeyEvent,
+              child: Material(
+                elevation: 8,
+                shadowColor: cs.shadow,
+                borderRadius: BorderRadius.circular(28),
+                color: cs.surfaceContainerHigh,
+                child: Directionality(
+                  textDirection: TextDirection.rtl,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Text(
+                            'מעבר לתאריך',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ),
+                        JumpToDatePanel(
+                          selectedDate: _pendingJumpDate,
+                          currentDate: widget.state.selectedGregorianDate,
+                          onDateChanged: (date) {
+                            setState(() {
+                              _pendingJumpDate = date;
+                              _jumpDateController.text =
+                                  _formatInputDate(date);
+                            });
+                          },
+                          onCancel: widget.onCloseJumpToDateSearch,
+                          onConfirm: _submitJumpDateSearch,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// עוטף פעולה כך שאם החיפוש פתוח — יסגר לפני הפעולה
+  VoidCallback _withClose(VoidCallback action) {
+    if (!widget.isJumpToDateSearchOpen) return action;
+    return () {
+      widget.onCloseJumpToDateSearch();
+      action();
+    };
+  }
+
+  Widget _buildInlineSearchField(BuildContext context,
+      {required double width}) {
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape):
+            widget.onCloseJumpToDateSearch,
+        const SingleActivator(LogicalKeyboardKey.keyF, control: true):
+            widget.onCloseJumpToDateSearch,
+      },
+      child: Focus(
+        onKeyEvent: (node, event) {
+          if (event is! KeyDownEvent) return KeyEventResult.ignored;
+          if (event.logicalKey == LogicalKeyboardKey.arrowDown ||
+              event.logicalKey == LogicalKeyboardKey.arrowUp) {
+            _focusDialog();
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: SizedBox(
+          key: _jumpSearchBarKey,
+          width: width,
+          child: OtzariaSearchField(
+            controller: _jumpDateController,
+            focusNode: _jumpDateFocusNode,
+            autofocus: true,
+            slim: context.read<SettingsBloc>().state.compactMenuMode,
+            hintText: _buildCurrentDateHint(),
+            onChanged: _handleJumpDateChanged,
+            onSubmitted: (_) => _submitJumpDateSearch(),
+            onClear: () {
+              _handleJumpDateChanged('');
+              _jumpDateFocusNode.requestFocus();
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildGoogleSyncStatus(BuildContext context) {
     final state = widget.state;
     if (!state.googleCalendarEnabled) {
@@ -247,266 +579,211 @@ class _CalendarTopBarState extends State<CalendarTopBar> {
     );
   }
 
-  Future<void> _openJumpPopover() async {
-    final anchorCtx = _jumpButtonKey.currentContext;
-    if (anchorCtx == null) return;
-
-    final selected = await showAnchoredAppMenu<DateTime>(
-      context: context,
-      anchorContext: anchorCtx,
-      itemsBuilder: (metrics) => [
-        buildAppCustomPopupMenuItem<DateTime>(
-          context: context,
-          metrics: metrics,
-          height: 460,
-          child: SizedBox(
-            width: 360,
-            child: _JumpToDatePopover(
-              initialDate: widget.state.selectedGregorianDate,
-              parseInputDate: widget.parseInputDate,
-              onDateSelected: (d) => Navigator.of(context).pop(d),
-            ),
-          ),
-        ),
-      ],
-    );
-
-    if (selected != null && mounted) {
-      widget.onJumpToDateSelected(selected);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final state = widget.state;
 
-    return BlocBuilder<SettingsBloc, SettingsState>(
-      builder: (context, settingsState) {
-        final isCompact = settingsState.compactMenuMode;
+    return OverlayPortal(
+      controller: _overlayPortalController,
+      overlayChildBuilder: _buildDialogOverlay,
+      child: BlocBuilder<SettingsBloc, SettingsState>(
+        builder: (context, settingsState) {
+          final isCompact = settingsState.compactMenuMode;
 
-        // ── כפתורים משותפים ───────────────────────────────────────────────
-        final prevBtn = ToolbarActionButton(
-          compact: isCompact,
-          tooltip: 'קודם',
-          icon: FluentIcons.chevron_left_24_regular,
-          emphasis: ToolbarActionButtonEmphasis.subtle,
-          onPressed: widget.onPreviousPeriod,
-        );
-        final nextBtn = ToolbarActionButton(
-          compact: isCompact,
-          tooltip: 'הבא',
-          icon: FluentIcons.chevron_right_24_regular,
-          emphasis: ToolbarActionButtonEmphasis.subtle,
-          onPressed: widget.onNextPeriod,
-        );
-        final todayBtn = RecommendedActionButton(
-          text: 'היום',
-          onPressed: widget.onJumpToToday,
-        );
-        final jumpBtn = ToolbarActionButton(
-          key: _jumpButtonKey,
-          compact: isCompact,
-          tooltip: 'מעבר לתאריך',
-          icon: FluentIcons.calendar_search_20_regular,
-          iconWidget: Transform.flip(
-            flipX: true,
-            child: Icon(
-              FluentIcons.calendar_search_20_regular,
-              size: isCompact ? 16 : 20,
-            ),
-          ),
-          emphasis: ToolbarActionButtonEmphasis.subtle,
-          onPressed: _openJumpPopover,
-        );
-        final settingsBtn = ToolbarActionButton(
-          compact: isCompact,
-          tooltip: 'הגדרות לוח שנה',
-          icon: widget.isSettingsPanelOpen
-              ? FluentIcons.settings_24_filled
-              : FluentIcons.settings_24_regular,
-          selected: widget.isSettingsPanelOpen,
-          onPressed: widget.onToggleSettingsPanel,
-        );
-        final eventsBtn = ToolbarActionButton(
-          compact: isCompact,
-          tooltip: 'אירועים',
-          icon: widget.isSidePanelVisible &&
-                  widget.activeSidePanelView == CalendarSidePanelView.events
-              ? FluentIcons.task_list_square_rtl_24_filled
-              : FluentIcons.task_list_square_rtl_24_regular,
-          selected: widget.isSidePanelVisible &&
-              widget.activeSidePanelView == CalendarSidePanelView.events,
-          onPressed: widget.onToggleEventsPanel,
-        );
-        final timesBtn = ToolbarActionButton(
-          compact: isCompact,
-          tooltip: 'זמנים',
-          icon: widget.isSidePanelVisible &&
-                  widget.activeSidePanelView == CalendarSidePanelView.times
-              ? FluentIcons.clock_24_filled
-              : FluentIcons.clock_24_regular,
-          selected: widget.isSidePanelVisible &&
-              widget.activeSidePanelView == CalendarSidePanelView.times,
-          onPressed: widget.onToggleTimesPanel,
-        );
-        final printBtn = ToolbarActionButton(
-          compact: isCompact,
-          tooltip: 'הדפסה',
-          icon: FluentIcons.print_24_regular,
-          emphasis: ToolbarActionButtonEmphasis.subtle,
-          onPressed: widget.onPrint,
-        );
-        final viewSwitcher = _buildViewSwitcher(state);
-        final quickActions = Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            todayBtn,
-            const SizedBox(width: 2),
-            jumpBtn,
-          ],
-        );
-        final trailingActions = Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildGoogleSyncStatus(context),
-            printBtn,
-            _buildTopBarDivider(context, isCompact),
-            timesBtn,
-            eventsBtn,
-            _buildTopBarDivider(context, isCompact),
-            settingsBtn,
-          ],
-        );
-        final dateAreaWidth = state.calendarView == CalendarView.week
-            ? _kWeekDateAreaWidth
-            : _kMonthDateAreaWidth;
-        final dateNavGap = state.calendarView == CalendarView.week
-            ? _kWeekDateNavGap
-            : _kMonthDateNavGap;
-        final wideQuickActionsOffset = state.calendarView == CalendarView.week
-            ? _kWideQuickActionsOffsetWeek
-            : _kWideQuickActionsOffsetMonth;
-
-        // ── קבוצת חיצים + תאריך, ממורכזת תמיד ──────────────────────────────
-        final dateNavGroup = Directionality(
-          textDirection: TextDirection.rtl,
-          child: Row(
+          // ── כפתורים משותפים ───────────────────────────────────────────────
+          final prevBtn = ToolbarActionButton(
+            compact: isCompact,
+            tooltip: 'קודם',
+            icon: FluentIcons.chevron_left_24_regular,
+            emphasis: ToolbarActionButtonEmphasis.subtle,
+            onPressed: _withClose(widget.onPreviousPeriod),
+          );
+          final nextBtn = ToolbarActionButton(
+            compact: isCompact,
+            tooltip: 'הבא',
+            icon: FluentIcons.chevron_right_24_regular,
+            emphasis: ToolbarActionButtonEmphasis.subtle,
+            onPressed: _withClose(widget.onNextPeriod),
+          );
+          final todayBtn = RecommendedActionButton(
+            text: 'היום',
+            onPressed: _withClose(widget.onJumpToToday),
+          );
+          // כשהחיפוש פתוח — כפתור ה-jump הופך לכפתור סגירה עם אייקון X
+          final jumpBtn = ToolbarActionButton(
+            compact: isCompact,
+            tooltip: widget.isJumpToDateSearchOpen
+                ? 'סגור מעבר לתאריך'
+                : 'מעבר לתאריך',
+            icon: widget.isJumpToDateSearchOpen
+                ? FluentIcons.dismiss_24_regular
+                : FluentIcons.calendar_search_20_regular,
+            iconWidget: widget.isJumpToDateSearchOpen
+                ? Icon(FluentIcons.dismiss_24_regular,
+                    size: isCompact ? 16 : 20)
+                : Transform.flip(
+                    flipX: true,
+                    child: Icon(
+                      FluentIcons.calendar_search_20_regular,
+                      size: isCompact ? 16 : 20,
+                    ),
+                  ),
+            selected: widget.isJumpToDateSearchOpen,
+            emphasis: ToolbarActionButtonEmphasis.subtle,
+            onPressed: widget.onToggleJumpToDateSearch,
+          );
+          final settingsBtn = ToolbarActionButton(
+            compact: isCompact,
+            tooltip: 'הגדרות לוח שנה',
+            icon: widget.isSettingsPanelOpen
+                ? FluentIcons.settings_24_filled
+                : FluentIcons.settings_24_regular,
+            selected: widget.isSettingsPanelOpen,
+            onPressed: _withClose(widget.onToggleSettingsPanel),
+          );
+          final eventsBtn = ToolbarActionButton(
+            compact: isCompact,
+            tooltip: 'אירועים',
+            icon: widget.isSidePanelVisible &&
+                    widget.activeSidePanelView == CalendarSidePanelView.events
+                ? FluentIcons.task_list_square_rtl_24_filled
+                : FluentIcons.task_list_square_rtl_24_regular,
+            selected: widget.isSidePanelVisible &&
+                widget.activeSidePanelView == CalendarSidePanelView.events,
+            onPressed: _withClose(widget.onToggleEventsPanel),
+          );
+          final timesBtn = ToolbarActionButton(
+            compact: isCompact,
+            tooltip: 'זמנים',
+            icon: widget.isSidePanelVisible &&
+                    widget.activeSidePanelView == CalendarSidePanelView.times
+                ? FluentIcons.clock_24_filled
+                : FluentIcons.clock_24_regular,
+            selected: widget.isSidePanelVisible &&
+                widget.activeSidePanelView == CalendarSidePanelView.times,
+            onPressed: _withClose(widget.onToggleTimesPanel),
+          );
+          final printBtn = ToolbarActionButton(
+            compact: isCompact,
+            tooltip: 'הדפסה',
+            icon: FluentIcons.print_24_regular,
+            emphasis: ToolbarActionButtonEmphasis.subtle,
+            onPressed: _withClose(widget.onPrint),
+          );
+          final viewSwitcher = _buildViewSwitcher(state);
+          final trailingActions = Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              prevBtn,
-              SizedBox(width: dateNavGap),
-              ConstrainedBox(
-                constraints: BoxConstraints(minWidth: dateAreaWidth),
-                child: IntrinsicWidth(
-                  child: Center(child: _buildDateText(context)),
-                ),
-              ),
-              SizedBox(width: dateNavGap),
-              nextBtn,
+              _buildGoogleSyncStatus(context),
+              printBtn,
+              _buildTopBarDivider(context, isCompact),
+              timesBtn,
+              eventsBtn,
+              _buildTopBarDivider(context, isCompact),
+              settingsBtn,
             ],
-          ),
-        );
-
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final isNarrow = constraints.maxWidth < _kTopBarNarrowBreakpoint;
-            final isMedium = constraints.maxWidth >= _kTopBarNarrowBreakpoint &&
-                constraints.maxWidth < _kTopBarMediumBreakpoint;
-            final isWide = constraints.maxWidth >= _kTopBarMediumBreakpoint &&
-                constraints.maxWidth < _kTopBarWideBreakpoint;
-
-            if (isNarrow) {
-              final secondaryRow = Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                child: Wrap(
-                  alignment: WrapAlignment.spaceBetween,
-                  runAlignment: WrapAlignment.spaceBetween,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 10,
-                  runSpacing: 8,
-                  children: [
-                    viewSwitcher,
-                    quickActions,
-                    trailingActions,
-                  ],
-                ),
-              );
-
-              return AppTopBar(
-                center: Align(
-                  alignment: Alignment.center,
-                  child: FittedBox(
-                    alignment: Alignment.center,
-                    fit: BoxFit.scaleDown,
-                    child: dateNavGroup,
-                  ),
-                ),
-                secondaryRow: secondaryRow,
-              );
-            }
-
-            if (isMedium) {
-              final secondaryRow = Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                child: Wrap(
-                  alignment: WrapAlignment.spaceBetween,
-                  runAlignment: WrapAlignment.spaceBetween,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 10,
-                  runSpacing: 8,
-                  children: [
-                    viewSwitcher,
-                    quickActions,
-                    trailingActions,
-                  ],
-                ),
-              );
-
-              return AppTopBar(
-                center: Align(
-                  alignment: Alignment.center,
-                  child: FittedBox(
-                    alignment: Alignment.center,
-                    fit: BoxFit.scaleDown,
-                    child: dateNavGroup,
-                  ),
-                ),
-                secondaryRow: secondaryRow,
-              );
-            }
-
-            if (isWide) {
-              return AppTopBar(
-                leadingItems: [
-                  AppTopBarItem(widget: viewSwitcher),
-                ],
-                center: Align(
-                  alignment: Alignment.center,
+          );
+          final dateAreaWidth = state.calendarView == CalendarView.week
+              ? _kWeekDateAreaWidth
+              : _kMonthDateAreaWidth;
+          final dateNavGap = state.calendarView == CalendarView.week
+              ? _kWeekDateNavGap
+              : _kMonthDateNavGap;
+          // ── אזור התאריך/חיפוש — todayBtn ו-jumpBtn תמיד צמודים לתאריך ──────
+          // סדר (RTL): todayBtn | jumpBtn | ← prevBtn  תאריך  nextBtn →
+          final dateNavGroup = widget.isJumpToDateSearchOpen
+              ? _buildInlineSearchField(
+                  context,
+                  width: dateAreaWidth + (dateNavGap * 2) + 64,
+                )
+              : Directionality(
+                  textDirection: TextDirection.rtl,
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Flexible(child: dateNavGroup),
-                      const SizedBox(width: 10),
-                      quickActions,
+                      todayBtn,
+                      const SizedBox(width: 4),
+                      jumpBtn,
+                      const SizedBox(width: 4),
+                      prevBtn,
+                      SizedBox(width: dateNavGap),
+                      ConstrainedBox(
+                        constraints: BoxConstraints(minWidth: dateAreaWidth),
+                        child: IntrinsicWidth(
+                          child: Center(child: _buildDateText(context)),
+                        ),
+                      ),
+                      SizedBox(width: dateNavGap),
+                      nextBtn,
                     ],
                   ),
-                ),
-                trailingItems: [
-                  AppTopBarItem(widget: trailingActions),
-                ],
-              );
-            }
+                );
 
-            {
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = constraints.maxWidth < _kTopBarNarrowBreakpoint;
+              final isMedium =
+                  constraints.maxWidth >= _kTopBarNarrowBreakpoint &&
+                      constraints.maxWidth < _kTopBarMediumBreakpoint;
+              final isWide = constraints.maxWidth >= _kTopBarMediumBreakpoint &&
+                  constraints.maxWidth < _kTopBarWideBreakpoint;
+
+              // isNarrow ו-isMedium — אותו layout דו-שורתי:
+              // שורה 1: viewSwitcher + trailingActions
+              // שורה 2: todayBtn | jumpBtn | ← תאריך → (dateNavGroup כולל הכל)
+              if (isNarrow || isMedium) {
+                final dateRow = Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  child: Center(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.center,
+                      child: dateNavGroup,
+                    ),
+                  ),
+                );
+
+                return AppTopBar(
+                  center: Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    runAlignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 10,
+                    runSpacing: 8,
+                    children: [
+                      viewSwitcher,
+                      trailingActions,
+                    ],
+                  ),
+                  secondaryRow: dateRow,
+                );
+              }
+
+              if (isWide) {
+                return AppTopBar(
+                  leadingItems: [
+                    AppTopBarItem(widget: viewSwitcher),
+                  ],
+                  center: Align(
+                    alignment: Alignment.center,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: dateNavGroup,
+                    ),
+                  ),
+                  trailingItems: [
+                    AppTopBarItem(widget: trailingActions),
+                  ],
+                );
+              }
+
+              // extra-wide (≥ _kTopBarWideBreakpoint)
               return AppTopBar(
                 center: Stack(
                   alignment: Alignment.center,
                   children: [
                     dateNavGroup,
-                    Transform.translate(
-                      offset: Offset(wideQuickActionsOffset, 0),
-                      child: quickActions,
-                    ),
                     PositionedDirectional(
                       start: 0,
                       child: Row(
@@ -524,10 +801,10 @@ class _CalendarTopBarState extends State<CalendarTopBar> {
                   ],
                 ),
               );
-            }
-          },
-        );
-      },
+            },
+          );
+        },
+      ),
     );
   }
 
@@ -556,14 +833,15 @@ class _CalendarTopBarState extends State<CalendarTopBar> {
           regularIcon: FluentIcons.calendar_week_numbers_24_regular,
           filledIcon: FluentIcons.calendar_week_numbers_24_filled,
           selected: state.calendarView == CalendarView.week,
-          onPressed: () => widget.onViewChanged(CalendarView.week),
+          onPressed: _withClose(() => widget.onViewChanged(CalendarView.week)),
         ),
         _ViewBtn(
           label: 'חודש',
           regularIcon: FluentIcons.calendar_month_24_regular,
           filledIcon: FluentIcons.calendar_month_24_filled,
           selected: state.calendarView == CalendarView.month,
-          onPressed: () => widget.onViewChanged(CalendarView.month),
+          onPressed:
+              _withClose(() => widget.onViewChanged(CalendarView.month)),
         ),
       ],
     );
@@ -639,105 +917,6 @@ class _ViewBtn extends StatelessWidget {
                   fontSize: 12,
                   fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
                 ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── _JumpToDatePopover ────────────────────────────────────────────────────────
-
-class _JumpToDatePopover extends StatefulWidget {
-  final DateTime initialDate;
-  final DateTime? Function(String input) parseInputDate;
-  final ValueChanged<DateTime> onDateSelected;
-
-  const _JumpToDatePopover({
-    required this.initialDate,
-    required this.parseInputDate,
-    required this.onDateSelected,
-  });
-
-  @override
-  State<_JumpToDatePopover> createState() => _JumpToDatePopoverState();
-}
-
-class _JumpToDatePopoverState extends State<_JumpToDatePopover> {
-  late final TextEditingController _controller;
-  late DateTime _selectedDate;
-
-  @override
-  void initState() {
-    super.initState();
-    _selectedDate = widget.initialDate;
-    _controller = TextEditingController();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _submit() {
-    final input = _controller.text.trim();
-    final result = input.isEmpty ? _selectedDate : widget.parseInputDate(input);
-    if (result == null) {
-      UiSnack.showError('לא הצלחנו לפרש את התאריך.');
-      return;
-    }
-    widget.onDateSelected(result);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Material(
-        color: Theme.of(context).colorScheme.surfaceContainerHigh,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              RtlTextField(
-                controller: _controller,
-                autofocus: true,
-                textInputAction: TextInputAction.done,
-                decoration: const InputDecoration(
-                  labelText: 'הזן תאריך',
-                  hintText: '15/3/2025 או כ״ה אדר תשפ״ה',
-                  border: OutlineInputBorder(),
-                ),
-                onSubmitted: (_) => _submit(),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 320,
-                child: CalendarDatePicker(
-                  initialDate: _selectedDate,
-                  firstDate: DateTime(1900),
-                  lastDate: DateTime(2100),
-                  onDateChanged: (d) {
-                    setState(() {
-                      _selectedDate = d;
-                      _controller.text = '${d.day}/${d.month}/${d.year}';
-                    });
-                  },
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  NeutralActionButton(
-                      text: 'ביטול',
-                      onPressed: () => Navigator.of(context).pop()),
-                  const SizedBox(width: 8),
-                  RecommendedActionButton(text: 'פתח', onPressed: _submit),
-                ],
               ),
             ],
           ),

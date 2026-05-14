@@ -1,4 +1,5 @@
 import 'dart:developer' as developer;
+import 'dart:io';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
@@ -11,6 +12,7 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/migration/sync/file_sync_service.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
+import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
 import 'package:otzaria/utils/file/zip_extractor_service.dart';
@@ -142,7 +144,19 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
         Settings.getValue<String>(SettingsRepository.keyCustomFolders);
     final customFolders = CustomFoldersManager.loadFolders(customFoldersJson);
 
-    final syncService = await FileSyncService.getInstance(repository);
+    // התיקיות המותאמות אישית חיות ב-user_books.db. ה-FileSyncService
+    // צריך גישה לשני ה-DBs (seforim ל-links, user_books ל-prune).
+    final userBooksDbPath = await UserBooksDatabaseHolder.resolveDbPath();
+    if (!await File(userBooksDbPath).exists()) {
+      return;
+    }
+
+    final userBooksRepository =
+        await UserBooksDatabaseHolder.instance.repository;
+    final syncService = await FileSyncService.getInstance(
+      repository,
+      userBooksRepository: userBooksRepository,
+    );
     if (syncService == null) {
       return;
     }
@@ -375,7 +389,10 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     UpdateSearchQuery event,
     Emitter<LibraryState> emit,
   ) {
-    emit(state.copyWith(searchQuery: event.query));
+    emit(state.copyWith(
+      searchQuery: event.query,
+      searchResults: state.searchResults,
+    ));
   }
 
   Future<void> _onSearchBooks(
@@ -385,6 +402,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     if (state.searchQuery == null || state.searchQuery!.length < 3) {
       emit(state.copyWith(
         searchResults: null,
+        isSearching: false,
       ));
       return;
     }
@@ -396,6 +414,12 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
       final topics = List<String>.from(state.selectedTopics ?? const []);
       final includeOtzar = event.showOtzarHachochma ?? false;
       final includeHebrewBooks = event.showHebrewBooks ?? false;
+
+      emit(state.copyWith(
+        isSearching: true,
+        searchResults: state.searchResults,
+      ));
+
       final results = await _repository.findBooks(
         query,
         category,
@@ -408,6 +432,14 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
           state.searchQuery != query ||
           state.currentCategory != category ||
           !_sameStringList(state.selectedTopics ?? const [], topics)) {
+        // אם אין חיפוש חדש שעקף (אותה גנרציה), נאפס את דגל הטעינה
+        // כדי שלא יישאר תקוע (למשל אחרי NavigateToCategory מבלי SearchBooks).
+        if (searchGeneration == _searchGeneration) {
+          emit(state.copyWith(
+            isSearching: false,
+            searchResults: state.searchResults,
+          ));
+        }
         return;
       }
 
@@ -424,11 +456,13 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
       emit(state.copyWith(
         searchResults: results,
         previewBook: firstBook,
+        isSearching: false,
       ));
     } catch (e) {
       emit(state.copyWith(
         error: e.toString(),
         searchResults: null,
+        isSearching: false,
       ));
     }
   }
@@ -466,6 +500,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     emit(state.copyWith(
       selectedTopics: event.topics,
       previewBook: firstBook,
+      searchResults: state.searchResults,
     ));
   }
 

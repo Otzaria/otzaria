@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -150,30 +151,13 @@ class CalendarTimesPanel extends StatefulWidget {
 
 class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
   late final List<String> _cityNames;
+  static const double _infoButtonWidth = 40;
 
   static const Set<String> _holidaySpecialIds = {
     'candleLighting',
     'shabbosExitComposite',
   };
 
-  ZmanAlertPreference? _resolveExistingAlertForEntry(
-    CalendarState state,
-    CalendarTimeEntry entry,
-  ) {
-    final directAlert = state.zmanAlerts[entry.id];
-    if (directAlert != null) {
-      return directAlert;
-    }
-
-    for (final option in entry.alertOptions) {
-      final optionAlert = state.zmanAlerts[option.id];
-      if (optionAlert != null) {
-        return optionAlert;
-      }
-    }
-
-    return null;
-  }
 
   List<CalendarTimeEntry> _buildCalendarTimeEntries(CalendarState state) {
     final dailyTimes = state.dailyTimes;
@@ -211,7 +195,12 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
           .where((entry) => entry.time.isNotEmpty),
     );
 
-    entries.sort((a, b) => a.time.compareTo(b.time));
+    entries.sort((a, b) {
+      // חצות לילה תמיד בסוף
+      if (a.id == 'chatzosLayla') return 1;
+      if (b.id == 'chatzosLayla') return -1;
+      return a.time.compareTo(b.time);
+    });
     return entries;
   }
 
@@ -338,6 +327,44 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
         '--:--';
   }
 
+  List<CalendarTimeEntry> _arrangeEntriesForGrid(
+    List<CalendarTimeEntry> entries,
+    int columnCount,
+  ) {
+    if (columnCount != 2) {
+      return entries;
+    }
+
+    final arranged = <CalendarTimeEntry>[];
+    final remaining = List<CalendarTimeEntry>.from(entries);
+    int occupiedSlotsInRow = 0;
+
+    while (remaining.isNotEmpty) {
+      final current = remaining.removeAt(0);
+      final currentWidth = current.isComposite ? 2 : 1;
+
+      if (occupiedSlotsInRow == 1 && currentWidth == 2) {
+        final replacementIndex =
+            remaining.indexWhere((entry) => entry.isComposite == false);
+        if (replacementIndex != -1) {
+          final replacement = remaining.removeAt(replacementIndex);
+          arranged.add(replacement);
+          occupiedSlotsInRow = 0;
+          remaining.insert(0, current);
+          continue;
+        }
+      }
+
+      arranged.add(current);
+      occupiedSlotsInRow += currentWidth;
+      if (occupiedSlotsInRow >= columnCount) {
+        occupiedSlotsInRow = 0;
+      }
+    }
+
+    return arranged;
+  }
+
   String _buildOmerCountingText(int day) {
     final totalDaysText = _buildOmerDayCountText(day);
     final weeks = day ~/ 7;
@@ -449,7 +476,7 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
     final theme = Theme.of(context);
     final omerInfo = _buildOmerInfo(widget.state.selectedGregorianDate);
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -475,75 +502,53 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
             ),
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color:
-                    theme.colorScheme.primaryContainer.withValues(alpha: 0.45),
-                borderRadius: BorderRadius.circular(AppTokens.radiusMD),
-                border: Border.all(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.35),
-                  width: 1,
-                ),
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    'אין לסמוך על הזמנים כלל!',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text.rich(
-                    TextSpan(
-                      children: [
-                        const TextSpan(
-                          text: 'שים לב! ',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                        WidgetSpan(
-                          alignment: PlaceholderAlignment.baseline,
-                          baseline: TextBaseline.alphabetic,
-                          child: GestureDetector(
-                            onTap: () =>
-                                widget.onOpenCalendarCalculationPage(context),
-                            child: MouseRegion(
-                              cursor: SystemMouseCursors.click,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  border: Border(
-                                    bottom: BorderSide(
-                                      color: theme.colorScheme.primary,
-                                      width: 1,
-                                    ),
-                                  ),
-                                ),
-                                child: Text(
-                                  'הזמנים שונים',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: theme.colorScheme.primary,
-                                    height: 1.0,
-                                  ),
-                                ),
-                              ),
-                            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    const SizedBox(width: _infoButtonWidth),
+                    Expanded(
+                      child: Center(
+                        child: Text(
+                          'אין לסמוך על הזמנים כלל!',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: theme.colorScheme.primary,
                           ),
                         ),
-                        const TextSpan(
-                          text: ' מהותית מהלוח \'עיתים לבינה\'!',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                      ],
+                      ),
                     ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
+                    SizedBox(
+                      width: _infoButtonWidth,
+                      child: Center(
+                        child: IconButton(
+                          tooltip: 'מידע על חישוב הזמנים',
+                          onPressed: () =>
+                              widget.onOpenCalendarCalculationPage(context),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints.tightFor(
+                            width: _infoButtonWidth,
+                            height: _infoButtonWidth,
+                          ),
+                          icon: Icon(
+                            FluentIcons.info_24_regular,
+                            size: 18,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  "שים לב! הזמנים שונים מהותית מהלוח 'עיתים לבינה'!",
+                  textAlign: TextAlign.center,
+                  textDirection: TextDirection.rtl,
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
             ),
           ),
           _buildTimesGrid(context),
@@ -563,6 +568,8 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
         final isSingleColumn = constraints.maxWidth < 290;
         final columnCount = isSingleColumn ? 1 : 2;
         final spacing = 8.0;
+        final arrangedTimesList =
+            _arrangeEntriesForGrid(filteredTimesList, columnCount);
         final itemWidth =
             (constraints.maxWidth - (spacing * (columnCount - 1))) /
                 columnCount;
@@ -571,13 +578,14 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
           spacing: spacing,
           runSpacing: spacing,
           children: [
-            for (final timeData in filteredTimesList)
+            for (final timeData in arrangedTimesList)
               SizedBox(
-                width: itemWidth,
+                width: timeData.isComposite && columnCount == 2
+                    ? itemWidth * 2 + spacing
+                    : itemWidth,
                 child: _ZmanCard(
                   timeData: timeData,
-                  existingAlert:
-                      _resolveExistingAlertForEntry(widget.state, timeData),
+                  zmanAlerts: widget.state.zmanAlerts,
                   onAlertPressed: () async {
                     final timeId = timeData.id;
                     final timeName = timeData.name;
@@ -593,19 +601,21 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
                       context,
                       zmanName: timeName,
                       timeLabel: timeLabel,
-                      initialMinutesBefore: existingAlert?.minutesBefore ?? 60,
+                      initialMinutesBefore: existingAlert?.minutesBefore ?? 5,
                       isEnabled: hasAlert,
                     );
                     if (result == null) return;
                     if (result.cancelAlert) {
-                      await cubit.cancelZmanAlertPreference(timeId: timeId);
+                      _runZmanAlertOp(
+                        cubit.cancelZmanAlertPreference(timeId: timeId),
+                      );
                       return;
                     }
-                    await cubit.setZmanAlertPreference(
+                    _runZmanAlertOp(cubit.setZmanAlertPreference(
                       timeId: timeId,
                       displayName: timeName,
                       minutesBefore: result.minutesBefore,
-                    );
+                    ));
                   },
                 ),
               ),
@@ -697,14 +707,16 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
         );
         if (result == null) return;
         if (result.cancelAlert) {
-          await cubit.cancelZmanAlertPreference(timeId: 'omerCounting');
+          _runZmanAlertOp(
+            cubit.cancelZmanAlertPreference(timeId: 'omerCounting'),
+          );
           return;
         }
-        await cubit.setZmanAlertPreference(
+        _runZmanAlertOp(cubit.setZmanAlertPreference(
           timeId: 'omerCounting',
           displayName: 'ספירת העומר',
           minutesBefore: result.minutesBefore,
-        );
+        ));
       },
     );
   }
@@ -743,26 +755,124 @@ class _CityDropdown extends StatelessWidget {
   }
 }
 
+/// מפעיל פעולת cubit ברקע (fire-and-forget) ומציג שגיאות דרך UiSnack
+/// במקום לבלוע אותן בשקט. נדרש כי await ישיר גורם לקפיאת UI בזמן
+/// שכלול ההתראות (חישוב זמנים יומי + תזמון notifications מערכת).
+void _runZmanAlertOp(Future<void> future) {
+  unawaited(future.catchError((Object error, StackTrace stackTrace) {
+    debugPrint('ZmanAlert op failed: $error\n$stackTrace');
+    UiSnack.showError('שגיאה בעדכון ההתראה');
+  }));
+}
+
+String _formatAlertMinutes(int minutes) {
+  if (minutes < 60) return "$minutes דק'";
+  final hours = minutes ~/ 60;
+  final mins = minutes % 60;
+  if (mins == 0) return hours == 1 ? 'שעה' : '$hours שעות';
+  return hours == 1 ? "שעה ו$mins דק'" : "$hours שעות ו$mins דק'";
+}
+
 class _ZmanCard extends StatelessWidget {
   final CalendarTimeEntry timeData;
-  final ZmanAlertPreference? existingAlert;
+  final Map<String, ZmanAlertPreference?> zmanAlerts;
   final VoidCallback onAlertPressed;
 
   const _ZmanCard({
     required this.timeData,
-    required this.existingAlert,
+    required this.zmanAlerts,
     required this.onAlertPressed,
   });
+
+  ZmanAlertPreference? get _existingAlert {
+    final direct = zmanAlerts[timeData.id];
+    if (direct != null) return direct;
+    for (final option in timeData.alertOptions) {
+      final a = zmanAlerts[option.id];
+      if (a != null) return a;
+    }
+    return null;
+  }
+
+  String _tooltipForAlert(ZmanAlertPreference? alert, String fallback) {
+    if (alert == null) return fallback;
+    return 'התראה פעילה ל${_formatAlertMinutes(alert.minutesBefore)} לפני הזמן';
+  }
+
+  Widget _buildCompositeSegment({
+    required BuildContext context,
+    required String text,
+    required Color textColor,
+    required CrossAxisAlignment textAlignment,
+    required bool alignToStart,
+    required ZmanAlertPreference? existingAlert,
+    required VoidCallback onPressed,
+  }) {
+    final hasAlert = existingAlert != null;
+    final segmentAlignment = alignToStart
+        ? AlignmentDirectional.centerStart
+        : AlignmentDirectional.centerEnd;
+    final control = Align(
+      alignment: segmentAlignment,
+      child: _AlertControl(
+        hasAlert: hasAlert,
+        existingAlert: existingAlert,
+        tooltip: _tooltipForAlert(existingAlert, 'הפעל התראה'),
+        foregroundColor: textColor,
+        onPressed: onPressed,
+        menuEntries: const [],
+        onOptionSelected: (_) {},
+      ),
+    );
+
+    final labelValue = _CompositeLabelValue(
+      text: text,
+      textColor: textColor,
+      crossAxisAlignment: textAlignment,
+    );
+
+    return Align(
+      alignment: segmentAlignment,
+      child: Row(
+        textDirection: TextDirection.rtl,
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        // alignToStart=true (90 דק') → אייקון ימין, טקסט שמאל
+        // alignToStart=false (72 דק') → טקסט ימין, אייקון שמאל
+        children: alignToStart
+            ? [control, const SizedBox(width: 6), labelValue]
+            : [labelValue, const SizedBox(width: 6), control],
+      ),
+    );
+  }
+
+  double _titleFontSizeFor(CalendarTimeEntry entry) {
+    final base = entry.name.length > 28
+        ? 11.0
+        : entry.name.length > 20
+            ? 12.0
+            : entry.name.length > 16
+                ? 13.0
+                : 14.0;
+    return base + 1;
+  }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final existingAlert = _existingAlert;
     final hasAlert = existingAlert != null;
-    final bgColor = hasAlert
-        ? scheme.errorContainer.withValues(alpha: 0.55)
-        : timeData.isHolidaySpecial
-            ? scheme.secondaryContainer.withValues(alpha: 0.55)
-            : AppSurfaces.card(context);
+    final bgColor = timeData.isHolidaySpecial
+        ? scheme.secondaryContainer.withValues(alpha: isDark ? 0.82 : 0.55)
+        : AppSurfaces.card(context);
+    final primaryTextColor = timeData.isHolidaySpecial
+        ? scheme.onSecondaryContainer
+        : scheme.onSurface;
+    final secondaryTextColor = timeData.isHolidaySpecial
+        ? scheme.onSecondaryContainer.withValues(alpha: isDark ? 0.94 : 0.78)
+        : scheme.onSurfaceVariant;
+
     return Card(
       elevation: 0,
       color: bgColor,
@@ -771,149 +881,143 @@ class _ZmanCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppTokens.radiusMD),
       ),
       child: SizedBox(
-        height: 112,
+        height: 118,
         child: Padding(
           padding: const EdgeInsets.all(10),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final titleFontSize = timeData.name.length > 28
-                            ? 11.0
-                            : timeData.name.length > 20
-                                ? 12.0
-                                : timeData.name.length > 16
-                                    ? 13.0
-                                    : 14.0;
-                        final nameStyle =
-                            Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: titleFontSize,
-                                  color: hasAlert
-                                      ? scheme.onErrorContainer
-                                      : timeData.isHolidaySpecial
-                                          ? scheme.onSecondaryContainer
-                                          : scheme.onSurface,
-                                );
-                        return FittedBox(
-                          alignment: AlignmentDirectional.centerStart,
-                          fit: BoxFit.scaleDown,
-                          child: SizedBox(
-                            width: constraints.maxWidth,
-                            child: _OverflowAwareTooltipText(
-                              text: timeData.name,
-                              style: nameStyle,
-                              maxLines: 2,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  if (timeData.alertOptions.isEmpty)
-                    ToolbarActionButton(
-                      tooltip: hasAlert
-                          ? 'מופעלת התראה לזמן זה'
-                          : 'הפעל התראה לזמן זה',
-                      icon: FluentIcons.more_vertical_24_regular,
-                      onPressed: onAlertPressed,
-                      selected: hasAlert,
-                    )
-                  else
-                    PopupMenuButton<CalendarTimeAlertOption>(
-                      tooltip:
-                          hasAlert ? 'מופעלת התראה לזמן זה' : 'בחר זמן להתראה',
-                      icon: Icon(
-                        FluentIcons.more_vertical_24_regular,
-                        size: 20,
-                        color: hasAlert
-                            ? scheme.onPrimary
-                            : scheme.onSurfaceVariant,
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final nameStyle =
+                      Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            fontSize: _titleFontSizeFor(timeData),
+                            color: primaryTextColor,
+                          );
+                  return FittedBox(
+                    alignment: Alignment.center,
+                    fit: BoxFit.scaleDown,
+                    child: SizedBox(
+                      width: constraints.maxWidth,
+                      child: Align(
+                        alignment: Alignment.center,
+                        child: _OverflowAwareTooltipText(
+                          text: timeData.name,
+                          style: nameStyle,
+                          maxLines: 2,
+                        ),
                       ),
-                      onSelected: (option) {
-                        _openAlertDialogForOption(context, option);
-                      },
-                      itemBuilder: (context) => [
-                        for (final option in timeData.alertOptions)
-                          PopupMenuItem<CalendarTimeAlertOption>(
-                            value: option,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  option.name,
-                                  textDirection: TextDirection.rtl,
-                                ),
-                                Text(
-                                  option.time,
-                                  textDirection: TextDirection.rtl,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
-                                      ?.copyWith(
-                                        color: scheme.onSurfaceVariant,
-                                      ),
-                                ),
-                              ],
-                            ),
-                          ),
-                      ],
                     ),
-                ],
+                  );
+                },
               ),
               const Spacer(),
-              if (timeData.isComposite)
+              // כרטיס composite עם 2 אפשרויות התראה — אייקון ליד כל שעה
+              if (timeData.isComposite && timeData.alertOptions.length >= 2)
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    if (timeData.trailingLabel != null)
+                    if (timeData.trailingLabel != null) ...[
                       Expanded(
-                        child: _CompositeLabelValue(
+                        child: _buildCompositeSegment(
+                          context: context,
                           text: timeData.trailingLabel!,
-                          textColor: scheme.onSurfaceVariant,
-                          crossAxisAlignment: CrossAxisAlignment.end,
+                          textColor: secondaryTextColor,
+                          textAlignment: CrossAxisAlignment.end,
+                          alignToStart: true,
+                          existingAlert:
+                              zmanAlerts[timeData.alertOptions[0].id],
+                          onPressed: () => _openAlertDialogForOption(
+                            context,
+                            timeData.alertOptions[0],
+                          ),
                         ),
                       ),
+                    ],
                     if (timeData.trailingLabel != null &&
                         timeData.leadingLabel != null)
-                      const SizedBox(width: 12),
-                    if (timeData.leadingLabel != null)
+                      const SizedBox(width: 8),
+                    if (timeData.leadingLabel != null) ...[
                       Expanded(
-                        child: _CompositeLabelValue(
+                        child: _buildCompositeSegment(
+                          context: context,
                           text: timeData.leadingLabel!,
-                          textColor: scheme.onSurfaceVariant,
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          textColor: secondaryTextColor,
+                          textAlignment: CrossAxisAlignment.start,
+                          alignToStart: false,
+                          existingAlert:
+                              zmanAlerts[timeData.alertOptions[1].id],
+                          onPressed: () => _openAlertDialogForOption(
+                            context,
+                            timeData.alertOptions[1],
+                          ),
                         ),
                       ),
+                    ],
                   ],
                 )
               else
-                Text(
-                  timeData.time,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: hasAlert
-                            ? scheme.onErrorContainer
-                            : timeData.isHolidaySpecial
-                                ? scheme.onSecondaryContainer
-                                : scheme.onSurfaceVariant,
-                      ),
+                // כרטיס רגיל או composite ללא 2 אפשרויות — אייקון אחד בסוף
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: timeData.isComposite
+                          ? Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                if (timeData.trailingLabel != null)
+                                  Expanded(
+                                    child: _CompositeLabelValue(
+                                      text: timeData.trailingLabel!,
+                                      textColor: secondaryTextColor,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                    ),
+                                  ),
+                                if (timeData.trailingLabel != null &&
+                                    timeData.leadingLabel != null)
+                                  const SizedBox(width: 12),
+                                if (timeData.leadingLabel != null)
+                                  Expanded(
+                                    child: _CompositeLabelValue(
+                                      text: timeData.leadingLabel!,
+                                      textColor: secondaryTextColor,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                    ),
+                                  ),
+                              ],
+                            )
+                          : Text(
+                              timeData.time,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: secondaryTextColor,
+                                  ),
+                            ),
+                    ),
+                    const SizedBox(width: 8),
+                    _AlertControl(
+                      hasAlert: hasAlert,
+                      existingAlert: existingAlert,
+                      tooltip: hasAlert
+                          ? _tooltipForAlert(existingAlert, 'הפעל התראה לזמן זה')
+                          : timeData.alertOptions.isEmpty
+                              ? 'הפעל התראה לזמן זה'
+                              : 'בחר זמן להתראה',
+                      foregroundColor: primaryTextColor,
+                      onPressed: onAlertPressed,
+                      menuEntries: timeData.alertOptions,
+                      onOptionSelected: (option) =>
+                          _openAlertDialogForOption(context, option),
+                    ),
+                  ],
                 ),
-              if (hasAlert) ...[
-                const SizedBox(height: 4),
-                Text(
-                  'התראה ${existingAlert!.minutesBefore} דק׳ לפני',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: scheme.onErrorContainer,
-                        fontSize: 11,
-                      ),
-                ),
-              ],
             ],
           ),
         ),
@@ -931,18 +1035,100 @@ class _ZmanCard extends StatelessWidget {
       context,
       zmanName: option.name,
       timeLabel: option.time,
-      initialMinutesBefore: existingAlert?.minutesBefore ?? 60,
+      initialMinutesBefore: existingAlert?.minutesBefore ?? 5,
       isEnabled: existingAlert != null,
     );
     if (result == null) return;
     if (result.cancelAlert) {
-      await cubit.cancelZmanAlertPreference(timeId: option.id);
+      _runZmanAlertOp(cubit.cancelZmanAlertPreference(timeId: option.id));
       return;
     }
-    await cubit.setZmanAlertPreference(
+    _runZmanAlertOp(cubit.setZmanAlertPreference(
       timeId: option.id,
       displayName: option.name,
       minutesBefore: result.minutesBefore,
+    ));
+  }
+}
+
+class _AlertControl extends StatelessWidget {
+  final bool hasAlert;
+  final ZmanAlertPreference? existingAlert;
+  final String tooltip;
+  final Color foregroundColor;
+  final VoidCallback onPressed;
+  final List<CalendarTimeAlertOption> menuEntries;
+  final ValueChanged<CalendarTimeAlertOption> onOptionSelected;
+  const _AlertControl({
+    required this.hasAlert,
+    required this.existingAlert,
+    required this.tooltip,
+    required this.foregroundColor,
+    required this.onPressed,
+    required this.menuEntries,
+    required this.onOptionSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final iconData =
+        hasAlert ? FluentIcons.alert_24_filled : FluentIcons.alert_24_regular;
+    final minutesBefore = existingAlert?.minutesBefore;
+
+    final action = menuEntries.isEmpty
+        ? ToolbarActionButton(
+            tooltip: tooltip,
+            icon: iconData,
+            onPressed: onPressed,
+            selected: hasAlert,
+            compact: true,
+            emphasis: ToolbarActionButtonEmphasis.subtle,
+          )
+        : AppPopupMenuButton<CalendarTimeAlertOption>(
+            tooltip: tooltip,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+            icon: Icon(
+              iconData,
+              size: 20,
+              color: hasAlert
+                  ? Theme.of(context).colorScheme.primary
+                  : foregroundColor,
+            ),
+            entries: [
+              for (final option in menuEntries)
+                AppMenuEntry<CalendarTimeAlertOption>(
+                  value: option,
+                  label: option.name,
+                  trailing: Text(
+                    option.time,
+                    textDirection: TextDirection.rtl,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+            ],
+            onSelected: onOptionSelected,
+          );
+
+    // הטקסט תמיד תופס מקום (Opacity במקום if) — מצב פעיל לא משנה את גובה הווידג'ט
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Opacity(
+          opacity: minutesBefore != null ? 1.0 : 0.0,
+          child: Text(
+            minutesBefore != null ? _formatAlertMinutes(minutesBefore) : '',
+            textDirection: TextDirection.rtl,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: foregroundColor,
+                  fontSize: 11,
+                ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        action,
+      ],
     );
   }
 }
@@ -1002,6 +1188,7 @@ class _OverflowAwareTooltipText extends StatelessWidget {
           maxLines: maxLines,
           overflow: TextOverflow.ellipsis,
           textDirection: TextDirection.rtl,
+          textAlign: TextAlign.center,
           style: resolvedStyle,
         );
 

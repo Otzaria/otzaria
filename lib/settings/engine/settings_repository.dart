@@ -65,8 +65,6 @@ class SettingsRepository {
   static const String keyHebrewBooksPath = 'key-hebrew-books-path';
   static const String keyDevChannel = 'key-dev-channel';
   static const String keyCustomFolders = 'key-custom-folders';
-  static const String keyCustomFoldersRefreshSignature =
-      'key-custom-folders-refresh-signature';
   static const String keyAlignTabsToRight = 'key-align-tabs-to-right';
   static const String keyEnableHtmlLinks = 'key-enable-html-links';
   static const String keyPersonalNotesCollapsedByDefault =

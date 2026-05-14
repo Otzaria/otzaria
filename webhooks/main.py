@@ -2,9 +2,12 @@ import json
 import os
 
 from pyluach import dates
+from yemot_api.yemot_api import Yemot
+from yemot_api.input_types import RunTzintukMethod
+from yemot_api.exceptions import YemotAPIError
 
 from mitmachim import MitmachimClient
-from yemot import split_and_send
+# from yemot import split_and_send
 
 
 def heb_date() -> str:
@@ -74,10 +77,17 @@ finally:
         except Exception as error:
             errors.append(f"Mitmachim logout failed: {error}")
 
+# try:
+#     split_and_send(yemot_message, date_yemot, yemot_token, yemot_path, tzintuk_list_name)
+# except Exception as error:
+#     errors.append(f"Yemot announcement failed: {error}")
+ins = Yemot(yemot_token)
+tzintuk_list_name = "software update"
+caller_id = "0773420857"
 try:
-    split_and_send(yemot_message, date_yemot, yemot_token, yemot_path, tzintuk_list_name)
-except Exception as error:
-    errors.append(f"Yemot announcement failed: {error}")
+    ins.run_tzintuk(RunTzintukMethod.TZL, [tzintuk_list_name], caller_id=caller_id, tzintuk_time_out=16)
+except YemotAPIError as e:
+    print(f"Error: {e}")
 
 if errors:
     raise RuntimeError("\n".join(errors))

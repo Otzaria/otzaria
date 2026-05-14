@@ -26,6 +26,7 @@ import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/widgets/feedback/indexing_warning.dart';
+import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/tour/tour_target_keys.dart';
@@ -77,7 +78,7 @@ class SearchDialog extends StatefulWidget {
 class _SearchDialogState extends State<SearchDialog> {
   late SearchingTab _searchTab;
   FocusRestorer? _focusRestorer;
-  bool _showIndexWarning = false;
+  bool _showIndexInProgressWarning = false;
   bool _showHistoryDropdown = false;
   bool _searchAllCategories = true;
   Set<String> _manualFacets = {};
@@ -85,16 +86,6 @@ class _SearchDialogState extends State<SearchDialog> {
   late final VoidCallback _queryListener;
   Set<String> _selectedCategoryFacets = {'/'}; // ברירת מחדל: הכל
   late final bool _ownsSearchTab;
-
-  void _restoreLegacyTypoToleranceOptions(String query) {
-    final words = SearchQueryBuilder.splitQueryWords(query);
-    for (var i = 0; i < words.length; i++) {
-      final wordKey = SearchQueryBuilder.buildWordKey(words[i], i);
-      _searchTab.searchOptions[wordKey] = {
-        SearchQueryBuilder.typoToleranceOptionKey: true,
-      };
-    }
-  }
 
   bool get _usesStagedSubmit =>
       widget.onSearch != null || widget.returnResultOnSubmit;
@@ -112,22 +103,16 @@ class _SearchDialogState extends State<SearchDialog> {
           Settings.getValue<String>('key-last-search-typing') ?? '';
       final lastMode =
           Settings.getValue<String>('key-last-search-mode') ?? 'advanced';
-      final lastTypoTolerance =
-          Settings.getValue<bool>('key-last-search-typo-tolerance') ?? false;
 
       _searchTab = SearchingTab("חיפוש", lastTyping);
 
       final searchMode = switch (lastMode) {
         'fuzzy' => SearchMode.fuzzy,
         'exact' => SearchMode.exact,
-        'levenshtein' => SearchMode.advanced,
         _ => SearchMode.advanced,
       };
 
       _searchTab.searchBloc.add(SetSearchMode(searchMode));
-      if (lastMode == 'levenshtein' || lastTypoTolerance) {
-        _restoreLegacyTypoToleranceOptions(lastTyping);
-      }
     }
 
     final persisted = SearchScopePreferences.load();
@@ -147,9 +132,9 @@ class _SearchDialogState extends State<SearchDialog> {
     _selectedCategoryFacets =
         _searchAllCategories ? {'/'} : Set<String>.from(_manualFacets);
 
-    // בדיקה אם האינדקס בתהליך בנייה
+    // בדיקה אם האינדקס בתהליך בנייה - האזהרה ניתנת לסגירה ואינה חוסמת חיפוש
     final indexingState = context.read<IndexingBloc>().state;
-    _showIndexWarning = indexingState is IndexingInProgress;
+    _showIndexInProgressWarning = indexingState is IndexingInProgress;
 
     // מאזין לשינויים בתיבת החיפוש כדי לעדכן את האפשרויות ולשמור את ההקלדה
     _queryListener = () {
@@ -180,14 +165,10 @@ class _SearchDialogState extends State<SearchDialog> {
   }
 
   Widget _buildIndexWarning() {
-    if (!_showIndexWarning) return const SizedBox.shrink();
-
-    return IndexingWarning(
-      onDismiss: () {
-        setState(() {
-          _showIndexWarning = false;
-        });
-      },
+    return IndexingWarningContainer(
+      inProgressDismissed: !_showIndexInProgressWarning,
+      onDismiss: () =>
+          setState(() => _showIndexInProgressWarning = false),
     );
   }
 
@@ -266,9 +247,14 @@ class _SearchDialogState extends State<SearchDialog> {
                     _searchTab.queryController.text = query;
 
                     // שחזור האפשרויות הנוספות
+                    // ההיסטוריה שומרת אפשרויות מורחבות פר-מילה,
+                    // לכן מנקים את האפשרויות הגלובליות הקיימות ועוברים למצב פר-מילה
+                    // כדי שלא יישארו הגדרות חבויות שיופיעו במעבר חזרה למצב גלובלי
                     if (bookmark.searchOptions != null) {
                       _searchTab.searchOptions.clear();
                       _searchTab.searchOptions.addAll(bookmark.searchOptions!);
+                      _searchTab.globalSearchOptions.clear();
+                      _searchTab.useGlobalSearchOptions.value = false;
                     }
                     if (bookmark.alternativeWords != null) {
                       _searchTab.alternativeWords.clear();
@@ -309,6 +295,17 @@ class _SearchDialogState extends State<SearchDialog> {
   }
 
   void _performSearch() {
+    // חסימת חיפוש כשאין אינדקס - חיפוש שמשתמש באינדקס לא יכול לרוץ.
+    // אם ה-provider עוד לא הסתיים לטעון, לא חוסמים (השאילתה תמתין ל-engine).
+    if (isSearchBlockedByMissingIndex(
+      providerInitialized:
+          TantivyDataProvider.instance.isInitialized.value,
+    )) {
+      UiSnack.showError(
+          'אינדקס לא קיים, לא ניתן לבצע חיפוש זה ללא אינדקס.');
+      return;
+    }
+
     String query = _searchTab.queryController.text.trim();
 
     if (query.isEmpty) {
@@ -325,11 +322,17 @@ class _SearchDialogState extends State<SearchDialog> {
     // שמירת מצב החיפוש האחרון
     final currentState = _searchTab.searchBloc.state;
     final currentMode = currentState.configuration.searchMode;
+    final effectiveOptions = SearchQueryBuilder.effectiveSearchOptions(
+      query: query,
+      useGlobalOptions: _searchTab.useGlobalSearchOptions.value,
+      globalOptions: _searchTab.globalSearchOptions,
+      perWordOptions: _searchTab.searchOptions,
+    );
     final normalizedParameters = SearchQueryBuilder.normalizeParametersForMode(
       currentMode,
       customSpacing: _searchTab.spacingValues,
       alternativeWords: _searchTab.alternativeWords,
-      searchOptions: _searchTab.searchOptions,
+      searchOptions: effectiveOptions,
     );
     final modeString = switch (currentMode) {
       SearchMode.advanced => 'advanced',
@@ -378,7 +381,12 @@ class _SearchDialogState extends State<SearchDialog> {
     final newSearchTab = SearchingTab("חיפוש: $query", query);
 
     // העתקת כל ההגדרות מהטאב הנוכחי לטאב החדש
-    newSearchTab.searchOptions.addAll(normalizedParameters.searchOptions);
+    newSearchTab.searchOptions.addAll(_searchTab.searchOptions.map(
+      (key, value) => MapEntry(key, Map<String, bool>.from(value)),
+    ));
+    newSearchTab.globalSearchOptions.addAll(_searchTab.globalSearchOptions);
+    newSearchTab.useGlobalSearchOptions.value =
+        _searchTab.useGlobalSearchOptions.value;
     newSearchTab.alternativeWords.addAll(normalizedParameters.alternativeWords);
     newSearchTab.spacingValues.addAll(normalizedParameters.customSpacing);
     newSearchTab.searchBloc.add(SetSearchMode(currentMode));
@@ -689,25 +697,43 @@ class _SearchDialogState extends State<SearchDialog> {
                                       top: 8,
                                       bottom: 8,
                                       child: Center(
-                                        child: IconButton(
-                                          icon: const Icon(
-                                            FluentIcons.search_24_filled,
-                                            size: 20,
-                                          ),
-                                          tooltip: 'חפש',
-                                          onPressed: _performSearch,
-                                          style: IconButton.styleFrom(
-                                            backgroundColor: Theme.of(context)
-                                                .colorScheme
-                                                .primaryContainer,
-                                            foregroundColor: Theme.of(context)
-                                                .colorScheme
-                                                .primary,
-                                            padding: const EdgeInsets.all(6),
-                                            minimumSize: const Size(32, 32),
-                                            tapTargetSize: MaterialTapTargetSize
-                                                .shrinkWrap,
-                                          ),
+                                        child: ValueListenableBuilder<bool>(
+                                          valueListenable: TantivyDataProvider
+                                              .instance.isInitialized,
+                                          builder: (context,
+                                              providerInitialized, _) {
+                                            final blocked =
+                                                isSearchBlockedByMissingIndex(
+                                              providerInitialized:
+                                                  providerInitialized,
+                                            );
+                                            return IconButton(
+                                              icon: const Icon(
+                                                FluentIcons.search_24_filled,
+                                                size: 20,
+                                              ),
+                                              tooltip: blocked
+                                                  ? 'אינדקס לא קיים, לא ניתן לבצע חיפוש זה ללא אינדקס'
+                                                  : 'חפש',
+                                              onPressed:
+                                                  blocked ? null : _performSearch,
+                                              style: IconButton.styleFrom(
+                                                backgroundColor: Theme.of(context)
+                                                    .colorScheme
+                                                    .primaryContainer,
+                                                foregroundColor: Theme.of(context)
+                                                    .colorScheme
+                                                    .primary,
+                                                padding:
+                                                    const EdgeInsets.all(6),
+                                                minimumSize:
+                                                    const Size(32, 32),
+                                                tapTargetSize:
+                                                    MaterialTapTargetSize
+                                                        .shrinkWrap,
+                                              ),
+                                            );
+                                          },
                                         ),
                                       ),
                                     ),

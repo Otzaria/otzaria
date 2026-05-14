@@ -7,7 +7,6 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/file_sync/repository/file_sync_repository.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
-import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as p;
 
@@ -90,7 +89,6 @@ void main() {
         await Settings.setValue<bool>(SettingsRepository.keyOfflineMode, false);
         await Settings.setValue<bool>(SettingsRepository.keyAutoSync, false);
 
-        MyDatabase();
         await SqliteDataProvider.instance.dispose();
 
         expect(await _readDbVersion(workingDbPath), 2);

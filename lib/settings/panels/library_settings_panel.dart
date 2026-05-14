@@ -3,7 +3,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/external_catalog/view/external_catalog_settings_helper.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
+import 'package:otzaria/settings/search/settings_search_models.dart';
 import 'package:otzaria/settings/settings_card.dart';
+import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
 /// פאנל הגדרות תצוגת ספרייה
@@ -12,6 +14,58 @@ class LibrarySettingsPanel extends StatelessWidget {
   final Widget? hebrewBooksPathWidget;
 
   const LibrarySettingsPanel({super.key, this.hebrewBooksPathWidget});
+
+  /// פריטי חיפוש בהגדרות. נסרק על-ידי tool/generate_search_index.dart.
+  static const List<SettingsSearchEntry> searchEntries = [
+    SettingsSearchEntry(
+      id: 'library.display.view_type',
+      title: 'סוג תצוגה',
+      subtitle: 'תצוגת רשת או רשימה לספרי הקטגוריה',
+      tab: SettingsTab.library,
+      cardId: 'library.display',
+      keywords: ['רשת', 'רשימה', 'תצוגה', 'גריד'],
+    ),
+    SettingsSearchEntry(
+      id: 'library.display.preview',
+      title: 'הצג תצוגה מקדימה',
+      subtitle: 'תצוגה מקדימה של תוכן ספרים',
+      tab: SettingsTab.library,
+      cardId: 'library.display',
+      keywords: ['תצוגה מקדימה', 'preview', 'מופעל', 'לא מופעל'],
+    ),
+    SettingsSearchEntry(
+      id: 'library.external.show',
+      title: 'הצגת ספרים מאתרים חיצוניים',
+      subtitle: 'הצגת קטלוגים חיצוניים בתצוגת הספרייה',
+      tab: SettingsTab.library,
+      cardId: 'library.display',
+      keywords: ['חיצוניים', 'קטלוגים', 'מופעל', 'לא מופעל'],
+    ),
+    SettingsSearchEntry(
+      id: 'library.external.otzar',
+      title: 'הצג ספרים מאוצר החכמה',
+      subtitle: 'ספרים מאתר אוצר החכמה',
+      tab: SettingsTab.library,
+      cardId: 'library.display',
+      keywords: ['אוצר החכמה', 'otzar', 'מופעל', 'לא מופעל'],
+    ),
+    SettingsSearchEntry(
+      id: 'library.external.hebrewbooks',
+      title: 'הצג ספרים מהיברובוקס',
+      subtitle: 'ספרים מאתר HebrewBooks',
+      tab: SettingsTab.library,
+      cardId: 'library.display',
+      keywords: ['hebrewbooks', 'היברובוקס', 'מופעל', 'לא מופעל'],
+    ),
+    SettingsSearchEntry(
+      id: 'library.external.auto_sync',
+      title: 'סנכרון קטלוגים אוטומטי',
+      subtitle: 'עדכן קטלוגים חיצוניים אוטומטית',
+      tab: SettingsTab.library,
+      cardId: 'library.display',
+      keywords: ['סנכרון', 'קטלוגים', 'אוטומטי', 'מופעל', 'לא מופעל'],
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {

@@ -109,6 +109,22 @@ class UnpinPluginRequested extends PluginSystemEvent {
   List<Object?> get props => [pluginId];
 }
 
+class PinPluginToNavRailRequested extends PluginSystemEvent {
+  final String pluginId;
+  const PinPluginToNavRailRequested(this.pluginId);
+
+  @override
+  List<Object?> get props => [pluginId];
+}
+
+class UnpinPluginFromNavRailRequested extends PluginSystemEvent {
+  final String pluginId;
+  const UnpinPluginFromNavRailRequested(this.pluginId);
+
+  @override
+  List<Object?> get props => [pluginId];
+}
+
 class RefreshPlugins extends PluginSystemEvent {}
 
 class LoadDevelopmentPluginRequested extends PluginSystemEvent {

@@ -38,6 +38,7 @@ import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
 import 'package:otzaria/text_book/utils/reading_segments.dart';
 import 'package:otzaria/widgets/buttons/action_buttons.dart';
+import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart';
 
 /// קבועים לחישוב רוחב חלוניות המפרשים
 const double _kCommentaryPaneWidthFactor = 0.17;
@@ -73,6 +74,8 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
   bool _isLeftSidebarOpen = false;
   int _leftSidebarTabIndex = 0;
   bool _isHoveringSidebarHandle = false;
+  final SelectionSyncController _selectionSyncController =
+      SelectionSyncController();
 
   // גדלים לחלוניות - יחושבו לפי גודל המסך
   double? _leftSidebarWidth;
@@ -358,6 +361,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
         return _CommentaryPane(
           commentatorName: resolvedSingle,
           openBookCallback: widget.openBookCallback,
+          selectionSyncController: _selectionSyncController,
           onLoadFailed: () =>
               _hideColumn('right', global: false, showSnack: false),
         );
@@ -372,6 +376,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
       openBookCallback: (tab) => widget.openBookCallback(tab),
       fontSize: PageShapeSettingsManager.getCommentaryFontSize(),
       showSearch: true,
+      selectionSyncController: _selectionSyncController,
       shrinkWrap: false,
       selectedCommentatorsOverride: commentators,
       commentatorGroupsOverride: _rightPaneCommentatorGroups(state),
@@ -517,6 +522,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
   @override
   void dispose() {
     widget.sidebarTabNotifier?.removeListener(_handleSidebarTabRequest);
+    _selectionSyncController.dispose();
     super.dispose();
   }
 
@@ -573,12 +579,19 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
           },
         ),
         BlocListener<PersonalNotesBloc, PersonalNotesState>(
+          // מאזינים גם לשינוי newNoteBookId, כדי לתפוס מעבר ישיר מטיוטה
+          // של ספר אחד לטיוטה של ספר אחר (isCreatingNewNote נשאר true).
           listenWhen: (previous, current) =>
-              previous.isCreatingNewNote != current.isCreatingNewNote,
+              previous.isCreatingNewNote != current.isCreatingNewNote ||
+              previous.newNoteBookId != current.newNoteBookId,
           listener: (context, state) {
-            if (state.isCreatingNewNote) {
-              _openLeftSidebarTab(1);
-            }
+            // פותחים את חלונית ההערות רק אם הטיוטה שייכת לספר של מסך זה.
+            // אחרת — בטאבים אחרים (keepAlive) היה נפתח sidebar של ספר זר.
+            if (!state.isCreatingNewNote) return;
+            final textBookState = context.read<TextBookBloc>().state;
+            if (textBookState is! TextBookLoaded) return;
+            if (state.newNoteBookId != textBookState.book.title) return;
+            _openLeftSidebarTab(1);
           },
         ),
       ],
@@ -631,6 +644,8 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                                   _leftCommentator!,
                                               openBookCallback:
                                                   widget.openBookCallback,
+                                              selectionSyncController:
+                                                  _selectionSyncController,
                                               onLoadFailed: () => _hideColumn(
                                                   'left',
                                                   global: false,
@@ -709,6 +724,8 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                         child: SimpleTextViewer(
                                           content: state.content,
                                           fontSize: state.fontSize,
+                                          selectionSyncController:
+                                              _selectionSyncController,
                                           openBookCallback:
                                               widget.openBookCallback,
                                           scrollController:
@@ -883,6 +900,8 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                                           openBookCallback: widget
                                                               .openBookCallback,
                                                           isBottom: true,
+                                                          selectionSyncController:
+                                                              _selectionSyncController,
                                                           onLoadFailed: () =>
                                                               _hideColumn(
                                                                   'bottom',
@@ -934,6 +953,8 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                                         openBookCallback: widget
                                                             .openBookCallback,
                                                         isBottom: true,
+                                                        selectionSyncController:
+                                                            _selectionSyncController,
                                                         onLoadFailed: () =>
                                                             _hideColumn(
                                                                 'bottomRight',
@@ -985,6 +1006,8 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                                         openBookCallback: widget
                                                             .openBookCallback,
                                                         isBottom: true,
+                                                        selectionSyncController:
+                                                            _selectionSyncController,
                                                         onLoadFailed: () =>
                                                             _hideColumn(
                                                                 'bottom'),
@@ -1023,6 +1046,8 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                 categoryId: state.book.categoryId,
                                 openBookCallback: widget.openBookCallback,
                                 fontSize: state.fontSize,
+                                selectionSyncController:
+                                    _selectionSyncController,
                                 onNavigateToLine: (lineNumber) =>
                                     _navigateToLine(state, lineNumber),
                                 onClosePane: _toggleLeftSidebar,
@@ -1109,12 +1134,14 @@ class _CommentaryPane extends StatefulWidget {
   final Function(OpenedTab) openBookCallback;
   final bool isBottom; // האם זה מפרש תחתון
   final VoidCallback? onLoadFailed;
+  final SelectionSyncController? selectionSyncController;
 
   const _CommentaryPane({
     required this.commentatorName,
     required this.openBookCallback,
     this.isBottom = false,
     this.onLoadFailed,
+    this.selectionSyncController,
   });
 
   @override
@@ -1659,6 +1686,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
               content: _content!,
               fontSize: commentaryFontSize,
               fontFamily: fontFamily,
+              selectionSyncController: widget.selectionSyncController,
               openBookCallback: widget.openBookCallback,
               scrollController: _scrollController,
               positionsListener: _positionsListener,

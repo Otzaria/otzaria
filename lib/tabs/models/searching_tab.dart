@@ -18,6 +18,13 @@ class SearchingTab extends OpenedTab {
   // אפשרויות חיפוש לכל מילה (מילה_אינדקס -> אפשרויות)
   final Map<String, Map<String, bool>> searchOptions = {};
 
+  // אפשרויות חיפוש גלובליות החלות על כל המילים יחד
+  // (אינן נאבדות בשינוי מילים בשאילתה)
+  final Map<String, bool> globalSearchOptions = {};
+
+  // האם להשתמש בהגדרות הגלובליות (true) או בהגדרות פר-מילה (false)
+  final ValueNotifier<bool> useGlobalSearchOptions = ValueNotifier(true);
+
   // מילים חילופיות לכל מילה (אינדקס_מילה -> רשימת מילים חילופיות)
   final Map<int, List<String>> alternativeWords = {};
 
@@ -70,6 +77,8 @@ class SearchingTab extends OpenedTab {
         (key, value) => MapEntry(key, Map<String, bool>.from(value)),
       ),
     );
+    cloned.globalSearchOptions.addAll(other.globalSearchOptions);
+    cloned.useGlobalSearchOptions.value = other.useGlobalSearchOptions.value;
     cloned.alternativeWords.addAll(
       other.alternativeWords.map(
         (key, value) => MapEntry(key, List<String>.from(value)),
@@ -122,6 +131,8 @@ class SearchingTab extends OpenedTab {
         .toString();
     return [
       normMap(searchOptions),
+      normMap(globalSearchOptions),
+      useGlobalSearchOptions.value.toString(),
       normMap(spacingValues),
       Map.fromEntries(alternativeWords.entries.toList()
             ..sort((a, b) => a.key.compareTo(b.key)))
@@ -136,12 +147,26 @@ class SearchingTab extends OpenedTab {
     return '$f|q=$q|o=${_optionsHash()}|b=$bVer';
   }
 
+  /// מחזיר את אפשרויות החיפוש האפקטיביות לפי המצב הנוכחי (גלובלי/פר-מילה).
+  /// במצב גלובלי - מרחיב את ההגדרות הגלובליות לכל מילה בשאילתה.
+  /// במצב פר-מילה - מחזיר את ההגדרות הפר-מיליות הקיימות.
+  Map<String, Map<String, bool>> effectiveSearchOptions({String? query}) {
+    return SearchQueryBuilder.effectiveSearchOptions(
+      query: query ?? queryController.text,
+      useGlobalOptions: useGlobalSearchOptions.value,
+      globalOptions: globalSearchOptions,
+      perWordOptions: searchOptions,
+    );
+  }
+
   Future<int> countForFacet(String facet) {
     final normalizedParameters = SearchQueryBuilder.normalizeParametersForMode(
       searchBloc.state.configuration.searchMode,
       customSpacing: spacingValues,
       alternativeWords: alternativeWords,
-      searchOptions: searchOptions,
+      searchOptions: effectiveSearchOptions(
+        query: searchBloc.state.searchQuery,
+      ),
     );
     return searchBloc.countForFacet(
       facet,
@@ -157,7 +182,9 @@ class SearchingTab extends OpenedTab {
       searchBloc.state.configuration.searchMode,
       customSpacing: spacingValues,
       alternativeWords: alternativeWords,
-      searchOptions: searchOptions,
+      searchOptions: effectiveSearchOptions(
+        query: searchBloc.state.searchQuery,
+      ),
     );
     return searchBloc.countForMultipleFacets(
       facets,
@@ -219,6 +246,7 @@ class SearchingTab extends OpenedTab {
     searchOptionsChanged.dispose();
     alternativeWordsChanged.dispose();
     spacingValuesChanged.dispose();
+    useGlobalSearchOptions.dispose();
     // סגירת ה-bloc כדי למנוע דליפה
     searchBloc.close();
     super.dispose();

@@ -33,6 +33,16 @@ class ShortcutDropDownTile extends StatefulWidget {
 class _ShortcutDropDownTileState extends State<ShortcutDropDownTile> {
   @override
   Widget build(BuildContext context) {
+    // האזנה לשינויים בקיצורים — מבטיחה שה-dropdown יציג את הערך החדש
+    // מיד לאחר עדכון, ולא רק לאחר מעבר למסך אחר וחזרה.
+    return BlocBuilder<SettingsBloc, SettingsState>(
+      buildWhen: (previous, current) =>
+          previous.shortcuts != current.shortcuts,
+      builder: (context, _) => _buildContent(context),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
     // Get current value for this setting
     final currentValue =
         ShortcutValidator.getShortcutValue(widget.settingKey) ?? widget.selected;

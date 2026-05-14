@@ -25,10 +25,13 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     http.Client? httpClient,
     Future<void> Function(String archivePath, String outputPath)?
         extractCompressedDatabase,
+    Future<void> Function(String archivePath, String outputDir)?
+        extractTarArchive,
     String? defaultLibraryPathOverride,
   })  : _httpClient = httpClient ?? http.Client(),
         _extractCompressedDatabase =
             extractCompressedDatabase ?? _extractZstWithSystemProcess,
+        _extractTarArchive = extractTarArchive ?? _extractTarZst,
         _defaultLibraryPathOverride = defaultLibraryPathOverride,
         super(const EmptyLibraryInitial(
             downloadDisabledReason: 'בודק מקום פנוי...')) {
@@ -45,6 +48,8 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
   final http.Client _httpClient;
   final Future<void> Function(String archivePath, String outputPath)
       _extractCompressedDatabase;
+  final Future<void> Function(String archivePath, String outputDir)
+      _extractTarArchive;
   // סיבת השבתת כפתור ההורדה — נשמרת כ-instance field כדי להישמר בין state transitions
   String? _downloadDisabledReason = 'בודק מקום פנוי...';
   final String? _defaultLibraryPathOverride;
@@ -804,7 +809,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     ));
 
     if (isTar) {
-      await _extractTarZst(tempPath, outputDir);
+      await _extractTarArchive(tempPath, outputDir);
     } else {
       final outPath = path.join(outputDir, outputFileName!);
       await _extractCompressedDatabase(tempPath, outPath);

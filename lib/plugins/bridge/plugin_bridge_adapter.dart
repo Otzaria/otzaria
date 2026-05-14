@@ -35,6 +35,7 @@ import 'package:otzaria/plugins/utils/reader_location_resolver.dart';
 import 'package:otzaria/plugins/models/plugin_highlight.dart';
 import 'package:otzaria/plugins/models/plugin_context_menu_item.dart';
 import 'package:otzaria/plugins/services/context_menu_registry.dart';
+import 'package:otzaria/plugins/models/plugin_network_allowlist.dart';
 
 // ===================================================================
 // Spec-compliant allowlist for settings.get/getMany
@@ -142,6 +143,7 @@ class PluginBridgeDependencies {
     required String content,
     required String subtitle,
   }) showWarningDialog;
+  final void Function(String downloadUrl)? requestPluginInstall;
 
   const PluginBridgeDependencies({
     required this.historyBloc,
@@ -155,6 +157,7 @@ class PluginBridgeDependencies {
     required this.themePayloadBuilder,
     required this.showConfirmDialog,
     required this.showWarningDialog,
+    this.requestPluginInstall,
   });
 }
 
@@ -179,8 +182,14 @@ class PluginBridgeAdapter {
         _notificationService = notificationService ?? NotificationService(),
         _databaseService = databaseService ?? PluginDatabaseService();
 
+  final HttpClient _httpClient = HttpClient();
+
   // bookId → index → PluginHighlight (in-memory, per adapter instance)
   final Map<String, Map<int, PluginHighlight>> _highlights = {};
+
+  void dispose() {
+    _httpClient.close(force: true);
+  }
 
   Future<dynamic> execute(
       String domain, String action, Map<String, dynamic> args) async {
@@ -215,6 +224,10 @@ class PluginBridgeAdapter {
         return await _handleNotifications(action, args);
       case 'database':
         return _handleDatabase(action, args);
+      case 'network':
+        return await _handleNetwork(action, args);
+      case 'plugin':
+        return await _handlePlugin(action, args);
       default:
         throw Exception("Unknown domain: $domain");
     }
@@ -419,10 +432,16 @@ class PluginBridgeAdapter {
           };
         });
         if (currentTab == null) {
-          return {'currentBook': null, 'currentIndex': 0, 'currentRef': null, 'openTabs': openTabs};
+          return {
+            'currentBook': null,
+            'currentIndex': 0,
+            'currentRef': null,
+            'openTabs': openTabs
+          };
         }
         final currentTabIndex = tabs.indexOf(currentTab);
-        final currentSnapshot = currentTabIndex >= 0 ? snapshots[currentTabIndex] : null;
+        final currentSnapshot =
+            currentTabIndex >= 0 ? snapshots[currentTabIndex] : null;
         return {
           'currentBook': currentTab.title,
           'currentBookId': currentTab.title,
@@ -456,7 +475,8 @@ class PluginBridgeAdapter {
         }
         ContextMenuRegistry.instance.register(
           plugin.pluginId,
-          PluginContextMenuItem(id: id, label: label, icon: args['icon'] as String?),
+          PluginContextMenuItem(
+              id: id, label: label, icon: args['icon'] as String?),
         );
         return true;
       case 'removeContextMenuItem':
@@ -1346,6 +1366,65 @@ class PluginBridgeAdapter {
 
       default:
         throw Exception('Unknown database action: $action');
+    }
+  }
+
+  // ----------------------------------------------------------------
+  // plugin.*
+  // ----------------------------------------------------------------
+  Future<dynamic> _handlePlugin(
+      String action, Map<String, dynamic> args) async {
+    switch (action) {
+      case 'requestInstall':
+        final url = args['url'] as String?;
+        if (url == null) throw Exception('error.invalid_params: url required');
+        final cb = _dependencies.requestPluginInstall;
+        if (cb == null) throw Exception('error.unavailable: install not wired');
+        cb(url);
+        return true;
+      case 'listInstalled':
+        final installed = await _pluginRepo.getAllPlugins();
+        return installed
+            .map((p) => {'name': p.name, 'version': p.version})
+            .toList();
+      default:
+        throw Exception('Unknown action in plugin: $action');
+    }
+  }
+
+  // ----------------------------------------------------------------
+  // network.*
+  // ----------------------------------------------------------------
+  Future<dynamic> _handleNetwork(
+      String action, Map<String, dynamic> args) async {
+    switch (action) {
+      case 'fetch':
+        final granted =
+            await _pluginRepo.getPermission(plugin.pluginId, 'network.access');
+        if (granted != true) {
+          throw Exception('error.permission_denied: network.access required');
+        }
+
+        final url = args['url'] as String?;
+        if (url == null) throw Exception('error.invalid_params: url required');
+
+        final uri = Uri.tryParse(url);
+        if (uri == null) throw Exception('error.invalid_params: invalid URL');
+
+        if (!isUriAllowedForPluginNetwork(uri)) {
+          throw Exception(
+              'error.forbidden: URL not in plugin network allowlist');
+        }
+
+        final request = await _httpClient.getUrl(uri);
+        request.followRedirects = false;
+        request.headers.set(HttpHeaders.acceptHeader, 'application/json');
+        final response = await request.close();
+        final body = await response.transform(utf8.decoder).join();
+        return {'status': response.statusCode, 'body': body};
+
+      default:
+        throw Exception('Unknown action in network: $action');
     }
   }
 }

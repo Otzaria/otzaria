@@ -113,6 +113,7 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
     _keyboardListenerFocusNode.dispose();
     _textFieldKeyboardListenerFocusNode.dispose();
     widget.tab.searchOptions.clear();
+    widget.tab.globalSearchOptions.clear();
     super.dispose();
   }
 
@@ -123,6 +124,7 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
     // אם שדה החיפוש התרוקן, נקה הכל ונסגור את המגירה
     if (text.trim().isEmpty) {
       widget.tab.searchOptions.clear();
+      widget.tab.globalSearchOptions.clear();
       if (drawerWasOpen) {
         _hideSearchOptionsOverlay();
         _notifyDropdownClosed();
@@ -370,7 +372,7 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
         searchMode,
         customSpacing: widget.tab.spacingValues,
         alternativeWords: widget.tab.alternativeWords,
-        searchOptions: widget.tab.searchOptions,
+        searchOptions: widget.tab.effectiveSearchOptions(query: query),
       );
 
       widget.tab.updateTitleFromAppliedQuery(query);
@@ -490,6 +492,7 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
                                     onPressed: () {
                                       widget.tab.queryController.clear();
                                       widget.tab.searchOptions.clear();
+                                      widget.tab.globalSearchOptions.clear();
                                       context
                                           .read<SearchBloc>()
                                           .add(UpdateSearchQuery(''));
@@ -506,6 +509,7 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
                                 onPressed: () {
                                   widget.tab.queryController.clear();
                                   widget.tab.searchOptions.clear();
+                                  widget.tab.globalSearchOptions.clear();
                                   context
                                       .read<SearchBloc>()
                                       .add(UpdateSearchQuery(''));

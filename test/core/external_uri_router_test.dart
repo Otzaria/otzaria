@@ -140,16 +140,63 @@ void main() {
         expect(book.bookId, 1234);
         expect(book.index, isNull);
         expect(book.searchQuery, isNull);
+        expect(book.pinpointHighlight, isNull);
       });
 
       test('מפענח index ו-q בפתיחת ספר', () {
         final action = ExternalUriRouter.parseUri(
-          Uri.parse('otzaria://open/book/1234?index=42&q=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA'),
+          Uri.parse(
+              'otzaria://open/book/1234?index=42&q=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA'),
         ) as OpenBookAction;
 
         expect(action.bookId, 1234);
         expect(action.index, 42);
         expect(action.searchQuery, 'בראשית');
+        expect(action.pinpointHighlight, isNull);
+      });
+
+      test('מפענח highlight= בפתיחת ספר עם index', () {
+        final action = ExternalUriRouter.parseUri(
+          Uri.parse(
+            'otzaria://open/book/1234?index=42&highlight=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA',
+          ),
+        ) as OpenBookAction;
+
+        expect(action.bookId, 1234);
+        expect(action.index, 42);
+        expect(action.pinpointHighlight, 'בראשית');
+        expect(action.searchQuery, isNull);
+      });
+
+      test('highlight= בלי index מתעלם', () {
+        final action = ExternalUriRouter.parseUri(
+          Uri.parse(
+            'otzaria://open/book/1234?highlight=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA',
+          ),
+        ) as OpenBookAction;
+
+        expect(action.index, isNull);
+        expect(action.pinpointHighlight, isNull);
+        expect(action.searchQuery, isNull);
+      });
+
+      test('highlight= ריק מתעלם', () {
+        final action = ExternalUriRouter.parseUri(
+          Uri.parse('otzaria://open/book/1234?index=42&highlight='),
+        ) as OpenBookAction;
+
+        expect(action.pinpointHighlight, isNull);
+      });
+
+      test('highlight= גובר על q= כשסופקו שניהם', () {
+        final action = ExternalUriRouter.parseUri(
+          Uri.parse(
+            'otzaria://open/book/1234?index=42&q=%D7%90%D7%9C%D7%A3&highlight=%D7%91%D7%99%D7%AA',
+          ),
+        ) as OpenBookAction;
+
+        expect(action.pinpointHighlight, 'בית');
+        expect(action.searchQuery, isNull);
       });
 
       test('index שלילי או לא מספרי מתעלם', () {
@@ -193,6 +240,93 @@ void main() {
         );
         expect(
           ExternalUriRouter.parseUri(Uri.parse('otzaria://open/book/-5')),
+          isNull,
+        );
+      });
+    });
+
+    group('open/pdf/<id>', () {
+      test('פותחת ספר PDF לפי מזהה DB', () {
+        final action = ExternalUriRouter.parseUri(
+          Uri.parse('otzaria://open/pdf/1234'),
+        );
+
+        expect(action, isA<OpenPdfBookAction>());
+        final pdf = action as OpenPdfBookAction;
+        expect(pdf.bookId, 1234);
+        expect(pdf.page, isNull);
+      });
+
+      test('מפענח index כעמוד התחלתי (1-based)', () {
+        final action = ExternalUriRouter.parseUri(
+          Uri.parse('otzaria://open/pdf/1234?index=42'),
+        ) as OpenPdfBookAction;
+
+        expect(action.bookId, 1234);
+        expect(action.page, 42);
+      });
+
+      test('index=1 נשמר (PDF הוא 1-based)', () {
+        final action = ExternalUriRouter.parseUri(
+          Uri.parse('otzaria://open/pdf/7?index=1'),
+        ) as OpenPdfBookAction;
+
+        expect(action.page, 1);
+      });
+
+      test('index=0 מתעלם (לא חוקי ב-PDF)', () {
+        final action = ExternalUriRouter.parseUri(
+          Uri.parse('otzaria://open/pdf/7?index=0'),
+        ) as OpenPdfBookAction;
+
+        expect(action.page, isNull);
+      });
+
+      test('index שלילי מתעלם', () {
+        final action = ExternalUriRouter.parseUri(
+          Uri.parse('otzaria://open/pdf/7?index=-3'),
+        ) as OpenPdfBookAction;
+
+        expect(action.page, isNull);
+      });
+
+      test('index לא מספרי מתעלם', () {
+        final action = ExternalUriRouter.parseUri(
+          Uri.parse('otzaria://open/pdf/7?index=foo'),
+        ) as OpenPdfBookAction;
+
+        expect(action.page, isNull);
+      });
+
+      test('שם פעולה אינו רגיש לאותיות גדולות/קטנות', () {
+        final action = ExternalUriRouter.parseUri(
+          Uri.parse('otzaria://open/PDF/1234'),
+        );
+        expect(action, isA<OpenPdfBookAction>());
+        expect((action as OpenPdfBookAction).bookId, 1234);
+      });
+
+      test('דוחה pdf/ עם מזהה לא מספרי', () {
+        expect(
+          ExternalUriRouter.parseUri(Uri.parse('otzaria://open/pdf/abc')),
+          isNull,
+        );
+      });
+
+      test('דוחה pdf/ עם מזהה ריק', () {
+        expect(
+          ExternalUriRouter.parseUri(Uri.parse('otzaria://open/pdf/')),
+          isNull,
+        );
+      });
+
+      test('דוחה pdf/ עם מזהה אפס או שלילי', () {
+        expect(
+          ExternalUriRouter.parseUri(Uri.parse('otzaria://open/pdf/0')),
+          isNull,
+        );
+        expect(
+          ExternalUriRouter.parseUri(Uri.parse('otzaria://open/pdf/-5')),
           isNull,
         );
       });

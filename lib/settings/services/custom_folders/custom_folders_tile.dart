@@ -82,7 +82,6 @@ class _CustomFoldersTileState extends State<CustomFoldersTile> {
         },
         onError: (msg) => UiSnack.showError(msg),
       );
-      if (!mounted) return;
     }
 
     bloc.add(AddCustomFolder(path));

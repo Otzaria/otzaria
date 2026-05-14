@@ -3,6 +3,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/settings/search/settings_search_models.dart';
 import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/theme/layout_tokens.dart';
+import 'package:otzaria/widgets/misc/rtl_icon.dart';
 
 /// תצוגת תוצאות חיפוש בהגדרות — מוצגת באזור התוכן כאשר השאילתה אינה ריקה.
 class SettingsSearchResultsView extends StatelessWidget {
@@ -48,34 +49,44 @@ class SettingsSearchResultsView extends StatelessWidget {
 
   Widget _buildEmptyState(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              FluentIcons.search_info_24_regular,
-              size: 48,
-              color: colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'לא נמצאו הגדרות תואמות',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+    // עוטפים ב-CustomScrollView/SliverFillRemaining כדי שה-PrimaryScrollController
+    // העוטף יקבל ScrollPosition פעיל גם כשאין תוצאות (אחרת ה-Scrollbar
+    // החיצוני זורק "no ScrollPosition attached").
+    return CustomScrollView(
+      slivers: [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    FluentIcons.search_info_24_regular,
+                    size: 48,
                     color: colorScheme.onSurfaceVariant,
                   ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'נסה לחפש מילים אחרות',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
+                  const SizedBox(height: 12),
+                  Text(
+                    'לא נמצאו הגדרות תואמות',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
                   ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'נסה לחפש מילים אחרות',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+                ],
+              ),
             ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 }
@@ -155,7 +166,7 @@ class _SearchResultTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Icon(
+              RtlIcon(
                 FluentIcons.chevron_left_24_regular,
                 size: 18,
                 color: colorScheme.onSurfaceVariant,
@@ -206,19 +217,12 @@ class _HighlightedText extends StatelessWidget {
       return [TextSpan(text: text)];
     }
 
-    // נבנה מחרוזת מנורמלת המקבילה לטקסט המקורי, יחד עם מיפוי
-    // ממיקום בכל תו במחרוזת המנורמלת אל מיקומו בטקסט המקורי.
-    final normalizedBuf = StringBuffer();
-    final origIndexFor = <int>[];
-    for (var i = 0; i < text.length; i++) {
-      final norm = SettingsSearchEntry.normalize(text[i]);
-      if (norm.isEmpty) continue;
-      for (var j = 0; j < norm.length; j++) {
-        normalizedBuf.write(norm[j]);
-        origIndexFor.add(i);
-      }
-    }
-    final normalizedText = normalizedBuf.toString();
+    // נרמול הטקסט עם שמירת מיפוי ל-text המקורי. בשונה מ-`normalize()`
+    // הכללי, פה שומרים על רווחים פנימיים (לא trim) כדי ששאילתות רב-
+    // מיליות יודלקו נכון.
+    final mapped = _normalizeWithMapping(text);
+    final normalizedText = mapped.text;
+    final origIndexFor = mapped.indexMap;
     if (normalizedText.isEmpty) {
       return [TextSpan(text: text)];
     }
@@ -252,6 +256,42 @@ class _HighlightedText extends StatelessWidget {
       spans.add(TextSpan(text: text.substring(origCursor)));
     }
     return spans.isEmpty ? [TextSpan(text: text)] : spans;
+  }
+
+  /// נרמול טקסט עם מיפוי לאינדקסי המקור. שומר על רווחים פנימיים
+  /// (חוסך trim) כך שחיפוש רב-מילי כמו "מצב כהה" יתאים לטקסט מקור
+  /// "מצב כהה" עם רווחים מקוריים.
+  ({String text, List<int> indexMap}) _normalizeWithMapping(String src) {
+    final buf = StringBuffer();
+    final mapping = <int>[];
+    var prevWasSpace = true; // כדי שרווחים בהתחלה ייבלעו
+
+    for (var i = 0; i < src.length; i++) {
+      final ch = src[i];
+      final code = src.codeUnitAt(i);
+
+      // ניקוד עברי
+      if (code >= 0x0591 && code <= 0x05C7) continue;
+
+      // גרשיים
+      if (ch == '"' || ch == "'" || ch == '׳' || ch == '״') continue;
+
+      final lower = ch.toLowerCase();
+
+      // איחוד רצף רווחים לרווח אחד
+      if (lower == ' ' || lower == '\t' || lower == '\n' || lower == '\r') {
+        if (prevWasSpace) continue;
+        buf.write(' ');
+        mapping.add(i);
+        prevWasSpace = true;
+      } else {
+        buf.write(lower);
+        mapping.add(i);
+        prevWasSpace = false;
+      }
+    }
+
+    return (text: buf.toString(), indexMap: mapping);
   }
 }
 

@@ -30,7 +30,7 @@ void main() {
       expect(renderSettings.searchText, 'שלום');
     });
 
-    test('disables justify for link content rendering', () {
+    test('justifies link content rendering', () {
       final settings = SettingsState.initial();
 
       final renderSettings = buildSelectedLinkRenderSettings(
@@ -39,7 +39,7 @@ void main() {
         searchText: '',
       );
 
-      expect(renderSettings.justifyText, isFalse);
+      expect(renderSettings.justifyText, isTrue);
     });
   });
 

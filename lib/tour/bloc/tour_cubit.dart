@@ -10,7 +10,17 @@ import 'package:otzaria/tour/models/live_tip.dart';
 import 'package:otzaria/tour/models/tour_steps.dart';
 
 class TourCubit extends Cubit<TourState> {
-  TourCubit() : super(const TourState.inactive());
+  TourCubit() : super(_loadInitialState());
+
+  static TourState _loadInitialState() {
+    final stored =
+        Settings.getValue<String>(LiveTipStorage.resolvedTipsKey);
+    final resolved = LiveTipStorage.decode(stored);
+    if (resolved.isEmpty) {
+      return const TourState.inactive();
+    }
+    return const TourState.inactive().copyWith(resolvedTips: resolved);
+  }
 
   Timer? _autoPlayTimer;
   final List<TourInteraction> _recentInteractions = <TourInteraction>[];
@@ -49,6 +59,8 @@ class TourCubit extends Cubit<TourState> {
         currentIndex: 0,
         steps:
             TourSteps.build(libraryLoaded: libraryLoaded, isRestart: isRestart),
+        shownTips: state.shownTips,
+        resolvedTips: state.resolvedTips,
       ),
     );
   }
@@ -63,7 +75,23 @@ class TourCubit extends Cubit<TourState> {
     if (!state.hasActiveLiveTip) {
       return;
     }
-    emit(state.copyWith(clearLiveTip: true));
+    final dismissedId = state.activeLiveTipId!;
+    final updatedResolved = <LiveTipId>{
+      ...state.resolvedTips,
+      dismissedId,
+    };
+    emit(state.copyWith(
+      resolvedTips: updatedResolved,
+      clearLiveTip: true,
+    ));
+    _persistResolvedTips(updatedResolved);
+  }
+
+  void _persistResolvedTips(Set<LiveTipId> resolvedTips) {
+    Settings.setValue<String>(
+      LiveTipStorage.resolvedTipsKey,
+      LiveTipStorage.encode(resolvedTips),
+    );
   }
 
   void goToStep(int index) {
@@ -195,15 +223,17 @@ class TourCubit extends Cubit<TourState> {
       return;
     }
 
+    final updatedResolved = <LiveTipId>{
+      ...state.resolvedTips,
+      tipId,
+    };
     emit(
       state.copyWith(
-        resolvedTips: <LiveTipId>{
-          ...state.resolvedTips,
-          tipId,
-        },
+        resolvedTips: updatedResolved,
         clearLiveTip: state.activeLiveTipId == tipId,
       ),
     );
+    _persistResolvedTips(updatedResolved);
   }
 
   void _maybeShowLiveTip() {

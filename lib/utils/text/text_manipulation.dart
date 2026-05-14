@@ -442,6 +442,8 @@ String highLight(
         if (RegExp(r'[א-ת]').hasMatch(char)) {
           return '${RegExp.escape(char)}[\u0591-\u05C7]*';
         }
+        if (char == '"') return '["״]';
+        if (char == "'") return "['׳]";
         return RegExp.escape(char);
       }).join();
     }).toList();

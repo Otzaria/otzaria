@@ -552,13 +552,12 @@ class _AnchoredSearchMenuContentState<T>
                             itemCount: filtered.length,
                             itemBuilder: (ctx, i) {
                               final entry = filtered[i];
-                              final isSelected =
-                                  widget.initialValue != null &&
-                                      entry.value == widget.initialValue;
+                              final isSelected = widget.initialValue != null &&
+                                  entry.value == widget.initialValue;
                               return InkWell(
                                 onTap: entry.enabled
-                                    ? () => Navigator.of(context)
-                                        .pop(entry.value)
+                                    ? () =>
+                                        Navigator.of(context).pop(entry.value)
                                     : null,
                                 child: SizedBox(
                                   width: double.infinity,
@@ -833,19 +832,64 @@ PopupMenuEntry<T> buildAppSubmenuPopupMenuItem<T>({
   required AppMenuMetrics metrics,
   required String label,
   IconData? icon,
-  required List<Widget> menuChildren,
+  required List<PopupMenuEntry<T>> menuChildren,
+  ValueChanged<T>? onSelected,
 }) {
   return buildAppCustomPopupMenuItem<T>(
     context: context,
     metrics: metrics,
-    child: SubmenuButton(
-      menuChildren: menuChildren,
-      style: buildAppSubmenuItemStyle(context, metrics),
-      child: buildAppMenuRowContent(
-        context,
-        metrics,
-        label: label,
-        icon: icon,
+    enabled: onSelected != null,
+    child: Builder(
+      builder: (innerContext) => InkWell(
+        onTap: onSelected == null
+            ? null
+            : () async {
+                final renderBox = innerContext.findRenderObject() as RenderBox?;
+                if (renderBox == null) return;
+                final overlayState = Overlay.maybeOf(innerContext);
+                if (overlayState == null) return;
+                final overlay =
+                    overlayState.context.findRenderObject() as RenderBox;
+                final overlaySize = overlay.size;
+                final itemRect = MatrixUtils.transformRect(
+                  renderBox.getTransformTo(overlay),
+                  Offset.zero & renderBox.size,
+                );
+                // חשב את צד הפתיחה לפי מיקום הפריט במסך:
+                // אם הפריט בחצי הימני של המסך — פתח שמאלה, אחרת ימינה
+                final openToRight = itemRect.center.dx < overlaySize.width / 2;
+                final xPos = openToRight ? itemRect.right : itemRect.left;
+                final selected = await showMenu<T>(
+                  context: innerContext,
+                  position: RelativeRect.fromRect(
+                    Rect.fromLTWH(xPos, itemRect.top, 0, 0),
+                    Offset.zero & overlaySize,
+                  ),
+                  items: menuChildren,
+                );
+                if (selected != null) {
+                  // סוגרים קודם את התפריט הראשי, ורק אז מריצים את הפעולה.
+                  // הסדר ההפוך עלול לפוצץ דיאלוגים שה-callback פותח
+                  // (showBookSourceDialog, _handlePrintPress וכד'),
+                  // כי ה-pop היה סוגר את הדיאלוג במקום את התפריט.
+                  if (innerContext.mounted) {
+                    Navigator.of(innerContext).pop();
+                  }
+                  onSelected.call(selected);
+                }
+              },
+        borderRadius: BorderRadius.circular(metrics.itemBorderRadius),
+        child: buildAppMenuRowContent(
+          context,
+          metrics,
+          label: label,
+          icon: icon,
+          trailing: Icon(
+            // החץ מצביע לכיוון פתיחת התת-תפריט (ימינה)
+            FluentIcons.chevron_right_24_regular,
+            size: metrics.iconSize * 0.75,
+          ),
+        ),
       ),
     ),
   );
@@ -872,4 +916,3 @@ Future<T?> showAppMenu<T>({
         .toList(),
   );
 }
-

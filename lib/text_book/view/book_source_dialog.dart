@@ -4,44 +4,55 @@ import 'package:otzaria/services/book_details_service.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+// ביטוי רגולרי להסרת תווים מפרידים (מקפים, קווים תחתונים, רווחים)
+final _sourceNormalizationRegex = RegExp(r'[-_\s]');
+
+// מיפוי שמות המקורות לטקסט בעברית וקישורים (ללא כפילויות)
+const _sourceMappings = {
+  'sefaria': (text: 'ספריא', url: 'https://www.sefaria.org/texts'),
+  'benyehuda': (text: 'פרוייקט בן-יהודה', url: 'https://benyehuda.org/'),
+  'dicta': (text: 'ספריית דיקטה', url: 'https://library.dicta.org.il/'),
+  'onyourway': (text: 'ובלכתך בדרך', url: 'https://mobile.tora.ws/'),
+  'orayta': (
+    text: 'אורייתא',
+    url: 'https://github.com/MosheWagner/Orayta-Books'
+  ),
+  'tashma': (text: 'תא שמע', url: 'https://tashma.co.il/'),
+  'pninim': (text: 'פנינים', url: 'https://pninim.org/'),
+  'wikisource': (text: 'ויקיטקסט', url: 'https://he.wikisource.org/wiki'),
+  'wikijewishbooks': (
+    text: 'אוצר הספרים היהודי השיתופי',
+    url: 'https://wiki.jewishbooks.org.il/'
+  ),
+  'morebooks': (text: 'ספרים פרטיים או מקורות נוספים', url: ''),
+  'tootzaria': (text: 'מקורות שהועברו לאוצריא', url: ''),
+  'toratemet': (
+    text: 'תורת אמת',
+    url: 'http://www.toratemetfreeware.com/index.html?downloads;1;'
+  ),
+  'unknown': (text: 'מקור לא ידוע', url: ''),
+};
+
 /// המרת שם המקור לטקסט מתאים עם קישור
-Map<String, String> getSourceDisplayInfo(String source) {
-  final normalized = source.trim().toLowerCase();
-  switch (normalized) {
-    case 'ben-yehuda':
-      return {'text': 'פרוייקט בן-יהודה', 'url': 'https://benyehuda.org/'};
-    case 'dicta':
-      return {'text': 'ספריית דיקטה', 'url': 'https://library.dicta.org.il/'};
-    case 'onyourway':
-      return {'text': 'ובלכתך בדרך', 'url': 'https://mobile.tora.ws/'};
-    case 'orayta':
-      return {
-        'text': 'אורייתא',
-        'url': 'https://github.com/MosheWagner/Orayta-Books'
-      };
-    case 'sefaria':
-      return {'text': 'ספריא', 'url': 'https://www.sefaria.org/texts'};
-    case 'morebooks':
-      return {'text': 'ספרים פרטיים או מקורות נוספים', 'url': ''};
-    case 'wiki_jewish_books':
-      return {
-        'text': 'אוצר הספרים היהודי השיתופי',
-        'url': 'https://wiki.jewishbooks.org.il/'
-      };
-    case 'tashma':
-      return {'text': 'תא שמע', 'url': 'https://tashma.co.il/'};
-    case 'toratemet':
-      return {
-        'text': 'תורת אמת',
-        'url': 'http://www.toratemetfreeware.com/index.html?downloads;1;'
-      };
-    case 'wikisource':
-      return {'text': 'ויקיטקסט', 'url': 'https://he.wikisource.org/wiki'};
-    case 'pninim':
-      return {'text': 'פנינים', 'url': 'https://pninim.org/'};
-    default:
-      return {'text': source, 'url': ''};
+/// תומך בשמות המקורות כפי שהם מאוחסנים ב-DB (case-insensitive)
+({String text, String url}) getSourceDisplayInfo(String source) {
+  // נרמול המחרוזת: הסרת רווחים, המרה לאותיות קטנות והסרת תווים מפרידים
+  final normalized =
+      source.toLowerCase().replaceAll(_sourceNormalizationRegex, '');
+
+  var key = normalized;
+
+  // טיפול מיוחד ב-ToratEmet (בגלל בעיה עם תווים)
+  if (key.contains('toratemet')) {
+    key = 'toratemet';
   }
+  // טיפול בסיומת 'tootzaria' שנוספה לחלק מהמקורות ב-DB
+  else if (key.endsWith('tootzaria') && key != 'tootzaria') {
+    key = key.substring(0, key.length - 'tootzaria'.length);
+  }
+
+  // חיפוש במיפוי, אם לא נמצא - מחזירים את המקור המקורי
+  return _sourceMappings[key] ?? (text: source, url: '');
 }
 
 /// הצגת דיאלוג אודות הספר
@@ -57,8 +68,8 @@ Future<void> showBookSourceDialog(
 
     // קבלת מידע התצוגה עבור המקור
     final sourceInfo = getSourceDisplayInfo(bookSource);
-    final displayText = sourceInfo['text']!;
-    final url = sourceInfo['url']!;
+    final displayText = sourceInfo.text;
+    final url = sourceInfo.url;
 
     debugPrint('Book details received: $bookDetails');
     debugPrint('Book source: $bookSource');

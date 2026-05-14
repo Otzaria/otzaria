@@ -3,11 +3,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
+import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/migration/models/category.dart';
 import 'package:otzaria/migration/sync/background_db_sync_worker.dart';
-import 'package:otzaria/migration/sync/file_sync_service.dart';
+import 'package:otzaria/migration/sync/file_sync_service.dart' show FileSyncResult;
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
 
@@ -65,13 +66,7 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
     ));
 
     try {
-      final sqliteProvider = SqliteDataProvider.instance;
-      if (!sqliteProvider.isInitialized) await sqliteProvider.initialize();
-      final repository = sqliteProvider.repository;
-      if (repository == null) {
-        emit(state.copyWith(isSyncing: false, error: 'מסד הנתונים לא זמין'));
-        return;
-      }
+      final repository = await UserBooksDatabaseHolder.instance.repository;
       final folderName = event.path.split(RegExp(r'[/\\]')).last;
       final result = await DatabaseLibraryProvider.instance
           .scanAndAddExternalBooksFromFolder(
@@ -80,10 +75,15 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
       if (result.isSuccess) {
         _libraryBloc.add(RefreshLibrary());
         if (result.hasPartialFailure) {
+          final failedMsg = result.failedDetails.isNotEmpty
+              ? result.failedDetails
+                  .map((d) => '"${d.$1}": ${d.$2}')
+                  .join('\n')
+              : 'כשל: ${result.failedBooks}';
           emit(state.copyWith(
             isSyncing: false,
             error:
-                '${result.addedBooks} ספרים נוספו, ${result.updatedBooks} עודכנו (כשל: ${result.failedBooks})',
+                '${result.addedBooks} ספרים נוספו, ${result.updatedBooks} עודכנו\n$failedMsg',
           ));
         } else {
           emit(state.copyWith(isSyncing: false));
@@ -235,23 +235,25 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
     final folderName =
         Settings.getValue<String>(SettingsRepository.keyLibraryFolderName) ??
             '';
-    final result = await runCustomFoldersDbSyncInIsolate(
+    final userBooksDbPath = await UserBooksDatabaseHolder.resolveDbPath();
+    return runCustomFoldersDbSyncInIsolate(
       dbPath: dbPath,
+      userBooksDbPath: userBooksDbPath,
       libraryPath: libraryPath,
       customFolders: folders,
       folderName: folderName,
     );
-    await FileSyncService.saveCustomFoldersSignature(folders);
-    return result;
   }
 
   Future<void> _deleteFromDatabase(CustomFolder folder) async {
     final sqliteProvider = SqliteDataProvider.instance;
     if (!sqliteProvider.isInitialized) await sqliteProvider.initialize();
-    final repository = sqliteProvider.repository;
-    if (repository == null) return;
 
-    final rootCategories = await repository.getRootCategories();
+    final userBooksRepository =
+        await UserBooksDatabaseHolder.instance.repository;
+    final userBooksDbPath = await UserBooksDatabaseHolder.resolveDbPath();
+
+    final rootCategories = await userBooksRepository.getRootCategories();
     Category? personalCategory;
     for (final cat in rootCategories) {
       if (cat.title == 'ספרים אישיים') {
@@ -262,7 +264,7 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
     if (personalCategory == null) return;
 
     final folderCategories =
-        await repository.getCategoryChildren(personalCategory.id);
+        await userBooksRepository.getCategoryChildren(personalCategory.id);
     Category? folderCategory;
     for (final cat in folderCategories) {
       if (cat.title == folder.name) {
@@ -274,6 +276,7 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
 
     await runDeleteFolderFromDbInIsolate(
       dbPath: sqliteProvider.dbPath,
+      userBooksDbPath: userBooksDbPath,
       folderCategoryId: folderCategory.id,
       personalCategoryId: personalCategory.id,
     );

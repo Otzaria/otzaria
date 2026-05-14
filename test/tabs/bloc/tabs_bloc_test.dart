@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart' show FlutterError;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/models/links.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
@@ -11,6 +13,11 @@ import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
+import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
+import 'package:otzaria/text_book/bloc/text_book_event.dart';
+import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/text_book/text_book_repository.dart';
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -368,6 +375,10 @@ void main() {
   });
 
   group('OpenedTab.from for search tabs', () {
+    setUp(() async {
+      await Settings.init(cacheProvider: _MemoryCacheProvider());
+    });
+
     test('משכפל SearchingTab למופע חדש עם controllers חדשים', () {
       final original = SearchingTab('חיפוש: שבת', 'שבת');
       original.searchOptions['שבת_0'] = {'קידומות': true};
@@ -397,7 +408,184 @@ void main() {
 
       cloned.dispose();
     });
+
+    test('TextBookTab משמר pinpointHighlight ו-section index בעת clone', () {
+      final original = TextBookTab(
+        book: TextBook(title: 'בראשית'),
+        index: 12,
+        pinpointHighlight: 'אור',
+        pinpointHighlightSectionIndex: 7,
+      );
+
+      final cloned = OpenedTab.from(original) as TextBookTab;
+
+      expect(cloned.pinpointHighlight, 'אור');
+      expect(
+        cloned.pinpointHighlightSectionIndex,
+        7,
+        reason:
+            'בעת clone או side-by-side חייבים לשמר את הסעיף שעליו הוחלה ההדגשה, אחרת ההדגשה תיעלם או תופיע בסעיף שגוי.',
+      );
+
+      original.dispose();
+      cloned.dispose();
+    });
   });
+
+  group('OpenOrFocusTab עם pinpointHighlight על טאב קיים', () {
+    setUp(() async {
+      await Settings.init(cacheProvider: _MemoryCacheProvider());
+    });
+
+    test(
+        'מחיל ApplyPinpointHighlight על ה-bloc של הטאב הקיים במקום לפתוח טאב חדש',
+        () async {
+      final tabsBloc = TabsBloc(repository: _FakeTabsRepository());
+
+      // טאב קיים: bloc מוזרק עם repository מזויף שמביא ל‑Loaded מיידית.
+      // האינדקס תואם ל‑incoming כי `_titlesMatch` נופל ל‑index כשאין TOC.
+      final existingBloc = _createLoadedTextBookBloc(
+        book: TextBook(id: 42, title: 'בראשית'),
+        initialIndex: 5,
+      );
+      await existingBloc.stream.firstWhere((s) => s is TextBookLoaded);
+
+      final existingTab = TextBookTab(
+        book: TextBook(id: 42, title: 'בראשית'),
+        index: 5,
+        blocOverride: existingBloc,
+      );
+
+      tabsBloc.add(AddTab(existingTab));
+      await tabsBloc.stream.firstWhere((s) => s.tabs.length == 1);
+
+      // אותו ספר מגיע מ‑deep link עם הדגשה ממוקדת לסעיף 5.
+      final incomingTab = TextBookTab(
+        book: TextBook(id: 42, title: 'בראשית'),
+        index: 5,
+        pinpointHighlight: 'אור',
+        pinpointHighlightSectionIndex: 5,
+      );
+
+      tabsBloc.add(OpenOrFocusTab(incomingTab));
+
+      // ה-bloc של הטאב הקיים אמור לקבל ApplyPinpointHighlight ולעדכן state.
+      final updated = await existingBloc.stream
+          .firstWhere(
+              (s) => s is TextBookLoaded && s.pinpointHighlightText == 'אור')
+          .timeout(const Duration(seconds: 2)) as TextBookLoaded;
+
+      expect(updated.pinpointHighlightIndex, 5);
+      expect(updated.pinpointHighlightText, 'אור');
+      expect(tabsBloc.state.tabs, hasLength(1),
+          reason: 'אסור להוסיף טאב חדש; הטאב הקיים אמור להתעדכן.');
+      expect(tabsBloc.state.currentTabIndex, 0);
+
+      await _closeBlocAndAllowDeferredDispose(tabsBloc);
+    });
+
+    test(
+        'מחיל ApplyPinpointHighlight כש‑bloc הקיים עדיין ב‑Initial וטוען רק אחרי כן',
+        () async {
+      final tabsBloc = TabsBloc(repository: _FakeTabsRepository());
+
+      // bloc חדש שעדיין לא טען — נשאר ב‑TextBookInitial עד שנוסיף LoadContent.
+      final repository = _PinpointFakeTextBookRepository();
+      final existingBloc = TextBookBloc(
+        repository: repository,
+        initialState: TextBookInitial.named(
+          TextBook(id: 99, title: 'שמות'),
+          3,
+          false,
+          const [],
+        ),
+        scrollController: ItemScrollController(),
+        positionsListener: ItemPositionsListener.create(),
+      );
+
+      final existingTab = TextBookTab(
+        book: TextBook(id: 99, title: 'שמות'),
+        index: 3,
+        blocOverride: existingBloc,
+      );
+      tabsBloc.add(AddTab(existingTab));
+      await tabsBloc.stream.firstWhere((s) => s.tabs.length == 1);
+
+      // ההדגשה הממוקדת נשלחת לפני שה‑bloc הגיע ל‑Loaded — חייב להישאר ולהיות
+      // מוחל ברגע שה‑Loaded מגיע.
+      final incomingTab = TextBookTab(
+        book: TextBook(id: 99, title: 'שמות'),
+        index: 3,
+        pinpointHighlight: 'משה',
+        pinpointHighlightSectionIndex: 3,
+      );
+      tabsBloc.add(OpenOrFocusTab(incomingTab));
+
+      // עכשיו טוענים את התוכן — ה‑bloc יעבור ל‑Loaded וה‑listener יזריק את
+      // ApplyPinpointHighlight.
+      existingBloc.add(const LoadContent(
+        fontSize: 20,
+        showSplitView: false,
+        removeNikud: false,
+        loadCommentators: false,
+      ));
+
+      final updated = await existingBloc.stream
+          .firstWhere(
+              (s) => s is TextBookLoaded && s.pinpointHighlightText == 'משה')
+          .timeout(const Duration(seconds: 2)) as TextBookLoaded;
+
+      expect(updated.pinpointHighlightIndex, 3);
+      expect(updated.pinpointHighlightText, 'משה');
+      expect(tabsBloc.state.tabs, hasLength(1));
+
+      await _closeBlocAndAllowDeferredDispose(tabsBloc);
+    });
+  });
+}
+
+TextBookBloc _createLoadedTextBookBloc({
+  required TextBook book,
+  int initialIndex = 0,
+}) {
+  final bloc = TextBookBloc(
+    repository: _PinpointFakeTextBookRepository(),
+    initialState: TextBookInitial.named(book, initialIndex, false, const []),
+    scrollController: ItemScrollController(),
+    positionsListener: ItemPositionsListener.create(),
+  );
+  bloc.add(const LoadContent(
+    fontSize: 20,
+    showSplitView: false,
+    removeNikud: false,
+    loadCommentators: false,
+  ));
+  return bloc;
+}
+
+class _PinpointFakeTextBookRepository extends TextBookRepository {
+  _PinpointFakeTextBookRepository() : super(fileSystem: FileSystemData.instance);
+
+  @override
+  Future<String> getBookContent(TextBook book) async {
+    return List.generate(20, (index) => 'שורה $index').join('\n');
+  }
+
+  @override
+  Future<List<TocEntry>> getTableOfContents(TextBook book) async => const [];
+
+  @override
+  Future<List<Link>> getBookLinksInRange(
+    TextBook book, {
+    required int startIndex,
+    required int endIndex,
+    Iterable<String>? targetBookTitles,
+  }) async =>
+      const [];
+
+  @override
+  Future<List<String>> getAvailableCommentators(TextBook book) async =>
+      const [];
 }
 
 TextBookTab _createTextTab(String title, {int index = 0, int? categoryId}) {

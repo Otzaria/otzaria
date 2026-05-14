@@ -341,6 +341,74 @@ void main() {
     await cubit.close();
   });
 
+  test('TourCubit שומר resolvedTips באתחול חוזר של הסיור באותה ריצה', () async {
+    await Settings.setValue<String>(TourSteps.statusKey, TourSteps.completed);
+    final cubit = TourCubit();
+
+    await cubit.recordInteraction(
+      TourInteraction(type: TourInteractionType.textSelected),
+    );
+    await cubit.recordInteraction(
+      TourInteraction(type: TourInteractionType.textSelected),
+    );
+    expect(
+      cubit.state.activeLiveTipId,
+      LiveTipId.dictionaryContextMenuHint,
+    );
+    cubit.dismissLiveTip();
+    expect(
+      cubit.state.resolvedTips,
+      contains(LiveTipId.dictionaryContextMenuHint),
+    );
+
+    await cubit.restart(libraryLoaded: true);
+    expect(
+      cubit.state.resolvedTips,
+      contains(LiveTipId.dictionaryContextMenuHint),
+    );
+
+    await cubit.complete();
+    await cubit.recordInteraction(
+      TourInteraction(type: TourInteractionType.textSelected),
+    );
+    await cubit.recordInteraction(
+      TourInteraction(type: TourInteractionType.textSelected),
+    );
+    expect(cubit.state.activeLiveTipId, isNull);
+
+    await cubit.close();
+  });
+
+  test('TourCubit חדש טוען resolvedTips מ-Settings ולא מציג שוב טיפ שנסגרה',
+      () async {
+    await Settings.setValue<String>(TourSteps.statusKey, TourSteps.completed);
+    final firstCubit = TourCubit();
+    await firstCubit.recordInteraction(
+      TourInteraction(type: TourInteractionType.textSelected),
+    );
+    await firstCubit.recordInteraction(
+      TourInteraction(type: TourInteractionType.textSelected),
+    );
+    firstCubit.dismissLiveTip();
+    await firstCubit.close();
+
+    final secondCubit = TourCubit();
+    expect(
+      secondCubit.state.resolvedTips,
+      contains(LiveTipId.dictionaryContextMenuHint),
+    );
+
+    await secondCubit.recordInteraction(
+      TourInteraction(type: TourInteractionType.textSelected),
+    );
+    await secondCubit.recordInteraction(
+      TourInteraction(type: TourInteractionType.textSelected),
+    );
+    expect(secondCubit.state.activeLiveTipId, isNull);
+
+    await secondCubit.close();
+  });
+
   test('TourCubit מציג טיפ הצג לצד אחרי דילוג חוזר בין שני ספרים', () async {
     await Settings.setValue<String>(TourSteps.statusKey, TourSteps.completed);
     final cubit = TourCubit();

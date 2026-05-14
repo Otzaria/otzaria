@@ -100,7 +100,9 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
         book: TextBook(title: text), // Use the original text for the book title
         index: 0, // No specific index for a search
         isSearch: true,
-        searchOptions: searchingTab.searchOptions,
+        // שמירת האפשרויות האפקטיביות (מורחבות מגלובלי לפר-מילה אם רלוונטי)
+        // כדי שטעינה חוזרת תייצר את אותו חיפוש בדיוק
+        searchOptions: searchingTab.effectiveSearchOptions(query: text),
         alternativeWords: searchingTab.alternativeWords,
         spacingValues: searchingTab.spacingValues,
         workspaceName: workspaceName,
@@ -200,11 +202,12 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
       'סיומות דקדוקיות',
     };
 
+    final effectiveOptions = tab.effectiveSearchOptions(query: text);
     for (int i = 0; i < words.length; i++) {
       final word = words[i];
       final wordKey = '${word}_$i';
 
-      final wordOptions = tab.searchOptions[wordKey];
+      final wordOptions = effectiveOptions[wordKey];
       final selectedOptions = wordOptions?.entries
               .where((entry) => entry.value)
               .map((entry) => entry.key)

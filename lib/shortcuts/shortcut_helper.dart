@@ -54,12 +54,15 @@ class ShortcutHelper {
     final mainKey = parts.where((p) => !_modifiers.contains(p)).firstOrNull;
     if (mainKey == null) return false;
 
-    // אות יחידה (a–z)
-    final pressedKeyLabel = event.logicalKey.keyLabel.toLowerCase();
+    // אות יחידה (a–z) — בודקים לפי physicalKey כדי לתמוך
+    // בפריסות מקלדת לא-לטיניות (כגון עברית) שבהן logicalKey שונה.
     if (mainKey.length == 1 &&
         mainKey.codeUnitAt(0) >= 97 &&
         mainKey.codeUnitAt(0) <= 122) {
-      return pressedKeyLabel == mainKey;
+      final letterOffset = mainKey.codeUnitAt(0) - 97;
+      return event.physicalKey ==
+          PhysicalKeyboardKey(
+              PhysicalKeyboardKey.keyA.usbHidUsage + letterOffset);
     }
 
     // חיפוש ב-KeyMap (ספרות, מקשים מיוחדים, חצים, F-keys וכו׳)

@@ -3,6 +3,28 @@ import 'package:archive/archive.dart';
 import 'package:xml/xml.dart' as xml;
 import 'dart:convert';
 
+// Windows-1255 Hebrew range: 0xC0–0xD8 and 0xE0–0xFA map to Unicode with offset 1264.
+// 0xE0 (224) + 1264 = 1488 = U+05D0 = א, ... 0xFA (250) + 1264 = 1514 = U+05EA = ת
+const _cp1255Offset = 1264;
+
+String _decodeXmlBytes(List<int> bytes) {
+  try {
+    return utf8.decode(bytes);
+  } on FormatException {
+    final buf = StringBuffer();
+    for (final b in bytes) {
+      if (b < 0x80) {
+        buf.writeCharCode(b);
+      } else if ((b >= 0xC0 && b <= 0xD8) || (b >= 0xE0 && b <= 0xFA)) {
+        buf.writeCharCode(b + _cp1255Offset);
+      } else {
+        buf.writeCharCode(b); // latin-1 fallback for other bytes
+      }
+    }
+    return buf.toString();
+  }
+}
+
 ZipDecoder? _zipDecoder;
 
 /// Processes a run element and returns HTML-formatted text with styling
@@ -63,7 +85,7 @@ Map<String, String> _extractFootnotes(Archive archive) {
 
   for (final file in archive) {
     if (file.isFile && file.name == 'word/footnotes.xml') {
-      final content = utf8.decode(file.content);
+      final content = _decodeXmlBytes(file.content);
       final document = xml.XmlDocument.parse(content);
 
       final footnoteNodes = document.findAllElements('w:footnote');
@@ -94,7 +116,7 @@ String docxToText(Uint8List bytes, String title) {
 
   for (final file in archive) {
     if (file.isFile && file.name == 'word/document.xml') {
-      final fileContent = utf8.decode(file.content);
+      final fileContent = _decodeXmlBytes(file.content);
       final document = xml.XmlDocument.parse(fileContent);
 
       final paragraphNodes = document.findAllElements('w:p');

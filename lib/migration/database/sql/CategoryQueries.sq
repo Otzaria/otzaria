@@ -28,10 +28,6 @@ insert:
 INSERT INTO category (parentId, title, level, orderIndex)
 VALUES (?, ?, ?, ?);
 
-insertWithId:
-INSERT INTO category (id, parentId, title, level, orderIndex)
-VALUES (?, ?, ?, ?, ?);
-
 update:
 UPDATE category SET
     title = ?,

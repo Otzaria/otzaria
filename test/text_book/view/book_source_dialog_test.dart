@@ -7,10 +7,10 @@ void main() {
       final lower = getSourceDisplayInfo('sefaria');
       final upper = getSourceDisplayInfo('Sefaria');
 
-      expect(lower['text'], equals('ספריא'));
-      expect(upper['text'], equals('ספריא'));
-      expect(lower['url'], equals('https://www.sefaria.org/texts'));
-      expect(upper['url'], equals('https://www.sefaria.org/texts'));
+      expect(lower.text, equals('ספריא'));
+      expect(upper.text, equals('ספריא'));
+      expect(lower.url, equals('https://www.sefaria.org/texts'));
+      expect(upper.url, equals('https://www.sefaria.org/texts'));
     });
   });
 }

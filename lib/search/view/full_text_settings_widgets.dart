@@ -273,7 +273,7 @@ class _SearchTermsDisplayState extends State<SearchTermsDisplay> {
       widget.tab.searchBloc.state.configuration.searchMode,
       customSpacing: widget.tab.spacingValues,
       alternativeWords: widget.tab.alternativeWords,
-      searchOptions: widget.tab.searchOptions,
+      searchOptions: widget.tab.effectiveSearchOptions(query: text),
     );
 
     // מיפוי אפשרויות לקיצורים

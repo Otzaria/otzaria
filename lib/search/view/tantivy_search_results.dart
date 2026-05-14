@@ -71,7 +71,9 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
           LoadMoreResults(
             customSpacing: widget.tab.spacingValues,
             alternativeWords: widget.tab.alternativeWords,
-            searchOptions: widget.tab.searchOptions,
+            searchOptions: widget.tab.effectiveSearchOptions(
+              query: context.read<SearchBloc>().state.searchQuery,
+            ),
           ),
         );
   }
@@ -169,6 +171,12 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
         state.isLoading && state.results.isNotEmpty && !hasMoreResults;
     final showLoadMoreButton = hasMoreResults;
 
+    // אפשרויות אפקטיביות זהות לכל איטם ב-build הנוכחי -
+    // מחשבים פעם אחת מחוץ ל-itemBuilder כדי לחסוך עבודה
+    final effectiveOptions = widget.tab.effectiveSearchOptions(
+      query: state.searchQuery,
+    );
+
     return ListView.builder(
       key: PageStorageKey(widget.tab),
       controller: _scrollController,
@@ -208,7 +216,7 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                           LoadMoreResults(
                             customSpacing: widget.tab.spacingValues,
                             alternativeWords: widget.tab.alternativeWords,
-                            searchOptions: widget.tab.searchOptions,
+                            searchOptions: effectiveOptions,
                           ),
                         );
                   },
@@ -242,8 +250,7 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
               result.segment,
               rawHtml.hashCode,
               state.searchQuery.hashCode,
-              SearchQueryBuilder.hasTypoToleranceEnabled(
-                  widget.tab.searchOptions),
+              SearchQueryBuilder.hasTypoToleranceEnabled(effectiveOptions),
               widget.tab.searchOptionsChanged.value,
               widget.tab.alternativeWordsChanged.value,
               widget.tab.spacingValuesChanged.value,
@@ -278,7 +285,7 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                     color: const Color(0xFFD32F2F),
                   ),
                   availableWidth: availableWidth,
-                  searchOptions: widget.tab.searchOptions,
+                  searchOptions: effectiveOptions,
                   alternativeWords: widget.tab.alternativeWords,
                   customSpacing: widget.tab.spacingValues,
                   searchDistance: state.configuration.distance,
@@ -298,7 +305,7 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
               child: InkWell(
                 onTap: () {
                   final rawQuery = widget.tab.queryController.text;
-                  final hasEnabledOptions = widget.tab.searchOptions.values
+                  final hasEnabledOptions = effectiveOptions.values
                       .any((m) => m.values.any((v) => v == true));
                   final hasAlternativeWords = widget.tab.alternativeWords.values
                       .any((alts) => alts.any((w) => w.trim().isNotEmpty));
@@ -334,7 +341,7 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                                 isPdf: true,
                               ),
                               searchText: rawQuery,
-                              searchOptions: widget.tab.searchOptions,
+                              searchOptions: effectiveOptions,
                               alternativeWords: widget.tab.alternativeWords,
                               spacingValues: widget.tab.spacingValues,
                               searchMode: inBookMode,
@@ -344,6 +351,7 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                                       (Settings.getValue<bool>(
                                               'key-default-sidebar-open') ??
                                           false),
+                              requiresStableLayout: true,
                             ),
                             targetTitle: result.reference,
                           ),
@@ -363,7 +371,7 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                                 isPdf: false,
                               ),
                               searchText: rawQuery,
-                              searchOptions: widget.tab.searchOptions,
+                              searchOptions: effectiveOptions,
                               alternativeWords: widget.tab.alternativeWords,
                               spacingValues: widget.tab.spacingValues,
                               searchMode: inBookMode,

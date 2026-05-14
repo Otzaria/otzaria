@@ -1,0 +1,144 @@
+name: Flutter Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+
+jobs:
+  test:
+    name: Analyze & Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # שימוש ב-channel stable + cache, אחיד עם build-and-announce.yml
+      # (לא ננעל גרסה כדי שלא נצטרך לעדכן בשני מקומות).
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # חילול אינדקס חיפוש בהגדרות. ה-.g.dart נדחף לרפו, אבל הסקריפט הזה
+      # יוודא שהוא עדכני בכל הרצה (אם searchEntries השתנו במהלך ה-PR).
+      - name: Generate settings search index
+        run: dart run tool/generate_search_index.dart
+
+      # ה-trinity של CLAUDE.md: analyze + test (פורמט נבדק locally בlint).
+      - name: Analyze
+        run: flutter analyze
+
+      # הרצת הטסטים עם retry: אם הריצה הראשונה נכשלה, נחלץ את קבצי הטסט
+      # שנכשלו ונריץ אותם שוב. רק אם הם נכשלים גם בריצה השנייה - הסטפ נכשל.
+      - name: Run tests (with retry on failure)
+        run: |
+          set +e
+
+          echo "════════════════════════════════════════"
+          echo "ריצה ראשונה של הטסטים"
+          echo "════════════════════════════════════════"
+
+          flutter test --file-reporter json:test-results.json
+          first_exit=$?
+
+          if [ $first_exit -eq 0 ]; then
+            echo "כל הטסטים עברו בהצלחה בריצה הראשונה"
+            exit 0
+          fi
+
+          if [ ! -s test-results.json ]; then
+            echo "::error::ריצת הטסטים נכשלה ולא הופק קובץ תוצאות (ייתכן שיש שגיאת קומפילציה)"
+            exit $first_exit
+          fi
+
+          # חילוץ קבצי הטסט שכללו לפחות טסט שנכשל
+          failed_files=$(jq -rs '
+            (map(select(.type == "testStart"))
+              | map({(.test.id | tostring): .test})
+              | add) as $tests
+            | map(select(
+                .type == "testDone"
+                and (.result == "failure" or .result == "error")
+                and (.hidden | not)
+              ))
+            | map($tests[.testID | tostring].url // empty)
+            | map(select(. != ""))
+            | map(ltrimstr("file://"))
+            | unique
+            | .[]
+          ' test-results.json)
+
+          if [ -z "$failed_files" ]; then
+            echo "::error::הריצה הראשונה נכשלה אבל לא ניתן לחלץ רשימת קבצים שנכשלו"
+            exit $first_exit
+          fi
+
+          echo ""
+          echo "════════════════════════════════════════"
+          echo "ריצה ראשונה נכשלה. מריץ שוב את קבצי הטסט הבאים:"
+          echo "$failed_files" | sed 's/^/  /'
+          echo "════════════════════════════════════════"
+          echo ""
+
+          files_array=()
+          while IFS= read -r line; do
+            [ -n "$line" ] && files_array+=("$line")
+          done <<< "$failed_files"
+
+          flutter test --file-reporter json:retry-results.json "${files_array[@]}"
+          second_exit=$?
+
+          if [ $second_exit -eq 0 ]; then
+            echo ""
+            echo "════════════════════════════════════════"
+            echo "כל הטסטים עברו בהצלחה בריצה השנייה (retry)"
+            echo "════════════════════════════════════════"
+            {
+              echo "## טסטים שעברו רק אחרי retry"
+              echo ""
+              echo "$failed_files" | sed 's/^/- /'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # ריצה שנייה נכשלה גם - מדפיסים בדיוק מה נכשל
+          final_failed=$(jq -rs '
+            (map(select(.type == "testStart"))
+              | map({(.test.id | tostring): .test})
+              | add) as $tests
+            | map(select(
+                .type == "testDone"
+                and (.result == "failure" or .result == "error")
+                and (.hidden | not)
+              ))
+            | map($tests[.testID | tostring])
+            | map("- " + (.url // "unknown") + " :: " + .name)
+            | .[]
+          ' retry-results.json)
+
+          echo ""
+          echo "════════════════════════════════════════"
+          echo "טסטים שנכשלו גם אחרי retry:"
+          echo "════════════════════════════════════════"
+          echo "$final_failed"
+          echo "════════════════════════════════════════"
+
+          {
+            echo "## טסטים שנכשלו (גם אחרי retry)"
+            echo ""
+            echo "$final_failed"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          exit $second_exit

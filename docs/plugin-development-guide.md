@@ -94,8 +94,7 @@ my-plugin/
       "title": "שם הטאב",
       "order": 200,
       "defaultPinned": true,
-      "iconCodepoint": 983685,
-      "iconVariant": "regular"
+      "iconName": "calendar_24_regular"
     },
     "publishedDataTypes": []
   }
@@ -145,13 +144,12 @@ my-plugin/
 | `contributes.toolTab.defaultPinned` | `true` | האם להצמיד אוטומטית בהתקנה |
 
 `homepage` הוא שדה אופציונלי, אבל מומלץ מאוד כשמעלים תוסף לחנות. זה המקום לשים קישור לעמוד ה־GitHub של התוסף, לתיעוד, לאתר הפרויקט, או לכל דף רשמי אחר שמסביר על התוסף ונותן למשתמש מקום לקבל מידע נוסף.
-| `contributes.toolTab.iconCodepoint` | `null` | codepoint עשרוני של אייקון Fluent שיוצג בטאב |
-| `contributes.toolTab.iconVariant` | `"regular"` | וריאנט האייקון: `regular` או `filled` |
+| `contributes.toolTab.iconName` | `null` | שם אייקון FluentUI 24px שיוצג בטאב, למשל `"book_24_regular"` |
 | `contributes.publishedDataTypes` | `[]` | סוגי נתונים שהתוסף מפרסם |
 
-אם מגדירים `iconVariant`, חייבים להגדיר גם `iconCodepoint`.
+`iconName` חייב להיות שם תקני של אייקון FluentUI בגודל 24px, המסתיים ב-`_24_regular` או `_24_filled`. השם נפתר באוצריא ל-`IconData` קבוע באמצעות מפה סטטית, מה שמאפשר ל-Flutter לבצע tree-shaking של פונט האייקונים ב-Release. שמות שאינם נמצאים במפה יוצגו כאייקון פאזל ברירת מחדל.
 
-הערה: `iconCodepoint` הוא הערך העשרוני של אייקון Fluent. לדוגמה, `calendar_24_regular` הוא `983685`, ו-`calendar_24_filled` הוא `983704`.
+דוגמאות תקפות: `"calendar_24_regular"`, `"calendar_24_filled"`, `"book_24_regular"`, `"settings_24_filled"`.
 
 ---
 

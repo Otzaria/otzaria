@@ -30,6 +30,17 @@ class TextBookTab extends OpenedTab {
   final Map<String, String> spacingValues;
   final SearchMode searchMode;
 
+  /// תת-מחרוזת להדגשה ממוקדת **רק** בסעיף שצוין. נטענת מקישור עומק
+  /// (`otzaria://open/book/<id>?index=<n>&highlight=<text>`) ואינה פותחת חלונית
+  /// חיפוש. אם null — אין הדגשה ממוקדת.
+  final String? pinpointHighlight;
+
+  /// אינדקס הסעיף שעליו תחול ההדגשה הממוקדת. אם null וב‑[pinpointHighlight] יש
+  /// טקסט — נופלים חזרה ל‑[index] (זה המסלול של deep link, שבו פותחים בסעיף
+  /// המודגש). השדה הופך משמעותי בעת שיכפול טאב או side‑by‑side, שם ה‑index
+  /// הנוכחי כבר השתנה לפי הגלילה ואנחנו רוצים לשמר את הסעיף המקורי.
+  final int? pinpointHighlightSectionIndex;
+
   /// The bloc that manages the text book state and logic.
   late final TextBookBloc bloc;
 
@@ -73,6 +84,9 @@ class TextBookTab extends OpenedTab {
     bool? showPageShapeView,
     bool isPinned = false,
     String? dedupeKey,
+    this.pinpointHighlight,
+    this.pinpointHighlightSectionIndex,
+    @visibleForTesting TextBookBloc? blocOverride,
   }) : super(book.title, isPinned: isPinned, dedupeKey: dedupeKey) {
     // קביעת ברירת המחדל של splitedView מההגדרות אם לא סופק
     final bool effectiveSplitedView =
@@ -85,29 +99,40 @@ class TextBookTab extends OpenedTab {
     _lastSplitView = effectiveSplitedView;
     _lastShowPageShapeView = effectiveShowPageShapeView;
 
-    // Initialize the bloc with initial state
-    bloc = TextBookBloc(
-      repository: TextBookRepository(
-        fileSystem: FileSystemData.instance,
-      ),
-      // [EDITING DISABLED] overridesRepository: LocalOverridesRepository(),
-      initialState: TextBookInitial.named(
-        book,
-        index,
-        openLeftPane,
-        commentators ?? [],
-        searchText: searchText,
-        searchOptions: searchOptions,
-        alternativeWords: alternativeWords,
-        spacingValues: spacingValues,
-        searchMode: searchMode,
-        splitedView: effectiveSplitedView,
-        showPageShapeView: effectiveShowPageShapeView,
-      ),
-      scrollController: scrollController,
-      positionsListener: positionsListener,
-      scrollOffsetController: mainOffsetController,
-    );
+    // Initialize the bloc with initial state. ב‑production תמיד נבנה bloc חדש;
+    // ה‑blocOverride קיים רק לטסטים שצריכים להזריק bloc עם repository מזויף
+    // ולהביא אותו ל‑Loaded בלי תשתית קבצים אמיתית.
+    bloc = blocOverride ??
+        TextBookBloc(
+          repository: TextBookRepository(
+            fileSystem: FileSystemData.instance,
+          ),
+          // [EDITING DISABLED] overridesRepository: LocalOverridesRepository(),
+          initialState: TextBookInitial.named(
+            book,
+            index,
+            openLeftPane,
+            commentators ?? [],
+            searchText: searchText,
+            searchOptions: searchOptions,
+            alternativeWords: alternativeWords,
+            spacingValues: spacingValues,
+            searchMode: searchMode,
+            splitedView: effectiveSplitedView,
+            showPageShapeView: effectiveShowPageShapeView,
+            pinpointHighlightIndex:
+                pinpointHighlight != null && pinpointHighlight!.isNotEmpty
+                    ? (pinpointHighlightSectionIndex ?? index)
+                    : null,
+            pinpointHighlightText:
+                pinpointHighlight != null && pinpointHighlight!.isNotEmpty
+                    ? pinpointHighlight
+                    : null,
+          ),
+          scrollController: scrollController,
+          positionsListener: positionsListener,
+          scrollOffsetController: mainOffsetController,
+        );
 
     // הוספת listener לעדכון האינדקס כשה-state משתנה
     _stateSubscription = bloc.stream.listen((state) {

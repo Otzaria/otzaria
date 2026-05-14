@@ -1,10 +1,7 @@
 class PluginManifest {
-  static const String toolTabIconVariantRegular = 'regular';
-  static const String toolTabIconVariantFilled = 'filled';
-  static const Set<String> supportedToolTabIconVariants = {
-    toolTabIconVariantRegular,
-    toolTabIconVariantFilled,
-  };
+  /// תבנית של שם אייקון תקין: למשל `'book_24_regular'` או `'calendar_24_filled'`.
+  static final RegExp toolTabIconNamePattern =
+      RegExp(r'^[a-z0-9_]+_24_(regular|filled)$');
 
   final int schemaVersion;
   final String id;
@@ -24,8 +21,13 @@ class PluginManifest {
   final String toolTabTitle;
   final int toolTabOrder;
   final bool defaultPinned;
-  final int? toolTabIconCodepoint;
-  final String? toolTabIconVariant;
+
+  /// שם אייקון FluentUI 24px עבור לשונית הכלים, למשל `'book_24_regular'`.
+  ///
+  /// נפתר ל-`IconData` קבוע באמצעות `fluentIconFromName`, מה שמאפשר ל-Flutter
+  /// לבצע tree-shaking של פונט האייקונים ב-Release. אם השם לא נמצא במפה
+  /// הסטטית, יוצג אייקון ברירת מחדל (פאזל).
+  final String? toolTabIconName;
   final List<String> publishedDataTypes;
 
   /// מקורות מסד נתונים שהתוסף מצהיר עליהם (מהשדה contributes.databaseSources)
@@ -50,25 +52,10 @@ class PluginManifest {
     required this.toolTabTitle,
     required this.toolTabOrder,
     required this.defaultPinned,
-    this.toolTabIconCodepoint,
-    this.toolTabIconVariant,
+    this.toolTabIconName,
     required this.publishedDataTypes,
     this.databaseSources = const [],
   });
-
-  String? get toolTabIconFontFamily {
-    if (toolTabIconCodepoint == null) {
-      return null;
-    }
-
-    switch (toolTabIconVariant ?? toolTabIconVariantRegular) {
-      case toolTabIconVariantFilled:
-        return 'FluentSystemIcons-Filled';
-      case toolTabIconVariantRegular:
-      default:
-        return 'FluentSystemIcons-Regular';
-    }
-  }
 
   factory PluginManifest.fromJson(Map<String, dynamic> json) {
     final network = json['network'] as Map<String, dynamic>? ?? {};
@@ -100,8 +87,7 @@ class PluginManifest {
       toolTabTitle: toolTab['title'] as String? ?? json['name'] as String,
       toolTabOrder: toolTab['order'] as int? ?? 900,
       defaultPinned: toolTab['defaultPinned'] as bool? ?? true,
-      toolTabIconCodepoint: toolTab['iconCodepoint'] as int?,
-      toolTabIconVariant: toolTab['iconVariant'] as String?,
+      toolTabIconName: toolTab['iconName'] as String?,
       publishedDataTypes: (contributes['publishedDataTypes'] as List<dynamic>?)
               ?.map((e) => e as String)
               .toList() ??
@@ -138,9 +124,7 @@ class PluginManifest {
           'title': toolTabTitle,
           'order': toolTabOrder,
           'defaultPinned': defaultPinned,
-          if (toolTabIconCodepoint != null)
-            'iconCodepoint': toolTabIconCodepoint,
-          if (toolTabIconVariant != null) 'iconVariant': toolTabIconVariant,
+          if (toolTabIconName != null) 'iconName': toolTabIconName,
         },
         'publishedDataTypes': publishedDataTypes,
         'databaseSources': databaseSources,

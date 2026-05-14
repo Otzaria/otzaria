@@ -435,6 +435,11 @@ flutter test test/feature/   # Run ONLY tests related to your changes
 dart format lib/file.dart    # Format ONLY files you modified
 ```
 
+> **טיפ:** הפרויקט מוגדר עם `dart_pre_commit` כ-git pre-commit hook.
+> לאחר clone יש להריץ פעם אחת: `dart run tool/install_git_hooks.dart`.
+> מאותו רגע `dart format` ו-`dart analyze` ירוצו אוטומטית על קבצים ב-staging
+> לפני כל קומיט. טסטים עדיין יש להריץ ידנית - הם לא חלק מההוק.
+
 ### When to Run Which Tests
 | Change Type | Tests to Run |
 |-------------|--------------|

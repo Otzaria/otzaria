@@ -85,13 +85,13 @@ void main() {
       expect(searchQuery, 'שלום עולם');
     });
 
-    test('sanitizeQuery should ignore comma and apostrophes', () {
-      expect(SearchQueryBuilder.sanitizeQuery("שלום, עולם'"), 'שלום עולם');
-      expect(SearchQueryBuilder.sanitizeQuery('שלום, עולם׳״'), 'שלום עולם');
+    test('sanitizeQuery should remove commas and convert Hebrew quotes', () {
+      expect(SearchQueryBuilder.sanitizeQuery("שלום, עולם'"), "שלום עולם'");
+      expect(SearchQueryBuilder.sanitizeQuery('שלום, עולם׳״'), 'שלום עולם\'"');
     });
 
-    test('countMatches should ignore comma and apostrophes in query', () {
-      expect(countMatches('שלום עולם שלום', "שלום,'"), 2);
+    test('countMatches should ignore commas and exclamation in query', () {
+      expect(countMatches('שלום עולם שלום', 'שלום,!'), 2);
     });
 
     test('Complex nikud patterns', () {

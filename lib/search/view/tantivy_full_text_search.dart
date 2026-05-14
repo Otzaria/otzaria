@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
-import 'package:otzaria/indexing/bloc/indexing_state.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
@@ -33,8 +31,16 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
   @override
   bool get wantKeepAlive => true;
 
-  bool _showIndexWarning = false;
+  bool _indexInProgressWarningDismissed = false;
   bool _showEditPanel = false;
+
+  Widget _buildIndexingWarning() {
+    return IndexingWarningContainer(
+      inProgressDismissed: _indexInProgressWarningDismissed,
+      onDismiss: () =>
+          setState(() => _indexInProgressWarningDismissed = true),
+    );
+  }
 
   // משמש כדי להבדיל בין "חיפוש חדש" (שבו נרצה להציג מסך טעינה מלא)
   // לבין "טען תוצאות נוספות" (שבו אסור להעלים את התוצאות הקיימות).
@@ -105,7 +111,9 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
       searchMode,
       customSpacing: widget.tab.spacingValues,
       alternativeWords: widget.tab.alternativeWords,
-      searchOptions: widget.tab.searchOptions,
+      searchOptions: widget.tab.effectiveSearchOptions(
+        query: widget.tab.searchBloc.state.searchQuery,
+      ),
     );
     widget.tab.searchBloc.add(const SetFacetsWithoutSearch(['/']));
     widget.tab.searchBloc.add(UpdateSearchQuery(
@@ -119,9 +127,6 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
   @override
   void initState() {
     super.initState();
-    // Check if indexing is in progress using the IndexingBloc
-    final indexingState = context.read<IndexingBloc>().state;
-    _showIndexWarning = indexingState is IndexingInProgress;
 
     // Request focus on search field when the widget is first created
     _requestSearchFieldFocus();
@@ -207,14 +212,7 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
           decoration: const BoxDecoration(),
           child: Column(
             children: [
-              if (_showIndexWarning)
-                IndexingWarning(
-                  onDismiss: () {
-                    setState(() {
-                      _showIndexWarning = false;
-                    });
-                  },
-                ),
+              _buildIndexingWarning(),
               Row(children: [_buildMenuButton()]),
               // השורה התחתונה - מוצגת תמיד!
               _buildBottomRow(state),
@@ -316,14 +314,7 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
       decoration: const BoxDecoration(),
       child: Column(
         children: [
-          if (_showIndexWarning)
-            IndexingWarning(
-              onDismiss: () {
-                setState(() {
-                  _showIndexWarning = false;
-                });
-              },
-            ),
+          _buildIndexingWarning(),
           Expanded(
             child: BlocBuilder<SearchBloc, SearchState>(
               builder: (context, state) {

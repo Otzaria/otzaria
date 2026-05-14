@@ -153,7 +153,6 @@ class TopNavItem extends StatelessWidget {
   final bool isSelected;
   final VoidCallback onTap;
   final double? width;
-  final bool compact;
 
   const TopNavItem({
     super.key,
@@ -164,7 +163,6 @@ class TopNavItem extends StatelessWidget {
     required this.isSelected,
     required this.onTap,
     this.width,
-    this.compact = false,
   }) : assert(
           icon != null || imageAsset != null,
           'TopNavItem: חייב לספק icon או imageAsset',
@@ -221,10 +219,10 @@ class TopNavItem extends StatelessWidget {
       width: width,
       child: Material(
         color: isSelected ? cs.secondaryContainer : Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
           overlayColor: WidgetStateProperty.resolveWith((states) {
             if (states.contains(WidgetState.hovered)) {
               return cs.primary.withValues(alpha: 0.08);
@@ -235,9 +233,9 @@ class TopNavItem extends StatelessWidget {
             return null;
           }),
           child: ConstrainedBox(
-            constraints: BoxConstraints(minWidth: 72, minHeight: compact ? 40 : 56),
+            constraints: const BoxConstraints(minWidth: 64, minHeight: 36),
             child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: compact ? 4 : 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [

@@ -8,6 +8,7 @@ import 'package:otzaria/settings/engine/settings_wrapper.dart';
 import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
 
 import '../../data/data_providers/sqlite_data_provider.dart';
+import '../../data/data_providers/user_books_database_holder.dart';
 import 'background_db_sync_worker.dart';
 import 'file_sync_service.dart';
 
@@ -91,14 +92,14 @@ class BackgroundSyncInitializer {
           Settings.getValue<String>(SettingsRepository.keyLibraryFolderName) ??
               '';
 
+      final userBooksDbPath = await UserBooksDatabaseHolder.resolveDbPath();
       final result = await runCustomFoldersDbSyncInIsolate(
         dbPath: dbPath,
+        userBooksDbPath: userBooksDbPath,
         libraryPath: libraryPath,
         customFolders: customFolders,
         folderName: folderName,
       );
-
-      await FileSyncService.saveCustomFoldersSignature(customFolders);
 
       _log.info('Background sync completed: $result');
 

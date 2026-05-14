@@ -1098,7 +1098,8 @@ class _PersonalNotesManagerScreenState
     Settings.setValue<int>('key-sidebar-tab-index-combined', 2);
     Settings.setValue<int>('key-sidebar-tab-index-pending', 2);
 
-    openBook(context, book, lineIndex, '', ignoreHistory: true);
+    openBook(context, book, lineIndex, '',
+        ignoreHistory: true, requiresStableLayout: true);
 
     Future.delayed(const Duration(milliseconds: 350), () {
       if (!mounted) return;

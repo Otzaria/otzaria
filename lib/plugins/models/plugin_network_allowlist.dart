@@ -28,7 +28,18 @@
 /// - אין להשאיר `/` סופי — הוא לא משנה את ההתנהגות אך מבלבל.
 const List<String> pluginNetworkAllowlist = <String>[
   // הוסיפו כאן URLs מאושרים — דוגמה (להסיר/להשאיר לפי הצורך):
-  // 'https://github.com/Otzaria/otzaria-library',
+  // אתר אוצריא — חנות תוספים ודפים ציבוריים
+  'https://otzaria.org',
+  // אתר אוצר החכמה
+  'https://tablet.otzar.org',
+  // אתר היברבוקס
+  'https://hebrewbooks.org',
+  // ספריית על התורה
+  'https://library.alhatorah.org',
+  'https://mg.alhatorah.org',
+  'https://turshulchanarukh.alhatorah.org',
+  'https://rambam.alhatorah.org',
+  'https://shas.alhatorah.org',
 ];
 
 /// בודקת האם [uri] מורשה לגישה על-ידי תוספים.

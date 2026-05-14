@@ -56,6 +56,11 @@ class PluginRegistryRepository {
     await _db.updatePluginPinState(pluginId, pinned);
   }
 
+  Future<void> updateNavRailPinState(
+      String pluginId, bool pinnedToNavRail) async {
+    await _db.updatePluginNavRailPinState(pluginId, pinnedToNavRail);
+  }
+
   Future<void> setPermission(
       String pluginId, String permission, bool granted) async {
     await _db.setPermission(pluginId, permission, granted);

@@ -43,7 +43,10 @@ class PersonalNotesSidebar extends StatefulWidget {
   }
 }
 
-class PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
+class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
+    with AutomaticKeepAliveClientMixin<PersonalNotesSidebar> {
+  @override
+  bool get wantKeepAlive => true;
   final PersonalNoteDraftService _draftService = PersonalNoteDraftService();
 
   @override
@@ -96,6 +99,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
 
     final currentState = bloc.state;
     final sameDraftAlreadyLoaded = currentState.isCreatingNewNote &&
+        currentState.newNoteBookId == widget.bookId &&
         currentState.newNoteLineNumber == draft.lineNumber &&
         currentState.newNoteInitialContent == draft.content &&
         currentState.newNoteInitialFormat == draft.contentFormat;
@@ -141,6 +145,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     // בודקים אם TextBookBloc זמין בהקשר הנוכחי
     final hasTextBookBloc =
         context.findAncestorWidgetOfExactType<BlocProvider<TextBookBloc>>() !=
@@ -148,7 +153,16 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
 
     final child = BlocBuilder<PersonalNotesBloc, PersonalNotesState>(
       buildWhen: (previous, current) {
-        if (previous.isCreatingNewNote != current.isCreatingNewNote) {
+        // ה-sidebar הזה צריך rebuild אם הטיוטה הפעילה שייכת אליו —
+        // לפני השינוי או אחריו. זה תופס גם את המקרה של מעבר ישיר
+        // מטיוטה של ספר א' לטיוטה של ספר ב' בלי לעבור דרך
+        // CancelCreatingPersonalNote (isCreatingNewNote נשאר true,
+        // אבל newNoteBookId משתנה).
+        final wasMyDraft = previous.isCreatingNewNote &&
+            previous.newNoteBookId == widget.bookId;
+        final isMyDraft =
+            current.isCreatingNewNote && current.newNoteBookId == widget.bookId;
+        if (wasMyDraft || isMyDraft) {
           return true;
         }
         return current.bookId == widget.bookId;
@@ -245,8 +259,10 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
 
     final items = <Widget>[];
 
-    // עורך הערה חדשה
-    if (state.isCreatingNewNote) {
+    // עורך הערה חדשה — מוצג רק אם הטיוטה שייכת לספר של ה-sidebar הזה.
+    // משתמשים ב-newNoteBookId (ה-bookId שנשמר בטיוטה) ולא ב-state.bookId,
+    // כי state.bookId משקף את הספר האחרון שנטענו עבורו הערות.
+    if (state.isCreatingNewNote && state.newNoteBookId == widget.bookId) {
       items.add(_buildNewNoteEditor(context, state));
     }
 
@@ -416,7 +432,9 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'הערה חדשה - שורה ${state.newNoteLineNumber}',
+                  state.newNoteReferenceText != null
+                      ? 'הערה חדשה - ${state.newNoteReferenceText}'
+                      : 'הערה חדשה - שורה ${state.newNoteLineNumber}',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: Theme.of(context).colorScheme.primary,

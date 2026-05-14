@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'dart:convert';
+import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/category.dart' as db_models;
@@ -10,6 +11,12 @@ import 'package:otzaria/migration/models/toc_entry.dart' as db_models;
 
 import '../models/book_model.dart';
 import '../models/error_model.dart';
+import '../services/shamor_zachor_bootstrap_worker.dart';
+
+typedef ShamorZachorCategoryTreeLoader = Future<Map<String, dynamic>> Function({
+  required String dbPath,
+  required List<int> trackedBookIds,
+});
 
 /// Provider for managing book data in Shamor Zachor
 /// This provider is scoped locally within the ShamorZachorWidget
@@ -21,6 +28,7 @@ class ShamorZachorDataProvider with ChangeNotifier {
 
   // Dependencies
   final SqliteDataProvider? _sqliteDataProvider;
+  final ShamorZachorCategoryTreeLoader _categoryTreeLoader;
 
   // State - now uses shared cache
   Map<String, BookCategory> _allBookData = {};
@@ -46,7 +54,10 @@ class ShamorZachorDataProvider with ChangeNotifier {
   /// slowing down app startup. Call ensureLoaded() when the widget is displayed.
   ShamorZachorDataProvider({
     SqliteDataProvider? sqliteDataProvider,
-  }) : _sqliteDataProvider = sqliteDataProvider ?? SqliteDataProvider.instance;
+    ShamorZachorCategoryTreeLoader? categoryTreeLoader,
+  })  : _sqliteDataProvider = sqliteDataProvider ?? SqliteDataProvider.instance,
+        _categoryTreeLoader =
+            categoryTreeLoader ?? ShamorZachorBootstrapWorker.loadCategoryTree;
 
   /// Ensures data is loaded - call this when the widget is first displayed
   ///
@@ -79,6 +90,32 @@ class ShamorZachorDataProvider with ChangeNotifier {
 
       // Load tracked books list from Hive-backed settings
       await _loadTrackedBooksList();
+
+      // Try loading the category tree off the main isolate to keep the UI
+      // thread responsive while opening books. Falls back to in-isolate logic
+      // if the worker fails for any reason.
+      try {
+        final workerResult = await _categoryTreeLoader(
+          dbPath: _sqliteDataProvider.dbPath,
+          trackedBookIds: _trackedBookIds.toList(),
+        );
+        final categories = (workerResult['categories'] as List)
+            .map((raw) => (raw as Map).cast<String, dynamic>())
+            .toList();
+        _allBookData = _hydrateCategoryTree(categories);
+        _logger.info(
+            'Loaded ${_allBookData.length} top-level categories in isolate '
+            '(${workerResult['relevantBookCount']} relevant books, '
+            '${workerResult['allBookCount']} total books, '
+            '${workerResult['categoryCount']} categories).');
+        return;
+      } catch (e, stackTrace) {
+        _logger.warning(
+          'Failed to load Shamor Zachor data in isolate, falling back to main isolate',
+          e,
+          stackTrace,
+        );
+      }
 
       // OPTIMIZATION 1 & 2: Use existing getAllBooks() query with in-memory filter
       // Show baseBooks OR books that are in the tracked list
@@ -128,6 +165,53 @@ class ShamorZachorDataProvider with ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  Map<String, BookCategory> _hydrateCategoryTree(
+    List<Map<String, dynamic>> categories,
+  ) {
+    return {
+      for (final category in categories)
+        category['name'] as String: _hydrateCategory(category),
+    };
+  }
+
+  BookCategory _hydrateCategory(Map<String, dynamic> json) {
+    final booksJson = json['books'] as Map;
+    return BookCategory(
+      name: json['name'] as String,
+      contentType: json['contentType'] as String,
+      books: {
+        for (final entry in booksJson.entries)
+          entry.key as String:
+              _hydrateBookDetails((entry.value as Map).cast<String, dynamic>()),
+      },
+      defaultStartPage: json['defaultStartPage'] as int? ?? 1,
+      isCustom: json['isCustom'] as bool? ?? false,
+      sourceFile: json['sourceFile'] as String? ?? 'db',
+      subcategories: (json['subcategories'] as List?)
+          ?.map((raw) => _hydrateCategory((raw as Map).cast<String, dynamic>()))
+          .toList(),
+      parentCategoryName: json['parentCategoryName'] as String?,
+      schemaVersion: json['schemaVersion'] as int?,
+    );
+  }
+
+  BookDetails _hydrateBookDetails(Map<String, dynamic> json) {
+    return BookDetails(
+      contentType: json['contentType'] as String,
+      parts: (json['parts'] as List)
+          .map((raw) => BookPart.fromJson((raw as Map).cast<String, dynamic>()))
+          .toList(),
+      isCustom: json['isCustom'] as bool? ?? false,
+      id: json['id'] as int?,
+      originalPageCount: json['originalPageCount'] as num?,
+      sections: (json['sections'] as List?)
+          ?.map((raw) =>
+              BookSection.fromJson((raw as Map).cast<String, dynamic>()))
+          .toList(),
+      categoryPath: json['categoryPath'] as String?,
+    );
   }
 
   Future<BookCategory?> _buildRecursiveCategory(
@@ -451,17 +535,19 @@ class ShamorZachorDataProvider with ChangeNotifier {
     required String bookName,
     int? categoryId,
   }) async {
-    final repository = _sqliteDataProvider?.repository;
-    if (repository == null) {
+    if (_sqliteDataProvider?.repository == null) {
       _logger.warning("Repository not initialized");
       throw Exception('מסד הנתונים לא מאותחל');
     }
 
     try {
       // 1. Check if book exists in DB
-      final existing = categoryId != null
-          ? await repository.getBookByTitleAndCategory(bookName, categoryId)
-          : await repository.getBookByTitle(bookName);
+      final existing = (await BookDatabaseResolver.resolveBook(
+        title: bookName,
+        categoryId: categoryId,
+        preferUserBooks: true,
+      ))
+          ?.book;
       if (existing == null) {
         _logger.warning("Book '$bookName' not found in database");
         throw Exception(
@@ -490,18 +576,24 @@ class ShamorZachorDataProvider with ChangeNotifier {
     int? bookId,
     int? categoryId,
   }) async {
-    final repository = _sqliteDataProvider?.repository;
-    if (repository == null) {
+    if (_sqliteDataProvider?.repository == null) {
       _logger.warning("Repository not initialized");
       return;
     }
 
     try {
       final existing = bookId != null
-          ? await repository.getBook(bookId)
-          : categoryId != null
-              ? await repository.getBookByTitleAndCategory(bookName, categoryId)
-              : await repository.getBookByTitle(bookName);
+          ? (await BookDatabaseResolver.resolveBookById(
+              bookId,
+              preferUserBooks: true,
+            ))
+              ?.book
+          : (await BookDatabaseResolver.resolveBook(
+              title: bookName,
+              categoryId: categoryId,
+              preferUserBooks: true,
+            ))
+              ?.book;
       if (existing == null) {
         _logger.warning(
             "Book '$bookName'${bookId != null ? ' (ID: $bookId)' : ''} not found in database");

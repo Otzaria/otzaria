@@ -82,22 +82,6 @@ class CategoryDao {
     return db.lastInsertRowId;
   }
 
-  Future<int> insertCategoryWithId(
-      int id, int? parentId, String title, int level,
-      {int orderIndex = 999}) async {
-    final db = await database;
-    db.execute(
-        _queries['insertWithId']!, [id, parentId, title, level, orderIndex]);
-    return db.lastInsertRowId;
-  }
-
-  Future<int> insertCategoryAndGetId(int? parentId, String title, int level,
-      {int orderIndex = 999}) async {
-    final db = await database;
-    db.execute(_queries['insert']!, [parentId, title, level, orderIndex]);
-    return db.lastInsertRowId;
-  }
-
   Future<int> updateCategory(int id, String title, {int? orderIndex}) async {
     final db = await database;
     db.execute(_queries['update']!, [title, orderIndex ?? 999, id]);

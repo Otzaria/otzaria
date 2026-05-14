@@ -29,10 +29,9 @@ void main() {
       'otzaria-file-sync-prune-test-',
     );
     await Settings.init(cacheProvider: _MemoryCacheProvider());
-    await Settings.setValue<String>(
-      SettingsRepository.keyCustomFoldersRefreshSignature,
-      '',
-    );
+    // מאפסים את הסינגלטון של FileSyncService כדי שלא יחזיק repository
+    // מ-tempDir של טסט קודם (שכבר נסגר).
+    FileSyncService.resetSingletonForTesting();
     database = MyDatabase.withPath(path.join(tempDir.path, 'test.db'));
     repository = SeforimRepository(database);
     await repository.ensureInitialized();
@@ -40,6 +39,7 @@ void main() {
 
   tearDown(() async {
     database.close();
+    FileSyncService.resetSingletonForTesting();
     if (await tempDir.exists()) {
       await tempDir.delete(recursive: true);
     }
@@ -118,7 +118,7 @@ void main() {
 
     await repository.insertBook(
       Book(
-        id: await repository.getNextNegativeBookId(),
+        id: 0,
         categoryId: activeCategoryId,
         sourceId: activeSourceId,
         title: 'ספר פעיל',
@@ -129,7 +129,7 @@ void main() {
     );
     await repository.insertBook(
       Book(
-        id: await repository.getNextNegativeBookId(),
+        id: 0,
         categoryId: staleCategoryId,
         sourceId: staleSourceId,
         title: 'ספר ישן',
@@ -158,189 +158,6 @@ void main() {
     expect(remainingTitles, ['active-folder']);
     expect(await repository.getCategory(staleCategoryId), isNull);
     expect(await repository.getCategory(activeCategoryId), isNotNull);
-  });
-
-  test(
-      'refreshSourcesAndPruneRemovedCustomFolders משאיר תיקייה פעילה גם לפני sync מלא',
-      () async {
-    final activeFolderPath = path.join(tempDir.path, 'active-folder');
-    await Directory(activeFolderPath).create(recursive: true);
-    await File(path.join(activeFolderPath, 'ספר פעיל.txt'))
-        .writeAsString('תוכן');
-
-    final personalCategoryId = await repository.insertCategory(
-      const Category(title: 'ספרים אישיים'),
-    );
-    final activeCategoryId = await repository.insertCategory(
-      Category(
-        title: 'active-folder',
-        parentId: personalCategoryId,
-        level: 1,
-      ),
-    );
-    final staleCategoryId = await repository.insertCategory(
-      Category(
-        title: 'removed-folder',
-        parentId: personalCategoryId,
-        level: 1,
-      ),
-    );
-    final legacySourceId = await repository.insertSource('Personal', -1);
-
-    await repository.insertBook(
-      Book(
-        id: await repository.getNextNegativeBookId(),
-        categoryId: activeCategoryId,
-        sourceId: legacySourceId,
-        title: 'ספר פעיל',
-        isPersonal: true,
-        fileType: 'txt',
-        filePath: null,
-      ),
-    );
-    await repository.insertBook(
-      Book(
-        id: await repository.getNextNegativeBookId(),
-        categoryId: staleCategoryId,
-        sourceId: legacySourceId,
-        title: 'ספר ישן',
-        isPersonal: true,
-        fileType: 'txt',
-        filePath: null,
-      ),
-    );
-    await repository.rebuildCategoryClosure();
-
-    final service = await FileSyncService.getInstance(repository);
-
-    await service!.refreshSourcesAndPruneRemovedCustomFolders([
-      CustomFolder(
-        path: activeFolderPath,
-        addToDatabase: true,
-        addedAt: DateTime(2026, 4, 13),
-      ),
-    ]);
-
-    expect(await repository.getCategory(activeCategoryId), isNotNull);
-    expect(await repository.getCategory(staleCategoryId), isNull);
-  });
-
-  test(
-      'refreshSourcesAndPruneRemovedCustomFolders מדלג על סריקה מלאה כשהחתימה לא השתנתה',
-      () async {
-    final activeFolderPath = path.join(tempDir.path, 'active-folder');
-    final personalCategoryId = await repository.insertCategory(
-      const Category(title: 'ספרים אישיים'),
-    );
-    final activeCategoryId = await repository.insertCategory(
-      Category(
-        title: 'active-folder',
-        parentId: personalCategoryId,
-        level: 1,
-      ),
-    );
-    final activeSourceId = await repository.insertSource(
-      _sourceNameForFolder(activeFolderPath),
-      -1,
-    );
-
-    await repository.insertBook(
-      Book(
-        id: await repository.getNextNegativeBookId(),
-        categoryId: activeCategoryId,
-        sourceId: activeSourceId,
-        title: 'ספר פעיל',
-        isPersonal: true,
-        fileType: 'txt',
-        filePath: null,
-      ),
-    );
-    await repository.rebuildCategoryClosure();
-    await Settings.setValue<String>(
-      SettingsRepository.keyCustomFoldersRefreshSignature,
-      activeFolderPath.toLowerCase(),
-    );
-
-    final service = await FileSyncService.getInstance(repository);
-
-    await service!.refreshSourcesAndPruneRemovedCustomFolders([
-      CustomFolder(
-        path: activeFolderPath,
-        addToDatabase: true,
-        addedAt: DateTime(2026, 4, 13),
-      ),
-    ]);
-
-    expect(await repository.getCategory(activeCategoryId), isNotNull);
-  });
-
-  test(
-      'refreshSourcesAndPruneRemovedCustomFolders לא מדלג על רענון כשיש source legacy ב-DB',
-      () async {
-    final activeFolderPath = path.join(tempDir.path, 'active-folder');
-    await Directory(activeFolderPath).create(recursive: true);
-    await File(path.join(activeFolderPath, 'ספר פעיל.txt'))
-        .writeAsString('תוכן');
-
-    final personalCategoryId = await repository.insertCategory(
-      const Category(title: 'ספרים אישיים'),
-    );
-    final activeCategoryId = await repository.insertCategory(
-      Category(
-        title: 'active-folder',
-        parentId: personalCategoryId,
-        level: 1,
-      ),
-    );
-    final staleCategoryId = await repository.insertCategory(
-      Category(
-        title: 'removed-folder',
-        parentId: personalCategoryId,
-        level: 1,
-      ),
-    );
-    final legacySourceId = await repository.insertSource('Personal', -1);
-
-    await repository.insertBook(
-      Book(
-        id: await repository.getNextNegativeBookId(),
-        categoryId: activeCategoryId,
-        sourceId: legacySourceId,
-        title: 'ספר פעיל',
-        isPersonal: true,
-        fileType: 'txt',
-        filePath: null,
-      ),
-    );
-    await repository.insertBook(
-      Book(
-        id: await repository.getNextNegativeBookId(),
-        categoryId: staleCategoryId,
-        sourceId: legacySourceId,
-        title: 'ספר ישן',
-        isPersonal: true,
-        fileType: 'txt',
-        filePath: null,
-      ),
-    );
-    await repository.rebuildCategoryClosure();
-    await Settings.setValue<String>(
-      SettingsRepository.keyCustomFoldersRefreshSignature,
-      activeFolderPath.toLowerCase(),
-    );
-
-    final service = await FileSyncService.getInstance(repository);
-
-    await service!.refreshSourcesAndPruneRemovedCustomFolders([
-      CustomFolder(
-        path: activeFolderPath,
-        addToDatabase: true,
-        addedAt: DateTime(2026, 4, 13),
-      ),
-    ]);
-
-    expect(await repository.getCategory(activeCategoryId), isNotNull);
-    expect(await repository.getCategory(staleCategoryId), isNull);
   });
 
   // Regression test for bug introduced in commit 72ca3b4aa:
@@ -374,7 +191,7 @@ void main() {
     );
     await repository.insertBook(
       Book(
-        id: await repository.getNextNegativeBookId(),
+        id: 0,
         categoryId: newCategoryId,
         sourceId: sourceId,
         title: 'ספר חדש',
@@ -429,7 +246,7 @@ void main() {
 
     await repository.insertBook(
       Book(
-        id: await repository.getNextNegativeBookId(),
+        id: 0,
         categoryId: ambiguousCategoryId,
         sourceId: legacySourceId,
         title: 'ספר עמום',

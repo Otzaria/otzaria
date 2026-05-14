@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:otzaria/text_book/utils/visible_index.dart';
 
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -30,6 +31,7 @@ import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
 import 'package:otzaria/text_book/view/selection/text_selection_manager.dart';
+import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart';
 import 'package:otzaria/text_book/view/selection/enhanced_gesture_detector.dart';
 import 'package:otzaria/text_book/view/selection/selection_persistence.dart';
 import 'package:otzaria/text_book/view/selection/selected_text_copy.dart';
@@ -60,6 +62,7 @@ class CombinedView extends StatefulWidget {
     this.onOpenCommentatorsPane,
     this.onOpenLinksPane,
     this.isPaneOpen,
+    this.selectionSyncController,
   });
 
   final List<String> data;
@@ -74,6 +77,7 @@ class CombinedView extends StatefulWidget {
   final VoidCallback? onOpenCommentatorsPane;
   final VoidCallback? onOpenLinksPane;
   final bool Function()? isPaneOpen;
+  final SelectionSyncController? selectionSyncController;
 
   @override
   State<CombinedView> createState() => _CombinedViewState();
@@ -137,8 +141,8 @@ class _CombinedViewState extends State<CombinedView> {
   // מנהל בחירת טקסט משופר
   late final TextSelectionManager _selectionManager;
 
-  // מפתח גלובלי ל-SelectionArea כדי לכפות rebuild
-  final GlobalKey _selectionAreaKey = GlobalKey();
+  int _selectionAreaRevision = 0;
+  final Object _selectionOwner = Object();
 
   // listener לניקוי בחירה - נשמור אותו כדי להסיר אותו ב-dispose
   void _onSelectionModeChanged() {
@@ -190,6 +194,7 @@ class _CombinedViewState extends State<CombinedView> {
 
     // האזנה לשינויים במצב הבחירה כדי לכפות rebuild של SelectionArea
     _selectionManager.addListener(_onSelectionModeChanged);
+    widget.selectionSyncController?.addListener(_handleExternalSelectionChange);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -239,6 +244,12 @@ class _CombinedViewState extends State<CombinedView> {
   @override
   void didUpdateWidget(covariant CombinedView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectionSyncController != widget.selectionSyncController) {
+      oldWidget.selectionSyncController
+          ?.removeListener(_handleExternalSelectionChange);
+      widget.selectionSyncController
+          ?.addListener(_handleExternalSelectionChange);
+    }
     if (oldWidget.tab.book.title != widget.tab.book.title) {
       context
           .read<PersonalNotesBloc>()
@@ -255,9 +266,32 @@ class _CombinedViewState extends State<CombinedView> {
     _savedSelectedIndex.dispose();
     _currentSelectedIndex.dispose();
     _focusNode.dispose();
+    widget.selectionSyncController
+        ?.removeListener(_handleExternalSelectionChange);
     _selectionManager.removeListener(_onSelectionModeChanged);
     _selectionManager.dispose();
     super.dispose();
+  }
+
+  void _handleExternalSelectionChange() {
+    final controller = widget.selectionSyncController;
+    if (controller == null ||
+        identical(controller.activeOwner, _selectionOwner)) {
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    _selectionManager.exitSelectionMode();
+    setState(() {
+      _selectionAreaRevision = controller.revision;
+      _savedSelectedText.value = null;
+      _savedSelectedIndex.value = null;
+      _currentSelectedIndex.value = null;
+    });
+    widget.onSelectedTextChanged?.call(null);
   }
 
   // עדכון האינדקס הנוכחי ב-tab
@@ -489,7 +523,7 @@ class _CombinedViewState extends State<CombinedView> {
           label: 'העתק',
           icon: FluentIcons.copy_24_regular,
           enabled: selectedText != null && selectedText.trim().isNotEmpty,
-          onTap: _copyFormattedText,
+          onTap: () => _copyFormattedText(selectedText),
         ),
       ];
     }
@@ -653,7 +687,7 @@ class _CombinedViewState extends State<CombinedView> {
       AppContextMenuEntry(
         label: 'הוסף הערה אישית',
         icon: FluentIcons.note_add_24_regular,
-        onTap: _showNoteEditor,
+        onTap: () => _showNoteEditor(selectedText),
       ),
       AppContextMenuEntry(
         label: 'דווח על טעות בספר',
@@ -668,7 +702,7 @@ class _CombinedViewState extends State<CombinedView> {
         label: 'העתק',
         icon: FluentIcons.copy_24_regular,
         enabled: selectedText != null && selectedText.trim().isNotEmpty,
-        onTap: _copyFormattedText,
+        onTap: () => _copyFormattedText(selectedText),
       ),
       AppContextMenuEntry(
         label: 'העתק את כל הפסקה',
@@ -868,9 +902,8 @@ class _CombinedViewState extends State<CombinedView> {
   }
 
   /// העתקת טקסט מעוצב (HTML) ללוח
-  Future<void> _copyFormattedText() async {
-    // משתמש בטקסט השמור שנבחר לפני פתיחת התפריט
-    final plainText = _savedSelectedText.value;
+  Future<void> _copyFormattedText([String? capturedText]) async {
+    final plainText = capturedText ?? _savedSelectedText.value;
 
     debugPrint('_copyFormattedText called with: "$plainText"');
     debugPrint('_currentSelectedIndex: ${_currentSelectedIndex.value}');
@@ -902,13 +935,11 @@ class _CombinedViewState extends State<CombinedView> {
   }
 
   /// הצגת עורך ההערות
-  Future<void> _showNoteEditor() async {
-    // שמירת ה-state הנוכחי לפני פתיחת הדיאלוג
+  Future<void> _showNoteEditor([String? capturedText]) async {
     final state = _textBookBloc.state;
     if (state is! TextBookLoaded) return;
 
-    // שמירת הטקסט הנבחר לפני פתיחת הדיאלוג
-    final selectedText = _savedSelectedText.value;
+    final selectedText = capturedText ?? _savedSelectedText.value;
 
     // משתמש בשורה שממנה הודגש טקסט (אם קיים), אחרת בשורה הנבחרת, אחרת בשורה הראשונה הנראית
     final currentIndex = _savedSelectedIndex.value ??
@@ -1007,7 +1038,7 @@ class _CombinedViewState extends State<CombinedView> {
             );
 
             return SelectionArea(
-              key: _selectionAreaKey,
+              key: ValueKey('combined_selection_$_selectionAreaRevision'),
               // SelectionArea אחד לכל הרשימה - מאפשר בחירה רציפה בין פסקאות
               contextMenuBuilder: (context, selectableRegionState) {
                 return const SizedBox.shrink();
@@ -1015,19 +1046,17 @@ class _CombinedViewState extends State<CombinedView> {
               onSelectionChanged: (selection) {
                 final plain = selection?.plainText;
                 if (!shouldPersistSelectedText(plain)) {
-                  // אם הבחירה נוקתה, יוצאים ממצב בחירה ומנקים את הטקסט השמור
+                  widget.selectionSyncController?.clear(_selectionOwner);
                   _selectionManager.exitSelectionMode();
                   _savedSelectedText.value = null;
                   return;
                 }
+                widget.selectionSyncController?.activate(_selectionOwner);
                 // כניסה למצב בחירה כשיש טקסט נבחר
                 if (!_selectionManager.isInSelectionMode) {
-                  // שימוש באינדקס הראשון הנראה במקום 0
-                  final positions =
-                      widget.tab.positionsListener.itemPositions.value;
-                  final firstVisibleIndex =
-                      positions.isNotEmpty ? positions.first.index : 0;
-                  _selectionManager.setAnchor(firstVisibleIndex);
+                  // שימוש באינדקס העליון הנראה במקום 0
+                  _selectionManager.setAnchor(topmostVisibleIndex(
+                      widget.tab.positionsListener.itemPositions.value));
                 }
 
                 // חשוב: כדי ש-Ctrl+C יעבוד מיד אחרי סימון טקסט עם העכבר
@@ -1453,6 +1482,31 @@ class _CombinedViewState extends State<CombinedView> {
                           }
                         }
 
+                        // הדגשה ממוקדת מקישור עומק: רק על הסעיף שצוין, ובלי
+                        // להפעיל את שאר אפשרויות החיפוש (כתיב מלא/חסר וכו').
+                        final isPinpointTarget =
+                            state.pinpointHighlightIndex == index &&
+                                state.pinpointHighlightText != null &&
+                                state.pinpointHighlightText!.isNotEmpty;
+                        final hasPinpoint =
+                            state.pinpointHighlightIndex != null;
+                        final effectiveSearchText = isPinpointTarget
+                            ? state.pinpointHighlightText!
+                            : (hasPinpoint ? '' : state.searchText);
+                        final effectiveSearchMode =
+                            hasPinpoint ? SearchMode.exact : state.searchMode;
+                        final effectiveSearchOptions = hasPinpoint
+                            ? const <String, Map<String, bool>>{}
+                            : state.searchOptions;
+                        final effectiveAlternativeWords = hasPinpoint
+                            ? const <int, List<String>>{}
+                            : state.alternativeWords;
+                        final effectiveSpacingValues = hasPinpoint
+                            ? const <String, String>{}
+                            : state.spacingValues;
+                        final effectiveSearchDistance =
+                            hasPinpoint ? 0 : state.searchDistance;
+
                         final textWidget = SmartTextWidget(
                           text: dataWithLinks,
                           widgetKey: ValueKey(
@@ -1467,13 +1521,14 @@ class _CombinedViewState extends State<CombinedView> {
                                 : !settingsState.showTeamim,
                             replaceHolyNames: settingsState.replaceHolyNames,
                             showSubtitles: state.showSubtitles,
-                            searchText: state.searchText,
-                            searchOptions: state.searchOptions,
-                            alternativeWords: state.alternativeWords,
-                            spacingValues: state.spacingValues,
-                            isFuzzySearch: state.searchMode == SearchMode.fuzzy,
-                            searchMode: state.searchMode,
-                            searchDistance: state.searchDistance,
+                            searchText: effectiveSearchText,
+                            searchOptions: effectiveSearchOptions,
+                            alternativeWords: effectiveAlternativeWords,
+                            spacingValues: effectiveSpacingValues,
+                            isFuzzySearch:
+                                effectiveSearchMode == SearchMode.fuzzy,
+                            searchMode: effectiveSearchMode,
+                            searchDistance: effectiveSearchDistance,
                             fontSize: widget.textSize,
                             fontFamily: settingsState.fontFamily,
                             lineHeight: settingsState.lineHeight,
@@ -1589,6 +1644,7 @@ class _CombinedViewState extends State<CombinedView> {
             textSize: widget.textSize,
             openBookCallback: widget.openBookCallback,
             viewportHeight: _viewportHeight,
+            selectionSyncController: widget.selectionSyncController,
           ),
       ],
     );
@@ -1730,6 +1786,7 @@ class _CommentaryCard extends StatefulWidget {
   final double textSize;
   final Function(OpenedTab) openBookCallback;
   final double viewportHeight;
+  final SelectionSyncController? selectionSyncController;
 
   const _CommentaryCard({
     super.key,
@@ -1737,6 +1794,7 @@ class _CommentaryCard extends StatefulWidget {
     required this.textSize,
     required this.openBookCallback,
     required this.viewportHeight,
+    this.selectionSyncController,
   });
 
   @override
@@ -1803,6 +1861,7 @@ class _CommentaryCardState extends State<_CommentaryCard> {
                     fontSize: widget.textSize,
                     openBookCallback: widget.openBookCallback,
                     showSearch: false,
+                    selectionSyncController: widget.selectionSyncController,
                     shrinkWrap: true,
                   ),
                 ),

@@ -79,6 +79,11 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
   // snapshot של מצב תחילת גרירה
   bool? _dragStartedInWideMode;
 
+  // אופטימיזציית ביצועים: דחיית בנייה ראשונה של תוכן הפאנל עד שהוא נפתח לראשונה.
+  // זה מונע בנייה כבדה של התוכן (TocViewer וכו') כשהפאנל סגור מההתחלה.
+  // אחרי הפתיחה הראשונה, התוכן נשמר במגדל הוויידג'טים גם בזמן סגירה כדי לשמור state.
+  bool _paneEverOpened = false;
+
   static const BorderRadius _kPanelRadius =
       BorderRadius.all(Radius.circular(AppTokens.radiusPanel));
   static const double _kWideTopGap = 14;
@@ -92,6 +97,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
   void initState() {
     super.initState();
     _livePaneWidth = ValueNotifier<double>(widget.paneWidth);
+    _paneEverOpened = widget.isOpen;
   }
 
   @override
@@ -100,6 +106,9 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
     // עדכון הרוחב הפנימי כשה-parent שולח רוחב חדש — אבל לא בזמן גרירה
     if (!_isDragging && oldWidget.paneWidth != widget.paneWidth) {
       _livePaneWidth.value = widget.paneWidth;
+    }
+    if (widget.isOpen && !_paneEverOpened) {
+      _paneEverOpened = true;
     }
   }
 
@@ -298,17 +307,42 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
         final currentWidth = liveWidth;
         final currentOccupied =
             currentWidth + _kWideOuterSideGap + _kWideInnerSideGap;
-        final widePaneContent = widget.widePaneBuilder != null
-            ? widget.widePaneBuilder!(context, widget.paneContent, currentWidth)
-            : widget.paneContent;
-        final widePane = SizedBox(
-          width: currentWidth,
-          child: _buildPaneShell(
-            context,
-            widePaneContent,
-            paneOnRight: paneOnRight,
-          ),
-        );
+        // אופטימיזציית ביצועים: לא לבנות את תוכן הפאנל לפני שנפתח לראשונה.
+        // לפני האופטימיזציה, paneContent (כולל TocViewer עם אלפי ערכים)
+        // היה נבנה תמיד גם בפאנל סגור, מה שיצר frame של 12+ שניות.
+        // אחרי הפתיחה הראשונה התוכן נשמר במגדל גם בסגירה כדי לשמור state.
+        final Widget paneSlotContent;
+        if (!_paneEverOpened) {
+          paneSlotContent = const SizedBox.shrink();
+        } else {
+          final widePaneContent = widget.widePaneBuilder != null
+              ? widget.widePaneBuilder!(
+                  context, widget.paneContent, currentWidth)
+              : widget.paneContent;
+          paneSlotContent = Padding(
+            padding: EdgeInsetsDirectional.only(
+              top: _kWideTopGap,
+              bottom: _kWideBottomGap,
+              start: paneOnRight
+                  ? _kWideInnerSideGap
+                  : _kWideOuterSideGap,
+              end: paneOnRight
+                  ? _kWideOuterSideGap
+                  : _kWideInnerSideGap,
+            ),
+            child: SizedBox(
+              width: currentWidth,
+              child: SizedBox(
+                width: currentWidth,
+                child: _buildPaneShell(
+                  context,
+                  widePaneContent,
+                  paneOnRight: paneOnRight,
+                ),
+              ),
+            ),
+          );
+        }
 
         return Stack(
           clipBehavior: Clip.none,
@@ -328,22 +362,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
                     alignment: paneOnRight
                         ? Alignment.centerRight
                         : Alignment.centerLeft,
-                    child: Padding(
-                      padding: EdgeInsetsDirectional.only(
-                        top: _kWideTopGap,
-                        bottom: _kWideBottomGap,
-                        start: paneOnRight
-                            ? _kWideInnerSideGap
-                            : _kWideOuterSideGap,
-                        end: paneOnRight
-                            ? _kWideOuterSideGap
-                            : _kWideInnerSideGap,
-                      ),
-                      child: SizedBox(
-                        width: currentWidth,
-                        child: widePane,
-                      ),
-                    ),
+                    child: paneSlotContent,
                   ),
                 ),
               ),
@@ -366,10 +385,16 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
     BuildContext context, {
     required bool paneOnRight,
   }) {
-    final narrowPaneContent = (widget.narrowPaneBuilder ?? _defaultNarrowPaneBuilder)
-        .call(context, widget.paneContent);
-    final narrowPane =
-        _buildPaneShell(context, narrowPaneContent, paneOnRight: paneOnRight);
+    // אופטימיזציית ביצועים: לא לבנות את תוכן הפאנל לפני שנפתח לראשונה.
+    // אחרי הפתיחה הראשונה התוכן נשמר במגדל גם בסגירה כדי לשמור state.
+    final Widget narrowPane = _paneEverOpened
+        ? _buildPaneShell(
+            context,
+            (widget.narrowPaneBuilder ?? _defaultNarrowPaneBuilder)
+                .call(context, widget.paneContent),
+            paneOnRight: paneOnRight,
+          )
+        : const SizedBox.shrink();
 
     final showHandle = widget.isResizable && widget.onPaneWidthChanged != null;
     final closedOffset =

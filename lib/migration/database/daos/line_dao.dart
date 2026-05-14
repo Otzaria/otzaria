@@ -77,19 +77,6 @@ class LineDao {
     return db.lastInsertRowId;
   }
 
-  Future<int> insertWithId(Line line) async {
-    final db = await database;
-    db.execute(_queries['insertWithId']!, [
-      line.id,
-      line.bookId,
-      line.lineIndex,
-      line.content,
-      line.heRef,
-      null, // tocEntryId - set later
-    ]);
-    return db.lastInsertRowId;
-  }
-
   Future<int> updateTocEntryId(int lineId, int tocEntryId) async {
     final db = await database;
     db.execute(_queries['updateTocEntryId']!, [tocEntryId, lineId]);

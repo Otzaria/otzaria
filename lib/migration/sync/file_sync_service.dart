@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as path;
@@ -52,43 +52,52 @@ class FileSyncService {
   static const String _customFolderSourcePrefix = 'Personal::';
   static FileSyncService? _instance;
 
+  /// Repository של `seforim.db` — לתוכן הרשמי (אוצריא, links).
   final SeforimRepository _repository;
+
+  /// Repository של `user_books.db` — לתיקיות מותאמות אישית בלבד.
+  /// כש-null, זרימות תיקיות מותאמות אישית משתמשות ב-`_repository` (legacy).
+  final SeforimRepository? _userBooksRepository;
+
+  /// ה-repository האפקטיבי לזרימת תיקיות מותאמות אישית.
+  SeforimRepository get _customFoldersRepo =>
+      _userBooksRepository ?? _repository;
+
   bool _isSyncing = false;
 
   /// Progress callback for UI updates
   void Function(double progress, String message)? onProgress;
 
-  FileSyncService._(this._repository);
+  FileSyncService._(this._repository, this._userBooksRepository);
 
-  /// Get singleton instance
+  /// Get singleton instance.
+  ///
+  /// [repository] — `seforim.db` repository (לתוכן רשמי).
+  /// [userBooksRepository] — `user_books.db` repository (לתיקיות מותאמות
+  /// אישית). כש-null, הזרימה הישנה בה הכל ב-`seforim.db` נשמרת.
   static Future<FileSyncService?> getInstance(
-      SeforimRepository? repository) async {
+    SeforimRepository? repository, {
+    SeforimRepository? userBooksRepository,
+  }) async {
     if (repository == null) return null;
-    _instance ??= FileSyncService._(repository);
+    _instance ??= FileSyncService._(repository, userBooksRepository);
     return _instance;
   }
 
   /// Creates a fresh instance for use inside a background worker isolate.
   /// Must NOT be used from the main isolate — use [getInstance] instead.
-  factory FileSyncService.createForWorker(SeforimRepository repository) {
-    return FileSyncService._(repository);
+  factory FileSyncService.createForWorker(
+    SeforimRepository repository, {
+    SeforimRepository? userBooksRepository,
+  }) {
+    return FileSyncService._(repository, userBooksRepository);
   }
 
-  /// Stores the custom-folders refresh signature in Settings.
-  /// Must be called on the main isolate after a worker sync completes.
-  static Future<void> saveCustomFoldersSignature(
-      List<CustomFolder> customFolders) async {
-    String normalize(String folderPath) {
-      final n = path.normalize(folderPath);
-      return Platform.isWindows ? n.toLowerCase() : n;
-    }
-
-    final normalized = customFolders.map((f) => normalize(f.path)).toList()
-      ..sort();
-    await Settings.setValue(
-      SettingsRepository.keyCustomFoldersRefreshSignature,
-      normalized.join('|'),
-    );
+  /// מאפס את הסינגלטון. שימושי בעיקר בטסטים שיוצרים DB חדש בכל setUp
+  /// ולא רוצים שה-singleton ישמור התייחסות ל-DB ישן/סגור.
+  @visibleForTesting
+  static void resetSingletonForTesting() {
+    _instance = null;
   }
 
   /// Check if sync is currently running
@@ -123,17 +132,19 @@ class FileSyncService {
     }
   }
 
-  /// Recursively delete a category and all its contents from DB
+  /// Recursively delete a category and all its contents from the
+  /// custom-folders DB (`user_books.db` or fallback to `_repository`).
   Future<void> _deleteCategoryRecursive(int categoryId) async {
+    final repo = _customFoldersRepo;
     // First, delete all books in this category
-    final books = await _repository.getBooksByCategory(categoryId);
+    final books = await repo.getBooksByCategory(categoryId);
     debugPrint(
         '[FileSyncService] _deleteCategoryRecursive: categoryId=$categoryId, found ${books.length} books');
     for (final book in books) {
       debugPrint(
           '[FileSyncService]   deleting book: id=${book.id}, title="${book.title}"');
       try {
-        await _repository.deleteBookCompletely(book.id);
+        await repo.deleteBookCompletely(book.id);
       } catch (e, st) {
         _log.warning(
             'Failed to delete book ${book.id} ("${book.title}"), continuing',
@@ -143,7 +154,7 @@ class FileSyncService {
     }
 
     // Then, recursively delete subcategories
-    final subCategories = await _repository.getCategoryChildren(categoryId);
+    final subCategories = await repo.getCategoryChildren(categoryId);
     debugPrint(
         '[FileSyncService] _deleteCategoryRecursive: categoryId=$categoryId, found ${subCategories.length} subcategories');
     for (final subCat in subCategories) {
@@ -161,25 +172,27 @@ class FileSyncService {
 
     // Finally, delete this category
     debugPrint('[FileSyncService]   deleting category itself: id=$categoryId');
-    await _repository.deleteCategory(categoryId);
+    await repo.deleteCategory(categoryId);
   }
 
   /// Clean up empty parent categories recursively
   /// Starts from a category and checks if it's empty, if so deletes it
-  /// and continues up the hierarchy
+  /// and continues up the hierarchy.
+  /// פועל על ה-DB של תיקיות מותאמות אישית.
   Future<void> _cleanupEmptyParentCategories(int categoryId) async {
+    final repo = _customFoldersRepo;
     // Get the category to check its parent
-    final category = await _repository.getCategory(categoryId);
+    final category = await repo.getCategory(categoryId);
     if (category == null) return;
 
     // Check if this category has any children (books or subcategories)
-    final books = await _repository.getBooksByCategory(categoryId);
-    final subCategories = await _repository.getCategoryChildren(categoryId);
+    final books = await repo.getBooksByCategory(categoryId);
+    final subCategories = await repo.getCategoryChildren(categoryId);
 
     // If category is empty, delete it and check parent
     if (books.isEmpty && subCategories.isEmpty) {
       final parentId = category.parentId;
-      await _repository.deleteCategory(categoryId);
+      await repo.deleteCategory(categoryId);
       _log.info('Deleted empty category: ${category.title}');
 
       // If there's a parent, check if it's now empty too
@@ -190,9 +203,11 @@ class FileSyncService {
   }
 
   /// Delete a folder from the database (without restoring files)
-  /// Used when removing a folder from the app completely
+  /// Used when removing a folder from the app completely.
+  /// פועל על ה-DB של תיקיות מותאמות אישית.
   Future<void> deleteFolderFromDatabase(
       int folderCategoryId, int personalCategoryId) async {
+    final repo = _customFoldersRepo;
     _log.info('Deleting folder category from DB: $folderCategoryId');
     debugPrint(
         '[FileSyncService] deleteFolderFromDatabase START: folderCategoryId=$folderCategoryId, personalCategoryId=$personalCategoryId');
@@ -206,12 +221,12 @@ class FileSyncService {
     await _cleanupEmptyParentCategories(personalCategoryId);
 
     // Clean up orphaned tocText entries (shared lookup table, not deleted per-book)
-    await _repository.deleteOrphanedTocTexts();
+    await repo.deleteOrphanedTocTexts();
     debugPrint(
         '[FileSyncService] deleteFolderFromDatabase: orphaned tocText cleaned up');
 
     // Clean up any orphaned line_toc rows (e.g. (-1,-1) artifact from prior bugs)
-    await _repository.deleteOrphanedLineToc();
+    await repo.deleteOrphanedLineToc();
     debugPrint(
         '[FileSyncService] deleteFolderFromDatabase: orphaned line_toc cleaned up');
 
@@ -226,46 +241,6 @@ class FileSyncService {
 
   String _buildCustomFolderSourceName(String folderPath) {
     return '$_customFolderSourcePrefix${_normalizeFolderPath(folderPath)}';
-  }
-
-  String _buildCustomFoldersRefreshSignature(List<CustomFolder> customFolders) {
-    final normalizedPaths = customFolders
-        .map((folder) => _normalizeFolderPath(folder.path))
-        .toList()
-      ..sort();
-    return normalizedPaths.join('|');
-  }
-
-  Future<void> _storeCustomFoldersRefreshSignature(
-    List<CustomFolder> customFolders,
-  ) async {
-    await Settings.setValue(
-      SettingsRepository.keyCustomFoldersRefreshSignature,
-      _buildCustomFoldersRefreshSignature(customFolders),
-    );
-  }
-
-  Future<bool> _hasLegacyPersonalSourcesInDatabase() async {
-    final legacySource = await _repository.getSourceByName('Personal');
-    if (legacySource == null) {
-      return false;
-    }
-
-    return _repository.hasPersonalBooksWithSourceId(legacySource.id);
-  }
-
-  Future<bool> _needsCustomFolderSourceRefresh(
-    List<CustomFolder> customFolders,
-  ) async {
-    final currentSignature = _buildCustomFoldersRefreshSignature(customFolders);
-    final storedSignature = Settings.getValue<String>(
-      SettingsRepository.keyCustomFoldersRefreshSignature,
-    );
-    if (currentSignature != storedSignature) {
-      return true;
-    }
-
-    return _hasLegacyPersonalSourcesInDatabase();
   }
 
   String? _extractCustomFolderPathFromSourceName(String? sourceName) {
@@ -291,79 +266,22 @@ class FileSyncService {
     return normalizedBookPath.startsWith(folderWithSeparator);
   }
 
-  Future<int?> _findExistingCategoryId(List<String> categoryPath) async {
-    int? parentId;
-
-    for (final categoryTitle in categoryPath) {
-      final category = await _repository.getCategoryByTitleAndParent(
-          categoryTitle, parentId);
-      if (category == null) {
-        return null;
-      }
-      parentId = category.id;
-    }
-
-    return parentId;
-  }
-
-  Future<void> _refreshConfiguredCustomFolderSources(
-    List<CustomFolder> customFolders,
-  ) async {
-    for (final folder in customFolders) {
-      final folderDir = Directory(folder.path);
-      if (!await folderDir.exists()) {
-        continue;
-      }
-
-      final sourceName = _buildCustomFolderSourceName(folder.path);
-      final sourceId = await _repository.insertSource(sourceName, -1);
-      final filePaths = await _findNewFiles(folder.path);
-
-      for (final filePath in filePaths) {
-        final relativeCategories =
-            _parsePathToCategories(filePath, folder.path);
-        final categoryId = await _findExistingCategoryId([
-          'ספרים אישיים',
-          folder.name,
-          ...relativeCategories,
-        ]);
-        if (categoryId == null) {
-          continue;
-        }
-
-        final title = path.basenameWithoutExtension(filePath);
-        final fileType =
-            path.extension(filePath).replaceFirst('.', '').toLowerCase();
-        final existingBook =
-            await _repository.checkBookExistsInCategoryWithFileType(
-          title,
-          categoryId,
-          fileType,
-        );
-        if (existingBook == null || existingBook.sourceId == sourceId) {
-          continue;
-        }
-
-        await _repository.updateBookSourceId(existingBook.id, sourceId);
-      }
-    }
-  }
 
   Future<bool> _categoryBelongsToAnyConfiguredFolder(
     int categoryId,
     List<CustomFolder> customFolders,
   ) async {
-    final descendantIds =
-        await _repository.getDescendantCategoryIds(categoryId);
+    final repo = _customFoldersRepo;
+    final descendantIds = await repo.getDescendantCategoryIds(categoryId);
     final sourceNameCache = <int, String?>{};
 
     for (final descendantId in descendantIds) {
-      final books = await _repository.getBooksByCategory(descendantId);
+      final books = await repo.getBooksByCategory(descendantId);
       for (final book in books) {
         final sourceName = sourceNameCache.containsKey(book.sourceId)
             ? sourceNameCache[book.sourceId]
             : (sourceNameCache[book.sourceId] =
-                (await _repository.getSourceById(book.sourceId))?.name);
+                (await repo.getSourceById(book.sourceId))?.name);
         final sourceFolderPath =
             _extractCustomFolderPathFromSourceName(sourceName);
         if (sourceFolderPath != null &&
@@ -387,11 +305,13 @@ class FileSyncService {
     return false;
   }
 
-  /// מוחק מה-DB תיקיות אישיות ישנות שכבר לא מוגדרות בהגדרות.
+  /// מוחק מה-DB של תיקיות מותאמות אישית את התיקיות שכבר לא מוגדרות
+  /// בהגדרות. פועל על user_books.db (דרך `_customFoldersRepo`).
   Future<void> pruneRemovedCustomFoldersFromDatabase(
     List<CustomFolder> customFolders,
   ) async {
-    final rootCategories = await _repository.getRootCategories();
+    final repo = _customFoldersRepo;
+    final rootCategories = await repo.getRootCategories();
     final personalCategory = rootCategories
         .where((category) => category.title == 'ספרים אישיים')
         .firstOrNull;
@@ -400,7 +320,7 @@ class FileSyncService {
     }
 
     final personalSubCategories =
-        await _repository.getCategoryChildren(personalCategory.id);
+        await repo.getCategoryChildren(personalCategory.id);
 
     final staleFolderCategories = <Category>[];
     for (final category in personalSubCategories) {
@@ -424,18 +344,16 @@ class FileSyncService {
     }
 
     await _cleanupEmptyParentCategories(personalCategory.id);
-    await _repository.deleteOrphanedTocTexts();
-    await _repository.deleteOrphanedLineToc();
+    await repo.deleteOrphanedTocTexts();
+    await repo.deleteOrphanedLineToc();
   }
 
   Future<void> refreshSourcesAndPruneRemovedCustomFolders(
     List<CustomFolder> customFolders,
   ) async {
-    if (await _needsCustomFolderSourceRefresh(customFolders)) {
-      await _refreshConfiguredCustomFolderSources(customFolders);
-      await _storeCustomFoldersRefreshSignature(customFolders);
-    }
-    await _repository.rebuildCategoryClosure();
+    // הערה: בעבר היה כאן rebuildCategoryClosure בלתי-מותנה שגרם להמון כתיבות
+    // לדיסק בכל עלייה. כיום insertCategory מתחזק את category_closure
+    // אינקרמנטלית, כך שה-rebuild המלא הזה כבר לא נחוץ כאן.
     await pruneRemovedCustomFoldersFromDatabase(customFolders);
   }
 
@@ -604,7 +522,6 @@ class FileSyncService {
 
   /// Pure sync logic — receives all inputs, touches no Settings.
   /// Suitable for running inside a background worker isolate.
-  /// Does NOT call [_storeCustomFoldersRefreshSignature]; the caller must.
   Future<FileSyncResult> syncCustomFoldersWithInputs({
     required String libraryPath,
     required List<CustomFolder> customFolders,
@@ -628,12 +545,16 @@ class FileSyncService {
     final errors = <String>[];
 
     try {
-      final generator =
-          DatabaseGenerator(libraryPath, _repository, onProgress: onProgress);
+      // Generator לתיקיות מותאמות אישית — כותב ל-user_books.db.
+      final customFoldersGenerator = DatabaseGenerator(
+        libraryPath,
+        _customFoldersRepo,
+        onProgress: onProgress,
+      );
       final libraryRoot = folderName.isNotEmpty
           ? path.join(libraryPath, folderName)
           : libraryPath;
-      generator.initializeForSync(libraryRoot: libraryRoot);
+      customFoldersGenerator.initializeForSync(libraryRoot: libraryRoot);
 
       _reportProgress(0.4, 'סורק תיקיות מותאמות אישית...');
 
@@ -656,7 +577,7 @@ class FileSyncService {
             categoryPrefix: ['ספרים אישיים', folder.name],
             insertContent: folder.addToDatabase,
             customSourceName: _buildCustomFolderSourceName(folder.path),
-            generator: generator,
+            generator: customFoldersGenerator,
           );
 
           addedBooks += result.addedBooks;
@@ -667,10 +588,8 @@ class FileSyncService {
         }
       }
 
-      if (addedCategories > 0) {
-        _reportProgress(0.95, 'מעדכן היררכיית קטגוריות...');
-        await _repository.rebuildCategoryClosure();
-      }
+      // category_closure מתעדכן אינקרמנטלית בכל insertCategory, אז אין צורך
+      // ב-rebuild גלובלי כאן גם כשהוספו קטגוריות חדשות.
 
       await pruneRemovedCustomFoldersFromDatabase(customFolders);
 
@@ -681,6 +600,8 @@ class FileSyncService {
         _log.info('Scanning links folder: $linksPath');
         _reportProgress(0.6, 'סורק תיקיית קישורים...');
 
+        // Links תמיד שייכים ל-seforim.db — ה-LinkProcessor מקבל את
+        // ה-repository הראשי (לא user_books).
         final linkProcessor = LinkProcessor(_repository);
         final linksResult = await linkProcessor.processLinksDirectory(
           linksPath: linksPath,
@@ -745,7 +666,6 @@ class FileSyncService {
       onProgress: onProgress,
     );
 
-    await _storeCustomFoldersRefreshSignature(customFolders);
     return result;
   }
 

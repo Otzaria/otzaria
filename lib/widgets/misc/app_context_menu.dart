@@ -343,6 +343,7 @@ class _AppContextMenuRegionState extends State<AppContextMenuRegion> {
         if (!entry.enabled) {
           return MenuItemButton(
             key: widget.menuItemKeysByLabel?[entry.label ?? ''],
+            requestFocusOnHover: false,
             style: buildAppSubmenuItemStyle(context, metrics),
             onPressed: null,
             child: buildAppMenuRowContent(
@@ -391,6 +392,7 @@ class _AppContextMenuRegionState extends State<AppContextMenuRegion> {
         if (!entry.enabled || !hasEnabledChildren) {
           return MenuItemButton(
             key: widget.menuItemKeysByLabel?[entry.label ?? ''],
+            requestFocusOnHover: false,
             style: buildAppSubmenuItemStyle(context, metrics),
             onPressed: null,
             child: buildAppMenuRowContent(
@@ -433,6 +435,7 @@ class _AppContextMenuRegionState extends State<AppContextMenuRegion> {
 
       return MenuItemButton(
         key: widget.menuItemKeysByLabel?[entry.label ?? ''],
+        requestFocusOnHover: false,
         style: buildAppSubmenuItemStyle(context, metrics),
         onPressed: entry.enabled
             ? () {
@@ -491,6 +494,7 @@ class _AppContextMenuRegionState extends State<AppContextMenuRegion> {
       if (entry.childrenBuilder != null) {
         if (!entry.enabled) {
           return MenuItemButton(
+            requestFocusOnHover: false,
             style: buildAppSubmenuItemStyle(context, metrics),
             onPressed: null,
             child: buildAppMenuRowContent(
@@ -530,6 +534,7 @@ class _AppContextMenuRegionState extends State<AppContextMenuRegion> {
             hasEnabledAppContextMenuEntries(normalizedChildren);
         if (!entry.enabled || !hasEnabledChildren) {
           return MenuItemButton(
+            requestFocusOnHover: false,
             style: buildAppSubmenuItemStyle(context, metrics),
             onPressed: null,
             child: buildAppMenuRowContent(
@@ -564,6 +569,7 @@ class _AppContextMenuRegionState extends State<AppContextMenuRegion> {
 
       return MenuItemButton(
         key: entry.key,
+        requestFocusOnHover: false,
         style: buildAppSubmenuItemStyle(context, metrics),
         onPressed: entry.enabled
             ? () {
@@ -619,6 +625,14 @@ class _LazyAppSubmenuButtonState extends State<_LazyAppSubmenuButton> {
   bool? _hasEnabledChildren;
   bool? _openToRight;
 
+  // SubmenuButton קוראת requestFocus() על ה-focusNode בעת ריחוף ופתיחת תת-תפריט.
+  // בלי canRequestFocus:false היא הייתה גוזלת פוקוס מ-SelectableRegion וגורמת
+  // ל-clearSelection() — סימון הטקסט הוויזואלי היה נעלם בעת פתיחת תת-תפריט.
+  late final FocusNode _submenuButtonFocusNode = FocusNode(
+    debugLabel: 'AppContextMenuSubmenuButton',
+    canRequestFocus: false,
+  );
+
   @override
   void initState() {
     super.initState();
@@ -628,6 +642,12 @@ class _LazyAppSubmenuButtonState extends State<_LazyAppSubmenuButton> {
         _ensureMenuChildrenLoaded();
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _submenuButtonFocusNode.dispose();
+    super.dispose();
   }
 
   void openSubmenu([VoidCallback? afterOpen]) {
@@ -712,6 +732,7 @@ class _LazyAppSubmenuButtonState extends State<_LazyAppSubmenuButton> {
 
     if (_hasEnabledChildren == false) {
       return MenuItemButton(
+        requestFocusOnHover: false,
         style: buildAppSubmenuItemStyle(context, widget.metrics),
         onPressed: null,
         child: buildAppMenuRowContent(
@@ -735,6 +756,7 @@ class _LazyAppSubmenuButtonState extends State<_LazyAppSubmenuButton> {
         onPointerDown: (_) => _ensureMenuChildrenLoaded(),
         child: SubmenuButton(
           controller: widget.controller,
+          focusNode: _submenuButtonFocusNode,
           onOpen: () {
             _ensureMenuChildrenLoaded();
             final shouldOpenToRight = _shouldOpenToRight();
@@ -798,8 +820,12 @@ class _AppContextMenuPanel extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    // descendantsAreFocusable:false מונע מ-SubmenuButton לגזול פוקוס מ-SelectableRegion
+    // דרך ה-_buttonFocusNode הפנימי שלו (שאינו נשלט מחוץ ל-Flutter).
+    // trade-off: ניווט מקלדת (Tab/חצים) בתוך התפריט אינו פועל — מקובל עבור תפריט הקשר.
     return FocusScope(
         skipTraversal: true,
+        descendantsAreFocusable: false,
         child: Material(
           color: menuStyle?.backgroundColor?.resolve(const <WidgetState>{}) ??
               colorScheme.surfaceContainer,

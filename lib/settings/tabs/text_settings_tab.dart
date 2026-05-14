@@ -76,7 +76,14 @@ class TextSettingsTab extends StatelessWidget {
       subtitle: 'הצג / הסתר ניקוד בתנ"ך ובכל הספרים',
       tab: SettingsTab.text,
       cardId: 'text.nikud',
-      keywords: ['ניקוד', 'תנך'],
+      keywords: [
+        'ניקוד',
+        'תנך',
+        'הצג תמיד',
+        'הצג בתנך',
+        'אל תציג',
+        'הסתר',
+      ],
     ),
     SettingsSearchEntry(
       id: 'text.nikud.holy_names',
@@ -84,7 +91,14 @@ class TextSettingsTab extends StatelessWidget {
       subtitle: 'הסתרת שם השם משיקולי קדושה',
       tab: SettingsTab.text,
       cardId: 'text.nikud',
-      keywords: ['שם השם', 'קדושה'],
+      keywords: [
+        'שם השם',
+        'קדושה',
+        'יוצג',
+        'לא יוצג',
+        'מופעל',
+        'לא מופעל',
+      ],
     ),
     SettingsSearchEntry(
       id: 'text.nikud.teamim',
@@ -92,7 +106,14 @@ class TextSettingsTab extends StatelessWidget {
       subtitle: 'הצג טעמים בתנ"ך',
       tab: SettingsTab.text,
       cardId: 'text.nikud',
-      keywords: ['טעמים', 'מקרא'],
+      keywords: [
+        'טעמים',
+        'מקרא',
+        'עם טעמים',
+        'ללא טעמים',
+        'מופעל',
+        'לא מופעל',
+      ],
     ),
     SettingsSearchEntry(
       id: 'text.copy.with_headers',
@@ -100,7 +121,14 @@ class TextSettingsTab extends StatelessWidget {
       subtitle: 'העתקת הטקסט עם שם הספר וכותרות',
       tab: SettingsTab.text,
       cardId: 'text.copy',
-      keywords: ['העתק', 'כותרת'],
+      keywords: [
+        'העתק',
+        'כותרת',
+        'ללא',
+        'שם הספר',
+        'שם וכותרת',
+        'נתיב',
+      ],
     ),
     SettingsSearchEntry(
       id: 'text.copy.format',
@@ -108,7 +136,14 @@ class TextSettingsTab extends StatelessWidget {
       subtitle: 'עיצוב כותרות בעת העתקה',
       tab: SettingsTab.text,
       cardId: 'text.copy',
-      keywords: ['העתק', 'כותרת', 'פורמט'],
+      keywords: [
+        'העתק',
+        'כותרת',
+        'פורמט',
+        'אותה שורה',
+        'פסקה נפרדת',
+        'סוגריים',
+      ],
     ),
     SettingsSearchEntry(
       id: 'text.per_book.enable',
@@ -116,7 +151,12 @@ class TextSettingsTab extends StatelessWidget {
       subtitle: 'שינויי תצוגה ייחודיים לכל ספר',
       tab: SettingsTab.text,
       cardId: 'text.per_book',
-      keywords: ['ספר נפרד', 'התאמה אישית'],
+      keywords: [
+        'ספר נפרד',
+        'התאמה אישית',
+        'מופעל',
+        'לא מופעל',
+      ],
     ),
     SettingsSearchEntry(
       id: 'text.per_book.reset',

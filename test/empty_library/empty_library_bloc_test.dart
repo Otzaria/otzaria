@@ -54,6 +54,8 @@ void main() {
       );
 
       final downloadedBytes = utf8.encode('compressed-db');
+      final talmudBytes = utf8.encode('compressed-talmud');
+      final catalogBytes = utf8.encode('compressed-catalog');
       final client = MockClient((request) async {
         if (request.url.path.endsWith('/releases/latest')) {
           return http.Response(
@@ -81,6 +83,16 @@ void main() {
           return http.Response.bytes(downloadedBytes, 200);
         }
 
+        if (request.url.host == 'github.com' &&
+            request.url.path.endsWith('talmud_bavli_latest.tar.zst')) {
+          return http.Response.bytes(talmudBytes, 200);
+        }
+
+        if (request.url.host == 'github.com' &&
+            request.url.path.endsWith('otzar-HB_catalog.db.zst')) {
+          return http.Response.bytes(catalogBytes, 200);
+        }
+
         return http.Response('not found', 404);
       });
 
@@ -90,14 +102,27 @@ void main() {
         extractCompressedDatabase: (archivePath, outputPath) async {
           // הקובץ הזמני חייב להיות בתיקיית temp של המערכת
           expect(archivePath, startsWith(Directory.systemTemp.path));
-          expect(path.basename(archivePath), 'otzaria_seforim.db.zst');
-          expect(await File(archivePath).readAsBytes(), downloadedBytes);
-          // כתיבת DB לנתיב הפלט הצפוי (תיקיית הספרייה)
-          expect(
-            outputPath,
-            path.join(tempDir.path, DatabaseConstants.databaseFileName),
-          );
-          await File(outputPath).writeAsBytes(const [1, 2, 3], flush: true);
+          // יכול להיות גם seforim.db.zst וגם otzar-HB_catalog.db.zst
+          final basename = path.basename(archivePath);
+          if (basename == 'otzaria_seforim.db.zst') {
+            expect(await File(archivePath).readAsBytes(), downloadedBytes);
+            expect(
+              outputPath,
+              path.join(tempDir.path, DatabaseConstants.databaseFileName),
+            );
+            await File(outputPath).writeAsBytes(const [1, 2, 3], flush: true);
+          } else if (basename == 'otzaria_otzar-HB_catalog.db.zst') {
+            expect(await File(archivePath).readAsBytes(), catalogBytes);
+            await File(outputPath).writeAsBytes(const [4, 5, 6], flush: true);
+          } else {
+            fail('Unexpected archive: $archivePath');
+          }
+        },
+        extractTarArchive: (archivePath, outputDir) async {
+          expect(archivePath, startsWith(Directory.systemTemp.path));
+          expect(path.basename(archivePath), 'otzaria_talmud_bavli.tar.zst');
+          expect(await File(archivePath).readAsBytes(), talmudBytes);
+          // לא יוצרים קבצי tar אמיתיים בטסט — מדמים חילוץ
         },
       );
       addTearDown(bloc.close);

@@ -15,20 +15,30 @@ void main() {
 
   late Directory tempDir;
   late String dbPath;
+  late String userBooksDbPath;
   late MyDatabase database;
+  late MyDatabase userBooksDatabase;
   late SeforimRepository repository;
+  late SeforimRepository userBooksRepository;
 
   setUp(() async {
     tempDir =
         await Directory.systemTemp.createTemp('otzaria-worker-test-');
     dbPath = p.join(tempDir.path, 'test.db');
+    userBooksDbPath = p.join(tempDir.path, 'user_books.db');
+
     database = MyDatabase.withPath(dbPath);
     repository = SeforimRepository(database);
     await repository.ensureInitialized();
+
+    userBooksDatabase = MyDatabase.withPath(userBooksDbPath);
+    userBooksRepository = SeforimRepository(userBooksDatabase);
+    await userBooksRepository.ensureInitialized();
   });
 
   tearDown(() async {
     database.close();
+    userBooksDatabase.close();
     if (await tempDir.exists()) {
       await tempDir.delete(recursive: true);
     }
@@ -60,6 +70,7 @@ void main() {
 
       final result = await runCustomFoldersDbSyncInIsolate(
         dbPath: dbPath,
+        userBooksDbPath: userBooksDbPath,
         libraryPath: libPath(),
         customFolders: [
           CustomFolder(
@@ -73,18 +84,18 @@ void main() {
       expect(result.errors, isEmpty, reason: 'אין שגיאות');
       expect(result.addedBooks, greaterThan(0), reason: 'ספר נוסף');
 
-      final personalCat = (await repository.getRootCategories())
+      final personalCat = (await userBooksRepository.getRootCategories())
           .where((c) => c.title == 'ספרים אישיים')
           .firstOrNull;
       expect(personalCat, isNotNull);
 
-      final folderCat = await repository.getCategoryByTitleAndParent(
+      final folderCat = await userBooksRepository.getCategoryByTitleAndParent(
         p.basename(folderPath),
         personalCat!.id,
       );
       expect(folderCat, isNotNull);
 
-      final books = await repository.getBooksByCategory(folderCat!.id);
+      final books = await userBooksRepository.getBooksByCategory(folderCat!.id);
       expect(books, hasLength(1));
       expect(books.first.title, 'ספר-א');
       // txt + addToDatabase=true → content stored in DB → generator nulls filePath
@@ -97,6 +108,7 @@ void main() {
 
       final result = await runCustomFoldersDbSyncInIsolate(
         dbPath: dbPath,
+        userBooksDbPath: userBooksDbPath,
         libraryPath: libPath(),
         customFolders: [
           CustomFolder(
@@ -109,14 +121,14 @@ void main() {
 
       expect(result.errors, isEmpty);
 
-      final personalCat = (await repository.getRootCategories())
+      final personalCat = (await userBooksRepository.getRootCategories())
           .where((c) => c.title == 'ספרים אישיים')
           .firstOrNull;
-      final folderCat = await repository.getCategoryByTitleAndParent(
+      final folderCat = await userBooksRepository.getCategoryByTitleAndParent(
         p.basename(folderPath),
         personalCat!.id,
       );
-      final books = await repository.getBooksByCategory(folderCat!.id);
+      final books = await userBooksRepository.getBooksByCategory(folderCat!.id);
       expect(books.first.isFileBacked, isTrue,
           reason: 'addToDatabase=false → ספר חיצוני');
     });
@@ -127,6 +139,7 @@ void main() {
 
       final result = await runCustomFoldersDbSyncInIsolate(
         dbPath: dbPath,
+        userBooksDbPath: userBooksDbPath,
         libraryPath: libPath(),
         customFolders: [
           CustomFolder(path: f1, addToDatabase: false, addedAt: DateTime(2026, 1, 1)),
@@ -143,16 +156,17 @@ void main() {
 
   group('runDeleteFolderFromDbInIsolate', () {
     test('מוחק קטגוריית תיקייה וספריה', () async {
-      final personalCatId = await repository.insertCategory(
+      final personalCatId = await userBooksRepository.insertCategory(
         const Category(title: 'ספרים אישיים'),
       );
-      final folderCatId = await repository.insertCategory(
+      final folderCatId = await userBooksRepository.insertCategory(
         Category(title: 'תיקיית-מחיקה', parentId: personalCatId, level: 1),
       );
-      final sourceId = await repository.insertSource('Personal::test', -1);
-      await repository.insertBook(
+      final sourceId =
+          await userBooksRepository.insertSource('Personal::test', -1);
+      await userBooksRepository.insertBook(
         Book(
-          id: await repository.getNextNegativeBookId(),
+          id: 0, // SQLite מקצה דרך AUTOINCREMENT
           categoryId: folderCatId,
           sourceId: sourceId,
           title: 'ספר למחיקה',
@@ -160,31 +174,34 @@ void main() {
           fileType: 'txt',
         ),
       );
-      await repository.rebuildCategoryClosure();
+      await userBooksRepository.rebuildCategoryClosure();
 
       await runDeleteFolderFromDbInIsolate(
         dbPath: dbPath,
+        userBooksDbPath: userBooksDbPath,
         folderCategoryId: folderCatId,
         personalCategoryId: personalCatId,
       );
 
-      expect(await repository.getCategory(folderCatId), isNull,
+      expect(await userBooksRepository.getCategory(folderCatId), isNull,
           reason: 'קטגוריית התיקייה נמחקה');
-      expect(await repository.getBooksByCategory(folderCatId), isEmpty,
+      expect(
+          await userBooksRepository.getBooksByCategory(folderCatId), isEmpty,
           reason: 'ספרי התיקייה נמחקו');
     });
 
     test('מנקה קטגוריית-אב ריקה לאחר המחיקה', () async {
-      final personalCatId = await repository.insertCategory(
+      final personalCatId = await userBooksRepository.insertCategory(
         const Category(title: 'ספרים אישיים'),
       );
-      final folderCatId = await repository.insertCategory(
+      final folderCatId = await userBooksRepository.insertCategory(
         Category(title: 'תיקייה-יחידה', parentId: personalCatId, level: 1),
       );
-      final sourceId = await repository.insertSource('Personal::sole', -1);
-      await repository.insertBook(
+      final sourceId =
+          await userBooksRepository.insertSource('Personal::sole', -1);
+      await userBooksRepository.insertBook(
         Book(
-          id: await repository.getNextNegativeBookId(),
+          id: 0, // SQLite מקצה דרך AUTOINCREMENT
           categoryId: folderCatId,
           sourceId: sourceId,
           title: 'ספר יחיד',
@@ -192,15 +209,16 @@ void main() {
           fileType: 'txt',
         ),
       );
-      await repository.rebuildCategoryClosure();
+      await userBooksRepository.rebuildCategoryClosure();
 
       await runDeleteFolderFromDbInIsolate(
         dbPath: dbPath,
+        userBooksDbPath: userBooksDbPath,
         folderCategoryId: folderCatId,
         personalCategoryId: personalCatId,
       );
 
-      expect(await repository.getCategory(personalCatId), isNull,
+      expect(await userBooksRepository.getCategory(personalCatId), isNull,
           reason: '"ספרים אישיים" ריקה — חייבת להינקות');
     });
   });
@@ -216,6 +234,7 @@ void main() {
 
       final future = runCustomFoldersDbSyncInIsolate(
         dbPath: dbPath,
+        userBooksDbPath: userBooksDbPath,
         libraryPath: libPath(),
         customFolders: [
           CustomFolder(
@@ -245,6 +264,7 @@ void main() {
       // Fire both without awaiting — queue serialises them automatically.
       final future1 = runCustomFoldersDbSyncInIsolate(
         dbPath: dbPath,
+        userBooksDbPath: userBooksDbPath,
         libraryPath: libPath(),
         customFolders: [
           CustomFolder(
@@ -253,6 +273,7 @@ void main() {
       );
       final future2 = runCustomFoldersDbSyncInIsolate(
         dbPath: dbPath,
+        userBooksDbPath: userBooksDbPath,
         libraryPath: libPath(),
         customFolders: [
           CustomFolder(
@@ -270,7 +291,8 @@ void main() {
         );
       }
 
-      final total = results.fold(0, (sum, r) => sum + r.addedBooks);
+      final total =
+          results.fold<int>(0, (sum, r) => sum + r.addedBooks);
       expect(total, equals(2), reason: 'כל worker הוסיף ספר אחד');
     });
   });

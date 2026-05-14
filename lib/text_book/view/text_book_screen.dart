@@ -20,9 +20,11 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
+import 'package:otzaria/text_book/utils/visible_index.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
 // [EDITING DISABLED] import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
@@ -55,6 +57,7 @@ import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
 import 'package:otzaria/settings/services/nikud_display_service.dart';
 import 'package:otzaria/text_book/view/page_shape/page_shape_settings_dialog.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
+import 'package:otzaria/utils/link_helpers.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -227,14 +230,17 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       // בדיקה אם יש ID לספר - אם לא, נחפש לפי כותרת
       int? bookId = state.book.id;
       if (bookId == null) {
-        final dbProvider = SqliteDataProvider.instance;
-        if (dbProvider.isInitialized && dbProvider.repository != null) {
-          final dbBook = state.book.categoryId != null
-              ? await dbProvider.repository!
-                  .getBookByTitleAndCategory(bookTitle, state.book.categoryId!)
-              : await dbProvider.repository!.getBookByTitle(bookTitle);
-          bookId = dbBook?.id;
-        }
+        final resolvedBook = await BookDatabaseResolver.resolveBook(
+          title: bookTitle,
+          categoryId: state.book.categoryId,
+          fileType: state.book.fileType,
+          filePath: state.book.filePath,
+          preferUserBooks: BookDatabaseResolver.isLikelyUserBook(
+            isUserBook: state.book.isUserBook,
+            categoryPath: state.book.categoryPath,
+          ),
+        );
+        bookId = resolvedBook?.book.id;
       }
 
       if (bookId == null) {
@@ -254,10 +260,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       debugPrint('Book found: $bookName (ID: $bookId)');
 
       // קבלת הפרק הנוכחי
-      final currentIndex =
-          state.positionsListener.itemPositions.value.isNotEmpty
-              ? state.positionsListener.itemPositions.value.first.index
-              : 0;
+      final currentIndex = _topmostVisibleIndex(state);
 
       // קבלת הכותרת הנוכחית
       String currentRef =
@@ -1478,29 +1481,13 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           widget: _buildPreviousPageButton(state),
           icon: FluentIcons.chevron_left_24_regular,
           tooltip: 'הקטע הקודם',
-          onPressed: () {
-            state.scrollController.scrollTo(
-              duration: const Duration(milliseconds: 300),
-              index: max(
-                0,
-                state.positionsListener.itemPositions.value.first.index - 1,
-              ),
-            );
-          },
+          onPressed: () => _scrollToPreviousSegment(state),
         ),
         ActionButtonData(
           widget: _buildNextPageButton(state),
           icon: FluentIcons.chevron_right_24_regular,
           tooltip: 'הקטע הבא',
-          onPressed: () {
-            state.scrollController.scrollTo(
-              index: max(
-                state.positionsListener.itemPositions.value.first.index + 1,
-                state.positionsListener.itemPositions.value.length - 1,
-              ),
-              duration: const Duration(milliseconds: 300),
-            );
-          },
+          onPressed: () => _scrollToNextSegment(state),
         ),
         ActionButtonData(
           widget: _buildNextTocButton(state),
@@ -1530,29 +1517,13 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           widget: _buildPreviousPageButton(state),
           icon: FluentIcons.chevron_left_24_regular,
           tooltip: 'הקטע הקודם',
-          onPressed: () {
-            state.scrollController.scrollTo(
-              duration: const Duration(milliseconds: 300),
-              index: max(
-                0,
-                state.positionsListener.itemPositions.value.first.index - 1,
-              ),
-            );
-          },
+          onPressed: () => _scrollToPreviousSegment(state),
         ),
         ActionButtonData(
           widget: _buildNextPageButton(state),
           icon: FluentIcons.chevron_right_24_regular,
           tooltip: 'הקטע הבא',
-          onPressed: () {
-            state.scrollController.scrollTo(
-              index: max(
-                state.positionsListener.itemPositions.value.first.index + 1,
-                state.positionsListener.itemPositions.value.length - 1,
-              ),
-              duration: const Duration(milliseconds: 300),
-            );
-          },
+          onPressed: () => _scrollToNextSegment(state),
         ),
         ActionButtonData(
           widget: _buildNextTocButton(state),
@@ -1626,6 +1597,42 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       //     tooltip: 'ערוך את הספר',
       //     onPressed: () => _handleFullFileEditorPress(context, state),
       //   ),
+
+      // העתק קישור ישיר
+      ActionButtonData(
+        widget: const SizedBox.shrink(),
+        icon: FluentIcons.link_24_regular,
+        tooltip: state.book.id != null
+            ? 'העתק קישור ישיר'
+            : 'העתק קישור ישיר (לא זמין לספר זה)',
+        onPressed: null,
+        submenuItems: state.book.id != null
+            ? () {
+                final bookId = state.book.id!;
+                return [
+                  ActionButtonData(
+                    widget: const SizedBox.shrink(),
+                    icon: FluentIcons.link_24_regular,
+                    tooltip: 'העתק קישור ישיר לספר זה',
+                    onPressed: () => copyLinkToClipboard(buildBookLink(bookId)),
+                  ),
+                  ActionButtonData(
+                    widget: const SizedBox.shrink(),
+                    icon: FluentIcons.link_multiple_24_regular,
+                    tooltip: 'העתק קישור ישיר למקטע זה',
+                    onPressed: () {
+                      final index =
+                          state.positionsListener.itemPositions.value.isNotEmpty
+                              ? state.positionsListener.itemPositions.value
+                                  .first.index
+                              : 0;
+                      copyLinkToClipboard(buildSectionLink(bookId, index));
+                    },
+                  ),
+                ];
+              }()
+            : null,
+      ),
 
       // 6) הדפסה - לא בתצוגה משולבת
       if (!widget.isInCombinedView)
@@ -2085,7 +2092,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         Settings.getValue<String>('key-shortcut-add-bookmark') ?? 'ctrl+b';
     return IconButton(
       onPressed: () async {
-        int index = state.positionsListener.itemPositions.value.first.index;
+        int index = _topmostVisibleIndex(state);
         final toc = state.book.tableOfContents;
         String ref = await refFromIndex(index, toc);
         // הוספת שם הספר לכותרת
@@ -2127,15 +2134,25 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     return IconButton(
       icon: const Icon(FluentIcons.chevron_left_24_regular),
       tooltip: 'הקטע הקודם',
-      onPressed: () {
-        state.scrollController.scrollTo(
-          duration: const Duration(milliseconds: 300),
-          index: max(
-            0,
-            state.positionsListener.itemPositions.value.first.index - 1,
-          ),
-        );
-      },
+      onPressed: () => _scrollToPreviousSegment(state),
+    );
+  }
+
+  void _scrollToPreviousSegment(TextBookLoaded state) {
+    final positions = state.positionsListener.itemPositions.value;
+    if (positions.isEmpty) return;
+    state.scrollController.scrollTo(
+      duration: const Duration(milliseconds: 300),
+      index: max(0, _topmostVisibleIndex(state) - 1),
+    );
+  }
+
+  void _scrollToNextSegment(TextBookLoaded state) {
+    final positions = state.positionsListener.itemPositions.value;
+    if (positions.isEmpty) return;
+    state.scrollController.scrollTo(
+      duration: const Duration(milliseconds: 300),
+      index: _bottommostVisibleIndex(state) + 1,
     );
   }
 
@@ -2143,15 +2160,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     return IconButton(
       icon: const Icon(FluentIcons.chevron_right_24_regular),
       tooltip: 'הקטע הבא',
-      onPressed: () {
-        state.scrollController.scrollTo(
-          index: max(
-            state.positionsListener.itemPositions.value.first.index + 1,
-            state.positionsListener.itemPositions.value.length - 1,
-          ),
-          duration: const Duration(milliseconds: 300),
-        );
-      },
+      onPressed: () => _scrollToNextSegment(state),
     );
   }
 
@@ -2231,9 +2240,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
   /// ניווט לכותרת הקודמת ב-TOC
   void _navigateToPreviousToc(TextBookLoaded state) {
-    final currentIndex = state.positionsListener.itemPositions.value.isNotEmpty
-        ? state.positionsListener.itemPositions.value.first.index
-        : 0;
+    final currentIndex = _topmostVisibleIndex(state);
     final prevIndex = _findPreviousTocIndex(
         state.tableOfContents, currentIndex, state.book.title);
     if (prevIndex != null) {
@@ -2246,9 +2253,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
   /// ניווט לכותרת הבאה ב-TOC
   void _navigateToNextToc(TextBookLoaded state) {
-    final currentIndex = state.positionsListener.itemPositions.value.isNotEmpty
-        ? state.positionsListener.itemPositions.value.first.index
-        : 0;
+    final currentIndex = _bottommostVisibleIndex(state);
     final nextIndex = _findNextTocIndex(
         state.tableOfContents, currentIndex, state.book.title);
     if (nextIndex != null) {
@@ -2358,30 +2363,22 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           final dbProvider = SqliteDataProvider.instance;
           if (await dbProvider.databaseExists() && dbProvider.isInitialized) {
             try {
-              final repository = dbProvider.repository;
-              if (repository != null) {
-                final dbBook = book.categoryId != null
-                    ? await repository.getBookByTitleAndCategory(
-                        bookTitle, book.categoryId!)
-                    : await repository.getBookByTitle(bookTitle);
-                if (dbBook != null) {
-                  final category =
-                      await repository.getCategory(dbBook.categoryId);
-                  if (category != null) {
-                    final categoryParts = <String>[];
-                    dynamic currentCategory = category;
-                    while (currentCategory != null) {
-                      categoryParts.insert(0, currentCategory.title);
-                      if (currentCategory.parentId != null) {
-                        currentCategory = await repository
-                            .getCategory(currentCategory.parentId!);
-                      } else {
-                        break;
-                      }
-                    }
-                    categoryPath = categoryParts.join('/');
-                  }
-                }
+              final resolvedBook = await BookDatabaseResolver.resolveBook(
+                title: bookTitle,
+                categoryId: book.categoryId,
+                fileType: book.fileType,
+                filePath: book.filePath,
+                preferUserBooks: BookDatabaseResolver.isLikelyUserBook(
+                  isUserBook: book.isUserBook,
+                  categoryPath: book.categoryPath,
+                ),
+              );
+              if (resolvedBook != null) {
+                categoryPath = await BookDatabaseResolver.buildCategoryPath(
+                  resolvedBook.repository,
+                  resolvedBook.book.categoryId,
+                );
+                categoryPath = categoryPath.replaceAll(', ', '/');
               }
             } catch (e) {
               debugPrint('Error getting category from DB: $e');
@@ -2437,20 +2434,25 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       return;
     }
 
-    final currentIndex = state.positionsListener.itemPositions.value.isNotEmpty
-        ? state.positionsListener.itemPositions.value.first.index
-        : 0;
+    final currentIndex = _topmostVisibleIndex(state);
     widget.tab.index = currentIndex;
 
     final index = await textToPdfPage(state.book, currentIndex);
 
     if (!context.mounted) return;
 
-    openBook(context, _pdfBook!, index ?? 1, '', ignoreHistory: true);
+    openBook(
+      context,
+      _pdfBook!,
+      index ?? 1,
+      '',
+      ignoreHistory: true,
+      requiresStableLayout: true,
+    );
   }
 
   void _handleBookmarkPress(BuildContext context, TextBookLoaded state) async {
-    final index = state.positionsListener.itemPositions.value.first.index;
+    final index = _topmostVisibleIndex(state);
     final toc = state.book.tableOfContents;
     final bookmarkBloc = context.read<BookmarkBloc>();
     String ref = await refFromIndex(index, toc);
@@ -2473,36 +2475,33 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     BuildContext context,
     TextBookLoaded state,
   ) {
-    return ValueListenableBuilder<double>(
-      valueListenable: _sidebarWidth,
-      builder: (context, width, child) => AdaptiveSidePane(
-        isOpen: state.showLeftPane,
-        alignment: AlignmentDirectional.centerEnd,
-        paneWidth: width,
-        minMainContentWidth: 520,
-        onClose: () =>
-            context.read<TextBookBloc>().add(const ToggleLeftPane(false)),
-        paneContent: widget.enableTourTargets
-            ? KeyedSubtree(
-                key: textBookNavPanelTourTargetKey,
-                child: _buildLeftPaneContent(state),
-              )
-            : _buildLeftPaneContent(state),
-        mainContent: _buildHTMLViewer(state),
-        isResizable: true,
-        minPaneWidth: 200,
-        maxPaneWidth: 600,
-        onPaneWidthChanged: (nextWidth) {
-          _sidebarWidth.value = nextWidth;
-        },
-        onPaneResizeEnd: () {
-          context
-              .read<SettingsBloc>()
-              .add(UpdateSidebarWidth(_sidebarWidth.value));
-        },
-        autoHandleResponsiveVisibility: false,
-        scrollbarTopMargin: 0,
-      ),
+    return AdaptiveSidePane(
+      isOpen: state.showLeftPane,
+      alignment: AlignmentDirectional.centerEnd,
+      paneWidth: _sidebarWidth.value,
+      minMainContentWidth: 520,
+      onClose: () =>
+          context.read<TextBookBloc>().add(const ToggleLeftPane(false)),
+      paneContent: widget.enableTourTargets
+          ? KeyedSubtree(
+              key: textBookNavPanelTourTargetKey,
+              child: _buildLeftPaneContent(state),
+            )
+          : _buildLeftPaneContent(state),
+      mainContent: _buildHTMLViewer(state),
+      isResizable: true,
+      minPaneWidth: 200,
+      maxPaneWidth: 600,
+      onPaneWidthChanged: (nextWidth) {
+        _sidebarWidth.value = nextWidth;
+      },
+      onPaneResizeEnd: () {
+        context
+            .read<SettingsBloc>()
+            .add(UpdateSidebarWidth(_sidebarWidth.value));
+      },
+      autoHandleResponsiveVisibility: false,
+      scrollbarTopMargin: 0,
     );
   }
 
@@ -2739,6 +2738,12 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   }
 }
 
+int _topmostVisibleIndex(TextBookLoaded state) =>
+    topmostVisibleIndex(state.positionsListener.itemPositions.value);
+
+int _bottommostVisibleIndex(TextBookLoaded state) =>
+    bottommostVisibleIndex(state.positionsListener.itemPositions.value);
+
 // [EDITING DISABLED]
 // // החלף את כל המחלקה הזו בקובץ text_book_screen.TXT
 //
@@ -2800,13 +2805,9 @@ bool _handleGlobalKeyEvent(KeyEvent event, BuildContext context,
 
   // חיפוש בספר
   if (ShortcutHelper.matchesShortcut(event, searchInBookShortcut)) {
-    context.read<TextBookBloc>().add(const ToggleLeftPane(true));
-    final tabController = context
+    context
         .findAncestorStateOfType<_TextBookViewerBlocState>()
-        ?.tabController;
-    if (tabController != null) {
-      tabController.index = 1;
-    }
+        ?._openSearchFromToolbar();
     return true;
   }
 
@@ -3015,7 +3016,7 @@ Future<void> _savePerBookSettingsDirectly(
 /// Helper function to add bookmark from keyboard shortcut
 void _addBookmarkFromKeyboard(
     BuildContext context, TextBookLoaded state) async {
-  final index = state.positionsListener.itemPositions.value.first.index;
+  final index = _topmostVisibleIndex(state);
   final toc = state.book.tableOfContents;
   final bookmarkBloc = context.read<BookmarkBloc>();
   String ref = await refFromIndex(index, toc);
@@ -3135,9 +3136,7 @@ Future<void> _addNoteFromKeyboard(
 
 void _togglePdfView(
     BuildContext context, TextBookLoaded state, TextBookTab tab) async {
-  final currentIndex = state.positionsListener.itemPositions.value.isNotEmpty
-      ? state.positionsListener.itemPositions.value.first.index
-      : 0;
+  final currentIndex = _topmostVisibleIndex(state);
   tab.index = currentIndex;
 
   final library = await DataRepository.instance.library;
@@ -3156,5 +3155,12 @@ void _togglePdfView(
 
   if (!context.mounted) return;
 
-  openBook(context, book, index ?? 1, '', ignoreHistory: true);
+  openBook(
+    context,
+    book,
+    index ?? 1,
+    '',
+    ignoreHistory: true,
+    requiresStableLayout: true,
+  );
 }

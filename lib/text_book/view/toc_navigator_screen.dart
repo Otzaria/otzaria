@@ -15,6 +15,7 @@ import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
 import 'package:otzaria/text_book/utils/reading_segments.dart';
 import 'package:otzaria/text_book/view/toc_filter.dart';
+import 'package:otzaria/text_book/view/toc_navigator_internals.dart';
 
 class TocViewer extends StatefulWidget {
   const TocViewer({
@@ -32,6 +33,11 @@ class TocViewer extends StatefulWidget {
   State<TocViewer> createState() => _TocViewerState();
 }
 
+/// סף שמעליו עוברים לרשימה שטוחה ו-ListView.builder וירטואלי.
+/// מתחת לסף - שומרים על המבנה הרקורסיבי (Column) שמתאים לספרים קטנים
+/// וכן לחיפוש (לא דורש וירטואליזציה).
+const int _kTocFlattenThreshold = 500;
+
 class _TocViewerState extends State<TocViewer>
     with AutomaticKeepAliveClientMixin<TocViewer> {
   @override
@@ -43,6 +49,13 @@ class _TocViewerState extends State<TocViewer>
   bool _isManuallyScrolling = false;
   int? _lastScrolledTocIndex;
   final Map<int, bool> _expanded = {};
+
+  // משמשים במסלול הוירטואלי בלבד. ScrollablePositionedList מאפשר גלילה
+  // לפי אינדקס פריט גם אם הפריט עוד לא נבנה בעץ.
+  final ItemScrollController _virtualScrollController =
+      ItemScrollController();
+  final ItemPositionsListener _virtualPositionsListener =
+      ItemPositionsListener.create();
 
   @override
   void dispose() {
@@ -89,12 +102,38 @@ class _TocViewerState extends State<TocViewer>
 
     _ensureParentsOpen(state.tableOfContents, activeIndex);
 
+    // החלטה בין מסלול וירטואלי לרקורסיבי - חייב להיות זהה ללוגיקה ב-build,
+    // אחרת ננסה לגלול בקונטרולר שלא מחובר.
+    final bool useFlat = searchController.text.isEmpty &&
+        countAllTocEntries(state.tableOfContents) > _kTocFlattenThreshold;
+
     SchedulerBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
 
       SchedulerBinding.instance.addPostFrameCallback((_) {
         if (!mounted || _isManuallyScrolling) return;
 
+        if (useFlat) {
+          // במסלול הוירטואלי הפריט הפעיל עשוי לא להיות בעץ. גוללים לפי
+          // אינדקס ברשימה השטוחה דרך ItemScrollController, שמטפל בגלילה
+          // לפריטים שאינם מורכבים.
+          if (!_virtualScrollController.isAttached) return;
+          final flat = flattenVisibleToc(state.tableOfContents, _expanded);
+          final flatIndex =
+              flat.indexWhere((item) => item.entry.index == activeIndex);
+          if (flatIndex < 0) return;
+
+          _virtualScrollController.scrollTo(
+            index: flatIndex,
+            alignment: 0.4, // קרוב למרכז, מעט מעל
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+          _lastScrolledTocIndex = activeIndex;
+          return;
+        }
+
+        // מסלול רקורסיבי - הפריט תמיד בנוי בעץ, ניתן להשתמש ב-GlobalKey
         final key = _tocItemKeys[activeIndex];
         final itemContext = key?.currentContext;
         if (itemContext == null) return;
@@ -131,7 +170,8 @@ class _TocViewerState extends State<TocViewer>
     });
   }
 
-  Widget _buildFilteredList(List<TocEntry> entries, BuildContext context) {
+  Widget _buildFilteredList(
+      List<TocEntry> entries, BuildContext context, int? activeIndex) {
     final normalizedQuery = utils.removeVolwels(
         SearchQueryBuilder.sanitizeQuery(searchController.text).trim());
     if (normalizedQuery.isEmpty) {
@@ -152,13 +192,19 @@ class _TocViewerState extends State<TocViewer>
               defaultExpanded: shouldExpandInSearch(
                 _expanded[filteredEntries[index].index],
               ),
+              activeIndex: activeIndex,
             ));
   }
 
-  Widget _buildTocItem(TocEntry entry,
-      {bool showFullText = false,
-      bool isFirstChild = false,
-      bool? defaultExpanded}) {
+  /// בונה שורה יחידה של TOC ללא ילדיו. משמש בשני המסלולים:
+  /// 1. הרקורסיבי (`_buildTocItem`) - לספרים קטנים עם Column מקונן.
+  /// 2. השטוח (`_buildVirtualizedTocList`) - לספרים גדולים עם וירטואליזציה.
+  Widget _buildTocRow(
+    TocEntry entry, {
+    bool showFullText = false,
+    required int? activeIndex,
+    required bool isExpanded,
+  }) {
     final itemKey = _tocItemKeys.putIfAbsent(entry.index, () => GlobalKey());
     void navigateToEntry() {
       setState(() {
@@ -188,191 +234,212 @@ class _TocViewerState extends State<TocViewer>
       }
     }
 
-    if (entry.children.isEmpty) {
-      return BlocBuilder<TextBookBloc, TextBookState>(
-        key: itemKey,
-        builder: (context, state) {
-          final int? autoIndex = state is TextBookLoaded &&
-                  state.selectedIndex == null &&
-                  state.visibleIndices.isNotEmpty
-              ? closestTocEntryIndex(
-                  state.tableOfContents, state.visibleIndices.first)
-              : null;
-          final bool selected = state is TextBookLoaded &&
-              ((state.selectedIndex != null &&
-                      state.selectedIndex == entry.index) ||
-                  autoIndex == entry.index);
+    final bool selected = activeIndex == entry.index;
 
-          return InkWell(
-            onTap: navigateToEntry,
-            child: Container(
-              padding: EdgeInsets.only(
-                right: 16.0 + (entry.level * 24.0),
-                left: 16.0,
-                top: 10.0,
-                bottom: 10.0,
-              ),
-              decoration: BoxDecoration(
-                color: selected
-                    ? Theme.of(context)
-                        .colorScheme
-                        .primaryContainer
-                        .withValues(alpha: 0.3)
-                    : null,
-                border: Border(
-                  bottom: BorderSide(
-                    color: Theme.of(context).dividerColor,
-                    width: 0.5,
-                  ),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    FluentIcons.text_bullet_list_24_regular,
-                    color: Theme.of(context).colorScheme.secondary,
-                    size: 18,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      showFullText ? entry.fullText : entry.text,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight:
-                            selected ? FontWeight.w600 : FontWeight.normal,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 2,
-                    ),
-                  ),
-                ],
+    if (entry.children.isEmpty) {
+      return InkWell(
+        key: itemKey,
+        onTap: navigateToEntry,
+        child: Container(
+          padding: EdgeInsets.only(
+            right: 16.0 + (entry.level * 24.0),
+            left: 16.0,
+            top: 10.0,
+            bottom: 10.0,
+          ),
+          decoration: BoxDecoration(
+            color: selected
+                ? Theme.of(context)
+                    .colorScheme
+                    .primaryContainer
+                    .withValues(alpha: 0.3)
+                : null,
+            border: Border(
+              bottom: BorderSide(
+                color: Theme.of(context).dividerColor,
+                width: 0.5,
               ),
             ),
-          );
-        },
-      );
-    } else {
-      final bool fallbackExpanded = entry.level == 1 || isFirstChild;
-      final bool isExpanded =
-          _expanded[entry.index] ?? (defaultExpanded ?? fallbackExpanded);
-
-      return Column(
-        key: itemKey,
-        children: [
-          BlocBuilder<TextBookBloc, TextBookState>(
-            builder: (context, state) {
-              final int? autoIndex = state is TextBookLoaded &&
-                      state.selectedIndex == null &&
-                      state.visibleIndices.isNotEmpty
-                  ? closestTocEntryIndex(
-                      state.tableOfContents, state.visibleIndices.first)
-                  : null;
-              final bool selected = state is TextBookLoaded &&
-                  ((state.selectedIndex != null &&
-                          state.selectedIndex == entry.index) ||
-                      autoIndex == entry.index);
-
-              return Container(
-                decoration: BoxDecoration(
-                  color: selected
-                      ? Theme.of(context)
-                          .colorScheme
-                          .primaryContainer
-                          .withValues(alpha: 0.3)
-                      : null,
-                  border: Border(
-                    bottom: BorderSide(
-                      color: Theme.of(context).dividerColor,
-                      width: 0.5,
-                    ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                FluentIcons.text_bullet_list_24_regular,
+                color: Theme.of(context).colorScheme.secondary,
+                size: 18,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  showFullText ? entry.fullText : entry.text,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
                   ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 2,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // ערך עם ילדים (header בלבד - בלי לרנדר את הילדים).
+    return Container(
+      key: itemKey,
+      decoration: BoxDecoration(
+        color: selected
+            ? Theme.of(context)
+                .colorScheme
+                .primaryContainer
+                .withValues(alpha: 0.3)
+            : null,
+        border: Border(
+          bottom: BorderSide(
+            color: Theme.of(context).dividerColor,
+            width: 0.5,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          // אזור הטקסט לניווט
+          Expanded(
+            child: InkWell(
+              onTap: navigateToEntry,
+              child: Container(
+                padding: EdgeInsets.only(
+                  right: 16.0 + (entry.level * 24.0),
+                  left: 8.0,
+                  top: 12.0,
+                  bottom: 12.0,
                 ),
                 child: Row(
                   children: [
-                    // אזור הטקסט לניווט
-                    Expanded(
-                      child: InkWell(
-                        onTap: navigateToEntry,
-                        child: Container(
-                          padding: EdgeInsets.only(
-                            right: 16.0 + (entry.level * 24.0),
-                            left: 8.0,
-                            top: 12.0,
-                            bottom: 12.0,
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                // רק רמה 1 מקבלת אייקון ספר, שאר הרמות מקבלות רשימה
-                                entry.level == 1
-                                    ? FluentIcons.book_24_regular
-                                    : FluentIcons.text_bullet_list_24_regular,
-                                color: entry.level == 1
-                                    ? Theme.of(context).colorScheme.primary
-                                    : Theme.of(context).colorScheme.secondary,
-                                size: entry.level == 1 ? 20 : 18,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  showFullText ? entry.fullText : entry.text,
-                                  style: TextStyle(
-                                    fontSize: entry.level == 1 ? 15 : 14,
-                                    fontWeight: entry.level == 1
-                                        ? FontWeight.w600
-                                        : FontWeight.normal,
-                                    color: entry.level == 1
-                                        ? Theme.of(context).colorScheme.primary
-                                        : null,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 2,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                    Icon(
+                      // רק רמה 1 מקבלת אייקון ספר, שאר הרמות מקבלות רשימה
+                      entry.level == 1
+                          ? FluentIcons.book_24_regular
+                          : FluentIcons.text_bullet_list_24_regular,
+                      color: entry.level == 1
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.secondary,
+                      size: entry.level == 1 ? 20 : 18,
                     ),
-                    // כפתור החץ לפתיחה/סגירה
-                    InkWell(
-                      onTap: () {
-                        setState(() {
-                          _expanded[entry.index] = !isExpanded;
-                        });
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.only(
-                          left: 16.0,
-                          right: 8.0,
-                          top: 12.0,
-                          bottom: 12.0,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        showFullText ? entry.fullText : entry.text,
+                        style: TextStyle(
+                          fontSize: entry.level == 1 ? 15 : 14,
+                          fontWeight: entry.level == 1
+                              ? FontWeight.w600
+                              : FontWeight.normal,
+                          color: entry.level == 1
+                              ? Theme.of(context).colorScheme.primary
+                              : null,
                         ),
-                        child: Icon(
-                          isExpanded
-                              ? FluentIcons.chevron_up_24_regular
-                              : FluentIcons.chevron_down_24_regular,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          size: 20,
-                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 2,
                       ),
                     ),
                   ],
                 ),
-              );
-            },
+              ),
+            ),
           ),
-          if (isExpanded)
-            ...entry.children.asMap().entries.map((e) => _buildTocItem(
-                  e.value,
-                  isFirstChild: isFirstChild && e.key == 0,
-                  defaultExpanded: defaultExpanded,
-                  showFullText: showFullText,
-                )),
+          // כפתור החץ לפתיחה/סגירה
+          InkWell(
+            onTap: () {
+              setState(() {
+                _expanded[entry.index] = !isExpanded;
+              });
+            },
+            child: Container(
+              padding: const EdgeInsets.only(
+                left: 16.0,
+                right: 8.0,
+                top: 12.0,
+                bottom: 12.0,
+              ),
+              child: Icon(
+                isExpanded
+                    ? FluentIcons.chevron_up_24_regular
+                    : FluentIcons.chevron_down_24_regular,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                size: 20,
+              ),
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  /// מסלול וירטואלי לספרים עם הרבה ערכי TOC. שיטוח העץ הגלוי לרשימה
+  /// שטוחה והעברתה ל-ScrollablePositionedList - בונה רק את הפריטים הנראים
+  /// על המסך (~30) במקום את כל אלפי הערכים. נבחר ScrollablePositionedList
+  /// (ולא ListView.builder רגיל) כי הוא תומך בגלילה לפי אינדקס פריט גם
+  /// כשהפריט הפעיל עוד לא נבנה בעץ - תנאי הכרחי ל-_scrollToActiveItem.
+  Widget _buildVirtualizedTocList(
+      List<TocEntry> entries, int? activeIndex) {
+    final flat = flattenVisibleToc(entries, _expanded);
+    return ScrollablePositionedList.builder(
+      itemScrollController: _virtualScrollController,
+      itemPositionsListener: _virtualPositionsListener,
+      itemCount: flat.length,
+      itemBuilder: (context, index) {
+        final item = flat[index];
+        return _buildTocRow(
+          item.entry,
+          activeIndex: activeIndex,
+          isExpanded: item.isExpanded,
+        );
+      },
+    );
+  }
+
+  // אופטימיזציה: activeIndex מחושב פעם אחת ב-build הראשי ומועבר כפרמטר.
+  // לפני האופטימיזציה כל ערך עטף BlocBuilder<TextBookBloc> וקרא בעצמו
+  // ל-closestTocEntryIndex (O(n)), מה שיצר O(n²) בספרים עם אלפי ערכי TOC.
+  Widget _buildTocItem(TocEntry entry,
+      {bool showFullText = false,
+      bool isFirstChild = false,
+      bool? defaultExpanded,
+      required int? activeIndex}) {
+    if (entry.children.isEmpty) {
+      return _buildTocRow(
+        entry,
+        showFullText: showFullText,
+        activeIndex: activeIndex,
+        isExpanded: false,
       );
     }
+
+    final bool fallbackExpanded = entry.level == 1 || isFirstChild;
+    final bool isExpanded =
+        _expanded[entry.index] ?? (defaultExpanded ?? fallbackExpanded);
+
+    return Column(
+      children: [
+        _buildTocRow(
+          entry,
+          showFullText: showFullText,
+          activeIndex: activeIndex,
+          isExpanded: isExpanded,
+        ),
+        if (isExpanded)
+          ...entry.children.asMap().entries.map((e) => _buildTocItem(
+                e.value,
+                isFirstChild: isFirstChild && e.key == 0,
+                defaultExpanded: defaultExpanded,
+                showFullText: showFullText,
+                activeIndex: activeIndex,
+              )),
+      ],
+    );
   }
 
   @override
@@ -401,8 +468,39 @@ class _TocViewerState extends State<TocViewer>
       },
       child: BlocBuilder<TextBookBloc, TextBookState>(
           bloc: context.read<TextBookBloc>(),
+          // אופטימיזציה: build רק כש-activeIndex עשוי להשתנות. בלי buildWhen
+          // הבנייה הייתה רצה בכל emit של ה-bloc (גם בגלילה רגילה),
+          // ובספרים עם אלפי ערכי TOC זה יצר frames של 5+ שניות.
+          buildWhen: (previous, current) {
+            if (current is! TextBookLoaded) return true;
+            if (previous is! TextBookLoaded) return true;
+            final prevFirst = previous.visibleIndices.isNotEmpty
+                ? previous.visibleIndices.first
+                : -1;
+            final currFirst = current.visibleIndices.isNotEmpty
+                ? current.visibleIndices.first
+                : -1;
+            return previous.selectedIndex != current.selectedIndex ||
+                prevFirst != currFirst ||
+                !identical(previous.tableOfContents, current.tableOfContents);
+          },
           builder: (context, state) {
             if (state is! TextBookLoaded) return const Center();
+
+            // חישוב יחיד של ה"ערך הפעיל" - מועבר כפרמטר ל-_buildTocItem
+            // במקום שכל פריט יחשב בעצמו (שזה מה שיצר את ה-O(n²)).
+            final int? activeIndex = state.selectedIndex ??
+                (state.visibleIndices.isNotEmpty
+                    ? closestTocEntryIndex(
+                        state.tableOfContents, state.visibleIndices.first)
+                    : null);
+
+            // החלטה בין מסלול רקורסיבי לוירטואלי. וירטואליזציה מופעלת רק
+            // כשיש הרבה ערכי TOC ולא במצב חיפוש (החיפוש כבר מצמצם את התוצאות).
+            final bool useFlat = searchController.text.isEmpty &&
+                countAllTocEntries(state.tableOfContents) >
+                    _kTocFlattenThreshold;
+
             return Column(
               children: [
                 Padding(
@@ -450,18 +548,25 @@ class _TocViewerState extends State<TocViewer>
                       }
                       return false;
                     },
-                    child: SingleChildScrollView(
-                      controller: _tocScrollController,
-                      child: searchController.text.isEmpty
-                          ? ListView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemCount: state.tableOfContents.length,
-                              itemBuilder: (context, index) => _buildTocItem(
-                                  state.tableOfContents[index],
-                                  isFirstChild: index == 0))
-                          : _buildFilteredList(state.tableOfContents, context),
-                    ),
+                    child: useFlat
+                        ? _buildVirtualizedTocList(
+                            state.tableOfContents, activeIndex)
+                        : SingleChildScrollView(
+                            controller: _tocScrollController,
+                            child: searchController.text.isEmpty
+                                ? ListView.builder(
+                                    shrinkWrap: true,
+                                    physics:
+                                        const NeverScrollableScrollPhysics(),
+                                    itemCount: state.tableOfContents.length,
+                                    itemBuilder: (context, index) =>
+                                        _buildTocItem(
+                                            state.tableOfContents[index],
+                                            isFirstChild: index == 0,
+                                            activeIndex: activeIndex))
+                                : _buildFilteredList(state.tableOfContents,
+                                    context, activeIndex),
+                          ),
                   ),
                 ),
               ],

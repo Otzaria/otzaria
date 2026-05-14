@@ -193,6 +193,9 @@ jobs:
       - name: Remove PDFium WASM modules
         run: dart run pdfrx:remove_wasm_modules
 
+      - name: Generate settings search index
+        run: dart run tool/generate_search_index.dart
+
       - name: Build Android App Bundle
         env:
           ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/android/app/keystore/otzaria-keystore.jks

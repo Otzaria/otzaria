@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
@@ -99,35 +100,42 @@ class BookFacet {
       // Fallback: try to get from database directly
       final sqliteProvider = SqliteDataProvider.instance;
       if (sqliteProvider.isInitialized) {
-        final repository = sqliteProvider.repository;
-        if (repository != null) {
+        final resolvedBook = bookId != null
+            ? await BookDatabaseResolver.resolveBookById(
+                bookId,
+                preferUserBooks: BookDatabaseResolver.isLikelyUserBook(
+                  categoryPath: categoryPath,
+                ),
+              )
+            : await BookDatabaseResolver.resolveBook(
+                title: title,
+                fileType: fileType,
+                filePath: filePath,
+                preferUserBooks: BookDatabaseResolver.isLikelyUserBook(
+                  categoryPath: categoryPath,
+                ),
+              );
+        if (resolvedBook != null) {
           debugPrint('📚 BookFacet: Searching in DB for title: $title');
 
-          final dbBook = bookId != null
-              ? await repository.getBook(bookId)
-              : await repository.getBookByTitle(title);
-          if (dbBook != null) {
-            // Try topics first
-            final topics = dbBook.topics.map((t) => t.name).join(', ');
-            if (topics.isNotEmpty) {
-              debugPrint('📚 BookFacet: Found book in DB with topics: $topics');
-              return topics;
-            }
+          final topics = resolvedBook.book.topics.map((t) => t.name).join(', ');
+          if (topics.isNotEmpty) {
+            debugPrint('📚 BookFacet: Found book in DB with topics: $topics');
+            return topics;
+          }
 
-            // Fallback: build category path
-            debugPrint(
-                '📚 BookFacet: No topics, building category path for categoryId: ${dbBook.categoryId}');
-            final categoryPath =
-                await _buildCategoryPath(repository, dbBook.categoryId);
-            if (categoryPath.isNotEmpty) {
-              debugPrint('📚 BookFacet: Built category path: $categoryPath');
-              return categoryPath;
-            }
-          } else {
-            debugPrint('📚 BookFacet: Book not found in DB');
+          debugPrint(
+              '📚 BookFacet: No topics, building category path for categoryId: ${resolvedBook.book.categoryId}');
+          final builtPath = await _buildCategoryPath(
+            resolvedBook.repository,
+            resolvedBook.book.categoryId,
+          );
+          if (builtPath.isNotEmpty) {
+            debugPrint('📚 BookFacet: Built category path: $builtPath');
+            return builtPath;
           }
         } else {
-          debugPrint('📚 BookFacet: Repository is null');
+          debugPrint('📚 BookFacet: Book not found in DB');
         }
       } else {
         debugPrint('📚 BookFacet: SqliteProvider not initialized');

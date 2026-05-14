@@ -85,22 +85,12 @@ class PluginManifestValidator {
       }
     }
 
-    if (manifest.toolTabIconVariant != null &&
-        manifest.toolTabIconCodepoint == null) {
+    final iconName = manifest.toolTabIconName;
+    if (iconName != null &&
+        !PluginManifest.toolTabIconNamePattern.hasMatch(iconName)) {
       throw Exception(
-          'toolTab.iconVariant הוגדר ללא toolTab.iconCodepoint תואם');
-    }
-
-    if (manifest.toolTabIconCodepoint != null) {
-      if (manifest.toolTabIconCodepoint! < 0) {
-        throw Exception('toolTab.iconCodepoint חייב להיות מספר חיובי');
-      }
-
-      final variant = manifest.toolTabIconVariant;
-      if (variant != null &&
-          !PluginManifest.supportedToolTabIconVariants.contains(variant)) {
-        throw Exception('toolTab.iconVariant חייב להיות regular או filled');
-      }
+          'toolTab.iconName חייב להיות שם אייקון FluentUI 24px תקין '
+          '(למשל "book_24_regular" או "calendar_24_filled")');
     }
 
     final entrypointPath =

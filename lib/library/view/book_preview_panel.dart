@@ -261,12 +261,12 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return Stack(
-      children: [
-        // תוכן הספר (מלא את כל השטח)
-        GestureDetector(
-          onDoubleTap: _openCurrentPreviewInReader,
-          child: BlocProvider.value(
+    return GestureDetector(
+      onDoubleTap: _openCurrentPreviewInReader,
+      child: Stack(
+        children: [
+          // תוכן הספר (מלא את כל השטח)
+          BlocProvider.value(
             value: _currentTextTab!.bloc,
             child: BlocBuilder<SettingsBloc, SettingsState>(
               builder: (context, settingsState) {
@@ -314,54 +314,58 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
               },
             ),
           ),
-        ),
-        // כפתורים צפים בפינה השמאלית העליונה — top תואם ל-_kWideTopGap של AdaptiveSidePane
-        Positioned(
-          top: 14,
-          left: 14,
-          child: Builder(
-            builder: (context) {
-              return Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _PreviewPanelSecondaryButton(
-                    tooltip: 'הגדל טקסט',
-                    icon: FluentIcons.zoom_in_24_regular,
-                    onPressed: () {
-                      setState(() {
-                        _fontSize = (_fontSize + 2).clamp(10.0, 50.0);
-                      });
-                      _currentTextTab!.bloc.add(
-                        UpdateFontSize(_fontSize),
-                      );
-                    },
-                  ),
-                  const SizedBox(width: 6),
-                  _PreviewPanelSecondaryButton(
-                    tooltip: 'הקטן את גודל הטקסט',
-                    icon: FluentIcons.zoom_out_24_regular,
-                    onPressed: () {
-                      setState(() {
-                        _fontSize = (_fontSize - 2).clamp(10.0, 50.0);
-                      });
-                      _currentTextTab!.bloc.add(
-                        UpdateFontSize(_fontSize),
-                      );
-                    },
-                  ),
-                  const SizedBox(width: 6),
-                  ToolNavigateButton(
-                    tooltip: 'פתח בעיון (או לחץ פעמיים על הספר)',
-                    onPressed: () {
-                      widget.onOpenInReader?.call(_currentTextTab?.index ?? 0);
-                    },
-                  ),
-                ],
-              );
-            },
+          // כפתורים צפים בפינה השמאלית העליונה — top תואם ל-_kWideTopGap של AdaptiveSidePane
+          Positioned(
+            top: 14,
+            left: 14,
+            child: GestureDetector(
+              onDoubleTap: () {}, // בולע double-tap כדי שלא יפתח את הספר
+              child: Builder(
+                builder: (context) {
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _PreviewPanelSecondaryButton(
+                        tooltip: 'הגדל טקסט',
+                        icon: FluentIcons.zoom_in_24_regular,
+                        onPressed: () {
+                          setState(() {
+                            _fontSize = (_fontSize + 2).clamp(10.0, 50.0);
+                          });
+                          _currentTextTab!.bloc.add(
+                            UpdateFontSize(_fontSize),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 6),
+                      _PreviewPanelSecondaryButton(
+                        tooltip: 'הקטן את גודל הטקסט',
+                        icon: FluentIcons.zoom_out_24_regular,
+                        onPressed: () {
+                          setState(() {
+                            _fontSize = (_fontSize - 2).clamp(10.0, 50.0);
+                          });
+                          _currentTextTab!.bloc.add(
+                            UpdateFontSize(_fontSize),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 6),
+                      ToolNavigateButton(
+                        tooltip: 'פתח בעיון (או לחץ פעמיים על הספר)',
+                        onPressed: () {
+                          widget.onOpenInReader
+                              ?.call(_currentTextTab?.index ?? 0);
+                        },
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

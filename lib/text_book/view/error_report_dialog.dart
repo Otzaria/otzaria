@@ -1234,6 +1234,7 @@ class _RegularReportTabState extends State<RegularReportTab> {
                   controller: _detailsController,
                   minLines: 3,
                   maxLines: null,
+                  autofocus: true,
                   decoration: const InputDecoration(
                     isDense: true,
                     border: OutlineInputBorder(),

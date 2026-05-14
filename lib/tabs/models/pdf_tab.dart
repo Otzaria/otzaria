@@ -70,6 +70,11 @@ class PdfBookTab extends OpenedTab {
   /// Saved layout mode for restoration after rebuild
   PdfLayoutMode? savedLayoutMode;
 
+  /// כשפתיחה ישירה לעמוד גבוה — מבטל progressive loading כדי למנוע קפיצות
+  /// ויזואליות שנובעות מעדכון ממדי עמודים שנטענים ברקע. תמורת כך הפתיחה
+  /// איטית יותר. נכון רק לתרחישי פתיחה ישירה (דף יומי, מעבר מטקסט ל-PDF).
+  final bool requiresStableLayout;
+
   /// Creates a new instance of [PdfBookTab].
   ///
   /// The [book] parameter represents the PDF book, and the [pageNumber]
@@ -88,6 +93,7 @@ class PdfBookTab extends OpenedTab {
     this.pdfSearchCurrentMatchIndex,
     bool isPinned = false,
     String? dedupeKey,
+    this.requiresStableLayout = false,
   }) : super(book.title, isPinned: isPinned, dedupeKey: dedupeKey) {
     debugPrint(
         '🔧 PdfBookTab created: book=${book.title}, pageNumber=$pageNumber');

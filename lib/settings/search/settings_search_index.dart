@@ -3,12 +3,22 @@ import 'package:otzaria/settings/search/settings_search_models.dart';
 
 /// אינדקס חיפוש בהגדרות. הפריטים עצמם מוצהרים בכל טאב/פנל בנפרד
 /// (כ-`static const List<SettingsSearchEntry> searchEntries`),
-/// והאיחוד נוצר אוטומטית על ידי `hook/build.dart` בכל
-/// `flutter run` / `flutter build` אל קובץ
-/// `settings_search_index.g.dart`.
+/// והאיחוד נוצר אוטומטית אל קובץ `settings_search_index.g.dart`
+/// (gitignored — לא נדחף לרפו).
 ///
-/// כדי להוסיף פריט חיפוש: ערוך את `static const searchEntries` שבטאב
-/// הרלוונטי. הקובץ המאוחד יתעדכן אוטומטית בבנייה הבאה.
+/// **שתי דרכים לייצור הקובץ:**
+/// 1. אוטומטית — `hook/build.dart` רץ על `flutter run` / `flutter build`.
+/// 2. ידנית / CI — `dart run tool/generate_search_index.dart`.
+///
+/// **CI workflow** — הוסף לפני `flutter analyze` / `flutter test`:
+/// ```yaml
+/// - run: flutter pub get
+/// - run: dart run tool/generate_search_index.dart
+/// - run: flutter analyze
+/// ```
+///
+/// **כדי להוסיף פריט חיפוש**: ערוך את `static const searchEntries`
+/// שבטאב הרלוונטי. הקובץ המאוחד יתעדכן אוטומטית בבנייה הבאה.
 class SettingsSearchIndex {
   static List<SettingsSearchEntry> get allEntries =>
       kGeneratedSettingsSearchEntries;

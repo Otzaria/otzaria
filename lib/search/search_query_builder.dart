@@ -26,17 +26,59 @@ class SearchQueryBuilder {
 
   static String buildWordKey(String word, int index) => '${word}_$index';
 
+  /// רגקס לחילוץ מילות חיפוש:
+  /// - `"` תמיד מפריד (גרשיים — מפצל `ז"ל` לשני טוקנים).
+  /// - `'` בסוף מילה נשמר כחלק מהטוקן (כך `תוס'` נשאר `תוס'`).
+  /// - `'` באמצע מילה מפריד (`ד'אש` → `ד` + `אש`).
+  /// תואם את התנהגות HebrewTokenizer בצד ה-Rust.
+  static final RegExp _tokenExtractor = RegExp(
+    r"""[א-ת֐-ׇA-Za-z0-9]+(?:'(?![א-ת֐-ׇA-Za-z0-9]))?""",
+  );
+
   static List<String> splitQueryWords(String query) {
     final cleanedQuery = sanitizeQuery(query);
-    return cleanedQuery
-        .trim()
-        .split(SearchRegexPatterns.wordSplitter)
+    return _tokenExtractor
+        .allMatches(cleanedQuery.trim())
+        .map((m) => m.group(0)!)
         .where((w) => w.isNotEmpty)
         .toList();
   }
 
   static bool usesAdvancedParameters(SearchMode searchMode) {
     return searchMode == SearchMode.advanced;
+  }
+
+  /// בונה מפת אפשרויות חיפוש אפקטיבית מתוך הגדרות גלובליות.
+  /// יוצרת מפתח לכל מילה בשאילתה עם אותן אפשרויות.
+  static Map<String, Map<String, bool>> expandGlobalOptionsToWords(
+    String query,
+    Map<String, bool> globalOptions,
+  ) {
+    if (globalOptions.isEmpty ||
+        !globalOptions.values.any((enabled) => enabled)) {
+      return const {};
+    }
+    final words = splitQueryWords(query);
+    final result = <String, Map<String, bool>>{};
+    for (var i = 0; i < words.length; i++) {
+      result[buildWordKey(words[i], i)] = Map<String, bool>.from(globalOptions);
+    }
+    return result;
+  }
+
+  /// בוחר את מפת אפשרויות החיפוש האפקטיבית לפי המצב.
+  /// במצב גלובלי - מרחיב את ההגדרות הגלובליות לכל מילה בשאילתה.
+  /// במצב פר-מילה - מחזיר את ההגדרות הפר-מיליות כמות שהן.
+  static Map<String, Map<String, bool>> effectiveSearchOptions({
+    required String query,
+    required bool useGlobalOptions,
+    required Map<String, bool> globalOptions,
+    required Map<String, Map<String, bool>> perWordOptions,
+  }) {
+    if (useGlobalOptions) {
+      return expandGlobalOptionsToWords(query, globalOptions);
+    }
+    return perWordOptions;
   }
 
   static bool hasEnabledSearchOptions(
@@ -117,12 +159,17 @@ class SearchQueryBuilder {
   }
 
   /// ניקוי שאילתה מתווים מיוחדים שיכולים להפריע לחיפוש
-  /// מסירים גם פסיקים וגרשיים/גרש
-  /// המקף העברי (־) מומר לרווח רגיל כדי שיתפצל למילים נפרדות בחיפוש
+  /// גרשיים וגרש עבריים (״ ׳) מומרים לגרשיים וגרש לועזיים (" ')
+  /// המקף העברי (־) והמקף הלועזי (-) מומרים לרווח כדי שיתפצלו למילים נפרדות
+  /// רווחים מרובים מצומצמים לרווח יחיד בסיום התהליך
   static String sanitizeQuery(String query) {
     return query
+        .replaceAll('״', '"')
+        .replaceAll('׳', "'")
         .replaceAll('־', ' ')
-        .replaceAll(RegExp(r"""[,!?'"״׳":*\(\)\[\]\{\}\^\$\|\\+.~`]"""), '')
+        .replaceAll('-', ' ')
+        .replaceAll(RegExp(r"""[,;!?:*\(\)\[\]\{\}\^\$\|\\+.~`]"""), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
   }
 
@@ -284,8 +331,10 @@ class SearchQueryBuilder {
                   customSpacing, words.length)
               : distance;
     } else if (words.length == 1) {
-      // מילה אחת - חיפוש פשוט
-      regexTerms = [query];
+      // מילה אחת - חיפוש פשוט. משתמשים במילה אחרי sanitize+split
+      // כדי שתווי פיסוק כמו `'`, `"`, `!` שהוסרו במהלך הניקוי לא יזלגו לרגקס
+      // וייצרו טוקן שלא קיים באינדקס.
+      regexTerms = [words.first];
       effectiveSlop = 0;
     } else if (hasCustomSpacing) {
       // מרווחים מותאמים אישית

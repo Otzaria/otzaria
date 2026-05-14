@@ -1,4 +1,3 @@
-import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
 import 'author_dao.dart';
@@ -19,8 +18,10 @@ import 'topic_dao.dart';
 import '../sql/query_loader.dart';
 
 class MyDatabase {
-  static sqlite3.Database? _database;
-  static String? _customPath;
+  // הקובץ מוחזק ברמת המופע, לא static. זה מאפשר ליצור כמה מופעים
+  // (למשל seforim.db לצד user_books.db) שלא יתנגשו זה בזה.
+  sqlite3.Database? _database;
+  final String _path;
 
   // (no platform initialization required – sqlite3 handles all platforms natively)
 
@@ -122,23 +123,14 @@ class MyDatabase {
     }
   }
 
-  MyDatabase._privateConstructor();
-
-  static final MyDatabase _instance = MyDatabase._privateConstructor();
-
-  factory MyDatabase() {
-    return _instance;
-  }
-
-  /// Creates a new MyDatabase instance with a custom database path.
-  /// This is useful when you need to specify the exact database file.
-  factory MyDatabase.withPath(String path) {
-    _customPath = path;
-    // Create a new instance to avoid conflicts with the singleton
-    final instance = MyDatabase._privateConstructor();
-    // DAOs will be initialized in _onCreate when the database is first opened
-    return instance;
-  }
+  /// יוצרת מופע MyDatabase שמצביע על נתיב DB ספציפי.
+  ///
+  /// כל מופע מחזיק את ה-connection וה-DAOs שלו, כך שניתן להריץ
+  /// בו-זמנית את seforim.db ואת user_books.db ללא התנגשויות.
+  /// אין סינגלטון ברירת-מחדל — כל קוד הצורך גישה ל-seforim.db עובר דרך
+  /// [SqliteDataProvider], וקוד הצורך גישה ל-user_books.db דרך
+  /// [UserBooksDatabaseHolder].
+  MyDatabase.withPath(String path) : _path = path;
 
   Future<sqlite3.Database> get database async {
     if (_database != null) return _database!;
@@ -150,18 +142,7 @@ class MyDatabase {
   }
 
   sqlite3.Database _initDatabase() {
-    String path;
-
-    if (_customPath != null) {
-      // Use the custom path provided
-      path = _customPath!;
-    } else {
-      // Use the current working directory as the database folder.
-      final dbFolder = p.current;
-      path = p.join(dbFolder, 'db.sqlite');
-    }
-
-    final db = sqlite3.sqlite3.open(path);
+    final db = sqlite3.sqlite3.open(_path);
 
     // Enable WAL for concurrent read/write access (uniform across all platforms).
     // May fail if another process holds the DB lock (e.g. second instance or stale lock).

@@ -96,9 +96,12 @@ class HistoryView extends StatelessWidget {
               tabsBloc.add(AddTab(searchTab));
 
               // Restore search query and options
+              // ההיסטוריה שומרת אפשרויות מורחבות פר-מילה,
+              // לכן עוברים למצב פר-מילה כדי שהן יוצגו ויפעלו בדיוק כפי שנשמרו
               searchTab.queryController.text = item.book.title;
               searchTab.searchOptions.clear();
               searchTab.searchOptions.addAll(item.searchOptions ?? {});
+              searchTab.useGlobalSearchOptions.value = false;
               searchTab.alternativeWords.clear();
               searchTab.alternativeWords.addAll(item.alternativeWords ?? {});
               searchTab.spacingValues.clear();

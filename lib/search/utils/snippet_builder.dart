@@ -350,7 +350,8 @@ class SnippetBuilder {
 
     // אם לא נמצא ביטוי - מחזירים רשימה ריקה. דע caller יבחר להציג קטע ללא הדגשה.
     // זה הוגן מהדגשת הופעות בודדות לא-קשורות.
-    return _mergeOverlappingRanges(result);
+    final merged = _mergeOverlappingRanges(result);
+    return _mergeAdjacentQuoteGaps(plainText, merged);
   }
 
   static bool _tryMatchPhraseContinuation({
@@ -491,7 +492,7 @@ class SnippetBuilder {
       return matches;
     }
 
-    final tokenRegex = RegExp(r'[א-תA-Za-z0-9"״׳]+');
+    final tokenRegex = RegExp(r'[א-תA-Za-z0-9]+');
     for (final tokenMatch in tokenRegex.allMatches(plainText)) {
       if (_overlapsExistingMatch(
           tokenMatch.start, tokenMatch.end, existingMatches)) {
@@ -615,6 +616,28 @@ class SnippetBuilder {
     }
 
     return merged;
+  }
+
+  static final RegExp _quoteOnlyGap = RegExp(r'''^["'״׳]+$''');
+
+  static List<_SnippetMatchRange> _mergeAdjacentQuoteGaps(
+    String plainText,
+    List<_SnippetMatchRange> ranges,
+  ) {
+    if (ranges.length < 2) return ranges;
+    final result = <_SnippetMatchRange>[ranges.first];
+    for (final range in ranges.skip(1)) {
+      final prev = result.last;
+      if (range.start > prev.end) {
+        final gap = plainText.substring(prev.end, range.start);
+        if (_quoteOnlyGap.hasMatch(gap)) {
+          result[result.length - 1] = _SnippetMatchRange(prev.start, range.end);
+          continue;
+        }
+      }
+      result.add(range);
+    }
+    return result;
   }
 
   static bool _overlapsExistingMatch(
@@ -884,7 +907,10 @@ class SnippetBuilder {
   static List<_SearchToken> _collectSearchTokens(String plainText) {
     final tokens = <_SearchToken>[];
     for (final match
-        in RegExp(r'[א-תA-Za-z0-9"״׳\u0591-\u05C7]+').allMatches(plainText)) {
+        // מחריגים ־ (U+05BE) ו-׀ (U+05C0) מהטווח כדי שמילים מופרדות במקף יפוצלו
+        // לטוקנים נפרדים — sanitizeQuery ממיר ־ לרווח בשאילתה.
+        in RegExp(r'''[א-תA-Za-z0-9֑-ֽֿׁ-ׇ]+(?:['׳](?![א-תA-Za-z0-9֑-ֽֿׁ-ׇ]))?''')
+            .allMatches(plainText)) {
       final token = match.group(0);
       if (token == null || token.isEmpty) {
         continue;
@@ -973,7 +999,15 @@ class SnippetBuilder {
 
     final buffer = StringBuffer();
     for (var i = 0; i < chars.length; i++) {
-      buffer.write(RegExp.escape(chars[i]));
+      final ch = chars[i];
+      // " ו-' בשאילתה מתאימים גם ל-״ ו-׳ בטקסט המוצג.
+      if (ch == '"') {
+        buffer.write('["\u05F4]');
+      } else if (ch == "'") {
+        buffer.write("['\u05F3]");
+      } else {
+        buffer.write(RegExp.escape(ch));
+      }
       buffer.write(r'[\u0591-\u05C7]*');
       if (i < chars.length - 1) {
         buffer.write(optionalQuotesAndMarks);

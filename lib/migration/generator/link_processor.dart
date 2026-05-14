@@ -256,11 +256,8 @@ class LinkProcessor {
             continue;
           }
 
-          // קבל מזהה לינק שלילי חדש
-          final negativeLinkId = await _repository.getNextNegativeLinkId();
-
           linksToInsert.add(Link(
-            id: negativeLinkId,
+            id: 0,
             sourceBookId: sourceBookId,
             targetBookId: targetBookId,
             sourceLineId: sourceLineId,

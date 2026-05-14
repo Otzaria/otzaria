@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
@@ -10,6 +11,11 @@ enum InstallMode { systemWide, perUser }
 /// Centralizes path construction logic to avoid duplication.
 class AppPaths {
   static String? _cachedDataRootPath;
+
+  @visibleForTesting
+  static void debugOverrideDataRootPath(String? path) {
+    _cachedDataRootPath = path;
+  }
 
   /// Returns the default writable root for user-scoped app data.
   static Future<String> getDataRootPath() async {
@@ -168,6 +174,15 @@ class AppPaths {
     final dbDir = Directory(p.join(await getDataRootPath(), 'databases'));
     if (!await dbDir.exists()) await dbDir.create(recursive: true);
     return p.join(dbDir.path, fileName);
+  }
+
+  /// מחזיר את הנתיב של ה-DB של ספרי המשתמש (תיקיות מותאמות אישית).
+  ///
+  /// מאוחסן באותה תיקייה כמו DBs אחרים של נתוני משתמש, נפרד מ-`seforim.db`
+  /// של הספרייה הרשמית. כך שינויים ב-DB הרשמי לא משפיעים על ספרי המשתמש,
+  /// ולהפך.
+  static Future<String> resolveUserBooksDbPath() async {
+    return resolveNotesDbPath('user_books.db');
   }
 
   /// Creates startup directories when eagerly required.

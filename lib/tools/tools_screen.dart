@@ -15,6 +15,8 @@ import 'package:otzaria/tools/aramaic_dictionary/aramaic_dictionary_screen.dart'
 import 'package:otzaria/tools/shamor_zachor/shamor_zachor.dart';
 import 'package:otzaria/tools/calendar/calendar_screen.dart';
 import 'package:otzaria/widgets/navigation/keyboard_navigator.dart';
+import 'package:otzaria/widgets/misc/rtl_icon.dart';
+import 'package:otzaria/widgets/navigation/sidebar_nav_item.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
@@ -22,9 +24,18 @@ import 'package:otzaria/plugins/bloc/plugin_system_event.dart';
 import 'package:otzaria/plugins/view/plugin_side_panel.dart';
 import 'package:otzaria/plugins/view/plugin_tab_page.dart';
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
-import 'package:otzaria/plugins/view/plugin_install_screen.dart';
+import 'package:otzaria/plugins/utils/fluent_icon_resolver.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
+import 'package:otzaria/settings/engine/settings_bloc.dart';
+import 'package:otzaria/settings/engine/settings_state.dart';
+import 'package:otzaria/settings/settings_card.dart';
 import 'package:otzaria/tour/tour_target_keys.dart';
+
+/// מזהה הכלי שפעיל כרגע ב-ToolsScreen, או `null` אם המסך לא מוצג.
+/// משמש את ה-MainWindowScreen כדי להדגיש את התוסף שבחרת בסרגל הניווט/הבר
+/// כשנבחרה לשונית של תוסף-מוצמד-לסרגל.
+final ValueNotifier<String?> activeToolIdNotifier =
+    ValueNotifier<String?>(null);
 
 abstract class ToolDescriptor {
   final String toolId;
@@ -34,6 +45,10 @@ abstract class ToolDescriptor {
       {required this.toolId, required this.label, required this.order});
   Widget buildTab(BuildContext context);
   Widget buildPage(BuildContext context);
+  TopNavItem buildTopNavItem(
+      {required bool isSelected, required VoidCallback onTap, Key? key});
+  SidebarNavItem buildSidebarNavItem(
+      {required bool isSelected, required VoidCallback onTap, Key? key});
 }
 
 class BuiltInToolDescriptor extends ToolDescriptor {
@@ -69,6 +84,34 @@ class BuiltInToolDescriptor extends ToolDescriptor {
 
   @override
   Widget buildPage(BuildContext context) => pageBuilder();
+
+  @override
+  TopNavItem buildTopNavItem(
+      {required bool isSelected, required VoidCallback onTap, Key? key}) {
+    return TopNavItem(
+      key: key,
+      icon: icon,
+      iconFilled: iconFilled,
+      imageAsset: imageIcon,
+      label: label,
+      isSelected: isSelected,
+      onTap: onTap,
+    );
+  }
+
+  @override
+  SidebarNavItem buildSidebarNavItem(
+      {required bool isSelected, required VoidCallback onTap, Key? key}) {
+    return SidebarNavItem(
+      key: key,
+      icon: icon,
+      iconFilled: iconFilled,
+      imageAsset: imageIcon,
+      label: label,
+      isSelected: isSelected,
+      onTap: onTap,
+    );
+  }
 }
 
 class PluginToolDescriptor extends ToolDescriptor {
@@ -81,24 +124,12 @@ class PluginToolDescriptor extends ToolDescriptor {
 
   @override
   Widget buildTab(BuildContext context) {
-    Widget? iconWidget;
-    final codepoint = plugin.manifest.toolTabIconCodepoint;
-    final fontFamily = plugin.manifest.toolTabIconFontFamily;
-    if (codepoint != null && fontFamily != null) {
-      iconWidget = Icon(
-        IconData(
-          codepoint,
-          fontFamily: fontFamily,
-          fontPackage: 'fluentui_system_icons',
-        ),
-        size: 20,
-      );
-    }
+    final iconData = fluentIconFromName(plugin.manifest.toolTabIconName);
     return SizedBox(
       width: 100,
       child: Tab(
         text: label,
-        icon: iconWidget,
+        icon: iconData != null ? Icon(iconData, size: 20) : null,
       ),
     );
   }
@@ -108,6 +139,38 @@ class PluginToolDescriptor extends ToolDescriptor {
         key: ValueKey(plugin.pluginId),
         plugin: plugin,
       );
+
+  IconData get _pluginIcon =>
+      fluentIconFromName(plugin.manifest.toolTabIconName) ??
+      FluentIcons.puzzle_piece_24_regular;
+
+  @override
+  TopNavItem buildTopNavItem(
+      {required bool isSelected, required VoidCallback onTap, Key? key}) {
+    final icon = _pluginIcon;
+    return TopNavItem(
+      key: key,
+      icon: icon,
+      iconFilled: icon,
+      label: label,
+      isSelected: isSelected,
+      onTap: onTap,
+    );
+  }
+
+  @override
+  SidebarNavItem buildSidebarNavItem(
+      {required bool isSelected, required VoidCallback onTap, Key? key}) {
+    final icon = _pluginIcon;
+    return SidebarNavItem(
+      key: key,
+      icon: icon,
+      iconFilled: icon,
+      label: label,
+      isSelected: isSelected,
+      onTap: onTap,
+    );
+  }
 }
 
 class ToolsScreen extends StatefulWidget {
@@ -172,7 +235,7 @@ class ToolsScreenState extends State<ToolsScreen>
   String _descriptorSignature(List<ToolDescriptor> descriptors) {
     return descriptors.map((d) {
       if (d is PluginToolDescriptor) {
-        return '${d.toolId}|${d.label}|${d.order}|${d.plugin.pinned}|${d.plugin.manifest.toolTabIconCodepoint}|${d.plugin.manifest.toolTabIconVariant}|${d.plugin.updatedAt.millisecondsSinceEpoch}';
+        return '${d.toolId}|${d.label}|${d.order}|${d.plugin.pinned}|${d.plugin.manifest.toolTabIconName}|${d.plugin.updatedAt.millisecondsSinceEpoch}';
       }
       return '${d.toolId}|${d.label}|${d.order}';
     }).join('::');
@@ -303,11 +366,18 @@ class ToolsScreenState extends State<ToolsScreen>
   }
 
   void _closeTransientPanelsForToolId(String? toolId) {
-    // Reserved for future transient-panel teardown per tool
+    if (toolId == 'builtin.calendar') {
+      _calendarKey.currentState?.closeTransientPanels();
+    }
   }
 
   void closeTransientPanels() {
     _closeTransientPanelsForToolId(_selectedToolId);
+  }
+
+  void _setSelectedToolId(String? id) {
+    _selectedToolId = id;
+    activeToolIdNotifier.value = id;
   }
 
   void _changeTab(int index) {
@@ -319,26 +389,35 @@ class ToolsScreenState extends State<ToolsScreen>
     }
     _closeTransientPanelsForToolId(_selectedToolId);
     setState(() {
-      _selectedToolId = toolId;
+      _setSelectedToolId(toolId);
       _showMobileMenu = false;
     });
     requestActiveTabFocus();
   }
 
-  void _openPluginTransiently(InstalledPlugin plugin) {
-    if (plugin.pinned) {
-      final index = _descriptors.indexWhere((d) => d.toolId == plugin.pluginId);
-      if (index != -1) {
-        _changeTab(index);
-      }
+  void openPluginTransiently(InstalledPlugin plugin) {
+    final isOfflineMode = context.read<SettingsBloc>().state.isOfflineMode;
+    if (isOfflineMode && plugin.requiresNetwork) {
+      UiSnack.showError(
+          'התוסף "${plugin.name}" דורש חיבור אינטרנט ולא ניתן לפתוח אותו במצב מנותק');
       return;
     }
-    // מגדיר את הפלאגין הזמני ומיד מבצע rebuild — ללא setState נפרד
+    if (plugin.pinned) {
+      // לתוסף שמוצמד-ללשוניות יש (או יהיה) descriptor רגיל. מנתבים דרך
+      // requestOpenTool כדי לקבל את מנגנון ה-pending/timeout במקרה שה-bloc
+      // עדיין לא טען את הרשימה ברגע הלחיצה.
+      requestOpenTool(plugin.pluginId);
+      return;
+    }
+    // לתוסף שלא מוצמד ללשוניות — מצב transient (מחושב כאן ולא מחכה ל-bloc)
     _transientPlugin = plugin;
-    _selectedToolId = plugin.pluginId;
+    _setSelectedToolId(plugin.pluginId);
     final blocState = context.read<PluginSystemBloc>().state;
     if (blocState is PluginSystemLoaded) {
-      _rebuildTabs(blocState.pinnedPlugins, transient: _transientPlugin);
+      _rebuildTabs(
+        blocState.pinnedPlugins.filterForOfflineMode(isOfflineMode),
+        transient: _transientPlugin,
+      );
     }
   }
 
@@ -372,7 +451,7 @@ class ToolsScreenState extends State<ToolsScreen>
     void applyState() {
       _descriptors = newDescriptors;
       _pages = newDescriptors.map((t) => t.buildPage(context)).toList();
-      _selectedToolId = newToolId;
+      _setSelectedToolId(newToolId);
     }
 
     if (notify) {
@@ -438,7 +517,11 @@ class ToolsScreenState extends State<ToolsScreen>
       _didInitFromBloc = true;
       final state = context.read<PluginSystemBloc>().state;
       if (state is PluginSystemLoaded) {
-        _applyTabState(state.pinnedPlugins, notify: false);
+        final isOfflineMode = context.read<SettingsBloc>().state.isOfflineMode;
+        _applyTabState(
+          state.pinnedPlugins.filterForOfflineMode(isOfflineMode),
+          notify: false,
+        );
       }
     }
   }
@@ -446,7 +529,7 @@ class ToolsScreenState extends State<ToolsScreen>
   void resetToCalendar() {
     if (_selectedToolId != 'builtin.calendar') {
       setState(() {
-        _selectedToolId = 'builtin.calendar';
+        _setSelectedToolId('builtin.calendar');
         _showMobileMenu = false;
       });
       return;
@@ -465,6 +548,29 @@ class ToolsScreenState extends State<ToolsScreen>
       _clearPendingTool();
       _changeTab(index);
       return;
+    }
+
+    // ה-descriptor לא נמצא בלשוניות הנוכחיות. בודקים אם מדובר בתוסף שכן מותקן
+    // אבל סונן מהתצוגה בגלל מצב מנותק — כדי להחזיר שגיאה תיאורית במקום
+    // "הכלי לא נמצא" המטעה.
+    final isOfflineMode = context.read<SettingsBloc>().state.isOfflineMode;
+    if (isOfflineMode) {
+      final blocState = context.read<PluginSystemBloc>().state;
+      if (blocState is PluginSystemLoaded) {
+        InstalledPlugin? hiddenPlugin;
+        for (final p in blocState.plugins) {
+          if (p.pluginId == toolId) {
+            hiddenPlugin = p;
+            break;
+          }
+        }
+        if (hiddenPlugin != null && hiddenPlugin.requiresNetwork) {
+          _clearPendingTool();
+          UiSnack.showError(
+              'התוסף "${hiddenPlugin.name}" דורש חיבור אינטרנט ולא ניתן לפתוח אותו במצב מנותק');
+          return;
+        }
+      }
     }
 
     // ה-descriptor עדיין לא קיים — קורה בעיקר עם תוספים לפני ש-PluginSystemLoaded
@@ -517,6 +623,7 @@ class ToolsScreenState extends State<ToolsScreen>
     _contentFocusNode.dispose();
     _contentScrollController.dispose();
     _tabScrollController.dispose();
+    activeToolIdNotifier.value = null;
     super.dispose();
   }
 
@@ -546,6 +653,20 @@ class ToolsScreenState extends State<ToolsScreen>
       groupedDescriptors.add((label: 'תוספים', tools: ungroupedPlugins));
     }
 
+    Widget buildIcon(ToolDescriptor descriptor) {
+      if (descriptor is BuiltInToolDescriptor) {
+        if (descriptor.imageIcon != null) {
+          return ImageIcon(AssetImage(descriptor.imageIcon!),
+              size: 22, color: cs.primary);
+        }
+        return Icon(descriptor.icon, color: cs.primary);
+      }
+      if (descriptor is PluginToolDescriptor) {
+        return Icon(descriptor._pluginIcon, color: cs.primary);
+      }
+      return Icon(FluentIcons.puzzle_piece_24_regular, color: cs.primary);
+    }
+
     return Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
@@ -553,32 +674,40 @@ class ToolsScreenState extends State<ToolsScreen>
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         title: const Text('כלים', textDirection: TextDirection.rtl),
+        actions: [
+          IconButton(
+            icon: const Icon(FluentIcons.puzzle_piece_24_regular),
+            tooltip: 'תוספים',
+            onPressed: () => showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              builder: (_) => SizedBox(
+                height: MediaQuery.of(context).size.height * 0.6,
+                child: PluginSidePanel(
+                  onPluginSelected: (plugin) {
+                    Navigator.of(context).pop();
+                    openPluginTransiently(plugin);
+                  },
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
       body: ListView(
-        padding: const EdgeInsets.all(AppTokens.spaceMD),
+        padding: const EdgeInsets.all(12),
         children: [
           for (final group in groupedDescriptors) ...[
-            _MobileGroupCard(
+            SettingsCard(
               title: group.label,
               children: [
                 for (final descriptor in group.tools)
                   ListTile(
                     key: tourToolTabTargetKeys[descriptor.toolId],
-                    leading: descriptor is BuiltInToolDescriptor
-                        ? (descriptor.imageIcon != null
-                            ? ImageIcon(
-                                AssetImage(descriptor.imageIcon!),
-                                size: 22,
-                                color: cs.primary,
-                              )
-                            : Icon(descriptor.icon, color: cs.primary))
-                        : Icon(FluentIcons.puzzle_piece_24_regular,
-                            color: cs.primary),
-                    title: Text(
-                      descriptor.label,
-                      textDirection: TextDirection.rtl,
-                    ),
-                    trailing: const Icon(FluentIcons.chevron_left_24_regular),
+                    leading: buildIcon(descriptor),
+                    title: Text(descriptor.label),
+                    trailing:
+                        const RtlIcon(FluentIcons.chevron_left_24_regular),
                     onTap: () {
                       final index = _descriptors.indexOf(descriptor);
                       if (index != -1) _changeTab(index);
@@ -615,9 +744,9 @@ class ToolsScreenState extends State<ToolsScreen>
             textDirection: TextDirection.rtl,
           ),
           leading: Tooltip(
-            message: 'חזור (Backspace)',
+            message: 'חזור (Esc)',
             child: IconButton(
-              icon: const Icon(FluentIcons.arrow_right_24_regular),
+              icon: const RtlIcon(FluentIcons.arrow_right_24_regular),
               onPressed: () => setState(() => _showMobileMenu = true),
             ),
           ),
@@ -682,7 +811,7 @@ class ToolsScreenState extends State<ToolsScreen>
                                 child: IgnorePointer(
                                   ignoring: !_canTabScrollLeft,
                                   child: IconButton(
-                                    icon: const Icon(
+                                    icon: const RtlIcon(
                                         FluentIcons.chevron_right_24_regular),
                                     iconSize: 18,
                                     onPressed: () => _tabScrollBy(-150),
@@ -720,30 +849,9 @@ class ToolsScreenState extends State<ToolsScreen>
                                           for (int index = 0;
                                               index < _descriptors.length;
                                               index++) ...[
-                                            _DesktopTopNavItem(
+                                            _descriptors[index].buildTopNavItem(
                                               key: tourToolTabTargetKeys[
                                                   _descriptors[index].toolId],
-                                              icon: _descriptors[index]
-                                                      is BuiltInToolDescriptor
-                                                  ? (_descriptors[index]
-                                                          as BuiltInToolDescriptor)
-                                                      .icon
-                                                  : FluentIcons
-                                                      .puzzle_piece_24_regular,
-                                              iconFilled: _descriptors[index]
-                                                      is BuiltInToolDescriptor
-                                                  ? (_descriptors[index]
-                                                          as BuiltInToolDescriptor)
-                                                      .iconFilled
-                                                  : FluentIcons
-                                                      .puzzle_piece_24_regular,
-                                              imageAsset: _descriptors[index]
-                                                      is BuiltInToolDescriptor
-                                                  ? (_descriptors[index]
-                                                          as BuiltInToolDescriptor)
-                                                      .imageIcon
-                                                  : null,
-                                              label: _descriptors[index].label,
                                               isSelected: _selectedToolId ==
                                                   _descriptors[index].toolId,
                                               onTap: () => _changeTab(index),
@@ -769,7 +877,7 @@ class ToolsScreenState extends State<ToolsScreen>
                                 child: IgnorePointer(
                                   ignoring: !_canTabScrollRight,
                                   child: IconButton(
-                                    icon: const Icon(
+                                    icon: const RtlIcon(
                                         FluentIcons.chevron_left_24_regular),
                                     iconSize: 18,
                                     onPressed: () => _tabScrollBy(150),
@@ -820,7 +928,7 @@ class ToolsScreenState extends State<ToolsScreen>
                             width: 300,
                             child: PluginSidePanel(
                               onPluginSelected: (plugin) {
-                                _openPluginTransiently(plugin);
+                                openPluginTransiently(plugin);
                               },
                             ),
                           ),
@@ -843,50 +951,65 @@ class ToolsScreenState extends State<ToolsScreen>
 
     final bgColor = AppSurfaces.panelBackground(context);
 
-    return BlocListener<PluginSystemBloc, PluginSystemState>(
-      listener: (context, state) {
-        if (state is PluginSystemLoaded) {
-          if (_transientPlugin != null) {
-            final updatedTransient = state.plugins.firstWhere(
-                (p) => p.pluginId == _transientPlugin!.pluginId,
-                orElse: () => _transientPlugin!);
-            _transientPlugin = updatedTransient;
-          }
-          _rebuildTabs(state.pinnedPlugins, transient: _transientPlugin);
-        } else if (state is PluginSystemOverwriteRequired) {
-          showWarningDialog(
-            context: context,
-            title: 'התוסף כבר קיים',
-            content:
-                'התוסף "${state.pluginName}" בגרסה ${state.version} כבר מותקן.',
-            subtitle: 'האם ברצונך להתקין מחדש ולדרוס אותו?',
-            cancelText: 'ביטול',
-            confirmText: 'התקן מחדש',
-          ).then((value) {
-            if (!context.mounted) return;
-            if (value == true) {
-              context.read<PluginSystemBloc>().add(
-                    InstallPluginRequested(state.archivePath,
-                        forceOverwrite: true),
-                  );
-            } else {
-              context.read<PluginSystemBloc>().add(LoadPlugins());
+    return MultiBlocListener(
+      listeners: [
+        BlocListener<SettingsBloc, SettingsState>(
+          listenWhen: (prev, curr) => prev.isOfflineMode != curr.isOfflineMode,
+          listener: (context, settingsState) {
+            final blocState = context.read<PluginSystemBloc>().state;
+            if (blocState is! PluginSystemLoaded) return;
+            // אם התוסף ה-transient דורש אינטרנט ועברנו למצב מנותק — נסגור אותו.
+            if (settingsState.isOfflineMode &&
+                _transientPlugin != null &&
+                _transientPlugin!.requiresNetwork) {
+              _transientPlugin = null;
             }
-          });
-        } else if (state is PluginSystemInstallRequiresPermissions) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => BlocProvider.value(
-                value: context.read<PluginSystemBloc>(),
-                child: PluginInstallScreen(
-                  manifest: state.manifest,
-                  tempDirPath: state.tempDirPath,
-                ),
-              ),
-            ),
-          );
-        }
-      },
+            _rebuildTabs(
+              blocState.pinnedPlugins
+                  .filterForOfflineMode(settingsState.isOfflineMode),
+              transient: _transientPlugin,
+            );
+          },
+        ),
+        BlocListener<PluginSystemBloc, PluginSystemState>(
+          listener: (context, state) {
+            if (state is PluginSystemLoaded) {
+              if (_transientPlugin != null) {
+                final updatedTransient = state.plugins.firstWhere(
+                    (p) => p.pluginId == _transientPlugin!.pluginId,
+                    orElse: () => _transientPlugin!);
+                _transientPlugin = updatedTransient;
+              }
+              final isOfflineMode =
+                  context.read<SettingsBloc>().state.isOfflineMode;
+              _rebuildTabs(
+                state.pinnedPlugins.filterForOfflineMode(isOfflineMode),
+                transient: _transientPlugin,
+              );
+            } else if (state is PluginSystemOverwriteRequired) {
+              showWarningDialog(
+                context: context,
+                title: 'התוסף כבר קיים',
+                content:
+                    'התוסף "${state.pluginName}" בגרסה ${state.version} כבר מותקן.',
+                subtitle: 'האם ברצונך להתקין מחדש ולדרוס אותו?',
+                cancelText: 'ביטול',
+                confirmText: 'התקן מחדש',
+              ).then((value) {
+                if (!context.mounted) return;
+                if (value == true) {
+                  context.read<PluginSystemBloc>().add(
+                        InstallPluginRequested(state.archivePath,
+                            forceOverwrite: true),
+                      );
+                } else {
+                  context.read<PluginSystemBloc>().add(LoadPlugins());
+                }
+              });
+            }
+          },
+        ),
+      ],
       child: Theme(
         data: Theme.of(context).copyWith(
           scaffoldBackgroundColor: bgColor,
@@ -908,113 +1031,6 @@ class ToolsScreenState extends State<ToolsScreen>
             return content;
           },
         ),
-      ),
-    );
-  }
-}
-
-class _DesktopTopNavItem extends StatelessWidget {
-  final IconData? icon;
-  final IconData? iconFilled;
-  final String? imageAsset;
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _DesktopTopNavItem({
-    super.key,
-    required this.icon,
-    required this.iconFilled,
-    required this.imageAsset,
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final fg = isSelected ? cs.onSecondaryContainer : cs.onSurfaceVariant;
-
-    final iconWidget = imageAsset != null
-        ? ImageIcon(AssetImage(imageAsset!), size: 20, color: fg)
-        : Icon(
-            isSelected && iconFilled != null ? iconFilled : icon,
-            size: 20,
-            color: fg,
-          );
-
-    return Material(
-      color: isSelected ? cs.secondaryContainer : Colors.transparent,
-      borderRadius: BorderRadius.circular(999),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(999),
-        overlayColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.hovered)) {
-            return cs.primary.withValues(alpha: 0.08);
-          }
-          if (states.contains(WidgetState.pressed)) {
-            return cs.primary.withValues(alpha: 0.12);
-          }
-          return null;
-        }),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppTokens.spaceMD,
-            vertical: AppTokens.spaceSM,
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              iconWidget,
-              const SizedBox(width: AppTokens.spaceXS),
-              Text(
-                label,
-                textDirection: TextDirection.rtl,
-                style: TextStyle(
-                  fontSize: AppTokens.fontSM,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  color: fg,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MobileGroupCard extends StatelessWidget {
-  final String title;
-  final List<Widget> children;
-
-  const _MobileGroupCard({
-    required this.title,
-    required this.children,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: Theme.of(context).colorScheme.surface,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Text(
-              title,
-              textDirection: TextDirection.rtl,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-            ),
-          ),
-          ...children,
-        ],
       ),
     );
   }

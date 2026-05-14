@@ -38,7 +38,12 @@ class _FakeProvider implements LibraryProvider {
   }
 
   @override
-  Future<String?> getBookText(String title, int categoryId, String fileType) {
+  Future<String?> getBookText(
+    String title,
+    int categoryId,
+    String fileType, {
+    bool preferUserBooks = false,
+  }) {
     return Future.value(null);
   }
 
@@ -47,7 +52,9 @@ class _FakeProvider implements LibraryProvider {
     String title,
     int categoryId,
     String fileType,
-  ) {
+    {
+    bool preferUserBooks = false,
+  }) {
     return Future.value(null);
   }
 

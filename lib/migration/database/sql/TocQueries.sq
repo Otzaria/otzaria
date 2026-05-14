@@ -49,10 +49,6 @@ insert:
 INSERT INTO tocEntry (bookId, parentId, textId, level, lineId, lineIndex, isLastChild, hasChildren)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 
-insertWithId:
-INSERT INTO tocEntry (id, bookId, parentId, textId, level, lineId, lineIndex, isLastChild, hasChildren)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
-
 updateLineId:
 UPDATE tocEntry SET lineId = ? WHERE id = ?;
 

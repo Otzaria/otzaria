@@ -339,4 +339,69 @@ void main() {
 
     expect(highlighted, contains('דד'));
   });
+
+  test('SnippetBuilder מדגיש ראשי תיבות עם " כיחידה אחת', () {
+    // תואם לטוקנייזר של search_query_builder: `רמב"ם` הוא טוקן יחיד,
+    // לכן ההדגשה חייבת להתפרס על כל המילה כולל ה-".
+    final spans = SnippetBuilder.buildHighlightSpans(
+      plainText: 'דברי רמב"ם במשנה תורה',
+      query: 'רמב"ם',
+      defaultStyle: const TextStyle(),
+      highlightStyle: const TextStyle(fontWeight: FontWeight.bold),
+      searchOptions: const {},
+      alternativeWords: const {},
+    );
+
+    final highlighted = spans
+        .whereType<TextSpan>()
+        .where((span) => span.style?.fontWeight == FontWeight.bold)
+        .map((span) => span.text ?? '')
+        .join();
+
+    expect(highlighted, contains('רמב"ם'));
+  });
+
+  test('SnippetBuilder מדגיש ראשי תיבות עם גרשיים עבריים בטקסט', () {
+    // הטקסט המוצג מהספר עשוי לכלול ״ (U+05F4), בעוד שהשאילתה
+    // עוברת sanitize ל-`"` (U+0022). ה-pattern מטפל בזה, אבל הטוקנייזר
+    // של הסניפט חייב לזהות `רמב״ם` כטוקן יחיד.
+    final spans = SnippetBuilder.buildHighlightSpans(
+      plainText: 'דברי רמב״ם במשנה תורה',
+      query: 'רמב"ם',
+      defaultStyle: const TextStyle(),
+      highlightStyle: const TextStyle(fontWeight: FontWeight.bold),
+      searchOptions: const {},
+      alternativeWords: const {},
+    );
+
+    final highlighted = spans
+        .whereType<TextSpan>()
+        .where((span) => span.style?.fontWeight == FontWeight.bold)
+        .map((span) => span.text ?? '')
+        .join();
+
+    expect(highlighted, contains('רמב״ם'));
+  });
+
+  test('SnippetBuilder מדגיש phrase של ראשי תיבות + מילה רגילה', () {
+    // `רמב"ם משה` → 2 טוקנים בשאילתה. בטקסט שני הטוקנים סמוכים,
+    // וכל אחד צריך להיות מודגש בתור יחידה שלמה.
+    final spans = SnippetBuilder.buildHighlightSpans(
+      plainText: 'דברי רמב"ם משה בן מימון',
+      query: 'רמב"ם משה',
+      defaultStyle: const TextStyle(),
+      highlightStyle: const TextStyle(fontWeight: FontWeight.bold),
+      searchOptions: const {},
+      alternativeWords: const {},
+    );
+
+    final highlighted = spans
+        .whereType<TextSpan>()
+        .where((span) => span.style?.fontWeight == FontWeight.bold)
+        .map((span) => span.text ?? '')
+        .join('|');
+
+    expect(highlighted, contains('רמב"ם'));
+    expect(highlighted, contains('משה'));
+  });
 }

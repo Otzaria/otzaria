@@ -131,6 +131,7 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
         book.title,
         categoryId: book.categoryId,
         filePath: book.filePath,
+        preferUserBooks: book.isUserBook,
       );
       if (headings != null) {
         debugPrint('✅ Loaded ${headings.headingsMap.length} headings');

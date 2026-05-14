@@ -265,7 +265,11 @@ class FileSystemLibraryProvider implements LibraryProvider {
 
   @override
   Future<String?> getBookText(
-      String title, int categoryId, String fileType) async {
+    String title,
+    int categoryId,
+    String fileType, {
+    bool preferUserBooks = false,
+  }) async {
     if (!_isInitialized) await initialize();
 
     final path = await _getBookPath(title, categoryId, fileType);
@@ -290,9 +294,18 @@ class FileSystemLibraryProvider implements LibraryProvider {
 
   @override
   Future<List<TocEntry>?> getBookToc(
-      String title, int categoryId, String fileType) async {
+    String title,
+    int categoryId,
+    String fileType, {
+    bool preferUserBooks = false,
+  }) async {
     if (fileType.toLowerCase() == 'pdf') return null;
-    final text = await getBookText(title, categoryId, fileType);
+    final text = await getBookText(
+      title,
+      categoryId,
+      fileType,
+      preferUserBooks: preferUserBooks,
+    );
     if (text == null) return null;
     return Isolate.run(() => TocParser.parseEntriesFromContent(text));
   }

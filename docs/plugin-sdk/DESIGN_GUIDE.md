@@ -631,49 +631,33 @@ popover.addEventListener('click', function(e) {
     "title": "לוח שנה",
     "order": 100,
     "defaultPinned": true,
-    "iconCodepoint": 983685,
-    "iconVariant": "regular"
+    "iconName": "calendar_24_regular"
   }
 }
 ```
 
 | שדה | סוג | ברירת מחדל | תיאור |
 |-----|-----|------------|-------|
-| `iconCodepoint` | `integer` | ללא (ללא אייקון) | ה-Unicode codepoint של האייקון מ-FluentUI System Icons |
-| `iconVariant` | `"regular"` / `"filled"` | `"regular"` | גרסת האייקון |
+| `iconName` | `string` | ללא (ללא אייקון) | שם אייקון FluentUI 24px, המסתיים ב-`_24_regular` או `_24_filled` |
 
-#### כיצד מוצאים את ה-codepoint?
+#### כיצד בוחרים `iconName`?
 
-**שיטה 1 — מקוד Dart:**
-כל שם של `FluentIcons.xxx` בקוד Dart של אוצריא הוא שם אייקון. פתח את קובץ ה-Dart של הספריה:
-
-```
-~/.pub-cache/hosted/pub.dev/fluentui_system_icons-<version>/lib/src/fluent_icons.dart
-```
-
-חפש שם אייקון וקרא את ה-codepoint:
-```
-static const IconData calendar_24_regular = IconData(983685, ...);
-//                                                    ^^^^^^
-//                                                    זהו ה-codepoint
-```
-
-**שיטה 2 — גלריית האייקונים:**
-גלוש ל-[FluentUI System Icons](https://github.com/microsoft/fluentui-system-icons) ובחר אייקון. שים לב לכלל שמות:
-- `calendar_24_regular` — `24` הוא הגודל (השתמש תמיד ב-24)
-- `regular` — גרסה רגילה (תואמת ל-`"iconVariant": "regular"`)
-- `filled` — גרסה מלאה (תואמת ל-`"iconVariant": "filled"`)
+גלוש ל-[FluentUI System Icons](https://github.com/microsoft/fluentui-system-icons) ובחר אייקון, או חפש בקוד אוצריא שמות בסגנון `FluentIcons.xxx_24_regular`. כלל השמות:
+- `<base>_24_regular` — גרסה רגילה (קווים)
+- `<base>_24_filled` — גרסה מלאה
 
 **דוגמאות:**
 
-| אייקון | iconCodepoint | iconVariant |
-|--------|---------------|-------------|
-| `calendar_24_regular` | `983685` | `"regular"` |
-| `book_24_regular` | `63742` | `"regular"` |
-| `search_24_regular` | `63120` | `"regular"` |
-| `star_24_filled` | `63257` | `"filled"` |
+| `iconName` |
+|------------|
+| `calendar_24_regular` |
+| `book_24_regular` |
+| `search_24_regular` |
+| `star_24_filled` |
 
-> **טיפ:** בחר אייקון בגודל `_24_` — אלה הגדלים שאוצריא מציגה בטאבים.
+> **טיפ:** השתמש תמיד בגודל `_24_` — אלה הגדלים שאוצריא מציגה בטאבים. שם שאינו תואם תבנית זו יידחה בולידציה. שמות שאינם קיימים במפת האייקונים של אוצריא יוצגו כפאזל ברירת מחדל.
+>
+> **למה לא codepoint?** ב-Release Flutter מבצע tree-shaking של פונטי אייקונים — הוא משאיר רק את האייקונים שהוא רואה בקוד כקבועים. שימוש ב-`iconName` עם מפה סטטית מאפשר את האופטימיזציה הזו; codepoint דינמי מתוך manifest היה שובר אותה.
 
 ---
 

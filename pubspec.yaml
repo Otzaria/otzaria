@@ -157,6 +157,7 @@ dev_dependencies:
   bloc_test: ^10.0.0
   mockito: ^5.6.5
   hooks: ^1.0.3
+  dart_pre_commit: ^6.1.2
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -228,3 +229,25 @@ sentry:
   upload_source_maps: true
   project: flutter
   org: otzariaorg
+
+# Pre-commit hook configuration (https://pub.dev/packages/dart_pre_commit)
+# Runs `dart format` and `dart analyze` automatically on staged files before
+# every commit. To install the hook locally run:
+#     dart run tool/install_git_hooks.dart
+dart_pre_commit:
+  exclude:
+    - '^packages/'
+    - '^build/'
+    - '\.g\.dart$'
+    - '\.freezed\.dart$'
+    - '\.mocks\.dart$'
+  # format runs always – uses dart default line length
+  format: true
+  # analyze runs always – reject on any lint/info level issue
+  analyze: true
+  # Disabled: many transitive packages are intentionally pinned and would
+  # block every commit. Run `flutter pub outdated` manually when needed.
+  outdated: false
+  # Disabled: would block commits unrelated to dependency changes. Run
+  # `flutter pub upgrade` manually when dependency tightening is desired.
+  pull-up-dependencies: false

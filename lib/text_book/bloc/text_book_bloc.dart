@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:otzaria/models/books.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter/animation.dart';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
@@ -103,6 +104,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     on<UpdateSelectedIndex>(_onUpdateSelectedIndex);
     on<HighlightLine>(_onHighlightLine);
     on<ClearHighlightedLine>(_onClearHighlightedLine);
+    on<ApplyPinpointHighlight>(_onApplyPinpointHighlight);
     on<TogglePinLeftPane>(_onTogglePinLeftPane);
     on<UpdateSearchText>(_onUpdateSearchText);
     on<ApplyFullBookContent>(_onApplyFullBookContent);
@@ -245,6 +247,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     late final List<int> visibleIndices;
 
     bool initialShowPageShapeView = false;
+    int? pinpointHighlightIndex;
+    String? pinpointHighlightText;
 
     List<String> existingAvailableCommentators = const [];
     List<CommentatorGroup> existingCommentatorGroups = const [];
@@ -268,6 +272,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       existingCommentatorGroups = currentState.commentatorGroups;
       preservedRemoveNikud = currentState.removeNikud;
       preservedPinLeftPane = currentState.pinLeftPane;
+      pinpointHighlightIndex = currentState.pinpointHighlightIndex;
+      pinpointHighlightText = currentState.pinpointHighlightText;
     } else if (state is TextBookInitial) {
       final initial = state as TextBookInitial;
       book = initial.book;
@@ -281,6 +287,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       commentators = initial.commentators;
       visibleIndices = [initial.index < 0 ? 0 : initial.index];
       initialShowPageShapeView = initial.showPageShapeView;
+      pinpointHighlightIndex = initial.pinpointHighlightIndex;
+      pinpointHighlightText = initial.pinpointHighlightText;
 
       emit(TextBookLoading(
           book, initial.index, initial.showLeftPane, initial.commentators));
@@ -510,6 +518,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         selectedTextEnd: state is TextBookLoaded
             ? (state as TextBookLoaded).selectedTextEnd
             : null,
+        pinpointHighlightIndex: pinpointHighlightIndex,
+        pinpointHighlightText: pinpointHighlightText,
       ));
 
       _resetLoadedLinksWindow(book);
@@ -1143,6 +1153,38 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     emit(currentState.copyWith(clearHighlight: true));
   }
 
+  void _onApplyPinpointHighlight(
+    ApplyPinpointHighlight event,
+    Emitter<TextBookState> emit,
+  ) {
+    if (state is! TextBookLoaded) return;
+    final currentState = state as TextBookLoaded;
+    final text = event.text;
+    if (text.isEmpty) return;
+
+    emit(currentState.copyWith(
+      pinpointHighlightIndex: event.sectionIndex,
+      pinpointHighlightText: text,
+      // ניקוי searchText כדי שההדגשה הממוקדת לא תתנגש עם חיפוש קיים
+      searchText: '',
+      searchOptions: const {},
+      alternativeWords: const {},
+      spacingValues: const {},
+      searchMode: SearchMode.exact,
+      searchDistance: 0,
+    ));
+
+    // גלילה לסעיף המבוקש כדי שההדגשה תהיה גלויה. השימוש ב‑isAttached מגן
+    // מפני מצב מירוץ שבו הקונטרולר עוד לא מחובר לרשימה.
+    if (scrollController.isAttached) {
+      scrollController.scrollTo(
+        index: event.sectionIndex,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
   void _onTogglePinLeftPane(
     TogglePinLeftPane event,
     Emitter<TextBookState> emit,
@@ -1162,6 +1204,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   ) {
     if (state is TextBookLoaded) {
       final currentState = state as TextBookLoaded;
+      // חיפוש ידני חדש מנקה הדגשה ממוקדת קודמת מ‑deep link, אחרת ההדגשה
+      // הממוקדת הייתה ממשיכה לחסום את החיפוש החדש בשאר הסעיפים.
       emit(currentState.copyWith(
         searchText: event.text,
         searchOptions: event.searchOptions,
@@ -1170,6 +1214,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         searchMode: event.searchMode,
         searchDistance: event.searchDistance,
         selectedIndex: currentState.selectedIndex,
+        clearPinpointHighlight: true,
       ));
     }
   }

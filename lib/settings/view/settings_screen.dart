@@ -13,9 +13,10 @@ import 'package:otzaria/settings/tabs/settings_tabs_exports.dart';
 import 'package:otzaria/settings/services/safer_mode/protected_settings_wrapper.dart';
 import 'package:otzaria/widgets/navigation/keyboard_navigator.dart';
 import 'package:otzaria/settings/settings_card.dart';
-import 'package:otzaria/theme/app_surfaces.dart';
-import 'package:otzaria/theme/layout_tokens.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tour/tour_target_keys.dart';
+import 'package:otzaria/widgets/misc/rtl_icon.dart';
+import 'package:otzaria/widgets/navigation/sidebar_nav_item.dart';
 
 /// רוחב מקסימלי לתוכן ההגדרות — מרכוז על מסכים רחבים
 // kSettingsContentMaxWidth הוסר — משתמשים ב-LayoutConstraints.panelContentMaxWidth מ-layout_tokens.dart
@@ -205,26 +206,34 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
 
   // ── הגדרת רשימת הטאבים ────────────────────────────────────────────────────
   late final List<
-          ({String label, IconData icon, Widget Function() pageBuilder})>
-      _tabsData = [
+      ({
+        String label,
+        IconData icon,
+        IconData iconFilled,
+        Widget Function() pageBuilder
+      })> _tabsData = [
     (
       label: 'מראה',
       icon: FluentIcons.paint_brush_24_regular,
+      iconFilled: FluentIcons.paint_brush_24_filled,
       pageBuilder: () => const DesignSettingsTab(),
     ),
     (
       label: 'כתב',
       icon: FluentIcons.book_24_regular,
+      iconFilled: FluentIcons.book_24_filled,
       pageBuilder: () => const TextSettingsTab(),
     ),
     (
       label: 'ספריה',
       icon: FluentIcons.library_24_regular,
+      iconFilled: FluentIcons.library_24_filled,
       pageBuilder: () => const LibrarySettingsTab(),
     ),
     (
       label: 'כלים',
-      icon: FluentIcons.wrench_24_regular,
+      icon: FluentIcons.apps_24_regular,
+      iconFilled: FluentIcons.apps_24_filled,
       pageBuilder: () => ToolsSettingsTab(
             calendarCubit: context.read<CalendarCubit>(),
           ),
@@ -232,16 +241,19 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
     (
       label: 'קיצורים',
       icon: FluentIcons.keyboard_24_regular,
+      iconFilled: FluentIcons.keyboard_24_filled,
       pageBuilder: () => const ShortcutsSettingsTab(),
     ),
     (
       label: 'מערכת',
       icon: FluentIcons.settings_24_regular,
+      iconFilled: FluentIcons.settings_24_filled,
       pageBuilder: () => const SystemSettingsTab(),
     ),
     (
       label: 'אודות',
       icon: FluentIcons.people_team_24_regular,
+      iconFilled: FluentIcons.people_team_24_filled,
       pageBuilder: () => const AboutDevTab(),
     ),
   ];
@@ -316,7 +328,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                                                 color: colorScheme.primary,
                                               ),
                                               title: Text(_tabsData[idx].label),
-                                              trailing: const Icon(
+                                              trailing: const RtlIcon(
                                                 FluentIcons
                                                     .chevron_left_24_regular,
                                               ),
@@ -352,9 +364,10 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                       elevation: 0,
                       title: Text(_tabsData[_selectedIndex].label),
                       leading: Tooltip(
-                        message: 'חזור (Backspace)',
+                        message: 'חזור (Esc)',
                         child: IconButton(
-                          icon: const Icon(FluentIcons.arrow_right_24_regular),
+                          icon:
+                              const RtlIcon(FluentIcons.arrow_right_24_regular),
                           onPressed: () =>
                               setState(() => _showMobileMenu = true),
                         ),
@@ -435,58 +448,15 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                               Expanded(
                                 child: ListView.builder(
                                   itemCount: _tabsData.length,
-                                  itemBuilder: (context, index) {
-                                    final isSelected = _selectedIndex == index;
-                                    return Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 2),
-                                      child: Material(
-                                        key: tourSettingsTabTargetKeys[index],
-                                        color: isSelected
-                                            ? colorScheme.primary
-                                                .withValues(alpha: 0.14)
-                                            : Colors.transparent,
-                                        borderRadius: BorderRadius.circular(28),
-                                        child: InkWell(
-                                          onTap: () => _changeTab(index),
-                                          borderRadius:
-                                              BorderRadius.circular(28),
-                                          child: Padding(
-                                            padding: const EdgeInsets.symmetric(
-                                                horizontal: 14, vertical: 10),
-                                            child: Row(
-                                              children: [
-                                                Icon(
-                                                  _tabsData[index].icon,
-                                                  size: 20,
-                                                  color: isSelected
-                                                      ? colorScheme.primary
-                                                      : colorScheme
-                                                          .onSurfaceVariant,
-                                                ),
-                                                const SizedBox(width: 10),
-                                                Expanded(
-                                                  child: Text(
-                                                    _tabsData[index].label,
-                                                    style: TextStyle(
-                                                      fontSize: 14,
-                                                      fontWeight: isSelected
-                                                          ? FontWeight.bold
-                                                          : FontWeight.normal,
-                                                      color: isSelected
-                                                          ? colorScheme.primary
-                                                          : colorScheme
-                                                              .onSurfaceVariant,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    );
-                                  },
+                                  itemBuilder: (context, index) =>
+                                      SidebarNavItem(
+                                    key: tourSettingsTabTargetKeys[index],
+                                    icon: _tabsData[index].icon,
+                                    iconFilled: _tabsData[index].iconFilled,
+                                    label: _tabsData[index].label,
+                                    isSelected: _selectedIndex == index,
+                                    onTap: () => _changeTab(index),
+                                  ),
                                 ),
                               ),
                             ],

@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/models/books.dart';
-import 'package:otzaria/migration/models/book.dart' as migration;
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/models/model_adapters.dart';
@@ -112,12 +112,12 @@ class SqliteDataProvider {
     if (!_isInitialized) return false;
 
     try {
-      final book = await _resolveBook(
+      final resolvedBook = await _resolveBookRecord(
         title,
         categoryId: categoryId,
         fileType: fileType,
       );
-      return book != null;
+      return resolvedBook != null;
     } catch (e) {
       return false;
     }
@@ -129,6 +129,7 @@ class SqliteDataProvider {
     int currentLine, {
     int? categoryId,
     String? fileType,
+    bool preferUserBooks = false,
   }) async {
     if (!_isInitialized) {
       await initialize();
@@ -136,18 +137,21 @@ class SqliteDataProvider {
     if (!_isInitialized) return null;
 
     try {
-      final book = await _resolveBook(
+      final resolvedBook = await _resolveBookRecord(
         title,
         categoryId: categoryId,
         fileType: fileType,
+        preferUserBooks: preferUserBooks,
       );
-      if (book == null) return null;
+      if (resolvedBook == null) return null;
+      final book = resolvedBook.book;
 
       // Load 10 lines before and 10 after (20 total)
       final startLine = (currentLine - 10).clamp(0, book.totalLines - 1);
       final endLine = (currentLine + 10).clamp(0, book.totalLines - 1);
 
-      final lines = await _repository.getLines(book.id, startLine, endLine);
+      final lines =
+          await resolvedBook.repository.getLines(book.id, startLine, endLine);
       return migrationLinesToText(lines);
     } catch (e) {
       return null;
@@ -168,17 +172,20 @@ class SqliteDataProvider {
     if (!_isInitialized) return null;
 
     try {
-      final book = await _resolveBook(
+      final resolvedBook = await _resolveBookRecord(
         title,
         categoryId: categoryId,
         fileType: fileType,
       );
-      if (book == null || book.totalLines <= 0) return null;
+      if (resolvedBook == null || resolvedBook.book.totalLines <= 0) {
+        return null;
+      }
+      final book = resolvedBook.book;
 
       final normalizedStart = startLine.clamp(0, book.totalLines - 1);
       final normalizedEnd = endLine.clamp(normalizedStart, book.totalLines - 1);
-      final lines =
-          await _repository.getLines(book.id, normalizedStart, normalizedEnd);
+      final lines = await resolvedBook.repository
+          .getLines(book.id, normalizedStart, normalizedEnd);
 
       return (
         startLine: normalizedStart,
@@ -193,21 +200,24 @@ class SqliteDataProvider {
 
   /// Retrieves the full text content of a book from the database
   Future<String?> getBookTextFromDb(String title,
-      [int? categoryId, String? fileType]) async {
+      [int? categoryId, String? fileType, bool preferUserBooks = false]) async {
     if (!_isInitialized) {
       await initialize();
     }
     if (!_isInitialized) return null;
 
     try {
-      final book = await _resolveBook(
+      final resolvedBook = await _resolveBookRecord(
         title,
         categoryId: categoryId,
         fileType: fileType,
+        preferUserBooks: preferUserBooks,
       );
-      if (book == null) return null;
+      if (resolvedBook == null) return null;
+      final book = resolvedBook.book;
 
-      final lines = await _repository.getLines(book.id, 0, book.totalLines - 1);
+      final lines = await resolvedBook.repository
+          .getLines(book.id, 0, book.totalLines - 1);
       return migrationLinesToText(lines);
     } catch (e) {
       return null;
@@ -216,21 +226,24 @@ class SqliteDataProvider {
 
   /// Retrieves the table of contents of a book from the database
   Future<List<TocEntry>?> getBookTocFromDb(String title,
-      [int? categoryId, String? fileType]) async {
+      [int? categoryId, String? fileType, bool preferUserBooks = false]) async {
     if (!_isInitialized) {
       await initialize();
     }
     if (!_isInitialized) return null;
 
     try {
-      final book = await _resolveBook(
+      final resolvedBook = await _resolveBookRecord(
         title,
         categoryId: categoryId,
         fileType: fileType,
+        preferUserBooks: preferUserBooks,
       );
-      if (book == null) return null;
+      if (resolvedBook == null) return null;
+      final book = resolvedBook.book;
 
-      final migrationTocEntries = await _repository.getBookTocs(book.id);
+      final migrationTocEntries =
+          await resolvedBook.repository.getBookTocs(book.id);
 
       // Convert migration TOC entries to otzaria TOC entries
       final Map<int, TocEntry> idToEntry = {};
@@ -267,13 +280,14 @@ class SqliteDataProvider {
     if (!_isInitialized) return null;
 
     try {
-      final book = await _resolveBook(
+      final resolvedBook = await _resolveBookRecord(
         title,
         categoryId: categoryId,
         fileType: fileType,
       );
-      if (book == null) return null;
-      final source = await _repository.getSourceById(book.sourceId);
+      if (resolvedBook == null) return null;
+      final source = await resolvedBook.repository
+          .getSourceById(resolvedBook.book.sourceId);
       return source?.name;
     } catch (e) {
       return null;
@@ -408,23 +422,17 @@ class SqliteDataProvider {
     }
   }
 
-  Future<migration.Book?> _resolveBook(
+  Future<ResolvedDbBookRecord?> _resolveBookRecord(
     String title, {
     int? categoryId,
     String? fileType,
+    bool preferUserBooks = false,
   }) async {
-    if (categoryId != null && fileType != null) {
-      return await _repository.getBookByTitleCategoryAndFileType(
-        title,
-        categoryId,
-        fileType,
-      );
-    }
-
-    if (categoryId != null) {
-      return await _repository.getBookByTitleAndCategory(title, categoryId);
-    }
-
-    return await _repository.getBookByTitle(title);
+    return await BookDatabaseResolver.resolveBook(
+      title: title,
+      categoryId: categoryId,
+      fileType: fileType,
+      preferUserBooks: preferUserBooks,
+    );
   }
 }

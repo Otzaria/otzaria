@@ -1,9 +1,10 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/data/data_providers/book_composite_key.dart';
 import 'package:otzaria/data/data_providers/file_system_library_provider.dart';
 import 'package:otzaria/library/models/library.dart';
-import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
+import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/book.dart' as migration_book;
 
 /// מתווך מרכזי לאיתור ספרים במערכת
@@ -54,23 +55,21 @@ class BookLocator {
     Category? category, {
     int? categoryId,
   }) async {
-    final repository = SqliteDataProvider.instance.repository;
-    if (repository == null) {
-      return null;
-    }
-
     try {
       if (categoryId != null) {
-        final dbBook = await repository.getBookByTitleAndCategory(
-          bookTitle,
-          categoryId,
+        final resolved = await BookDatabaseResolver.resolveBook(
+          title: bookTitle,
+          categoryId: categoryId,
+          preferUserBooks: BookDatabaseResolver.isLikelyUserBook(
+              categoryPath: category?.path),
         );
-        if (dbBook != null) {
+        if (resolved != null) {
           return BookLocation(
-            book: dbBook,
+            book: resolved.book,
             source: BookSource.database,
             filePath: null,
-            categoryId: dbBook.categoryId,
+            categoryId: resolved.book.categoryId,
+            repository: resolved.repository,
           );
         }
 
@@ -79,17 +78,17 @@ class BookLocator {
 
       // אם יש קטגוריה, נחפש לפי קטגוריה
       if (category != null) {
-        final dbBook = await _findBookInDatabaseByCategory(
-          repository,
+        final candidate = await _findBookInDatabaseByCategory(
           bookTitle,
           category,
         );
-        if (dbBook != null) {
+        if (candidate != null) {
           return BookLocation(
-            book: dbBook,
+            book: candidate.book,
             source: BookSource.database,
             filePath: null,
-            categoryId: dbBook.categoryId,
+            categoryId: candidate.book.categoryId,
+            repository: candidate.repository,
           );
         }
 
@@ -97,13 +96,16 @@ class BookLocator {
       }
 
       // אם לא מצאנו לפי קטגוריה, נחפש לפי שם בלבד
-      final dbBook = await repository.getBookByTitle(bookTitle);
-      if (dbBook != null) {
+      final resolved = await BookDatabaseResolver.resolveBook(
+        title: bookTitle,
+      );
+      if (resolved != null) {
         return BookLocation(
-          book: dbBook,
+          book: resolved.book,
           source: BookSource.database,
           filePath: null,
-          categoryId: dbBook.categoryId,
+          categoryId: resolved.book.categoryId,
+          repository: resolved.repository,
         );
       }
     } catch (e) {
@@ -114,26 +116,38 @@ class BookLocator {
   }
 
   /// חיפוש ספר במסד הנתונים לפי קטגוריה
-  static Future<migration_book.Book?> _findBookInDatabaseByCategory(
-    dynamic repository,
+  static Future<ResolvedDbBookRecord?> _findBookInDatabaseByCategory(
     String bookTitle,
     Category category,
   ) async {
     try {
-      // מציאת ID של הקטגוריה ב-DB
-      final categories = await repository.getRootCategories();
-      final categoryId = await _findCategoryIdByPath(
-        repository,
-        categories,
-        category.path,
+      final preferUserBooks =
+          BookDatabaseResolver.isLikelyUserBook(categoryPath: category.path);
+      final repositories = await BookDatabaseResolver.loadRepositoryCandidates(
+        preferUserBooks: preferUserBooks,
       );
 
-      if (categoryId != null) {
-        // חיפוש הספר בקטגוריה הספציפית
-        final booksInCategory = await repository.getBooksByCategory(categoryId);
+      for (final candidate in repositories) {
+        final categories = await candidate.repository.getRootCategories();
+        final categoryId = await _findCategoryIdByPath(
+          candidate.repository,
+          categories,
+          category.path,
+        );
+
+        if (categoryId == null) {
+          continue;
+        }
+
+        final booksInCategory =
+            await candidate.repository.getBooksByCategory(categoryId);
         for (final dbBook in booksInCategory) {
           if (dbBook.title == bookTitle) {
-            return dbBook;
+            return ResolvedDbBookRecord(
+              book: dbBook,
+              repository: candidate.repository,
+              isUserBooks: candidate.isUserBooks,
+            );
           }
         }
       }
@@ -271,7 +285,7 @@ class BookLocator {
 
   /// מחיקת ספר ממסד הנתונים
   static Future<bool> _deleteFromDatabase(BookLocation location) async {
-    final repository = SqliteDataProvider.instance.repository;
+    final repository = location.repository;
     if (repository == null || location.book == null) {
       return false;
     }
@@ -364,11 +378,15 @@ class BookLocation {
   /// ID של הקטגוריה ב-DB (אם נמצא ב-DB)
   final int? categoryId;
 
+  /// ה-repository שבו הספר נמצא בפועל.
+  final SeforimRepository? repository;
+
   BookLocation({
     required this.book,
     required this.source,
     required this.filePath,
     required this.categoryId,
+    this.repository,
   });
 }
 

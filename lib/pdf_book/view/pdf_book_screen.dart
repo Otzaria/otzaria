@@ -16,13 +16,12 @@ import 'package:otzaria/models/links.dart' as otz_links;
 import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart' as pdf_events;
 import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
+import 'package:otzaria/pdf_book/utils/pdf_spread_layout.dart';
 import 'package:otzaria/pdf_book/view/pdf_page_number_display.dart';
 import 'package:otzaria/pdf_book/view/pdf_commentary_panel.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
-import 'package:otzaria/personal_notes/widgets/personal_note_editor_dialog.dart';
-import 'package:otzaria/personal_notes/widgets/personal_note_editor.dart';
 import 'package:otzaria/personal_notes/services/personal_note_draft_service.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
@@ -39,7 +38,6 @@ import 'pdf_thumbnails_screen.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/utils/file/page_converter.dart';
 import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
-import 'package:flutter/gestures.dart';
 import 'package:otzaria/widgets/layout/dual_adaptive_reader_pane.dart';
 import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
 import 'pdf_zoom_bar.dart';
@@ -53,6 +51,7 @@ import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/printing/printing_helpers.dart';
 import 'package:otzaria/printing/view/printing_screen.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
+import 'package:otzaria/utils/link_helpers.dart';
 
 final GlobalKey pdfBookNavigationTourTargetKey = GlobalKey(
   debugLabel: 'pdf_book_navigation_tour_target',
@@ -119,10 +118,12 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   static const double _verticalScrollbarGutter = 16.0;
   static const double _horizontalScrollbarGutter = 10.0;
   static const double _scrollbarGutterGap = 4.0;
-  static const Duration _pointerScrollFlushDelay = Duration(milliseconds: 12);
-  static const double _maxPointerScrollBurstDelta = 160.0;
   static const String _connectionTypeCommentary = 'COMMENTARY';
   static const String _connectionTypeTargum = 'TARGUM';
+  static const int _kCommentaryTabIndex = 0;
+  static const int _kLinksTabIndex = 1;
+  static const int _kPersonalNotesTabIndex = 2;
+  static const double _kRightPaneNarrowWidth = 250;
 
   @override
   bool get wantKeepAlive => true;
@@ -142,12 +143,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
   // גלילה רציפה
   Timer? _scrollTimer;
-  Timer? _pointerScrollFlushTimer;
   LogicalKeyboardKey? _currentScrollKey;
   int? _scrollAnchorPage;
-  Matrix4? _panZoomBaseMatrix;
-  double _pendingPointerScrollDx = 0.0;
-  double _pendingPointerScrollDy = 0.0;
   int? _lockedSpreadStartPage;
   ui.Image? _pageTurnSnapshot;
   ui.Image? _pageTurnTargetSnapshot;
@@ -480,6 +477,19 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     return (startLine: startLine, endLine: endLine);
   }
 
+  /// מחזיר את טווח עמודי הספירייד עבור עמוד נתון.
+  /// בתצוגה רגילה — עמוד יחיד. בתצוגת ספר — שני עמודים (למעט עמוד 1 הבודד,
+  /// או עמוד אחרון במסמך עם מספר עמודים זוגי).
+  ({int startPage, int endPageExclusive}) _spreadPageRangeFor(int pageNumber) {
+    final controller = widget.tab.pdfViewerController;
+    final int? totalPages = controller.isReady ? controller.pageCount : null;
+    return pdfSpreadPageRange(
+      pageNumber,
+      bookView: _isBookViewModeActive(),
+      totalPages: totalPages,
+    );
+  }
+
   Future<({int start, int? end})> _resolveTextLineNumberForPage(
     int pageNumber, {
     String? resolvedTitle,
@@ -487,13 +497,14 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     debugPrint(
         '📖 [PDF-DEBUG] _resolveTextLineNumberForPage: page=$pageNumber resolvedTitle="$resolvedTitle"');
     final outline = widget.tab.outline.value ?? const <PdfOutlineNode>[];
+    final range = _spreadPageRangeFor(pageNumber);
     if (outline.isNotEmpty) {
-      final textIndex =
-          await pdfToTextPage(widget.tab.book, outline, pageNumber, context);
+      final textIndex = await pdfToTextPage(
+          widget.tab.book, outline, range.startPage, context);
       if (textIndex != null) {
         if (!mounted) return (start: textIndex + 1, end: null);
         final nextIndex = await pdfToTextPage(
-            widget.tab.book, outline, pageNumber + 1, context);
+            widget.tab.book, outline, range.endPageExclusive, context);
         debugPrint(
             '📖 [PDF-DEBUG] pdfToTextPage → raw=$textIndex → start=${textIndex + 1}, end=${nextIndex ?? "null (last page)"}');
         return (start: textIndex + 1, end: nextIndex);
@@ -504,8 +515,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     }
 
     final title = resolvedTitle ??
-        await refFromPageNumber(pageNumber, outline, widget.tab.book.title);
-    debugPrint('📖 [PDF-DEBUG] title for page $pageNumber = "$title"');
+        await refFromPageNumber(
+            range.startPage, outline, widget.tab.book.title);
+    debugPrint('📖 [PDF-DEBUG] title for page ${range.startPage} = "$title"');
     if (widget.tab.pdfHeadings != null && title.isNotEmpty) {
       final lineNumber = widget.tab.pdfHeadings!.getLineNumberForHeading(title);
       debugPrint(
@@ -519,8 +531,29 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     }
 
     debugPrint(
-        '📖 [PDF-DEBUG] fallback: returning pageNumber=$pageNumber as lineNumber');
-    return (start: pageNumber, end: null);
+        '📖 [PDF-DEBUG] fallback: returning pageNumber=${range.startPage} as lineNumber');
+    return (start: range.startPage, end: null);
+  }
+
+  /// מחזיר שני ערכי כותרת לעמוד נתון:
+  /// - [single] משמש כמפתח לחיפוש בכותרות (תמיד עמוד יחיד)
+  /// - [display] משמש להצגה למשתמש (שני עמודי הספירייד בתצוגת ספר, אם הם שונים)
+  Future<({String single, String display})> _resolveTitlesForPage(
+      int pageNumber) async {
+    final outline = widget.tab.outline.value ?? const <PdfOutlineNode>[];
+    final bookTitle = widget.tab.book.title;
+    final range = _spreadPageRangeFor(pageNumber);
+    final firstTitle =
+        await refFromPageNumber(range.startPage, outline, bookTitle);
+    final spans = range.endPageExclusive - range.startPage > 1;
+    if (!spans) {
+      return (single: firstTitle, display: firstTitle);
+    }
+    final secondTitle =
+        await refFromPageNumber(range.startPage + 1, outline, bookTitle);
+    final display = pdfCombineSpreadTitles(firstTitle, secondTitle);
+    final single = firstTitle.isEmpty ? secondTitle : firstTitle;
+    return (single: single, display: display);
   }
 
   ({List<String> commentators, List<otz_links.Link> links})
@@ -566,15 +599,30 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   void _openCommentaryPane() {
     _recordCommentaryOpenedIfNeeded();
     setState(() {
-      _rightPaneInitialTabIndex = 0;
+      _rightPaneInitialTabIndex = _kCommentaryTabIndex;
     });
     _bloc.add(const pdf_events.ToggleRightPane(show: true));
   }
 
   void _openLinksPane() {
     setState(() {
-      _rightPaneInitialTabIndex = 1;
+      _rightPaneInitialTabIndex = _kLinksTabIndex;
     });
+    _bloc.add(const pdf_events.ToggleRightPane(show: true));
+  }
+
+  // פותחת את חלונית ההערות האישיות.
+  // אם הייתה סגורה — נפתחת ב-narrow (רוחב מינימלי).
+  // אם הייתה פתוחה — נשארת ברוחב הנוכחי ועוברת לטאב הערות.
+  void _openPersonalNotesPane() {
+    final current = _bloc.state;
+    final isOpen = current is PdfBookLoaded && current.showRightPane;
+    setState(() {
+      _rightPaneInitialTabIndex = _kPersonalNotesTabIndex;
+    });
+    if (!isOpen) {
+      _bloc.add(const pdf_events.UpdateRightPaneWidth(_kRightPaneNarrowWidth));
+    }
     _bloc.add(const pdf_events.ToggleRightPane(show: true));
   }
 
@@ -762,6 +810,12 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         enabled: relevantLinks.isNotEmpty,
         children: linkChildren,
       ),
+      const AppContextMenuEntry.divider(),
+      AppContextMenuEntry(
+        label: 'הוסף הערה אישית',
+        icon: FluentIcons.note_add_24_regular,
+        onTap: () => _handleAddNotePress(menuContext),
+      ),
     ];
   }
 
@@ -849,7 +903,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           : null,
       enableKeyboardNavigation: false,
       scrollByArrowKey: 25.0,
-      scrollByMouseWheel: 0.0,
+      scrollByMouseWheel: 0.2,
+      interactionDelegateProvider:
+          const PdfViewerScrollInteractionDelegateProviderPhysics(),
       onDocumentLoadFinished: (documentRef, succeeded) {
         if (!mounted) return;
         _bloc.add(pdf_events.SetLoadingState(
@@ -893,7 +949,14 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         Positioned.fill(
           child: AppContextMenuRegion(
             menuBuilder: _buildPdfContextMenuEntries,
-            child: const ColoredBox(color: Colors.transparent),
+            child: Listener(
+              behavior: HitTestBehavior.translucent,
+              onPointerSignal: (event) {
+                widget.tab.pdfViewerController.handlePointerSignalEvent(event);
+                _scheduleReaderFocusAndHidePaneIfNeeded();
+              },
+              child: const SizedBox.expand(),
+            ),
           ),
         ),
         _buildBookViewViewportMask(size),
@@ -939,27 +1002,29 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         textSearcher = PdfTextSearcher(pdfController)
           ..addListener(_onTextSearcherUpdated);
 
-        widget.tab.documentRef.value = controller.documentRef;
-        widget.tab.outline.value = await document.loadOutline();
+        final documentRef = controller.documentRef;
+        widget.tab.documentRef.value = documentRef;
+        final outline = await document.loadOutline();
+        if (!mounted) return;
+        widget.tab.outline.value = outline;
         final totalPages = document.pages.length;
         final initialTargetPage = widget.tab.pageNumber.clamp(1, totalPages);
         widget.tab.pageNumber = initialTargetPage;
 
         _bloc.add(pdf_events.DocumentReady(
-          documentRef: controller.documentRef,
-          outline: widget.tab.outline.value,
+          documentRef: documentRef,
+          outline: outline,
           totalPages: totalPages,
         ));
 
         // חישוב currentTextLineNumber אחרי טעינת ה-outline
         final targetPage = initialTargetPage;
-        final targetTitle = await refFromPageNumber(
-            targetPage, widget.tab.outline.value ?? [], widget.tab.book.title);
+        final targetTitles = await _resolveTitlesForPage(targetPage);
         if (!mounted) return;
-        widget.tab.currentTitle.value = targetTitle;
+        widget.tab.currentTitle.value = targetTitles.display;
         final initialResolved = await _resolveTextLineNumberForPage(
           targetPage,
-          resolvedTitle: targetTitle,
+          resolvedTitle: targetTitles.single,
         );
         if (!mounted) return;
         widget.tab.currentTextLineNumber = initialResolved.start;
@@ -1157,7 +1222,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                     controller: widget.tab.pdfViewerController,
                     initialPageNumber:
                         widget.tab.pageNumber < 1 ? 1 : widget.tab.pageNumber,
-                    useProgressiveLoading: false,
+                    useProgressiveLoading: !widget.tab.requiresStableLayout,
                     passwordProvider: () => passwordDialog(context),
                     params: _buildPdfViewerParams(layoutMode),
                   ),
@@ -1174,10 +1239,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     return state is PdfBookLoaded && state.layoutMode == PdfLayoutMode.bookView;
   }
 
-  int _spreadStartPageFor(int pageNumber) {
-    if (pageNumber <= 1) return 1;
-    return pageNumber.isEven ? pageNumber : pageNumber - 1;
-  }
+  int _spreadStartPageFor(int pageNumber) => pdfSpreadStartPage(pageNumber);
 
   Rect? _spreadRectForPageLayout(PdfPageLayout layout, int spreadStartPage) {
     final pageLayouts = layout.pageLayouts;
@@ -2222,6 +2284,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         bookTitle,
         categoryId: categoryId,
         filePath: filePath,
+        preferUserBooks: widget.tab.book.isUserBook,
       );
       if (headings != null) {
         widget.tab.pdfHeadings = headings;
@@ -2282,16 +2345,12 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       final currentPage = widget.tab.pdfViewerController.isReady
           ? (widget.tab.pdfViewerController.pageNumber ?? widget.tab.pageNumber)
           : widget.tab.pageNumber;
-      final currentTitle = await refFromPageNumber(
-        currentPage,
-        widget.tab.outline.value ?? const <PdfOutlineNode>[],
-        widget.tab.book.title,
-      );
+      final currentTitles = await _resolveTitlesForPage(currentPage);
       if (!mounted) return;
-      widget.tab.currentTitle.value = currentTitle;
+      widget.tab.currentTitle.value = currentTitles.display;
       final resolved = await _resolveTextLineNumberForPage(
         currentPage,
-        resolvedTitle: currentTitle,
+        resolvedTitle: currentTitles.single,
       );
       if (!mounted) return;
       widget.tab.currentTextLineNumber = resolved.start;
@@ -2315,7 +2374,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   @override
   void dispose() {
     _stopContinuousScroll();
-    _pointerScrollFlushTimer?.cancel();
     _disposePageTurnSnapshot();
     _disposeAllSpreadCache();
     _pendingPageTurns.clear();
@@ -2388,17 +2446,21 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     widget.tab.pageNumber = newPage;
     final token = _lastComputedForPage = newPage;
 
-    widget.tab.currentTitle.value = 'עמוד $newPage';
+    final immediateRange = _spreadPageRangeFor(newPage);
+    widget.tab.currentTitle.value = immediateRange.endPageExclusive -
+                immediateRange.startPage >
+            1
+        ? 'עמודים ${immediateRange.startPage}-${immediateRange.endPageExclusive - 1}'
+        : 'עמוד $newPage';
 
-    final title = await refFromPageNumber(
-        newPage, widget.tab.outline.value ?? [], widget.tab.book.title);
+    final titles = await _resolveTitlesForPage(newPage);
     if (!mounted) return;
     if (token == _lastComputedForPage) {
-      widget.tab.currentTitle.value = title;
+      widget.tab.currentTitle.value = titles.display;
 
       final resolved = await _resolveTextLineNumberForPage(
         newPage,
-        resolvedTitle: title,
+        resolvedTitle: titles.single,
       );
       if (!mounted) return;
       widget.tab.currentTextLineNumber = resolved.start;
@@ -2567,146 +2629,109 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             _scheduleReaderFocusAndHidePaneIfNeeded();
             return false;
           },
-          child: Listener(
-            onPointerSignal: (event) {
-              if (event is PointerScrollEvent) {
-                if (HardwareKeyboard.instance.isControlPressed) {
-                  return;
-                }
-
-                _queuePointerScroll(event);
-                _scheduleReaderFocusAndHidePaneIfNeeded();
-              }
-            },
-            onPointerPanZoomStart: (_) {
-              _captureScrollAnchor();
-              if (widget.tab.pdfViewerController.isReady) {
-                _panZoomBaseMatrix =
-                    widget.tab.pdfViewerController.value.clone();
-              }
-            },
-            onPointerPanZoomUpdate: (event) {
-              if (HardwareKeyboard.instance.isControlPressed) {
-                return;
-              }
-
-              _applyPanZoomScroll(event);
-
-              if (!(widget.tab.pinLeftPane.value ||
-                  (Settings.getValue<bool>('key-pin-sidebar') ?? false))) {
-                _setLeftPaneVisibility(false);
-                Future.microtask(() {
-                  _pdfViewFocusNode.requestFocus();
-                });
-              }
-            },
-            onPointerPanZoomEnd: (_) {
-              _panZoomBaseMatrix = null;
-            },
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                Padding(
-                  padding: readerContentPadding,
-                  child: RepaintBoundary(
-                    key: _pdfViewportBoundaryKey,
-                    child: ColorFiltered(
-                      colorFilter: ColorFilter.mode(
-                        Colors.white,
-                        Provider.of<SettingsBloc>(context, listen: true)
-                                .state
-                                .isDarkMode
-                            ? BlendMode.difference
-                            : BlendMode.dst,
-                      ),
-                      child: Stack(
-                        children: [
-                          _buildPdfViewerFromFile(widget.tab.book.path),
-                          BlocBuilder<PdfBookBloc, PdfBookState>(
-                            buildWhen: (prev, curr) {
-                              if (prev is PdfBookLoaded &&
-                                  curr is PdfBookLoaded) {
-                                return prev.isLoading != curr.isLoading ||
-                                    prev.loadSucceeded != curr.loadSucceeded;
-                              }
-                              return true;
-                            },
-                            builder: (context, state) {
-                              if (state is PdfBookError) {
-                                return const SizedBox.shrink();
-                              }
-                              if (state is! PdfBookLoaded || state.isLoading) {
-                                return const Positioned.fill(
-                                  child: ColoredBox(
-                                    color: Color(0xFFFFFFFF),
-                                    child: Center(
-                                      child: CircularProgressIndicator(),
-                                    ),
-                                  ),
-                                );
-                              }
-                              if (!state.loadSucceeded) {
-                                return const Positioned.fill(
-                                  child:
-                                      Center(child: Text('Failed to load PDF')),
-                                );
-                              }
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Padding(
+                padding: readerContentPadding,
+                child: RepaintBoundary(
+                  key: _pdfViewportBoundaryKey,
+                  child: ColorFiltered(
+                    colorFilter: ColorFilter.mode(
+                      Colors.white,
+                      Provider.of<SettingsBloc>(context, listen: true)
+                              .state
+                              .isDarkMode
+                          ? BlendMode.difference
+                          : BlendMode.dst,
+                    ),
+                    child: Stack(
+                      children: [
+                        _buildPdfViewerFromFile(widget.tab.book.path),
+                        BlocBuilder<PdfBookBloc, PdfBookState>(
+                          buildWhen: (prev, curr) {
+                            if (prev is PdfBookLoaded &&
+                                curr is PdfBookLoaded) {
+                              return prev.isLoading != curr.isLoading ||
+                                  prev.loadSucceeded != curr.loadSucceeded;
+                            }
+                            return true;
+                          },
+                          builder: (context, state) {
+                            if (state is PdfBookError) {
                               return const SizedBox.shrink();
-                            },
-                          ),
-                        ],
-                      ),
+                            }
+                            if (state is! PdfBookLoaded || state.isLoading) {
+                              return const Positioned.fill(
+                                child: ColoredBox(
+                                  color: Color(0xFFFFFFFF),
+                                  child: Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                ),
+                              );
+                            }
+                            if (!state.loadSucceeded) {
+                              return const Positioned.fill(
+                                child:
+                                    Center(child: Text('Failed to load PDF')),
+                              );
+                            }
+                            return const SizedBox.shrink();
+                          },
+                        ),
+                      ],
                     ),
                   ),
                 ),
-                // שגיאת טעינה - מחוץ ל-ColorFiltered כדי שהצבעים יהיו נכונים
-                BlocBuilder<PdfBookBloc, PdfBookState>(
-                  buildWhen: (prev, curr) =>
-                      (prev is PdfBookError) != (curr is PdfBookError),
-                  builder: (context, state) {
-                    if (state is! PdfBookError) return const SizedBox.shrink();
-                    return Positioned.fill(
-                      child: Padding(
-                        padding: readerContentPadding,
-                        child: ColoredBox(
-                          color: Theme.of(context).colorScheme.surface,
-                          child: Center(
-                            child: Text(
-                              state.message,
-                              textDirection: TextDirection.rtl,
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.onSurface,
-                              ),
+              ),
+              // שגיאת טעינה - מחוץ ל-ColorFiltered כדי שהצבעים יהיו נכונים
+              BlocBuilder<PdfBookBloc, PdfBookState>(
+                buildWhen: (prev, curr) =>
+                    (prev is PdfBookError) != (curr is PdfBookError),
+                builder: (context, state) {
+                  if (state is! PdfBookError) return const SizedBox.shrink();
+                  return Positioned.fill(
+                    child: Padding(
+                      padding: readerContentPadding,
+                      child: ColoredBox(
+                        color: Theme.of(context).colorScheme.surface,
+                        child: Center(
+                          child: Text(
+                            state.message,
+                            textDirection: TextDirection.rtl,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurface,
                             ),
                           ),
                         ),
                       ),
-                    );
-                  },
-                ),
-                Padding(
-                  padding: readerContentPadding,
-                  child: _buildPageTurnOverlay(context),
-                ),
-                PdfScrollbar(
+                    ),
+                  );
+                },
+              ),
+              Padding(
+                padding: readerContentPadding,
+                child: _buildPageTurnOverlay(context),
+              ),
+              PdfScrollbar(
+                controller: widget.tab.pdfViewerController,
+                orientation: ScrollbarOrientation.right,
+                trackThickness: _verticalScrollbarGutter,
+                thumbMinSize: 50.0,
+                scrollBoundsBuilder: _currentVerticalScrollbarBounds,
+                freezeThumb: _pageTurnTransition != null,
+              ),
+              Positioned(
+                left: 0,
+                right: readerContentPadding.right,
+                bottom: 0,
+                child: PdfHorizontalScrollbar(
                   controller: widget.tab.pdfViewerController,
-                  orientation: ScrollbarOrientation.right,
-                  trackThickness: _verticalScrollbarGutter,
-                  thumbMinSize: 50.0,
-                  scrollBoundsBuilder: _currentVerticalScrollbarBounds,
-                  freezeThumb: _pageTurnTransition != null,
+                  trackThickness: _horizontalScrollbarGutter,
                 ),
-                Positioned(
-                  left: 0,
-                  right: readerContentPadding.right,
-                  bottom: 0,
-                  child: PdfHorizontalScrollbar(
-                    controller: widget.tab.pdfViewerController,
-                    trackThickness: _horizontalScrollbarGutter,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
         BlocBuilder<PdfBookBloc, PdfBookState>(
@@ -3097,134 +3122,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     _scrollAnchorPage = widget.tab.pdfViewerController.pageNumber ?? 1;
   }
 
-  void _queuePointerScroll(PointerScrollEvent event) {
-    if (!widget.tab.pdfViewerController.isReady) {
-      return;
-    }
-
-    if (_pointerScrollFlushTimer == null) {
-      _captureScrollAnchor();
-    }
-
-    _pendingPointerScrollDx += event.scrollDelta.dx;
-    _pendingPointerScrollDy += event.scrollDelta.dy;
-    _pointerScrollFlushTimer ??=
-        Timer(_pointerScrollFlushDelay, _flushQueuedPointerScroll);
-  }
-
-  void _flushQueuedPointerScroll() {
-    _pointerScrollFlushTimer = null;
-
-    var remainingDeltaX = _pendingPointerScrollDx;
-    var remainingDeltaY = _pendingPointerScrollDy;
-    _pendingPointerScrollDx = 0.0;
-    _pendingPointerScrollDy = 0.0;
-
-    if (remainingDeltaX == 0.0 && remainingDeltaY == 0.0) {
-      return;
-    }
-
-    while (remainingDeltaX != 0.0 || remainingDeltaY != 0.0) {
-      final stepDeltaX = remainingDeltaX.clamp(
-        -_maxPointerScrollBurstDelta,
-        _maxPointerScrollBurstDelta,
-      );
-      final stepDeltaY = remainingDeltaY.clamp(
-        -_maxPointerScrollBurstDelta,
-        _maxPointerScrollBurstDelta,
-      );
-
-      _applyPointerScrollDelta(
-        deltaX: stepDeltaX,
-        deltaY: stepDeltaY,
-      );
-
-      remainingDeltaX -= stepDeltaX;
-      remainingDeltaY -= stepDeltaY;
-    }
-  }
-
-  void _applyPointerScrollDelta({
-    required double deltaX,
-    required double deltaY,
-  }) {
-    if (!widget.tab.pdfViewerController.isReady) return;
-
-    final currentMatrix = widget.tab.pdfViewerController.value;
-    final zoom = currentMatrix.zoom;
-    final candidateMatrix = currentMatrix.clone()
-      ..translateByDouble(
-        -deltaX / zoom,
-        -deltaY / zoom,
-        0,
-        1,
-      );
-
-    if (!_isBookViewModeActive()) {
-      widget.tab.pdfViewerController.goTo(candidateMatrix);
-      return;
-    }
-
-    final anchorPage =
-        _scrollAnchorPage ?? (widget.tab.pdfViewerController.pageNumber ?? 1);
-    final clampedMatrix = _clampMatrixToSpread(
-      matrix: candidateMatrix,
-      viewSize: widget.tab.pdfViewerController.viewSize,
-      layout: widget.tab.pdfViewerController.layout,
-      controller: widget.tab.pdfViewerController,
-      spreadStartPage: _spreadStartPageFor(anchorPage),
-    );
-
-    widget.tab.pdfViewerController.goTo(clampedMatrix);
-
-    if (_wasMatrixClamped(
-      original: candidateMatrix,
-      clamped: clampedMatrix,
-      viewSize: widget.tab.pdfViewerController.viewSize,
-    )) {
-      _stopContinuousScroll();
-    }
-  }
-
-  void _applyPanZoomScroll(PointerPanZoomUpdateEvent event) {
-    if (!widget.tab.pdfViewerController.isReady) return;
-    final baseMatrix = _panZoomBaseMatrix;
-    if (baseMatrix == null) return;
-
-    final candidateMatrix = baseMatrix.clone()
-      ..translateByDouble(
-        event.pan.dx,
-        event.pan.dy,
-        0,
-        1,
-      );
-
-    if (!_isBookViewModeActive()) {
-      widget.tab.pdfViewerController.goTo(candidateMatrix);
-      return;
-    }
-
-    final anchorPage =
-        _scrollAnchorPage ?? (widget.tab.pdfViewerController.pageNumber ?? 1);
-    final clampedMatrix = _clampMatrixToSpread(
-      matrix: candidateMatrix,
-      viewSize: widget.tab.pdfViewerController.viewSize,
-      layout: widget.tab.pdfViewerController.layout,
-      controller: widget.tab.pdfViewerController,
-      spreadStartPage: _spreadStartPageFor(anchorPage),
-    );
-
-    widget.tab.pdfViewerController.goTo(clampedMatrix);
-
-    if (_wasMatrixClamped(
-      original: candidateMatrix,
-      clamped: clampedMatrix,
-      viewSize: widget.tab.pdfViewerController.viewSize,
-    )) {
-      _stopContinuousScroll();
-    }
-  }
-
   void _applyVerticalScroll(double deltaY) {
     if (!widget.tab.pdfViewerController.isReady) return;
 
@@ -3518,21 +3415,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         widget: IconButton(
           icon: const Icon(FluentIcons.note_24_regular),
           tooltip: 'הצג הערות אישיות',
-          onPressed: () {
-            setState(() {
-              _rightPaneInitialTabIndex = 2;
-            });
-            _bloc.add(const pdf_events.ToggleRightPane(show: true));
-          },
+          onPressed: _openPersonalNotesPane,
         ),
         icon: FluentIcons.note_24_regular,
         tooltip: 'הצג הערות אישיות',
-        onPressed: () {
-          setState(() {
-            _rightPaneInitialTabIndex = 2;
-          });
-          _bloc.add(const pdf_events.ToggleRightPane(show: true));
-        },
+        onPressed: _openPersonalNotesPane,
       ),
       ActionButtonData(
         widget: IconButton(
@@ -3579,6 +3466,39 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           tooltip: 'הדפס',
           onPressed: () => _handlePrintPress(context),
         ),
+      // העתק קישור ישיר
+      ActionButtonData(
+        widget: const SizedBox.shrink(),
+        icon: FluentIcons.link_24_regular,
+        tooltip: widget.tab.book.id != null
+            ? 'העתק קישור ישיר'
+            : 'העתק קישור ישיר (לא זמין לספר זה)',
+        onPressed: null,
+        submenuItems: widget.tab.book.id != null
+            ? () {
+                final bookId = widget.tab.book.id!;
+                return [
+                  ActionButtonData(
+                    widget: const SizedBox.shrink(),
+                    icon: FluentIcons.link_24_regular,
+                    tooltip: 'העתק קישור ישיר לספר זה',
+                    onPressed: () =>
+                        copyLinkToClipboard(buildPdfBookLink(bookId)),
+                  ),
+                  ActionButtonData(
+                    widget: const SizedBox.shrink(),
+                    icon: FluentIcons.link_multiple_24_regular,
+                    tooltip: 'העתק קישור ישיר לעמוד זה',
+                    onPressed: () {
+                      final page = widget.tab.pdfViewerController.pageNumber ??
+                          widget.tab.pageNumber;
+                      copyLinkToClipboard(buildPdfPageLink(bookId, page));
+                    },
+                  ),
+                ];
+              }()
+            : null,
+      ),
       if (widget.isInCombinedView)
         ActionButtonData(
           widget: const SizedBox.shrink(),
@@ -3697,112 +3617,23 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
     final notesBloc = context.read<PersonalNotesBloc>();
 
-    final library = await DataRepository.instance.library;
-    final textBook = library.findBookByTitle(widget.tab.book.title, TextBook);
-
-    String dialogTitle = 'הוסף הערה לעמוד $currentPage';
-    if (textBook != null && widget.tab.pdfHeadings != null) {
-      final currentTitle = widget.tab.currentTitle.value;
-      final currentLineNumber =
-          widget.tab.pdfHeadings!.getLineNumberForHeading(currentTitle);
-
-      if (currentLineNumber != null) {
-        final sortedHeadings = widget.tab.pdfHeadings!.getSortedHeadings();
-        final currentIndex =
-            sortedHeadings.indexWhere((e) => e.value == currentLineNumber);
-
-        if (currentIndex != -1) {
-          final nextLineNumber = currentIndex < sortedHeadings.length - 1
-              ? sortedHeadings[currentIndex + 1].value
-              : null;
-
-          if (nextLineNumber != null) {
-            dialogTitle =
-                'הוסף הערה לעמוד $currentPage\n(שורות $currentLineNumber-${nextLineNumber - 1} בטקסט)';
-          } else {
-            dialogTitle =
-                'הוסף הערה לעמוד $currentPage\n(משורה $currentLineNumber בטקסט)';
-          }
-        }
-      }
-    }
-
-    if (!mounted) return;
-
     final draftService = PersonalNoteDraftService();
     final draft = await draftService.loadDraft(
       bookId: widget.tab.book.title,
       lineNumber: currentPage,
     );
 
-    if (!context.mounted) return;
-
-    final noteContent = await showDialog<PersonalNoteEditorResult>(
-      context: context,
-      builder: (context) => PersonalNoteEditorDialog(
-        title: dialogTitle,
-        bookId: widget.tab.book.title,
-        categoryId: widget.tab.book.categoryId,
-        draftLineNumber: currentPage,
-        initialContent: draft?.content ?? '',
-        initialContentFormat:
-            draft?.contentFormat ?? PersonalNoteContentFormat.plain,
-        linkableNotes: [
-          ...notesBloc.state.locatedNotes,
-          ...notesBloc.state.missingNotes,
-        ],
-      ),
-    );
-
-    if (mounted) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _pdfViewFocusNode.requestFocus();
-        }
-      });
-    }
-
     if (!mounted) return;
 
-    if (noteContent == null) {
-      return;
-    }
+    notesBloc.add(StartCreatingPersonalNote(
+      bookId: widget.tab.book.title,
+      lineNumber: currentPage,
+      referenceText: 'עמוד $currentPage',
+      initialContent: draft?.content ?? '',
+      initialFormat: draft?.contentFormat ?? PersonalNoteContentFormat.plain,
+    ));
 
-    final trimmed = noteContent.contentPlain.trim();
-    if (trimmed.isEmpty) {
-      UiSnack.show('ההערה ריקה, לא נשמרה');
-      return;
-    }
-
-    if (!mounted) return;
-
-    try {
-      final bookId = widget.tab.book.title;
-
-      notesBloc.add(AddPersonalNote(
-        bookId: bookId,
-        lineNumber: currentPage,
-        content: noteContent.content,
-        contentPlain: noteContent.contentPlain,
-        contentFormat: noteContent.contentFormat,
-      ));
-
-      setState(() {
-        _rightPaneInitialTabIndex = 2;
-      });
-      _bloc.add(const pdf_events.ToggleRightPane(show: true));
-
-      await Future.delayed(const Duration(milliseconds: 100));
-
-      if (textBook != null) {
-        UiSnack.show('ההערה נשמרה ותוצג בכל שורות העמוד בתצוגת הטקסט');
-      } else {
-        UiSnack.show('ההערה נשמרה בהצלחה');
-      }
-    } catch (e) {
-      debugPrint('Error adding note: $e');
-      UiSnack.showError('שמירת ההערה נכשלה: $e');
-    }
+    _openPersonalNotesPane();
   }
 
   Future<void> _handlePrintPress(BuildContext context) async {

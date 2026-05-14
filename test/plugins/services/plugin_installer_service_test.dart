@@ -76,7 +76,7 @@ void main() {
       await Directory(preparedInstall.tempDirPath).delete(recursive: true);
     });
 
-    test('prepareInstall rejects unsupported toolTab icon variant', () async {
+    test('prepareInstall rejects invalid toolTab icon name', () async {
       final archivePath = p.join(tempDir.path, 'plugin_invalid_icon.zip');
       final archive = Archive()
         ..addFile(
@@ -84,15 +84,14 @@ void main() {
             'manifest.json',
             jsonEncode({
               'schemaVersion': 1,
-              'id': 'test.invalid.icon.variant',
+              'id': 'test.invalid.icon.name',
               'version': '1.0.0',
-              'name': 'Invalid Icon Variant',
+              'name': 'Invalid Icon Name',
               'entrypoint': 'index.html',
               'contributes': {
                 'toolTab': {
                   'title': 'Bad Icon',
-                  'iconCodepoint': 983685,
-                  'iconVariant': 'light',
+                  'iconName': 'calendar_24_light',
                 },
               },
             }),
@@ -110,7 +109,7 @@ void main() {
           isA<Exception>().having(
             (e) => e.toString(),
             'message',
-            contains('toolTab.iconVariant חייב להיות regular או filled'),
+            contains('toolTab.iconName חייב להיות שם אייקון FluentUI'),
           ),
         ),
       );

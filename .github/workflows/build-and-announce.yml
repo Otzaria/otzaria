@@ -118,6 +118,8 @@ jobs:
           flutter pub get
           # Prevent bundling the PDFium WASM assets into non-Web release builds.
           dart run pdfrx:remove_wasm_modules
+          # Generate settings search index (.g.dart) — gitignored, regenerated per build.
+          dart run tool/generate_search_index.dart
 
       - name: Build Flutter Windows app
         shell: pwsh
@@ -456,7 +458,9 @@ jobs:
           flutter pub get
           # Prevent bundling the PDFium WASM assets into non-Web release builds.
           dart run pdfrx:remove_wasm_modules
-      
+          # Generate settings search index (.g.dart) — gitignored, regenerated per build.
+          dart run tool/generate_search_index.dart
+
       - name: Build Flutter Linux app (with retry)
         run: |
           set -e
@@ -837,6 +841,8 @@ jobs:
           flutter pub get
           # Prevent bundling the PDFium WASM assets into non-Web release builds.
           dart run pdfrx:remove_wasm_modules
+          # Generate settings search index (.g.dart) — gitignored, regenerated per build.
+          dart run tool/generate_search_index.dart
           flutter build apk
           # ניקוי מיידי של קבצים מיותרים מהבנייה (לא ה-APK הסופי)
           rm -rf build/app/intermediates || true
@@ -965,6 +971,8 @@ jobs:
           flutter pub get
           # Prevent bundling the PDFium WASM assets into non-Web release builds.
           dart run pdfrx:remove_wasm_modules
+          # Generate settings search index (.g.dart) — gitignored, regenerated per build.
+          dart run tool/generate_search_index.dart
 
       - name: Build Flutter macOS app (Universal Binary)
         run: |
@@ -1418,10 +1426,10 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.13'
 
       - name: Install dependencies for webhook script
-        run: pip install bs4 requests pyluach
+        run: pip install bs4 requests pyluach yemot-api
 
       - name: Build commit list since previous release
         id: changelog

@@ -152,6 +152,7 @@ class PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState> {
     emit(
       state.copyWith(
         isCreatingNewNote: true,
+        newNoteBookId: event.bookId,
         newNoteLineNumber: event.lineNumber,
         newNoteReferenceText: event.referenceText,
         newNoteSelectedText: event.selectedText,

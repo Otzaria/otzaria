@@ -173,6 +173,22 @@ class ClearHighlightedLine extends TextBookEvent {
   List<Object?> get props => [lineIndex];
 }
 
+/// מחיל הדגשה ממוקדת על טאב פתוח ומבקש קפיצה לסעיף [sectionIndex].
+/// משמש כש‑deep link מגיע לטאב שכבר פתוח, ולכן ה‑constructor של TextBookTab
+/// כבר רץ ולא מקבל את ה‑pinpoint דרך ה‑initial state.
+class ApplyPinpointHighlight extends TextBookEvent {
+  final int sectionIndex;
+  final String text;
+
+  const ApplyPinpointHighlight({
+    required this.sectionIndex,
+    required this.text,
+  });
+
+  @override
+  List<Object?> get props => [sectionIndex, text];
+}
+
 class TogglePinLeftPane extends TextBookEvent {
   final bool pin;
 

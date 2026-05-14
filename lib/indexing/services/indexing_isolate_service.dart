@@ -4,6 +4,7 @@ import 'dart:isolate';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/core/error_log_file.dart';
+import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 
 class PreparedIndexDocument {
@@ -58,6 +59,14 @@ class IndexingDocumentBuilder {
   static final RegExp _pdfNonLettersNonSpace =
       RegExp(r'[^\s\u05D0-\u05EAa-zA-Z0-9]');
 
+  /// \u05DE\u05E0\u05E8\u05DE\u05DC \u05D8\u05E7\u05E1\u05D8 \u05DC\u05D0\u05D9\u05E0\u05D3\u05D5\u05E7\u05E1 \u05DC\u05E4\u05D9 \u05DB\u05DC\u05DC\u05D9 `SearchQueryBuilder.sanitizeQuery`,
+  /// \u05DB\u05DA \u05E9\u05D8\u05D5\u05E7\u05E0\u05D9 \u05D4\u05D0\u05D9\u05E0\u05D3\u05D5\u05E7\u05E1 \u05D5\u05D8\u05D5\u05E7\u05E0\u05D9 \u05D4\u05E9\u05D0\u05D9\u05DC\u05EA\u05D4 \u05D9\u05D9\u05D5\u05D5\u05E6\u05E8\u05D5 \u05DE\u05D0\u05D5\u05EA\u05DD \u05EA\u05D5\u05D5\u05D9\u05DD \u05DE\u05E0\u05D5\u05E8\u05DE\u05DC\u05D9\u05DD.
+  static String normalizeTextForIndexing(String input) {
+    return SearchQueryBuilder.sanitizeQuery(
+      removeVolwels(stripHtmlIfNeeded(input)),
+    );
+  }
+
   static List<PreparedIndexDocument> buildTextBookDocuments(String text) {
     final texts = text.split('\n');
     final documents = <PreparedIndexDocument>[];
@@ -67,7 +76,7 @@ class IndexingDocumentBuilder {
       final rawLine = texts[i];
       if (rawLine.startsWith('<h')) {
         _updateReferenceTrail(reference, rawLine);
-        final headerLine = removeVolwels(stripHtmlIfNeeded(rawLine));
+        final headerLine = normalizeTextForIndexing(rawLine);
         documents.add(
           PreparedIndexDocument(
             reference: stripHtmlIfNeeded(reference.join(', ')),
@@ -79,7 +88,7 @@ class IndexingDocumentBuilder {
         continue;
       }
 
-      final line = removeVolwels(stripHtmlIfNeeded(rawLine));
+      final line = normalizeTextForIndexing(rawLine);
       documents.add(
         PreparedIndexDocument(
           reference: stripHtmlIfNeeded(reference.join(', ')),
@@ -98,6 +107,7 @@ class IndexingDocumentBuilder {
     text = text.replaceAll(_pdfInvisibleChars, '');
     text = text.replaceAll(RegExp(r'\s+'), ' ').trim();
     text = removeVolwels(text);
+    text = SearchQueryBuilder.sanitizeQuery(text);
     return text;
   }
 
@@ -476,7 +486,8 @@ void _indexingWorkerMain(_WorkerBootstrapMessage bootstrap) {
       final rawLine = texts[i];
       if (rawLine.startsWith('<h')) {
         IndexingDocumentBuilder._updateReferenceTrail(reference, rawLine);
-        final headerLine = removeVolwels(stripHtmlIfNeeded(rawLine));
+        final headerLine =
+            IndexingDocumentBuilder.normalizeTextForIndexing(rawLine);
         batch.add({
           'reference': stripHtmlIfNeeded(reference.join(', ')),
           'text': headerLine,
@@ -486,7 +497,7 @@ void _indexingWorkerMain(_WorkerBootstrapMessage bootstrap) {
       } else {
         batch.add({
           'reference': stripHtmlIfNeeded(reference.join(', ')),
-          'text': removeVolwels(stripHtmlIfNeeded(rawLine)),
+          'text': IndexingDocumentBuilder.normalizeTextForIndexing(rawLine),
           'segment': i,
           'ordinal': ordinal++,
         });

@@ -145,42 +145,72 @@ class LibraryProviderManager {
     String title, {
     int? categoryId,
     String? fileType,
+    bool preferUserBooks = false,
   }) {
     final normalizedFileType = BookCompositeKey.normalizeFileType(fileType);
 
     if (categoryId != null) {
-      final exactKey = BookCompositeKey.create(
-        title: title,
-        categoryId: categoryId,
-        fileType: normalizedFileType,
-      );
-      if (_bookToProvider.containsKey(exactKey)) {
-        return exactKey;
+      // categoryId לבדו אינו חד-משמעי — `5` יכול להיות גם בseforim וגם
+      // ב-user_books. ננסה את שני הוריאנטים בסדר המתאים להעדפת המשתמש.
+      final order = preferUserBooks ? const [true, false] : const [false, true];
+      for (final isUser in order) {
+        final exactKey = BookCompositeKey.create(
+          title: title,
+          categoryId: categoryId,
+          fileType: normalizedFileType,
+          isUserBook: isUser,
+        );
+        if (_bookToProvider.containsKey(exactKey)) {
+          return exactKey;
+        }
       }
     }
 
-    for (final key in _bookToProvider.keys) {
-      if (key.matches(title, otherFileType: normalizedFileType)) {
-        return key;
+    // עיברה על המפתחות בשני מעברים: קודם התאמה מלאה (כולל fileType),
+    // ואז התאמה לפי כותרת בלבד. ה-`accept` מסנן את אוסף המפתחות
+    // המועמדים — שימושי כדי לחפש קודם רק ב-user_books, ואז רק
+    // בכל השאר, בלי לסרוק את user_books פעמיים.
+    BookCompositeKey? findIn(bool Function(BookCompositeKey) accept) {
+      for (final key in _bookToProvider.keys) {
+        if (!accept(key)) continue;
+        if (key.matches(title, otherFileType: normalizedFileType)) return key;
       }
+      for (final key in _bookToProvider.keys) {
+        if (!accept(key)) continue;
+        if (key.matchesTitle(title)) return key;
+      }
+      return null;
     }
 
-    for (final key in _bookToProvider.keys) {
-      if (key.matchesTitle(title)) {
-        return key;
-      }
+    if (preferUserBooks) {
+      final fromUserBooks = findIn((k) => k.isUserBook);
+      if (fromUserBooks != null) return fromUserBooks;
+      return findIn((k) => !k.isUserBook);
     }
 
-    return null;
+    return findIn((_) => true);
   }
 
   Future<BookCompositeKey?> _findKeyInProvider(
     LibraryProvider provider,
     String title, {
     String? fileType,
+    bool preferUserBooks = false,
   }) async {
     final normalizedFileType = BookCompositeKey.normalizeFileType(fileType);
     final rawKeys = await provider.getAvailableBookTitles();
+
+    if (preferUserBooks) {
+      for (final rawKey in rawKeys) {
+        final parsed = BookCompositeKey.tryParse(rawKey);
+        if (parsed == null || !parsed.isUserBook) {
+          continue;
+        }
+        if (parsed.matches(title, otherFileType: normalizedFileType)) {
+          return parsed;
+        }
+      }
+    }
 
     for (final rawKey in rawKeys) {
       final parsed = BookCompositeKey.tryParse(rawKey);
@@ -206,6 +236,7 @@ class LibraryProviderManager {
     String title, {
     int? categoryId,
     String? fileType,
+    bool preferUserBooks = false,
   }) async {
     final normalizedFileType = BookCompositeKey.normalizeFileType(fileType);
 
@@ -221,6 +252,9 @@ class LibraryProviderManager {
               title: title,
               categoryId: categoryId,
               fileType: normalizedFileType,
+              // הינט בלבד — ה-provider לא מחזיר אם זה user_books, ואנחנו
+              // משתמשים בהעדפת הקורא להתאים את המפתח למה שב-cache.
+              isUserBook: preferUserBooks,
             ),
             provider: provider
           );
@@ -232,6 +266,7 @@ class LibraryProviderManager {
         provider,
         title,
         fileType: normalizedFileType,
+        preferUserBooks: preferUserBooks,
       );
       if (providerKey != null) {
         return (key: providerKey, provider: provider);
@@ -289,6 +324,7 @@ class LibraryProviderManager {
     String title, {
     int? categoryId,
     String? fileType,
+    bool preferUserBooks = false,
   }) async {
     if (!_isInitialized) await initialize();
 
@@ -296,6 +332,7 @@ class LibraryProviderManager {
       title,
       categoryId: categoryId,
       fileType: fileType,
+      preferUserBooks: preferUserBooks,
     );
     if (mappedKey != null) {
       final provider = _bookToProvider[mappedKey];
@@ -304,6 +341,7 @@ class LibraryProviderManager {
           title,
           mappedKey.categoryId,
           mappedKey.fileType,
+          preferUserBooks: preferUserBooks,
         );
       }
     }
@@ -313,6 +351,7 @@ class LibraryProviderManager {
       title,
       categoryId: categoryId,
       fileType: fileType,
+      preferUserBooks: preferUserBooks,
     );
     if (located == null) {
       debugPrint('❌ Book "$title" not found in any provider');
@@ -323,6 +362,7 @@ class LibraryProviderManager {
       title,
       located.key.categoryId,
       located.key.fileType,
+      preferUserBooks: preferUserBooks,
     );
     if (text != null) {
       _bookToProvider[located.key] = located.provider;
@@ -335,12 +375,14 @@ class LibraryProviderManager {
     String title, {
     int? categoryId,
     String? fileType,
+    bool preferUserBooks = false,
   }) async {
     if (!_isInitialized) await initialize();
     final mappedKey = _resolveBookKey(
       title,
       categoryId: categoryId,
       fileType: fileType,
+      preferUserBooks: preferUserBooks,
     );
     if (mappedKey != null) {
       final provider = _bookToProvider[mappedKey];
@@ -349,6 +391,7 @@ class LibraryProviderManager {
           title,
           mappedKey.categoryId,
           mappedKey.fileType,
+          preferUserBooks: preferUserBooks,
         );
       }
     }
@@ -357,6 +400,7 @@ class LibraryProviderManager {
       title,
       categoryId: categoryId,
       fileType: fileType,
+      preferUserBooks: preferUserBooks,
     );
     if (located == null) return null;
 
@@ -364,6 +408,7 @@ class LibraryProviderManager {
       title,
       located.key.categoryId,
       located.key.fileType,
+      preferUserBooks: preferUserBooks,
     );
     if (toc != null) {
       _bookToProvider[located.key] = located.provider;
@@ -461,7 +506,8 @@ class LibraryProviderManager {
           return content;
         }
       } catch (e) {
-        debugPrint('LibraryProviderManager: provider failed for $targetTitle, continuing to fallback: $e');
+        debugPrint(
+            'LibraryProviderManager: provider failed for $targetTitle, continuing to fallback: $e');
       }
     }
 

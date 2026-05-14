@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/text_book/utils/visible_index.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -24,6 +25,7 @@ import 'package:otzaria/widgets/feedback/app_future_builder.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'package:otzaria/services/commentary_service.dart';
+import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart';
 
 // Type alias לתאימות לאחור - משתמש ב-LinkGroup מה-Service
 typedef CommentaryGroup = LinkGroup;
@@ -40,6 +42,7 @@ class CommentaryListBase extends StatefulWidget {
   final List<CommentatorGroup>? commentatorGroupsOverride;
   final String? bookTitleOverride;
   final ValueChanged<List<String>>? onSelectedCommentatorsOverrideChanged;
+  final SelectionSyncController? selectionSyncController;
 
   const CommentaryListBase({
     super.key,
@@ -54,6 +57,7 @@ class CommentaryListBase extends StatefulWidget {
     this.commentatorGroupsOverride,
     this.bookTitleOverride,
     this.onSelectedCommentatorsOverrideChanged,
+    this.selectionSyncController,
   });
 
   @override
@@ -91,6 +95,9 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
   bool _userInteractedWithFilter =
       false; // האם המשתמש בחר בעצמו בתוך פאנל הסינון
   final FocusNode _focusNode = FocusNode();
+  final FocusNode _searchFocusNode = FocusNode();
+  final Object _selectionOwner = Object();
+  int _selectionRevision = 0;
 
   String _getLinkKey(Link link) =>
       '${link.index1}_${link.path2}_${link.index2}';
@@ -158,11 +165,18 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
     super.initState();
     // האזנה לשינויים במיקום הגלילה כדי לשמור את המיקום האחרון
     _itemPositionsListener.itemPositions.addListener(_updateLastScrollIndex);
+    widget.selectionSyncController?.addListener(_handleExternalSelectionChange);
   }
 
   @override
   void didUpdateWidget(CommentaryListBase oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectionSyncController != widget.selectionSyncController) {
+      oldWidget.selectionSyncController
+          ?.removeListener(_handleExternalSelectionChange);
+      widget.selectionSyncController
+          ?.addListener(_handleExternalSelectionChange);
+    }
     // סגירה אוטומטית של מסך הסינון כאשר המפרשים עוברים מריק לא-ריק
     // (קורה כאשר המשתמש בוחר "כל המפרשים" מהתפריט הימני)
     if (_showCommentatorsFilter &&
@@ -190,8 +204,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
   void _updateLastScrollIndex() {
     final positions = _itemPositionsListener.itemPositions.value;
     if (positions.isNotEmpty) {
-      // שומר את האינדקס של הפריט הראשון הנראה
-      _lastScrollIndex = positions.first.index;
+      _lastScrollIndex = topmostVisibleIndex(positions);
     }
   }
 
@@ -213,6 +226,8 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
   void dispose() {
     _searchUpdateDebounce?.cancel();
     _itemPositionsListener.itemPositions.removeListener(_updateLastScrollIndex);
+    widget.selectionSyncController
+        ?.removeListener(_handleExternalSelectionChange);
     _searchController.dispose();
     _savedSelectedText.dispose();
     _lastSelectedLink.dispose();
@@ -220,7 +235,26 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
     _currentSearchIndexNotifier.dispose();
     _totalSearchResultsNotifier.dispose();
     _focusNode.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
+  }
+
+  void _handleExternalSelectionChange() {
+    final controller = widget.selectionSyncController;
+    if (controller == null ||
+        identical(controller.activeOwner, _selectionOwner)) {
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    _savedSelectedText.value = null;
+    _lastSelectedLink.value = null;
+    setState(() {
+      _selectionRevision = controller.revision;
+    });
   }
 
   Future<void> _scrollToSearchResult() async {
@@ -432,6 +466,9 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
       indexesKey: indexesKey,
       savedSelectedTextListenable: _savedSelectedText,
       lastSelectedLinkListenable: _lastSelectedLink,
+      selectionSyncController: widget.selectionSyncController,
+      selectionOwner: _selectionOwner,
+      selectionRevision: _selectionRevision,
       onExpansionChanged: (expanded) {
         _expansionStates[groupKey] = expanded;
         // בודק אם כל המפרשים פתוחים או סגורים ומעדכן את המצב הגלובלי
@@ -446,7 +483,9 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
       onLinkSelected: (link, text) {
         _savedSelectedText.value = text;
         _lastSelectedLink.value = link;
-        _focusNode.requestFocus();
+        if (!_searchFocusNode.hasFocus) {
+          _focusNode.requestFocus();
+        }
       },
       onLinkSelectionCleared: () {
         _savedSelectedText.value = null;
@@ -752,6 +791,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                                   valueListenable: _currentSearchIndexNotifier,
                                   builder: (context, currentIndex, ___) {
                                     return RtlTextField(
+                                      focusNode: _searchFocusNode,
                                       controller: _searchController,
                                       decoration: InputDecoration(
                                         hintText: 'חפש בתוך המפרשים המוצגים...',
@@ -845,6 +885,12 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                                           _totalSearchResultsNotifier.value = 0;
                                           _searchResultsPerLink.clear();
                                           _pendingCounts.clear();
+                                          WidgetsBinding.instance
+                                              .addPostFrameCallback((_) {
+                                            if (mounted) {
+                                              _searchFocusNode.requestFocus();
+                                            }
+                                          });
                                         }
                                       },
                                     );
@@ -1060,6 +1106,9 @@ class _CollapsibleCommentaryGroup extends StatefulWidget {
   final String indexesKey;
   final ValueListenable<String?> savedSelectedTextListenable;
   final ValueListenable<Link?> lastSelectedLinkListenable;
+  final SelectionSyncController? selectionSyncController;
+  final Object selectionOwner;
+  final int selectionRevision;
   final void Function(bool) onExpansionChanged;
   final void Function(Link link, String text) onLinkSelected;
   final VoidCallback onLinkSelectionCleared;
@@ -1083,6 +1132,9 @@ class _CollapsibleCommentaryGroup extends StatefulWidget {
     required this.indexesKey,
     required this.savedSelectedTextListenable,
     required this.lastSelectedLinkListenable,
+    required this.selectionSyncController,
+    required this.selectionOwner,
+    required this.selectionRevision,
     required this.onExpansionChanged,
     required this.onLinkSelected,
     required this.onLinkSelectionCleared,
@@ -1169,13 +1221,20 @@ class _CollapsibleCommentaryGroupState
         if (_isExpanded)
           ...widget.group.links.map((link) {
             return SelectionArea(
+              key: ValueKey(
+                'commentary_${widget.getLinkKey(link)}_${widget.selectionRevision}',
+              ),
               contextMenuBuilder: (context, selectableRegionState) {
                 return const SizedBox.shrink();
               },
               onSelectionChanged: (selection) {
                 if (selection != null && selection.plainText.isNotEmpty) {
+                  widget.selectionSyncController
+                      ?.activate(widget.selectionOwner);
                   widget.onLinkSelected(link, selection.plainText);
-                } else if (selection == null) {
+                } else if (selection == null ||
+                    selection.plainText.trim().isEmpty) {
+                  widget.selectionSyncController?.clear(widget.selectionOwner);
                   widget.onLinkSelectionCleared();
                 }
               },

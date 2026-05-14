@@ -33,6 +33,7 @@ class SearchEditPanel extends StatefulWidget {
 class _SearchEditPanelState extends State<SearchEditPanel> {
   late final TextEditingController _distanceController;
   late Set<String> _selectedCategoryFacets;
+  final ValueNotifier<bool> _advancedControlsHasFocus = ValueNotifier(false);
 
   @override
   void initState() {
@@ -46,6 +47,7 @@ class _SearchEditPanelState extends State<SearchEditPanel> {
   @override
   void dispose() {
     _distanceController.dispose();
+    _advancedControlsHasFocus.dispose();
     super.dispose();
   }
 
@@ -60,11 +62,17 @@ class _SearchEditPanelState extends State<SearchEditPanel> {
     final facetsToSearch = _selectedCategoryFacets.isEmpty
         ? ['/']
         : _selectedCategoryFacets.toList();
+    final effectiveOptions = SearchQueryBuilder.effectiveSearchOptions(
+      query: query,
+      useGlobalOptions: widget.tab.useGlobalSearchOptions.value,
+      globalOptions: widget.tab.globalSearchOptions,
+      perWordOptions: widget.tab.searchOptions,
+    );
     final normalizedParameters = SearchQueryBuilder.normalizeParametersForMode(
       widget.tab.searchBloc.state.configuration.searchMode,
       customSpacing: widget.tab.spacingValues,
       alternativeWords: widget.tab.alternativeWords,
-      searchOptions: widget.tab.searchOptions,
+      searchOptions: effectiveOptions,
     );
 
     widget.tab.updateTitleFromAppliedQuery(query);
@@ -192,6 +200,7 @@ class _SearchEditPanelState extends State<SearchEditPanel> {
           tab: widget.tab,
           compactMode: true,
           onEmptySubmit: () => _performSearch(context),
+          inputFocusNotifier: _advancedControlsHasFocus,
         );
 
         if (constraints.maxWidth >= 720) {
@@ -226,7 +235,21 @@ class _SearchEditPanelState extends State<SearchEditPanel> {
       bloc: widget.tab.searchBloc,
       builder: (context, state) {
         final colorScheme = Theme.of(context).colorScheme;
-        return Container(
+        return FocusScope(
+          onKeyEvent: (node, event) {
+            // תפיסת Enter ברמת הפאנל - בדומה לדיאלוג החיפוש,
+            // כדי שהחיפוש יופעל גם כשהפוקוס לא בשדה הטקסט הראשי.
+            if (event is KeyDownEvent &&
+                event.logicalKey == LogicalKeyboardKey.enter) {
+              if (_advancedControlsHasFocus.value) {
+                return KeyEventResult.ignored;
+              }
+              _performSearch(context);
+              return KeyEventResult.handled;
+            }
+            return KeyEventResult.ignored;
+          },
+          child: Container(
           decoration: BoxDecoration(
             color: colorScheme.surface,
             border: Border(
@@ -307,6 +330,7 @@ class _SearchEditPanelState extends State<SearchEditPanel> {
               const SizedBox(height: 16),
               _buildCategoryAndOptions(context, state),
             ],
+          ),
           ),
         );
       },

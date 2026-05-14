@@ -2,13 +2,15 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
+import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
+import 'package:otzaria/library/models/library.dart' as library_models;
 import 'package:otzaria/migration/models/author.dart';
 import 'package:otzaria/migration/models/book.dart' as migration_models;
-import 'package:otzaria/migration/models/category.dart'
-    as migration_models;
+import 'package:otzaria/migration/models/category.dart' as migration_models;
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/models/links.dart';
@@ -244,7 +246,7 @@ void main() {
         db.execute(
             "INSERT INTO line (id, lineIndex, heRef) VALUES (21, 1, 'ב')");
         db.execute(
-            "INSERT INTO connection_type (id, name) VALUES (5, 'reference')");
+            "INSERT INTO connection_type (id, name) VALUES (5, 'COMMENTARY')");
         db.execute(
             'INSERT INTO link (sourceBookId, sourceLineId, targetLineId, targetBookId, connectionTypeId) VALUES (1, 10, 20, 2, 5)');
         db.execute(
@@ -310,7 +312,7 @@ void main() {
       final database = MyDatabase.withPath(dbPath);
       final repository = SeforimRepository(database);
       final provider = DatabaseLibraryProvider.instance;
-        final previousLibraryPath =
+      final previousLibraryPath =
           Settings.getValue<String>(SettingsRepository.keyLibraryPath);
       final previousFolderName =
           Settings.getValue<String>(SettingsRepository.keyLibraryFolderName);
@@ -420,6 +422,274 @@ void main() {
         database.close();
         await tempDir.delete(recursive: true);
       }
+    });
+
+    test('buildLibraryCatalog ממזג ספרים אישיים קיימים מול user_books',
+        () async {
+      final tempDir =
+          await Directory.systemTemp.createTemp('otzaria_user_books_merge');
+      final libraryPath = path.join(tempDir.path, 'library');
+      final dataRootPath = path.join(tempDir.path, 'data_root');
+      final dbPath = path.join(libraryPath, DatabaseConstants.databaseFileName);
+      final database = MyDatabase.withPath(dbPath);
+      final repository = SeforimRepository(database);
+      final provider = DatabaseLibraryProvider.instance;
+      final previousLibraryPath =
+          Settings.getValue<String>(SettingsRepository.keyLibraryPath);
+      final previousFolderName =
+          Settings.getValue<String>(SettingsRepository.keyLibraryFolderName);
+      final previousEffectiveDbPath =
+          Settings.getValue<String>(SettingsRepository.keyDbEffectivePath);
+      final previousDataRootPath = AppPaths.cachedDataRootPath;
+
+      // ניקיון בעזרת addTearDown במקום try/finally: כל קריאה רצה
+      // בנפרד גם אם הקודמת זורקת, ולכן הטסט לא משאיר Settings מלוכלכים
+      // לטסטים הבאים גם אם רק חלק מהשלבים מצליחים.
+      // addTearDown מבצע ב-LIFO — נרשום בסדר הפוך לרצוי, כדי שתחילה
+      // ייסגרו ה-DBs ואחר כך תימחק התיקייה הזמנית.
+      addTearDown(() => tempDir.delete(recursive: true));
+      addTearDown(() => database.close());
+      addTearDown(() => provider.clearCache());
+      addTearDown(() => provider.sqliteProvider.dispose());
+      addTearDown(
+          () => AppPaths.debugOverrideDataRootPath(previousDataRootPath));
+      addTearDown(() => UserBooksDatabaseHolder.instance.close());
+      addTearDown(() async {
+        await Settings.setValue<String>(
+          SettingsRepository.keyDbEffectivePath,
+          previousEffectiveDbPath ?? '',
+        );
+      });
+      addTearDown(() async {
+        await Settings.setValue<String>(
+          SettingsRepository.keyLibraryFolderName,
+          previousFolderName ?? '',
+        );
+      });
+      addTearDown(() async {
+        await Settings.setValue<String>(
+          SettingsRepository.keyLibraryPath,
+          previousLibraryPath ?? '',
+        );
+      });
+
+      await Directory(libraryPath).create(recursive: true);
+      await provider.sqliteProvider.dispose();
+      provider.clearCache();
+      await UserBooksDatabaseHolder.instance.close();
+      AppPaths.debugOverrideDataRootPath(dataRootPath);
+      await repository.ensureInitialized();
+
+      await Settings.setValue<String>(
+        SettingsRepository.keyLibraryPath,
+        libraryPath,
+      );
+      await Settings.setValue<String>(
+        SettingsRepository.keyLibraryFolderName,
+        '',
+      );
+      await Settings.setValue<String>(
+        SettingsRepository.keyDbEffectivePath,
+        '',
+      );
+
+      final sourceId = await repository.insertSource('local-test', -10);
+        final personalCategoryId = await repository.insertCategory(
+          const migration_models.Category(
+            title: 'ספרים אישיים',
+            parentId: null,
+            level: 0,
+            orderIndex: 1,
+          ),
+        );
+        final existingFolderId = await repository.insertCategory(
+          migration_models.Category(
+            title: 'תיקייה קיימת',
+            parentId: personalCategoryId,
+            level: 1,
+            orderIndex: 1,
+          ),
+        );
+
+        await repository.insertBook(
+          migration_models.Book(
+            id: 1,
+            categoryId: existingFolderId,
+            sourceId: sourceId,
+            title: 'ספר ראשי',
+            filePath: path.join(tempDir.path, 'main_book.txt'),
+            fileType: 'txt',
+          ),
+        );
+
+        final userBooksRepository =
+            await UserBooksDatabaseHolder.instance.repository;
+        final userSourceId =
+            await userBooksRepository.insertSource('user-test', -20);
+        final userPersonalCategoryId = await userBooksRepository.insertCategory(
+          const migration_models.Category(
+            title: 'ספרים אישיים',
+            parentId: null,
+            level: 0,
+            orderIndex: 1,
+          ),
+        );
+        final userExistingFolderId = await userBooksRepository.insertCategory(
+          migration_models.Category(
+            title: 'תיקייה קיימת',
+            parentId: userPersonalCategoryId,
+            level: 1,
+            orderIndex: 1,
+          ),
+        );
+        final nestedFolderId = await userBooksRepository.insertCategory(
+          migration_models.Category(
+            title: 'תת קטגוריה',
+            parentId: userExistingFolderId,
+            level: 2,
+            orderIndex: 1,
+          ),
+        );
+
+        await userBooksRepository.insertBook(
+          migration_models.Book(
+            categoryId: userExistingFolderId,
+            sourceId: userSourceId,
+            title: 'ספר משתמש',
+            filePath: path.join(tempDir.path, 'user_book.txt'),
+            fileType: 'txt',
+          ),
+        );
+        await userBooksRepository.insertBook(
+          migration_models.Book(
+            categoryId: nestedFolderId,
+            sourceId: userSourceId,
+            title: 'ספר פנימי',
+            filePath: path.join(tempDir.path, 'nested_user_book.txt'),
+            fileType: 'txt',
+          ),
+        );
+
+        await provider.initialize();
+        final library = await provider.buildLibraryCatalog({}, libraryPath);
+
+        final personalCategories =
+            library.subCategories.where((c) => c.title == 'ספרים אישיים');
+        expect(personalCategories, hasLength(1));
+
+        final personalCategory = personalCategories.single;
+        final mergedCategories = personalCategory.subCategories
+            .where((c) => c.title == 'תיקייה קיימת');
+        expect(mergedCategories, hasLength(1));
+
+        final mergedCategory = mergedCategories.single;
+        expect(mergedCategory.parent, same(personalCategory));
+        expect(
+          mergedCategory.books.map((book) => book.title),
+          containsAll(['ספר ראשי', 'ספר משתמש']),
+        );
+
+        final mainBook =
+            mergedCategory.books.firstWhere((book) => book.title == 'ספר ראשי');
+        final userBook = mergedCategory.books
+            .firstWhere((book) => book.title == 'ספר משתמש');
+        expect(mainBook.category, same(mergedCategory));
+        expect(userBook.category, same(mergedCategory));
+
+        final nestedCategories =
+            mergedCategory.subCategories.where((c) => c.title == 'תת קטגוריה');
+        expect(nestedCategories, hasLength(1));
+
+        final nestedCategory = nestedCategories.single;
+        expect(nestedCategory.parent, same(mergedCategory));
+        expect(nestedCategory.path, '/ספרים אישיים/תיקייה קיימת/תת קטגוריה');
+        expect(nestedCategory.books, hasLength(1));
+      expect(nestedCategory.books.single.title, 'ספר פנימי');
+      expect(nestedCategory.books.single.category, same(nestedCategory));
+    });
+
+    test(
+        'populateUserBooksCategoryForTesting ממלא קטגוריה קיימת בלי לשבור parent ו-category',
+        () {
+      final provider = DatabaseLibraryProvider.instance;
+      provider.clearCache();
+
+      final library = library_models.Library(categories: []);
+      final personalCategory = library_models.Category(
+        title: 'ספרים אישיים',
+        description: '',
+        shortDescription: '',
+        order: 1,
+        subCategories: [],
+        books: [],
+        parent: library,
+      );
+      library.subCategories.add(personalCategory);
+
+      final existingCategory = library_models.Category(
+        title: 'תיקייה קיימת',
+        description: '',
+        shortDescription: '',
+        order: 1,
+        subCategories: [],
+        books: [],
+        parent: personalCategory,
+      );
+      personalCategory.subCategories.add(existingCategory);
+
+      provider.populateUserBooksCategoryForTesting(
+        targetCategory: existingCategory,
+        dbCategory: const migration_models.Category(
+          id: 10,
+          parentId: 1,
+          title: 'תיקייה קיימת',
+          level: 1,
+          orderIndex: 1,
+        ),
+        booksByCategory: {
+          10: [
+            {
+              'id': 100,
+              'title': 'ספר קיים בעץ',
+              'categoryId': 10,
+              'orderIndex': 1,
+              'fileType': 'txt',
+            },
+          ],
+          11: [
+            {
+              'id': 101,
+              'title': 'ספר פנימי',
+              'categoryId': 11,
+              'orderIndex': 1,
+              'fileType': 'txt',
+            },
+          ],
+        },
+        categoriesByParent: {
+          10: const [
+            migration_models.Category(
+              id: 11,
+              parentId: 10,
+              title: 'תת קטגוריה',
+              level: 2,
+              orderIndex: 1,
+            ),
+          ],
+        },
+        authorsByBookId: const {},
+        metadata: const {},
+      );
+
+      expect(existingCategory.books, hasLength(1));
+      expect(existingCategory.books.single.category, same(existingCategory));
+
+      expect(existingCategory.subCategories, hasLength(1));
+      final nestedCategory = existingCategory.subCategories.single;
+      expect(nestedCategory.parent, same(existingCategory));
+      expect(nestedCategory.path, '/ספרים אישיים/תיקייה קיימת/תת קטגוריה');
+      expect(nestedCategory.books, hasLength(1));
+      expect(nestedCategory.books.single.category, same(nestedCategory));
     });
 
     test('mergeLinksForTesting ממזג קישורים בלי כפילויות ושומר קישורים קודמים',

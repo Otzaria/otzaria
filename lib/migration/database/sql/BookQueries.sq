@@ -61,12 +61,6 @@ INSERT INTO book (categoryId, sourceId, title, heShortDesc, orderIndex, totalLin
     hasAltStructures, hasTeamim, hasNekudot, isPersonal, filePath, fileType, fileSize, lastModified, pages, volume)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
-insertWithId:
-INSERT INTO book (id, categoryId, sourceId, title, heShortDesc, orderIndex, totalLines, isBaseBook,
-    hasTargumConnection, hasReferenceConnection, hasSourceConnection, hasCommentaryConnection, hasOtherConnection,
-    hasAltStructures, hasTeamim, hasNekudot, isPersonal, filePath, fileType, fileSize, lastModified, pages, volume)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-
 -- Insert external content book (content stored externally, metadata in DB)
 insertExternalContent:
 INSERT INTO book (categoryId, sourceId, title, heShortDesc, orderIndex, isPersonal, filePath, fileType, fileSize, lastModified)

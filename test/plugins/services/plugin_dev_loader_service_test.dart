@@ -197,17 +197,17 @@ void main() {
     });
 
     test(
-        'loadDevelopmentPlugin throws exception when iconVariant is set without iconCodepoint',
+        'loadDevelopmentPlugin throws exception when iconName has invalid format',
         () async {
       final manifestFile = File(p.join(tempDir.path, 'manifest.json'));
       manifestFile.writeAsStringSync(jsonEncode({
         'schemaVersion': 1,
-        'id': 'test.icon.variant.without.codepoint',
+        'id': 'test.icon.invalid.name',
         'version': '1.0.0',
-        'name': 'Bad Icon Variant',
+        'name': 'Bad Icon Name',
         'entrypoint': 'index.html',
         'contributes': {
-          'toolTab': {'title': 'Bad Icon', 'iconVariant': 'filled'}
+          'toolTab': {'title': 'Bad Icon', 'iconName': 'not-a-valid-icon'}
         }
       }));
 
@@ -217,8 +217,7 @@ void main() {
           isA<Exception>().having(
             (e) => e.toString(),
             'message',
-            contains(
-                'toolTab.iconVariant הוגדר ללא toolTab.iconCodepoint תואם'),
+            contains('toolTab.iconName חייב להיות שם אייקון FluentUI'),
           ),
         ),
       );

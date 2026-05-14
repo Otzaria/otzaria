@@ -177,7 +177,7 @@ class CopyUtils {
     final lines = normalizedText.split('\n');
     final htmlLines = lines.join('<br>');
 
-    return '<html><body><p dir="rtl" style="font-family: $fontFamily; font-size: ${fontSize}px; text-align: justify; direction: rtl; margin: 0; padding: 0;">$htmlLines</p></body></html>';
+    return '<span dir="rtl" style="font-family: $fontFamily; font-size: ${fontSize}px; direction: rtl;">$htmlLines</span>';
   }
 
   /// העתקת טקסט מעוצב ללוח עם HTML

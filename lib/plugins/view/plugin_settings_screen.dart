@@ -56,7 +56,10 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen> {
         }
       }
 
-      return Scaffold(
+      return Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 60),
+        clipBehavior: Clip.antiAlias,
+        child: Scaffold(
         appBar: AppBar(title: Text('הגדרות תוסף: ${currentPlugin.name}')),
         body: ListView(
           padding: const EdgeInsets.all(16),
@@ -80,6 +83,26 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen> {
                           .add(DisablePluginRequested(currentPlugin.pluginId));
                     }
                   },
+                  hoverColor: Colors.transparent,
+                ),
+                SwitchListTile(
+                  title: const Text('הצמדה לסרגל הניווט'),
+                  subtitle: const Text(
+                      'הצגת התוסף כפריט קבוע בסרגל הניווט הראשי, בין "כלים" ל"הגדרות"'),
+                  value: currentPlugin.pinnedToNavRail,
+                  onChanged: currentPlugin.enabled
+                      ? (val) {
+                          if (val) {
+                            context.read<PluginSystemBloc>().add(
+                                PinPluginToNavRailRequested(
+                                    currentPlugin.pluginId));
+                          } else {
+                            context.read<PluginSystemBloc>().add(
+                                UnpinPluginFromNavRailRequested(
+                                    currentPlugin.pluginId));
+                          }
+                        }
+                      : null,
                   hoverColor: Colors.transparent,
                 ),
               ],
@@ -191,6 +214,7 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen> {
             ]
           ],
         ),
+      ),
       );
     });
   }

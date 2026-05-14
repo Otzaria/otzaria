@@ -17,8 +17,11 @@ class PersonalNotesState extends Equatable {
   final bool showOnlyVisible;
   final List<int> visibleLineIndices;
 
-  // מצב יצירת הערה חדשה
+  // מצב יצירת הערה חדשה — מתויג ב-bookId נפרד כדי לקשר את הטיוטה
+  // לספר שבו היא נוצרה, ללא תלות בספר שעבורו טעונות כעת ההערות
+  // (state.bookId משקף את הספר האחרון שעבורו נטענו הערות, לא את הטיוטה).
   final bool isCreatingNewNote;
+  final String? newNoteBookId;
   final int? newNoteLineNumber;
   final String? newNoteReferenceText;
   final String? newNoteSelectedText;
@@ -38,6 +41,7 @@ class PersonalNotesState extends Equatable {
     this.showOnlyVisible = true,
     this.visibleLineIndices = const [],
     this.isCreatingNewNote = false,
+    this.newNoteBookId,
     this.newNoteLineNumber,
     this.newNoteReferenceText,
     this.newNoteSelectedText,
@@ -58,6 +62,7 @@ class PersonalNotesState extends Equatable {
         showOnlyVisible = true,
         visibleLineIndices = const [],
         isCreatingNewNote = false,
+        newNoteBookId = null,
         newNoteLineNumber = null,
         newNoteReferenceText = null,
         newNoteSelectedText = null,
@@ -77,6 +82,7 @@ class PersonalNotesState extends Equatable {
     bool? showOnlyVisible,
     List<int>? visibleLineIndices,
     bool? isCreatingNewNote,
+    String? newNoteBookId,
     int? newNoteLineNumber,
     String? newNoteReferenceText,
     String? newNoteSelectedText,
@@ -99,6 +105,8 @@ class PersonalNotesState extends Equatable {
       isCreatingNewNote: clearNewNoteData
           ? false
           : (isCreatingNewNote ?? this.isCreatingNewNote),
+      newNoteBookId:
+          clearNewNoteData ? null : (newNoteBookId ?? this.newNoteBookId),
       newNoteLineNumber: clearNewNoteData
           ? null
           : (newNoteLineNumber ?? this.newNoteLineNumber),
@@ -131,6 +139,7 @@ class PersonalNotesState extends Equatable {
         showOnlyVisible,
         visibleLineIndices,
         isCreatingNewNote,
+        newNoteBookId,
         newNoteLineNumber,
         newNoteReferenceText,
         newNoteSelectedText,

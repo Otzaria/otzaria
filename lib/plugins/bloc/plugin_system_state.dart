@@ -23,6 +23,8 @@ class PluginSystemLoaded extends PluginSystemState {
   
   List<InstalledPlugin> get activePlugins => plugins.where((p) => p.enabled).toList();
   List<InstalledPlugin> get pinnedPlugins => plugins.where((p) => p.pinned && p.enabled).toList();
+  List<InstalledPlugin> get pluginsPinnedToNavRail =>
+      plugins.where((p) => p.pinnedToNavRail && p.enabled).toList();
 }
 
 class PluginSystemError extends PluginSystemState {
@@ -52,12 +54,17 @@ class PluginSystemOverwriteRequired extends PluginSystemState {
 class PluginSystemInstallRequiresPermissions extends PluginSystemState {
   final PluginManifest manifest;
   final String tempDirPath;
+  /// גרסה מותקנת קודמת — null אם זו התקנה ראשונה.
+  final String? previousVersion;
 
   const PluginSystemInstallRequiresPermissions({
     required this.manifest,
     required this.tempDirPath,
+    this.previousVersion,
   });
 
+  bool get isUpdate => previousVersion != null;
+
   @override
-  List<Object?> get props => [manifest, tempDirPath];
+  List<Object?> get props => [manifest, tempDirPath, previousVersion];
 }

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
@@ -22,7 +23,20 @@ class PluginSystemDatabase {
     final db = sqlite3.open(dbPath);
     db.execute('PRAGMA journal_mode=WAL');
     _createSchema(db);
+    ensureSchemaUpgrades(db);
     return db;
+  }
+
+  /// מבצע מיגרציות סכמה אידמפוטנטיות ל-DB קיים. חשוף לבדיקות.
+  @visibleForTesting
+  static void ensureSchemaUpgrades(Database db) {
+    final cols =
+        db.select('PRAGMA table_info(plugin_installation)').toMapList();
+    final hasNavRailCol = cols.any((c) => c['name'] == 'pinned_to_nav_rail');
+    if (!hasNavRailCol) {
+      db.execute(
+          'ALTER TABLE plugin_installation ADD COLUMN pinned_to_nav_rail INTEGER NOT NULL DEFAULT 0');
+    }
   }
 
   void _createSchema(Database db) {
@@ -37,6 +51,7 @@ class PluginSystemDatabase {
         icon_path TEXT,
         enabled INTEGER NOT NULL,
         pinned INTEGER NOT NULL DEFAULT 1,
+        pinned_to_nav_rail INTEGER NOT NULL DEFAULT 0,
         manifest_json TEXT NOT NULL,
         installed_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
@@ -147,6 +162,18 @@ class PluginSystemDatabase {
     db.execute(
         'UPDATE plugin_installation SET pinned = ?, updated_at = ? WHERE plugin_id = ?',
         [pinned ? 1 : 0, DateTime.now().toIso8601String(), pluginId]);
+  }
+
+  Future<void> updatePluginNavRailPinState(
+      String pluginId, bool pinnedToNavRail) async {
+    final db = await database;
+    db.execute(
+        'UPDATE plugin_installation SET pinned_to_nav_rail = ?, updated_at = ? WHERE plugin_id = ?',
+        [
+          pinnedToNavRail ? 1 : 0,
+          DateTime.now().toIso8601String(),
+          pluginId,
+        ]);
   }
 
   // --- CRUD for Permissions ---

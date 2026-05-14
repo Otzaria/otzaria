@@ -9,6 +9,7 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
+import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart';
 import 'package:otzaria/text_book/view/tabbed_commentary_panel.dart';
 import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
@@ -52,6 +53,8 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
   bool _isHovering = false; // מצב ריחוף על הטאב
   final ValueNotifier<String?> _savedSelectedText =
       ValueNotifier<String?>(null); // טקסט נבחר לתפריט הקשר
+  final SelectionSyncController _selectionSyncController =
+      SelectionSyncController();
 
   @override
   void initState() {
@@ -106,9 +109,11 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
       _calculatePaneWidths(double availableWidth) {
     const minPaneWidth = 280.0;
     const minTextWidth = 300.0;
-    final maxPaneWidth = (availableWidth * 0.75).clamp(minPaneWidth, double.infinity);
+    final maxPaneWidth =
+        (availableWidth * 0.75).clamp(minPaneWidth, double.infinity);
     // נדחס אם אין מספיק מקום לטקסט, אבל לא עולה על 75%
-    final effectiveMax = ((availableWidth - minTextWidth).clamp(minPaneWidth, maxPaneWidth));
+    final effectiveMax =
+        ((availableWidth - minTextWidth).clamp(minPaneWidth, maxPaneWidth));
     final paneWidth = _leftPaneWidth.clamp(minPaneWidth, effectiveMax);
 
     return (
@@ -176,6 +181,7 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
   void dispose() {
     _controller.dispose();
     _savedSelectedText.dispose();
+    _selectionSyncController.dispose();
     super.dispose();
   }
 
@@ -234,6 +240,7 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                       fontSize: state.fontSize,
                       openBookCallback: widget.openBookCallback,
                       showSearch: true,
+                      selectionSyncController: _selectionSyncController,
                       onClosePane: _togglePane,
                       initialTabIndex: _currentTabIndex,
                       showSplitView: widget.showSplitView,
@@ -264,6 +271,7 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                       openBookCallback: widget.openBookCallback,
                       openLeftPaneTab: widget.openLeftPaneTab,
                       onSelectedTextChanged: widget.onSelectedTextChanged,
+                      selectionSyncController: _selectionSyncController,
                       showCommentaryAsExpansionTiles: !widget.showSplitView,
                       tab: widget.tab,
                       onOpenPersonalNotes: () {
@@ -304,7 +312,8 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                                 color: Theme.of(context)
                                     .colorScheme
                                     .surfaceContainerHighest
-                                    .withValues(alpha: _isHovering ? 0.95 : 0.8),
+                                    .withValues(
+                                        alpha: _isHovering ? 0.95 : 0.8),
                                 borderRadius: const BorderRadius.only(
                                   topRight: Radius.circular(40),
                                   bottomRight: Radius.circular(40),
@@ -324,7 +333,8 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
                                   child: Icon(
                                     FluentIcons.chevron_right_24_regular,
                                     size: _isHovering ? 24 : 18,
-                                    color: Theme.of(context).colorScheme.onSurface,
+                                    color:
+                                        Theme.of(context).colorScheme.onSurface,
                                   ),
                                 ),
                               ),

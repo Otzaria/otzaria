@@ -19,7 +19,6 @@ import 'package:otzaria/tools/calendar/dialogs/calendar_event_dialog.dart';
 import 'package:otzaria/tools/calendar/dialogs/calendar_print_dialog.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_navigation_helpers.dart';
-import 'package:otzaria/tools/calendar/dialogs/jump_to_date_dialog.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_side_panel.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_events_panel.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_settings_panel.dart';
@@ -43,7 +42,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
   late final FocusNode _keyboardFocusNode;
   Timer? _keyRepeatTimer;
   LogicalKeyboardKey? _currentPressedKey;
-  bool _isJumpToDateDialogOpen = false;
+  bool _isJumpToDateSearchOpen = false;
   bool _isCreateEventDialogOpen = false;
   bool _isPrintDialogOpen = false;
   bool _isSidebarVisible = false;
@@ -86,8 +85,11 @@ class CalendarWidgetState extends State<CalendarWidget> {
   void requestKeyboardFocus() => _requestFocusIfNeeded();
 
   void closeTransientPanels() {
-    if (!_isSettingsPanelOpen) return;
-    setState(() => _isSettingsPanelOpen = false);
+    if (!_isSettingsPanelOpen && !_isJumpToDateSearchOpen) return;
+    setState(() {
+      _isSettingsPanelOpen = false;
+      _isJumpToDateSearchOpen = false;
+    });
   }
 
   @override
@@ -352,12 +354,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
           'ctrl+f',
           () {
             if (_isTextFieldFocused()) return;
-            if (_isJumpToDateDialogOpen) {
-              Navigator.of(context).pop();
-              _isJumpToDateDialogOpen = false;
-            } else {
-              _showJumpToDateDialog(context);
-            }
+            _toggleJumpToDateSearch();
           },
         );
         registerShortcut(
@@ -461,6 +458,9 @@ class CalendarWidgetState extends State<CalendarWidget> {
                           onPrint: () => _togglePrintCalendar(context, state),
                           onToggleSidebar: () =>
                               _toggleSidebar(context, isMobile),
+                          isJumpToDateSearchOpen: _isJumpToDateSearchOpen,
+                          onToggleJumpToDateSearch: _toggleJumpToDateSearch,
+                          onCloseJumpToDateSearch: _closeJumpToDateSearch,
                           parseInputDate: (input) =>
                               parseCalendarInputDate(context, input),
                           onJumpToDateSelected: (date) {
@@ -511,25 +511,29 @@ class CalendarWidgetState extends State<CalendarWidget> {
           onPaneWidthChanged: (nextWidth) {
             _sidePanelWidth = nextWidth;
           },
+          widePaneBuilder: (context, paneContent, paneWidth) => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: paneContent,
+          ),
           narrowPaneBuilder: (context, paneContent) => Material(
             color: AppSurfaces.solidPanelBackground(context),
             child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16),
-                child: Column(
-                  children: [
-                    Align(
-                      alignment: AlignmentDirectional.topStart,
-                      child: ToolbarActionButton(
-                        tooltip: 'סגור חלונית',
-                        icon: FluentIcons.dismiss_24_regular,
-                        onPressed: _handleSidebarClosedByUser,
-                      ),
+              child: Stack(
+                children: [
+                  Padding(
+                    padding: const EdgeInsetsDirectional.fromSTEB(8, 8, 8, 8),
+                    child: paneContent,
+                  ),
+                  PositionedDirectional(
+                    top: 4,
+                    start: 4,
+                    child: ToolbarActionButton(
+                      tooltip: 'סגור חלונית',
+                      icon: FluentIcons.dismiss_24_regular,
+                      onPressed: _handleSidebarClosedByUser,
                     ),
-                    const SizedBox(height: 8),
-                    Expanded(child: paneContent),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -646,24 +650,12 @@ class CalendarWidgetState extends State<CalendarWidget> {
 
   // ─── Dialogs ─────────────────────────────────────────────────────────────────
 
-  void _showJumpToDateDialog(BuildContext context) {
-    _isJumpToDateDialogOpen = true;
-    final selectedDate = context.read<CalendarCubit>().state.selectedGregorianDate;
-    showJumpToDateDialog(
-      context: context,
-      parseInputDate: (input) => parseCalendarInputDate(context, input),
-      initialDate: selectedDate,
-      closeShortcut: _shortcutActivator(
-        context.read<SettingsBloc>().state.shortcuts,
-        'key-shortcut-search-current-window',
-        'ctrl+f',
-      ),
-    ).then((selectedDate) {
-      if (selectedDate != null && context.mounted) {
-        context.read<CalendarCubit>().jumpToDate(selectedDate);
-      }
-      _isJumpToDateDialogOpen = false;
-    });
+  void _toggleJumpToDateSearch() {
+    setState(() => _isJumpToDateSearchOpen = !_isJumpToDateSearchOpen);
+  }
+
+  void _closeJumpToDateSearch() {
+    setState(() => _isJumpToDateSearchOpen = false);
   }
 
   void _showCreateEventDialog(

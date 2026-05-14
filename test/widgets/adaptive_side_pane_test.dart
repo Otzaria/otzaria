@@ -136,7 +136,120 @@ void main() {
     expect(find.text('count: 2'), findsOneWidget);
   });
 
-  testWidgets('AdaptiveSidePane places overlay drag handle on window edge',
+  testWidgets(
+      'AdaptiveSidePane does not build paneContent before first open (wide)',
+      (tester) async {
+    // אופטימיזציית ביצועים: paneContent כבד (TocViewer וכו') לא צריך להיבנות
+    // לפני שהפאנל נפתח לראשונה - מונע frame builds של 12+ שניות בספרים גדולים.
+    late StateSetter setRootState;
+    var isOpen = false;
+    var paneBuildCount = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Directionality(
+          textDirection: TextDirection.rtl,
+          child: StatefulBuilder(
+            builder: (context, setState) {
+              setRootState = setState;
+              return Scaffold(
+                body: SizedBox(
+                  width: 1200,
+                  height: 700,
+                  child: AdaptiveSidePane(
+                    isOpen: isOpen,
+                    alignment: AlignmentDirectional.centerEnd,
+                    paneWidth: 300,
+                    minMainContentWidth: 420,
+                    onClose: () {},
+                    mainContent: const SizedBox.expand(),
+                    paneContent: Builder(builder: (context) {
+                      paneBuildCount++;
+                      return const Text('pane_marker');
+                    }),
+                    autoHandleResponsiveVisibility: false,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    // לפני פתיחה ראשונה - התוכן לא נבנה כלל
+    expect(paneBuildCount, 0);
+    expect(find.text('pane_marker'), findsNothing);
+
+    // פתיחה ראשונה - התוכן נבנה ומופיע
+    setRootState(() {
+      isOpen = true;
+    });
+    await tester.pumpAndSettle();
+    expect(paneBuildCount, greaterThan(0));
+    expect(find.text('pane_marker'), findsOneWidget);
+
+    // סגירה אחרי פתיחה - התוכן נשאר במגדל (לשמירת state)
+    setRootState(() {
+      isOpen = false;
+    });
+    await tester.pumpAndSettle();
+    expect(find.text('pane_marker'), findsOneWidget);
+  });
+
+  testWidgets(
+      'AdaptiveSidePane does not build paneContent before first open (narrow)',
+      (tester) async {
+    late StateSetter setRootState;
+    var isOpen = false;
+    var paneBuildCount = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Directionality(
+          textDirection: TextDirection.rtl,
+          child: StatefulBuilder(
+            builder: (context, setState) {
+              setRootState = setState;
+              return Scaffold(
+                body: SizedBox(
+                  width: 500,
+                  height: 700,
+                  child: AdaptiveSidePane(
+                    isOpen: isOpen,
+                    alignment: AlignmentDirectional.centerEnd,
+                    paneWidth: 300,
+                    minMainContentWidth: 420,
+                    onClose: () {},
+                    mainContent: const SizedBox.expand(),
+                    paneContent: Builder(builder: (context) {
+                      paneBuildCount++;
+                      return const Text('pane_marker_narrow');
+                    }),
+                    autoHandleResponsiveVisibility: false,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    // לפני פתיחה ראשונה - התוכן לא נבנה גם במצב narrow
+    expect(paneBuildCount, 0);
+    expect(find.text('pane_marker_narrow'), findsNothing);
+
+    // פתיחה - התוכן נבנה
+    setRootState(() {
+      isOpen = true;
+    });
+    await tester.pumpAndSettle();
+    expect(paneBuildCount, greaterThan(0));
+    expect(find.text('pane_marker_narrow'), findsOneWidget);
+  });
+
+  testWidgets('AdaptiveSidePane places overlay drag handle at pane edge',
       (tester) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -164,6 +277,8 @@ void main() {
       ),
     );
 
-    expect(tester.getTopRight(find.byType(ResizableDragHandle)).dx, 500);
+    // handle ממוקם בקצה השמאלי של הפאנל (right: paneWidth - overhang)
+    // → right edge dx = containerWidth - paneWidth + overhang = 500 - 300 + 12 = 212
+    expect(tester.getTopRight(find.byType(ResizableDragHandle)).dx, 212.0);
   });
 }

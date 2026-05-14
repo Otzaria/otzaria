@@ -54,6 +54,10 @@ class TantivyDataProvider {
   /// Indicates whether the indexing process is currently running
   ValueNotifier<bool> isIndexing = ValueNotifier(false);
 
+  /// מסמן שהטעינה האסינכרונית של מצב האינדקס מהדיסק (booksDone, חתימת קטלוג וכו')
+  /// הסתיימה. עד שהערך הופך ל-true, אסור להסיק "אין אינדקס" מ-booksDone.isEmpty.
+  final ValueNotifier<bool> isInitialized = ValueNotifier(false);
+
   /// Maintains a list of processed books to avoid reindexing
   late List<String> booksDone = [];
 
@@ -79,6 +83,10 @@ class TantivyDataProvider {
       booksDone.clear();
       await saveBooksDoneToDisk();
     }
+
+    // booksDone כעת משקפת נכונה את מצב האינדקס על הדיסק. צרכנים שמסיקים
+    // "אין אינדקס" מתוך הרשימה צריכים לחכות לסימן הזה כדי לא להציג שגוי בהפעלה.
+    isInitialized.value = true;
 
     // Now initialise the search engine (creates the directory if needed).
     return _initEngine();

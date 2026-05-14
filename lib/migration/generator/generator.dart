@@ -317,9 +317,6 @@ class DatabaseGenerator {
         return;
       }
 
-      // קביעת מזהה לספר: שלילי אם אישי או קובץ שאינו txt, אחרת רגיל
-      int currentBookId = await repository.getNextNegativeBookId();
-
       // For non-txt files (external), get file stats
       int? fileSize;
       int? lastModified;
@@ -333,7 +330,7 @@ class DatabaseGenerator {
       }
 
       final book = Book(
-        id: currentBookId,
+        id: 0,
         categoryId: categoryId,
         sourceId: sourceId,
         title: title,

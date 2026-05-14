@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
-import 'package:otzaria/migration/models/category.dart' as db;
 import 'package:otzaria/models/books.dart';
 
 /// מעשיר מידע קטגוריה לספר ברקע משלוש מקורות: DB, metadata, ונתיב.
@@ -22,32 +22,28 @@ Future<void> enrichHeCategories(TextBook book) async {
 
 Future<bool> _tryLoadFromDatabase(TextBook book) async {
   final sqliteProvider = SqliteDataProvider.instance;
-  if (!await sqliteProvider.databaseExists() || !sqliteProvider.isInitialized) {
+  if (!await sqliteProvider.databaseExists() && !book.isUserBook) {
     return false;
   }
 
-  final dbRepo = sqliteProvider.repository;
-  if (dbRepo == null) return false;
+  final resolvedBook = await BookDatabaseResolver.resolveBook(
+    title: book.title,
+    categoryId: book.categoryId,
+    fileType: book.fileType,
+    filePath: book.filePath,
+    preferUserBooks: BookDatabaseResolver.isLikelyUserBook(
+      isUserBook: book.isUserBook,
+      categoryPath: book.categoryPath,
+    ),
+  );
+  if (resolvedBook == null) return false;
 
-  final dbBook = book.categoryId != null
-      ? await dbRepo.getBookByTitleAndCategory(book.title, book.categoryId!)
-      : await dbRepo.getBookByTitle(book.title);
-  if (dbBook == null) return false;
-
-  final category = await dbRepo.getCategory(dbBook.categoryId);
-  if (category == null) return false;
-
-  final categoryParts = <String>[];
-  db.Category? current = category;
-  while (current != null) {
-    categoryParts.insert(0, current.title);
-    current = current.parentId != null
-        ? await dbRepo.getCategory(current.parentId!)
-        : null;
-  }
-  book.heCategories = categoryParts.join(', ');
+  book.heCategories = await BookDatabaseResolver.buildCategoryPath(
+    resolvedBook.repository,
+    resolvedBook.book.categoryId,
+  );
   debugPrint('📚 Background: נטען heCategories מה-DB: "${book.heCategories}"');
-  return true;
+  return book.heCategories != null && book.heCategories!.isNotEmpty;
 }
 
 Future<bool> _tryLoadFromMetadata(TextBook book) async {

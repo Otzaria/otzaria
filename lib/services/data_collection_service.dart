@@ -5,6 +5,7 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite3;
 import 'package:otzaria/data/constants/database_constants.dart';
+import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 
@@ -70,14 +71,12 @@ class DataCollectionService {
   /// Returns the book ID if found, null if not found or error
   Future<int?> findBookIdInDb(String bookTitle) async {
     try {
-      final dbProvider = SqliteDataProvider.instance;
-      await dbProvider.initialize();
-      final repository = dbProvider.repository;
-      if (repository == null) return null;
-      final book = await repository.getBookByTitle(bookTitle);
-      if (book != null) {
-        debugPrint('Book ID from DB: ${book.id} for $bookTitle');
-        return book.id;
+      final resolvedBook = await BookDatabaseResolver.resolveBook(
+        title: bookTitle,
+      );
+      if (resolvedBook != null) {
+        debugPrint('Book ID from DB: ${resolvedBook.book.id} for $bookTitle');
+        return resolvedBook.book.id;
       }
 
       debugPrint('Book not found in DB: $bookTitle');

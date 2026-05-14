@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
+import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/migration/models/book.dart' as migration_models;
 import 'package:otzaria/models/books.dart';
 
@@ -20,8 +20,9 @@ class BookDetailsService {
       'תיקיית המקור': bookNotFoundText,
     };
 
-    final dbBook = await _tryGetDbBook(book);
-    final dbSource = await _tryGetDbSourceName(dbBook);
+    final resolvedBook = await _tryResolveDbBook(book);
+    final dbBook = resolvedBook?.book;
+    final dbSource = await _tryGetDbSourceName(resolvedBook);
 
     final fileType = _resolveFileType(book, dbBook);
     final inferredName = _inferFileName(
@@ -50,29 +51,29 @@ class BookDetailsService {
     return details;
   }
 
-  Future<migration_models.Book?> _tryGetDbBook(Book book) async {
+  Future<ResolvedDbBookRecord?> _tryResolveDbBook(Book book) async {
     try {
-      final provider = SqliteDataProvider.instance;
-      await provider.initialize();
-      final repo = provider.repository;
-      if (repo == null) return null;
-      if (book.categoryId != null) {
-        return await repo.getBookByTitleAndCategory(
-            book.title, book.categoryId!);
-      }
-      return await repo.getBookByTitle(book.title);
+      return await BookDatabaseResolver.resolveBook(
+        title: book.title,
+        categoryId: book.categoryId,
+        fileType: book.fileType,
+        filePath: book.filePath,
+        preferUserBooks: BookDatabaseResolver.isLikelyUserBook(
+          isUserBook: book.isUserBook,
+          categoryPath: book.categoryPath,
+        ),
+      );
     } catch (_) {
       return null;
     }
   }
 
-  Future<String?> _tryGetDbSourceName(migration_models.Book? dbBook) async {
-    if (dbBook == null) return null;
+  Future<String?> _tryGetDbSourceName(
+      ResolvedDbBookRecord? resolvedBook) async {
+    if (resolvedBook == null) return null;
     try {
-      final provider = SqliteDataProvider.instance;
-      final repo = provider.repository;
-      if (repo == null) return null;
-      final source = await repo.getSourceById(dbBook.sourceId);
+      final source = await resolvedBook.repository
+          .getSourceById(resolvedBook.book.sourceId);
       final sourceName = source?.name.trim();
       if (sourceName == null || sourceName.isEmpty) {
         return null;

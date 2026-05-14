@@ -24,7 +24,9 @@ class DataRepository {
   /// Provides access to the singleton instance
   static DataRepository get instance => _singleton;
 
-  late Future<Library> library;
+  Future<Library>? _libraryFuture;
+  Future<Library> get library => _libraryFuture ??= _getLibrary();
+  set library(Future<Library> value) => _libraryFuture = value;
 
   // Lazy-loaded: only fetched when user actually searches for external books.
   // Previously these ran getAllBooksWithRelations() eagerly at startup,
@@ -42,9 +44,7 @@ class DataRepository {
     _otzarBooksFuture = null;
   }
 
-  DataRepository() {
-    library = _getLibrary();
-  }
+  DataRepository();
 
   /// Retrieves the complete library metadata including all available books
   ///

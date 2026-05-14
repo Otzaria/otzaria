@@ -33,8 +33,11 @@ class PreparedInstall {
   final PluginManifest manifest;
   final String tempDirPath;
   final bool isOverwrite;
+  /// גרסה מותקנת קודמת — null אם זו התקנה ראשונה.
+  final String? previousVersion;
 
-  PreparedInstall(this.manifest, this.tempDirPath, this.isOverwrite);
+  PreparedInstall(this.manifest, this.tempDirPath, this.isOverwrite,
+      {this.previousVersion});
 }
 
 class PluginInstallerService {
@@ -86,7 +89,8 @@ class PluginInstallerService {
         currentAppVersion: packageInfo.version,
       );
 
-      return PreparedInstall(manifest, tempDir.path, isOverwrite);
+      return PreparedInstall(manifest, tempDir.path, isOverwrite,
+          previousVersion: existingPlugin?.version);
     } catch (e) {
       if (await tempDir.exists()) {
         await tempDir.delete(recursive: true);
@@ -122,6 +126,7 @@ class PluginInstallerService {
         iconPath: manifest.icon,
         enabled: existingPlugin?.enabled ?? true,
         pinned: existingPlugin?.pinned ?? manifest.defaultPinned,
+        pinnedToNavRail: existingPlugin?.pinnedToNavRail ?? false,
         manifest: manifest,
         installedAt: existingPlugin?.installedAt ?? DateTime.now(),
         updatedAt: DateTime.now(),

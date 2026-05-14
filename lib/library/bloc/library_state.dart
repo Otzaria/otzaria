@@ -14,6 +14,9 @@ class LibraryState extends Equatable {
   /// ספרים חדשים שנמצאו ברענון ודורשים אינדוקס. מתאפס אחרי כל copyWith.
   final List<Book>? newBooksToIndex;
 
+  /// האם חיפוש בספרייה רץ כעת. משמש להצגת סמל "טוען" באזור התוצאות.
+  final bool isSearching;
+
   const LibraryState({
     this.library,
     this.isLoading = false,
@@ -24,6 +27,7 @@ class LibraryState extends Equatable {
     this.selectedTopics,
     this.previewBook,
     this.newBooksToIndex,
+    this.isSearching = false,
   });
 
   factory LibraryState.initial() {
@@ -194,6 +198,7 @@ class LibraryState extends Equatable {
     List<String>? selectedTopics,
     Book? previewBook,
     List<Book>? newBooksToIndex,
+    bool? isSearching,
   }) {
     return LibraryState(
       library: library ?? this.library,
@@ -205,6 +210,7 @@ class LibraryState extends Equatable {
       selectedTopics: selectedTopics ?? this.selectedTopics,
       previewBook: previewBook ?? this.previewBook,
       newBooksToIndex: newBooksToIndex, // null = אין ספרים לאינדוקס
+      isSearching: isSearching ?? this.isSearching,
     );
   }
 
@@ -219,5 +225,6 @@ class LibraryState extends Equatable {
         selectedTopics,
         previewBook,
         newBooksToIndex,
+        isSearching,
       ];
 }

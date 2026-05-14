@@ -207,11 +207,12 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
               '$libraryPath/ספרייה/תנך/כתובים',
             ];
 
-      final List<SearchResult> allResults = [];
-
-      // Try database search first with book titles
-      final searchResults = await GimatriaSearch.searchInFiles(
-        searchPaths.first, // folder parameter (used for fallback)
+      // קריאה אחת: searchInFiles בוחר אוטומטית בין DB (עם bookTitles)
+      // לבין סריקת קבצים על כל folders. זה גם מטפל בכשל באמצע שאילתה ב-DB
+      // (יפול ל-file search על כל התיקיות), וגם לא מפעיל סריקת ספרייה מלאה
+      // כש-DB החזיר 0 תוצאות תקפות.
+      final allResults = await GimatriaSearch.searchInFiles(
+        searchPaths,
         targetGimatria,
         maxPhraseWords: 8,
         fileLimit: maxResults + 1, // מבקשים אחד יותר כדי לדעת אם יש עוד
@@ -220,25 +221,6 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen> {
         useWithKolel: useWithKolel,
         bookTitles: bookTitlesToSearch,
       );
-      allResults.addAll(searchResults);
-
-      // If database search didn't work, try other paths (fallback)
-      if (allResults.isEmpty && searchPaths.length > 1) {
-        for (int i = 1; i < searchPaths.length; i++) {
-          final path = searchPaths[i];
-          final moreResults = await GimatriaSearch.searchInFiles(
-            path,
-            targetGimatria,
-            maxPhraseWords: 8,
-            fileLimit: maxResults + 1,
-            wholeVerseOnly: wholeVerseOnly,
-            gematriaMethod: gematriaMethod,
-            useWithKolel: useWithKolel,
-          );
-          allResults.addAll(moreResults);
-          if (allResults.length > maxResults) break;
-        }
-      }
 
       // בדיקה אם יש יותר תוצאות מהמקסימום
       _hasMoreResults = allResults.length > maxResults;

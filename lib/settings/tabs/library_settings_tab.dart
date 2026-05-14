@@ -72,7 +72,7 @@ class LibrarySettingsTab extends StatefulWidget {
       subtitle: 'אינדקס החיפוש יתעדכן אוטומטית',
       tab: SettingsTab.library,
       cardId: 'library.search',
-      keywords: ['חיפוש', 'אינדקס'],
+      keywords: ['חיפוש', 'אינדקס', 'אוטומטי', 'מופעל', 'לא מופעל'],
     ),
     SettingsSearchEntry(
       id: 'library.search.index_status',
@@ -80,7 +80,15 @@ class LibrarySettingsTab extends StatefulWidget {
       subtitle: 'סטטוס ועדכון אינדקס החיפוש',
       tab: SettingsTab.library,
       cardId: 'library.search',
-      keywords: ['חיפוש', 'אינדקס', 'בנייה'],
+      keywords: [
+        'חיפוש',
+        'אינדקס',
+        'בנייה',
+        'מעודכן',
+        'לא מעודכן',
+        'איפוס',
+        'עדכן',
+      ],
     ),
   ];
 

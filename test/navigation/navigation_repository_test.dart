@@ -47,7 +47,9 @@ class _FakeProvider implements LibraryProvider {
     String title,
     int categoryId,
     String fileType,
-  ) async {
+    {
+    bool preferUserBooks = false,
+  }) async {
     return null;
   }
 
@@ -56,7 +58,9 @@ class _FakeProvider implements LibraryProvider {
     String title,
     int categoryId,
     String fileType,
-  ) async {
+    {
+    bool preferUserBooks = false,
+  }) async {
     return null;
   }
 
