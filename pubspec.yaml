@@ -219,14 +219,6 @@ flutter:
       fonts:
         - asset: fonts/NotoSerifHebrew-VariableFont_wdth,wght.ttf
 
-  plugin:
-    platforms:
-      linux:
-        pluginClass: ZstandardPlugin
-        nativeLibs:
-          - libzstandard_linux.so
-
-
 sentry:
   upload_debug_symbols: true
   upload_source_maps: true

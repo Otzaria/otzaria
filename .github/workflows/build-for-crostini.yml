@@ -23,19 +23,22 @@ jobs:
         shell: bash
         run: |
           sudo apt update -y
+          sudo apt upgrade -y
           sudo apt install -y \
-            build-essential ninja-build clang cmake git \
-            libgtk-3-dev liblzma-dev curl xz-utils zstd \
+            clang cmake git ninja-build pkg-config \
+            curl xz-utils zstd \
+            libgtk-3-dev \
+            liblzma-dev \
+            libstdc++-12-dev \
             libcurl4-openssl-dev \
             libwpewebkit-1.0-dev \
             libwpebackend-fdo-1.0-dev \
-            libwebkit2gtk-4.1-dev \
-            libstdc++-12-dev
+            libwebkit2gtk-4.1-dev
 
       - name: Upgrade Flutter dependencies
         shell: bash
         run: |
-          flutter pub upgrade
+          flutter pub get
 
           # Prevent bundling the PDFium WASM assets into non-Web release builds.
           dart run pdfrx:remove_wasm_modules
@@ -44,7 +47,10 @@ jobs:
           dart run tool/generate_search_index.dart
 
       - name: Build Flutter Linux app
-        run: flutter build linux --release
+        shell: bash
+        run: |
+          flutter clean
+          flutter build linux --release
 
       - name: Activate flutter_distributor
         run: dart pub global activate flutter_distributor
@@ -54,6 +60,7 @@ jobs:
 
       - name: Find and prepare Linux packages
         id: find_packages
+        shell: bash
         run: |
           # Find DEB file
           DEB_FILE=$(find dist -type f -name '*-linux.deb' | head -n 1)
