@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/animation.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -73,7 +73,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   bool _pendingLinksReload = false;
   bool _awaitingInitialPageShapeVisibleSync = false;
 
-  // pinpoint highlight שממתין להחלה כשה-bloc יגיע ל-Loaded
+  // pinpoint highlight ╫⌐╫₧╫₧╫¬╫ש╫ƒ ╫£╫פ╫ק╫£╫פ ╫¢╫⌐╫פ-bloc ╫ש╫ע╫ש╫ó ╫£-Loaded
   ({String text, int? sectionIndex})? _pendingPinpoint;
 
   TextBookBloc({
@@ -1178,8 +1178,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     emit(currentState.copyWith(clearHighlight: true));
   }
 
-  /// מחיל highlight מ-deep link על לשונית קיימת.
-  /// אם ה-bloc עדיין ב-Initial/Loading, שומר כ-pending ומחיל כשמגיע ל-Loaded.
+  /// ╫₧╫ק╫ש╫£ highlight ╫₧-deep link ╫ó╫£ ╫£╫⌐╫ץ╫á╫ש╫¬ ╫º╫ש╫ש╫₧╫¬.
+  /// ╫נ╫¥ ╫פ-bloc ╫ó╫ף╫ש╫ש╫ƒ ╫ס-Initial/Loading, ╫⌐╫ץ╫₧╫¿ ╫¢-pending ╫ץ╫₧╫ק╫ש╫£ ╫¢╫⌐╫₧╫ע╫ש╫ó ╫£-Loaded.
   void _onApplyMarkHighlight(
     ApplyMarkHighlight event,
     Emitter<TextBookState> emit,
@@ -1191,7 +1191,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         permanentHighlightLine: event.permanentHighlightLine,
         clearPermanentHighlight: event.permanentHighlightLine == null,
       ));
-      // גלילה לסעיף המבוקש כדי שההדגשה תהיה גלויה
+      // ╫ע╫£╫ש╫£╫פ ╫£╫í╫ó╫ש╫ú ╫פ╫₧╫ס╫ץ╫º╫⌐ ╫¢╫ף╫ש ╫⌐╫פ╫פ╫ף╫ע╫⌐╫פ ╫¬╫פ╫ש╫פ ╫ע╫£╫ץ╫ש╫פ
       if (event.permanentHighlightLine != null && scrollController.isAttached) {
         scrollController.scrollTo(
           index: event.permanentHighlightLine!,
@@ -1200,7 +1200,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         );
       }
     } else {
-      // Initial או Loading — שומרים כ-pending, יוחל ב-_onLoadContent
+      // Initial ╫נ╫ץ Loading Γאפ ╫⌐╫ץ╫₧╫¿╫ש╫¥ ╫¢-pending, ╫ש╫ץ╫ק╫£ ╫ס-_onLoadContent
       _pendingPinpoint = (
         text: event.highlightText,
         sectionIndex: event.permanentHighlightLine,
@@ -1227,8 +1227,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   ) {
     if (state is TextBookLoaded) {
       final currentState = state as TextBookLoaded;
-      // חיפוש ידני חדש מנקה הדגשה ממוקדת קודמת מ‑deep link, אחרת ההדגשה
-      // הממוקדת הייתה ממשיכה לחסום את החיפוש החדש בשאר הסעיפים.
+      // ╫ק╫ש╫ñ╫ץ╫⌐ ╫ש╫ף╫á╫ש ╫ק╫ף╫⌐ ╫₧╫á╫º╫פ ╫פ╫ף╫ע╫⌐╫פ ╫₧╫₧╫ץ╫º╫ף╫¬ ╫º╫ץ╫ף╫₧╫¬ ╫₧Γאסdeep link, ╫נ╫ק╫¿╫¬ ╫פ╫פ╫ף╫ע╫⌐╫פ
+      // ╫פ╫₧╫₧╫ץ╫º╫ף╫¬ ╫פ╫ש╫ש╫¬╫פ ╫₧╫₧╫⌐╫ש╫¢╫פ ╫£╫ק╫í╫ץ╫¥ ╫נ╫¬ ╫פ╫ק╫ש╫ñ╫ץ╫⌐ ╫פ╫ק╫ף╫⌐ ╫ס╫⌐╫נ╫¿ ╫פ╫í╫ó╫ש╫ñ╫ש╫¥.
       emit(currentState.copyWith(
         searchText: event.text,
         searchOptions: event.searchOptions,
@@ -1321,7 +1321,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     CreateNoteFromToolbar event,
     Emitter<TextBookState> emit,
   ) {
-    // הלוגיקה האמיתית תהיה בכפתור בשורת הכלים
+    // ╫פ╫£╫ץ╫ע╫ש╫º╫פ ╫פ╫נ╫₧╫ש╫¬╫ש╫¬ ╫¬╫פ╫ש╫פ ╫ס╫¢╫ñ╫¬╫ץ╫¿ ╫ס╫⌐╫ץ╫¿╫¬ ╫פ╫¢╫£╫ש╫¥
   }
 
   void _onUpdateSelectedTextForNote(
@@ -1445,7 +1445,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     } catch (e) {
       if (kDebugMode) {
         debugPrint(
-            '⚠️ TextBookBloc::loadContentRange failed for ${book.title}: $e');
+            'Γתá∩╕ן TextBookBloc::loadContentRange failed for ${book.title}: $e');
       }
     } finally {
       _isLoadingContentRange = false;
@@ -1539,7 +1539,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     } catch (e) {
       if (kDebugMode) {
         debugPrint(
-            '⚠️ TextBookBloc::loadFullBook failed for ${book.title}: $e');
+            'Γתá∩╕ן TextBookBloc::loadFullBook failed for ${book.title}: $e');
       }
     }
   }
@@ -1645,7 +1645,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       _isLoadingLinks = false;
       if (kDebugMode) {
         debugPrint(
-          '⚠️ TextBookBloc::loadLinks failed for ${book.title} '
+          'Γתá∩╕ן TextBookBloc::loadLinks failed for ${book.title} '
           '(window ${window.start}-${window.end}): $e',
         );
       }
@@ -1733,7 +1733,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
       add(UpdateAvailableCommentators(availableCommentators, groups));
     } catch (e) {
-      debugPrint('⚠️ Failed to load commentators in background: $e');
+      debugPrint('Γתá∩╕ן Failed to load commentators in background: $e');
     }
   }
 
