@@ -145,11 +145,9 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     );
 
     if (matchingIndex != null) {
-      // אם הלשונית החדשה מכילה highlight, נעדכן את הלשונית הקיימת
+      // עדכון הטאב הקיים: גלילה, ניקוי/עדכון הדגשה
       final newTab = event.tab;
-      if (newTab is TextBookTab &&
-          (newTab.highlightText.isNotEmpty ||
-              newTab.permanentHighlightLine != null)) {
+      if (newTab is TextBookTab) {
         final existingTab = state.tabs[matchingIndex];
         TextBookTab? textTab;
         if (existingTab is TextBookTab) {

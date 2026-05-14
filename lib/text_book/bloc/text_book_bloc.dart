@@ -409,7 +409,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
             ? preservedRemoveNikud
             : removeNikud,
         isTanach: isTanach,
-        visibleIndices: visibleIndices,
+        visibleIndices: (_pendingPinpoint?.sectionIndex != null)
+            ? [_pendingPinpoint!.sectionIndex!]
+            : visibleIndices,
         pinLeftPane: preservedPinLeftPane ??
             (Settings.getValue<bool>('key-pin-sidebar') ?? false),
         searchText: searchText,
