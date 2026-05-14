@@ -23,14 +23,14 @@ class BookOpenCoordinator {
     required this.navigationBloc,
   });
 
-  Future<void> openBook(
+  void openBook(
     Book book,
     int index,
     String searchQuery, {
     bool ignoreHistory = false,
     bool markSection = false,
     String? markText,
-  }) async {
+  }) {
     final tabsState = tabsBloc.state;
     if (tabsState.hasOpenTabs) {
       historyBloc.add(CaptureStateForHistory(tabsState.currentTab!));

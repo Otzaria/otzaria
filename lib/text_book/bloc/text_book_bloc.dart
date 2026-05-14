@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/animation.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/foundation.dart';
@@ -431,7 +432,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
             ? (state as TextBookLoaded).selectedTextEnd
             : null,
         highlightText: _pendingPinpoint?.text ?? highlightText,
-        permanentHighlightLine: _pendingPinpoint?.sectionIndex ?? permanentHighlightLine,
+        permanentHighlightLine: _pendingPinpoint != null
+            ? _pendingPinpoint!.sectionIndex
+            : permanentHighlightLine,
         pinpointHighlightIndex: pinpointHighlightIndex,
         pinpointHighlightText: pinpointHighlightText,
       ));
@@ -1001,6 +1004,14 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         permanentHighlightLine: event.permanentHighlightLine,
         clearPermanentHighlight: event.permanentHighlightLine == null,
       ));
+      // גלילה לסעיף המבוקש כדי שההדגשה תהיה גלויה
+      if (event.permanentHighlightLine != null && scrollController.isAttached) {
+        scrollController.scrollTo(
+          index: event.permanentHighlightLine!,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
     } else {
       // Initial או Loading — שומרים כ-pending, יוחל ב-_onLoadContent
       _pendingPinpoint = (

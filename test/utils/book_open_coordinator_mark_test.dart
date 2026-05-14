@@ -110,7 +110,7 @@ void main() {
         final tabsBloc = _CapturingTabsBloc();
         final coordinator = _makeCoordinator(tabsBloc: tabsBloc);
 
-        await coordinator.openBook(
+        coordinator.openBook(
           _makeBook('ספר בדיקה'),
           0,
           '',
@@ -149,7 +149,7 @@ void main() {
       final tabsBloc = _CapturingTabsBloc();
       final coordinator = _makeCoordinator(tabsBloc: tabsBloc);
 
-      await coordinator.openBook(
+      coordinator.openBook(
         _makeBook('ספר בדיקה'),
         0,
         'חיפוש רגיל',
@@ -164,7 +164,7 @@ void main() {
       final tabsBloc = _CapturingTabsBloc();
       final coordinator = _makeCoordinator(tabsBloc: tabsBloc);
 
-      await coordinator.openBook(
+      coordinator.openBook(
         _makeBook('ספר בדיקה'),
         0,
         'searchQuery',
