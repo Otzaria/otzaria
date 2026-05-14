@@ -187,6 +187,21 @@ class ApplyMarkHighlight extends TextBookEvent {
   List<Object?> get props => [highlightText, permanentHighlightLine];
 }
 
+/// מחיל הדגשה ממוקדת (pinpoint) מ-deep link על לשונית קיימת.
+/// אם ה-bloc עדיין ב-Initial, ה-highlight יוחל ברגע שיגיע ל-Loaded.
+class ApplyPinpointHighlight extends TextBookEvent {
+  final String highlightText;
+  final int? sectionIndex;
+
+  const ApplyPinpointHighlight({
+    required this.highlightText,
+    this.sectionIndex,
+  });
+
+  @override
+  List<Object?> get props => [highlightText, sectionIndex];
+}
+
 class TogglePinLeftPane extends TextBookEvent {
   final bool pin;
 

@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/text_book_repository.dart';
 // [EDITING DISABLED] import 'package:otzaria/text_book/editing/repository/local_overrides_repository.dart';
@@ -25,24 +25,24 @@ class TextBookTab extends OpenedTab {
 
   /// The initial search text for this tab.
   final String searchText;
-  /// טקסט להדגשה בלבד — לא מפעיל חלונית חיפוש.
+  /// ╫ר╫º╫í╫ר ╫£╫פ╫ף╫ע╫⌐╫פ ╫ס╫£╫ס╫ף Γאפ ╫£╫נ ╫₧╫ñ╫ó╫ש╫£ ╫ק╫£╫ץ╫á╫ש╫¬ ╫ק╫ש╫ñ╫ץ╫⌐.
   final String highlightText;
-  /// שורה להדגשת רקע קבועה — משמש ל-?mark deep link.
+  /// ╫⌐╫ץ╫¿╫פ ╫£╫פ╫ף╫ע╫⌐╫¬ ╫¿╫º╫ó ╫º╫ס╫ץ╫ó╫פ Γאפ ╫₧╫⌐╫₧╫⌐ ╫£-?mark deep link.
   final int? permanentHighlightLine;
   final Map<String, Map<String, bool>> searchOptions;
   final Map<int, List<String>> alternativeWords;
   final Map<String, String> spacingValues;
   final SearchMode searchMode;
 
-  /// תת-מחרוזת להדגשה ממוקדת **רק** בסעיף שצוין. נטענת מקישור עומק
-  /// (`otzaria://open/book/<id>?index=<n>&highlight=<text>`) ואינה פותחת חלונית
-  /// חיפוש. אם null — אין הדגשה ממוקדת.
+  /// ╫¬╫¬-╫₧╫ק╫¿╫ץ╫צ╫¬ ╫£╫פ╫ף╫ע╫⌐╫פ ╫₧╫₧╫ץ╫º╫ף╫¬ **╫¿╫º** ╫ס╫í╫ó╫ש╫ú ╫⌐╫ª╫ץ╫ש╫ƒ. ╫á╫ר╫ó╫á╫¬ ╫₧╫º╫ש╫⌐╫ץ╫¿ ╫ó╫ץ╫₧╫º
+  /// (`otzaria://open/book/<id>?index=<n>&highlight=<text>`) ╫ץ╫נ╫ש╫á╫פ ╫ñ╫ץ╫¬╫ק╫¬ ╫ק╫£╫ץ╫á╫ש╫¬
+  /// ╫ק╫ש╫ñ╫ץ╫⌐. ╫נ╫¥ null Γאפ ╫נ╫ש╫ƒ ╫פ╫ף╫ע╫⌐╫פ ╫₧╫₧╫ץ╫º╫ף╫¬.
   final String? pinpointHighlight;
 
-  /// אינדקס הסעיף שעליו תחול ההדגשה הממוקדת. אם null וב‑[pinpointHighlight] יש
-  /// טקסט — נופלים חזרה ל‑[index] (זה המסלול של deep link, שבו פותחים בסעיף
-  /// המודגש). השדה הופך משמעותי בעת שיכפול טאב או side‑by‑side, שם ה‑index
-  /// הנוכחי כבר השתנה לפי הגלילה ואנחנו רוצים לשמר את הסעיף המקורי.
+  /// ╫נ╫ש╫á╫ף╫º╫í ╫פ╫í╫ó╫ש╫ú ╫⌐╫ó╫£╫ש╫ץ ╫¬╫ק╫ץ╫£ ╫פ╫פ╫ף╫ע╫⌐╫פ ╫פ╫₧╫₧╫ץ╫º╫ף╫¬. ╫נ╫¥ null ╫ץ╫סΓאס[pinpointHighlight] ╫ש╫⌐
+  /// ╫ר╫º╫í╫ר Γאפ ╫á╫ץ╫ñ╫£╫ש╫¥ ╫ק╫צ╫¿╫פ ╫£Γאס[index] (╫צ╫פ ╫פ╫₧╫í╫£╫ץ╫£ ╫⌐╫£ deep link, ╫⌐╫ס╫ץ ╫ñ╫ץ╫¬╫ק╫ש╫¥ ╫ס╫í╫ó╫ש╫ú
+  /// ╫פ╫₧╫ץ╫ף╫ע╫⌐). ╫פ╫⌐╫ף╫פ ╫פ╫ץ╫ñ╫ת ╫₧╫⌐╫₧╫ó╫ץ╫¬╫ש ╫ס╫ó╫¬ ╫⌐╫ש╫¢╫ñ╫ץ╫£ ╫ר╫נ╫ס ╫נ╫ץ sideΓאסbyΓאסside, ╫⌐╫¥ ╫פΓאסindex
+  /// ╫פ╫á╫ץ╫¢╫ק╫ש ╫¢╫ס╫¿ ╫פ╫⌐╫¬╫á╫פ ╫£╫ñ╫ש ╫פ╫ע╫£╫ש╫£╫פ ╫ץ╫נ╫á╫ק╫á╫ץ ╫¿╫ץ╫ª╫ש╫¥ ╫£╫⌐╫₧╫¿ ╫נ╫¬ ╫פ╫í╫ó╫ש╫ú ╫פ╫₧╫º╫ץ╫¿╫ש.
   final int? pinpointHighlightSectionIndex;
 
   /// The bloc that manages the text book state and logic.
@@ -51,30 +51,30 @@ class TextBookTab extends OpenedTab {
   final ItemScrollController scrollController = ItemScrollController();
   final ItemPositionsListener positionsListener =
       ItemPositionsListener.create();
-  // בקרים נוספים עבור תצוגה מפוצלת או רשימות מקבילות
+  // ╫ס╫º╫¿╫ש╫¥ ╫á╫ץ╫í╫ñ╫ש╫¥ ╫ó╫ס╫ץ╫¿ ╫¬╫ª╫ץ╫ע╫פ ╫₧╫ñ╫ץ╫ª╫£╫¬ ╫נ╫ץ ╫¿╫⌐╫ש╫₧╫ץ╫¬ ╫₧╫º╫ס╫ש╫£╫ץ╫¬
   final ItemScrollController auxScrollController = ItemScrollController();
   final ItemPositionsListener auxPositionsListener =
       ItemPositionsListener.create();
   final ScrollOffsetController mainOffsetController = ScrollOffsetController();
   final ScrollOffsetController auxOffsetController = ScrollOffsetController();
 
-  /// הכותרת הנוכחית של המיקום בספר (למשל "בראשית פרק ד")
+  /// ╫פ╫¢╫ץ╫¬╫¿╫¬ ╫פ╫á╫ץ╫¢╫ק╫ש╫¬ ╫⌐╫£ ╫פ╫₧╫ש╫º╫ץ╫¥ ╫ס╫í╫ñ╫¿ (╫£╫₧╫⌐╫£ "╫ס╫¿╫נ╫⌐╫ש╫¬ ╫ñ╫¿╫º ╫ף")
   final currentTitle = ValueNotifier<String>("");
 
-  /// counter שמתגלגל עם כל בקשה לטוגל חלונית המפרשים מקיצור מקלדת גלובלי.
-  /// המאזין הוא [SplitedViewScreen] בלבד; כל הגדלה = toggle יחיד.
+  /// counter ╫⌐╫₧╫¬╫ע╫£╫ע╫£ ╫ó╫¥ ╫¢╫£ ╫ס╫º╫⌐╫פ ╫£╫ר╫ץ╫ע╫£ ╫ק╫£╫ץ╫á╫ש╫¬ ╫פ╫₧╫ñ╫¿╫⌐╫ש╫¥ ╫₧╫º╫ש╫ª╫ץ╫¿ ╫₧╫º╫£╫ף╫¬ ╫ע╫£╫ץ╫ס╫£╫ש.
+  /// ╫פ╫₧╫נ╫צ╫ש╫ƒ ╫פ╫ץ╫נ [SplitedViewScreen] ╫ס╫£╫ס╫ף; ╫¢╫£ ╫פ╫ע╫ף╫£╫פ = toggle ╫ש╫ק╫ש╫ף.
   final ValueNotifier<int> toggleCommentatorsPaneNotifier =
       ValueNotifier<int>(0);
 
-  /// counter שמתגלגל כשיש לפתוח את פאנל ההערות האישיות.
-  /// המאזין הוא [SplitedViewScreen] בלבד; כל הגדלה = פתח על טאב הערות.
+  /// counter ╫⌐╫₧╫¬╫ע╫£╫ע╫£ ╫¢╫⌐╫ש╫⌐ ╫£╫ñ╫¬╫ץ╫ק ╫נ╫¬ ╫ñ╫נ╫á╫£ ╫פ╫פ╫ó╫¿╫ץ╫¬ ╫פ╫נ╫ש╫⌐╫ש╫ץ╫¬.
+  /// ╫פ╫₧╫נ╫צ╫ש╫ƒ ╫פ╫ץ╫נ [SplitedViewScreen] ╫ס╫£╫ס╫ף; ╫¢╫£ ╫פ╫ע╫ף╫£╫פ = ╫ñ╫¬╫ק ╫ó╫£ ╫ר╫נ╫ס ╫פ╫ó╫¿╫ץ╫¬.
   final ValueNotifier<int> openNotesTabNotifier = ValueNotifier<int>(0);
 
   List<String>? commentators;
   bool _lastSplitView = false;
   bool _lastShowPageShapeView = false;
 
-  // StreamSubscription לניהול ה-listener
+  // StreamSubscription ╫£╫á╫ש╫פ╫ץ╫£ ╫פ-listener
   StreamSubscription<TextBookState>? _stateSubscription;
 
   /// Creates a new instance of [TextBookTab].
@@ -103,20 +103,20 @@ class TextBookTab extends OpenedTab {
     this.pinpointHighlightSectionIndex,
     @visibleForTesting TextBookBloc? blocOverride,
   }) : super(book.title, isPinned: isPinned, dedupeKey: dedupeKey) {
-    // קביעת ברירת המחדל של splitedView מההגדרות אם לא סופק
+    // ╫º╫ס╫ש╫ó╫¬ ╫ס╫¿╫ש╫¿╫¬ ╫פ╫₧╫ק╫ף╫£ ╫⌐╫£ splitedView ╫₧╫פ╫פ╫ע╫ף╫¿╫ץ╫¬ ╫נ╫¥ ╫£╫נ ╫í╫ץ╫ñ╫º
     final bool effectiveSplitedView =
         splitedView ?? (Settings.getValue<bool>('key-splited-view') ?? true);
 
-    // מצב צורת הדף הוא פר-ספר - ברירת המחדל היא false (תצוגה רגילה)
-    // רק אם הספר כבר היה פתוח במצב צורת הדף, הוא יישאר כך
+    // ╫₧╫ª╫ס ╫ª╫ץ╫¿╫¬ ╫פ╫ף╫ú ╫פ╫ץ╫נ ╫ñ╫¿-╫í╫ñ╫¿ - ╫ס╫¿╫ש╫¿╫¬ ╫פ╫₧╫ק╫ף╫£ ╫פ╫ש╫נ false (╫¬╫ª╫ץ╫ע╫פ ╫¿╫ע╫ש╫£╫פ)
+    // ╫¿╫º ╫נ╫¥ ╫פ╫í╫ñ╫¿ ╫¢╫ס╫¿ ╫פ╫ש╫פ ╫ñ╫¬╫ץ╫ק ╫ס╫₧╫ª╫ס ╫ª╫ץ╫¿╫¬ ╫פ╫ף╫ú, ╫פ╫ץ╫נ ╫ש╫ש╫⌐╫נ╫¿ ╫¢╫ת
     final bool effectiveShowPageShapeView = showPageShapeView ?? false;
 
     _lastSplitView = effectiveSplitedView;
     _lastShowPageShapeView = effectiveShowPageShapeView;
 
-    // Initialize the bloc with initial state. ב‑production תמיד נבנה bloc חדש;
-    // ה‑blocOverride קיים רק לטסטים שצריכים להזריק bloc עם repository מזויף
-    // ולהביא אותו ל‑Loaded בלי תשתית קבצים אמיתית.
+    // Initialize the bloc with initial state. ╫סΓאסproduction ╫¬╫₧╫ש╫ף ╫á╫ס╫á╫פ bloc ╫ק╫ף╫⌐;
+    // ╫פΓאסblocOverride ╫º╫ש╫ש╫¥ ╫¿╫º ╫£╫ר╫í╫ר╫ש╫¥ ╫⌐╫ª╫¿╫ש╫¢╫ש╫¥ ╫£╫פ╫צ╫¿╫ש╫º bloc ╫ó╫¥ repository ╫₧╫צ╫ץ╫ש╫ú
+    // ╫ץ╫£╫פ╫ס╫ש╫נ ╫נ╫ץ╫¬╫ץ ╫£ΓאסLoaded ╫ס╫£╫ש ╫¬╫⌐╫¬╫ש╫¬ ╫º╫ס╫ª╫ש╫¥ ╫נ╫₧╫ש╫¬╫ש╫¬.
     bloc = blocOverride ??
         TextBookBloc(
           repository: TextBookRepository(
@@ -149,13 +149,13 @@ class TextBookTab extends OpenedTab {
           scrollOffsetController: mainOffsetController,
         );
 
-    // הוספת listener לעדכון האינדקס כשה-state משתנה
+    // ╫פ╫ץ╫í╫ñ╫¬ listener ╫£╫ó╫ף╫¢╫ץ╫ƒ ╫פ╫נ╫ש╫á╫ף╫º╫í ╫¢╫⌐╫פ-state ╫₧╫⌐╫¬╫á╫פ
     _stateSubscription = bloc.stream.listen((state) {
       if (state is TextBookLoaded && state.visibleIndices.isNotEmpty) {
         index = state.visibleIndices.first;
         _lastSplitView = state.showSplitView;
         _lastShowPageShapeView = state.showPageShapeView;
-        // עדכון הכותרת הנוכחית
+        // ╫ó╫ף╫¢╫ץ╫ƒ ╫פ╫¢╫ץ╫¬╫¿╫¬ ╫פ╫á╫ץ╫¢╫ק╫ש╫¬
         if (state.currentTitle != null && state.currentTitle!.isNotEmpty) {
           currentTitle.value = state.currentTitle!;
         }
@@ -181,7 +181,7 @@ class TextBookTab extends OpenedTab {
   factory TextBookTab.fromJson(Map<String, dynamic> json) {
     final bool shouldOpenLeftPane = resolveRestoredReadingLeftPaneState(json);
 
-    // שחזור מצב התצוגה המפוצלת מה-JSON
+    // ╫⌐╫ק╫צ╫ץ╫¿ ╫₧╫ª╫ס ╫פ╫¬╫ª╫ץ╫ע╫פ ╫פ╫₧╫ñ╫ץ╫ª╫£╫¬ ╫₧╫פ-JSON
     final bool splitedView = json['splitedView'] ??
         (Settings.getValue<bool>('key-splited-view') ?? true);
 
@@ -210,17 +210,17 @@ class TextBookTab extends OpenedTab {
     List<String> commentators = [];
     bool splitedView = _lastSplitView;
     bool showPageShapeView = _lastShowPageShapeView;
-    int currentIndex = index; // שמירת האינדקס הנוכחי כברירת מחדל
+    int currentIndex = index; // ╫⌐╫₧╫ש╫¿╫¬ ╫פ╫נ╫ש╫á╫ף╫º╫í ╫פ╫á╫ץ╫¢╫ק╫ש ╫¢╫ס╫¿╫ש╫¿╫¬ ╫₧╫ק╫ף╫£
 
     if (bloc.state is TextBookLoaded) {
       final loadedState = bloc.state as TextBookLoaded;
       commentators = loadedState.activeCommentators;
       splitedView = loadedState.showSplitView;
       showPageShapeView = loadedState.showPageShapeView;
-      // עדכון האינדקס מה-state הנטען - תמיד לוקחים את האינדקס האחרון שנראה
+      // ╫ó╫ף╫¢╫ץ╫ƒ ╫פ╫נ╫ש╫á╫ף╫º╫í ╫₧╫פ-state ╫פ╫á╫ר╫ó╫ƒ - ╫¬╫₧╫ש╫ף ╫£╫ץ╫º╫ק╫ש╫¥ ╫נ╫¬ ╫פ╫נ╫ש╫á╫ף╫º╫í ╫פ╫נ╫ק╫¿╫ץ╫ƒ ╫⌐╫á╫¿╫נ╫פ
       if (loadedState.visibleIndices.isNotEmpty) {
         currentIndex = loadedState.visibleIndices.first;
-        // עדכון גם את ה-index של הטאב עצמו כדי שישמר
+        // ╫ó╫ף╫¢╫ץ╫ƒ ╫ע╫¥ ╫נ╫¬ ╫פ-index ╫⌐╫£ ╫פ╫ר╫נ╫ס ╫ó╫ª╫₧╫ץ ╫¢╫ף╫ש ╫⌐╫ש╫⌐╫₧╫¿
         index = currentIndex;
       }
     }
