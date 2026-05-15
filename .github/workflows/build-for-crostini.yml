@@ -79,6 +79,8 @@ jobs:
             echo "deb_name=$(basename $DEB_FILE)" >> $GITHUB_OUTPUT
           fi
 
+          find ~/ -type f -name 'libzstandard*.so'
+
       - name: Prepare full bundle
         if: false
         shell: bash
