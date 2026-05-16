@@ -343,52 +343,43 @@ class _CustomTitleBarState extends State<CustomTitleBar>
       buildWhen: (previous, current) =>
           previous.currentCategory != current.currentCategory,
       builder: (context, libraryState) {
-        final title = libraryState.currentCategory?.title ?? '';
-        return Row(
-          children: [
-            Expanded(
-              child: DragToMoveArea(
-                child: Center(
-                  child: Text(
-                    title,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.secondary,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
+        final category = libraryState.currentCategory;
+        final subtitle = category?.title ?? '';
+        return _buildPanelTitle(context, 'ספריה', subtitle: subtitle);
       },
     );
   }
 
   Widget _buildStandardTitle(BuildContext context, NavigationState navState) {
-    String title = 'אוצריא';
-    switch (navState.currentScreen) {
-      case Screen.find:
-        title = 'איתור';
-        break;
-      case Screen.search:
-        title = 'חיפוש';
-        break;
-      case Screen.settings:
-        title = 'הגדרות';
-        break;
-      default:
-        break;
-    }
+    final title = switch (navState.currentScreen) {
+      Screen.settings => 'הגדרות',
+      Screen.more => 'כלים',
+      _ => 'אוצריא',
+    };
+    return _buildPanelTitle(context, title);
+  }
 
-    return DragToMoveArea(
-      child: Center(
-        child: Text(
-          title,
-          style: Theme.of(context).textTheme.titleMedium,
+  Widget _buildPanelTitle(BuildContext context, String title,
+      {String? subtitle}) {
+    final color = Theme.of(context).colorScheme.onSurfaceVariant;
+    final textStyle = TextStyle(
+      color: color,
+      fontSize: 16,
+      fontWeight: FontWeight.bold,
+    );
+    return Row(
+      children: [
+        Expanded(
+          child: DragToMoveArea(
+            child: Center(
+              child: Text(
+                subtitle != null ? '$title: $subtitle' : title,
+                style: textStyle,
+              ),
+            ),
+          ),
         ),
-      ),
+      ],
     );
   }
 
