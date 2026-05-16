@@ -527,10 +527,7 @@ class _CustomTitleBarState extends State<CustomTitleBar>
                   tooltip: 'הגדרות תצוגת הספרים',
                   onPressed: widget.onReadingSettingsPressed ??
                       () => showReadingSettingsDialog(context),
-                  style: _kIconButtonStyle.copyWith(
-                    foregroundColor: WidgetStatePropertyAll(
-                        Theme.of(context).colorScheme.onSurfaceVariant),
-                  ),
+                  style: _kIconButtonStyle,
                 ),
               ),
             ),
@@ -787,7 +784,7 @@ class _CustomTitleBarState extends State<CustomTitleBar>
               width: 1,
               height: 24,
               margin: const EdgeInsets.symmetric(horizontal: 0.2, vertical: 6),
-              color: Colors.grey.shade400,
+              color: Theme.of(context).colorScheme.outlineVariant,
             ),
           Container(
             constraints: const BoxConstraints(maxHeight: 32),
