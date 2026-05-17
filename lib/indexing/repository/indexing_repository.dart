@@ -68,6 +68,25 @@ class IndexingRepository {
     void Function()? onActualIndexingStarted,
     required void Function(int processed, int total) onProgress,
   }) async {
+    // Fast path: if all books are already indexed and the catalogue is unchanged,
+    // skip the expensive isolate creation and the full iteration loop.
+    final fastPathBooks = library.getAllBooks();
+    if (fastPathBooks.isNotEmpty) {
+      final booksDoneSet = Set<String>.from(_tantivyDataProvider.booksDone);
+      final allIndexed = fastPathBooks.every(
+        (book) => booksDoneSet.contains(catalogueOrderKey(book)),
+      );
+      if (allIndexed) {
+        final currentSig = buildCatalogueOrderSignature(library);
+        if (!_tantivyDataProvider.requiresManualReindex(
+          currentCatalogueOrderSignature: currentSig,
+        )) {
+          debugPrint('⚡ Fast path: כל הספרים מאונדקסים והקטלוג לא השתנה – מדלג על האינדוקס');
+          return true;
+        }
+      }
+    }
+
     _tantivyDataProvider.isIndexing.value = true;
     final isolateService =
         _isolateService ?? await IndexingIsolateService.create();
