@@ -71,9 +71,10 @@ class IndexingRepository {
     // Fast path: if all books are already indexed and the catalogue is unchanged,
     // skip the expensive isolate creation and the full iteration loop.
     final fastPathBooks = library.getAllBooks();
-    if (fastPathBooks.isNotEmpty) {
-      final booksDoneSet = Set<String>.from(_tantivyDataProvider.booksDone);
-      final allIndexed = fastPathBooks.every(
+    final indexableBooks = fastPathBooks.where(isIndexableBook);
+    if (indexableBooks.isNotEmpty) {
+      final booksDoneSet = _tantivyDataProvider.booksDone.toSet();
+      final allIndexed = indexableBooks.every(
         (book) => booksDoneSet.contains(catalogueOrderKey(book)),
       );
       if (allIndexed) {
