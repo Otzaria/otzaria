@@ -33,16 +33,6 @@ class AppThemeData {
     return cs.surfaceContainerHigh;
   }
 
-  static BorderSide _menuBorder(ColorScheme cs) {
-    if (cs.brightness == Brightness.dark) {
-      return BorderSide.none;
-    }
-    return BorderSide(
-      color: cs.outlineVariant.withValues(alpha: 0.55),
-      width: 1,
-    );
-  }
-
   // ── Light Theme ──────────────────────────────────────────────────────────
   static ThemeData light(
     ColorScheme colorScheme, {
@@ -169,10 +159,9 @@ class AppThemeData {
       color: backgroundColor,
       surfaceTintColor: Colors.transparent,
       shadowColor: Colors.black.withValues(alpha: 0.22),
-      elevation: AppTokens.elevation1,
+      elevation: AppTokens.elevation2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(metrics.menuBorderRadius),
-        side: _menuBorder(cs),
       ),
       menuPadding: metrics.menuPadding,
       textStyle: TextStyle(
@@ -195,11 +184,10 @@ class AppThemeData {
         surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
         shadowColor:
             WidgetStatePropertyAll(Colors.black.withValues(alpha: 0.22)),
-        elevation: const WidgetStatePropertyAll(AppTokens.elevation1),
+        elevation: const WidgetStatePropertyAll(AppTokens.elevation2),
         shape: WidgetStatePropertyAll(
           RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(metrics.menuBorderRadius),
-            side: _menuBorder(cs),
           ),
         ),
         padding: WidgetStatePropertyAll(metrics.menuPadding),
@@ -228,11 +216,10 @@ class AppThemeData {
         surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
         shadowColor:
             WidgetStatePropertyAll(Colors.black.withValues(alpha: 0.22)),
-        elevation: const WidgetStatePropertyAll(AppTokens.elevation1),
+        elevation: const WidgetStatePropertyAll(AppTokens.elevation2),
         shape: WidgetStatePropertyAll(
           RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(metrics.menuBorderRadius),
-            side: _menuBorder(cs),
           ),
         ),
         padding: WidgetStatePropertyAll(metrics.menuPadding),
