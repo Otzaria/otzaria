@@ -167,7 +167,8 @@ class MyDatabase {
     // May fail if another process holds the DB lock (e.g. second instance or stale lock).
     // WAL is an optimisation only — safe to skip on failure.
     try {
-      db.execute('PRAGMA journal_mode=WAL');
+      //db.execute('PRAGMA journal_mode=WAL');
+      db.execute('PRAGMA journal_mode=TRUNCATE');
     } catch (_) {}
 
 
