@@ -57,7 +57,8 @@ const double _kWindowCaptionButtonWidth = 46.0;
 
 // קבועים לחישוב רוחב טאבים בסגנון Chrome
 const double _kMaxTabWidth = 200.0;
-const double _kMinTabWidth = 56.0;
+// מינימום: padding (12) + tab padding (16) + pin icon (15) + X (25) + 2 אותיות עברית (20)
+const double _kMinTabWidth = 88.0;
 
 /// סגנון משותף לכפתורי האייקון בשורת הכותרת
 final ButtonStyle _kIconButtonStyle = IconButton.styleFrom(
@@ -657,136 +658,137 @@ class _CustomTitleBarState extends State<CustomTitleBar>
 
     // פונקציה פנימית לבניית המראה של הטאב כדי למנוע כפילות קוד באנימציות
     Widget buildTabAppearance(StateSetter? setState) {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if ((index == 0 && !isTabActive(0)) ||
-              (index > 0 && !isTabActive(index) && !isTabActive(index - 1)))
-            Container(
-              width: 1,
-              height: 24,
-              margin: const EdgeInsets.only(top: 6, bottom: 6),
-              color: Colors.grey.shade400,
-            ),
-          Container(
-            constraints: const BoxConstraints(maxHeight: 32),
-            padding: EdgeInsets.only(
-                left: 6,
-                right: (index == 0 && settingsState.alignTabsToRight) ? 0 : 6,
-                top: 0,
-                bottom: 0),
-            child: CustomPaint(
-              painter: isSelected
-                  ? _TabBackgroundPainter(
-                      Theme.of(context).colorScheme.surfaceContainer)
-                  : null,
-              child: Tab(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                  child: DefaultTextStyle(
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurface,
-                      fontWeight:
-                          isSelected ? FontWeight.w600 : FontWeight.normal,
-                      fontSize: 14,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _buildPinIconInline(context, tab, isTabHovered),
-                        if (tab is CombinedTab)
-                          Tooltip(
-                            message: tab.title,
-                            child: Row(
-                              children: [
-                                const Padding(
-                                  padding: EdgeInsets.all(8.0),
-                                  child: Icon(
-                                      FluentIcons.panel_left_text_24_regular,
-                                      size: 16),
+      return Container(
+        constraints: const BoxConstraints(maxHeight: 32),
+        padding: EdgeInsets.only(
+            left: 6,
+            right: (index == 0 && settingsState.alignTabsToRight) ? 0 : 6,
+            top: 0,
+            bottom: 0),
+        child: CustomPaint(
+          painter: isSelected
+              ? _TabBackgroundPainter(
+                  Theme.of(context).colorScheme.surfaceContainer)
+              : null,
+          child: Tab(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+              child: DefaultTextStyle(
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
+                  fontWeight:
+                      isSelected ? FontWeight.w600 : FontWeight.normal,
+                  fontSize: 14,
+                ),
+                child: Row(
+                  children: [
+                    _buildPinIconInline(context, tab, isTabHovered),
+                    if (tab is CombinedTab)
+                      Expanded(
+                        child: Tooltip(
+                          message: tab.title,
+                          child: Row(
+                            children: [
+                              const Icon(
+                                  FluentIcons.panel_left_text_24_regular,
+                                  size: 16),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  tab.title,
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
                                 ),
-                                Text(truncate(tab.title, 20)),
-                              ],
-                            ),
-                          )
-                        else if (tab is SearchingTab)
-                          ValueListenableBuilder<String>(
-                            valueListenable: tab.titleNotifier,
-                            builder: (context, title, child) => Tooltip(
-                              message: title,
-                              child: Text(
-                                truncate(title, 25),
                               ),
-                            ),
-                          )
-                        else if (tab is PdfBookTab)
-                          ValueListenableBuilder<String>(
-                            valueListenable: tab.currentTitle,
-                            builder: (context, currentTitleValue, child) {
-                              final tooltipMessage =
-                                  currentTitleValue.isNotEmpty
-                                      ? '${tab.title}, $currentTitleValue'
-                                      : tab.title;
-                              return Tooltip(
-                                message: tooltipMessage,
-                                child: Row(
-                                  children: [
-                                    const Padding(
-                                      padding: EdgeInsets.all(8.0),
-                                      child: Icon(
-                                          FluentIcons.document_pdf_24_regular,
-                                          size: 16),
-                                    ),
-                                    Text(truncate(tab.title, 12)),
-                                  ],
-                                ),
-                              );
-                            },
-                          )
-                        else
-                          ValueListenableBuilder<String>(
-                            valueListenable: (tab as TextBookTab).currentTitle,
-                            builder: (context, currentTitleValue, child) {
-                              final tooltipMessage =
-                                  currentTitleValue.isNotEmpty
-                                      ? '${tab.title}, $currentTitleValue'
-                                      : tab.title;
-                              return Tooltip(
-                                message: tooltipMessage,
-                                child: Text(truncate(tab.title, 12)),
-                              );
-                            },
-                          ),
-                        Tooltip(
-                          preferBelow: false,
-                          message: closeTabShortcut.toUpperCase(),
-                          child: IconButton(
-                            constraints: const BoxConstraints(
-                              minWidth: 25,
-                              minHeight: 25,
-                              maxWidth: 25,
-                              maxHeight: 25,
-                            ),
-                            onPressed: () => closeTab(tab, context),
-                            icon: const Icon(FluentIcons.dismiss_24_regular,
-                                size: 10),
+                            ],
                           ),
                         ),
-                      ],
+                      )
+                    else if (tab is SearchingTab)
+                      Expanded(
+                        child: ValueListenableBuilder<String>(
+                          valueListenable: tab.titleNotifier,
+                          builder: (context, title, child) => Tooltip(
+                            message: title,
+                            child: Text(
+                              title,
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                          ),
+                        ),
+                      )
+                    else if (tab is PdfBookTab)
+                      Expanded(
+                        child: ValueListenableBuilder<String>(
+                          valueListenable: tab.currentTitle,
+                          builder: (context, currentTitleValue, child) {
+                            final tooltipMessage =
+                                currentTitleValue.isNotEmpty
+                                    ? '${tab.title}, $currentTitleValue'
+                                    : tab.title;
+                            return Tooltip(
+                              message: tooltipMessage,
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                      FluentIcons.document_pdf_24_regular,
+                                      size: 16),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Text(
+                                      tab.title,
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      )
+                    else
+                      Expanded(
+                        child: ValueListenableBuilder<String>(
+                          valueListenable: (tab as TextBookTab).currentTitle,
+                          builder: (context, currentTitleValue, child) {
+                            final tooltipMessage =
+                                currentTitleValue.isNotEmpty
+                                    ? '${tab.title}, $currentTitleValue'
+                                    : tab.title;
+                            return Tooltip(
+                              message: tooltipMessage,
+                              child: Text(
+                                tab.title,
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    Tooltip(
+                      preferBelow: false,
+                      message: closeTabShortcut.toUpperCase(),
+                      child: IconButton(
+                        constraints: const BoxConstraints(
+                          minWidth: 25,
+                          minHeight: 25,
+                          maxWidth: 25,
+                          maxHeight: 25,
+                        ),
+                        onPressed: () => closeTab(tab, context),
+                        icon: const Icon(FluentIcons.dismiss_24_regular,
+                            size: 10),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ),
           ),
-          if (index == state.tabs.length - 1 && !isTabActive(index))
-            Container(
-              width: 1,
-              height: 24,
-              margin: const EdgeInsets.only(top: 6, bottom: 6),
-              color: Colors.grey.shade400,
-            ),
-        ],
+        ),
       );
     }
 
