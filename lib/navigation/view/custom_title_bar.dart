@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -54,6 +55,10 @@ const double _kActionButtonWidth = 56.0;
 const double _kWindowCaptionButtonsWidth = 138.0;
 const double _kWindowCaptionButtonWidth = 46.0;
 
+// קבועים לחישוב רוחב טאבים בסגנון Chrome
+const double _kMaxTabWidth = 200.0;
+const double _kMinTabWidth = 56.0;
+
 /// סגנון משותף לכפתורי האייקון בשורת הכותרת
 final ButtonStyle _kIconButtonStyle = IconButton.styleFrom(
   minimumSize: const Size(32, 32),
@@ -69,10 +74,59 @@ class _CustomTitleBarState extends State<CustomTitleBar>
   bool _tabsOverflow = false;
   TabController? _tabController;
 
+  // ניהול רוחב טאבים בסגנון Chrome
+  int _displayedTabCount = 0;
+  List<OpenedTab>? _previousTabs;
+  Timer? _tabCloseDebounce;
+
   @override
   void dispose() {
+    _tabCloseDebounce?.cancel();
     _tabController?.dispose();
     super.dispose();
+  }
+
+  /// מעדכן את _displayedTabCount לפי הלוגיקה:
+  /// - פתיחת טאב: מיידי
+  /// - סגירת הטאב האחרון ברשימה: מיידי
+  /// - סגירת טאב אחר: עיכוב 2 שניות
+  void _updateTabsDisplay(TabsState state) {
+    final newTabs = state.tabs;
+    final newCount = newTabs.length;
+    final prevTabs = _previousTabs;
+    _previousTabs = List.unmodifiable(newTabs);
+
+    if (prevTabs == null) return; // אתחול ראשוני מטופל בבנאי
+
+    final prevCount = prevTabs.length;
+    if (newCount == prevCount) return;
+
+    if (newCount > prevCount) {
+      // נפתח טאב חדש — מיידי
+      _tabCloseDebounce?.cancel();
+      setState(() => _displayedTabCount = newCount);
+      return;
+    }
+
+    // נסגר טאב — בדוק אם היה הטאב האחרון
+    final bool lastTabRemoved = prevTabs.isNotEmpty &&
+        newCount == prevCount - 1 &&
+        (newCount == 0 || !newTabs.contains(prevTabs.last));
+
+    if (lastTabRemoved) {
+      // הטאב האחרון נסגר — מיידי (כפתור ה-X נשאר באותו מקום)
+      _tabCloseDebounce?.cancel();
+      setState(() => _displayedTabCount = newCount);
+    } else {
+      // טאב פנימי נסגר — עיכוב 2 שניות למניעת קפיצות
+      _tabCloseDebounce?.cancel();
+      _tabCloseDebounce = Timer(const Duration(seconds: 2), () {
+        if (mounted) {
+          setState(
+              () => _displayedTabCount = context.read<TabsBloc>().state.tabs.length);
+        }
+      });
+    }
   }
 
   void _handleReadingTabControllerChange() {
@@ -350,8 +404,15 @@ class _CustomTitleBarState extends State<CustomTitleBar>
   }
 
   Widget _buildReadingTabs(BuildContext context, SettingsState settingsState) {
-    return BlocBuilder<TabsBloc, TabsState>(
+    return BlocConsumer<TabsBloc, TabsState>(
+      listener: (context, state) => _updateTabsDisplay(state),
       builder: (context, state) {
+        // אתחול ראשוני של המספר המוצג
+        if (_previousTabs == null) {
+          _displayedTabCount = state.tabs.length;
+          _previousTabs = List.unmodifiable(state.tabs);
+        }
+
         if (!state.hasOpenTabs) {
           return DragToMoveArea(
             child: Center(
@@ -396,57 +457,72 @@ class _CustomTitleBarState extends State<CustomTitleBar>
               ),
             // אזור הטאבים המעודכן
             Expanded(
-              child: DragTarget<OpenedTab>(
-                onWillAcceptWithDetails: (details) => state.tabs.length > 1,
-                onAcceptWithDetails: (details) {
-                  // מקבלים את רוחב המסך הכולל ואת מיקום העכבר בעת העזיבה
-                  final RenderBox renderBox =
-                      context.findRenderObject() as RenderBox;
-                  final localOffset = renderBox.globalToLocal(details.offset);
-                  final isLeftHalf =
-                      localOffset.dx < (renderBox.size.width / 2);
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  // חישוב רוחב טאב בסגנון Chrome
+                  final int displayCount = _displayedTabCount.clamp(1, 9999);
+                  double tabWidth =
+                      constraints.maxWidth / displayCount;
+                  tabWidth = tabWidth.clamp(_kMinTabWidth, _kMaxTabWidth);
 
-                  // בודקים אם כיוון האפליקציה הוא מימין לשמאל (RTL) - אוצריא בעברית
-                  final isRtl = Directionality.of(context) == TextDirection.rtl;
+                  return DragTarget<OpenedTab>(
+                    onWillAcceptWithDetails: (details) => state.tabs.length > 1,
+                    onAcceptWithDetails: (details) {
+                      // מקבלים את רוחב המסך הכולל ואת מיקום העכבר בעת העזיבה
+                      final RenderBox renderBox =
+                          context.findRenderObject() as RenderBox;
+                      final localOffset =
+                          renderBox.globalToLocal(details.offset);
+                      final isLeftHalf =
+                          localOffset.dx < (renderBox.size.width / 2);
 
-                  // חישוב האינדקס החדש
-                  int newIndex;
-                  if (isRtl) {
-                    newIndex = isLeftHalf ? state.tabs.length - 1 : 0;
-                  } else {
-                    newIndex = isLeftHalf ? 0 : state.tabs.length - 1;
-                  }
+                      // בודקים אם כיוון האפליקציה הוא מימין לשמאל (RTL)
+                      final isRtl =
+                          Directionality.of(context) == TextDirection.rtl;
 
-                  final draggedTab = details.data;
-                  final currentIndex = state.tabs.indexOf(draggedTab);
+                      // חישוב האינדקס החדש
+                      int newIndex;
+                      if (isRtl) {
+                        newIndex = isLeftHalf ? state.tabs.length - 1 : 0;
+                      } else {
+                        newIndex = isLeftHalf ? 0 : state.tabs.length - 1;
+                      }
 
-                  // מבצעים את ההעברה רק אם הטאב באמת שינה מיקום
-                  if (currentIndex != -1 && currentIndex != newIndex) {
-                    context.read<TabsBloc>().add(MoveTab(draggedTab, newIndex));
-                  }
-                },
-                builder: (context, candidateData, rejectedData) {
-                  return DragToMoveArea(
-                    child: KeyedSubtree(
-                      key: tourReadingTabsTargetKey,
-                      child: ScrollableTabBarWithArrows(
-                        controller: _tabController!,
-                        tabAlignment: settingsState.alignTabsToRight
-                            ? TabAlignment.start
-                            : TabAlignment.center,
-                        hideArrowsWhenNotScrollable:
-                            settingsState.alignTabsToRight,
-                        onOverflowChanged: (overflow) {
-                          if (mounted && _tabsOverflow != overflow) {
-                            setState(() => _tabsOverflow = overflow);
-                          }
-                        },
-                        tabs: state.tabs
-                            .map((tab) =>
-                                _buildTab(context, tab, state, settingsState))
-                            .toList(),
-                      ),
-                    ),
+                      final draggedTab = details.data;
+                      final currentIndex = state.tabs.indexOf(draggedTab);
+
+                      // מבצעים את ההעברה רק אם הטאב באמת שינה מיקום
+                      if (currentIndex != -1 && currentIndex != newIndex) {
+                        context
+                            .read<TabsBloc>()
+                            .add(MoveTab(draggedTab, newIndex));
+                      }
+                    },
+                    builder: (context, candidateData, rejectedData) {
+                      return DragToMoveArea(
+                        child: KeyedSubtree(
+                          key: tourReadingTabsTargetKey,
+                          child: ScrollableTabBarWithArrows(
+                            controller: _tabController!,
+                            tabAlignment: settingsState.alignTabsToRight
+                                ? TabAlignment.start
+                                : TabAlignment.center,
+                            hideArrowsWhenNotScrollable:
+                                settingsState.alignTabsToRight,
+                            onOverflowChanged: (overflow) {
+                              if (mounted && _tabsOverflow != overflow) {
+                                setState(() => _tabsOverflow = overflow);
+                              }
+                            },
+                            tabWidth: tabWidth,
+                            tabs: state.tabs
+                                .map((tab) => _buildTab(
+                                    context, tab, state, settingsState))
+                                .toList(),
+                          ),
+                        ),
+                      );
+                    },
                   );
                 },
               ),

@@ -10,6 +10,8 @@ class ScrollableTabBarWithArrows extends StatefulWidget {
   final ValueChanged<bool>? onOverflowChanged;
   // האם להסתיר את החיצים כשאין גלילה (לצמצום רווחים)
   final bool hideArrowsWhenNotScrollable;
+  // רוחב קבוע לכל טאב — null = auto
+  final double? tabWidth;
 
   const ScrollableTabBarWithArrows({
     super.key,
@@ -18,6 +20,7 @@ class ScrollableTabBarWithArrows extends StatefulWidget {
     this.tabAlignment,
     this.onOverflowChanged,
     this.hideArrowsWhenNotScrollable = false,
+    this.tabWidth,
   });
 
   @override
@@ -151,10 +154,17 @@ class _ScrollableTabBarWithArrowsState
                 _attachAndSyncPosition();
               });
             }
+            // כשיש tabWidth קבוע — עוטפים כל טאב ב-SizedBox
+            final List<Widget> resolvedTabs = widget.tabWidth != null
+                ? widget.tabs
+                    .map((t) => SizedBox(width: widget.tabWidth, child: t))
+                    .toList()
+                : widget.tabs;
+
             final tabBar = TabBar(
               controller: widget.controller,
               isScrollable: true,
-              tabs: widget.tabs,
+              tabs: resolvedTabs,
               tabAlignment: widget.tabAlignment ?? TabAlignment.start,
               padding: EdgeInsets.zero,
               labelPadding: EdgeInsets.zero,
