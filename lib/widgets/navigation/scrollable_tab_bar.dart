@@ -125,7 +125,7 @@ class _ScrollableTabBarWithArrowsState
     return AlignmentDirectional.bottomStart;
   }
 
-  Widget _buildTabBar({bool shrinkWrap = false}) {
+  Widget _buildTabBar() {
     return NotificationListener<ScrollMetricsNotification>(
       onNotification: (metricsNotification) {
         final metrics = metricsNotification.metrics;
@@ -177,8 +177,7 @@ class _ScrollableTabBarWithArrowsState
 
             return Align(
               alignment: _tabBarAlignment(),
-              widthFactor: shrinkWrap ? 1.0 : null,
-              child: shrinkWrap ? IntrinsicWidth(child: tabBar) : tabBar,
+              child: tabBar,
             );
           },
         ),
@@ -232,9 +231,21 @@ class _ScrollableTabBarWithArrowsState
     final bool showArrows = !widget.hideArrowsWhenNotScrollable || hasOverflow;
 
     if (!hasOverflow) {
+      // כשיש tabWidth ידוע — חישוב רוחב כולל ישיר (ללא IntrinsicWidth)
+      // IntrinsicWidth גורם ל-Tooltip לנסות לעדכן overlay בזמן layout → assertion crash
+      if (widget.tabWidth != null && widget.tabs.isNotEmpty) {
+        final totalWidth = widget.tabWidth! * widget.tabs.length;
+        return Align(
+          alignment: _nonOverflowAlignment(),
+          child: SizedBox(
+            width: totalWidth,
+            child: _buildTabBar(),
+          ),
+        );
+      }
       return Align(
         alignment: _nonOverflowAlignment(),
-        child: _buildTabBar(shrinkWrap: true),
+        child: _buildTabBar(),
       );
     }
 

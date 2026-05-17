@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' show max;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -57,8 +58,8 @@ const double _kWindowCaptionButtonWidth = 46.0;
 
 // קבועים לחישוב רוחב טאבים בסגנון Chrome
 const double _kMaxTabWidth = 200.0;
-// מינימום: padding (12) + tab padding (16) + pin icon (15) + X (25) + 2 אותיות עברית (20)
-const double _kMinTabWidth = 88.0;
+// מינימום: padding (4) + tab padding (8) + pin icon (15) + X (25) + 2 אותיות עברית (20)
+const double _kMinTabWidth = 72.0;
 
 /// סגנון משותף לכפתורי האייקון בשורת הכותרת
 final ButtonStyle _kIconButtonStyle = IconButton.styleFrom(
@@ -461,7 +462,10 @@ class _CustomTitleBarState extends State<CustomTitleBar>
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   // חישוב רוחב טאב בסגנון Chrome
-                  final int displayCount = _displayedTabCount.clamp(1, 9999);
+                  // שימוש ב-max כדי שבפתיחת טאב חדש (לפני שה-setState מתעדכן)
+                  // לא יהיו יותר טאבים ממה שמחושב — ימנע overflow וחיצי גלילה מיותרים
+                  final int displayCount =
+                      max(_displayedTabCount, state.tabs.length).clamp(1, 9999);
                   double tabWidth =
                       constraints.maxWidth / displayCount;
                   tabWidth = tabWidth.clamp(_kMinTabWidth, _kMaxTabWidth);
@@ -528,6 +532,10 @@ class _CustomTitleBarState extends State<CustomTitleBar>
                 },
               ),
             ),
+
+            // רווח קבוע בין הכרטסיה האחרונה לבין סמל ההגדרות (~חצי טאב)
+            // רלוונטי רק במצב צמוד-לימין; במצב ממורכז אין צורך ברווח זה
+            if (settingsState.alignTabsToRight) const SizedBox(width: 36),
 
             // כפתורים נוספים (הגדרות)
             DragToMoveArea(
@@ -603,24 +611,27 @@ class _CustomTitleBarState extends State<CustomTitleBar>
   /// בונה אייקון הצמדה inline עם hover state מהטאב
   Widget _buildPinIconInline(
       BuildContext context, OpenedTab tab, bool isHovered) {
-    return GestureDetector(
-      onTap: () => context.read<TabsBloc>().add(TogglePinTab(tab)),
-      child: Padding(
-        padding: const EdgeInsets.only(right: 1.0),
-        child: Tooltip(
-          message: tab.isPinned ? 'בטל הצמדה' : 'הצמד כרטיסיה',
-          child: AnimatedOpacity(
-            duration: const Duration(milliseconds: 150),
-            opacity: (tab.isPinned || isHovered) ? 1.0 : 0.0,
-            child: Icon(
-              tab.isPinned
-                  ? FluentIcons.pin_24_filled
-                  : FluentIcons.pin_24_regular,
-              size: 14,
-            ),
-          ),
-        ),
-      ),
+    final show = tab.isPinned || isHovered;
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeInOut,
+      child: show
+          ? GestureDetector(
+              onTap: () => context.read<TabsBloc>().add(TogglePinTab(tab)),
+              child: Padding(
+                padding: const EdgeInsetsDirectional.only(start: 1.0, end: 4.0),
+                child: Tooltip(
+                  message: tab.isPinned ? 'בטל הצמדה' : 'הצמד כרטיסיה',
+                  child: Icon(
+                    tab.isPinned
+                        ? FluentIcons.pin_24_filled
+                        : FluentIcons.pin_24_regular,
+                    size: 14,
+                  ),
+                ),
+              ),
+            )
+          : const SizedBox.shrink(),
     );
   }
 
@@ -661,8 +672,8 @@ class _CustomTitleBarState extends State<CustomTitleBar>
       return Container(
         constraints: const BoxConstraints(maxHeight: 32),
         padding: EdgeInsets.only(
-            left: 6,
-            right: (index == 0 && settingsState.alignTabsToRight) ? 0 : 6,
+            left: 2,
+            right: (index == 0 && settingsState.alignTabsToRight) ? 0 : 2,
             top: 0,
             bottom: 0),
         child: CustomPaint(
@@ -672,7 +683,7 @@ class _CustomTitleBarState extends State<CustomTitleBar>
               : null,
           child: Tab(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+              padding: const EdgeInsets.symmetric(horizontal: 4.0),
               child: DefaultTextStyle(
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onSurface,
@@ -680,23 +691,27 @@ class _CustomTitleBarState extends State<CustomTitleBar>
                       isSelected ? FontWeight.w600 : FontWeight.normal,
                   fontSize: 14,
                 ),
-                child: Row(
-                  children: [
-                    _buildPinIconInline(context, tab, isTabHovered),
+                  child: Transform.translate(
+                    offset: const Offset(0, -2),
+                    child: Row(
+                      children: [
+                        if (isSelected) const SizedBox(width: 4),
+                        _buildPinIconInline(context, tab, isTabHovered),
                     if (tab is CombinedTab)
                       Expanded(
                         child: Tooltip(
                           message: tab.title,
                           child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
                               const Icon(
                                   FluentIcons.panel_left_text_24_regular,
-                                  size: 16),
-                              const SizedBox(width: 4),
+                                  size: 14),
+                              const SizedBox(width: 2),
                               Expanded(
                                 child: Text(
                                   tab.title,
-                                  overflow: TextOverflow.ellipsis,
+                                  overflow: TextOverflow.clip,
                                   maxLines: 1,
                                 ),
                               ),
@@ -712,7 +727,7 @@ class _CustomTitleBarState extends State<CustomTitleBar>
                             message: title,
                             child: Text(
                               title,
-                              overflow: TextOverflow.ellipsis,
+                              overflow: TextOverflow.clip,
                               maxLines: 1,
                             ),
                           ),
@@ -730,15 +745,16 @@ class _CustomTitleBarState extends State<CustomTitleBar>
                             return Tooltip(
                               message: tooltipMessage,
                               child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
                                   const Icon(
                                       FluentIcons.document_pdf_24_regular,
-                                      size: 16),
-                                  const SizedBox(width: 4),
+                                      size: 14),
+                                  const SizedBox(width: 2),
                                   Expanded(
                                     child: Text(
                                       tab.title,
-                                      overflow: TextOverflow.ellipsis,
+                                      overflow: TextOverflow.clip,
                                       maxLines: 1,
                                     ),
                                   ),
@@ -761,7 +777,7 @@ class _CustomTitleBarState extends State<CustomTitleBar>
                               message: tooltipMessage,
                               child: Text(
                                 tab.title,
-                                overflow: TextOverflow.ellipsis,
+                                overflow: TextOverflow.clip,
                                 maxLines: 1,
                               ),
                             );
@@ -783,8 +799,15 @@ class _CustomTitleBarState extends State<CustomTitleBar>
                             size: 10),
                       ),
                     ),
-                  ],
-                ),
+                    if (!isSelected && index != state.currentTabIndex - 1)
+                      Container(
+                        width: 1,
+                        height: 16,
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      ),
+                      ],
+                    ),
+                  ),
               ),
             ),
           ),
