@@ -25,6 +25,7 @@ import 'package:otzaria/library/view/otzar_book_dialog.dart';
 import 'package:otzaria/library/view/book_preview_panel.dart';
 import 'package:otzaria/library/view/library_empty_state_widget.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
+import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/library/view/library_panel_controller.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
@@ -947,10 +948,13 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     );
   }
 
-  void _openSearchDialog(BuildContext context) {
+  void _openSearchDialog(BuildContext context, {String? searchQuery}) {
+    final tab = searchQuery != null && searchQuery.isNotEmpty
+        ? SearchingTab('חיפוש', searchQuery)
+        : null;
     showDialog(
       context: context,
-      builder: (context) => const SearchDialog(existingTab: null),
+      builder: (context) => SearchDialog(existingTab: tab),
     );
   }
 
@@ -983,7 +987,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       message: message,
       onBack: onBack,
       onHome: () => _handleNavigateHome(context, state, settingsState),
-      onOpenSearch: () => _openSearchDialog(context),
+      onOpenSearch: () => _openSearchDialog(context, searchQuery: searchText),
       onOpenLink: isDeepLink
           ? () async => await _tryHandleDeepLink(context, searchText)
           : null,
