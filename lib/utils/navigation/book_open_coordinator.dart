@@ -37,12 +37,13 @@ class BookOpenCoordinator {
     }
 
     final historyState = historyBloc.state;
-    final lastOpened = ignoreHistory
+    final isMarkingRequested = markSection || markText != null;
+    final lastOpened = (ignoreHistory || isMarkingRequested)
         ? null
         : historyState.history
             .firstWhereOrNull((b) => b.book.title == book.title);
 
-    final initialIndex = (ignoreHistory || index != 0)
+    final initialIndex = (ignoreHistory || isMarkingRequested || index != 0)
         ? index
         : (lastOpened?.index ?? 0);
     final initialCommentators = lastOpened?.commentatorsToShow;
