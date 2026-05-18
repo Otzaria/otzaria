@@ -33,6 +33,7 @@ import 'package:otzaria/workspaces/bloc/workspace_event.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tour/tour_target_keys.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart' show truncate;
 
 class CustomTitleBar extends StatefulWidget {
   final VoidCallback? onReadingSettingsPressed;
@@ -460,14 +461,15 @@ class _CustomTitleBarState extends State<CustomTitleBar>
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  // חישוב רוחב טאב בסגנון Chrome
-                  // שימוש ב-max כדי שבפתיחת טאב חדש (לפני שה-setState מתעדכן)
-                  // לא יהיו יותר טאבים ממה שמחושב — ימנע overflow וחיצי גלילה מיותרים
-                  final int displayCount =
-                      max(_displayedTabCount, state.tabs.length).clamp(1, 9999);
-                  double tabWidth =
-                      constraints.maxWidth / displayCount;
-                  tabWidth = tabWidth.clamp(_kMinTabWidth, _kMaxTabWidth);
+                  // חישוב רוחב טאב שווה — רק במצב צמוד-לימין
+                  // במצב ממורכז: tabWidth=null → כל טאב ברוחב הטבעי שלו (כמקור)
+                  double? tabWidth;
+                  if (settingsState.alignTabsToRight) {
+                    final int displayCount =
+                        max(_displayedTabCount, state.tabs.length).clamp(1, 9999);
+                    tabWidth = (constraints.maxWidth / displayCount)
+                        .clamp(_kMinTabWidth, _kMaxTabWidth);
+                  }
 
                   return DragTarget<OpenedTab>(
                     onWillAcceptWithDetails: (details) => state.tabs.length > 1,
@@ -659,11 +661,145 @@ class _CustomTitleBarState extends State<CustomTitleBar>
     // מזהים את כיוון השפה כדי לדעת מאיזה צד לפתוח את הרווח
     final isRtl = Directionality.of(context) == TextDirection.rtl;
 
+    bool isTabActive(int tabIndex) => tabIndex == state.currentTabIndex;
+
     // State לניהול hover על הטאב
     bool isTabHovered = false;
 
+    // מצב ממורכז: מחזיר את המבנה המקורי ללא שינוי
+    Widget buildTabAppearanceCentered(StateSetter? setState) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if ((index == 0 && !isTabActive(0)) ||
+              (index > 0 && !isTabActive(index) && !isTabActive(index - 1)))
+            Container(
+              width: 1,
+              height: 24,
+              margin: const EdgeInsets.only(top: 6, bottom: 6),
+              color: Colors.grey.shade400,
+            ),
+          Container(
+            constraints: const BoxConstraints(maxHeight: 32),
+            padding: const EdgeInsets.only(left: 6, right: 6, top: 0, bottom: 0),
+            child: CustomPaint(
+              painter: isSelected
+                  ? _TabBackgroundPainter(
+                      Theme.of(context).colorScheme.surfaceContainer)
+                  : null,
+              child: Tab(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                  child: DefaultTextStyle(
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
+                      fontWeight:
+                          isSelected ? FontWeight.w600 : FontWeight.normal,
+                      fontSize: 14,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildPinIconInline(context, tab, isTabHovered),
+                        if (tab is CombinedTab)
+                          Tooltip(
+                            message: tab.title,
+                            child: Row(
+                              children: [
+                                const Padding(
+                                  padding: EdgeInsets.all(8.0),
+                                  child: Icon(
+                                      FluentIcons.panel_left_text_24_regular,
+                                      size: 16),
+                                ),
+                                Text(truncate(tab.title, 20)),
+                              ],
+                            ),
+                          )
+                        else if (tab is SearchingTab)
+                          ValueListenableBuilder<String>(
+                            valueListenable: tab.titleNotifier,
+                            builder: (context, title, child) => Tooltip(
+                              message: title,
+                              child: Text(truncate(title, 25)),
+                            ),
+                          )
+                        else if (tab is PdfBookTab)
+                          ValueListenableBuilder<String>(
+                            valueListenable: tab.currentTitle,
+                            builder: (context, currentTitleValue, child) {
+                              final tooltipMessage =
+                                  currentTitleValue.isNotEmpty
+                                      ? '\${tab.title}, \$currentTitleValue'
+                                      : tab.title;
+                              return Tooltip(
+                                message: tooltipMessage,
+                                child: Row(
+                                  children: [
+                                    const Padding(
+                                      padding: EdgeInsets.all(8.0),
+                                      child: Icon(
+                                          FluentIcons.document_pdf_24_regular,
+                                          size: 16),
+                                    ),
+                                    Text(truncate(tab.title, 12)),
+                                  ],
+                                ),
+                              );
+                            },
+                          )
+                        else
+                          ValueListenableBuilder<String>(
+                            valueListenable: (tab as TextBookTab).currentTitle,
+                            builder: (context, currentTitleValue, child) {
+                              final tooltipMessage =
+                                  currentTitleValue.isNotEmpty
+                                      ? '\${tab.title}, \$currentTitleValue'
+                                      : tab.title;
+                              return Tooltip(
+                                message: tooltipMessage,
+                                child: Text(truncate(tab.title, 12)),
+                              );
+                            },
+                          ),
+                        Tooltip(
+                          preferBelow: false,
+                          message: closeTabShortcut.toUpperCase(),
+                          child: IconButton(
+                            constraints: const BoxConstraints(
+                              minWidth: 25,
+                              minHeight: 25,
+                              maxWidth: 25,
+                              maxHeight: 25,
+                            ),
+                            onPressed: () => closeTab(tab, context),
+                            icon: const Icon(FluentIcons.dismiss_24_regular,
+                                size: 10),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (index == state.tabs.length - 1 && !isTabActive(index))
+            Container(
+              width: 1,
+              height: 24,
+              margin: const EdgeInsets.only(top: 6, bottom: 6),
+              color: Colors.grey.shade400,
+            ),
+        ],
+      );
+    }
+
     // פונקציה פנימית לבניית המראה של הטאב כדי למנוע כפילות קוד באנימציות
     Widget buildTabAppearance(StateSetter? setState) {
+      if (!settingsState.alignTabsToRight) {
+        return buildTabAppearanceCentered(setState);
+      }
       return Container(
         constraints: const BoxConstraints(maxHeight: 32),
         padding: EdgeInsetsDirectional.only(
@@ -704,11 +840,16 @@ class _CustomTitleBarState extends State<CustomTitleBar>
                                   size: 14),
                               const SizedBox(width: 2),
                               Expanded(
-                                child: Text(
-                                  tab.title,
-                                  overflow: TextOverflow.clip,
-                                  maxLines: 1,
-                                  softWrap: false,
+                                child: ClipRect(
+                                  child: OverflowBox(
+                                    alignment: Alignment.centerRight,
+                                    maxWidth: double.infinity,
+                                    child: Text(
+                                      tab.title,
+                                      maxLines: 1,
+                                      softWrap: false,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ],
@@ -721,11 +862,16 @@ class _CustomTitleBarState extends State<CustomTitleBar>
                           valueListenable: tab.titleNotifier,
                           builder: (context, title, child) => Tooltip(
                             message: title,
-                            child: Text(
-                              title,
-                              overflow: TextOverflow.clip,
-                              maxLines: 1,
-                              softWrap: false,
+                            child: ClipRect(
+                              child: OverflowBox(
+                                alignment: Alignment.centerRight,
+                                maxWidth: double.infinity,
+                                child: Text(
+                                  title,
+                                  maxLines: 1,
+                                  softWrap: false,
+                                ),
+                              ),
                             ),
                           ),
                         ),
@@ -749,11 +895,16 @@ class _CustomTitleBarState extends State<CustomTitleBar>
                                       size: 14),
                                   const SizedBox(width: 2),
                                   Expanded(
-                                    child: Text(
-                                      tab.title,
-                                      overflow: TextOverflow.clip,
-                                      maxLines: 1,
-                                      softWrap: false,
+                                    child: ClipRect(
+                                      child: OverflowBox(
+                                        alignment: Alignment.centerRight,
+                                        maxWidth: double.infinity,
+                                        child: Text(
+                                          tab.title,
+                                          maxLines: 1,
+                                          softWrap: false,
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -773,11 +924,16 @@ class _CustomTitleBarState extends State<CustomTitleBar>
                                     : tab.title;
                             return Tooltip(
                               message: tooltipMessage,
-                              child: Text(
-                                tab.title,
-                                overflow: TextOverflow.clip,
-                                maxLines: 1,
-                                softWrap: false,
+                              child: ClipRect(
+                                child: OverflowBox(
+                                  alignment: Alignment.centerRight,
+                                  maxWidth: double.infinity,
+                                  child: Text(
+                                    tab.title,
+                                    maxLines: 1,
+                                    softWrap: false,
+                                  ),
+                                ),
                               ),
                             );
                           },
