@@ -636,7 +636,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                 _scheduleSearchWithSettings(context, settingsState);
               },
               onSubmitted: (value) {
-                _tryHandleDeepLink(context, value);
+                unawaited(_tryHandleDeepLink(context, value));
               },
               onClear: () {
                 _update(context, state, settingsState,
@@ -979,7 +979,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       onHome: () => _handleNavigateHome(context, state, settingsState),
       onOpenSearch: () => _openSearchDialog(context),
       onOpenLink: isDeepLink
-          ? () => _tryHandleDeepLink(context, searchText)
+          ? () => unawaited(_tryHandleDeepLink(context, searchText))
           : null,
     );
   }
