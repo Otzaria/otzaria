@@ -599,7 +599,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   Future<bool> _tryHandleDeepLink(BuildContext context, String text) async {
     if (!_isDeepLinkText(text)) return false;
 
-    // ניקוי שדה החיפוש
+    // ניקוי שדה החיפוש — לפני ה-await
     context.read<FocusRepository>().librarySearchController.clear();
     context.read<LibraryBloc>().add(const UpdateSearchQuery(''));
     context.read<LibraryBloc>().add(const SearchBooks());
@@ -641,6 +641,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               },
               onSubmitted: (value) async {
                 if (await _tryHandleDeepLink(context, value)) return;
+                if (!mounted) return;
                 context.read<LibraryBloc>().add(const SelectTopics([]));
                 _scheduleSearchWithSettings(context, settingsState);
               },
@@ -984,7 +985,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       onHome: () => _handleNavigateHome(context, state, settingsState),
       onOpenSearch: () => _openSearchDialog(context),
       onOpenLink: isDeepLink
-          ? () async => await _tryHandleDeepLink(context, searchText)
+          ? () async {
+              await _tryHandleDeepLink(context, searchText);
+            }
           : null,
     );
   }
