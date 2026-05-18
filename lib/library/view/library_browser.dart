@@ -23,6 +23,8 @@ import 'package:otzaria/navigation/view/main_window_screen.dart';
 import 'package:otzaria/library/view/grid_items.dart';
 import 'package:otzaria/library/view/otzar_book_dialog.dart';
 import 'package:otzaria/library/view/book_preview_panel.dart';
+import 'package:otzaria/library/view/library_empty_state_widget.dart';
+import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/library/view/library_panel_controller.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
@@ -938,6 +940,50 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     );
   }
 
+  void _openSearchDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => const SearchDialog(existingTab: null),
+    );
+  }
+
+  /// בונה את ווידג'ט המצב הריק עם הלוגיקה המתאימה.
+  /// אם טקסט החיפוש הוא קישור otzaria://, מציג מצב קישור ישיר.
+  Widget _buildEmptyState(
+    BuildContext context,
+    LibraryState state,
+    SettingsState settingsState,
+    FocusRepository repo,
+  ) {
+    final searchText = repo.librarySearchController.text;
+    final isDeepLink =
+        searchText.trim().toLowerCase().startsWith('otzaria://');
+
+    final message = searchText.isNotEmpty
+        ? 'אין תוצאות עבור "$searchText"'
+        : 'אין פריטים להצגה בתיקייה זו';
+
+    void onBack() {
+      if (searchText.isNotEmpty) {
+        repo.librarySearchController.clear();
+        context.read<LibraryBloc>().add(const UpdateSearchQuery(''));
+        context.read<LibraryBloc>().add(const SearchBooks());
+      } else {
+        _handleNavigateUp(context, state, settingsState);
+      }
+    }
+
+    return LibraryEmptyStateWidget(
+      message: message,
+      onBack: onBack,
+      onHome: () => _handleNavigateHome(context, state, settingsState),
+      onOpenSearch: () => _openSearchDialog(context),
+      onOpenLink: isDeepLink
+          ? () => _tryHandleDeepLink(context, searchText)
+          : null,
+    );
+  }
+
   // ── Content ───────────────────────────────────────────────────────────────
 
   Widget _buildContent(LibraryState state) {
@@ -956,15 +1002,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
             final books = state.searchResults!;
             if (books.isEmpty) {
               final repo = context.read<FocusRepository>();
-              return Center(
-                child: Text(
-                  repo.librarySearchController.text.isNotEmpty
-                      ? 'אין תוצאות עבור "${repo.librarySearchController.text}"'
-                      : 'אין פריטים להצגה בתיקייה זו',
-                  style: Theme.of(context).textTheme.titleMedium,
-                  textAlign: TextAlign.center,
-                ),
-              );
+              return _buildEmptyState(context, state, settingsState, repo);
             }
             final displayLimit = min(books.length, 100);
             return SingleChildScrollView(
@@ -975,15 +1013,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
           final categoryItems = _buildCategoryContent(state.currentCategory!);
           if (categoryItems.isEmpty) {
             final repo = context.read<FocusRepository>();
-            return Center(
-              child: Text(
-                repo.librarySearchController.text.isNotEmpty
-                    ? 'אין תוצאות עבור "${repo.librarySearchController.text}"'
-                    : 'אין פריטים להצגה בתיקייה זו',
-                style: Theme.of(context).textTheme.titleMedium,
-                textAlign: TextAlign.center,
-              ),
-            );
+            return _buildEmptyState(context, state, settingsState, repo);
           }
           return SingleChildScrollView(
             key: PageStorageKey(state.currentCategory),
@@ -991,6 +1021,10 @@ class _LibraryBrowserState extends State<LibraryBrowser>
           );
         }
         if (state.searchResults != null) {
+          if (state.searchResults!.isEmpty) {
+            final repo = context.read<FocusRepository>();
+            return _buildEmptyState(context, state, settingsState, repo);
+          }
           return _buildSearchListView(state.searchResults!);
         }
         return _buildListView(state.currentCategory!);
