@@ -671,9 +671,9 @@ class _CustomTitleBarState extends State<CustomTitleBar>
     Widget buildTabAppearance(StateSetter? setState) {
       return Container(
         constraints: const BoxConstraints(maxHeight: 32),
-        padding: EdgeInsets.only(
-            left: 2,
-            right: (index == 0 && settingsState.alignTabsToRight) ? 0 : 2,
+        padding: EdgeInsetsDirectional.only(
+            start: 2,
+            end: (index == 0 && settingsState.alignTabsToRight) ? 0 : 2,
             top: 0,
             bottom: 0),
         child: CustomPaint(

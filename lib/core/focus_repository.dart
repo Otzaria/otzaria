@@ -218,12 +218,12 @@ class FocusRepository {
 
   /// שחזור עם debounce — עבור resize רציף.
   ///
-  /// מבטל את הטיימר הקודם בכל קריאה וממתין 3000ms ללא resize נוסף.
+  /// מבטל את הטיימר הקודם בכל קריאה וממתין 150ms ללא resize נוסף.
   /// גם כאן [_effectiveRestorer] מחושב **בזמן ריצת הטיימר**, לא בזמן הקריאה.
   void scheduleRestoreDebounced() {
     _resizeDebounceTimer?.cancel();
     if (_effectiveRestorer == null) return;
-    _resizeDebounceTimer = Timer(const Duration(seconds: 3), () {
+    _resizeDebounceTimer = Timer(const Duration(milliseconds: 150), () {
       final r = _effectiveRestorer;
       if (r != null && r.canRestore()) r.restore();
     });
