@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
-import 'package:otzaria/utils/ui/color_utils.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/settings/engine/settings_wrapper.dart';
 import 'package:crypto/crypto.dart';
@@ -119,13 +118,8 @@ class SettingsRepository {
       'isDarkMode': _settings.getValue<bool>(keyDarkMode, defaultValue: false),
       'followSystemTheme':
           _settings.getValue<bool>(keyFollowSystemTheme, defaultValue: false),
-      'seedColor': ColorUtils.colorFromString(
-        _settings.getValue<String>(keySwatchColor, defaultValue: ColorUtils.colorToString(AppSeedColors.defaultLight)),
-      ),
-      'darkSeedColor': ColorUtils.colorFromString(
-        _settings.getValue<String>(keyDarkSwatchColor,
-            defaultValue: ColorUtils.colorToString(AppSeedColors.defaultDark)),
-      ),
+      'seedColor': Color(_settings.getValue<int>(keySwatchColor, defaultValue: AppSeedColors.defaultLight.toARGB32())),
+      'darkSeedColor': Color(_settings.getValue<int>(keyDarkSwatchColor, defaultValue: AppSeedColors.defaultDark.toARGB32())),
       'textMaxWidth':
           _settings.getValue<double>(keyTextMaxWidth, defaultValue: -1),
       'fontSize': _settings.getValue<double>(keyFontSize, defaultValue: 25),
@@ -343,12 +337,11 @@ class SettingsRepository {
   }
 
   Future<void> updateSeedColor(Color value) async {
-    await _settings.setValue(keySwatchColor, ColorUtils.colorToString(value));
+    await _settings.setValue(keySwatchColor, value.toARGB32());
   }
 
   Future<void> updateDarkSeedColor(Color value) async {
-    await _settings.setValue(
-        keyDarkSwatchColor, ColorUtils.colorToString(value));
+    await _settings.setValue(keyDarkSwatchColor, value.toARGB32());
   }
 
   Future<void> updateTextMaxWidth(double value) async {
@@ -702,23 +695,16 @@ class SettingsRepository {
 
   /// Initialize default settings to disk if this is the first app launch
   Future<void> _initializeDefaultsIfNeeded() async {
-    if (await _checkIfDefaultsNeeded()) {
+    if (!_settings.getValue<bool>('settings_initialized', defaultValue: false)) {
       await _writeDefaultsToStorage();
     }
-  }
-
-  /// Check if default settings need to be initialized
-  Future<bool> _checkIfDefaultsNeeded() async {
-    // Use a dedicated flag to track initialization
-    return !_settings.getValue<bool>('settings_initialized',
-        defaultValue: false);
   }
 
   /// Write all default settings to persistent storage
   Future<void> _writeDefaultsToStorage() async {
     await _settings.setValue(keyDarkMode, false);
-    await _settings.setValue(keySwatchColor, ColorUtils.colorToString(AppSeedColors.defaultLight));
-    await _settings.setValue(keyDarkSwatchColor, ColorUtils.colorToString(AppSeedColors.defaultDark));
+    await _settings.setValue(keySwatchColor, AppSeedColors.defaultLight.toARGB32());
+    await _settings.setValue(keyDarkSwatchColor, AppSeedColors.defaultDark.toARGB32());
     await _settings.setValue(keyTextMaxWidth, -1.0);
     await _settings.setValue(keyFontSize, 25.0);
     await _settings.setValue(keyFontFamily, AppFonts.defaultFont);
@@ -781,7 +767,6 @@ class SettingsRepository {
     // Protected Mode defaults
     await _settings.setValue(keyProtectedModeEnabled, false);
 
-    // Mark as initialized
     await _settings.setValue('settings_initialized', true);
   }
 }
