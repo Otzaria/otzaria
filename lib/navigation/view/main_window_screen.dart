@@ -101,6 +101,8 @@ class MainWindowScreen extends StatefulWidget {
 final GlobalKey<ToolsScreenState> moreScreenKey = GlobalKey<ToolsScreenState>();
 final GlobalKey<State<LibraryBrowser>> libraryBrowserKey =
     GlobalKey<State<LibraryBrowser>>();
+final GlobalKey<MainWindowScreenState> mainWindowScreenKey =
+    GlobalKey<MainWindowScreenState>();
 
 class MainWindowScreenState extends State<MainWindowScreen>
     with TickerProviderStateMixin {
@@ -588,6 +590,11 @@ class MainWindowScreenState extends State<MainWindowScreen>
       );
     }
   }
+
+  /// מטפל בקישור otzaria:// שהגיע ממקור פנימי (למשל שדה חיפוש בספרייה).
+  /// ניתן לקרוא לפונקציה זו דרך [mainWindowScreenKey].
+  Future<void> handleInternalDeepLink(String uriString) =>
+      _handleExternalActivationUriString(uriString);
 
   Future<void> _bringWindowToFront() async {
     if (!kIsWeb &&
