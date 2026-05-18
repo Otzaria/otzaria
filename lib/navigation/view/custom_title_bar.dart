@@ -24,7 +24,6 @@ import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/bookmarks/view/bookmark_screen.dart';
 import 'package:otzaria/workspaces/view/workspace_switcher_dialog.dart';
 import 'package:otzaria/utils/ui/fullscreen_helper.dart';
-import 'package:otzaria/utils/text/text_manipulation.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
@@ -660,10 +659,6 @@ class _CustomTitleBarState extends State<CustomTitleBar>
     // מזהים את כיוון השפה כדי לדעת מאיזה צד לפתוח את הרווח
     final isRtl = Directionality.of(context) == TextDirection.rtl;
 
-    bool isTabActive(int tabIndex) {
-      return tabIndex == state.currentTabIndex;
-    }
-
     // State לניהול hover על הטאב
     bool isTabHovered = false;
 
@@ -713,6 +708,7 @@ class _CustomTitleBarState extends State<CustomTitleBar>
                                   tab.title,
                                   overflow: TextOverflow.clip,
                                   maxLines: 1,
+                                  softWrap: false,
                                 ),
                               ),
                             ],
@@ -729,6 +725,7 @@ class _CustomTitleBarState extends State<CustomTitleBar>
                               title,
                               overflow: TextOverflow.clip,
                               maxLines: 1,
+                              softWrap: false,
                             ),
                           ),
                         ),
@@ -756,6 +753,7 @@ class _CustomTitleBarState extends State<CustomTitleBar>
                                       tab.title,
                                       overflow: TextOverflow.clip,
                                       maxLines: 1,
+                                      softWrap: false,
                                     ),
                                   ),
                                 ],
@@ -779,6 +777,7 @@ class _CustomTitleBarState extends State<CustomTitleBar>
                                 tab.title,
                                 overflow: TextOverflow.clip,
                                 maxLines: 1,
+                                softWrap: false,
                               ),
                             );
                           },
