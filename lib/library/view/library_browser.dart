@@ -641,6 +641,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               },
               onSubmitted: (value) async {
                 if (await _tryHandleDeepLink(context, value)) return;
+                if (!context.mounted) return;
                 context.read<LibraryBloc>().add(const SelectTopics([]));
                 _scheduleSearchWithSettings(context, settingsState);
               },
