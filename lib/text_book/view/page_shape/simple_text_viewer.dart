@@ -1480,12 +1480,13 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                       spacingValues:
                           widget.isMainText ? state.spacingValues : const {},
                       isFuzzySearch: widget.isMainText &&
+                          !state.isHighlightYellowBackground(index) &&
                           state.searchMode == SearchMode.fuzzy,
-                      searchMode: widget.isMainText
+                      searchMode: widget.isMainText && !state.isHighlightYellowBackground(index)
                           ? state.searchMode
                           : SearchMode.exact,
                         searchDistance:
-                          widget.isMainText ? state.searchDistance : 0,
+                          widget.isMainText && !state.isHighlightYellowBackground(index) ? state.searchDistance : 0,
                       fontSize: widget.fontSize,
                       fontFamily: widget.fontFamily ?? settingsState.fontFamily,
                       lineHeight: settingsState.lineHeight,
