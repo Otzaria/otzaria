@@ -585,16 +585,19 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
   // ── Deep link from search bar ─────────────────────────────────────────────
 
+  /// בודק אם מחרוזת היא קישור otzaria:// תקין וניתן לפענוח.
+  static bool _isDeepLinkText(String text) {
+    final trimmed = text.trim();
+    if (!trimmed.toLowerCase().startsWith('otzaria://')) return false;
+    final uri = Uri.tryParse(trimmed);
+    if (uri == null) return false;
+    return ExternalUriRouter.parseUri(uri) != null;
+  }
+
   /// בודק אם הטקסט שהוגש הוא קישור otzaria:// ומנתב אותו.
   /// מחזיר true אם הטקסט טופל כקישור (ואז שדה החיפוש מנוקה).
   Future<bool> _tryHandleDeepLink(BuildContext context, String text) async {
-    final trimmed = text.trim();
-    if (!trimmed.toLowerCase().startsWith('otzaria://')) return false;
-
-    final uri = Uri.tryParse(trimmed);
-    if (uri == null) return false;
-
-    if (ExternalUriRouter.parseUri(uri) == null) return false;
+    if (!_isDeepLinkText(text)) return false;
 
     // ניקוי שדה החיפוש
     context.read<FocusRepository>().librarySearchController.clear();
@@ -602,7 +605,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     context.read<LibraryBloc>().add(const SearchBooks());
 
     // מעביר את הטיפול ל-MainWindowScreenState שמכיל את כל הלוגיקה
-    await mainWindowScreenKey.currentState?.handleInternalDeepLink(trimmed);
+    await mainWindowScreenKey.currentState?.handleInternalDeepLink(text.trim());
     return true;
   }
 
@@ -959,9 +962,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     FocusRepository repo,
   ) {
     final searchText = repo.librarySearchController.text;
-    final isDeepLink =
-        searchText.trim().toLowerCase().startsWith('otzaria://') &&
-        ExternalUriRouter.parseUri(Uri.tryParse(searchText.trim()) ?? Uri()) != null;
+    final isDeepLink = _isDeepLinkText(searchText);
 
     final message = searchText.isNotEmpty
         ? 'אין תוצאות עבור "$searchText"'
