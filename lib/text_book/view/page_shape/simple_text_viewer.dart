@@ -1347,7 +1347,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     final theme = Theme.of(context);
     final backgroundColor = () {
       if (isPermanentHighlight) {
-        return Colors.yellow.withValues(alpha: 0.45);
+        return (theme.brightness == Brightness.light ? Colors.yellow : Colors.orange.shade900).withValues(alpha: 0.45);
       }
       if (isHighlighted) {
         return theme.colorScheme.secondaryContainer
