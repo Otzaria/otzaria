@@ -1006,10 +1006,11 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         permanentHighlightLine: event.permanentHighlightLine,
         clearPermanentHighlight: event.permanentHighlightLine == null,
       ));
-      // גלילה לסעיף המבוקש כדי שההדגשה תהיה גלויה
-      if (event.permanentHighlightLine != null && scrollController.isAttached) {
+      // גלילה לסעיף המבוקש
+      final targetIndex = event.scrollToIndex ?? event.permanentHighlightLine;
+      if (targetIndex != null && scrollController.isAttached) {
         scrollController.scrollTo(
-          index: event.permanentHighlightLine!,
+          index: targetIndex,
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,
         );

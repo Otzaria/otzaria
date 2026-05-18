@@ -165,6 +165,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
           textTab.bloc.add(ApplyMarkHighlight(
             highlightText: newTab.highlightText,
             permanentHighlightLine: newTab.permanentHighlightLine,
+            scrollToIndex: newTab.index,
           ));
         }
       }
