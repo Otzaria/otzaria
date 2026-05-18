@@ -57,16 +57,17 @@ jobs:
       - name: Prepare app bundle
         shell: bash
         run: |
-          BUILD_DIR=build/linux/x64/release
-          LIBZSTD=libzstandard_linux.so
+          ZSTD_LIB=$(find build -type f -name 'libzstandard_linux.so' | head -n 1)
+          RAW_DIR=$(find build -type d -name 'bundle' | head -n 1)
+          LIB_DIR=$RAW_DIR/lib
 
-          cp $BUILD_DIR/plugins/zstandard_linux/zstd_build/$LIBZSTD $BUILD_DIR/bundle/lib/$LIBZSTD
-          chmod 644 $BUILD_DIR/bundle/lib/$LIBZSTD
+          cp $ZSTD_LIB $LIB_DIR/$(basename $ZSTD_LIB)
+          chmod 644 $LIB_DIR/$(basename $ZSTD_LIB)
 
-          RPATH=$(patchelf --print-rpath $BUILD_DIR/bundle/lib/libzstandard_linux_plugin.so)
-          patchelf --set-rpath "\$ORIGIN:$RPATH" $BUILD_DIR/bundle/lib/libzstandard_linux_plugin.so
+          RPATH=$(patchelf --print-rpath $LIB_DIR/libzstandard_linux_plugin.so)
+          patchelf --set-rpath "\$ORIGIN:$RPATH" $LIB_DIR/libzstandard_linux_plugin.so
 
-          tar -czf otzaria-linux-app.tar.gz -C $BUILD_DIR/bundle .
+          tar -czf otzaria-linux-app.tar.gz -C $RAW_DIR .
 
       - name: Prepare DEB package
         id: find_packages
@@ -80,6 +81,12 @@ jobs:
             CONTROL_FILE=$(find dist -type f -name 'control' | head -n 1)
             if [ -n "$CONTROL_FILE" ]; then
               DEB_DIR=$(dirname $(dirname $CONTROL_FILE))
+              APP_DIR=$(find dist -type d -name 'otzaria' | head -n 1)
+              RAW_DIR=$(find build -type d -name 'bundle' | head -n 1)
+
+              cp $RAW_DIR/lib/libzstandard_linux.so $APP_DIR/lib/libzstandard_linux.so
+              cp $RAW_DIR/lib/libzstandard_linux_plugin.so $APP_DIR/lib/libzstandard_linux_plugin.so
+
               dpkg-deb --build --root-owner-group $DEB_DIR $DEB_FILE
             fi
           fi
