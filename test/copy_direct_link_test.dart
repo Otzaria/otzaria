@@ -157,4 +157,154 @@ void main() {
       }
     });
   });
+
+  group('copy-direct-link — buildSectionMarkLink', () {
+    // Property 2: פורמט קישור הדגשת מקטע — Validates: Requirements 4.3
+    test('Property 2: פורמט קישור הדגשת מקטע — 100+ איטרציות', () {
+      for (int bookId = 1; bookId <= 100; bookId++) {
+        for (int index = 0; index <= 100; index += 10) {
+          final link = buildSectionMarkLink(bookId, index);
+          expect(link,
+              equals('otzaria://open/book/$bookId?index=$index&mark'),
+              reason: 'bookId=$bookId, index=$index');
+        }
+      }
+    });
+
+    test('edge case: index=0', () {
+      expect(buildSectionMarkLink(1, 0),
+          equals('otzaria://open/book/1?index=0&mark'));
+    });
+
+    test('edge case: bookId=42, index=100', () {
+      expect(buildSectionMarkLink(42, 100),
+          equals('otzaria://open/book/42?index=100&mark'));
+    });
+
+    // Property 5: index שלילי ב-buildSectionMarkLink מוחלף ב-0 — Validates: Requirements 4.3 (edge-case)
+    test('Property 5: index שלילי מוחלף ב-0', () {
+      for (int bookId = 1; bookId <= 20; bookId++) {
+        for (final negIndex in [-1, -5, -100, -9999]) {
+          final link = buildSectionMarkLink(bookId, negIndex);
+          expect(link,
+              equals('otzaria://open/book/$bookId?index=0&mark'),
+              reason: 'bookId=$bookId, index=$negIndex');
+        }
+      }
+    });
+  });
+
+  group('copy-direct-link — buildTextMarkLink', () {
+    // Property 3: פורמט קישור הדגשת טקסט עם קידוד URL — Validates: Requirements 5.3, 5.4
+    test('Property 3: קידוד URL בקישור הדגשת טקסט — 100+ איטרציות', () {
+      for (int bookId = 1; bookId <= 50; bookId++) {
+        for (int index = 0; index <= 50; index += 5) {
+          final link = buildTextMarkLink(bookId, index, 'בראשית');
+          expect(link, isNotNull,
+              reason: 'bookId=$bookId, index=$index');
+          expect(link!, contains('?index=$index&m='),
+              reason: 'bookId=$bookId, index=$index');
+          expect(link, contains('%D7%91'),
+              reason: 'ב מקודד — bookId=$bookId, index=$index');
+        }
+      }
+    });
+
+    test('מחזיר קישור עם קידוד URL לטקסט עברי', () {
+      final link = buildTextMarkLink(1, 0, 'בראשית');
+      expect(link, isNotNull);
+      expect(link!, contains('&m=%D7%91%D7%A8%D7%90%D7%A9%D7%99%D7%AA'));
+    });
+
+    test('מחזיר קישור עם קידוד URL לטקסט עם רווחים', () {
+      final link = buildTextMarkLink(1, 5, 'בראשית ברא');
+      expect(link, isNotNull);
+      expect(link!, startsWith('otzaria://open/book/1?index=5&m='));
+    });
+
+    // Property 4: טקסט ריק מחזיר null — Validates: Requirements 5.5
+    test('Property 4: טקסט ריק מחזיר null', () {
+      for (final emptyText in ['', ' ', '   ', '\t', '\n', '\r\n']) {
+        expect(buildTextMarkLink(1, 0, emptyText), isNull,
+            reason: 'text="${emptyText.replaceAll('\n', '\\n').replaceAll('\t', '\\t')}"');
+      }
+    });
+
+    // Property 6: index שלילי ב-buildTextMarkLink מוחלף ב-0 — Validates: Requirements 5.4 (edge-case)
+    test('Property 6: index שלילי מוחלף ב-0', () {
+      for (int bookId = 1; bookId <= 20; bookId++) {
+        for (final negIndex in [-1, -5, -100]) {
+          final link = buildTextMarkLink(bookId, negIndex, 'טקסט');
+          expect(link, isNotNull,
+              reason: 'bookId=$bookId, index=$negIndex');
+          expect(link!, contains('?index=0&m='),
+              reason: 'bookId=$bookId, index=$negIndex');
+        }
+      }
+    });
+  });
+
+  group('copy-direct-link — buildDirectLinkSubmenuEntries', () {
+    // Property 1: מספר אפשרויות בתת-תפריט — Validates: Requirements 1.4, 1.5, 5.2
+    test('Property 1: 3 אפשרויות ללא טקסט מסומן', () {
+      final entries = buildDirectLinkSubmenuEntries(
+        bookId: 1,
+        index: 0,
+        selectedText: null,
+      );
+      expect(entries.length, equals(3));
+    });
+
+    test('Property 1: 3 אפשרויות עם טקסט ריק', () {
+      final entries = buildDirectLinkSubmenuEntries(
+        bookId: 1,
+        index: 0,
+        selectedText: '',
+      );
+      expect(entries.length, equals(3));
+    });
+
+    test('Property 1: 3 אפשרויות עם טקסט רווחים בלבד', () {
+      final entries = buildDirectLinkSubmenuEntries(
+        bookId: 1,
+        index: 0,
+        selectedText: '   ',
+      );
+      expect(entries.length, equals(3));
+    });
+
+    test('Property 1: 4 אפשרויות עם טקסט מסומן לא-ריק', () {
+      final entries = buildDirectLinkSubmenuEntries(
+        bookId: 1,
+        index: 0,
+        selectedText: 'בראשית',
+      );
+      expect(entries.length, equals(4));
+    });
+
+    test('כל הקישורים ברשימה מכילים את אותו index', () {
+      const bookId = 42;
+      const index = 17;
+      final entries = buildDirectLinkSubmenuEntries(
+        bookId: bookId,
+        index: index,
+        selectedText: 'טקסט',
+      );
+      for (final entry in entries) {
+        if (entry.link != null && entry.link!.contains('?')) {
+          expect(entry.link!, contains('index=$index'),
+              reason: 'label=${entry.label}');
+        }
+      }
+    });
+
+    test('הקישור הראשון הוא קישור לספר ללא index', () {
+      final entries = buildDirectLinkSubmenuEntries(
+        bookId: 5,
+        index: 10,
+        selectedText: null,
+      );
+      expect(entries.first.link, equals('otzaria://open/book/5'));
+    });
+  });
 }
