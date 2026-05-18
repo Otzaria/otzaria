@@ -503,7 +503,7 @@ String highLight(
     int offset = 0;
 
     final style = yellowBackground
-        ? 'background-color: yellow; color: inherit'
+        ? 'background-color: yellow; color: black'
         : 'color: red';
 
     for (final highlightMatch in matches) {
