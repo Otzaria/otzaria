@@ -83,7 +83,7 @@ class App extends StatelessWidget {
               child: child,
             );
           },
-          home: const MainWindowScreen(),
+          home: MainWindowScreen(key: mainWindowScreenKey),
         );
       },
     );

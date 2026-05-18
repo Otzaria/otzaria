@@ -38,6 +38,7 @@ import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/core/external_uri_router.dart';
 
 // ── קבועים ────────────────────────────────────────────────────────────────────
 
@@ -582,6 +583,28 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     );
   }
 
+  // ── Deep link from search bar ─────────────────────────────────────────────
+
+  /// בודק אם הטקסט שהוגש הוא קישור otzaria:// ומנתב אותו.
+  /// מחזיר true אם הטקסט טופל כקישור (ואז שדה החיפוש מנוקה).
+  Future<bool> _tryHandleDeepLink(BuildContext context, String text) async {
+    final trimmed = text.trim();
+    if (!trimmed.toLowerCase().startsWith('otzaria://')) return false;
+
+    final uri = Uri.tryParse(trimmed);
+    if (uri == null) return false;
+
+    if (ExternalUriRouter.parseUri(uri) == null) return false;
+
+    // ניקוי שדה החיפוש
+    context.read<FocusRepository>().librarySearchController.clear();
+    context.read<LibraryBloc>().add(const UpdateSearchQuery(''));
+
+    // מעביר את הטיפול ל-MainWindowScreenState שמכיל את כל הלוגיקה
+    await mainWindowScreenKey.currentState?.handleInternalDeepLink(trimmed);
+    return true;
+  }
+
   // ── Search bar ────────────────────────────────────────────────────────────
 
   Widget _buildSearchBar(LibraryState state, bool isCompact) {
@@ -611,6 +634,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                 context.read<LibraryBloc>().add(UpdateSearchQuery(value));
                 context.read<LibraryBloc>().add(const SelectTopics([]));
                 _scheduleSearchWithSettings(context, settingsState);
+              },
+              onSubmitted: (value) {
+                _tryHandleDeepLink(context, value);
               },
               onClear: () {
                 _update(context, state, settingsState,
