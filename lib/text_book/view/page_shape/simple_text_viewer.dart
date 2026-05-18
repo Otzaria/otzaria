@@ -1347,11 +1347,11 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     final theme = Theme.of(context);
     final backgroundColor = () {
       if (isPermanentHighlight) {
-        return Colors.yellow.withAlpha((0.45 * 255).round());
+        return Colors.yellow.withValues(alpha: 0.45);
       }
       if (isHighlighted) {
         return theme.colorScheme.secondaryContainer
-            .withAlpha((0.4 * 255).round());
+            .withValues(alpha: 0.4);
       }
       if (isCommentaryHighlighted || isSelected) {
         // צבע הדגשה למפרש קשור - כמו השורה הנבחרת
