@@ -599,6 +599,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     // ניקוי שדה החיפוש
     context.read<FocusRepository>().librarySearchController.clear();
     context.read<LibraryBloc>().add(const UpdateSearchQuery(''));
+    context.read<LibraryBloc>().add(const SearchBooks());
 
     // מעביר את הטיפול ל-MainWindowScreenState שמכיל את כל הלוגיקה
     await mainWindowScreenKey.currentState?.handleInternalDeepLink(trimmed);
@@ -635,8 +636,10 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                 context.read<LibraryBloc>().add(const SelectTopics([]));
                 _scheduleSearchWithSettings(context, settingsState);
               },
-              onSubmitted: (value) {
-                unawaited(_tryHandleDeepLink(context, value));
+              onSubmitted: (value) async {
+                if (await _tryHandleDeepLink(context, value)) return;
+                context.read<LibraryBloc>().add(const SelectTopics([]));
+                _scheduleSearchWithSettings(context, settingsState);
               },
               onClear: () {
                 _update(context, state, settingsState,
@@ -957,7 +960,8 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   ) {
     final searchText = repo.librarySearchController.text;
     final isDeepLink =
-        searchText.trim().toLowerCase().startsWith('otzaria://');
+        searchText.trim().toLowerCase().startsWith('otzaria://') &&
+        ExternalUriRouter.parseUri(Uri.tryParse(searchText.trim()) ?? Uri()) != null;
 
     final message = searchText.isNotEmpty
         ? 'אין תוצאות עבור "$searchText"'
@@ -979,7 +983,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       onHome: () => _handleNavigateHome(context, state, settingsState),
       onOpenSearch: () => _openSearchDialog(context),
       onOpenLink: isDeepLink
-          ? () => unawaited(_tryHandleDeepLink(context, searchText))
+          ? () async => await _tryHandleDeepLink(context, searchText)
           : null,
     );
   }
