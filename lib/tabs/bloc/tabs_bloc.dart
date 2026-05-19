@@ -182,13 +182,6 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     required OpenedTab incomingTab,
   }) {
     if (incomingTab is! TextBookTab) return;
-    final pinpoint = incomingTab.pinpointHighlight;
-    if (pinpoint == null || pinpoint.isEmpty) return;
-    // pinpointHighlightSectionIndex נשמר על הטאב מהקואורדינטור עם הסעיף
-    // המקורי שהמשתמש ביקש בקישור; ה‑index של הטאב כבר עלול להשתנות אם
-    // הקואורדינטור החיל fallback להיסטוריה (במסלול שאינו pinpoint).
-    final sectionIndex =
-        incomingTab.pinpointHighlightSectionIndex ?? incomingTab.index;
 
     final TextBookTab? targetText = _resolveTextBookTab(
       existingTab,
@@ -196,26 +189,59 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     );
     if (targetText == null) return;
 
-    void dispatch() {
-      targetText.bloc.add(ApplyMarkHighlight(
-        highlightText: pinpoint,
-        scrollToIndex: sectionIndex,
-      ));
-    }
+    // מסלול 1: pinpointHighlight (deep link עם highlight ממוקד לסעיף)
+    final pinpoint = incomingTab.pinpointHighlight;
+    if (pinpoint != null && pinpoint.isNotEmpty) {
+      final sectionIndex =
+          incomingTab.pinpointHighlightSectionIndex ?? incomingTab.index;
 
-    if (targetText.bloc.state is TextBookLoaded) {
-      dispatch();
+      void dispatchPinpoint() {
+        targetText.bloc.add(ApplyMarkHighlight(
+          highlightText: pinpoint,
+          scrollToIndex: sectionIndex,
+        ));
+      }
+
+      if (targetText.bloc.state is TextBookLoaded) {
+        dispatchPinpoint();
+        return;
+      }
+
+      late StreamSubscription<TextBookState> sub;
+      sub = targetText.bloc.stream.listen((state) {
+        if (state is TextBookLoaded) {
+          dispatchPinpoint();
+          sub.cancel();
+        }
+      });
       return;
     }
 
-    // הטאב הקיים אולי עדיין בטעינה ראשונית — נמתין להגעה ל‑Loaded פעם אחת.
-    late StreamSubscription<TextBookState> sub;
-    sub = targetText.bloc.stream.listen((state) {
-      if (state is TextBookLoaded) {
-        dispatch();
-        sub.cancel();
+    // מסלול 2: highlightText / permanentHighlightLine (deep link ?mark)
+    final highlightText = incomingTab.highlightText;
+    final permanentHighlightLine = incomingTab.permanentHighlightLine;
+    if (highlightText.isNotEmpty || permanentHighlightLine != null) {
+      void dispatchMark() {
+        targetText.bloc.add(ApplyMarkHighlight(
+          highlightText: highlightText,
+          permanentHighlightLine: permanentHighlightLine,
+          scrollToIndex: permanentHighlightLine,
+        ));
       }
-    });
+
+      if (targetText.bloc.state is TextBookLoaded) {
+        dispatchMark();
+        return;
+      }
+
+      late StreamSubscription<TextBookState> sub;
+      sub = targetText.bloc.stream.listen((state) {
+        if (state is TextBookLoaded) {
+          dispatchMark();
+          sub.cancel();
+        }
+      });
+    }
   }
 
   TextBookTab? _resolveTextBookTab(

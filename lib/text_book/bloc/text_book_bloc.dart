@@ -1190,6 +1190,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         highlightText: event.highlightText,
         permanentHighlightLine: event.permanentHighlightLine,
         clearPermanentHighlight: event.permanentHighlightLine == null,
+        searchText: '',
       ));
       // גלילה לסעיף המבוקש כדי שההדגשה תהיה גלויה
       if (event.permanentHighlightLine != null && scrollController.isAttached) {

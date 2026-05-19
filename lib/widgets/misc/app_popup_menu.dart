@@ -871,6 +871,18 @@ class _SubmenuItemWidget<T> extends StatefulWidget {
 
 class _SubmenuItemWidgetState<T> extends State<_SubmenuItemWidget<T>> {
   bool _submenuOpen = false;
+  bool _hoverPending = false;
+
+  void _scheduleSubmenuOnHover(BuildContext innerContext) {
+    _hoverPending = true;
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted && _hoverPending) _openSubmenu(innerContext);
+    });
+  }
+
+  void _cancelHoverDelay() {
+    _hoverPending = false;
+  }
 
   Future<void> _openSubmenu(BuildContext innerContext) async {
     if (_submenuOpen) return;
@@ -913,7 +925,8 @@ class _SubmenuItemWidgetState<T> extends State<_SubmenuItemWidget<T>> {
   Widget build(BuildContext context) {
     return Builder(
       builder: (innerContext) => MouseRegion(
-        onEnter: (_) => _openSubmenu(innerContext),
+        onEnter: (_) => _scheduleSubmenuOnHover(innerContext),
+        onExit: (_) => _cancelHoverDelay(),
         child: InkWell(
           onTap: () => _openSubmenu(innerContext),
           borderRadius:
