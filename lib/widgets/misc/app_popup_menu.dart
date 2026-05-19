@@ -839,60 +839,100 @@ PopupMenuEntry<T> buildAppSubmenuPopupMenuItem<T>({
     context: context,
     metrics: metrics,
     enabled: onSelected != null,
-    child: Builder(
-      builder: (innerContext) => InkWell(
-        onTap: onSelected == null
-            ? null
-            : () async {
-                final renderBox = innerContext.findRenderObject() as RenderBox?;
-                if (renderBox == null) return;
-                final overlayState = Overlay.maybeOf(innerContext);
-                if (overlayState == null) return;
-                final overlay =
-                    overlayState.context.findRenderObject() as RenderBox;
-                final overlaySize = overlay.size;
-                final itemRect = MatrixUtils.transformRect(
-                  renderBox.getTransformTo(overlay),
-                  Offset.zero & renderBox.size,
-                );
-                // חשב את צד הפתיחה לפי מיקום הפריט במסך:
-                // אם הפריט בחצי הימני של המסך — פתח שמאלה, אחרת ימינה
-                final openToRight = itemRect.center.dx < overlaySize.width / 2;
-                final xPos = openToRight ? itemRect.right : itemRect.left;
-                final selected = await showMenu<T>(
-                  context: innerContext,
-                  position: RelativeRect.fromRect(
-                    Rect.fromLTWH(xPos, itemRect.top, 0, 0),
-                    Offset.zero & overlaySize,
-                  ),
-                  items: menuChildren,
-                );
-                if (selected != null) {
-                  // סוגרים קודם את התפריט הראשי, ורק אז מריצים את הפעולה.
-                  // הסדר ההפוך עלול לפוצץ דיאלוגים שה-callback פותח
-                  // (showBookSourceDialog, _handlePrintPress וכד'),
-                  // כי ה-pop היה סוגר את הדיאלוג במקום את התפריט.
-                  if (innerContext.mounted) {
-                    Navigator.of(innerContext).pop();
-                  }
-                  onSelected.call(selected);
-                }
-              },
-        borderRadius: BorderRadius.circular(metrics.itemBorderRadius),
-        child: buildAppMenuRowContent(
-          context,
-          metrics,
-          label: label,
-          icon: icon,
-          trailing: Icon(
-            // החץ מצביע לכיוון פתיחת התת-תפריט (ימינה)
-            FluentIcons.chevron_right_24_regular,
-            size: metrics.iconSize * 0.75,
+    child: _SubmenuItemWidget<T>(
+      metrics: metrics,
+      label: label,
+      icon: icon,
+      menuChildren: menuChildren,
+      onSelected: onSelected,
+    ),
+  );
+}
+
+/// ווידג'ט פנימי לפריט תת-תפריט שתומך בפתיחה גם בלחיצה וגם ב-hover.
+class _SubmenuItemWidget<T> extends StatefulWidget {
+  final AppMenuMetrics metrics;
+  final String label;
+  final IconData? icon;
+  final List<PopupMenuEntry<T>> menuChildren;
+  final ValueChanged<T>? onSelected;
+
+  const _SubmenuItemWidget({
+    required this.metrics,
+    required this.label,
+    this.icon,
+    required this.menuChildren,
+    this.onSelected,
+  });
+
+  @override
+  State<_SubmenuItemWidget<T>> createState() => _SubmenuItemWidgetState<T>();
+}
+
+class _SubmenuItemWidgetState<T> extends State<_SubmenuItemWidget<T>> {
+  bool _submenuOpen = false;
+
+  Future<void> _openSubmenu(BuildContext innerContext) async {
+    if (_submenuOpen || widget.onSelected == null) return;
+    final renderBox = innerContext.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+    final overlayState = Overlay.maybeOf(innerContext);
+    if (overlayState == null) return;
+    final overlay = overlayState.context.findRenderObject() as RenderBox;
+    final overlaySize = overlay.size;
+    final itemRect = MatrixUtils.transformRect(
+      renderBox.getTransformTo(overlay),
+      Offset.zero & renderBox.size,
+    );
+    // חשב את צד הפתיחה לפי מיקום הפריט במסך:
+    // אם הפריט בחצי הימני של המסך — פתח שמאלה, אחרת ימינה
+    final openToRight = itemRect.center.dx < overlaySize.width / 2;
+    final xPos = openToRight ? itemRect.right : itemRect.left;
+
+    _submenuOpen = true;
+    final selected = await showMenu<T>(
+      context: innerContext,
+      position: RelativeRect.fromRect(
+        Rect.fromLTWH(xPos, itemRect.top, 0, 0),
+        Offset.zero & overlaySize,
+      ),
+      items: widget.menuChildren,
+    );
+    _submenuOpen = false;
+
+    if (selected != null) {
+      // סוגרים קודם את התפריט הראשי, ורק אז מריצים את הפעולה.
+      if (innerContext.mounted) {
+        Navigator.of(innerContext).pop();
+      }
+      widget.onSelected?.call(selected);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Builder(
+      builder: (innerContext) => MouseRegion(
+        onEnter: (_) => _openSubmenu(innerContext),
+        child: InkWell(
+          onTap: () => _openSubmenu(innerContext),
+          borderRadius:
+              BorderRadius.circular(widget.metrics.itemBorderRadius),
+          child: buildAppMenuRowContent(
+            context,
+            widget.metrics,
+            label: widget.label,
+            icon: widget.icon,
+            trailing: Icon(
+              // החץ מצביע לכיוון פתיחת התת-תפריט (ימינה)
+              FluentIcons.chevron_right_24_regular,
+              size: widget.metrics.iconSize * 0.75,
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
