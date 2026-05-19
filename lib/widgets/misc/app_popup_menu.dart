@@ -875,8 +875,16 @@ class _SubmenuItemWidgetState<T> extends State<_SubmenuItemWidget<T>> {
 
   void _scheduleSubmenuOnHover(BuildContext innerContext) {
     _hoverPending = true;
+    // חילוץ כל המידע מה-context לפני ה-async gap
+    final renderBox = innerContext.findRenderObject() as RenderBox?;
+    final overlayState = Overlay.maybeOf(innerContext);
+    if (renderBox == null || overlayState == null) return;
+    final overlay = overlayState.context.findRenderObject() as RenderBox;
+
     Future.delayed(const Duration(milliseconds: 300), () {
-      if (mounted && _hoverPending) _openSubmenu(innerContext);
+      if (mounted && _hoverPending) {
+        _openSubmenuFromData(renderBox, overlay);
+      }
     });
   }
 
@@ -884,26 +892,22 @@ class _SubmenuItemWidgetState<T> extends State<_SubmenuItemWidget<T>> {
     _hoverPending = false;
   }
 
-  Future<void> _openSubmenu(BuildContext innerContext) async {
+  Future<void> _openSubmenuFromData(
+    RenderBox renderBox,
+    RenderBox overlay,
+  ) async {
     if (_submenuOpen) return;
-    final renderBox = innerContext.findRenderObject() as RenderBox?;
-    if (renderBox == null) return;
-    final overlayState = Overlay.maybeOf(innerContext);
-    if (overlayState == null) return;
-    final overlay = overlayState.context.findRenderObject() as RenderBox;
     final overlaySize = overlay.size;
     final itemRect = MatrixUtils.transformRect(
       renderBox.getTransformTo(overlay),
       Offset.zero & renderBox.size,
     );
-    // חשב את צד הפתיחה לפי מיקום הפריט במסך:
-    // אם הפריט בחצי הימני של המסך — פתח שמאלה, אחרת ימינה
     final openToRight = itemRect.center.dx < overlaySize.width / 2;
     final xPos = openToRight ? itemRect.right : itemRect.left;
 
     _submenuOpen = true;
     final selected = await showMenu<T>(
-      context: innerContext,
+      context: context,
       position: RelativeRect.fromRect(
         Rect.fromLTWH(xPos, itemRect.top, 0, 0),
         Offset.zero & overlaySize,
@@ -913,12 +917,21 @@ class _SubmenuItemWidgetState<T> extends State<_SubmenuItemWidget<T>> {
     _submenuOpen = false;
 
     if (selected != null) {
-      // סוגרים קודם את התפריט הראשי, ורק אז מריצים את הפעולה.
-      if (innerContext.mounted) {
-        Navigator.of(innerContext).pop();
+      if (mounted) {
+        Navigator.of(context).pop();
       }
       widget.onSelected?.call(selected);
     }
+  }
+
+  Future<void> _openSubmenu(BuildContext innerContext) async {
+    if (_submenuOpen) return;
+    final renderBox = innerContext.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+    final overlayState = Overlay.maybeOf(innerContext);
+    if (overlayState == null) return;
+    final overlay = overlayState.context.findRenderObject() as RenderBox;
+    await _openSubmenuFromData(renderBox, overlay);
   }
 
   @override
