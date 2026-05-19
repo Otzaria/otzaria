@@ -10,6 +10,8 @@ void openBook(BuildContext context, Book book, int index, String searchQuery,
     {bool ignoreHistory = false,
     bool requiresStableLayout = false,
     String? pinpointHighlight,
+    bool markSection = false,
+    String? markText,
     bool insertAdjacent = false}) {
   final coordinator = BookOpenCoordinator(
     tabsBloc: context.read<TabsBloc>(),
@@ -23,6 +25,8 @@ void openBook(BuildContext context, Book book, int index, String searchQuery,
     ignoreHistory: ignoreHistory,
     requiresStableLayout: requiresStableLayout,
     pinpointHighlight: pinpointHighlight,
+    markSection: markSection,
+    markText: markText,
     insertAdjacent: insertAdjacent,
   );
 }

@@ -665,14 +665,14 @@ class MainWindowScreenState extends State<MainWindowScreen>
       UiSnack.showError('הספר עם המזהה $bookId לא נמצא בספרייה');
       return;
     }
-    // המרת markText/markSection ל-pinpointHighlight (ה-API החדש)
-    final pinpoint = markText?.isNotEmpty == true ? markText : null;
+    // המרת markText/markSection ל-API החדש
     openBook(
       context,
       book,
       index ?? 0,
       searchQuery ?? '',
-      pinpointHighlight: pinpoint,
+      markSection: markSection,
+      markText: markText,
     );
   }
 
