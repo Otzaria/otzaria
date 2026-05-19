@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -871,25 +872,32 @@ class _SubmenuItemWidget<T> extends StatefulWidget {
 
 class _SubmenuItemWidgetState<T> extends State<_SubmenuItemWidget<T>> {
   bool _submenuOpen = false;
-  bool _hoverPending = false;
+  Timer? _hoverTimer;
 
   void _scheduleSubmenuOnHover(BuildContext innerContext) {
-    _hoverPending = true;
     // חילוץ כל המידע מה-context לפני ה-async gap
     final renderBox = innerContext.findRenderObject() as RenderBox?;
     final overlayState = Overlay.maybeOf(innerContext);
     if (renderBox == null || overlayState == null) return;
     final overlay = overlayState.context.findRenderObject() as RenderBox;
 
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (mounted && _hoverPending) {
+    _hoverTimer?.cancel();
+    _hoverTimer = Timer(const Duration(milliseconds: 300), () {
+      if (mounted) {
         _openSubmenuFromData(renderBox, overlay);
       }
     });
   }
 
   void _cancelHoverDelay() {
-    _hoverPending = false;
+    _hoverTimer?.cancel();
+    _hoverTimer = null;
+  }
+
+  @override
+  void dispose() {
+    _hoverTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _openSubmenuFromData(

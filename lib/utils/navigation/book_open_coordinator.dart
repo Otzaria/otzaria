@@ -71,7 +71,8 @@ class BookOpenCoordinator {
     }
     final int? effectivePermanentHighlightLine =
         (hasMarkText || markSection || hasPinpoint) ? initialIndex : null;
-    const String? effectivePinpoint = null;
+    final String? effectivePinpoint =
+        hasPinpoint && !hasMarkText && !markSection ? pinpointHighlight : null;
 
     final tab = OpenedTab.fromBook(
       book,

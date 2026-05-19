@@ -1387,7 +1387,7 @@ class _CombinedViewState extends State<CombinedView> {
     final theme = Theme.of(context);
     final backgroundColor = () {
       if (isPermanentHighlight) {
-        return theme.colorScheme.tertiaryContainer.withValues(alpha: 0.7);
+        return const Color(0xFFFFFF00).withValues(alpha: 0.5);
       }
       if (!continuous && isHighlighted) {
         return theme.colorScheme.secondaryContainer.withValues(alpha: 0.4);

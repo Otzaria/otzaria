@@ -1530,7 +1530,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     final theme = Theme.of(context);
     final backgroundColor = () {
       if (isPermanentHighlight) {
-        return theme.colorScheme.tertiaryContainer.withAlpha((0.7 * 255).round());
+        return const Color(0xFFFFFF00).withAlpha((0.5 * 255).round());
       }
       if (!continuous && isHighlighted) {
         return theme.colorScheme.secondaryContainer
