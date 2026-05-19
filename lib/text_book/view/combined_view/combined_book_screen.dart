@@ -26,6 +26,7 @@ import 'package:otzaria/personal_notes/personal_notes_system.dart';
 import 'package:otzaria/utils/text/copy_utils.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:super_clipboard/super_clipboard.dart';
+import 'package:otzaria/utils/book_link_builder.dart';
 import 'package:otzaria/utils/text/global_search_helper.dart';
 import 'package:otzaria/utils/text/html_link_handler.dart';
 import 'package:otzaria/utils/text/text_with_inline_links.dart';
@@ -752,6 +753,19 @@ class _CombinedViewState extends State<CombinedView> {
         icon: FluentIcons.document_copy_24_regular,
         onTap: _copyVisibleText,
       ),
+      // העתק קישור ישיר — מוצג רק אם יש book_id
+      if (state.book.id != null) ...[
+        const AppContextMenuEntry.divider(),
+        AppContextMenuEntry(
+          label: 'העתק קישור ישיר',
+          icon: FluentIcons.link_24_regular,
+          childrenBuilder: () => _buildDirectLinkSubmenu(
+            bookId: state.book.id!,
+            index: paragraphIndex,
+            selectedText: selectedText,
+          ),
+        ),
+      ],
       // פריטי תפריט מפלאגינים
       ...() {
         final pluginItems = ContextMenuRegistry.instance.getAll();
@@ -793,6 +807,35 @@ class _CombinedViewState extends State<CombinedView> {
     if (state is TextBookLoaded && state.selectedIndex != paragraphIndex) {
       _addTextBookEventIfOpen(UpdateSelectedIndex(paragraphIndex));
     }
+  }
+
+  /// בניית תת-תפריט "העתק קישור ישיר"
+  List<AppContextMenuEntry> _buildDirectLinkSubmenu({
+    required int bookId,
+    required int index,
+    required String? selectedText,
+  }) {
+    final entries = buildDirectLinkSubmenuEntries(
+      bookId: bookId,
+      index: index,
+      selectedText: selectedText,
+    );
+    return entries
+        .map((e) => AppContextMenuEntry(
+              label: e.label,
+              icon: FluentIcons.link_24_regular,
+              enabled: e.link != null,
+              onTap: e.link != null ? () => _copyDirectLink(e.link!) : null,
+            ))
+        .toList();
+  }
+
+  /// העתקת קישור ישיר ללוח
+  Future<void> _copyDirectLink(String link) async {
+    final item = DataWriterItem();
+    item.add(Formats.plainText(link));
+    await SystemClipboard.instance?.write([item]);
+    UiSnack.show('הקישור הועתק');
   }
 
   /// פתיחת דיאלוג דיווח על טעות בספר
