@@ -321,6 +321,7 @@ class TextSettingsTab extends StatelessWidget {
                       icon: FluentIcons.book_24_regular,
                       label: 'גופן מפרשים',
                       value: state.commentatorsFontFamily,
+                      mirrorIcon: true,
                       onChanged: (value) {
                         if (value != null) {
                           context
@@ -356,6 +357,7 @@ class TextSettingsTab extends StatelessWidget {
                             icon: FluentIcons.book_24_regular,
                             label: 'גופן מפרשים',
                             value: state.commentatorsFontFamily,
+                            mirrorIcon: true,
                             onChanged: (value) {
                               if (value != null) {
                                 context
@@ -825,12 +827,14 @@ class _FontDropdown extends StatelessWidget {
   final String label;
   final String value;
   final ValueChanged<String?> onChanged;
+  final bool mirrorIcon;
 
   const _FontDropdown({
     required this.icon,
     required this.label,
     required this.value,
     required this.onChanged,
+    this.mirrorIcon = false,
   });
 
   @override
@@ -849,7 +853,9 @@ class _FontDropdown extends StatelessWidget {
 
     return Row(
       children: [
-        Icon(icon),
+        mirrorIcon
+            ? Transform.scale(scaleX: -1, child: Icon(icon))
+            : Icon(icon),
         const SizedBox(width: 8),
         SizedBox(
           width: 100,

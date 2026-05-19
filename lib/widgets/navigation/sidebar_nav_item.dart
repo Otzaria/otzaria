@@ -52,6 +52,9 @@ class SidebarNavItem extends StatelessWidget {
   /// ריפוד אנכי (ברירת מחדל: 2)
   final double verticalPadding;
 
+  /// האם להפוך את האייקון אופקית (לספרים עבריים)
+  final bool mirrorIcon;
+
   const SidebarNavItem({
     super.key,
     this.icon,
@@ -61,6 +64,7 @@ class SidebarNavItem extends StatelessWidget {
     required this.isSelected,
     required this.onTap,
     this.verticalPadding = 2,
+    this.mirrorIcon = false,
   }) : assert(
           icon != null || imageAsset != null,
           'SidebarNavItem: חייב לספק icon או imageAsset',
@@ -92,6 +96,9 @@ class SidebarNavItem extends StatelessWidget {
             ),
           );
 
+    final Widget maybeFlippedIcon =
+        mirrorIcon ? Transform.scale(scaleX: -1, child: iconWidget) : iconWidget;
+
     return Padding(
       padding: EdgeInsets.symmetric(vertical: verticalPadding),
       child: Material(
@@ -113,7 +120,7 @@ class SidebarNavItem extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             child: Row(
               children: [
-                iconWidget,
+                maybeFlippedIcon,
                 const SizedBox(width: 10),
                 Expanded(
                   child: AnimatedDefaultTextStyle(

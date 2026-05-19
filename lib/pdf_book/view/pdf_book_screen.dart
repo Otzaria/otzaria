@@ -3720,10 +3720,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
     return PopupMenuButton<PdfLayoutMode>(
       tooltip: 'בחר מצב תצוגה',
-      icon: Icon(
-        isBookViewMode
-            ? FluentIcons.book_open_24_regular
-            : FluentIcons.book_24_regular,
+      icon: Transform.scale(
+        scaleX: isBookViewMode ? 1.0 : -1.0,
+        child: Icon(
+          isBookViewMode
+              ? FluentIcons.book_open_24_regular
+              : FluentIcons.book_24_regular,
+        ),
       ),
       position: PopupMenuPosition.under,
       onSelected: (layoutMode) {
@@ -3752,7 +3755,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             value: value,
             child: Row(
               children: [
-                Icon(icon, color: isSelected ? primaryColor : null),
+                Transform.scale(
+                  scaleX: value == PdfLayoutMode.regularView ? -1.0 : 1.0,
+                  child: Icon(icon, color: isSelected ? primaryColor : null),
+                ),
                 const SizedBox(width: 12),
                 Text(text, style: style, textDirection: TextDirection.rtl),
                 if (isSelected) ...[
