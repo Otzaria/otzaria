@@ -898,6 +898,7 @@ class _SubmenuItemWidgetState<T> extends State<_SubmenuItemWidget<T>> {
   ) async {
     if (_submenuOpen) return;
     final overlaySize = overlay.size;
+    if (!renderBox.attached) return;
     final itemRect = MatrixUtils.transformRect(
       renderBox.getTransformTo(overlay),
       Offset.zero & renderBox.size,

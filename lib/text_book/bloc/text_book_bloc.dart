@@ -1193,9 +1193,10 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         searchText: '',
       ));
       // גלילה לסעיף המבוקש כדי שההדגשה תהיה גלויה
-      if (event.permanentHighlightLine != null && scrollController.isAttached) {
+      final scrollIndex = event.scrollToIndex ?? event.permanentHighlightLine;
+      if (scrollIndex != null && scrollController.isAttached) {
         scrollController.scrollTo(
-          index: event.permanentHighlightLine!,
+          index: scrollIndex,
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,
         );

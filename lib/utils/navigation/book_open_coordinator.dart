@@ -61,11 +61,17 @@ class BookOpenCoordinator {
 
     // חישוב highlightText ו-permanentHighlightLine לפי סדר עדיפות:
     // markText > markSection > pinpointHighlight
-    final String effectiveHighlightText = hasMarkText ? markText : '';
+    final String effectiveHighlightText;
+    if (hasMarkText) {
+      effectiveHighlightText = markText;
+    } else if (hasPinpoint) {
+      effectiveHighlightText = pinpointHighlight;
+    } else {
+      effectiveHighlightText = '';
+    }
     final int? effectivePermanentHighlightLine =
-        (hasMarkText || markSection) ? initialIndex : null;
-    final String? effectivePinpoint =
-        hasPinpoint && !hasMarkText && !markSection ? pinpointHighlight : null;
+        (hasMarkText || markSection || hasPinpoint) ? initialIndex : null;
+    const String? effectivePinpoint = null;
 
     final tab = OpenedTab.fromBook(
       book,

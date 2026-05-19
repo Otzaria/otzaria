@@ -198,6 +198,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       void dispatchPinpoint() {
         targetText.bloc.add(ApplyMarkHighlight(
           highlightText: pinpoint,
+          permanentHighlightLine: sectionIndex,
           scrollToIndex: sectionIndex,
         ));
       }
@@ -207,13 +208,10 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
         return;
       }
 
-      late StreamSubscription<TextBookState> sub;
-      sub = targetText.bloc.stream.listen((state) {
-        if (state is TextBookLoaded) {
-          dispatchPinpoint();
-          sub.cancel();
-        }
-      });
+      targetText.bloc.stream
+          .firstWhere((state) => state is TextBookLoaded)
+          .then((_) => dispatchPinpoint())
+          .catchError((_) {});
       return;
     }
 
@@ -234,13 +232,10 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
         return;
       }
 
-      late StreamSubscription<TextBookState> sub;
-      sub = targetText.bloc.stream.listen((state) {
-        if (state is TextBookLoaded) {
-          dispatchMark();
-          sub.cancel();
-        }
-      });
+      targetText.bloc.stream
+          .firstWhere((state) => state is TextBookLoaded)
+          .then((_) => dispatchMark())
+          .catchError((_) {});
     }
   }
 
