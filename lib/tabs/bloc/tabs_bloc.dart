@@ -62,7 +62,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
         tabs.isEmpty ? 0 : savedIndex.clamp(0, tabs.length - 1);
     final sideBySideMode = _repository.loadSideBySideMode();
 
-    // ╫ץ╫ש╫ף╫ץ╫נ ╫⌐╫פ╫נ╫ש╫á╫ף╫º╫í╫ש╫¥ ╫⌐╫£ side-by-side ╫¬╫º╫ש╫á╫ש╫¥
+    // וידוא שהאינדקסים של side-by-side תקינים
     SideBySideMode? validatedMode;
     if (sideBySideMode != null && tabs.isNotEmpty) {
       if (sideBySideMode.leftTabIndex < tabs.length &&
@@ -70,7 +70,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
           sideBySideMode.leftTabIndex != sideBySideMode.rightTabIndex) {
         validatedMode = sideBySideMode;
       } else {
-        debugPrint('DEBUG: ╫₧╫ª╫ס side-by-side ╫£╫נ ╫¬╫º╫ש╫ƒ, ╫₧╫¬╫ó╫£╫¥');
+        debugPrint('DEBUG: מצב side-by-side לא תקין, מתעלם');
       }
     }
 
@@ -83,7 +83,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
 
   Future<void> _onReplaceAllTabs(
       ReplaceAllTabs event, Emitter<TabsState> emit) async {
-    debugPrint('DEBUG: ╫פ╫ק╫£╫ñ╫¬ ╫¢╫£ ╫פ╫ר╫נ╫ס╫ש╫¥ - ${event.tabs.length} ╫ר╫נ╫ס╫ש╫¥ ╫ק╫ף╫⌐╫ש╫¥');
+    debugPrint('DEBUG: החלפת כל הטאבים - ${event.tabs.length} טאבים חדשים');
 
     final tabsToDispose = List<OpenedTab>.from(state.tabs);
 
@@ -105,20 +105,20 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
   }
 
   Future<void> _onAddTab(AddTab event, Emitter<TabsState> emit) async {
-    debugPrint('DEBUG: ╫פ╫ץ╫í╫ñ╫¬ ╫ר╫נ╫ס ╫ק╫ף╫⌐ - ${event.tab.title}');
+    debugPrint('DEBUG: הוספת טאב חדש - ${event.tab.title}');
     final newTabs = List<OpenedTab>.from(state.tabs);
     final newIndex = event.insertAdjacent
         ? min(state.currentTabIndex + 1, newTabs.length)
         : newTabs.length;
     newTabs.insert(newIndex, event.tab);
 
-    // ╫ó╫ף╫¢╫ץ╫ƒ ╫נ╫ש╫á╫ף╫º╫í╫ש╫¥ ╫ס╫₧╫ª╫ס side-by-side ╫נ╫¥ ╫º╫ש╫ש╫¥
+    // עדכון אינדקסים במצב side-by-side אם קיים
     SideBySideMode? newSideBySideMode = state.sideBySideMode;
     if (state.sideBySideMode != null) {
       var newLeftIndex = state.sideBySideMode!.leftTabIndex;
       var newRightIndex = state.sideBySideMode!.rightTabIndex;
 
-      // ╫נ╫¥ ╫פ╫ר╫נ╫ס ╫פ╫ק╫ף╫⌐ ╫á╫ץ╫í╫ú ╫£╫ñ╫á╫ש ╫נ╫ק╫ף ╫₧╫פ╫ר╫נ╫ס╫ש╫¥ ╫ס╫₧╫ª╫ס side-by-side, ╫₧╫ó╫ף╫¢╫á╫ש╫¥ ╫נ╫¬ ╫פ╫נ╫ש╫á╫ף╫º╫í
+      // אם הטאב החדש נוסף לפני אחד מהטאבים במצב side-by-side, מעדכנים את האינדקס
       if (newIndex <= newLeftIndex) newLeftIndex++;
       if (newIndex <= newRightIndex) newRightIndex++;
 
@@ -128,7 +128,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       );
 
       debugPrint(
-          'DEBUG: ╫ó╫ף╫¢╫ץ╫ƒ ╫נ╫ש╫á╫ף╫º╫í╫ש╫¥ ╫ס╫₧╫ª╫ס side-by-side: left=$newLeftIndex, right=$newRightIndex');
+          'DEBUG: עדכון אינדקסים במצב side-by-side: left=$newLeftIndex, right=$newRightIndex');
     }
 
     emit(state.copyWith(
@@ -149,14 +149,14 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     );
 
     if (matchingIndex != null) {
-      // ╫נ╫¥ ╫פ╫ר╫נ╫ס ╫פ╫ק╫ף╫⌐ ╫₧╫ס╫º╫⌐ ╫פ╫ף╫ע╫⌐╫פ ╫₧╫₧╫ץ╫º╫ף╫¬ (deep link), ╫á╫ó╫ס╫ש╫¿ ╫נ╫ץ╫¬╫פ ╫£Γאסbloc ╫⌐╫£
-      // ╫פ╫ר╫נ╫ס ╫פ╫º╫ש╫ש╫¥ Γאפ ╫נ╫ק╫¿╫¬ ╫פΓאסhighlight ╫פ╫ק╫ף╫⌐ ╫פ╫ש╫פ ╫á╫צ╫¿╫º ╫ó╫¥ ╫פΓאסdispose.
+      // אם הטאב החדש מבקש הדגשה ממוקדת (deep link), נעביר אותה ל‑bloc של
+      // הטאב הקיים — אחרת ה‑highlight החדש היה נזרק עם ה‑dispose.
       _propagatePinpointHighlightToExistingTab(
         existingTab: state.tabs[matchingIndex],
         incomingTab: event.tab,
       );
-      // ╫í╫ש╫₧╫á╫ש╫ץ╫¬/╫פ╫ש╫í╫ר╫ץ╫¿╫ש╫פ: ╫פ╫₧╫⌐╫¬╫₧╫⌐ ╫ס╫ק╫¿ ╫₧╫ש╫º╫ץ╫¥ ╫í╫ñ╫ª╫ש╫ñ╫ש ╫ס╫í╫ñ╫¿, ╫ץ╫£╫נ ╫₧╫í╫ñ╫ש╫º ╫£╫פ╫ó╫ס╫ש╫¿
-      // focus ╫£╫ר╫נ╫ס ╫פ╫º╫ש╫ש╫¥ Γאפ ╫ª╫¿╫ש╫ת ╫£╫ע╫£╫ץ╫£ ╫נ╫ץ╫¬╫ץ ╫£╫₧╫ש╫º╫ץ╫¥ ╫פ╫₧╫ס╫ץ╫º╫⌐.
+      // סימניות/היסטוריה: המשתמש בחר מיקום ספציפי בספר, ולא מספיק להעביר
+      // focus לטאב הקיים — צריך לגלול אותו למיקום המבוקש.
       if (event.navigateToPositionIfReused) {
         _propagateNavigationToExistingTab(
           existingTab: state.tabs[matchingIndex],
@@ -184,9 +184,9 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     if (incomingTab is! TextBookTab) return;
     final pinpoint = incomingTab.pinpointHighlight;
     if (pinpoint == null || pinpoint.isEmpty) return;
-    // pinpointHighlightSectionIndex ╫á╫⌐╫₧╫¿ ╫ó╫£ ╫פ╫ר╫נ╫ס ╫₧╫פ╫º╫ץ╫נ╫ץ╫¿╫ף╫ש╫á╫ר╫ץ╫¿ ╫ó╫¥ ╫פ╫í╫ó╫ש╫ú
-    // ╫פ╫₧╫º╫ץ╫¿╫ש ╫⌐╫פ╫₧╫⌐╫¬╫₧╫⌐ ╫ס╫ש╫º╫⌐ ╫ס╫º╫ש╫⌐╫ץ╫¿; ╫פΓאסindex ╫⌐╫£ ╫פ╫ר╫נ╫ס ╫¢╫ס╫¿ ╫ó╫£╫ץ╫£ ╫£╫פ╫⌐╫¬╫á╫ץ╫¬ ╫נ╫¥
-    // ╫פ╫º╫ץ╫נ╫ץ╫¿╫ף╫ש╫á╫ר╫ץ╫¿ ╫פ╫ק╫ש╫£ fallback ╫£╫פ╫ש╫í╫ר╫ץ╫¿╫ש╫פ (╫ס╫₧╫í╫£╫ץ╫£ ╫⌐╫נ╫ש╫á╫ץ pinpoint).
+    // pinpointHighlightSectionIndex נשמר על הטאב מהקואורדינטור עם הסעיף
+    // המקורי שהמשתמש ביקש בקישור; ה‑index של הטאב כבר עלול להשתנות אם
+    // הקואורדינטור החיל fallback להיסטוריה (במסלול שאינו pinpoint).
     final sectionIndex =
         incomingTab.pinpointHighlightSectionIndex ?? incomingTab.index;
 
@@ -208,7 +208,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       return;
     }
 
-    // ╫פ╫ר╫נ╫ס ╫פ╫º╫ש╫ש╫¥ ╫נ╫ץ╫£╫ש ╫ó╫ף╫ש╫ש╫ƒ ╫ס╫ר╫ó╫ש╫á╫פ ╫¿╫נ╫⌐╫ץ╫á╫ש╫¬ Γאפ ╫á╫₧╫¬╫ש╫ƒ ╫£╫פ╫ע╫ó╫פ ╫£ΓאסLoaded ╫ñ╫ó╫¥ ╫נ╫ק╫¬.
+    // הטאב הקיים אולי עדיין בטעינה ראשונית — נמתין להגעה ל‑Loaded פעם אחת.
     late StreamSubscription<TextBookState> sub;
     sub = targetText.bloc.stream.listen((state) {
       if (state is TextBookLoaded) {
@@ -225,9 +225,9 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     if (existingTab is TextBookTab) {
       return existingTab;
     }
-    // ╫סΓאסsideΓאסbyΓאסside ╫ª╫¿╫ש╫ת ╫£╫פ╫ק╫ש╫£ ╫נ╫¬ ╫פΓאסpinpoint ╫ó╫£ ╫פ╫ª╫ף ╫⌐╫₧╫¬╫נ╫ש╫¥ ╫ס╫צ╫פ╫ץ╫¬ ╫ק╫צ╫º╫פ (book id
-    // / category id), ╫£╫נ ╫¿╫º ╫¢╫ץ╫¬╫¿╫¬ Γאפ ╫¢╫ף╫ש ╫⌐╫£╫נ ╫£╫ó╫ף╫¢╫ƒ ╫ס╫ר╫ó╫ץ╫¬ ╫ª╫ף ╫ó╫¥ ╫í╫ñ╫¿ ╫⌐╫ץ╫á╫פ
-    // ╫⌐╫⌐╫¥ ╫פ╫º╫ץ╫ס╫Ñ ╫⌐╫£╫ץ ╫צ╫פ╫פ.
+    // ב‑side‑by‑side צריך להחיל את ה‑pinpoint על הצד שמתאים בזהות חזקה (book id
+    // / category id), לא רק כותרת — כדי שלא לעדכן בטעות צד עם ספר שונה
+    // ששם הקובץ שלו זהה.
     if (existingTab is CombinedTab) {
       final right = existingTab.rightTab;
       if (right is TextBookTab && _isSameBook(right, incomingTab)) {
@@ -261,9 +261,9 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     return null;
   }
 
-  /// ╫₧╫á╫ץ╫ץ╫ר ╫ר╫נ╫ס ╫º╫ש╫ש╫¥ ╫£╫₧╫ש╫º╫ץ╫¥ ╫⌐╫£ ╫פ╫ר╫נ╫ס ╫פ╫á╫¢╫á╫í (index ╫סΓאסTextBook, pageNumber ╫סΓאסPDF).
-  /// ╫₧╫⌐╫₧╫⌐ ╫¢╫⌐╫ñ╫¬╫ש╫ק╫¬ ╫í╫ש╫₧╫á╫ש╫פ/╫פ╫ש╫í╫ר╫ץ╫¿╫ש╫פ ╫₧╫₧╫ק╫צ╫¿╫¬ ╫ר╫נ╫ס ╫º╫ש╫ש╫¥ Γאפ ╫פ╫₧╫⌐╫¬╫₧╫⌐ ╫ס╫ק╫¿ ╫₧╫ש╫º╫ץ╫¥ ╫í╫ñ╫ª╫ש╫ñ╫ש
-  /// ╫ץ╫£╫נ ╫¿╫º ╫נ╫¬ ╫פ╫í╫ñ╫¿.
+  /// מנווט טאב קיים למיקום של הטאב הנכנס (index ב‑TextBook, pageNumber ב‑PDF).
+  /// משמש כשפתיחת סימניה/היסטוריה ממחזרת טאב קיים — המשתמש בחר מיקום ספציפי
+  /// ולא רק את הספר.
   void _propagateNavigationToExistingTab({
     required OpenedTab existingTab,
     required OpenedTab incomingTab,
@@ -272,8 +272,8 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       final targetPdf = _resolvePdfBookTab(existingTab, incomingTab);
       if (targetPdf == null) return;
       final targetPage = incomingTab.pageNumber;
-      // ╫ó╫ף╫¢╫ץ╫ƒ pageNumber ╫ס╫ר╫נ╫ס ╫¢╫ת ╫⌐╫ש╫ש╫⌐╫₧╫¿ ╫£-restore ╫ó╫¬╫ש╫ף╫ש ╫ץ╫¢╫ת ╫⌐╫נ╫¥ ╫פ╫₧╫í╫ת ╫ó╫ץ╫ף
-      // ╫£╫נ ╫פ╫ª╫ר╫¿╫ú ╫£-controller, ╫פ╫ר╫ó╫ש╫á╫פ ╫פ╫ס╫נ╫פ ╫¬╫ש╫ñ╫¬╫ק ╫ס╫ó╫₧╫ץ╫ף ╫פ╫á╫¢╫ץ╫ƒ.
+      // עדכון pageNumber בטאב כך שיישמר ל-restore עתידי וכך שאם המסך עוד
+      // לא הצטרף ל-controller, הטעינה הבאה תיפתח בעמוד הנכון.
       targetPdf.pageNumber = targetPage;
       if (targetPdf.pdfViewerController.isReady) {
         targetPdf.pdfViewerController.goToPage(pageNumber: targetPage);
@@ -285,17 +285,17 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       final targetText = _resolveTextBookTab(existingTab, incomingTab);
       if (targetText == null) return;
       final targetIndex = incomingTab.index;
-      // ╫ó╫ף╫¢╫ץ╫ƒ ╫נ╫ש╫á╫ף╫º╫í ╫פ╫ר╫נ╫ס ╫₧╫ש╫ש╫ף╫ש╫¬ - ╫ק╫⌐╫ץ╫ס ╫₧╫⌐╫¬╫ש ╫í╫ש╫ס╫ץ╫¬:
-      // 1. saveTabs ╫¿╫Ñ ╫סΓאסfinally ╫⌐╫£ ╫פΓאסhandler ╫ץ╫ó╫£╫ץ╫£ ╫£╫פ╫ש╫⌐╫₧╫¿ ╫ó╫£ ╫פ╫₧╫ש╫º╫ץ╫¥ ╫פ╫ש╫⌐╫ƒ.
-      // 2. ╫נ╫¥ ╫פ╫₧╫í╫ת ╫ó╫ץ╫ף ╫£╫נ ╫ס╫á╫פ ╫נ╫¬ ╫פ╫¿╫⌐╫ש╫₧╫פ (scrollController ╫£╫נ ╫₧╫ק╫ץ╫ס╫¿), ╫פ╫º╫¿╫ש╫נ╫פ
-      //    ╫פ╫ס╫נ╫פ ╫£ΓאסinitState/load ╫¬╫ñ╫¬╫ק ╫ס╫נ╫ש╫á╫ף╫º╫í ╫פ╫צ╫פ.
+      // עדכון אינדקס הטאב מיידית - חשוב משתי סיבות:
+      // 1. saveTabs רץ ב‑finally של ה‑handler ועלול להישמר על המיקום הישן.
+      // 2. אם המסך עוד לא בנה את הרשימה (scrollController לא מחובר), הקריאה
+      //    הבאה ל‑initState/load תפתח באינדקס הזה.
       targetText.index = targetIndex;
 
       Future<void> dispatch() async {
-        // ApplyPinpointHighlight (╫נ╫¥ ╫º╫ץ╫ף╫¥) ╫¢╫ס╫¿ ╫ע╫£╫£. ╫¢╫נ╫ƒ ╫₧╫ר╫ñ╫£╫ש╫¥ ╫ס╫₧╫º╫¿╫פ ╫⌐╫נ╫ש╫ƒ
-        // pinpoint ╫נ╫ס╫£ ╫ש╫⌐ ╫ס╫º╫⌐╫¬ ╫á╫ש╫ץ╫ץ╫ר. ╫פ╫º╫ץ╫á╫ר╫¿╫ץ╫£╫¿ ╫ó╫⌐╫ץ╫ש ╫£╫פ╫ש╫ץ╫¬ ╫£╫נ ╫₧╫ק╫ץ╫ס╫¿ ╫ע╫¥
-        // ╫¢╫⌐Γאסstate ╫פ╫ץ╫נ Loaded (╫פ╫¿╫⌐╫ש╫₧╫פ ╫ó╫ף╫ש╫ש╫ƒ ╫£╫נ ╫º╫ש╫ס╫£╫פ ╫נ╫¬ ╫פ╫ñ╫¿╫ש╫ש╫₧╫ש╫¥ ╫פ╫¿╫נ╫⌐╫ץ╫á╫ש╫¥),
-        // ╫£╫¢╫ƒ ╫₧╫á╫í╫ש╫¥ ╫⌐╫ץ╫ס ╫ץ╫⌐╫ץ╫ס ╫ó╫ף ╫⌐╫₧╫ק╫ץ╫ס╫¿ ╫נ╫ץ ╫ó╫ף timeout ╫í╫ס╫ש╫¿.
+        // ApplyPinpointHighlight (אם קודם) כבר גלל. כאן מטפלים במקרה שאין
+        // pinpoint אבל יש בקשת ניווט. הקונטרולר עשוי להיות לא מחובר גם
+        // כש‑state הוא Loaded (הרשימה עדיין לא קיבלה את הפריימים הראשונים),
+        // לכן מנסים שוב ושוב עד שמחובר או עד timeout סביר.
         for (var attempt = 0; attempt < 30; attempt++) {
           if (targetText.bloc.isClosed) return;
           if (targetText.bloc.scrollController.isAttached) {
@@ -543,16 +543,16 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
 
     final newTabs = List<OpenedTab>.from(state.tabs)..remove(event.tab);
 
-    // ╫ס╫ף╫ש╫º╫פ ╫נ╫¥ ╫פ╫ר╫נ╫ס ╫⌐╫á╫í╫ע╫¿ ╫פ╫ש╫פ ╫ק╫£╫º ╫₧╫₧╫ª╫ס side-by-side
+    // בדיקה אם הטאב שנסגר היה חלק ממצב side-by-side
     SideBySideMode? newSideBySideMode = state.sideBySideMode;
     if (state.sideBySideMode != null) {
       if (removedTabIndex == state.sideBySideMode!.leftTabIndex ||
           removedTabIndex == state.sideBySideMode!.rightTabIndex) {
-        // ╫נ╫¥ ╫í╫ע╫¿╫á╫ץ ╫נ╫ק╫ף ╫₧╫פ╫ר╫נ╫ס╫ש╫¥ ╫ס╫₧╫ª╫ס side-by-side, ╫₧╫ס╫ר╫£╫ש╫¥ ╫נ╫¬ ╫פ╫₧╫ª╫ס
-        debugPrint('DEBUG: ╫ס╫ש╫ר╫ץ╫£ ╫₧╫ª╫ס side-by-side ╫¢╫ש ╫á╫í╫ע╫¿ ╫ר╫נ╫ס ╫⌐╫פ╫ש╫פ ╫ק╫£╫º ╫₧╫₧╫á╫ץ');
+        // אם סגרנו אחד מהטאבים במצב side-by-side, מבטלים את המצב
+        debugPrint('DEBUG: ביטול מצב side-by-side כי נסגר טאב שהיה חלק ממנו');
         newSideBySideMode = null;
       } else {
-        // ╫ó╫ף╫¢╫ץ╫ƒ ╫פ╫נ╫ש╫á╫ף╫º╫í╫ש╫¥ ╫נ╫¥ ╫פ╫¥ ╫פ╫⌐╫¬╫á╫ץ
+        // עדכון האינדקסים אם הם השתנו
         var newLeftIndex = state.sideBySideMode!.leftTabIndex;
         var newRightIndex = state.sideBySideMode!.rightTabIndex;
 
@@ -566,7 +566,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       }
     }
 
-    // ╫נ╫¥ ╫נ╫ש╫ƒ ╫ר╫נ╫ס╫ש╫¥ ╫á╫ץ╫¬╫¿╫ש╫¥, ╫á╫⌐╫נ╫ש╫¿ ╫נ╫¬ ╫פ╫נ╫ש╫á╫ף╫º╫í ╫ס-0
+    // אם אין טאבים נותרים, נשאיר את האינדקס ב-0
     if (newTabs.isEmpty) {
       emit(state.copyWith(
         tabs: newTabs,
@@ -578,12 +578,12 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       return;
     }
 
-    // ╫ק╫ש╫⌐╫ץ╫ס ╫פ╫נ╫ש╫á╫ף╫º╫í ╫פ╫ק╫ף╫⌐ - ╫נ╫¥ ╫í╫ע╫¿╫á╫ץ ╫ר╫נ╫ס ╫£╫ñ╫á╫ש ╫נ╫ץ ╫ס╫ף╫ש╫ץ╫º ╫ó╫£ ╫פ╫ר╫נ╫ס ╫פ╫ñ╫ó╫ש╫£, ╫צ╫צ╫ש╫¥ ╫נ╫ש╫á╫ף╫º╫í ╫נ╫ק╫ף ╫נ╫ק╫ץ╫¿╫פ
+    // חישוב האינדקס החדש - אם סגרנו טאב לפני או בדיוק על הטאב הפעיל, זזים אינדקס אחד אחורה
     var newIndex = removedTabIndex <= state.currentTabIndex
         ? max(state.currentTabIndex - 1, 0)
         : state.currentTabIndex;
 
-    // ╫ץ╫ש╫ף╫ץ╫נ ╫⌐╫פ╫נ╫ש╫á╫ף╫º╫í ╫¬╫º╫ש╫ƒ (╫£╫נ ╫ק╫ץ╫¿╫ע ╫₧╫ע╫ס╫ץ╫£╫ץ╫¬ ╫פ╫¿╫⌐╫ש╫₧╫פ)
+    // וידוא שהאינדקס תקין (לא חורג מגבולות הרשימה)
     newIndex = min(newIndex, newTabs.length - 1);
 
     emit(state.copyWith(
@@ -599,8 +599,8 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
   Future<void> _onSetCurrentTab(
       SetCurrentTab event, Emitter<TabsState> emit) async {
     if (event.index >= 0 && event.index < state.tabs.length) {
-      // ╫£╫נ ╫₧╫ס╫ר╫£╫ש╫¥ ╫נ╫¬ ╫₧╫ª╫ס side-by-side - ╫ñ╫⌐╫ץ╫ר ╫ó╫ץ╫ס╫¿╫ש╫¥ ╫£╫ר╫נ╫ס
-      // ╫פ╫ñ╫ץ╫á╫º╫ª╫ש╫פ _shouldShowSideBySideView ╫¬╫ק╫£╫ש╫ר ╫נ╫¥ ╫£╫פ╫ª╫ש╫ע side-by-side ╫נ╫ץ TabBarView
+      // לא מבטלים את מצב side-by-side - פשוט עוברים לטאב
+      // הפונקציה _shouldShowSideBySideView תחליט אם להציג side-by-side או TabBarView
       final tabsToSave = state.tabs;
       final modeToSave = state.sideBySideMode;
       emit(state.copyWith(currentTabIndex: event.index));
@@ -617,14 +617,14 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
 
   Future<void> _onCloseAllTabs(
       CloseAllTabs event, Emitter<TabsState> emit) async {
-    // ╫⌐╫₧╫ש╫¿╫¬ ╫ר╫נ╫ס╫ש╫¥ ╫₧╫ץ╫ª╫₧╫ף╫ש╫¥ ╫ס╫£╫ס╫ף
+    // שמירת טאבים מוצמדים בלבד
     final pinnedTabs = state.tabs.where((tab) => tab.isPinned).toList();
     final tabsToDispose = state.tabs.where((tab) => !tab.isPinned).toList();
 
-    // ╫נ╫¥ ╫ש╫⌐ ╫ר╫נ╫ס╫ש╫¥ ╫₧╫ץ╫ª╫₧╫ף╫ש╫¥, ╫á╫⌐╫נ╫ש╫¿ ╫נ╫ץ╫¬╫¥
+    // אם יש טאבים מוצמדים, נשאיר אותם
     final newIndex = pinnedTabs.isNotEmpty ? 0 : 0;
 
-    // ╫ס╫ש╫ר╫ץ╫£ ╫₧╫ª╫ס side-by-side ╫¢╫ש ╫í╫ע╫¿╫á╫ץ ╫ר╫נ╫ס╫ש╫¥
+    // ביטול מצב side-by-side כי סגרנו טאבים
     emit(state.copyWith(
       tabs: pinnedTabs,
       currentTabIndex: newIndex,
@@ -644,7 +644,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
 
     final newTabs = [event.keepTab];
 
-    // ╫ס╫ש╫ר╫ץ╫£ ╫₧╫ª╫ס side-by-side ╫¢╫ש ╫á╫⌐╫נ╫¿ ╫¿╫º ╫ר╫נ╫ס ╫נ╫ק╫ף
+    // ביטול מצב side-by-side כי נשאר רק טאב אחד
     emit(state.copyWith(
       tabs: newTabs,
       currentTabIndex: 0,
@@ -669,13 +669,13 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     newTabs.insert(event.newIndex, event.tab);
     final newIndex = newTabs.indexOf(currentTab);
 
-    // ╫ó╫ף╫¢╫ץ╫ƒ ╫נ╫ש╫á╫ף╫º╫í╫ש╫¥ ╫ס╫₧╫ª╫ס side-by-side ╫נ╫¥ ╫º╫ש╫ש╫¥
+    // עדכון אינדקסים במצב side-by-side אם קיים
     SideBySideMode? newSideBySideMode = state.sideBySideMode;
     if (state.sideBySideMode != null) {
       var newLeftIndex = state.sideBySideMode!.leftTabIndex;
       var newRightIndex = state.sideBySideMode!.rightTabIndex;
 
-      // ╫ó╫ף╫¢╫ץ╫ƒ ╫פ╫נ╫ש╫á╫ף╫º╫í╫ש╫¥ ╫£╫ñ╫ש ╫פ╫¬╫צ╫ץ╫צ╫פ
+      // עדכון האינדקסים לפי התזוזה
       if (oldIndex == newLeftIndex) {
         newLeftIndex = event.newIndex;
       } else if (oldIndex < newLeftIndex && event.newIndex >= newLeftIndex) {
@@ -731,23 +731,23 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     final tabIndex = state.tabs.indexOf(event.tab);
     if (tabIndex == -1) return;
 
-    // ╫פ╫ק╫£╫ñ╫¬ ╫₧╫ª╫ס ╫פ╫פ╫ª╫₧╫ף╫פ
+    // החלפת מצב ההצמדה
     event.tab.isPinned = !event.tab.isPinned;
 
     debugPrint(
-        'DEBUG: ╫פ╫ª╫₧╫ף╫¬ ╫ר╫נ╫ס ${event.tab.title} - isPinned: ${event.tab.isPinned}');
+        'DEBUG: הצמדת טאב ${event.tab.title} - isPinned: ${event.tab.isPinned}');
 
-    // ╫ש╫ª╫ש╫¿╫¬ ╫¿╫⌐╫ש╫₧╫פ ╫ק╫ף╫⌐╫פ ╫£╫ק╫£╫ץ╫ר╫ש╫ƒ ╫¢╫ף╫ש ╫£╫ע╫¿╫ץ╫¥ ╫£-Equatable ╫£╫צ╫פ╫ץ╫¬ ╫⌐╫ש╫á╫ץ╫ש
+    // יצירת רשימה חדשה לחלוטין כדי לגרום ל-Equatable לזהות שינוי
     final newTabs = List<OpenedTab>.from(state.tabs);
 
-    // ╫ó╫ף╫¢╫ץ╫ƒ ╫פ-state ╫¢╫ף╫ש ╫£╫ע╫¿╫ץ╫¥ ╫£-rebuild - ╫ó╫¥ forceUpdate
+    // עדכון ה-state כדי לגרום ל-rebuild - עם forceUpdate
     final indexToSave = state.currentTabIndex;
     emit(state.copyWith(
       tabs: newTabs,
       currentTabIndex: state.currentTabIndex,
       forceUpdate: true,
     ));
-    // ╫⌐╫₧╫ש╫¿╫¬ ╫פ╫⌐╫ש╫á╫ץ╫ש╫ש╫¥
+    // שמירת השינויים
     await _repository.saveTabs(newTabs, indexToSave);
   }
 
@@ -757,27 +757,27 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     final leftIndex = state.tabs.indexOf(event.leftTab);
 
     if (rightIndex == -1 || leftIndex == -1) {
-      debugPrint('ERROR: ╫£╫נ ╫á╫₧╫ª╫נ╫ץ ╫פ╫ר╫נ╫ס╫ש╫¥ ╫£╫₧╫ª╫ס side-by-side');
+      debugPrint('ERROR: לא נמצאו הטאבים למצב side-by-side');
       return;
     }
 
     debugPrint(
-        'DEBUG: ╫פ╫ñ╫ó╫£╫¬ ╫₧╫ª╫ס side-by-side: right=${event.rightTab.title}, left=${event.leftTab.title}');
+        'DEBUG: הפעלת מצב side-by-side: right=${event.rightTab.title}, left=${event.leftTab.title}');
 
-    // ╫ש╫ª╫ש╫¿╫¬ ╫ó╫ץ╫¬╫º╫ש╫¥ ╫á╫ñ╫¿╫ף╫ש╫¥ ╫¢╫ף╫ש ╫£╫נ ╫£╫⌐╫¬╫ú controllers ╫ó╫¥ ╫פ╫ר╫נ╫ס╫ש╫¥ ╫⌐╫ó╫ף╫ש╫ש╫ƒ ╫₧╫ñ╫ץ╫¿╫º╫ש╫¥ ╫₧╫פ╫ó╫Ñ.
+    // יצירת עותקים נפרדים כדי לא לשתף controllers עם הטאבים שעדיין מפורקים מהעץ.
     final combinedTab = CombinedTab(
       rightTab: OpenedTab.from(event.rightTab),
       leftTab: OpenedTab.from(event.leftTab),
       isPinned: event.rightTab.isPinned || event.leftTab.isPinned,
     );
 
-    // ╫פ╫í╫¿╫¬ ╫⌐╫á╫ש ╫פ╫ר╫נ╫ס╫ש╫¥ ╫פ╫₧╫º╫ץ╫¿╫ש╫ש╫¥ ╫ץ╫פ╫ץ╫í╫ñ╫¬ ╫פ╫ר╫נ╫ס ╫פ╫₧╫⌐╫ץ╫£╫ס ╫ס╫₧╫º╫ץ╫₧╫¥
+    // הסרת שני הטאבים המקוריים והוספת הטאב המשולב במקומם
     final newTabs = List<OpenedTab>.from(state.tabs);
 
-    // ╫₧╫ץ╫ª╫נ╫ש╫¥ ╫נ╫¬ ╫פ╫נ╫ש╫á╫ף╫º╫í ╫פ╫á╫₧╫ץ╫ת ╫ש╫ץ╫¬╫¿ ╫¢╫ף╫ש ╫£╫פ╫¢╫á╫ש╫í ╫⌐╫¥ ╫נ╫¬ ╫פ╫ר╫נ╫ס ╫פ╫₧╫⌐╫ץ╫£╫ס
+    // מוצאים את האינדקס הנמוך יותר כדי להכניס שם את הטאב המשולב
     final insertIndex = rightIndex < leftIndex ? rightIndex : leftIndex;
 
-    // ╫₧╫í╫ש╫¿╫ש╫¥ ╫נ╫¬ ╫⌐╫á╫ש ╫פ╫ר╫נ╫ס╫ש╫¥ (╫₧╫פ╫ע╫ס╫ץ╫פ ╫£╫á╫₧╫ץ╫ת ╫¢╫ף╫ש ╫£╫נ ╫£╫⌐╫ס╫⌐ ╫נ╫ש╫á╫ף╫º╫í╫ש╫¥)
+    // מסירים את שני הטאבים (מהגבוה לנמוך כדי לא לשבש אינדקסים)
     if (rightIndex > leftIndex) {
       newTabs.removeAt(rightIndex);
       newTabs.removeAt(leftIndex);
@@ -786,10 +786,10 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       newTabs.removeAt(rightIndex);
     }
 
-    // ╫₧╫ץ╫í╫ש╫ñ╫ש╫¥ ╫נ╫¬ ╫פ╫ר╫נ╫ס ╫פ╫₧╫⌐╫ץ╫£╫ס
+    // מוסיפים את הטאב המשולב
     newTabs.insert(insertIndex, combinedTab);
 
-    // ╫פ╫נ╫ש╫á╫ף╫º╫í ╫פ╫á╫ץ╫¢╫ק╫ש ╫ש╫פ╫ש╫פ ╫פ╫נ╫ש╫á╫ף╫º╫í ╫⌐╫£ ╫פ╫ר╫נ╫ס ╫פ╫₧╫⌐╫ץ╫£╫ס
+    // האינדקס הנוכחי יהיה האינדקס של הטאב המשולב
     final newCurrentIndex = insertIndex;
 
     emit(state.copyWith(
@@ -806,7 +806,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
 
   Future<void> _onDisableSideBySideMode(
       DisableSideBySideMode event, Emitter<TabsState> emit) async {
-    // ╫נ╫¥ ╫פ╫ר╫נ╫ס ╫פ╫₧╫ס╫ץ╫º╫⌐ ╫פ╫ץ╫נ CombinedTab, ╫á╫ñ╫¿╫º ╫נ╫ץ╫¬╫ץ ╫£╫⌐╫á╫ש ╫ר╫נ╫ס╫ש╫¥ ╫á╫ñ╫¿╫ף╫ש╫¥
+    // אם הטאב המבוקש הוא CombinedTab, נפרק אותו לשני טאבים נפרדים
     if (event.tabIndex >= 0 &&
         event.tabIndex < state.tabs.length &&
         state.tabs[event.tabIndex] is CombinedTab) {
@@ -814,14 +814,14 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       final newTabs = List<OpenedTab>.from(state.tabs);
       final combinedIndex = event.tabIndex;
 
-      // ╫₧╫í╫ש╫¿╫ש╫¥ ╫נ╫¬ ╫פ╫ר╫נ╫ס ╫פ╫₧╫⌐╫ץ╫£╫ס
+      // מסירים את הטאב המשולב
       newTabs.removeAt(combinedIndex);
 
-      // ╫₧╫ץ╫í╫ש╫ñ╫ש╫¥ ╫ó╫ץ╫¬╫º╫ש╫¥ ╫á╫ñ╫¿╫ף╫ש╫¥ ╫¢╫ף╫ש ╫£╫נ ╫£╫⌐╫¬╫ú controllers ╫ó╫¥ ╫פ-combined view
+      // מוסיפים עותקים נפרדים כדי לא לשתף controllers עם ה-combined view
       newTabs.insert(combinedIndex, OpenedTab.from(combinedTab.rightTab));
       newTabs.insert(combinedIndex + 1, OpenedTab.from(combinedTab.leftTab));
 
-      // ╫פ╫נ╫ש╫á╫ף╫º╫í ╫פ╫á╫ץ╫¢╫ק╫ש ╫ש╫פ╫ש╫פ ╫פ╫ר╫נ╫ס ╫פ╫ש╫₧╫á╫ש
+      // האינדקס הנוכחי יהיה הטאב הימני
       final newCurrentIndex = combinedIndex;
 
       emit(state.copyWith(
@@ -834,7 +834,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
 
       _disposeTabLater(combinedTab);
     } else {
-      // ╫נ╫¥ ╫צ╫פ ╫£╫נ ╫ר╫נ╫ס ╫₧╫⌐╫ץ╫£╫ס, ╫ñ╫⌐╫ץ╫ר ╫₧╫á╫º╫ש╫¥ ╫נ╫¬ ╫פ╫₧╫ª╫ס
+      // אם זה לא טאב משולב, פשוט מנקים את המצב
       final tabsToSave = state.tabs;
       final indexToSave = state.currentTabIndex;
       emit(state.copyWith(
@@ -847,12 +847,12 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
 
   Future<void> _onUpdateSplitRatio(
       UpdateSplitRatio event, Emitter<TabsState> emit) async {
-    // ╫ó╫ף╫¢╫ץ╫ƒ ╫פ╫ש╫ק╫í ╫⌐╫£ ╫פ╫ר╫נ╫ס ╫פ╫₧╫⌐╫ץ╫£╫ס
+    // עדכון היחס של הטאב המשולב
     if (state.currentTab is CombinedTab) {
       final combinedTab = state.currentTab as CombinedTab;
       combinedTab.splitRatio = event.ratio;
 
-      // ╫⌐╫₧╫ש╫¿╫¬ ╫פ╫⌐╫ש╫á╫ץ╫ש
+      // שמירת השינוי
       final tabsToSave = state.tabs;
       final indexToSave = state.currentTabIndex;
       emit(state.copyWith(
@@ -864,13 +864,13 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
 
   Future<void> _onSwapSideBySideTabs(
       SwapSideBySideTabs event, Emitter<TabsState> emit) async {
-    // ╫פ╫ק╫£╫ñ╫¬ ╫ª╫ף╫ף╫ש╫¥ ╫ס╫ר╫נ╫ס ╫פ╫₧╫⌐╫ץ╫£╫ס
+    // החלפת צדדים בטאב המשולב
     if (state.currentTab is CombinedTab) {
       final combinedTab = state.currentTab as CombinedTab;
 
-      debugPrint('DEBUG: ╫פ╫ק╫£╫ñ╫¬ ╫ª╫ף╫ף╫ש╫¥ ╫ס╫₧╫ª╫ס side-by-side');
+      debugPrint('DEBUG: החלפת צדדים במצב side-by-side');
 
-      // ╫ש╫ª╫ש╫¿╫¬ ╫ר╫נ╫ס ╫₧╫⌐╫ץ╫£╫ס ╫ק╫ף╫⌐ ╫ó╫¥ ╫ó╫ץ╫¬╫º╫ש╫¥ ╫á╫ñ╫¿╫ף╫ש╫¥ ╫⌐╫£ ╫פ╫ר╫נ╫ס╫ש╫¥ ╫פ╫₧╫ץ╫ק╫£╫ñ╫ש╫¥.
+      // יצירת טאב משולב חדש עם עותקים נפרדים של הטאבים המוחלפים.
       final newCombinedTab = CombinedTab(
         rightTab: OpenedTab.from(combinedTab.leftTab),
         leftTab: OpenedTab.from(combinedTab.rightTab),
@@ -878,7 +878,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
         isPinned: combinedTab.isPinned,
       );
 
-      // ╫ó╫ף╫¢╫ץ╫ƒ ╫פ╫¿╫⌐╫ש╫₧╫פ
+      // עדכון הרשימה
       final newTabs = List<OpenedTab>.from(state.tabs);
       newTabs[state.currentTabIndex] = newCombinedTab;
 

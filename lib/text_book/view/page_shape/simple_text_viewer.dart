@@ -45,15 +45,15 @@ import 'package:otzaria/utils/text/html_link_handler.dart';
 import 'package:otzaria/text_book/view/widgets/continuous_reading_paragraph.dart';
 import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart';
 
-/// ╫₧╫ק╫צ╫ש╫¿╫פ ╫פ╫נ╫¥ ╫נ╫ש╫¿╫ץ╫ó ╫פ╫₧╫º╫£╫ף╫¬ ╫ª╫¿╫ש╫ת ╫£╫פ╫á╫ש╫ó ╫ע╫£╫ש╫£╫פ ╫¿╫ª╫ש╫ñ╫פ ╫ס╫ª╫ץ╫¿╫¬ ╫פ╫ף╫ú.
+/// מחזירה האם אירוע המקלדת צריך להניע גלילה רציפה בצורת הדף.
 bool shouldHandlePageShapeNavigationKeyEvent(KeyEvent event) {
   return event is KeyDownEvent || event is KeyRepeatEvent;
 }
 
-/// ╫ס╫ץ╫ף╫º╫¬ ╫פ╫נ╫¥ ╫פ╫ñ╫ץ╫º╫ץ╫í ╫פ╫á╫ץ╫¢╫ק╫ש ╫á╫₧╫ª╫נ ╫ס╫¬╫ץ╫ת ╫⌐╫ף╫פ ╫º╫£╫ר ╫ר╫º╫í╫ר╫ץ╫נ╫£╫ש.
+/// בודקת האם הפוקוס הנוכחי נמצא בתוך שדה קלט טקסטואלי.
 ///
-/// ╫á╫ף╫¿╫⌐ ╫ó╫ס╫ץ╫¿ "╫ª╫ץ╫¿╫¬ ╫פ╫ף╫ú", ╫¢╫ש ╫פ╫ó╫ץ╫¿╫ת ╫⌐╫£ ╫פ╫ó╫¿╫ץ╫¬ ╫נ╫ש╫⌐╫ש╫ץ╫¬ ╫₧╫ס╫ץ╫í╫í `flutter_quill`
-/// ╫ץ╫נ╫ש╫á╫ץ ╫₧╫צ╫ץ╫פ╫פ ╫¬╫₧╫ש╫ף ╫¢-`EditableText` ╫¿╫ע╫ש╫£.
+/// נדרש עבור "צורת הדף", כי העורך של הערות אישיות מבוסס `flutter_quill`
+/// ואינו מזוהה תמיד כ-`EditableText` רגיל.
 bool isTextInputFocusNode(FocusNode? focusNode) {
   final focusContext = focusNode?.context;
   if (focusContext == null) {
@@ -68,10 +68,10 @@ bool isTextInputFocusNode(FocusNode? focusNode) {
       _hasQuillEditorAncestor(focusContext);
 }
 
-/// ╫ס╫ץ╫ף╫º╫¬ ╫פ╫נ╫¥ ╫פ╫ñ╫ץ╫º╫ץ╫í ╫פ╫á╫ץ╫¢╫ק╫ש ╫á╫₧╫ª╫נ ╫ס╫¬╫ץ╫ת ╫¬╫ñ╫¿╫ש╫ר (╫¢╫₧╫ץ ╫¬╫ñ╫¿╫ש╫ר ╫פ╫º╫⌐╫¿/╫¬╫¬-╫¬╫ñ╫¿╫ש╫ר).
+/// בודקת האם הפוקוס הנוכחי נמצא בתוך תפריט (כמו תפריט הקשר/תת-תפריט).
 ///
-/// ╫á╫ף╫¿╫⌐ ╫¢╫ף╫ש ╫⌐╫£╫נ ╫á╫ק╫צ╫ש╫¿ ╫ñ╫ץ╫º╫ץ╫í ╫£╫ר╫º╫í╫ר ╫ס╫צ╫₧╫ƒ ╫⌐╫פ╫₧╫⌐╫¬╫₧╫⌐ ╫ñ╫ץ╫¬╫ק ╫¬╫¬-╫¬╫ñ╫¿╫ש╫ר,
-/// ╫¢╫ש ╫ע╫צ╫ש╫£╫¬ ╫פ╫ñ╫ץ╫º╫ץ╫í ╫¬╫í╫ע╫ץ╫¿ ╫נ╫¬ ╫פ╫¬╫¬-╫¬╫ñ╫¿╫ש╫ר ╫₧╫ש╫ף.
+/// נדרש כדי שלא נחזיר פוקוס לטקסט בזמן שהמשתמש פותח תת-תפריט,
+/// כי גזילת הפוקוס תסגור את התת-תפריט מיד.
 bool isMenuFocusNode(FocusNode? focusNode) {
   final focusContext = focusNode?.context;
   if (focusContext == null) {
@@ -124,7 +124,7 @@ bool _isMenuWidget(Widget widget) {
       widget is MenuAnchor;
 }
 
-/// ╫º╫ץ╫ס╫ó╫¬ ╫₧╫נ╫ש╫צ╫פ ╫נ╫ש╫á╫ף╫º╫í ╫ש╫¬╫ק╫ש╫£ ╫á╫ש╫ץ╫ץ╫ר ╫פ╫₧╫º╫£╫ף╫¬ ╫ס╫ª╫ץ╫¿╫¬ ╫פ╫ף╫ú.
+/// קובעת מאיזה אינדקס יתחיל ניווט המקלדת בצורת הדף.
 int resolvePageShapeNavigationBaseIndex({
   required int? selectedIndex,
   required List<int> liveVisibleIndices,
@@ -155,10 +155,10 @@ int resolvePageShapeNavigationBaseIndex({
   return selectedIndex ?? 0;
 }
 
-/// ╫₧╫ק╫צ╫ש╫¿╫פ ╫נ╫¬ ╫⌐╫ץ╫¿╫¬ ╫פ╫₧╫º╫ץ╫¿ ╫⌐╫ש╫⌐ ╫£╫⌐╫₧╫¿ ╫ס╫ó╫¬ ╫₧╫ó╫ס╫¿ ╫ס╫ש╫ƒ ╫¬╫ª╫ץ╫ע╫¬ ╫⌐╫ץ╫¿╫ץ╫¬ ╫£╫¬╫ª╫ץ╫ע╫פ ╫¿╫ª╫ש╫ñ╫פ.
+/// מחזירה את שורת המקור שיש לשמר בעת מעבר בין תצוגת שורות לתצוגה רציפה.
 ///
-/// ╫פ╫⌐╫ץ╫¿╫פ ╫פ╫¿╫נ╫⌐╫ץ╫á╫פ ╫⌐╫á╫¿╫נ╫ש╫¬ ╫ó╫£ ╫פ╫₧╫í╫ת ╫פ╫ש╫נ ╫פ╫ó╫ץ╫ע╫ƒ ╫פ╫₧╫ף╫ץ╫ש╫º ╫ס╫ש╫ץ╫¬╫¿; ╫נ╫¥ ╫נ╫ש╫ƒ ╫₧╫ש╫ף╫ó ╫ע╫£╫ש╫£╫פ
-/// ╫צ╫₧╫ש╫ƒ, ╫₧╫⌐╫¬╫₧╫⌐╫ש╫¥ ╫ס╫⌐╫ץ╫¿╫פ ╫פ╫₧╫í╫ץ╫₧╫á╫¬ ╫¢╫ע╫ש╫ס╫ץ╫ש.
+/// השורה הראשונה שנראית על המסך היא העוגן המדויק ביותר; אם אין מידע גלילה
+/// זמין, משתמשים בשורה המסומנת כגיבוי.
 int? resolveDisplayModeRestoreLineIndex({
   required List<int> visibleIndices,
   required int? selectedIndex,
@@ -172,7 +172,7 @@ int? resolveDisplayModeRestoreLineIndex({
   return targetIndex;
 }
 
-/// ╫¬╫ª╫ץ╫ע╫¬ ╫ר╫º╫í╫ר ╫ñ╫⌐╫ץ╫ר╫פ - ╫₧╫⌐╫₧╫⌐╫¬ ╫ע╫¥ ╫£╫ר╫º╫í╫ר ╫פ╫₧╫¿╫¢╫צ╫ש ╫ץ╫ע╫¥ ╫£╫₧╫ñ╫¿╫⌐╫ש╫¥
+/// תצוגת טקסט פשוטה - משמשת גם לטקסט המרכזי וגם למפרשים
 class SimpleTextViewer extends StatefulWidget {
   final List<String> content;
   final double fontSize;
@@ -180,15 +180,15 @@ class SimpleTextViewer extends StatefulWidget {
   final Function(OpenedTab) openBookCallback;
   final ItemScrollController? scrollController;
   final ItemPositionsListener? positionsListener;
-  final bool isMainText; // ╫פ╫נ╫¥ ╫צ╫פ ╫פ╫ר╫º╫í╫ר ╫פ╫₧╫¿╫¢╫צ╫ש ╫נ╫ץ ╫₧╫ñ╫¿╫⌐
-  final String? title; // ╫¢╫ץ╫¬╫¿╫¬ (╫£╫¢╫ץ╫¬╫¿╫¬ ╫ó╫£╫ש╫ץ╫á╫פ)
-  final String? bookTitle; // ╫⌐╫¥ ╫פ╫í╫ñ╫¿ (╫£╫₧╫ñ╫¿╫⌐╫ש╫¥ - ╫£╫ñ╫¬╫ש╫ק╫פ ╫ס╫ר╫נ╫ס ╫á╫ñ╫¿╫ף)
-  final Set<int>? highlightedIndices; // ╫נ╫ש╫á╫ף╫º╫í╫ש╫¥ ╫£╫פ╫ף╫ע╫⌐╫פ (╫£╫₧╫ñ╫¿╫⌐╫ש╫¥)
-  final VoidCallback? onCommentatorChanged; // callback ╫£╫¿╫ó╫á╫ץ╫ƒ ╫נ╫ק╫¿╫ש ╫פ╫ק╫£╫ñ╫¬ ╫₧╫ñ╫¿╫⌐
-  final bool useInternalScroll; // ╫פ╫נ╫¥ ╫£╫פ╫⌐╫¬╫₧╫⌐ ╫ס╫ע╫£╫ש╫£╫פ ╫ñ╫á╫ש╫₧╫ש╫¬
+  final bool isMainText; // האם זה הטקסט המרכזי או מפרש
+  final String? title; // כותרת (לכותרת עליונה)
+  final String? bookTitle; // שם הספר (למפרשים - לפתיחה בטאב נפרד)
+  final Set<int>? highlightedIndices; // אינדקסים להדגשה (למפרשים)
+  final VoidCallback? onCommentatorChanged; // callback לרענון אחרי החלפת מפרש
+  final bool useInternalScroll; // האם להשתמש בגלילה פנימית
   final ValueChanged<int>? onOpenSidebarTab;
   final ValueChanged<String?>?
-      onOpenSearch; // callback ╫£╫ñ╫¬╫ש╫ק╫¬ ╫ק╫ש╫ñ╫ץ╫⌐ ╫ó╫¥ ╫פ╫ר╫º╫í╫ר ╫פ╫á╫ס╫ק╫¿
+      onOpenSearch; // callback לפתיחת חיפוש עם הטקסט הנבחר
   final TextBook? reportBook;
   final SelectionSyncController? selectionSyncController;
 
@@ -205,7 +205,7 @@ class SimpleTextViewer extends StatefulWidget {
     this.bookTitle,
     this.highlightedIndices,
     this.onCommentatorChanged,
-    this.useInternalScroll = true, // ╫ס╫¿╫ש╫¿╫¬ ╫₧╫ק╫ף╫£ - ╫ó╫¥ ╫ע╫£╫ש╫£╫פ ╫ñ╫á╫ש╫₧╫ש╫¬
+    this.useInternalScroll = true, // ברירת מחדל - עם גלילה פנימית
     this.onOpenSidebarTab,
     this.onOpenSearch,
     this.reportBook,
@@ -217,9 +217,9 @@ class SimpleTextViewer extends StatefulWidget {
 }
 
 class _SimpleTextViewerState extends State<SimpleTextViewer> {
-  // ╫ף╫ע╫£ ╫í╫ר╫ר╫ש: ╫₧╫ץ╫á╫ó ╫₧╫פ╫ר╫º╫í╫ר ╫פ╫¿╫נ╫⌐╫ש ╫£╫ף╫¿╫ץ╫í ╫פ╫ó╫¬╫º╫פ ╫⌐╫¢╫ס╫¿ ╫ס╫ץ╫ª╫ó╫פ ╫ó"╫ש ╫₧╫ñ╫¿╫⌐
+  // דגל סטטי: מונע מהטקסט הראשי לדרוס העתקה שכבר בוצעה ע"י מפרש
   static bool _commentaryCopyHandled = false;
-  // ╫₧╫ª╫ס╫ש╫ó ╫í╫ר╫ר╫ש: ╫¿╫º ╫פ╫ñ╫¿╫⌐╫ƒ ╫פ╫נ╫ק╫¿╫ץ╫ƒ ╫⌐╫á╫ס╫ק╫¿ ╫ס╫ץ ╫ר╫º╫í╫ר ╫₧╫ר╫ñ╫£ ╫ס-Ctrl+C
+  // מצביע סטטי: רק הפרשן האחרון שנבחר בו טקסט מטפל ב-Ctrl+C
   static _SimpleTextViewerState? _lastActiveCommentary;
 
   late final ItemScrollController _scrollController;
@@ -250,12 +250,12 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     return isMenuFocusNode(FocusManager.instance.primaryFocus);
   }
 
-  /// ╫₧╫נ╫צ╫ש╫ƒ ╫£╫⌐╫ש╫á╫ץ╫ש╫ש ╫ñ╫ץ╫º╫ץ╫í ╫ע╫£╫ץ╫ס╫£╫ש╫ש╫¥ ╫¢╫ף╫ש ╫£╫צ╫פ╫ץ╫¬ ╫í╫ע╫ש╫¿╫¬ ╫¬╫¬-╫¬╫ñ╫¿╫ש╫ר.
+  /// מאזין לשינויי פוקוס גלובליים כדי לזהות סגירת תת-תפריט.
   ///
-  /// ╫¢╫⌐╫פ╫ñ╫ץ╫º╫ץ╫í ╫ש╫ץ╫ª╫נ ╫₧╫¬╫ñ╫¿╫ש╫ר ╫פ╫º╫⌐╫¿ (╫פ╫ק╫£╫ú ╫₧╫ñ╫¿╫⌐ / ╫º╫ש╫⌐╫ץ╫¿╫ש╫¥) ╫ץ╫£╫נ ╫ק╫ץ╫צ╫¿ ╫נ╫ץ╫ר╫ץ╫₧╫ר╫ש╫¬
-  /// ╫£╫ר╫º╫í╫ר ╫פ╫¿╫נ╫⌐╫ש, ╫₧╫º╫⌐╫ש ╫פ╫ק╫ש╫ª╫ש╫¥ ╫₧╫ñ╫í╫ש╫º╫ש╫¥ ╫£╫ó╫ס╫ץ╫ף ╫ó╫ף ╫⌐╫פ╫₧╫⌐╫¬╫₧╫⌐ ╫£╫ץ╫ק╫Ñ ╫⌐╫ץ╫ס.
-  /// ╫נ╫á╫ק╫á╫ץ ╫₧╫ק╫צ╫ש╫¿╫ש╫¥ ╫ñ╫ץ╫º╫ץ╫í ╫¿╫º ╫נ╫¥ ╫פ╫ñ╫ץ╫º╫ץ╫í "╫₧╫¿╫ק╫ú" ╫ס-FocusScope ╫⌐╫£ page-shape
-  /// ╫ó╫ª╫₧╫ץ - ╫£╫נ ╫נ╫¥ ╫פ╫₧╫⌐╫¬╫₧╫⌐ ╫פ╫ó╫ס╫ש╫¿ ╫ñ╫ץ╫º╫ץ╫í ╫ס╫₧╫¢╫ץ╫ץ╫ƒ ╫£╫¢╫ñ╫¬╫ץ╫¿ / ╫ף╫ש╫נ╫£╫ץ╫ע / ╫¿╫¢╫ש╫ס ╫נ╫ק╫¿.
+  /// כשהפוקוס יוצא מתפריט הקשר (החלף מפרש / קישורים) ולא חוזר אוטומטית
+  /// לטקסט הראשי, מקשי החיצים מפסיקים לעבוד עד שהמשתמש לוחץ שוב.
+  /// אנחנו מחזירים פוקוס רק אם הפוקוס "מרחף" ב-FocusScope של page-shape
+  /// עצמו - לא אם המשתמש העביר פוקוס במכוון לכפתור / דיאלוג / רכיב אחר.
   void _handleGlobalFocusChange() {
     if (!mounted || !widget.isMainText) {
       return;
@@ -274,9 +274,9 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       return;
     }
 
-    // ╫פ╫ñ╫ץ╫º╫ץ╫í ╫á╫ק╫⌐╫ס "╫₧╫¿╫ק╫ú" ╫נ╫ת ╫ץ╫¿╫º ╫נ╫¥ ╫פ╫ץ╫נ ╫á╫₧╫ª╫נ ╫ó╫£ FocusScopeNode ╫פ╫ó╫ץ╫ר╫ú ╫⌐╫£╫á╫ץ.
-    // ╫נ╫¥ ╫פ╫ץ╫נ ╫ó╫£ widget ╫₧╫¢╫ץ╫ץ╫ƒ ╫נ╫ק╫¿ (╫¢╫ñ╫¬╫ץ╫¿, ╫ñ╫נ╫á╫£ ╫ª╫ף ╫ץ╫¢╫ץ') ╫נ╫ץ ╫ó╫£ scope ╫⌐╫£ ╫ף╫ש╫נ╫£╫ץ╫ע -
-    // ╫פ╫₧╫⌐╫¬╫₧╫⌐ ╫ס╫ק╫¿ ╫ס╫ץ, ╫ץ╫נ╫í╫ץ╫¿ ╫£╫ע╫á╫ץ╫ס.
+    // הפוקוס נחשב "מרחף" אך ורק אם הוא נמצא על FocusScopeNode העוטף שלנו.
+    // אם הוא על widget מכוון אחר (כפתור, פאנל צד וכו') או על scope של דיאלוג -
+    // המשתמש בחר בו, ואסור לגנוב.
     final primaryFocus = FocusManager.instance.primaryFocus;
     if (primaryFocus is! FocusScopeNode) {
       return;
@@ -323,13 +323,13 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       return;
     }
 
-    // ╫נ╫¥ ╫פ╫₧╫⌐╫¬╫₧╫⌐ ╫¢╫ץ╫¬╫ס ╫ס╫⌐╫ף╫פ ╫ק╫ש╫ñ╫ץ╫⌐/╫º╫£╫ר ╫נ╫ק╫¿ - ╫£╫נ ╫£╫ע╫á╫ץ╫ס ╫₧╫₧╫á╫ץ ╫ñ╫ץ╫º╫ץ╫í
+    // אם המשתמש כותב בשדה חיפוש/קלט אחר - לא לגנוב ממנו פוקוס
     if (_isTextInputFocused()) {
       return;
     }
 
-    // ╫נ╫¥ ╫ñ╫¬╫ץ╫ק ╫¬╫¬-╫¬╫ñ╫¿╫ש╫ר (╫פ╫ק╫£╫ú ╫₧╫ñ╫¿╫⌐ / ╫º╫ש╫⌐╫ץ╫¿╫ש╫¥) - ╫£╫נ ╫£╫ע╫á╫ץ╫ס ╫₧╫₧╫á╫ץ ╫ñ╫ץ╫º╫ץ╫í,
-    // ╫נ╫ק╫¿╫¬ ╫פ╫¬╫¬-╫¬╫ñ╫¿╫ש╫ר ╫ש╫ש╫í╫ע╫¿ ╫₧╫ש╫ף.
+    // אם פתוח תת-תפריט (החלף מפרש / קישורים) - לא לגנוב ממנו פוקוס,
+    // אחרת התת-תפריט ייסגר מיד.
     if (_isMenuFocused()) {
       return;
     }
@@ -358,12 +358,12 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         widget.positionsListener ?? ItemPositionsListener.create();
     _resolvedKeyboardFocusNode;
 
-    // ╫₧╫נ╫צ╫ש╫ƒ ╫ע╫£╫ץ╫ס╫£╫ש ╫£-Ctrl+C ╫ס╫₧╫ñ╫¿╫⌐╫ש╫¥ (╫£╫£╫נ ╫ª╫ץ╫¿╫ת ╫ס╫ñ╫ץ╫º╫ץ╫í)
+    // מאזין גלובלי ל-Ctrl+C במפרשים (ללא צורך בפוקוס)
     if (!widget.isMainText) {
       HardwareKeyboard.instance.addHandler(_handleCommentaryCopyKeyEvent);
     }
 
-    // ╫ע╫£╫ש╫£╫פ ╫£╫₧╫ש╫º╫ץ╫¥ ╫פ╫á╫ץ╫¢╫ק╫ש ╫נ╫ק╫¿╫ש ╫ס╫á╫ש╫ש╫¬ ╫פ╫ץ╫ץ╫ש╫ף╫ע'╫ר (╫¿╫º ╫£╫ר╫º╫í╫ר ╫פ╫₧╫¿╫¢╫צ╫ש)
+    // גלילה למיקום הנוכחי אחרי בניית הווידג'ט (רק לטקסט המרכזי)
     if (widget.isMainText) {
       FocusManager.instance.addListener(_handleGlobalFocusChange);
       _scheduleInitialScrollRestore();
@@ -390,7 +390,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   }
 
   bool _handleCommentaryCopyKeyEvent(KeyEvent event) {
-    // ╫¿╫º ╫פ╫ñ╫¿╫⌐╫ƒ ╫⌐╫á╫ס╫ק╫¿ ╫ס╫ץ ╫ר╫º╫í╫ר ╫£╫נ╫ק╫¿╫ץ╫á╫פ ╫₧╫ר╫ñ╫£
+    // רק הפרשן שנבחר בו טקסט לאחרונה מטפל
     if (_lastActiveCommentary != this) return false;
     if (event is! KeyDownEvent) return false;
     final isCtrlC = HardwareKeyboard.instance.isControlPressed &&
@@ -497,7 +497,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     });
   }
 
-  /// ╫ע╫£╫ש╫£╫פ ╫£╫₧╫ש╫º╫ץ╫¥ ╫פ╫á╫ץ╫¢╫ק╫ש (visibleIndices ╫נ╫ץ selectedIndex)
+  /// גלילה למיקום הנוכחי (visibleIndices או selectedIndex)
   bool _scrollToCurrentPosition() {
     final bloc = context.read<TextBookBloc>();
     final state = bloc.state;
@@ -889,7 +889,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     return false;
   }
 
-  /// ╫¬╫ñ╫¿╫ש╫ר ╫פ╫º╫⌐╫¿
+  /// תפריט הקשר
   List<AppContextMenuEntry> _buildContextMenu(TextBookLoaded state, int index,
       BuildContext menuContext, Offset tapPosition, String? capturedText) {
     List<AppContextMenuEntry> commentatorItems = [];
@@ -902,7 +902,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       final items = <AppContextMenuEntry>[];
       if (widget.onOpenSidebarTab != null) {
         items.add(AppContextMenuEntry(
-          label: '╫ñ╫¬╫ק ╫ק╫£╫ץ╫á╫ש╫¬ ╫º╫ש╫⌐╫ץ╫¿╫ש╫¥',
+          label: 'פתח חלונית קישורים',
           icon: FluentIcons.panel_right_24_regular,
           onTap: () => widget.onOpenSidebarTab!(0),
         ));
@@ -946,8 +946,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     final entries = <AppContextMenuEntry>[];
 
     if (widget.isMainText) {
-      // ╫פ╫ק╫ש╫ñ╫ץ╫⌐ ╫ó╫ץ╫ס╫ף ╫¬╫₧╫ש╫ף ╫ó╫£ ╫ר╫º╫í╫ר ╫£╫£╫נ ╫á╫ש╫º╫ץ╫ף ╫ץ╫ר╫ó╫₧╫ש╫¥ Γאפ ╫₧╫á╫º╫ש╫¥ ╫ñ╫ó╫¥ ╫נ╫ק╫¬
-      // ╫£╫⌐╫ש╫₧╫ץ╫⌐ ╫ע╫¥ ╫ס╫¬╫ץ╫ץ╫ש╫¬ ╫פ╫¬╫ñ╫¿╫ש╫ר ╫ץ╫ע╫¥ ╫ס╫⌐╫נ╫ש╫£╫¬╫¬ ╫פ╫ק╫ש╫ñ╫ץ╫⌐ ╫ס╫ñ╫ץ╫ó╫£.
+      // החיפוש עובד תמיד על טקסט ללא ניקוד וטעמים — מנקים פעם אחת
+      // לשימוש גם בתווית התפריט וגם בשאילתת החיפוש בפועל.
       final rawText = capturedText?.trim() ?? '';
       final cleanedText = utils.hasNikud(rawText)
           ? utils.removeVolwels(rawText).trim()
@@ -955,24 +955,24 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       final hasSelectedText = cleanedText.isNotEmpty;
       final preview = hasSelectedText ? previewForLabel(cleanedText) : '';
       entries.add(AppContextMenuEntry(
-        label: '╫ק╫ש╫ñ╫ץ╫⌐',
+        label: 'חיפוש',
         icon: FluentIcons.search_24_regular,
         enabled: hasSelectedText,
         children: hasSelectedText
             ? [
                 AppContextMenuEntry(
-                  label: "╫ק╫ñ╫⌐ '$preview' ╫ס╫í╫ñ╫¿ ╫צ╫פ",
+                  label: "חפש '$preview' בספר זה",
                   icon: FluentIcons.book_search_24_regular,
                   onTap: () {
                     if (widget.onOpenSearch != null) {
                       widget.onOpenSearch!(cleanedText);
                     } else {
-                      UiSnack.show('╫ק╫ש╫ñ╫ץ╫⌐ ╫£╫נ ╫צ╫₧╫ש╫ƒ ╫ס╫¬╫ª╫ץ╫ע╫פ ╫צ╫ץ');
+                      UiSnack.show('חיפוש לא זמין בתצוגה זו');
                     }
                   },
                 ),
                 AppContextMenuEntry(
-                  label: "╫ק╫ñ╫⌐ '$preview' ╫ס╫¢╫£ ╫פ╫í╫ñ╫¿╫ש╫¥",
+                  label: "חפש '$preview' בכל הספרים",
                   icon: FluentIcons.library_24_regular,
                   onTap: () => openGlobalSearch(
                     context,
@@ -993,7 +993,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     if (hasLinkItems) {
       entries.add(const AppContextMenuEntry.divider());
       entries.add(AppContextMenuEntry(
-        label: '╫º╫ש╫⌐╫ץ╫¿╫ש╫¥',
+        label: 'קישורים',
         icon: FluentIcons.link_24_regular,
         childrenBuilder: buildLinksItems,
       ));
@@ -1015,24 +1015,24 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     entries.add(const AppContextMenuEntry.divider());
     entries.addAll([
       AppContextMenuEntry(
-        label: '╫פ╫ץ╫í╫ú ╫פ╫ó╫¿╫פ ╫נ╫ש╫⌐╫ש╫¬ ',
+        label: 'הוסף הערה אישית ',
         icon: FluentIcons.note_add_24_regular,
         onTap: () => _createNoteForCurrentLine(index, capturedText),
       ),
       AppContextMenuEntry(
-        label: '╫ף╫ץ╫ץ╫ק ╫ó╫£ ╫ר╫ó╫ץ╫¬ ╫ס╫í╫ñ╫¿',
+        label: 'דווח על טעות בספר',
         icon: FluentIcons.error_circle_24_regular,
         onTap: () => _openErrorReportDialog(capturedText ?? ''),
       ),
       const AppContextMenuEntry.divider(),
       AppContextMenuEntry(
-        label: '╫פ╫ó╫¬╫º',
+        label: 'העתק',
         icon: FluentIcons.copy_24_regular,
         enabled: capturedText != null && capturedText.trim().isNotEmpty,
         onTap: () => _copyFormattedText(capturedText),
       ),
       AppContextMenuEntry(
-        label: '╫פ╫ó╫¬╫º ╫נ╫¬ ╫¢╫£ ╫פ╫ñ╫í╫º╫פ',
+        label: 'העתק את כל הפסקה',
         icon: FluentIcons.document_copy_24_regular,
         enabled: index >= 0 && index < widget.content.length,
         onTap: () => _copyParagraphByIndex(index),
@@ -1088,7 +1088,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     return result;
   }
 
-  /// ╫ש╫ª╫ש╫¿╫¬ ╫פ╫ó╫¿╫פ ╫£╫⌐╫ץ╫¿╫פ ╫פ╫á╫ץ╫¢╫ק╫ש╫¬
+  /// יצירת הערה לשורה הנוכחית
   Future<void> _createNoteForCurrentLine(int index,
       [String? capturedText]) async {
     final state = context.read<TextBookBloc>().state;
@@ -1099,7 +1099,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         ? utils.removeVolwels(selectedText!.trim())
         : widget.content[index];
 
-    // ╫ר╫ó╫ƒ ╫ר╫ש╫ץ╫ר╫פ ╫נ╫¥ ╫º╫ש╫ש╫₧╫¬
+    // טען טיוטה אם קיימת
     final draftService = PersonalNoteDraftService();
     final draft = await draftService.loadDraft(
       bookId: state.book.title,
@@ -1108,7 +1108,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
 
     if (!mounted) return;
 
-    // ╫⌐╫£╫ק event ╫£╫ñ╫¬╫ש╫ק╫¬ ╫₧╫ª╫ס ╫ש╫ª╫ש╫¿╫פ ╫ס╫í╫ש╫ש╫ף╫ס╫¿
+    // שלח event לפתיחת מצב יצירה בסיידבר
     context.read<PersonalNotesBloc>().add(StartCreatingPersonalNote(
           bookId: state.book.title,
           lineNumber: index + 1,
@@ -1120,7 +1120,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         ));
   }
 
-  /// ╫ñ╫¬╫ש╫ק╫¬ ╫ף╫ש╫נ╫£╫ץ╫ע ╫ף╫ש╫ץ╫ץ╫ק ╫ó╫£ ╫ר╫ó╫ץ╫¬ ╫ס╫í╫ñ╫¿
+  /// פתיחת דיאלוג דיווח על טעות בספר
   void _openErrorReportDialog(String selectedText) {
     final state = context.read<TextBookBloc>().state;
     if (state is! TextBookLoaded) return;
@@ -1143,14 +1143,14 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   }
 
   // [EDITING DISABLED]
-  // /// ╫ó╫¿╫ש╫¢╫¬ ╫ñ╫í╫º╫פ
+  // /// עריכת פסקה
   // void _editParagraph(int index) {
   //   if (index >= 0 && index < widget.content.length) {
   //     context.read<TextBookBloc>().add(OpenEditor(index: index));
   //   }
   // }
 
-  /// ╫פ╫ó╫¬╫º╫¬ ╫ñ╫í╫º╫פ ╫£╫ñ╫ש ╫נ╫ש╫á╫ף╫º╫í
+  /// העתקת פסקה לפי אינדקס
   Future<void> _copyParagraphByIndex(int index) async {
     if (index < 0 || index >= widget.content.length) return;
 
@@ -1233,7 +1233,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     await SystemClipboard.instance?.write([item]);
   }
 
-  /// ╫ó╫ש╫ª╫ץ╫ס ╫ר╫º╫í╫ר ╫¢-HTML ╫ó╫¥ ╫פ╫ע╫ף╫¿╫ץ╫¬ ╫פ╫ע╫ץ╫ñ╫ƒ ╫פ╫á╫ץ╫¢╫ק╫ש╫ץ╫¬
+  /// עיצוב טקסט כ-HTML עם הגדרות הגופן הנוכחיות
   String _formatTextAsHtml(String text) {
     final settingsState = context.read<SettingsBloc>().state;
     return CopyUtils.buildStyledHtml(
@@ -1243,15 +1243,15 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     );
   }
 
-  /// ╫פ╫ó╫¬╫º╫¬ ╫ר╫º╫í╫ר ╫₧╫ó╫ץ╫ª╫ס
+  /// העתקת טקסט מעוצב
   Future<void> _copyFormattedText([String? capturedText]) async {
-    // ╫₧╫ñ╫¿╫⌐ ╫¢╫ס╫¿ ╫ר╫ש╫ñ╫£ ╫ס╫פ╫ó╫¬╫º╫פ - ╫£╫נ ╫á╫ף╫¿╫ץ╫í
+    // מפרש כבר טיפל בהעתקה - לא נדרוס
     if (widget.isMainText && _commentaryCopyHandled) return;
 
     final plainText = capturedText ?? _savedSelectedText;
 
     if (plainText == null || plainText.trim().isEmpty) {
-      UiSnack.show('╫נ╫á╫נ ╫ס╫ק╫¿ ╫ר╫º╫í╫ר ╫£╫פ╫ó╫¬╫º╫פ');
+      UiSnack.show('אנא בחר טקסט להעתקה');
       return;
     }
 
@@ -1274,7 +1274,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       );
     } catch (e) {
       if (mounted) {
-        UiSnack.showError('╫⌐╫ע╫ש╫נ╫פ ╫ס╫פ╫ó╫¬╫º╫פ ╫₧╫ó╫ץ╫ª╫ס╫¬: $e');
+        UiSnack.showError('שגיאה בהעתקה מעוצבת: $e');
       }
     }
   }
@@ -1283,7 +1283,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // ╫¢╫ץ╫¬╫¿╫¬ ╫נ╫ץ╫ñ╫ª╫ש╫ץ╫á╫£╫ש╫¬
+        // כותרת אופציונלית
         if (widget.title != null)
           Container(
             padding: const EdgeInsets.all(12.0),
@@ -1307,7 +1307,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
               ),
             ),
           ),
-        // ╫¬╫ץ╫¢╫ƒ
+        // תוכן
         Expanded(
           child: BlocBuilder<TextBookBloc, TextBookState>(
             builder: (context, state) {
@@ -1338,7 +1338,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                     key: ValueKey(
                       '${widget.isMainText ? 'main' : 'commentary'}_selection_$_selectionRevision',
                     ),
-                    // ╫ס╫ש╫ר╫ץ╫£ ╫¬╫ñ╫¿╫ש╫ר ╫ס╫¿╫ש╫¿╫¬ ╫פ╫₧╫ק╫ף╫£ ╫⌐╫£ Flutter - ╫á╫⌐╫¬╫₧╫⌐ ╫¿╫º ╫ס-ContextMenuRegion
+                    // ביטול תפריט ברירת המחדל של Flutter - נשתמש רק ב-ContextMenuRegion
                     contextMenuBuilder: (context, selectableRegionState) =>
                         const SizedBox.shrink(),
                     onSelectionChanged: (selection) {
@@ -1357,7 +1357,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                           _lastActiveCommentary = this;
                         } else if (selection == null &&
                             _lastActiveCommentary == this) {
-                          // ╫ס╫ק╫ש╫¿╫פ ╫ס╫ץ╫ר╫£╫פ ╫£╫ק╫£╫ץ╫ר╫ש╫ƒ Γאפ ╫₧╫á╫º╫ש╫¥ ╫¢╫ף╫ש ╫£╫נ ╫£╫נ╫ñ╫⌐╫¿ ╫פ╫ó╫¬╫º╫פ "╫¿╫ñ╫נ╫ש╫¥"
+                          // בחירה בוטלה לחלוטין — מנקים כדי לא לאפשר העתקה "רפאים"
                           _lastActiveCommentary = null;
                         }
                       }
@@ -1469,12 +1469,12 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     final isHighlighted = widget.isMainText &&
         state.highlightedLine != null &&
         segment.containsLine(state.highlightedLine!);
-    // ╫á╫¬╫ñ╫í ╫ס╫צ╫₧╫ƒ BUILD (╫¢╫₧╫ץ selectedText ╫ס-ValueListenableBuilder ╫⌐╫£ Combined),
-    // ╫¢╫ת ╫⌐╫ע╫¥ ╫נ╫¥ onSelectionChanged(null) ╫ש╫¿╫ץ╫Ñ ╫£╫ñ╫á╫ש menuBuilder, ╫פ-closure
-    // ╫¢╫ס╫¿ ╫í╫ע╫ץ╫¿ ╫ó╫£ ╫פ╫ó╫¿╫ת ╫פ╫á╫¢╫ץ╫ƒ ╫₧╫פ╫ס╫á╫ש╫ש╫פ ╫פ╫נ╫ק╫¿╫ץ╫á╫פ.
+    // נתפס בזמן BUILD (כמו selectedText ב-ValueListenableBuilder של Combined),
+    // כך שגם אם onSelectionChanged(null) ירוץ לפני menuBuilder, ה-closure
+    // כבר סגור על הערך הנכון מהבנייה האחרונה.
     final savedTextAtBuild = _savedSelectedText;
 
-    // ╫ס╫ף╫ש╫º╫פ ╫ק╫ף╫⌐╫פ - ╫פ╫נ╫¥ ╫פ╫⌐╫ץ╫¿╫פ ╫₧╫ץ╫ף╫ע╫⌐╫¬ ╫¢╫ñ╫¿╫⌐╫ƒ ╫º╫⌐╫ץ╫¿ (╫₧╫º╫ץ╫₧╫ש)
+    // בדיקה חדשה - האם השורה מודגשת כפרשן קשור (מקומי)
     final isCommentaryHighlighted = !widget.isMainText &&
         (widget.highlightedIndices?.contains(index) ?? false);
 
@@ -1485,7 +1485,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
             .withAlpha((0.4 * 255).round());
       }
       if (isCommentaryHighlighted || (!continuous && isSelected)) {
-        // ╫ª╫ס╫ó ╫פ╫ף╫ע╫⌐╫פ ╫£╫₧╫ñ╫¿╫⌐ ╫º╫⌐╫ץ╫¿ - ╫¢╫₧╫ץ ╫פ╫⌐╫ץ╫¿╫פ ╫פ╫á╫ס╫ק╫¿╫¬
+        // צבע הדגשה למפרש קשור - כמו השורה הנבחרת
         return theme.colorScheme.primary.withAlpha((0.08 * 255).round());
       }
       return null;
@@ -1499,12 +1499,12 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       onTap: widget.isMainText && !(continuous && !segment.isHeader)
           ? () {
               _requestKeyboardFocus('line-tap-$primaryLineIndex');
-              // ╫נ╫ש╫ñ╫ץ╫í ╫פ╫ר╫º╫í╫ר ╫פ╫⌐╫₧╫ץ╫¿
+              // איפוס הטקסט השמור
               setState(() {
                 _savedSelectedText = null;
                 _savedSelectedIndex = null;
               });
-              // ╫ó╫ף╫¢╫ץ╫ƒ selectedIndex ╫¿╫º ╫ס╫ר╫º╫í╫ר ╫פ╫₧╫¿╫¢╫צ╫ש
+              // עדכון selectedIndex רק בטקסט המרכזי
               if (isSelected) {
                 context
                     .read<TextBookBloc>()
@@ -1518,7 +1518,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
           : null,
       onDoubleTap: !widget.isMainText && widget.bookTitle != null
           ? () {
-              // ╫£╫ק╫ש╫ª╫פ ╫¢╫ñ╫ץ╫£╫פ ╫ס╫₧╫ñ╫¿╫⌐ - ╫ñ╫¬╫ש╫ק╫פ ╫ס╫ר╫נ╫ס ╫á╫ñ╫¿╫ף
+              // לחיצה כפולה במפרש - פתיחה בטאב נפרד
               widget.openBookCallback(TextBookTab(
                 book: TextBook(title: widget.bookTitle!),
                 index: primaryLineIndex,
@@ -1530,7 +1530,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
             }
           : null,
       onSecondaryTapDown: (details) {
-        // ╫⌐╫₧╫ש╫¿╫¬ ╫פ╫נ╫ש╫á╫ף╫º╫í ╫£╫⌐╫ש╫₧╫ץ╫⌐ ╫ס╫¬╫ñ╫¿╫ש╫ר ╫פ╫פ╫º╫⌐╫¿
+        // שמירת האינדקס לשימוש בתפריט ההקשר
         setState(() {
           _savedSelectedIndex = primaryLineIndex;
         });
@@ -1570,7 +1570,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
               final data = widget.content[primaryLineIndex];
               final targetTitle =
                   widget.isMainText ? state.book.title : widget.bookTitle;
-              // ╫נ╫¥ ╫פ╫₧╫⌐╫¬╫₧╫⌐ ╫£╫ק╫Ñ ╫ó╫£ ╫¢╫ñ╫¬╫ץ╫¿ ╫á╫ש╫º╫ץ╫ף (override), ╫á╫⌐╫¬╫₧╫⌐ ╫ס╫ó╫¿╫ת ╫₧╫פ-state
+              // אם המשתמש לחץ על כפתור ניקוד (override), נשתמש בערך מה-state
               final bool? overrideRemoveNikud =
                   widget.isMainText ? state.removeNikud : null;
               final removeNikudFuture = (overrideRemoveNikud != null)
@@ -1606,7 +1606,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                           ),
                         ));
 
-              // ╫פ╫ף╫ע╫⌐╫פ ╫₧╫₧╫ץ╫º╫ף╫¬ ╫₧╫º╫ש╫⌐╫ץ╫¿ ╫ó╫ץ╫₧╫º (╫¿╫º ╫ס╫ר╫º╫í╫ר ╫פ╫₧╫¿╫¢╫צ╫ש, ╫¿╫º ╫ó╫£ ╫פ╫í╫ó╫ש╫ú ╫⌐╫ª╫ץ╫ש╫ƒ)
+              // הדגשה ממוקדת מקישור עומק (רק בטקסט המרכזי, רק על הסעיף שצוין)
               final isPinpointTarget = widget.isMainText &&
                   state.pinpointHighlightIndex == index &&
                   state.pinpointHighlightText != null &&
@@ -1686,9 +1686,9 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                       onLongPress: () {
                         showSingleActionDialog(
                           context: context,
-                          title: '╫פ╫ó╫¿╫פ ╫£╫⌐╫ץ╫¿╫פ ╫צ╫ץ',
+                          title: 'הערה לשורה זו',
                           customContent: PersonalNoteContentView(note: note),
-                          confirmText: '╫í╫ע╫ץ╫¿',
+                          confirmText: 'סגור',
                         );
                       },
                       child: Padding(
@@ -1840,17 +1840,17 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     );
   }
 
-  /// ╫ס╫á╫ש╫ש╫¬ ╫¬╫ñ╫¿╫ש╫ר ╫פ╫ק╫£╫ñ╫¬ ╫₧╫ñ╫¿╫⌐
+  /// בניית תפריט החלפת מפרש
   List<AppContextMenuEntry> _buildCommentatorSwitchMenu(TextBookLoaded state) {
     final availableCommentators = state.availableCommentators;
     if (availableCommentators.isEmpty) return [];
 
     final groups = state.commentatorGroups;
-    final tanachGroup = CommentatorGroup.groupByTitle(groups, '╫¬╫ץ╫¿╫פ ╫⌐╫ס╫¢╫¬╫ס');
-    final chazalGroup = CommentatorGroup.groupByTitle(groups, '╫ק╫צ"╫£');
-    final rishonimGroup = CommentatorGroup.groupByTitle(groups, '╫¿╫נ╫⌐╫ץ╫á╫ש╫¥');
-    final acharonimGroup = CommentatorGroup.groupByTitle(groups, '╫נ╫ק╫¿╫ץ╫á╫ש╫¥');
-    final modernGroup = CommentatorGroup.groupByTitle(groups, '╫₧╫ק╫ס╫¿╫ש ╫צ╫₧╫á╫á╫ץ');
+    final tanachGroup = CommentatorGroup.groupByTitle(groups, 'תורה שבכתב');
+    final chazalGroup = CommentatorGroup.groupByTitle(groups, 'חז"ל');
+    final rishonimGroup = CommentatorGroup.groupByTitle(groups, 'ראשונים');
+    final acharonimGroup = CommentatorGroup.groupByTitle(groups, 'אחרונים');
+    final modernGroup = CommentatorGroup.groupByTitle(groups, 'מחברי זמננו');
     final allGrouped = [
       ...tanachGroup.commentators,
       ...chazalGroup.commentators,
@@ -1905,20 +1905,20 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
 
     return [
       AppContextMenuEntry(
-        label: '╫פ╫ק╫£╫ú ╫₧╫ñ╫¿╫⌐',
+        label: 'החלף מפרש',
         icon: FluentIcons.arrow_swap_24_regular,
         children: normalized,
       ),
     ];
   }
 
-  /// ╫פ╫ק╫£╫ñ╫¬ ╫₧╫ñ╫¿╫⌐
+  /// החלפת מפרש
   void _switchCommentator(String newCommentator, TextBookLoaded state) {
     if (newCommentator == widget.bookTitle) {
-      return; // ╫¢╫ס╫¿ ╫₧╫ץ╫ª╫ע ╫₧╫ñ╫¿╫⌐ ╫צ╫פ
+      return; // כבר מוצג מפרש זה
     }
 
-    // ╫ª╫¿╫ש╫ת ╫£╫₧╫ª╫ץ╫נ ╫ס╫נ╫ש╫צ╫פ ╫ר╫ץ╫¿ ╫פ╫₧╫ñ╫¿╫⌐ ╫פ╫á╫ץ╫¢╫ק╫ש ╫₧╫ץ╫ª╫ע ╫ץ╫£╫פ╫ק╫£╫ש╫ú ╫נ╫ץ╫¬╫ץ
+    // צריך למצוא באיזה טור המפרש הנוכחי מוצג ולהחליף אותו
     final config = PageShapeSettingsManager.loadConfiguration(
       state.book.title,
       heCategories: state.book.heCategories,
@@ -1926,13 +1926,13 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
 
     if (config == null) return;
 
-    // ╫₧╫ª╫ש╫נ╫¬ ╫פ╫ר╫ץ╫¿ ╫⌐╫ס╫ץ ╫פ╫₧╫ñ╫¿╫⌐ ╫פ╫á╫ץ╫¢╫ק╫ש ╫₧╫ץ╫ª╫ע
+    // מציאת הטור שבו המפרש הנוכחי מוצג
     String? columnToUpdate;
     String? matchedSelection;
     for (final entry in config.entries) {
       if (entry.value == null) continue;
 
-      // ╫ס╫ף╫ש╫º╫פ ╫נ╫¥ ╫פ╫₧╫ñ╫¿╫⌐ ╫פ╫á╫ץ╫¢╫ק╫ש ╫¬╫ץ╫נ╫¥ ╫£╫ó╫¿╫ת ╫ס╫פ╫ע╫ף╫¿╫פ
+      // בדיקה אם המפרש הנוכחי תואם לערך בהגדרה
       final configValue = entry.value!;
       final currentTitle = widget.bookTitle!;
 
@@ -1966,11 +1966,11 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
 
     if (columnToUpdate == null) {
       debugPrint(
-          'Γתá∩╕ן PageShape: Could not find column for commentator "${widget.bookTitle}"');
+          '⚠️ PageShape: Could not find column for commentator "${widget.bookTitle}"');
       return;
     }
 
-    // ╫ó╫ף╫¢╫ץ╫ƒ ╫פ╫פ╫ע╫ף╫¿╫פ
+    // עדכון ההגדרה
     final updatedConfig = Map<String, String?>.from(config);
     if (matchedSelection != null) {
       final updatedSelection =
@@ -1984,12 +1984,12 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       updatedConfig[columnToUpdate] = newCommentator;
     }
 
-    // ╫ס╫ף╫ש╫º╫פ ╫נ╫¥ ╫ש╫⌐ ╫פ╫ע╫ף╫¿╫פ ╫í╫ñ╫ª╫ש╫ñ╫ש╫¬ ╫£╫í╫ñ╫¿ (╫£╫נ ╫¿╫º ╫פ╫ף╫ע╫£, ╫נ╫£╫נ ╫פ╫ע╫ף╫¿╫פ ╫₧╫₧╫⌐╫ש╫¬)
+    // בדיקה אם יש הגדרה ספציפית לספר (לא רק הדגל, אלא הגדרה ממשית)
     final hasActualBookConfig =
         PageShapeSettingsManager.loadConfiguration(state.book.title) != null;
 
-    // ╫נ╫¥ ╫ש╫⌐ ╫פ╫ע╫ף╫¿╫פ ╫í╫ñ╫ª╫ש╫ñ╫ש╫¬ ╫£╫í╫ñ╫¿ - ╫⌐╫ץ╫₧╫¿╫ש╫¥ ╫£╫í╫ñ╫¿
-    // ╫נ╫ק╫¿╫¬ - ╫⌐╫ץ╫₧╫¿╫ש╫¥ ╫£╫º╫ר╫ע╫ץ╫¿╫ש╫פ (╫נ╫¥ ╫ש╫⌐)
+    // אם יש הגדרה ספציפית לספר - שומרים לספר
+    // אחרת - שומרים לקטגוריה (אם יש)
     final categoryToSave = !hasActualBookConfig &&
             state.book.heCategories != null &&
             state.book.heCategories!.isNotEmpty
@@ -2003,7 +2003,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       saveToCategory: categoryToSave,
     );
 
-    // ╫º╫¿╫ש╫נ╫פ ╫£-callback ╫£╫¿╫ó╫á╫ץ╫ƒ ╫פ╫₧╫í╫ת
+    // קריאה ל-callback לרענון המסך
     widget.onCommentatorChanged?.call();
   }
 }

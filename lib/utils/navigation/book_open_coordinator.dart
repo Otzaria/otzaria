@@ -1,4 +1,4 @@
-﻿import 'package:collection/collection.dart';
+import 'package:collection/collection.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/models/books.dart';
@@ -36,9 +36,9 @@ class BookOpenCoordinator {
       historyBloc.add(CaptureStateForHistory(tabsState.currentTab!));
     }
 
-    // deep link ╫ó╫¥ ╫פ╫ף╫ע╫⌐╫פ ╫₧╫₧╫ץ╫º╫ף╫¬ ╫₧╫ª╫ש╫ש╫ƒ ╫ס╫₧╫ñ╫ץ╫¿╫⌐ ╫í╫ó╫ש╫ú ╫ש╫ó╫ף; ╫ק╫ש╫ש╫ס╫ש╫¥ ╫£╫¢╫ס╫ף ╫נ╫ץ╫¬╫ץ ╫ס╫₧╫ף╫ץ╫ש╫º
-    // (╫ע╫¥ ╫¢╫⌐Γאסindex=0) ╫ץ╫£╫נ ╫£╫ש╫ñ╫ץ╫£ ╫ק╫צ╫¿╫פ ╫£╫פ╫ש╫í╫ר╫ץ╫¿╫ש╫ש╫¬ ╫º╫¿╫ש╫נ╫פ Γאפ ╫נ╫ק╫¿╫¬ ╫פ╫פ╫ף╫ע╫⌐╫פ ╫¬╫ץ╫ñ╫ש╫ó ╫ס╫₧╫º╫ץ╫¥
-    // ╫פ╫£╫נ ╫á╫¢╫ץ╫ƒ ╫ס╫ש╫ק╫í ╫£╫í╫ó╫ש╫ú ╫⌐╫פ╫₧╫⌐╫¬╫₧╫⌐ ╫ס╫ש╫º╫⌐.
+    // deep link עם הדגשה ממוקדת מציין במפורש סעיף יעד; חייבים לכבד אותו במדויק
+    // (גם כש‑index=0) ולא ליפול חזרה להיסטוריית קריאה — אחרת ההדגשה תופיע במקום
+    // הלא נכון ביחס לסעיף שהמשתמש ביקש.
     final hasPinpoint =
         pinpointHighlight != null && pinpointHighlight.isNotEmpty;
 
@@ -47,17 +47,13 @@ class BookOpenCoordinator {
         ? null
         : historyState.history
             .firstWhereOrNull((b) => b.book.title == book.title);
-
     final initialIndex = (ignoreHistory || hasPinpoint || index != 0)
         ? index
         : (lastOpened?.index ?? 0);
     final initialCommentators = lastOpened?.commentatorsToShow;
-
     final shouldOpenLeftPane = shouldAutoOpenReadingLeftPane();
-
     final savedViewMode =
         PageShapeSettingsManager.getViewModePreference(book.title);
-
     final tab = OpenedTab.fromBook(
       book,
       initialIndex,
@@ -67,13 +63,12 @@ class BookOpenCoordinator {
       showPageShapeView: savedViewMode,
       requiresStableLayout: requiresStableLayout,
       pinpointHighlight: pinpointHighlight,
-      // ╫⌐╫₧╫ש╫¿╫¬ ╫פ╫í╫ó╫ש╫ú ╫⌐╫פ╫₧╫⌐╫¬╫₧╫⌐ ╫ס╫ש╫º╫⌐ ╫ס╫ñ╫ש╫¿╫ץ╫⌐; ╫₧╫⌐╫₧╫⌐ ╫נ╫¬ ╫₧╫í╫£╫ץ╫£ ╫פΓאסreuse ╫⌐╫£ TabsBloc
-      // ╫¢╫ף╫ש ╫£╫ף╫ó╫¬ ╫ó╫£ ╫נ╫ש╫צ╫פ ╫í╫ó╫ש╫ú ╫£╫פ╫ק╫ש╫£ ╫נ╫¬ ╫פ╫פ╫ף╫ע╫⌐╫פ ╫ע╫¥ ╫נ╫¥ ╫פ╫ר╫נ╫ס ╫פ╫º╫ש╫ש╫¥ ╫á╫ñ╫¬╫ק ╫ס╫נ╫ש╫á╫ף╫º╫í
-      // ╫נ╫ק╫¿.
+      // שמירת הסעיף שהמשתמש ביקש בפירוש; משמש את מסלול ה‑reuse של TabsBloc
+      // כדי לדעת על איזה סעיף להחיל את ההדגשה גם אם הטאב הקיים נפתח באינדקס
+      // אחר.
       pinpointHighlightSectionIndex: hasPinpoint ? initialIndex : null,
     );
     tabsBloc.add(OpenOrFocusTab(tab, insertAdjacent: insertAdjacent));
-
     navigationBloc.add(const NavigateToScreen(Screen.reading));
   }
 }
