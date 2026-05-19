@@ -14,10 +14,10 @@ import 'package:otzaria/models/books.dart';
 class MockHistoryBloc extends MockBloc<HistoryEvent, HistoryState>
     implements HistoryBloc {}
 
-Bookmark _bookmark(String ref, String title, {String? workspaceName}) {
+Bookmark _bookmark(String ref, {String? workspaceName}) {
   return Bookmark(
     ref: ref,
-    book: TextBook(title: title),
+    book: TextBook(title: ref),
     index: 0,
     workspaceName: workspaceName,
   );
@@ -62,8 +62,8 @@ void main() {
 
       await tester.pumpWidget(buildWidget());
       stateController.add(HistoryLoaded([
-        _bookmark('שבת עד:', 'שבת', workspaceName: 'גמרא'),
-        _bookmark('ברכות ב.', 'ברכות', workspaceName: 'גמרא'),
+        _bookmark('שבת עד:', workspaceName: 'גמרא'),
+        _bookmark('ברכות ב.', workspaceName: 'גמרא'),
       ]));
       await tester.pump();
 
@@ -76,8 +76,8 @@ void main() {
 
       await tester.pumpWidget(buildWidget());
       stateController.add(HistoryLoaded([
-        _bookmark('שבת עד:', 'שבת'),
-        _bookmark('ברכות ב.', 'ברכות'),
+        _bookmark('שבת עד:'),
+        _bookmark('ברכות ב.'),
       ]));
       await tester.pump();
 
@@ -90,8 +90,8 @@ void main() {
 
       await tester.pumpWidget(buildWidget());
       stateController.add(HistoryLoaded([
-        _bookmark('שבת עד:', 'שבת', workspaceName: 'גמרא'),
-        _bookmark('הלכות שבת', 'הלכות', workspaceName: 'הלכה'),
+        _bookmark('שבת עד:', workspaceName: 'גמרא'),
+        _bookmark('הלכות שבת', workspaceName: 'הלכה'),
       ]));
       await tester.pump();
 
@@ -106,9 +106,9 @@ void main() {
 
       await tester.pumpWidget(buildWidget());
       stateController.add(HistoryLoaded([
-        _bookmark('שבת עד:', 'שבת', workspaceName: 'גמרא'),
-        _bookmark('ברכות ב.', 'ברכות', workspaceName: 'גמרא'),
-        _bookmark('הלכות שבת', 'הלכות', workspaceName: 'הלכה'),
+        _bookmark('שבת עד:', workspaceName: 'גמרא'),
+        _bookmark('ברכות ב.', workspaceName: 'גמרא'),
+        _bookmark('הלכות שבת', workspaceName: 'הלכה'),
       ]));
       await tester.pump();
 
@@ -126,8 +126,8 @@ void main() {
 
       await tester.pumpWidget(buildWidget());
       stateController.add(HistoryLoaded([
-        _bookmark('שבת עד:', 'שבת', workspaceName: 'גמרא'),
-        _bookmark('הלכות שבת', 'הלכות', workspaceName: 'הלכה'),
+        _bookmark('שבת עד:', workspaceName: 'גמרא'),
+        _bookmark('הלכות שבת', workspaceName: 'הלכה'),
       ]));
       await tester.pump();
 
@@ -151,8 +151,8 @@ void main() {
 
       await tester.pumpWidget(buildWidget());
       stateController.add(HistoryLoaded([
-        _bookmark('שבת עד:', 'שבת', workspaceName: 'גמרא'),
-        _bookmark('הלכות שבת', 'הלכות', workspaceName: 'הלכה'),
+        _bookmark('שבת עד:', workspaceName: 'גמרא'),
+        _bookmark('הלכות שבת', workspaceName: 'הלכה'),
       ]));
       await tester.pump();
 
@@ -164,7 +164,7 @@ void main() {
 
       // state חדש - workspace 'גמרא' נעלם
       stateController.add(HistoryLoaded([
-        _bookmark('הלכות שבת', 'הלכות', workspaceName: 'הלכה'),
+        _bookmark('הלכות שבת', workspaceName: 'הלכה'),
       ]));
       await tester.pump();
 
@@ -180,8 +180,8 @@ void main() {
 
       await tester.pumpWidget(buildWidget());
       stateController.add(HistoryLoaded([
-        _bookmark('שבת עד:', 'שבת', workspaceName: 'גמרא'),
-        _bookmark('הלכות שבת', 'הלכות', workspaceName: 'הלכה'),
+        _bookmark('שבת עד:', workspaceName: 'גמרא'),
+        _bookmark('הלכות שבת', workspaceName: 'הלכה'),
       ]));
       await tester.pump();
 
@@ -199,9 +199,9 @@ void main() {
 
       await tester.pumpWidget(buildWidget());
       stateController.add(HistoryLoaded([
-        _bookmark('שבת עד:', 'שבת', workspaceName: 'גמרא'),
-        _bookmark('ברכות ב.', 'ברכות', workspaceName: 'גמרא'),
-        _bookmark('הלכות שבת', 'הלכות', workspaceName: 'הלכה'),
+        _bookmark('שבת עד:', workspaceName: 'גמרא'),
+        _bookmark('ברכות ב.', workspaceName: 'גמרא'),
+        _bookmark('הלכות שבת', workspaceName: 'הלכה'),
       ]));
       await tester.pump();
 

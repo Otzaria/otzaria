@@ -68,24 +68,55 @@ class BookmarkView extends StatelessWidget {
     }
   }
 
-  String _locationSubtitle(Bookmark bookmark) {
-    if (bookmark.book is PdfBook) {
-      return 'עמוד ${bookmark.index}';
-    }
-    return 'פסקה ${bookmark.index}';
-  }
-
   @override
   Widget build(BuildContext context) {
     final filterIdentity =
         bookFilter == null ? null : bookIdentity(bookFilter!);
     return BlocBuilder<BookmarkBloc, BookmarkState>(
       builder: (context, state) {
+        // מנה כמה סימניות יש לכל ספר — ספר עם 2+ סימניות יקבל קבוצה משלו
+        final countPerBook = <String, int>{};
+        for (final bm in state.bookmarks) {
+          final id = bookIdentity(bm.book);
+          countPerBook[id] = (countPerBook[id] ?? 0) + 1;
+        }
+
+        String bookmarkGroupKey(Bookmark bm) {
+          final id = bookIdentity(bm.book);
+          if ((countPerBook[id] ?? 0) > 1) return 'book:$id';
+          return 'folder:${bm.book.categoryPath ?? id}';
+        }
+
+        String? bookmarkGroupTitle(Bookmark bm) {
+          final id = bookIdentity(bm.book);
+          if ((countPerBook[id] ?? 0) > 1) return bm.book.title;
+          final path = bm.book.categoryPath;
+          if (path == null || path.isEmpty) return bm.book.title;
+          final segments =
+              path.split(', ').where((s) => s.isNotEmpty).toList();
+          return segments.isNotEmpty ? segments.last : bm.book.title;
+        }
+
+        int compareBookmarks(Bookmark a, Bookmark b) {
+          final aPath = a.book.categoryPath ?? '';
+          final bPath = b.book.categoryPath ?? '';
+          final pathCmp = aPath.compareTo(bPath);
+          if (pathCmp != 0) return pathCmp;
+          final aCmp = bookIdentity(a.book).compareTo(bookIdentity(b.book));
+          if (aCmp != 0) return aCmp;
+          return a.index.compareTo(b.index);
+        }
+
         return ItemsListView(
           items: state.bookmarks,
+          itemSortComparator: (a, b) =>
+              compareBookmarks(b as Bookmark, a as Bookmark),
           additionalFilter: filterIdentity == null
               ? null
               : (item) => bookIdentity(item.book) == filterIdentity,
+          groupKeyBuilder: (item) => bookmarkGroupKey(item as Bookmark),
+          groupTitleBuilder: (item) =>
+              bookmarkGroupTitle(item as Bookmark),
           onItemTap: (ctx, item, originalIndex) => _openBook(
             ctx,
             item.book,
@@ -120,7 +151,7 @@ class BookmarkView extends StatelessWidget {
           leadingIconBuilder: (item) => item.book is PdfBook
               ? const Icon(FluentIcons.document_pdf_24_regular)
               : null,
-          subtitleBuilder: (item) => _locationSubtitle(item),
+          subtitleBuilder: (item) => ItemsListView.locationSubtitle(item),
         );
       },
     );

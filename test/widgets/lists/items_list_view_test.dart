@@ -2,10 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/widgets/lists/items_list_view.dart';
 
+class _Book {
+  final String title;
+  const _Book(this.title);
+}
+
 class _Item {
   final String ref;
   final String? workspaceName;
   const _Item(this.ref, {this.workspaceName});
+  _Book get book => _Book(ref);
 }
 
 void main() {
