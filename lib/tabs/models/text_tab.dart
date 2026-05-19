@@ -135,6 +135,8 @@ class TextBookTab extends OpenedTab {
             searchMode: searchMode,
             splitedView: effectiveSplitedView,
             showPageShapeView: effectiveShowPageShapeView,
+            highlightText: highlightText,
+            permanentHighlightLine: permanentHighlightLine,
             pinpointHighlightIndex:
                 pinpointHighlight != null && pinpointHighlight!.isNotEmpty
                     ? (pinpointHighlightSectionIndex ?? index)
