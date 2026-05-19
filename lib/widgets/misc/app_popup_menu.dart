@@ -873,7 +873,7 @@ class _SubmenuItemWidgetState<T> extends State<_SubmenuItemWidget<T>> {
   bool _submenuOpen = false;
 
   Future<void> _openSubmenu(BuildContext innerContext) async {
-    if (_submenuOpen || widget.onSelected == null) return;
+    if (_submenuOpen) return;
     final renderBox = innerContext.findRenderObject() as RenderBox?;
     if (renderBox == null) return;
     final overlayState = Overlay.maybeOf(innerContext);
