@@ -714,15 +714,14 @@ void main() {
         ));
         await Future<void>.delayed(const Duration(milliseconds: 30));
 
-        bloc.add(const ApplyPinpointHighlight(
-          sectionIndex: 7,
-          text: 'בראשית',
+        bloc.add(const ApplyMarkHighlight(
+          highlightText: 'בראשית',
+          scrollToIndex: 7,
         ));
         await Future<void>.delayed(const Duration(milliseconds: 30));
 
         final state = bloc.state as TextBookLoaded;
-        expect(state.pinpointHighlightIndex, 7);
-        expect(state.pinpointHighlightText, 'בראשית');
+        expect(state.highlightText, 'בראשית');
         expect(state.searchText, isEmpty);
         expect(state.searchMode, SearchMode.exact);
 

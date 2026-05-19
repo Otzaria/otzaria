@@ -197,9 +197,9 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     if (targetText == null) return;
 
     void dispatch() {
-      targetText.bloc.add(ApplyPinpointHighlight(
-        sectionIndex: sectionIndex,
-        text: pinpoint,
+      targetText.bloc.add(ApplyMarkHighlight(
+        highlightText: pinpoint,
+        scrollToIndex: sectionIndex,
       ));
     }
 

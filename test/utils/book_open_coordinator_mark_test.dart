@@ -1,8 +1,8 @@
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/history/bloc/history_event.dart';
-import 'package:otzaria/history/bloc/history_state.dart';
+import 'package:otzaria/bookmarks/models/bookmark.dart';
+import 'package:otzaria/history/bloc/history_bloc.dart';
+import 'package:otzaria/history/history_repository.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
@@ -44,14 +44,13 @@ class _CapturingTabsBloc extends TabsBloc {
   }
 }
 
-/// HistoryBloc מינימלי שלא דורש Hive
-class _FakeHistoryBloc extends Bloc<HistoryEvent, HistoryState> {
-  _FakeHistoryBloc() : super(HistoryInitial());
+/// HistoryRepository מינימלי שלא דורש Hive
+class _FakeHistoryRepository extends HistoryRepository {
+  @override
+  Future<List<Bookmark>> load() async => [];
 
   @override
-  void add(HistoryEvent event) {
-    // מתעלמים מ-events בבדיקות
-  }
+  Future<void> save(List<Bookmark> items) async {}
 }
 
 class _FakeNavigationBloc extends NavigationBloc {
@@ -79,7 +78,7 @@ BookOpenCoordinator _makeCoordinator({
 }) =>
     BookOpenCoordinator(
       tabsBloc: tabsBloc,
-      historyBloc: _FakeHistoryBloc(),
+      historyBloc: HistoryBloc(_FakeHistoryRepository()),
       navigationBloc: navigationBloc ?? _FakeNavigationBloc(),
     );
 
@@ -91,10 +90,8 @@ void main() {
   });
 
   group('BookOpenCoordinator — mark params', () {
-    // Feature: deep-link-mark, Property 6: markText becomes searchText
-    // For any non-empty markText, coordinator creates tab with searchText=markText
-    // Validates: Requirements 4.2, 5.1
-    test('Property 6: markText becomes searchText', () async {
+    // Feature: deep-link-mark, Property 6: pinpointHighlight becomes highlight
+    test('Property 6: pinpointHighlight מועבר לטאב', () async {
       final testTexts = [
         'בראשית',
         'תורה',
@@ -106,7 +103,7 @@ void main() {
         'single',
       ];
 
-      for (final markText in testTexts) {
+      for (final pinpointText in testTexts) {
         final tabsBloc = _CapturingTabsBloc();
         final coordinator = _makeCoordinator(tabsBloc: tabsBloc);
 
@@ -114,33 +111,33 @@ void main() {
           _makeBook('ספר בדיקה'),
           0,
           '',
-          markText: markText,
+          pinpointHighlight: pinpointText,
         );
 
         expect(
           tabsBloc.capturedEvents,
           isNotEmpty,
-          reason: 'markText=$markText: expected OpenOrFocusTab event',
+          reason: 'pinpointHighlight=$pinpointText: expected OpenOrFocusTab event',
         );
 
         final event = tabsBloc.capturedEvents.first;
         expect(
           event,
           isA<OpenOrFocusTab>(),
-          reason: 'markText=$markText: expected OpenOrFocusTab',
+          reason: 'pinpointHighlight=$pinpointText: expected OpenOrFocusTab',
         );
 
         final tab = (event as OpenOrFocusTab).tab;
         expect(
           tab,
           isA<TextBookTab>(),
-          reason: 'markText=$markText: expected TextBookTab',
+          reason: 'pinpointHighlight=$pinpointText: expected TextBookTab',
         );
 
         expect(
-          (tab as TextBookTab).highlightText,
-          markText,
-          reason: 'markText=$markText: highlightText should equal markText',
+          (tab as TextBookTab).pinpointHighlight,
+          pinpointText,
+          reason: 'pinpointHighlight=$pinpointText: pinpointHighlight should match',
         );
       }
     });
@@ -160,7 +157,7 @@ void main() {
       expect(tab.searchText, 'חיפוש רגיל');
     });
 
-    test('markText מנצח על searchQuery', () async {
+    test('pinpointHighlight מועבר לטאב', () async {
       final tabsBloc = _CapturingTabsBloc();
       final coordinator = _makeCoordinator(tabsBloc: tabsBloc);
 
@@ -168,14 +165,12 @@ void main() {
         _makeBook('ספר בדיקה'),
         0,
         'searchQuery',
-        markText: 'markText',
+        pinpointHighlight: 'pinpointText',
       );
 
       final tab =
           ((tabsBloc.capturedEvents.first as OpenOrFocusTab).tab as TextBookTab);
-      // markText הופך ל-highlightText, permanentHighlightLine מוגדר
-      expect(tab.highlightText, 'markText');
-      expect(tab.permanentHighlightLine, 0);
+      expect(tab.pinpointHighlight, 'pinpointText');
     });
   });
 }
