@@ -44,14 +44,14 @@ List<({String label, String? link})> buildDirectLinkSubmenuEntries({
     (label: 'העתק קישור ישיר לספר זה', link: buildBookLink(bookId)),
     (label: 'העתק קישור למקטע זה', link: buildSectionLink(bookId, index)),
     (
-      label: 'העתק קישור למקטע זה עם הדגשת המקטע',
+      label: 'העתק קישור עם הדגשת המקטע',
       link: buildSectionMarkLink(bookId, index)
     ),
   ];
 
   if (selectedText != null && selectedText.trim().isNotEmpty) {
     entries.add((
-      label: 'העתק קישור לטקסט זה עם הדגשת הטקסט',
+      label: 'העתק קישור עם הדגשת הטקסט',
       link: buildTextMarkLink(bookId, index, selectedText),
     ));
   }
