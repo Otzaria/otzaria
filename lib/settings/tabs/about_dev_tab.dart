@@ -26,7 +26,7 @@ class AboutDevTab extends StatelessWidget {
     SettingsSearchEntry(
       id: 'about.donate',
       title: 'תרום לפרויקט',
-      subtitle: 'תרומתך תעזור לנו להמשיך לפתח ולשפר את אוצריא עבור כלל הציבור.',
+      subtitle: 'תרומתך תעזור לנו להמשיך לפתח ולשפר את אוצריא עבור כלל ציבור הלומדים',
       tab: SettingsTab.about,
       cardId: 'about.main',
       keywords: ['תרומה', 'נדרים', 'תרום', 'donate'],
@@ -86,6 +86,22 @@ class AboutDevTab extends StatelessWidget {
       tab: SettingsTab.about,
       cardId: 'about.main',
       keywords: ['מהדירים', 'עורכים'],
+    ),
+    SettingsSearchEntry(
+      id: 'about.feedback',
+      title: 'משוב ותמיכה',
+      subtitle: 'פורום התמיכה והמשוב של אוצריא',
+      tab: SettingsTab.about,
+      cardId: 'about.main',
+      keywords: ['משוב', 'תמיכה', 'פורום', 'באג', 'שאלה'],
+    ),
+    SettingsSearchEntry(
+      id: 'about.sources',
+      title: 'מקור הספרים',
+      subtitle: 'ספריא, דיקטה, אורייתא ועוד',
+      tab: SettingsTab.about,
+      cardId: 'about.main',
+      keywords: ['מקור', 'ספריא', 'דיקטה', 'sefaria', 'אורייתא'],
     ),
   ];
 
@@ -180,6 +196,10 @@ class AboutDevTab extends StatelessWidget {
       'name': 'י. א. ח.', // U88
       'url': 'https://otzaria.org/forum/user/u88',
     },
+    {
+      'name': 'מיכאלוש', // מיכאלוש
+      'url': 'https://otzaria.org/forum/user/%D7%9E%D7%99%D7%9B%D7%90%D7%9C%D7%95%D7%A9',
+    },
   ];
 
   // מהדירים שההדירו בין 5 ל-10 ספרים
@@ -235,7 +255,7 @@ class AboutDevTab extends StatelessWidget {
                   icon: FluentIcons.payment_24_regular,
                   title: 'תרום לפרויקט',
                   subtitle:
-                      'תרומתך תעזור לנו להמשיך לפתח ולשפר את אוצריא עבור כלל הציבור.',
+                      'תרומתך תעזור לנו להמשיך לפתח ולשפר את אוצריא עבור כלל ציבור הלומדים',
                   buttonLabel: 'נדרים+',
                   buttonIcon: FluentIcons.payment_24_regular,
                   onTap: () => _openUrl('https://nedar.im/ezOd'),
@@ -256,7 +276,7 @@ class AboutDevTab extends StatelessWidget {
               children: [
                 _ActionTile(
                   icon: FluentIcons.edit_24_regular,
-                  title: 'הצטרף לצוות העריכה',
+                  title: 'הצטרף לצוות העריכה ומהדירי הספרים',
                   subtitle: 'עזור לנו להוסיף ספרים חדשים לספריית אוצריא',
                   buttonLabel: 'הצטרף לעריכה',
                   onTap: () => _openUrl('https://www.otzaria.org/library'),
@@ -264,9 +284,23 @@ class AboutDevTab extends StatelessWidget {
                 _ActionTile(
                   icon: FluentIcons.code_24_regular,
                   title: 'הצטרף לפיתוח',
-                  subtitle: 'מפתחים מוזמנים לתרום לקהילה התורנית',
+                  subtitle: 'מפתחים מוזמנים לתרום לקהילה התורנית ולשדרג את אוצריא',
                   buttonLabel: 'הצטרף עכשיו',
                   onTap: () => _openUrl('https://github.com/otzaria/otzaria'),
+                ),
+              ],
+            ),
+
+            // ── משוב ותמיכה ──
+            SettingsCard(
+              title: 'משוב ותמיכה',
+              children: [
+                _ActionTile(
+                  icon: FluentIcons.chat_24_regular,
+                  title: 'נתקלת בבאג? יש לך שאלה או משוב?',
+                  subtitle: 'מוזמנים לבקר בפורום התמיכה והמשוב של אוצריא',
+                  buttonLabel: 'כניסה לפורום',
+                  onTap: () => _openUrl('https://otzaria.org/forum'),
                 ),
               ],
             ),
@@ -330,6 +364,23 @@ class AboutDevTab extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+
+            // ── מקור הספרים ──
+            SettingsCard(
+              title: 'מקור הספרים',
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: _BookSourcesSection(onOpenUrl: _openUrl),
+                ),
+              ],
+            ),
+
+            // ── ציטוט סיום ──
+            SettingsCard(
+              title: '',
+              children: [_ClosingQuote()],
             ),
           ],
         ),
@@ -477,8 +528,12 @@ class _ContributorChip extends StatelessWidget {
 
     Widget content = Row(
       mainAxisSize: MainAxisSize.min,
+      textDirection: TextDirection.rtl,
       children: [
-        Icon(icon, size: 15, color: colorScheme.onSurfaceVariant),
+        Transform.scale(
+          scaleX: -1,
+          child: Icon(icon, size: 15, color: colorScheme.onSurfaceVariant),
+        ),
         const SizedBox(width: 6),
         Text(name, style: nameStyle),
         if (description != null && description!.isNotEmpty) ...[
@@ -668,6 +723,241 @@ class _ActionTile extends StatelessWidget {
         text: buttonLabel,
         icon: buttonIcon,
         onPressed: onTap,
+      ),
+    );
+  }
+}
+
+// ── _BookSourcesSection ───────────────────────────────────────────────────────
+
+class _BookSourcesSection extends StatelessWidget {
+  final Future<void> Function(String) onOpenUrl;
+  const _BookSourcesSection({required this.onOpenUrl});
+
+  static const _mainSources = [
+    {'name': 'ספריא', 'url': 'https://www.sefaria.org/texts'},
+    {
+      'name': 'דיקטה',
+      'url':
+          'https://github.com/Dicta-Israel-Center-for-Text-Analysis/Dicta-Library-Download'
+    },
+  ];
+
+  static const _additionalSources = [
+    {'name': 'אורייתא', 'url': 'https://github.com/MosheWagner/Orayta-Books'},
+    {'name': 'ובלכתך בדרך', 'url': 'http://mobile.tora.ws'},
+    {
+      'name': 'תורת אמת',
+      'url': 'http://www.toratemetfreeware.com/index.html?downloads;1;'
+    },
+    {
+      'name': 'אוצר הספרים היהודי',
+      'url':
+          'https://wiki.jewishbooks.org.il/mediawiki/wiki/%D7%A2%D7%9E%D7%95%D7%93_%D7%A8%D7%90%D7%A9%D7%99'
+    },
+    {'name': 'ויקיטקסט', 'url': 'https://he.wikisource.org/wiki'},
+    {'name': 'פנינים', 'url': 'https://pninim.org/'},
+    {'name': 'הספרייה הלאומית', 'url': 'https://www.nli.org.il/'},
+    {'name': 'פרויקט פרידברג', 'url': 'https://fjms.genizah.org/'},
+    {
+      'name': 'פרוייקט בן יהודה',
+      'url': 'https://github.com/projectbenyehuda/public_domain_dump'
+    },
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'מקור חלק גדול מהספרים בספריית אוצריא נלקח מהפרויקט המדהים של ספריא ושל עמותת דיקטה, שבאמצעותו נוספו חלק ניכר מהספרים.',
+          style: kSettingsSubtitleStyle,
+          textDirection: TextDirection.rtl,
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 12,
+          runSpacing: 8,
+          children: _mainSources
+              .map((s) => _SourceChip(
+                    name: s['name']!,
+                    url: s['url']!,
+                    onTap: onOpenUrl,
+                  ))
+              .toList(),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'כמו כן נוספו ספרים חשובים רבים מהפרויקטים הבאים:',
+          style: kSettingsSubtitleStyle,
+          textDirection: TextDirection.rtl,
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 12,
+          runSpacing: 8,
+          children: _additionalSources
+              .map((s) => _SourceChip(
+                    name: s['name']!,
+                    url: s['url']!,
+                    onTap: onOpenUrl,
+                  ))
+              .toList(),
+        ),
+        const SizedBox(height: 12),
+        Builder(builder: (context) {
+          final colorScheme = Theme.of(context).colorScheme;
+          return Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(AppTokens.radiusSM),
+              border:
+                  Border.all(color: colorScheme.primary.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                Icon(FluentIcons.info_24_regular,
+                    size: 18, color: colorScheme.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'הספרים הותאמו במיוחד עבור אוצריא, וכן נוספו ספרים רבים נוספים בזכות עבודתם המסורה של מהדירי הספרים.',
+                    style: kSettingsSubtitleStyle,
+                    textDirection: TextDirection.rtl,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
+}
+
+class _SourceChip extends StatelessWidget {
+  final String name;
+  final String url;
+  final Future<void> Function(String) onTap;
+
+  const _SourceChip({
+    required this.name,
+    required this.url,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: () => onTap(url),
+      borderRadius: BorderRadius.circular(4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        textDirection: TextDirection.rtl,
+        children: [
+          Icon(FluentIcons.library_24_regular,
+              size: 14, color: colorScheme.onSurfaceVariant),
+          const SizedBox(width: 4),
+          Text(
+            name,
+            style: kSettingsTitleStyle.copyWith(color: colorScheme.primary),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── _ClosingQuote ─────────────────────────────────────────────────────────────
+
+class _ClosingQuote extends StatelessWidget {
+  const _ClosingQuote();
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Directionality(
+        textDirection: TextDirection.rtl,
+        child: Card(
+          elevation: 0,
+          color: colorScheme.surfaceContainerHigh,
+          shape: RoundedRectangleBorder(
+            side: BorderSide(
+                color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+            child: Column(
+              children: [
+                Icon(FluentIcons.book_open_24_regular,
+                    size: 32, color: colorScheme.primary),
+                const SizedBox(height: 12),
+                Text(
+                  '...וְצִדְקָתוֹ עֹמֶדֶת לָעַד',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.primary,
+                    height: 1.6,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '(תהילים קיב, ג)',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      fontSize: 12, color: colorScheme.onSurfaceVariant),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Row(
+                    children: [
+                      Expanded(
+                          child: Divider(
+                              color: colorScheme.outlineVariant
+                                  .withValues(alpha: 0.6))),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: Icon(FluentIcons.sparkle_24_regular,
+                            size: 14,
+                            color: colorScheme.primary.withValues(alpha: 0.6)),
+                      ),
+                      Expanded(
+                          child: Divider(
+                              color: colorScheme.outlineVariant
+                                  .withValues(alpha: 0.6))),
+                    ],
+                  ),
+                ),
+                Text(
+                  '...זֶה הַכּוֹתֵב סְפָרִים וּמַשְׁאִילָן לַאֲחֵרִים',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                    height: 1.6,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '(כתובות נ.)',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      fontSize: 12, color: colorScheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
