@@ -38,6 +38,16 @@ class BookmarkView extends StatelessWidget {
 
   const BookmarkView({super.key, this.bookFilter});
 
+  static int _compareBookmarks(Bookmark a, Bookmark b) {
+    final aPath = a.book.categoryPath ?? '';
+    final bPath = b.book.categoryPath ?? '';
+    final pathCmp = aPath.compareTo(bPath);
+    if (pathCmp != 0) return pathCmp;
+    final aCmp = bookIdentity(a.book).compareTo(bookIdentity(b.book));
+    if (aCmp != 0) return aCmp;
+    return a.index.compareTo(b.index);
+  }
+
   void _openBook(
     BuildContext context,
     Book book,
@@ -97,20 +107,10 @@ class BookmarkView extends StatelessWidget {
           return segments.isNotEmpty ? segments.last : bm.book.title;
         }
 
-        int compareBookmarks(Bookmark a, Bookmark b) {
-          final aPath = a.book.categoryPath ?? '';
-          final bPath = b.book.categoryPath ?? '';
-          final pathCmp = aPath.compareTo(bPath);
-          if (pathCmp != 0) return pathCmp;
-          final aCmp = bookIdentity(a.book).compareTo(bookIdentity(b.book));
-          if (aCmp != 0) return aCmp;
-          return a.index.compareTo(b.index);
-        }
-
         return ItemsListView(
           items: state.bookmarks,
           itemSortComparator: (a, b) =>
-              compareBookmarks(b as Bookmark, a as Bookmark),
+              _compareBookmarks(b as Bookmark, a as Bookmark),
           additionalFilter: filterIdentity == null
               ? null
               : (item) => bookIdentity(item.book) == filterIdentity,

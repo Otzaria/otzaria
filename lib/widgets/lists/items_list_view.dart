@@ -154,10 +154,10 @@ class _ItemsListViewState extends State<ItemsListView> {
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
         child: Row(
           children: [
-            if (widget.leadingIconBuilder?.call(item) != null)
+            if (widget.leadingIconBuilder?.call(item) case final leadingIcon?)
               Padding(
                 padding: const EdgeInsets.only(left: 12.0),
-                child: widget.leadingIconBuilder!.call(item),
+                child: leadingIcon,
               ),
             Expanded(
               child: Column(
