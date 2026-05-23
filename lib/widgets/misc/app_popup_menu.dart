@@ -873,6 +873,9 @@ class _SubmenuItemWidget<T> extends StatefulWidget {
 class _SubmenuItemWidgetState<T> extends State<_SubmenuItemWidget<T>> {
   bool _submenuOpen = false;
   Timer? _hoverTimer;
+  Timer? _closeTimer;
+  OverlayEntry? _overlayEntry;
+  Completer<T?>? _completer;
 
   void _scheduleSubmenuOnHover(BuildContext innerContext) {
     // חילוץ כל המידע מה-context לפני ה-async gap
@@ -881,6 +884,8 @@ class _SubmenuItemWidgetState<T> extends State<_SubmenuItemWidget<T>> {
     if (renderBox == null || overlayState == null) return;
     final overlay = overlayState.context.findRenderObject() as RenderBox;
 
+    _closeTimer?.cancel();
+    _closeTimer = null;
     _hoverTimer?.cancel();
     _hoverTimer = Timer(const Duration(milliseconds: 300), () {
       if (mounted) {
@@ -892,11 +897,30 @@ class _SubmenuItemWidgetState<T> extends State<_SubmenuItemWidget<T>> {
   void _cancelHoverDelay() {
     _hoverTimer?.cancel();
     _hoverTimer = null;
+    // סגירת הסאבמנו כשיוצאים מהפריט (אם לא נכנסים לסאבמנו עצמו)
+    // נשתמש בעיכוב ארוך יותר כדי לאפשר כניסה לסאבמנו
+    _closeTimer?.cancel();
+    _closeTimer = Timer(const Duration(milliseconds: 400), () {
+      if (mounted && _submenuOpen) {
+        _closeSubmenu();
+      }
+    });
+  }
+
+  void _closeSubmenu() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+    _completer?.complete(null);
+    _completer = null;
+    _submenuOpen = false;
   }
 
   @override
   void dispose() {
     _hoverTimer?.cancel();
+    _closeTimer?.cancel();
+    _overlayEntry?.remove();
+    _overlayEntry = null;
     super.dispose();
   }
 
@@ -911,26 +935,108 @@ class _SubmenuItemWidgetState<T> extends State<_SubmenuItemWidget<T>> {
       renderBox.getTransformTo(overlay),
       Offset.zero & renderBox.size,
     );
-    final openToRight = itemRect.center.dx < overlaySize.width / 2;
-    final xPos = openToRight ? itemRect.right : itemRect.left;
+
+    // showMenu תמיד פותח למטה/מעלה — לא הצידה.
+    // כדי לפתוח הצידה, נשתמש ב-OverlayEntry ישירות.
+    const double estimatedSubmenuWidth = 250.0;
+    final spaceToRight = overlaySize.width - itemRect.right;
+    final spaceToLeft = itemRect.left;
+    final openToRight = spaceToRight >= estimatedSubmenuWidth ||
+        spaceToRight >= spaceToLeft;
+
+    // צבע רקע מה-theme (כמו showMenu)
+    final menuColor = Theme.of(context).popupMenuTheme.color ??
+        Theme.of(context).colorScheme.surface;
+    final menuBorderRadius =
+        BorderRadius.circular(widget.metrics.menuBorderRadius);
+    final menuPadding = widget.metrics.menuPadding;
 
     _submenuOpen = true;
-    final selected = await showMenu<T>(
-      context: context,
-      position: RelativeRect.fromRect(
-        Rect.fromLTWH(xPos, itemRect.top, 0, 0),
-        Offset.zero & overlaySize,
-      ),
-      items: widget.menuChildren,
-    );
-    _submenuOpen = false;
+    _completer = Completer<T?>();
 
-    if (selected != null) {
-      if (mounted) {
-        Navigator.of(context).pop();
-      }
-      widget.onSelected?.call(selected);
-    }
+    final menuLeft = openToRight
+        ? itemRect.right
+        : (itemRect.left - estimatedSubmenuWidth)
+            .clamp(0.0, overlaySize.width - estimatedSubmenuWidth);
+    final menuTop = itemRect.top.clamp(0.0, overlaySize.height - 10.0);
+
+    _overlayEntry = OverlayEntry(
+      builder: (overlayContext) {
+        return Stack(
+          children: [
+            // שכבת סגירה בלחיצה מחוץ לתפריט
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: () => _closeSubmenu(),
+              ),
+            ),
+            Positioned(
+              left: menuLeft,
+              top: menuTop,
+              child: MouseRegion(
+                // כניסה לסאבמנו מבטלת את סגירת ה-hover
+                onEnter: (_) {
+                  _hoverTimer?.cancel();
+                  _hoverTimer = null;
+                  _closeTimer?.cancel();
+                  _closeTimer = null;
+                },
+                onExit: (_) {
+                  // יציאה מהסאבמנו — סגור אחרי עיכוב קצר
+                  _closeTimer?.cancel();
+                  _closeTimer = Timer(const Duration(milliseconds: 400), () {
+                    if (mounted && _submenuOpen) {
+                      _closeSubmenu();
+                    }
+                  });
+                },
+                child: Material(
+                  elevation: 8,
+                  borderRadius: menuBorderRadius,
+                  color: menuColor,
+                  child: Padding(
+                    padding: menuPadding,
+                    child: IntrinsicWidth(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: widget.menuChildren.map((menuEntry) {
+                          if (menuEntry is PopupMenuItem<T>) {
+                            return InkWell(
+                              borderRadius: BorderRadius.circular(
+                                  widget.metrics.itemBorderRadius),
+                              onTap: menuEntry.enabled
+                                  ? () {
+                                      final value = menuEntry.value;
+                                      _closeSubmenu();
+                                      if (value != null) {
+                                        if (mounted) {
+                                          Navigator.of(context).pop();
+                                        }
+                                        widget.onSelected?.call(value);
+                                      }
+                                    }
+                                  : null,
+                              child:
+                                  menuEntry.child ?? const SizedBox.shrink(),
+                            );
+                          }
+                          return const SizedBox.shrink();
+                        }).toList(),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    Overlay.of(context).insert(_overlayEntry!);
+    await _completer!.future;
+    _submenuOpen = false;
   }
 
   Future<void> _openSubmenu(BuildContext innerContext) async {
