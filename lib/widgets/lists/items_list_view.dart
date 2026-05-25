@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/models/books.dart';
-import 'package:otzaria/theme/theme_exports.dart';
-import 'package:otzaria/widgets/buttons/action_buttons.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 
 class ItemsListView extends StatefulWidget {
@@ -218,30 +217,11 @@ class _ItemsListViewState extends State<ItemsListView> {
     BuildContext context,
     List<MapEntry<int, dynamic>> entries,
   ) {
-    final cs = Theme.of(context).colorScheme;
-    return Card(
-      elevation: 0,
-      margin: EdgeInsets.zero,
-      color: AppSurfaces.card(context),
-      clipBehavior: Clip.antiAlias,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.all(Radius.circular(AppTokens.radiusXL)),
-      ),
-      child: Column(
-        children: [
-          for (int i = 0; i < entries.length; i++) ...[
-            _buildItemRow(context, entries[i].value, entries[i].key),
-            if (i < entries.length - 1)
-              Divider(
-                height: 1,
-                thickness: 1.5,
-                indent: 0,
-                endIndent: 0,
-                color: cs.surfaceContainerHighest,
-              ),
-          ],
-        ],
-      ),
+    return AppCard.section(
+      children: [
+        for (final entry in entries)
+          _buildItemRow(context, entry.value, entry.key),
+      ],
     );
   }
 

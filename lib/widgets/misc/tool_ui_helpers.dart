@@ -5,11 +5,6 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 
-/// צבע רקע כרטיסי תוצאות בכלי האפליקציה — תואם לסגנון SettingsCard.
-Color toolCardColor(BuildContext context) {
-  return AppSurfaces.card(context);
-}
-
 /// עוטף תוכן כלי עם אפשרות למרכוז אופקי והגבלת רוחב.
 class ToolPanelWrapper extends StatelessWidget {
   final Widget child;

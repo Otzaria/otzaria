@@ -1297,41 +1297,11 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   }
 
   List<Widget> _buildGroupedListSectionItems(List<Widget> children) {
-    final cs = Theme.of(context).colorScheme;
-    const radius = Radius.circular(AppTokens.radiusXL);
-
     return [
-      for (int i = 0; i < children.length; i++)
-        Card(
-          elevation: 0,
-          color: AppSurfaces.card(context),
-          clipBehavior: Clip.antiAlias,
-          surfaceTintColor: Colors.transparent,
-          margin: EdgeInsets.only(
-            top: i == 0 ? 2 : 0,
-            bottom: i == children.length - 1 ? 8 : 0,
-          ),
-          shape: RoundedRectangleBorder(
-            side: BorderSide.none,
-            borderRadius: BorderRadius.vertical(
-              top: i == 0 ? radius : Radius.zero,
-              bottom: i == children.length - 1 ? radius : Radius.zero,
-            ),
-          ),
-          child: Column(
-            children: [
-              children[i],
-              if (i < children.length - 1)
-                Divider(
-                  height: 1,
-                  thickness: 1.5,
-                  indent: 0,
-                  endIndent: 0,
-                  color: cs.surfaceContainerHighest,
-                ),
-            ],
-          ),
-        ),
+      AppCard.section(
+        margin: const EdgeInsets.only(top: 2, bottom: 8),
+        children: children,
+      ),
     ];
   }
 

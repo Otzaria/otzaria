@@ -224,12 +224,7 @@ class TextSettingsTab extends StatelessWidget {
         LayoutBuilder(
           builder: (context, constraints) {
             final isNarrow = constraints.maxWidth < LayoutBreakpoints.compact;
-            final colorScheme = Theme.of(context).colorScheme;
-            final divider = Divider(
-              height: 1,
-              thickness: 1.5,
-              color: colorScheme.surfaceContainerHighest,
-            );
+            final divider = AppCard.sectionDivider(context);
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
