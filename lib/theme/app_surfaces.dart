@@ -50,6 +50,13 @@ class AppSurfaces {
   static Color cardRowDivider(BuildContext context) =>
       Theme.of(context).scaffoldBackgroundColor;
 
+  /// שכבת בחירה לכרטיסי תוכן.
+  ///
+  /// מוגדרת בשכבת ה-theme כדי למנוע overrides מקומיים של שקיפות
+  /// מחוץ ל-`lib/theme/`.
+  static Color cardSelectionOverlay(BuildContext context) =>
+      Theme.of(context).colorScheme.secondaryContainer.withValues(alpha: 0.3);
+
   /// רקע פריט נבחר ברשימת ניווט (TOC, מפרשים וכד').
   ///
   /// 30% primaryContainer — מספק הדגשה עדינה שמסמנת בחירה

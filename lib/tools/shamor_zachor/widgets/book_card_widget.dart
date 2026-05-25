@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:logging/logging.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/buttons/action_buttons.dart';
+import 'package:otzaria/widgets/layout/app_card.dart';
 import '../models/book_model.dart';
 import '../providers/shamor_zachor_progress_provider.dart';
 
@@ -189,94 +190,85 @@ class _BookCardWidgetState extends State<BookCardWidget> {
           },
         ),
       },
-      child: Card(
-        elevation: 0,
-        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 0),
-        color: AppSurfaces.card(context),
-        surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppTokens.radiusMD),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () => _onCardTap(context),
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Header
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              widget.bookName,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color:
-                                        Theme.of(context).colorScheme.onSurface,
-                                  ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              textDirection: TextDirection.rtl,
-                            ),
-                            const SizedBox(height: 8),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                _BookMetaChip(
-                                  icon: FluentIcons.folder_24_regular,
-                                  text: widget.bookDetails.categoryPath ??
-                                      widget.categoryName,
-                                  backgroundColor: Theme.of(context)
-                                      .colorScheme
-                                      .secondaryContainer,
-                                  foregroundColor: Theme.of(context)
-                                      .colorScheme
-                                      .onSecondaryContainer,
+      child: AppCard(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        radius: AppTokens.radiusMD,
+        onTap: () => _onCardTap(context),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            widget.bookName,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color:
+                                      Theme.of(context).colorScheme.onSurface,
                                 ),
-                                if (_isCompleted)
-                                  _BookMetaChip(
-                                    icon:
-                                        FluentIcons.checkmark_circle_24_regular,
-                                    text: 'הושלם',
-                                    backgroundColor:
-                                        Theme.of(context).colorScheme.primary,
-                                    foregroundColor:
-                                        Theme.of(context).colorScheme.onPrimary,
-                                  ),
-                              ],
-                            ),
-                          ],
-                        ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            textDirection: TextDirection.rtl,
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              _BookMetaChip(
+                                icon: FluentIcons.folder_24_regular,
+                                text: widget.bookDetails.categoryPath ??
+                                    widget.categoryName,
+                                backgroundColor: Theme.of(context)
+                                    .colorScheme
+                                    .secondaryContainer,
+                                foregroundColor: Theme.of(context)
+                                    .colorScheme
+                                    .onSecondaryContainer,
+                              ),
+                              if (_isCompleted)
+                                _BookMetaChip(
+                                  icon: FluentIcons.checkmark_circle_24_regular,
+                                  text: 'הושלם',
+                                  backgroundColor:
+                                      Theme.of(context).colorScheme.primary,
+                                  foregroundColor:
+                                      Theme.of(context).colorScheme.onPrimary,
+                                ),
+                            ],
+                          ),
+                        ],
                       ),
-                      if (widget.onDelete != null) ...[
-                        const SizedBox(width: 8),
-                        ToolbarActionButton(
-                          tooltip: 'הסר ספר',
-                          icon: FluentIcons.delete_24_regular,
-                          onPressed: widget.onDelete!,
-                        ),
-                      ],
+                    ),
+                    if (widget.onDelete != null) ...[
+                      const SizedBox(width: 8),
+                      ToolbarActionButton(
+                        tooltip: 'הסר ספר',
+                        icon: FluentIcons.delete_24_regular,
+                        onPressed: widget.onDelete!,
+                      ),
                     ],
-                  ),
-                  const SizedBox(height: 12),
-                  // Progress / Completion info - מחזורים מרובים
-                  _buildCyclesProgressInfo(context),
-                  const SizedBox(height: 12),
-                ],
-              ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // Progress / Completion info - מחזורים מרובים
+                _buildCyclesProgressInfo(context),
+                const SizedBox(height: 12),
+              ],
             ),
           ),
         ),

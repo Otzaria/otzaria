@@ -6,6 +6,7 @@ import 'package:otzaria/tools/calendar/utils/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 import 'package:otzaria/widgets/buttons/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
+import 'package:otzaria/widgets/layout/app_card.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 
 /// פאנל האירועים של לוח השנה.
@@ -326,17 +327,10 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                   ],
                 );
 
-                return Card(
-                  elevation: 0,
-                  color: AppSurfaces.card(context),
-                  surfaceTintColor: Colors.transparent,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppTokens.radiusMD),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: content,
-                  ),
+                return AppCard(
+                  radius: AppTokens.radiusMD,
+                  padding: const EdgeInsets.all(12),
+                  child: content,
                 );
               },
             ),

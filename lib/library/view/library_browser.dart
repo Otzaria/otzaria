@@ -1396,16 +1396,8 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       return row;
     }
 
-    return Card(
-      elevation: 0,
-      color: AppSurfaces.card(context),
-      clipBehavior: Clip.antiAlias,
-      surfaceTintColor: Colors.transparent,
+    return AppCard(
       margin: const EdgeInsets.symmetric(vertical: 2),
-      shape: const RoundedRectangleBorder(
-        side: BorderSide.none,
-        borderRadius: BorderRadius.all(Radius.circular(AppTokens.radiusXL)),
-      ),
       child: row,
     );
   }
@@ -1528,16 +1520,8 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       return row;
     }
 
-    return Card(
-      elevation: 0,
-      color: AppSurfaces.card(context),
-      clipBehavior: Clip.antiAlias,
-      surfaceTintColor: Colors.transparent,
+    return AppCard(
       margin: const EdgeInsets.symmetric(vertical: 2),
-      shape: const RoundedRectangleBorder(
-        side: BorderSide.none,
-        borderRadius: BorderRadius.all(Radius.circular(AppTokens.radiusXL)),
-      ),
       child: row,
     );
   }

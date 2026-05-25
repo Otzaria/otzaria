@@ -34,6 +34,7 @@ import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/buttons/action_buttons.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
+import 'package:otzaria/widgets/layout/app_card.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 
@@ -1034,131 +1035,118 @@ class _PersonalNotesManagerScreenState
 
   Widget _buildNoteCard(PersonalNote note, bool isMissing) {
     final cs = Theme.of(context).colorScheme;
-    final cardColor = AppSurfaces.card(context);
     final hebrewDate = getHebrewDateFormattedAsString(note.updatedAt);
 
-    return Card(
-      elevation: 0,
-      margin: EdgeInsets.zero,
-      color: cardColor,
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppTokens.radiusMD),
-      ),
-      child: InkWell(
-        onTap: isMissing ? () => _repositionMissing(note) : null,
-        borderRadius: BorderRadius.circular(AppTokens.radiusMD),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
+    return AppCard(
+      radius: AppTokens.radiusMD,
+      onTap: isMissing ? () => _repositionMissing(note) : null,
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Text(
-                      isMissing ? 'הערה ללא מיקום' : note.title,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: cs.onSurface,
-                          ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      textDirection: TextDirection.rtl,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              // תצוגה מקדימה מעוצבת: מרנדרים את ה-Quill Delta במקום טקסט פשוט,
-              // כך שהעיצוב (מודגש/נטוי/קו תחתי/קו חוצה וכו') יופיע גם בכרטיס.
-              // maxPreviewChars מקצר הערות ארוכות כדי שלא נרנדר אלפי מילים
-              // בכל כרטיס (QuillEditor הלא-נגלל מחשב layout לכל הטקסט).
-              // הכרטיס בגובה קבוע (mainAxisExtent: 170), לכן עוטפים ב-Expanded +
-              // ClipRect + OverflowBox כדי לחתוך את העודף הוויזואלי. maxHeight
-              // מוגבל כהגנה כפולה מעל הקיצור התוכני.
               Expanded(
-                child: ClipRect(
-                  child: OverflowBox(
-                    alignment: Alignment.topCenter,
-                    minHeight: 0,
-                    maxHeight: 200,
-                    child: IgnorePointer(
-                      child: PersonalNoteContentView(
-                        note: note,
-                        allowSelection: false,
-                        maxPreviewChars: 280,
-                        textStyle:
-                            Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: cs.onSurfaceVariant,
-                                  height: 1.45,
-                                ),
+                child: Text(
+                  isMissing ? 'הערה ללא מיקום' : note.title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: cs.onSurface,
                       ),
-                    ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textDirection: TextDirection.rtl,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // תצוגה מקדימה מעוצבת: מרנדרים את ה-Quill Delta במקום טקסט פשוט,
+          // כך שהעיצוב (מודגש/נטוי/קו תחתי/קו חוצה וכו') יופיע גם בכרטיס.
+          // maxPreviewChars מקצר הערות ארוכות כדי שלא נרנדר אלפי מילים
+          // בכל כרטיס (QuillEditor הלא-נגלל מחשב layout לכל הטקסט).
+          // הכרטיס בגובה קבוע (mainAxisExtent: 170), לכן עוטפים ב-Expanded +
+          // ClipRect + OverflowBox כדי לחתוך את העודף הוויזואלי. maxHeight
+          // מוגבל כהגנה כפולה מעל הקיצור התוכני.
+          Expanded(
+            child: ClipRect(
+              child: OverflowBox(
+                alignment: Alignment.topCenter,
+                minHeight: 0,
+                maxHeight: 200,
+                child: IgnorePointer(
+                  child: PersonalNoteContentView(
+                    note: note,
+                    allowSelection: false,
+                    maxPreviewChars: 280,
+                    textStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                          height: 1.45,
+                        ),
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        _InfoChip(
-                          icon: FluentIcons.calendar_24_regular,
-                          text: hebrewDate,
-                          backgroundColor: cs.secondaryContainer,
-                          foregroundColor: cs.onSecondaryContainer,
-                        ),
-                        if (isMissing && note.lastKnownLineNumber != null)
-                          _InfoChip(
-                            icon: FluentIcons.location_24_regular,
-                            text: 'שורה קודמת: ${note.lastKnownLineNumber}',
-                            backgroundColor: cs.surfaceContainerHighest,
-                            foregroundColor: cs.onSurfaceVariant,
-                          ),
-                      ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    _InfoChip(
+                      icon: FluentIcons.calendar_24_regular,
+                      text: hebrewDate,
+                      backgroundColor: cs.secondaryContainer,
+                      foregroundColor: cs.onSecondaryContainer,
                     ),
+                    if (isMissing && note.lastKnownLineNumber != null)
+                      _InfoChip(
+                        icon: FluentIcons.location_24_regular,
+                        text: 'שורה קודמת: ${note.lastKnownLineNumber}',
+                        backgroundColor: cs.surfaceContainerHighest,
+                        foregroundColor: cs.onSurfaceVariant,
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  ToolbarActionButton(
+                    tooltip: 'עריכה',
+                    icon: FluentIcons.edit_24_regular,
+                    onPressed: () => _editNote(note),
                   ),
-                  const SizedBox(width: 8),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: [
-                      ToolbarActionButton(
-                        tooltip: 'עריכה',
-                        icon: FluentIcons.edit_24_regular,
-                        onPressed: () => _editNote(note),
-                      ),
-                      if (isMissing)
-                        ToolbarActionButton(
-                          tooltip: 'מיקום מחדש',
-                          icon: FluentIcons.location_24_regular,
-                          onPressed: () => _repositionMissing(note),
-                        ),
-                      if (!isMissing)
-                        ToolbarActionButton(
-                          tooltip: 'פתח ספר בשורה',
-                          icon: FluentIcons.book_open_24_regular,
-                          onPressed: () => _openNoteInBook(note),
-                        ),
-                      ToolbarActionButton(
-                        tooltip: 'מחיקה',
-                        icon: FluentIcons.delete_24_regular,
-                        onPressed: () => _deleteNote(note),
-                      ),
-                    ],
+                  if (isMissing)
+                    ToolbarActionButton(
+                      tooltip: 'מיקום מחדש',
+                      icon: FluentIcons.location_24_regular,
+                      onPressed: () => _repositionMissing(note),
+                    ),
+                  if (!isMissing)
+                    ToolbarActionButton(
+                      tooltip: 'פתח ספר בשורה',
+                      icon: FluentIcons.book_open_24_regular,
+                      onPressed: () => _openNoteInBook(note),
+                    ),
+                  ToolbarActionButton(
+                    tooltip: 'מחיקה',
+                    icon: FluentIcons.delete_24_regular,
+                    onPressed: () => _deleteNote(note),
                   ),
                 ],
               ),
             ],
           ),
-        ),
+        ],
       ),
     );
   }

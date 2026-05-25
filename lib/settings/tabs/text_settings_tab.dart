@@ -221,18 +221,49 @@ class TextSettingsTab extends StatelessWidget {
     return SettingsCard(
       title: 'הגדרות גופן ועיצוב',
       children: [
+        // שורה 1: גודל גופן הספר + גופן טקסט
         LayoutBuilder(
           builder: (context, constraints) {
             final isNarrow = constraints.maxWidth < LayoutBreakpoints.compact;
-            final divider = AppCard.sectionDivider(context);
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // שורה 1: גודל גופן הספר + גופן טקסט
-                if (isNarrow) ...[
-                  Padding(
-                    padding: const EdgeInsets.all(16.0),
+            if (isNarrow) {
+              return Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _FontSizeSlider(
+                      icon: FluentIcons.text_font_size_24_regular,
+                      label: 'גודל גופן הספר',
+                      value: state.fontSize.clamp(15, 60),
+                      min: 15,
+                      max: 60,
+                      onChanged: (value) {
+                        context.read<SettingsBloc>().add(UpdateFontSize(value));
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    _FontDropdown(
+                      icon: FluentIcons.text_font_24_regular,
+                      label: 'גופן טקסט',
+                      value: state.fontFamily,
+                      onChanged: (value) {
+                        if (value != null) {
+                          context
+                              .read<SettingsBloc>()
+                              .add(UpdateFontFamily(value));
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              );
+            }
+            return Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
                     child: _FontSizeSlider(
                       icon: FluentIcons.text_font_size_24_regular,
                       label: 'גודל גופן הספר',
@@ -244,9 +275,8 @@ class TextSettingsTab extends StatelessWidget {
                       },
                     ),
                   ),
-                  divider,
-                  Padding(
-                    padding: const EdgeInsets.all(16.0),
+                  const SizedBox(width: 16),
+                  Expanded(
                     child: _FontDropdown(
                       icon: FluentIcons.text_font_24_regular,
                       label: 'גופן טקסט',
@@ -260,52 +290,60 @@ class TextSettingsTab extends StatelessWidget {
                       },
                     ),
                   ),
-                ] else
-                  Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: _FontSizeSlider(
-                            icon: FluentIcons.text_font_size_24_regular,
-                            label: 'גודל גופן הספר',
-                            value: state.fontSize.clamp(15, 60),
-                            min: 15,
-                            max: 60,
-                            onChanged: (value) {
-                              context
-                                  .read<SettingsBloc>()
-                                  .add(UpdateFontSize(value));
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _FontDropdown(
-                            icon: FluentIcons.text_font_24_regular,
-                            label: 'גופן טקסט',
-                            value: state.fontFamily,
-                            onChanged: (value) {
-                              if (value != null) {
-                                context
-                                    .read<SettingsBloc>()
-                                    .add(UpdateFontFamily(value));
-                              }
-                            },
-                          ),
-                        ),
-                      ],
+                ],
+              ),
+            );
+          },
+        ),
+
+        // שורה 2: גודל גופן מפרשים + גופן מפרשים
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final isNarrow = constraints.maxWidth < LayoutBreakpoints.compact;
+            if (isNarrow) {
+              return Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (!hideCommentaryFontSize) ...[
+                      _FontSizeSlider(
+                        icon: FluentIcons.text_font_size_24_regular,
+                        label: 'גודל גופן מפרשים',
+                        value: state.commentatorsFontSize.clamp(10, 40),
+                        min: 10,
+                        max: 40,
+                        onChanged: (value) {
+                          context
+                              .read<SettingsBloc>()
+                              .add(UpdateCommentatorsFontSize(value));
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    _FontDropdown(
+                      icon: FluentIcons.book_24_regular,
+                      label: 'גופן מפרשים',
+                      value: state.commentatorsFontFamily,
+                      onChanged: (value) {
+                        if (value != null) {
+                          context
+                              .read<SettingsBloc>()
+                              .add(UpdateCommentatorsFontFamily(value));
+                        }
+                      },
                     ),
-                  ),
-
-                divider,
-
-                // שורה 2: גודל גופן מפרשים + גופן מפרשים
-                if (isNarrow) ...[
+                  ],
+                ),
+              );
+            }
+            return Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   if (!hideCommentaryFontSize) ...[
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
+                    Expanded(
                       child: _FontSizeSlider(
                         icon: FluentIcons.text_font_size_24_regular,
                         label: 'גודל גופן מפרשים',
@@ -319,10 +357,9 @@ class TextSettingsTab extends StatelessWidget {
                         },
                       ),
                     ),
-                    divider,
+                    const SizedBox(width: 16),
                   ],
-                  Padding(
-                    padding: const EdgeInsets.all(16.0),
+                  Expanded(
                     child: _FontDropdown(
                       icon: FluentIcons.book_24_regular,
                       label: 'גופן מפרשים',
@@ -336,97 +373,61 @@ class TextSettingsTab extends StatelessWidget {
                       },
                     ),
                   ),
-                ] else
-                  Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (!hideCommentaryFontSize) ...[
-                          Expanded(
-                            child: _FontSizeSlider(
-                              icon: FluentIcons.text_font_size_24_regular,
-                              label: 'גודל גופן מפרשים',
-                              value: state.commentatorsFontSize.clamp(10, 40),
-                              min: 10,
-                              max: 40,
-                              onChanged: (value) {
-                                context
-                                    .read<SettingsBloc>()
-                                    .add(UpdateCommentatorsFontSize(value));
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                        ],
-                        Expanded(
-                          child: _FontDropdown(
-                            icon: FluentIcons.book_24_regular,
-                            label: 'גופן מפרשים',
-                            value: state.commentatorsFontFamily,
-                            onChanged: (value) {
-                              if (value != null) {
-                                context
-                                    .read<SettingsBloc>()
-                                    .add(UpdateCommentatorsFontFamily(value));
-                              }
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-        ),
-
-                divider,
-
-                // שורה 3: מרווח בין שורות (תמיד חצי רוחב)
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: isNarrow
-                      ? _FontSizeSlider(
-                          icon: FluentIcons
-                              .text_align_distributed_vertical_24_regular,
-                          label: 'מרווח בין שורות',
-                          value: state.lineHeight.clamp(1.0, 3.0),
-                          min: 1.0,
-                          max: 3.0,
-                          divisions: 20,
-                          onChanged: (value) {
-                            context
-                                .read<SettingsBloc>()
-                                .add(UpdateLineHeight(value));
-                          },
-                        )
-                      : Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: _FontSizeSlider(
-                                icon: FluentIcons
-                                    .text_align_distributed_vertical_24_regular,
-                                label: 'מרווח בין שורות',
-                                value: state.lineHeight.clamp(1.0, 3.0),
-                                min: 1.0,
-                                max: 3.0,
-                                divisions: 20,
-                                onChanged: (value) {
-                                  context
-                                      .read<SettingsBloc>()
-                                      .add(UpdateLineHeight(value));
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            const Expanded(child: SizedBox()),
-                          ],
-                        ),
-                ),
-                divider,
-                _TextWidthSlider(state: state),
-              ],
+                ],
+              ),
             );
           },
         ),
+
+        // שורה 3: מרווח בין שורות
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final isNarrow = constraints.maxWidth < LayoutBreakpoints.compact;
+            return Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: isNarrow
+                  ? _FontSizeSlider(
+                      icon: FluentIcons
+                          .text_align_distributed_vertical_24_regular,
+                      label: 'מרווח בין שורות',
+                      value: state.lineHeight.clamp(1.0, 3.0),
+                      min: 1.0,
+                      max: 3.0,
+                      divisions: 20,
+                      onChanged: (value) {
+                        context
+                            .read<SettingsBloc>()
+                            .add(UpdateLineHeight(value));
+                      },
+                    )
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: _FontSizeSlider(
+                            icon: FluentIcons
+                                .text_align_distributed_vertical_24_regular,
+                            label: 'מרווח בין שורות',
+                            value: state.lineHeight.clamp(1.0, 3.0),
+                            min: 1.0,
+                            max: 3.0,
+                            divisions: 20,
+                            onChanged: (value) {
+                              context
+                                  .read<SettingsBloc>()
+                                  .add(UpdateLineHeight(value));
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        const Expanded(child: SizedBox()),
+                      ],
+                    ),
+            );
+          },
+        ),
+
+        _TextWidthSlider(state: state),
       ],
     );
   }

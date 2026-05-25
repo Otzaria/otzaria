@@ -4,7 +4,7 @@ import 'package:otzaria/theme/theme_exports.dart';
 /// כרטיס תוכן מרכזי עם צבע ופינות מעוגלות אחידים.
 ///
 /// שני קונסטרקטורים:
-/// - [AppCard] — כרטיס עם ילד יחיד; תומך ב-[onTap], [selected], [animateSize].
+/// - [AppCard] — כרטיס עם ילד יחיד; תומך ב-[onTap] וב-[selected].
 /// - [AppCard.section] — מקטע עם מספר שורות; מוסיף אוטומטית רווח 1.5px בין שורות.
 class AppCard extends StatelessWidget {
   /// כרטיס עם ילד יחיד.
@@ -17,9 +17,6 @@ class AppCard extends StatelessWidget {
     this.padding,
     this.radius,
     this.selected = false,
-    this.animate = true,
-    this.animationDelay,
-    this.animateSize = false,
   }) : children = null;
 
   /// כרטיס מקטע עם מספר שורות — רווח 1.5px בין שורות.
@@ -30,12 +27,12 @@ class AppCard extends StatelessWidget {
     this.padding,
     this.radius,
     this.selected = false,
-    this.animate = true,
-    this.animationDelay,
-    this.animateSize = false,
   })  : child = null,
         onTap = null,
         focusNode = null;
+
+  /// הרווח הקבוע בין שורות במקטע כרטיס.
+  static const double sectionSpacing = 1.5;
 
   final Widget? child;
   final List<Widget>? children;
@@ -50,21 +47,12 @@ class AppCard extends StatelessWidget {
   /// מוסיף overlay של secondaryContainer מעל הכרטיס
   final bool selected;
 
-  /// אנימציית כניסה (FadeIn + SlideIn) — יופעל בשלב ד׳
-  final bool animate;
-
-  /// עיכוב לאנימציית כניסה — לשימוש ברשימות לפי אינדקס
-  final Duration? animationDelay;
-
-  /// עוטף ב-[AnimatedSize] לאנימציית שינוי גובה חלק
-  final bool animateSize;
-
   /// Divider חיצוני בצבע עקבי עם המפריד הפנימי של [AppCard.section].
   ///
-  /// לשימוש כשתוכן מורחב (AnimatedSize וכד') צריך להיראות כחלק מהכרטיס.
+  /// לשימוש כשתוכן פנימי מורחב צריך להיראות כחלק מהכרטיס.
   static Widget sectionDivider(BuildContext context) => Divider(
         height: 1,
-        thickness: 1.5,
+        thickness: sectionSpacing,
         indent: 0,
         endIndent: 0,
         color: AppSurfaces.cardRowDivider(context),
@@ -72,15 +60,8 @@ class AppCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget card = children != null ? _buildSection(context) : _buildSingle(context);
-
-    if (animateSize) {
-      card = AnimatedSize(
-        duration: Durations.medium2,
-        curve: Curves.easeInOut,
-        child: card,
-      );
-    }
+    Widget card =
+        children != null ? _buildSection(context) : _buildSingle(context);
 
     if (margin != null) {
       card = Padding(padding: margin!, child: card);
@@ -111,17 +92,17 @@ class AppCard extends StatelessWidget {
           onTap: onTap,
           focusNode: focusNode,
           mouseCursor: SystemMouseCursors.click,
+          hoverDuration: Durations.medium1,
           child: content,
         ),
       );
     }
 
-    return ClipRRect(
+    return Material(
+      color: AppSurfaces.card(context),
       borderRadius: resolvedRadius,
-      child: ColoredBox(
-        color: AppSurfaces.card(context),
-        child: content,
-      ),
+      clipBehavior: Clip.antiAlias,
+      child: content,
     );
   }
 
@@ -132,7 +113,7 @@ class AppCard extends StatelessWidget {
     Widget wrapChild(Widget w) {
       if (padding != null) w = Padding(padding: padding!, child: w);
       if (selected) w = _withSelected(context, w);
-      return ColoredBox(color: cardColor, child: w);
+      return Material(color: cardColor, child: w);
     }
 
     return ClipRRect(
@@ -142,7 +123,8 @@ class AppCard extends StatelessWidget {
         children: [
           for (int i = 0; i < children!.length; i++) ...[
             wrapChild(children![i]),
-            if (i < children!.length - 1) const SizedBox(height: 1.5),
+            if (i < children!.length - 1)
+              const SizedBox(height: sectionSpacing),
           ],
         ],
       ),
@@ -150,10 +132,7 @@ class AppCard extends StatelessWidget {
   }
 
   Widget _withSelected(BuildContext context, Widget w) => ColoredBox(
-        color: Theme.of(context)
-            .colorScheme
-            .secondaryContainer
-            .withValues(alpha: 0.3),
+        color: AppSurfaces.cardSelectionOverlay(context),
         child: w,
       );
 }
