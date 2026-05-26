@@ -4,7 +4,6 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/pdf_book/view/pdf_book_screen.dart';
 import 'package:otzaria/printing/printing_helpers.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
-import 'package:otzaria_ocr/otzaria_ocr.dart';
 
 import '../helpers/memory_settings_cache.dart';
 
@@ -312,55 +311,6 @@ void main() {
         ),
         isFalse,
       );
-    });
-  });
-
-  group('shouldShowPdfOcrAction', () {
-    test('מחזירה false מחוץ ל-Windows', () {
-      expect(
-        shouldShowPdfOcrAction(
-          isWindows: false,
-          availability: OcrAvailability.ready,
-        ),
-        isFalse,
-      );
-    });
-
-    test('מחזירה false לפני שסיימנו לבדוק זמינות', () {
-      expect(
-        shouldShowPdfOcrAction(
-          isWindows: true,
-          availability: null,
-        ),
-        isFalse,
-      );
-    });
-
-    test('מחזירה false ל-stub לא נתמך', () {
-      expect(
-        shouldShowPdfOcrAction(
-          isWindows: true,
-          availability: OcrAvailability.unsupportedPlatform,
-        ),
-        isFalse,
-      );
-    });
-
-    test('מחזירה true כשיש backend זמין או בר-התקנה', () {
-      for (final availability in [
-        OcrAvailability.needsInstall,
-        OcrAvailability.ready,
-        OcrAvailability.missingBundledFiles,
-      ]) {
-        expect(
-          shouldShowPdfOcrAction(
-            isWindows: true,
-            availability: availability,
-          ),
-          isTrue,
-          reason: 'המצב $availability אמור להציג את הכפתור ב-Windows',
-        );
-      }
     });
   });
 }

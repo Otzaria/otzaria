@@ -56,8 +56,8 @@ import 'package:otzaria/printing/printing_helpers.dart';
 import 'package:otzaria/printing/view/printing_screen.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/utils/link_helpers.dart';
+import 'package:otzaria/utils/text/copy_utils.dart';
 import 'package:otzaria/widgets/navigation/panel_tab_header.dart';
-import 'package:otzaria_ocr/otzaria_ocr.dart';
 
 final GlobalKey pdfBookNavigationTourTargetKey = GlobalKey(
   debugLabel: 'pdf_book_navigation_tour_target',
@@ -124,15 +124,6 @@ bool shouldShowOpenPdfLinksPaneEntry({
   required bool isLinksTabActive,
 }) {
   return hasRelevantLinks && !isLinksTabActive;
-}
-
-@visibleForTesting
-bool shouldShowPdfOcrAction({
-  required bool isWindows,
-  required OcrAvailability? availability,
-}) {
-  if (!isWindows || availability == null) return false;
-  return availability != OcrAvailability.unsupportedPlatform;
 }
 
 /// בונה את פריט תפריט ההקשר "קישורים" עבור PDF.
@@ -271,10 +262,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
   final ValueNotifier<int> _openPdfFilterNotifier = ValueNotifier<int>(0);
 
-  /// בקר מצב לסימון OCR. מוצג בסרגל רק ב-Windows.
+  /// בקר מצב לסימון OCR.
   final PdfOcrSelectionController _ocrSelectionController =
       PdfOcrSelectionController();
-  OcrAvailability? _ocrAvailability;
 
   // Named listeners for proper cleanup
   late final VoidCallback _leftPaneTabControllerListener;
@@ -375,9 +365,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   @override
   void initState() {
     super.initState();
-    if (Platform.isWindows) {
-      unawaited(_refreshOcrAvailability());
-    }
     _pageTurnController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
@@ -1098,15 +1085,15 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         _buildBookViewViewportMask(size),
         _buildBookViewStackDecoration(context, size),
         _buildBookViewTurnButtons(context, size),
-        if (Platform.isWindows)
-          ListenableBuilder(
-            listenable: _ocrSelectionController,
-            builder: (context, _) => PdfOcrOverlay(
-              controller: widget.tab.pdfViewerController,
-              viewportSize: size,
-              selectionController: _ocrSelectionController,
-            ),
+        ListenableBuilder(
+          listenable: _ocrSelectionController,
+          builder: (context, _) => PdfOcrOverlay(
+            controller: widget.tab.pdfViewerController,
+            viewportSize: size,
+            selectionController: _ocrSelectionController,
+            formatForClipboard: _formatOcrTextForClipboard,
           ),
+        ),
       ],
       loadingBannerBuilder: (context, bytesDownloaded, totalBytes) => Center(
         child: CircularProgressIndicator(
@@ -3369,10 +3356,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
   List<ActionButtonData> _buildDisplayOrderPdfActions(BuildContext context) {
     final navigationActions = _buildNavigationActions();
-    final showOcrAction = shouldShowPdfOcrAction(
-      isWindows: Platform.isWindows,
-      availability: _ocrAvailability,
-    );
     return [
       ActionButtonData(
         widget: _buildTextButton(
@@ -3415,44 +3398,59 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         compact: false,
         visual: ActionButtonVisual.iconButton,
       ),
-      if (showOcrAction)
-        ActionButtonData.simple(
-          icon: FluentIcons.text_grammar_wand_24_regular,
-          tooltip: 'זיהוי טקסט מאזור ב-PDF (OCR)',
-          onPressed: _handleOcrPress,
-          compact: false,
-          visual: ActionButtonVisual.iconButton,
-        ),
+      // הכפתור מוצג בכל הפלטפורמות בכוונה: כל ה-UI ניתן לפיתוח/שיפור גם
+      // אצל מפתחים שאין להם את החבילה הפרטית. אצלם הזיהוי עצמו יפעיל
+      // UiSnack ברור בסוף, אבל המסך, הגרירה והרינדור עובדים מלא.
+      ActionButtonData.simple(
+        icon: FluentIcons.text_grammar_wand_24_regular,
+        tooltip: 'זיהוי טקסט מאזור ב-PDF (OCR)',
+        onPressed: _handleOcrPress,
+        compact: false,
+        visual: ActionButtonVisual.iconButton,
+      ),
       if (!widget.isInCombinedView) ...navigationActions,
     ];
   }
 
-  Future<void> _handleOcrPress() async {
+  void _handleOcrPress() {
     if (_ocrSelectionController.active) {
       _ocrSelectionController.exit();
-      return;
+    } else {
+      _ocrSelectionController.enter();
     }
-    final ready = await ensureOcrReady(context);
-    await _refreshOcrAvailability();
-    if (!ready || !mounted) return;
-    _ocrSelectionController.enter();
   }
 
-  Future<void> _refreshOcrAvailability() async {
-    try {
-      final availability = await getOcrAvailability();
-      if (!mounted || availability == _ocrAvailability) return;
-      setState(() {
-        _ocrAvailability = availability;
-      });
-    } catch (_) {
-      if (!mounted || _ocrAvailability == OcrAvailability.unsupportedPlatform) {
-        return;
-      }
-      setState(() {
-        _ocrAvailability = OcrAvailability.unsupportedPlatform;
-      });
+  /// מעצב את הטקסט שזוהה ב-OCR להעתקה - בהתאם להגדרות "העתקת כותרות
+  /// ופרקים" של המשתמש. ה-PDF משתמש בכותרת הסימנייה הנוכחית שמוצגת
+  /// בחלונית הניווט (נפתרת דרך [_resolveTitlesForPage] בדיוק כמו ב-tab).
+  Future<String> _formatOcrTextForClipboard(
+    String recognizedText,
+    int pageNumber,
+  ) async {
+    final settings = context.read<SettingsBloc>().state;
+    if (settings.copyWithHeaders == 'none') {
+      return recognizedText.trimRight();
     }
+
+    String currentPath = '';
+    if (settings.copyWithHeaders == 'book_and_path') {
+      try {
+        final titles = await _resolveTitlesForPage(pageNumber);
+        // ה-`display` הוא הצורה שמוצגת ב"ניווט" (כולל שני עמודי ספירייד אם רלוונטי).
+        currentPath = titles.display;
+      } catch (_) {
+        // במקרה כשל בפתרון הכותרת - ממשיכים בלי currentPath; ייצור כותרת
+        // עם שם הספר בלבד, מה שעדיף על קריסת ההעתקה.
+      }
+    }
+
+    return CopyUtils.formatTextWithHeaders(
+      originalText: recognizedText,
+      copyWithHeaders: settings.copyWithHeaders,
+      copyHeaderFormat: settings.copyHeaderFormat,
+      bookName: widget.tab.book.title,
+      currentPath: currentPath,
+    );
   }
 
   List<ActionButtonData> _buildAlwaysInMenuPdfActions(BuildContext context) {

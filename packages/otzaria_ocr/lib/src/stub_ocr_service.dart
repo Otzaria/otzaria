@@ -4,20 +4,13 @@ import 'api/ocr_models.dart';
 import 'api/ocr_service.dart';
 
 /// מימוש stub - מוחזר תמיד כשאין override פרטי.
-/// כל הפעולות מחזירות "לא נתמך".
+/// `getAvailability` מחזירה `unsupportedPlatform` ו-`recognizeImage` זורקת.
 class StubOcrService implements OcrService {
   const StubOcrService();
 
   @override
   Future<OcrAvailability> getAvailability() async =>
       OcrAvailability.unsupportedPlatform;
-
-  @override
-  Future<void> installModels({
-    void Function(OcrInstallProgress progress)? onProgress,
-  }) async {
-    throw const OcrUnsupportedPlatformException();
-  }
 
   @override
   Future<OcrResult> recognizeImage(Uint8List imageBytes) async {

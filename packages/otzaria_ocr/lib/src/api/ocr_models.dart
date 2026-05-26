@@ -1,37 +1,14 @@
 /// מצבי הזמינות של מנוע ה-OCR.
 enum OcrAvailability {
-  /// המנוע מוכן לשימוש – המודלים הותקנו בתיקייה הייעודית.
+  /// המנוע מוכן לשימוש - הקבצים נמצאים בתיקיית הבנייה.
   ready,
 
-  /// הפלטפורמה תומכת (Windows) אבל המודלים עוד לא הותקנו.
-  /// יש להציג למשתמש דיאלוג אישור ולקרוא ל-installModels.
-  needsInstall,
-
-  /// קבצי המקור (DLLs המצורפים לתוכנה) חסרים. בנייה לא תקינה.
+  /// הפלטפורמה היא Windows אבל קבצי ה-DLL חסרים בבנייה.
+  /// המתקין/חבילת ה-zip אמורים לכלול אותם תחת `<app>/ocr_runtime/`.
   missingBundledFiles,
 
-  /// הפלטפורמה לא נתמכת (כל מה שאינו Windows).
+  /// הפלטפורמה לא נתמכת (כל מה שאינו Windows, או Windows ללא החבילה הפרטית).
   unsupportedPlatform,
-}
-
-/// אירוע התקדמות במהלך התקנת המודלים.
-class OcrInstallProgress {
-  const OcrInstallProgress({
-    required this.message,
-    required this.copied,
-    required this.total,
-  });
-
-  /// טקסט קצר להצגה למשתמש (בעברית).
-  final String message;
-
-  /// כמה קבצים הועתקו עד עכשיו.
-  final int copied;
-
-  /// סך הקבצים שצריך להעתיק.
-  final int total;
-
-  double get fraction => total == 0 ? 0 : copied / total;
 }
 
 /// תוצאת זיהוי OCR.
@@ -47,19 +24,20 @@ class OcrResult {
   bool get isEmpty => text.trim().isEmpty;
 }
 
-/// חריגה שמועלית כשמתבצעת בקשת OCR לפני התקנת המודלים.
-class OcrNotInstalledException implements Exception {
-  const OcrNotInstalledException();
-  @override
-  String toString() => 'OcrNotInstalledException: המודלים לא הותקנו עדיין';
-}
-
-/// חריגה לפלטפורמה לא נתמכת.
+/// חריגה לפלטפורמה לא נתמכת (לא Windows, או Windows עם stub בלבד).
 class OcrUnsupportedPlatformException implements Exception {
   const OcrUnsupportedPlatformException();
   @override
   String toString() =>
-      'OcrUnsupportedPlatformException: OCR זמין רק ב-Windows';
+      'OcrUnsupportedPlatformException: OCR זמין רק ב-Windows עם החבילה הפרטית';
+}
+
+/// חריגה כאשר קבצי ה-DLL חסרים בבנייה.
+class OcrMissingBundledFilesException implements Exception {
+  const OcrMissingBundledFilesException();
+  @override
+  String toString() =>
+      'OcrMissingBundledFilesException: קבצי ה-OCR חסרים בתיקיית הבנייה';
 }
 
 /// חריגה כללית במהלך זיהוי.

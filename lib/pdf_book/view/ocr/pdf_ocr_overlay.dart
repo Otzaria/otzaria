@@ -3,7 +3,6 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/core/ui_snack.dart';
-import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria_ocr/otzaria_ocr.dart';
 import 'package:pdfrx/pdfrx.dart';
 
@@ -34,47 +33,12 @@ class _OcrSingleton {
   final OcrService service = createOcrService();
 }
 
-/// מחזיר את מצב הזמינות הנוכחי של שירות ה-OCR המשותף.
-Future<OcrAvailability> getOcrAvailability() {
-  return _OcrSingleton.instance.service.getAvailability();
-}
-
-/// בודק זמינות OCR. אם נדרשת התקנה - מציג דיאלוג אישור ומבצע.
-/// מחזיר `true` אם המנוע מוכן לזיהוי.
-Future<bool> ensureOcrReady(BuildContext context) async {
-  final ocr = _OcrSingleton.instance.service;
-  final availability = await getOcrAvailability();
-
-  switch (availability) {
-    case OcrAvailability.ready:
-      return true;
-    case OcrAvailability.unsupportedPlatform:
-      UiSnack.showError('זיהוי OCR זמין רק ב-Windows');
-      return false;
-    case OcrAvailability.missingBundledFiles:
-      UiSnack.showError('קבצי ה-OCR חסרים בבנייה. פנו לתחזוקה.');
-      return false;
-    case OcrAvailability.needsInstall:
-      if (!context.mounted) return false;
-      final approved = await showTwoActionsDialog(
-        context: context,
-        title: 'הפעלת זיהוי OCR',
-        content: 'כדי להפעיל זיהוי טקסט מתוך תמונה ב-PDF, יש להעתיק '
-            'את מנוע ה-OCR אל תיקיית המשתמש (פעולה חד-פעמית).\n\n'
-            'האם להמשיך?',
-        confirmText: 'התקן',
-      );
-      if (approved != true) return false;
-      try {
-        await ocr.installModels();
-        UiSnack.show('זיהוי OCR מוכן לשימוש');
-        return true;
-      } catch (e) {
-        UiSnack.showError('שגיאה בהתקנת OCR: $e');
-        return false;
-      }
-  }
-}
+/// פונקציית callback לעיצוב הטקסט לפני ההעתקה ללוח.
+/// מקבלת את הטקסט שזוהה ואת מספר העמוד, מחזירה את הטקסט הסופי להעתקה.
+typedef PdfOcrClipboardFormatter = Future<String> Function(
+  String recognizedText,
+  int pageNumber,
+);
 
 /// סף מינימום בפיקסלים לסימון תקין (מתחת לזה זה קליק בטעות).
 const double _kMinSelectionPx = 8.0;
@@ -87,17 +51,26 @@ const double _kRenderScale = 2.0;
 /// כשמצב הסימון פעיל, השכבה תופסת את האירועים, מציירת מלבן סימון, ובסיום
 /// הגרירה: מרנדרת את האזור בעמוד הרלוונטי ב-DPI גבוה, מעבירה ל-OCR,
 /// ומעתיקה את הטקסט ללוח. אין UI נפרד לתוצאה.
+///
+/// בפלטפורמות שאין בהן backend אמיתי (לא-Windows, או Windows ללא החבילה
+/// הפרטית), כל ה-UI עובד עד שלב ה-`recognizeImage` - שם זורקת חריגה
+/// שמוצגת כ-UiSnack. זה מאפשר למפתחים על כל פלטפורמה לשפר את ה-UI.
 class PdfOcrOverlay extends StatefulWidget {
   const PdfOcrOverlay({
     super.key,
     required this.controller,
     required this.viewportSize,
     required this.selectionController,
+    this.formatForClipboard,
   });
 
   final PdfViewerController controller;
   final Size viewportSize;
   final PdfOcrSelectionController selectionController;
+
+  /// אם מסופק, נקרא לפני ההעתקה ללוח כדי לעצב את הטקסט
+  /// (למשל הוספת שם הספר וכותרת לפי הגדרות המשתמש).
+  final PdfOcrClipboardFormatter? formatForClipboard;
 
   @override
   State<PdfOcrOverlay> createState() => _PdfOcrOverlayState();
@@ -162,6 +135,12 @@ class _PdfOcrOverlayState extends State<PdfOcrOverlay> {
     setState(() => _processing = true);
     try {
       await _processSelection(rect);
+    } on OcrUnsupportedPlatformException {
+      UiSnack.showError('זיהוי OCR לא זמין בבנייה הזו של אוצריא');
+    } on OcrMissingBundledFilesException {
+      UiSnack.showError('קבצי ה-OCR חסרים בבנייה. פנו לתחזוקה.');
+    } on OcrFailureException catch (e) {
+      UiSnack.showError('שגיאה בזיהוי: ${e.message}');
     } catch (e) {
       UiSnack.showError('שגיאה בזיהוי: $e');
     } finally {
@@ -180,7 +159,7 @@ class _PdfOcrOverlayState extends State<PdfOcrOverlay> {
   Future<void> _processSelection(Rect viewportRect) async {
     final controller = widget.controller;
     if (!controller.isReady) {
-      throw Exception('המסמך לא מוכן');
+      throw const OcrFailureException('המסמך לא מוכן');
     }
 
     // 1. מצא את העמוד שמכיל את הסימון, וחשב את המלבן בקואורדינטות הדף.
@@ -217,7 +196,7 @@ class _PdfOcrOverlayState extends State<PdfOcrOverlay> {
       backgroundColor: 0xFFFFFFFF,
     );
     if (pdfImage == null) {
-      throw Exception('הרינדור נכשל');
+      throw const OcrFailureException('הרינדור נכשל');
     }
 
     Uint8List pngBytes;
@@ -227,7 +206,7 @@ class _PdfOcrOverlayState extends State<PdfOcrOverlay> {
         final byteData =
             await uiImage.toByteData(format: ui.ImageByteFormat.png);
         if (byteData == null) {
-          throw Exception('המרת PNG נכשלה');
+          throw const OcrFailureException('המרת PNG נכשלה');
         }
         pngBytes = byteData.buffer.asUint8List();
       } finally {
@@ -237,7 +216,7 @@ class _PdfOcrOverlayState extends State<PdfOcrOverlay> {
       pdfImage.dispose();
     }
 
-    // 3. שולח ל-OCR.
+    // 3. שולח ל-OCR (יכול לזרוק חריגה אם אין backend אמיתי).
     final ocr = _OcrSingleton.instance.service;
     final result = await ocr.recognizeImage(pngBytes);
 
@@ -246,11 +225,16 @@ class _PdfOcrOverlayState extends State<PdfOcrOverlay> {
       return;
     }
 
-    // 4. מעתיק ללוח + הודעה.
-    await Clipboard.setData(ClipboardData(text: result.text));
-    final preview = result.text.length > 40
-        ? '${result.text.substring(0, 40)}...'
+    // 4. עיצוב + העתקה ללוח + הודעה.
+    final formatter = widget.formatForClipboard;
+    final clipboardText = formatter != null
+        ? await formatter(result.text, pageNumber)
         : result.text;
+
+    await Clipboard.setData(ClipboardData(text: clipboardText));
+    final preview = clipboardText.length > 40
+        ? '${clipboardText.substring(0, 40)}...'
+        : clipboardText;
     UiSnack.show('הועתק ללוח: $preview');
   }
 
