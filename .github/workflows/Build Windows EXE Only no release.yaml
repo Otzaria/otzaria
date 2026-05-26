@@ -28,12 +28,16 @@ jobs:
       VC_REDIST_URL: 'https://download.visualstudio.microsoft.com/download/pr/c1bd4f2c-3672-468e-8480-7ed419dbb641/90E48ADE404E4576D023ABFA374F323555F233982A8805EA9AC63DCA9491A16B/VC_redist.x64.exe'
       VC_REDIST_SHA256: '90E48ADE404E4576D023ABFA374F323555F233982A8805EA9AC63DCA9491A16B'
       VC_REDIST_VERSION: '14.51.36231.0'
+      # GitHub Actions לא מאפשר גישה ל-secrets בתוך step-level `if:` —
+      # מעבירים אותם דרך job-level env כדי שנוכל לבדוק קיום בתנאי.
+      OTZARIA_OCR_REPOSITORY: ${{ secrets.OTZARIA_OCR_REPOSITORY }}
+      OTZARIA_OCR_TOKEN: ${{ secrets.OTZARIA_OCR_TOKEN }}
     steps:
       - name: Clone repository
         uses: actions/checkout@v4.2.2
 
       - name: Checkout private OCR package
-        if: ${{ secrets.OTZARIA_OCR_REPOSITORY != '' && secrets.OTZARIA_OCR_TOKEN != '' }}
+        if: ${{ env.OTZARIA_OCR_REPOSITORY != '' && env.OTZARIA_OCR_TOKEN != '' }}
         uses: actions/checkout@v4.2.2
         with:
           repository: ${{ secrets.OTZARIA_OCR_REPOSITORY }}
