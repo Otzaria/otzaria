@@ -44,6 +44,7 @@ import 'package:otzaria/widgets/layout/dual_adaptive_reader_pane.dart';
 import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
 import 'package:otzaria/widgets/navigation/book_view_actions.dart';
 import 'pdf_zoom_bar.dart';
+import 'package:otzaria/pdf_book/view/ocr/pdf_ocr_overlay.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/pdf_book/view/pdf_scrollbar.dart';
 import 'package:otzaria/tour/bloc/tour_cubit.dart';
@@ -56,6 +57,7 @@ import 'package:otzaria/printing/view/printing_screen.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/utils/link_helpers.dart';
 import 'package:otzaria/widgets/navigation/panel_tab_header.dart';
+import 'package:otzaria_ocr/otzaria_ocr.dart';
 
 final GlobalKey pdfBookNavigationTourTargetKey = GlobalKey(
   debugLabel: 'pdf_book_navigation_tour_target',
@@ -122,6 +124,15 @@ bool shouldShowOpenPdfLinksPaneEntry({
   required bool isLinksTabActive,
 }) {
   return hasRelevantLinks && !isLinksTabActive;
+}
+
+@visibleForTesting
+bool shouldShowPdfOcrAction({
+  required bool isWindows,
+  required OcrAvailability? availability,
+}) {
+  if (!isWindows || availability == null) return false;
+  return availability != OcrAvailability.unsupportedPlatform;
 }
 
 /// בונה את פריט תפריט ההקשר "קישורים" עבור PDF.
@@ -260,6 +271,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
   final ValueNotifier<int> _openPdfFilterNotifier = ValueNotifier<int>(0);
 
+  /// בקר מצב לסימון OCR. מוצג בסרגל רק ב-Windows.
+  final PdfOcrSelectionController _ocrSelectionController =
+      PdfOcrSelectionController();
+  OcrAvailability? _ocrAvailability;
+
   // Named listeners for proper cleanup
   late final VoidCallback _leftPaneTabControllerListener;
   late final VoidCallback _showLeftPaneListener;
@@ -359,6 +375,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   @override
   void initState() {
     super.initState();
+    if (Platform.isWindows) {
+      unawaited(_refreshOcrAvailability());
+    }
     _pageTurnController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
@@ -1079,6 +1098,15 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         _buildBookViewViewportMask(size),
         _buildBookViewStackDecoration(context, size),
         _buildBookViewTurnButtons(context, size),
+        if (Platform.isWindows)
+          ListenableBuilder(
+            listenable: _ocrSelectionController,
+            builder: (context, _) => PdfOcrOverlay(
+              controller: widget.tab.pdfViewerController,
+              viewportSize: size,
+              selectionController: _ocrSelectionController,
+            ),
+          ),
       ],
       loadingBannerBuilder: (context, bytesDownloaded, totalBytes) => Center(
         child: CircularProgressIndicator(
@@ -2516,6 +2544,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     _settingsSub.cancel();
     _bloc.close();
     _openPdfFilterNotifier.dispose();
+    _ocrSelectionController.dispose();
 
     // לא מוחקים את הקובץ הזמני - הוא משותף בין tabs
     // הקבצים יימחקו אוטומטית כשהמערכת תנקה את temp directory
@@ -3340,6 +3369,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
   List<ActionButtonData> _buildDisplayOrderPdfActions(BuildContext context) {
     final navigationActions = _buildNavigationActions();
+    final showOcrAction = shouldShowPdfOcrAction(
+      isWindows: Platform.isWindows,
+      availability: _ocrAvailability,
+    );
     return [
       ActionButtonData(
         widget: _buildTextButton(
@@ -3382,8 +3415,44 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         compact: false,
         visual: ActionButtonVisual.iconButton,
       ),
+      if (showOcrAction)
+        ActionButtonData.simple(
+          icon: FluentIcons.text_grammar_wand_24_regular,
+          tooltip: 'זיהוי טקסט מאזור ב-PDF (OCR)',
+          onPressed: _handleOcrPress,
+          compact: false,
+          visual: ActionButtonVisual.iconButton,
+        ),
       if (!widget.isInCombinedView) ...navigationActions,
     ];
+  }
+
+  Future<void> _handleOcrPress() async {
+    if (_ocrSelectionController.active) {
+      _ocrSelectionController.exit();
+      return;
+    }
+    final ready = await ensureOcrReady(context);
+    await _refreshOcrAvailability();
+    if (!ready || !mounted) return;
+    _ocrSelectionController.enter();
+  }
+
+  Future<void> _refreshOcrAvailability() async {
+    try {
+      final availability = await getOcrAvailability();
+      if (!mounted || availability == _ocrAvailability) return;
+      setState(() {
+        _ocrAvailability = availability;
+      });
+    } catch (_) {
+      if (!mounted || _ocrAvailability == OcrAvailability.unsupportedPlatform) {
+        return;
+      }
+      setState(() {
+        _ocrAvailability = OcrAvailability.unsupportedPlatform;
+      });
+    }
   }
 
   List<ActionButtonData> _buildAlwaysInMenuPdfActions(BuildContext context) {

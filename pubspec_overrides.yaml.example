@@ -1,0 +1,24 @@
+# pubspec_overrides.yaml.example
+#
+# העתק לקובץ בשם `pubspec_overrides.yaml` (לא tracked ב-Git) כדי להחליף את
+# חבילת ה-OCR ה-stub של אוצריא במימוש האמיתי לזיהוי תווים ב-Windows.
+#
+# נדרש *רק* למפתחים שיש להם גישה לריפו הפרטי `otzaria_ocr` וברצונם להריץ
+# או לבנות אוצריא ל-Windows עם פיצ'ר ה-OCR מופעל.
+#
+# מפתחים שאין להם את החבילה הפרטית - אל תיצרו את הקובץ. אוצריא תקמפל
+# ותרוץ כרגיל, פשוט בלי הפיצ'ר (כפתור ה-OCR לא יופיע במציג ה-PDF).
+#
+# --- שימוש מקומי ---
+dependency_overrides:
+  otzaria_ocr:
+    path: ../others/otzaria_ocr
+#
+# --- שימוש ב-CI (Windows job בלבד) ---
+# ה-Action מבצע checkout נוסף של הריפו הפרטי לתיקייה ייעודית, ויוצר את
+# הקובץ הזה ב-runtime לפני `flutter pub get`. ראה
+# .github/workflows/build-and-announce.yml.
+#
+# secrets נדרשים ב-GitHub Actions:
+# - OTZARIA_OCR_REPOSITORY = owner/repo של הריפו הפרטי
+# - OTZARIA_OCR_TOKEN = token לקריאה בלבד

@@ -1,0 +1,26 @@
+name: otzaria_ocr
+description: |
+  Stub ציבורי של חבילת OCR של אוצריא.
+
+  זוהי גרסת ה-stub הציבורית: היא חושפת את ה-API בלבד וכל הפעולות מחזירות
+  unsupportedPlatform. המימוש האמיתי (FFI מול oneocr.dll, Windows only)
+  מסופק ע"י החבילה הפרטית `otzaria_ocr` ב-Documents/others/otzaria_ocr,
+  ומוחלף בזמן בנייה ב-Windows דרך `pubspec_overrides.yaml`.
+
+  הקובץ הזה ציבורי בכוונה - מאפשר ל-CI הציבורי, ל-Linux/macOS, ולמפתחים
+  שאין להם גישה לקוד הפרטי, לקמפל ולהריץ את אוצריא בלי בעיות.
+version: 0.1.0
+publish_to: 'none'
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+  flutter: '>=3.22.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0

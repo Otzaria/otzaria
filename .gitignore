@@ -32,6 +32,10 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 build/
+
+# Local overrides למפתחים עם גישה לחבילת ה-OCR הפרטית.
+# הקובץ pubspec_overrides.yaml.example tracked כתבנית; הקובץ הפעיל - לא.
+pubspec_overrides.yaml
 windows/*
 !windows/runner/
 windows/runner/*
