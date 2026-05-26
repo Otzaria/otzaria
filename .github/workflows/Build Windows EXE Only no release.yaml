@@ -32,6 +32,15 @@ jobs:
       - name: Clone repository
         uses: actions/checkout@v4.2.2
 
+      - name: Checkout private OCR package
+        if: ${{ secrets.OTZARIA_OCR_REPOSITORY != '' && secrets.OTZARIA_OCR_TOKEN != '' }}
+        uses: actions/checkout@v4.2.2
+        with:
+          repository: ${{ secrets.OTZARIA_OCR_REPOSITORY }}
+          token: ${{ secrets.OTZARIA_OCR_TOKEN }}
+          path: third_party/otzaria_ocr
+          persist-credentials: false
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -80,6 +89,29 @@ jobs:
           if (-not $iscc) { throw "ISCC.exe not found after installation" }
           "ISCC=$iscc" | Out-File -FilePath $env:GITHUB_ENV -Append
           Write-Host "ISCC resolved to: $iscc"
+
+      - name: Activate private OCR override (optional)
+        shell: pwsh
+        run: |
+          $overridePath = "pubspec_overrides.yaml"
+          $privatePackagePath = "third_party/otzaria_ocr"
+
+          if (Test-Path "$privatePackagePath\pubspec.yaml") {
+            # מערך שורות במקום here-string - כדי שלא נשבר את ה-YAML
+            # parser (here-string דורש "@ בעמודה 1, מה שמפסיק את ה-run: block).
+            $lines = @(
+              'dependency_overrides:',
+              '  otzaria_ocr:',
+              '    path: third_party/otzaria_ocr'
+            )
+            $lines | Set-Content -Path $overridePath -Encoding UTF8
+            Write-Host "Private OCR override activated from $privatePackagePath"
+          } else {
+            if (Test-Path $overridePath) {
+              Remove-Item -Path $overridePath -Force
+            }
+            Write-Host "Private OCR package not configured for this build; using public stub."
+          }
 
       - name: Prepare Flutter dependencies for Windows release
         shell: pwsh
