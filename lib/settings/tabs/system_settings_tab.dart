@@ -37,6 +37,7 @@ import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/dialogs/error_report_sender_email_dialog.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/settings/settings_card.dart';
+import 'package:otzaria/settings/widgets/settings_action_tile.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
 import 'package:otzaria/tour/bloc/tour_cubit.dart';
@@ -846,75 +847,23 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
       title: 'דיווחי טעויות',
       subtitle: 'שליחה ישירה לצוות אוצריא, כולל תור אוטומטי במצב אופליין.',
       children: [
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final isNarrow = constraints.maxWidth < LayoutBreakpoints.compact;
-            const titleWidget =
-                Text('כתובת מייל לזיהוי', style: kSettingsTitleStyle);
-            final subtitleWidget = Text(
+        SettingsActionTile.text(
+          icon: FluentIcons.mail_24_regular,
+          title: 'כתובת מייל לזיהוי',
+          subtitle:
               senderEmail.isEmpty ? 'עדיין לא הוגדרה כתובת זיהוי' : senderEmail,
-              style: kSettingsSubtitleStyle,
-              textDirection: TextDirection.ltr,
-            );
-            final actionsRow = Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                if (senderEmail.isNotEmpty)
-                  NeutralActionButton(
-                    text: 'נקה',
-                    onPressed: _clearSenderEmail,
-                  ),
-                RecommendedActionButton(
-                  text: senderEmail.isEmpty ? 'הגדר' : 'ערוך',
-                  onPressed: _editSenderEmail,
-                ),
-              ],
-            );
-
-            if (!isNarrow) {
-              return ListTile(
-                leading: const Icon(FluentIcons.mail_24_regular),
-                title: titleWidget,
-                subtitle: subtitleWidget,
-                trailing: actionsRow,
-              );
-            }
-
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Padding(
-                        padding: EdgeInsets.only(top: 2, left: 16),
-                        child: Icon(FluentIcons.mail_24_regular),
-                      ),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            titleWidget,
-                            const SizedBox(height: 4),
-                            subtitleWidget,
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: actionsRow,
-                  ),
-                ],
+          subtitleDirection: TextDirection.ltr,
+          actions: [
+            if (senderEmail.isNotEmpty)
+              NeutralActionButton(
+                text: 'נקה',
+                onPressed: _clearSenderEmail,
               ),
-            );
-          },
+            RecommendedActionButton(
+              text: senderEmail.isEmpty ? 'הגדר' : 'ערוך',
+              onPressed: _editSenderEmail,
+            ),
+          ],
         ),
         SwitchListTile(
           secondary: const Icon(FluentIcons.cloud_arrow_up_24_regular),

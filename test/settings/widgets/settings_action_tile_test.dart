@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/settings/tabs/widgets/location_settings_tile.dart';
+import 'package:otzaria/settings/widgets/settings_action_tile.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -19,7 +19,7 @@ void main() {
         body: Center(
           child: SizedBox(
             width: width,
-            child: LocationSettingsTile(
+            child: SettingsActionTile.text(
               icon: FluentIcons.folder_24_regular,
               title: 'מיקום ספריית אוצריא',
               subtitle: longPath,
@@ -36,7 +36,7 @@ void main() {
     );
   }
 
-  group('LocationSettingsTile — פריסה רספונסיבית', () {
+  group('SettingsActionTile — פריסה רספונסיבית', () {
     testWidgets('מסך רחב: הכפתורים ב-trailing של ListTile', (tester) async {
       await tester.binding.setSurfaceSize(const Size(1024, 768));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -83,8 +83,6 @@ void main() {
 
     testWidgets('מסך צר: טקסט הנתיב תופס רוחב סביר ולא קורס לתו-לשורה',
         (tester) async {
-      // הבאג המקורי: trailing עם 2 כפתורים חטף את כל הרוחב, וה-subtitle
-      // נשאר עם רוחב של תו אחד. הטסט וודא ש-Text מקבל לפחות 200px.
       await tester.binding.setSurfaceSize(const Size(400, 800));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -106,7 +104,7 @@ void main() {
           body: Center(
             child: SizedBox(
               width: 360,
-              child: LocationSettingsTile(
+              child: SettingsActionTile.text(
                 icon: FluentIcons.folder_24_regular,
                 title: 'כותרת',
                 subtitle: 'תת-כותרת',
