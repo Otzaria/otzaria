@@ -9,7 +9,6 @@ import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
-import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/search/utils/snippet_builder.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
@@ -258,26 +257,18 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
               rawHtml = utils.replaceHolyNames(rawHtml);
             }
 
-            // חישוב רוחב זמין לטקסט
             final wrappedTitleText = _formatTitleForWrapping(titleText);
-            final availableWidth = constrains.maxWidth - 100.0;
 
+            // ההדגשה מגיעה מוכנה מהמנוע בתוך rawHtml, ולכן המפתח תלוי רק
+            // ב-HTML ובסגנון התצוגה — לא בפרמטרי החיפוש.
             final snippetCacheKey = [
               result.id,
               result.segment,
               rawHtml.hashCode,
-              state.searchQuery.hashCode,
-              state.configuration.searchMode.index,
-              state.configuration.distance,
-              SearchQueryBuilder.hasTypoToleranceEnabled(effectiveOptions),
-              widget.tab.searchOptionsChanged.value,
-              widget.tab.alternativeWordsChanged.value,
-              widget.tab.spacingValuesChanged.value,
               settingsState.fontSize,
               settingsState.fontFamily,
               settingsState.replaceHolyNames,
               colorScheme.onSurface.toARGB32(),
-              availableWidth.round(),
             ].join('|');
 
             // Create the snippet using the new robust function
@@ -288,9 +279,8 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                 if (_snippetCache.length > 300) {
                   _snippetCache.clear();
                 }
-                return SnippetBuilder.createSnippetSpans(
-                  fullHtml: rawHtml,
-                  query: state.searchQuery,
+                return SnippetBuilder.fromHighlightedHtml(
+                  html: rawHtml,
                   defaultStyle: TextStyle(
                     fontSize: settingsState.fontSize,
                     fontFamily: settingsState.fontFamily,
@@ -303,12 +293,6 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                     fontFamily: settingsState.fontFamily,
                     color: const Color(0xFFD32F2F),
                   ),
-                  availableWidth: availableWidth,
-                  searchOptions: effectiveOptions,
-                  alternativeWords: widget.tab.alternativeWords,
-                  customSpacing: widget.tab.spacingValues,
-                  searchDistance: state.configuration.distance,
-                  searchMode: state.configuration.searchMode,
                 );
               },
             );

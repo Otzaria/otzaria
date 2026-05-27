@@ -3,9 +3,26 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/search/search_query_builder.dart';
-import 'package:otzaria/search/utils/regex_patterns.dart';
 import 'package:otzaria/data/book_locator.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
+
+/// רגקס להסרת תגי HTML וישויות.
+final RegExp _htmlStripper = RegExp(r'<[^>]*>|&[^;]+;');
+
+/// רגקס להסרת ניקוד וטעמים.
+final RegExp _vowelsAndCantillation = RegExp(r'[֑-ׇ]');
+
+/// רגקס להסרת טעמים בלבד.
+final RegExp _cantillationOnly = RegExp(r'[֑-֯]');
+
+/// רגקס בסיסי לזיהוי שם הקודש (יהוה) עם ניקוד.
+///
+/// הסינון של מקרים כמו "ויגביהוהו" מתבצע בקוד, כדי שנוכל להתעלם מסימני
+/// ניקוד וטעמים שלפני השם בלי לפספס מקרים כמו "לַֽיהֹוָֽה".
+final RegExp _holyName = RegExp(
+  r"י([\p{Mn}]*)ה([\p{Mn}]*)ו([\p{Mn}]*)ה([\p{Mn}]*)",
+  unicode: true,
+);
 
 String stripHtmlIfNeeded(String text) {
   // Replace whitespace HTML entities with actual spaces before stripping,
@@ -15,7 +32,7 @@ String stripHtmlIfNeeded(String text) {
       .replaceAll('&thinsp;', ' ')
       .replaceAll('&ensp;', ' ')
       .replaceAll('&emsp;', ' ');
-  return withSpaces.replaceAll(SearchRegexPatterns.htmlStripper, '');
+  return withSpaces.replaceAll(_htmlStripper, '');
 }
 
 String truncate(String text, int length) {
@@ -24,7 +41,7 @@ String truncate(String text, int length) {
 
 String removeVolwels(String s) {
   s = s.replaceAll('־', ' ').replaceAll('׀', ' ').replaceAll('|', ' ');
-  return s.replaceAll(SearchRegexPatterns.vowelsAndCantillation, '');
+  return s.replaceAll(_vowelsAndCantillation, '');
 }
 
 /// הסרת סימני פיסוק מטקסט
@@ -190,7 +207,7 @@ bool isHeadingLine(String line) {
 
 /// בדיקה אם טקסט מכיל ניקוד או טעמים
 bool hasNikud(String text) {
-  return SearchRegexPatterns.vowelsAndCantillation.hasMatch(text);
+  return _vowelsAndCantillation.hasMatch(text);
 }
 
 List<String> generateFullPartialSpellingVariations(String word) {
@@ -282,7 +299,7 @@ class _HighlightRange {
 }
 
 bool _isHebrewMark(String char) {
-  return SearchRegexPatterns.vowelsAndCantillation.hasMatch(char);
+  return _vowelsAndCantillation.hasMatch(char);
 }
 
 bool _isSearchTokenChar(String char) {
@@ -743,7 +760,7 @@ String formatTextWithParentheses(String text) {
 
 String replaceHolyNames(String s) {
   return s.replaceAllMapped(
-    SearchRegexPatterns.holyName,
+    _holyName,
     (match) {
       if (_hasThreeContiguousHebrewLettersBeforeMatch(s, match.start)) {
         return match.group(0)!;
@@ -783,7 +800,7 @@ String removeTeamim(String s) => s
     .replaceAll(' ׀', '')
     .replaceAll('ֽ', '')
     .replaceAll('׀', '')
-    .replaceAll(SearchRegexPatterns.cantillationOnly, '');
+    .replaceAll(_cantillationOnly, '');
 
 /// נורמליזציה לצורך התאמת מקור (FindRef):
 /// מסיר ניקוד, טעמים, גרשיים, סימני פיסוק, ומאחד רווחים.

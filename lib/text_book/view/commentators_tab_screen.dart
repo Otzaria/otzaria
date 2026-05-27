@@ -292,7 +292,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
       return cached;
     }
 
-    final spans = SnippetBuilder.buildHighlightSpans(
+    final spans = SnippetBuilder.highlightLiteral(
       plainText: snippet.snippet,
       query: query,
       defaultStyle: TextStyle(
@@ -306,11 +306,6 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
         fontSize: 16,
         color: colorScheme.error,
       ),
-      searchOptions: const {},
-      alternativeWords: const {},
-      searchDistance: 0,
-      spacingValues: const {},
-      fallbackToIndividualWords: true,
     );
 
     if (_snippetSpansCache.length > 500) {

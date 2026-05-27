@@ -79,16 +79,6 @@ class SearchQueryBuilder {
     return perWordOptions;
   }
 
-  static bool hasEnabledSearchOptions(
-    Map<String, Map<String, bool>>? searchOptions,
-  ) {
-    return searchOptions != null &&
-        searchOptions.isNotEmpty &&
-        searchOptions.values.any(
-          (wordOptions) => wordOptions.values.any((isEnabled) => isEnabled),
-        );
-  }
-
   static SearchModeScopedParameters normalizeParametersForMode(
     SearchMode searchMode, {
     Map<String, String>? customSpacing,
@@ -141,18 +131,6 @@ class SearchQueryBuilder {
       customSpacing: normalizedSpacing,
       alternativeWords: normalizedAlternatives,
       searchOptions: normalizedOptions,
-    );
-  }
-
-  static bool hasTypoToleranceEnabled(
-    Map<String, Map<String, bool>>? searchOptions,
-  ) {
-    if (!hasEnabledSearchOptions(searchOptions)) {
-      return false;
-    }
-
-    return searchOptions!.values.any(
-      (wordOptions) => wordOptions[typoToleranceOptionKey] == true,
     );
   }
 

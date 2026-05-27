@@ -144,11 +144,6 @@ class _CommentaryContentState extends State<CommentaryContent> {
                             fullText: plainText,
                             query: widget.searchQuery,
                             maxChars: 220,
-                            searchOptions: const {},
-                            alternativeWords: const {},
-                            spacingValues: const {},
-                            searchDistance: 0,
-                            fallbackToIndividualWords: true,
                           );
                           widget.onSearchSnippetsChanged!.call([excerpt]);
                         }

@@ -661,44 +661,46 @@ class TextBookSearchViewState extends State<TextBookSearchView>
           final resultListIndex = item.resultListIndex!;
           return BlocBuilder<SettingsBloc, SettingsState>(
             builder: (context, settingsState) {
-              final activeParameters = _activeSearchParameters;
               String snippet = result.snippet;
-
               if (settingsState.replaceHolyNames) {
                 snippet = utils.replaceHolyNames(snippet);
               }
 
-              snippet = SnippetBuilder.buildExcerptText(
-                fullText: snippet,
-                query: result.query,
-                maxChars: _maxResultSnippetChars,
-                searchOptions: activeParameters.searchOptions,
-                alternativeWords: activeParameters.alternativeWords,
-                spacingValues: activeParameters.customSpacing,
-                searchDistance: _searchDistance,
-                fallbackToIndividualWords: _isSimpleSearch,
+              final defaultStyle = TextStyle(
+                fontSize: 16,
+                fontFamily: settingsState.fontFamily,
+                color: Theme.of(context).colorScheme.onSurface,
+                height: 1.5,
+              );
+              const highlightStyle = TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+                color: Color(0xFFD32F2F),
               );
 
-              final highlightedSnippet = SnippetBuilder.buildHighlightSpans(
-                plainText: snippet,
-                query: result.query,
-                defaultStyle: TextStyle(
-                  fontSize: 16,
-                  fontFamily: settingsState.fontFamily,
-                  color: Theme.of(context).colorScheme.onSurface,
-                  height: 1.5,
-                ),
-                highlightStyle: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                  color: Color(0xFFD32F2F),
-                ),
-                searchOptions: activeParameters.searchOptions,
-                alternativeWords: activeParameters.alternativeWords,
-                searchDistance: _searchDistance,
-                spacingValues: activeParameters.customSpacing,
-                fallbackToIndividualWords: _isSimpleSearch,
-              );
+              // בחיפוש פשוט התוצאה היא טקסט מקומי — חותכים קטע ומדגישים את
+              // השאילתה הליטרלית. בחיפוש מתקדם/מקורב התוצאה מגיעה מהמנוע עם
+              // הדגשות מוטמעות ב-HTML.
+              final List<InlineSpan> highlightedSnippet;
+              if (_isSimpleSearch) {
+                final excerpt = SnippetBuilder.buildExcerptText(
+                  fullText: snippet,
+                  query: result.query,
+                  maxChars: _maxResultSnippetChars,
+                );
+                highlightedSnippet = SnippetBuilder.highlightLiteral(
+                  plainText: excerpt,
+                  query: result.query,
+                  defaultStyle: defaultStyle,
+                  highlightStyle: highlightStyle,
+                );
+              } else {
+                highlightedSnippet = SnippetBuilder.fromHighlightedHtml(
+                  html: snippet,
+                  defaultStyle: defaultStyle,
+                  highlightStyle: highlightStyle,
+                );
+              }
 
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
