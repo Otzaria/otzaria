@@ -2,9 +2,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:search_engine/search_engine.dart';
 import 'package:hive_ce/hive.dart';
-import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
-import 'package:otzaria/search/search_query_builder.dart';
+import 'package:otzaria/search/search_engine_gateway.dart';
 import 'package:otzaria/core/app_paths.dart';
 
 /// A singleton class that manages search functionality using Tantivy search engine.
@@ -12,6 +11,7 @@ import 'package:otzaria/core/app_paths.dart';
 /// This provider handles the search operations for both text-based and PDF books,
 /// maintaining an index for full-text search capabilities.
 class TantivyDataProvider {
+  static const SearchEngineGateway _searchGateway = SearchEngineGateway();
   static const int currentIndexStateVersion = 5;
   static const String _booksDoneKey = 'key-books-done';
   static const String _indexStateVersionKey = 'key-index-state-version';
@@ -346,15 +346,18 @@ class TantivyDataProvider {
       engine.then((value) {
         try {
           // Test the search engine
-          value
+          _searchGateway
               .search(
-                  regexTerms: ['a'],
-                  limit: 10,
-                  offset: 0,
-                  slop: 0,
-                  maxExpansions: 10,
-                  facets: ["/"],
-                  order: ResultsOrder.catalogue)
+            RustSearchEngineOperations(value),
+            const SearchEngineRequest(
+              query: 'a',
+              limit: 10,
+              offset: 0,
+              facets: ["/"],
+              order: ResultsOrder.catalogue,
+              searchMode: SearchMode.exact,
+            ),
+          )
               .then((results) {
             // Engine test successful
             debugPrint('✅ Search engine test successful');
@@ -402,7 +405,7 @@ class TantivyDataProvider {
       Map<String, Map<String, bool>>? searchOptions}) async {
     // Global cache check
     final cacheKey =
-        '$query|${facets.join(',')}|$fuzzy|$distance|${customSpacing.toString()}|${alternativeWords.toString()}|${searchOptions.toString()}';
+        '$query|${facets.join(',')}|$fuzzy|$searchMode|$distance|${customSpacing.toString()}|${alternativeWords.toString()}|${searchOptions.toString()}';
 
     if (_lastCachedQuery == query && _globalFacetCache.containsKey(cacheKey)) {
       debugPrint(
@@ -426,34 +429,20 @@ class TantivyDataProvider {
 
     // Mark this count as in progress
     _ongoingCounts.add(cacheKey);
-    final index = await engine;
-
-    final normalizedParameters = SearchQueryBuilder.normalizeParametersForMode(
-      searchMode,
-      customSpacing: customSpacing,
-      alternativeWords: alternativeWords,
-      searchOptions: searchOptions,
-    );
-
-    // המרת החיפוש לפורמט המנוע החדש - בדיוק כמו ב-SearchRepository!
-    final params = SearchQueryBuilder.prepareQueryParams(
-      query,
-      fuzzy,
-      distance,
-      normalizedParameters.customSpacing,
-      normalizedParameters.alternativeWords,
-      normalizedParameters.searchOptions,
-    );
-    final List<String> regexTerms = params['regexTerms'] as List<String>;
-    final int effectiveSlop = params['effectiveSlop'] as int;
-    final int maxExpansions = params['maxExpansions'] as int;
 
     try {
-      final count = await index.count(
-          regexTerms: regexTerms,
+      final count = await _searchGateway.count(
+        RustSearchEngineOperations(await engine),
+        SearchEngineRequest(
+          query: query,
           facets: facets,
-          slop: effectiveSlop,
-          maxExpansions: maxExpansions);
+          searchMode: fuzzy ? SearchMode.fuzzy : searchMode,
+          distance: distance,
+          customSpacing: customSpacing ?? const {},
+          alternativeWords: alternativeWords ?? const {},
+          searchOptions: searchOptions ?? const {},
+        ),
+      );
 
       // Save to global cache
       _lastCachedQuery = query;
@@ -463,10 +452,11 @@ class TantivyDataProvider {
 
       return count;
     } catch (e) {
-      // Remove from ongoing counts even on error
-      _ongoingCounts.remove(cacheKey);
       // Log error in production
       rethrow;
+    } finally {
+      // Remove from ongoing counts even on error
+      _ongoingCounts.remove(cacheKey);
     }
   }
 
@@ -519,34 +509,17 @@ class TantivyDataProvider {
     Map<int, List<String>>? alternativeWords,
     Map<String, Map<String, bool>>? searchOptions,
   }) async {
-    final index = await engine;
-
-    final normalizedParameters = SearchQueryBuilder.normalizeParametersForMode(
-      searchMode,
-      customSpacing: customSpacing,
-      alternativeWords: alternativeWords,
-      searchOptions: searchOptions,
-    );
-
-    final params = SearchQueryBuilder.prepareQueryParams(
-      query,
-      fuzzy,
-      distance,
-      normalizedParameters.customSpacing,
-      normalizedParameters.alternativeWords,
-      normalizedParameters.searchOptions,
-    );
-    final List<String> regexTerms = params['regexTerms'] as List<String>;
-    final int effectiveSlop = params['effectiveSlop'] as int;
-    final int maxExpansions = params['maxExpansions'] as int;
-
-    if (regexTerms.isEmpty) return {};
-
-    final results = await index.countByBook(
-      regexTerms: regexTerms,
-      facets: facets,
-      slop: effectiveSlop,
-      maxExpansions: maxExpansions,
+    final results = await _searchGateway.countByBook(
+      RustSearchEngineOperations(await engine),
+      SearchEngineRequest(
+        query: query,
+        facets: facets,
+        searchMode: fuzzy ? SearchMode.fuzzy : searchMode,
+        distance: distance,
+        customSpacing: customSpacing ?? const {},
+        alternativeWords: alternativeWords ?? const {},
+        searchOptions: searchOptions ?? const {},
+      ),
     );
 
     return Map<String, int>.from(results);
@@ -562,11 +535,16 @@ class TantivyDataProvider {
   /// Returns a Stream of search results that can be listened to for real-time updates
   Stream<List<SearchResult>> searchTextsStream(
       String query, List<String> facets, int limit, bool fuzzy) async* {
-    // הפונקציה הזו לא נתמכת במנוע החדש - נחזיר תוצאה חד-פעמית
-    final searchRepository = SearchRepository();
-    final results =
-        await searchRepository.searchTexts(query, facets, limit, fuzzy: fuzzy);
-    yield results;
+    yield* _searchGateway.searchStream(
+      RustSearchEngineOperations(await engine),
+      SearchEngineRequest(
+        query: query,
+        facets: facets,
+        limit: limit,
+        searchMode: fuzzy ? SearchMode.fuzzy : SearchMode.exact,
+      ),
+      chunkSize: 50,
+    );
   }
 
   /// ספירה מקבצת של תוצאות עבור מספר facets בבת אחת - לשיפור ביצועים.
@@ -585,27 +563,17 @@ class TantivyDataProvider {
         '🔍 TantivyDataProvider: Starting batch count for ${facets.length} facets');
     final stopwatch = Stopwatch()..start();
 
-    final index = await engine;
+    final operations = RustSearchEngineOperations(await engine);
     final results = <String, int>{};
-
-    final normalizedParameters = SearchQueryBuilder.normalizeParametersForMode(
-      searchMode,
-      customSpacing: customSpacing,
-      alternativeWords: alternativeWords,
-      searchOptions: searchOptions,
+    final baseRequest = SearchEngineRequest(
+      query: query,
+      facets: facets,
+      searchMode: fuzzy ? SearchMode.fuzzy : searchMode,
+      distance: distance,
+      customSpacing: customSpacing ?? const {},
+      alternativeWords: alternativeWords ?? const {},
+      searchOptions: searchOptions ?? const {},
     );
-
-    final params = SearchQueryBuilder.prepareQueryParams(
-      query,
-      fuzzy,
-      distance,
-      normalizedParameters.customSpacing,
-      normalizedParameters.alternativeWords,
-      normalizedParameters.searchOptions,
-    );
-    final List<String> regexTerms = params['regexTerms'] as List<String>;
-    final int effectiveSlop = params['effectiveSlop'] as int;
-    final int maxExpansions = params['maxExpansions'] as int;
 
     // קיבוץ facets לפי parent prefix כדי לחסוך קריאות FFI
     final Map<String, List<String>> byParent = {};
@@ -624,12 +592,10 @@ class TantivyDataProvider {
         try {
           debugPrint(
               '🔍 getFacetCounts: parent=$parent (${siblings.length} siblings)');
-          final facetCounts = await index.getFacetCounts(
-            regexTerms: regexTerms,
-            facets: [parent],
+          final facetCounts = await _searchGateway.getFacetCounts(
+            operations,
+            baseRequest.copyWith(facets: [parent]),
             facetPrefix: parent,
-            slop: effectiveSlop,
-            maxExpansions: maxExpansions,
           );
           final countMap = {
             for (final fc in facetCounts) fc.path: fc.count.toInt(),
@@ -644,11 +610,10 @@ class TantivyDataProvider {
           // fallback לקריאות count נפרדות
           for (final facet in siblings) {
             try {
-              results[facet] = await index.count(
-                  regexTerms: regexTerms,
-                  facets: [facet],
-                  slop: effectiveSlop,
-                  maxExpansions: maxExpansions);
+              results[facet] = await _searchGateway.count(
+                operations,
+                baseRequest.copyWith(facets: [facet]),
+              );
             } catch (e2) {
               debugPrint('❌ count failed for $facet: $e2');
               results[facet] = 0;
@@ -659,11 +624,10 @@ class TantivyDataProvider {
         // sibling יחיד - count ישיר יעיל יותר
         final facet = siblings[0];
         try {
-          results[facet] = await index.count(
-              regexTerms: regexTerms,
-              facets: [facet],
-              slop: effectiveSlop,
-              maxExpansions: maxExpansions);
+          results[facet] = await _searchGateway.count(
+            operations,
+            baseRequest.copyWith(facets: [facet]),
+          );
         } catch (e) {
           debugPrint('❌ count failed for $facet: $e');
           results[facet] = 0;

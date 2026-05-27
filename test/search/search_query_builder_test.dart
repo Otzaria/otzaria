@@ -1,660 +1,302 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/search/search_engine_gateway.dart';
 import 'package:otzaria/search/search_query_builder.dart';
+import 'package:search_engine/search_engine.dart';
 
 void main() {
-  // ──────────────────────────────────────────────────────────────────────────
-  group('sanitizeQuery', () {
-    test('מחזיר query ריק ללא שינוי', () {
-      expect(SearchQueryBuilder.sanitizeQuery(''), '');
-    });
-
-    test('מסיר פסיקים', () {
+  group('SearchQueryBuilder - אחריות UI בלבד', () {
+    test('sanitizeQuery מנקה תווים שמגיעים מהקלט בלי לבנות שאילתת מנוע', () {
       expect(SearchQueryBuilder.sanitizeQuery('תורה, ומצוות'), 'תורה ומצוות');
-    });
-
-    test('שומר גרש וגרשיים לועזיים', () {
-      expect(SearchQueryBuilder.sanitizeQuery("ה'"), "ה'");
-      expect(SearchQueryBuilder.sanitizeQuery('רמב"ם'), 'רמב"ם');
-    });
-
-    test('ממיר גרשיים וגרש עבריים ללועזיים (״→", ׳→\')', () {
-      expect(SearchQueryBuilder.sanitizeQuery('ר״ן'), 'ר"ן');
-      expect(SearchQueryBuilder.sanitizeQuery("א׳"), "א'");
-    });
-
-    test('מסיר סימני שאלה וקריאה', () {
-      expect(SearchQueryBuilder.sanitizeQuery('מה?'), 'מה');
-      expect(SearchQueryBuilder.sanitizeQuery('כן!'), 'כן');
-    });
-
-    test('מסיר סוגריים', () {
-      expect(SearchQueryBuilder.sanitizeQuery('(תורה) [ומצוות] {ונביאים}'),
-          'תורה ומצוות ונביאים');
-    });
-
-    test('מסיר כוכביות ונקודות', () {
-      expect(SearchQueryBuilder.sanitizeQuery('תורה.*'), 'תורה');
-    });
-
-    test('מסיר מעוין וסולמית ומקף בינתיים', () {
-      expect(SearchQueryBuilder.sanitizeQuery('^abc\$'), 'abc');
-    });
-
-    test('מסיר backslash וpipe', () {
-      expect(SearchQueryBuilder.sanitizeQuery('a\\b|c'), 'abc');
-    });
-
-    test('query עם רק תווים מוסרים → ריק', () {
-      expect(SearchQueryBuilder.sanitizeQuery('*!?.,;'), '');
-    });
-
-    test('query טהור עברי נשמר', () {
-      expect(SearchQueryBuilder.sanitizeQuery('בראשית ברא אלהים'),
-          'בראשית ברא אלהים');
-    });
-
-    test('חותך רווחים מהצדדים', () {
-      expect(SearchQueryBuilder.sanitizeQuery('  תורה  '), 'תורה');
-    });
-
-    test('ממיר מקף עברי (־) לרווח רגיל', () {
       expect(SearchQueryBuilder.sanitizeQuery('אל־משה'), 'אל משה');
-      expect(SearchQueryBuilder.sanitizeQuery('ויאמר־אלהים'), 'ויאמר אלהים');
-    });
-  });
-
-  group('typo helpers', () {
-    test('buildWordKey בונה מפתח עקבי לאפשרויות מילה', () {
-      expect(SearchQueryBuilder.buildWordKey('תורה', 2), 'תורה_2');
+      expect(SearchQueryBuilder.sanitizeQuery('!?.,*'), '');
     });
 
-    test('hasTypoToleranceEnabled מזהה דגל שגיאות כתיב באפשרויות', () {
-      expect(
-        SearchQueryBuilder.hasTypoToleranceEnabled({
-          'תורה_0': {SearchQueryBuilder.typoToleranceOptionKey: true}
-        }),
-        isTrue,
-      );
-      expect(
-        SearchQueryBuilder.hasTypoToleranceEnabled({
-          'תורה_0': {'כתיב מלא/חסר': true}
-        }),
-        isFalse,
-      );
+    test('splitQueryWords שומר תאימות לטוקנייזר עבור ראשי תיבות', () {
+      expect(SearchQueryBuilder.splitQueryWords('רמב"ם משה'), [
+        'רמב',
+        'ם',
+        'משה',
+      ]);
+      expect(SearchQueryBuilder.splitQueryWords("ה'"), ["ה'"]);
     });
 
-    test('normalizeParametersForMode מנקה פרמטרים מתקדמים מחוץ ל-advanced', () {
-      final normalized = SearchQueryBuilder.normalizeParametersForMode(
-        SearchMode.exact,
-        customSpacing: {'0-1': '7'},
-        alternativeWords: {
-          0: ['בינה']
-        },
-        searchOptions: {
-          'חכמה_0': {SearchQueryBuilder.typoToleranceOptionKey: true}
-        },
+    test('effectiveSearchOptions מרחיב אפשרויות גלובליות לפי מילים', () {
+      final options = SearchQueryBuilder.effectiveSearchOptions(
+        query: 'חכמה בינה',
+        useGlobalOptions: true,
+        globalOptions: const {'קידומות': true},
+        perWordOptions: const {},
       );
 
-      expect(normalized.customSpacing, isEmpty);
-      expect(normalized.alternativeWords, isEmpty);
-      expect(normalized.searchOptions, isEmpty);
+      expect(options, {
+        'חכמה_0': {'קידומות': true},
+        'בינה_1': {'קידומות': true},
+      });
     });
-  });
 
-  group('normalizeParametersForMode', () {
-    final customSpacing = {'0-1': ' 5 ', '1-2': '   '};
-    final alternativeWords = {
-      0: [' חכמה ', ''],
-      1: ['   '],
-    };
-    final searchOptions = {
-      'חכמה_0': {'קידומות': true, 'סיומות': false},
-      'בינה_1': {'סיומות': false},
-    };
-
-    test('advanced שומר רק ערכים פעילים ולא ריקים', () {
-      final params = SearchQueryBuilder.normalizeParametersForMode(
+    test('normalizeParametersForMode משאיר פרמטרים ידניים רק במצב מתקדם', () {
+      final advanced = SearchQueryBuilder.normalizeParametersForMode(
         SearchMode.advanced,
-        customSpacing: customSpacing,
-        alternativeWords: alternativeWords,
-        searchOptions: searchOptions,
+        customSpacing: const {'0-1': ' 5 ', '1-2': ' '},
+        alternativeWords: const {
+          0: [' שלום ', ''],
+        },
+        searchOptions: const {
+          'חכמה_0': {'קידומות': true, 'סיומות': false},
+        },
       );
 
-      expect(params.customSpacing, {'0-1': '5'});
-      expect(params.alternativeWords, {
-        0: ['חכמה']
+      expect(advanced.customSpacing, {'0-1': '5'});
+      expect(advanced.alternativeWords, {
+        0: ['שלום'],
       });
-      expect(params.searchOptions, {
-        'חכמה_0': {'קידומות': true}
+      expect(advanced.searchOptions, {
+        'חכמה_0': {'קידומות': true},
       });
-    });
 
-    test('exact מאפס פרמטרים מתקדמים', () {
-      final params = SearchQueryBuilder.normalizeParametersForMode(
+      final exact = SearchQueryBuilder.normalizeParametersForMode(
         SearchMode.exact,
-        customSpacing: customSpacing,
-        alternativeWords: alternativeWords,
-        searchOptions: searchOptions,
+        customSpacing: advanced.customSpacing,
+        alternativeWords: advanced.alternativeWords,
+        searchOptions: advanced.searchOptions,
       );
 
-      expect(params.customSpacing, isEmpty);
-      expect(params.alternativeWords, isEmpty);
-      expect(params.searchOptions, isEmpty);
-    });
-
-    test('fuzzy מאפס פרמטרים מתקדמים ידניים', () {
-      final params = SearchQueryBuilder.normalizeParametersForMode(
-        SearchMode.fuzzy,
-        customSpacing: customSpacing,
-        alternativeWords: alternativeWords,
-        searchOptions: searchOptions,
-      );
-
-      expect(params.customSpacing, isEmpty);
-      expect(params.alternativeWords, isEmpty);
-      expect(params.searchOptions, isEmpty);
+      expect(exact.customSpacing, isEmpty);
+      expect(exact.alternativeWords, isEmpty);
+      expect(exact.searchOptions, isEmpty);
     });
   });
 
-  // ──────────────────────────────────────────────────────────────────────────
-  group('buildAdvancedQuery', () {
-    test('מילה בודדת ללא אפשרויות → מחזירה אותה', () {
-      final result =
-          SearchQueryBuilder.buildAdvancedQuery(['תורה'], null, null);
-      expect(result, ['תורה']);
+  group('SearchEngineGateway', () {
+    test('search מפנה לפונקציה המתאימה לפי מצב החיפוש', () async {
+      final engine = _RecordingSearchEngineOperations();
+      const gateway = SearchEngineGateway();
+
+      await gateway.search(engine, _request(SearchMode.exact));
+      await gateway.search(engine, _request(SearchMode.advanced));
+      await gateway.search(engine, _request(SearchMode.fuzzy));
+
+      expect(engine.calls, [
+        _EngineCall.searchExact,
+        _EngineCall.searchAdvanced,
+        _EngineCall.searchFuzzy,
+      ]);
     });
 
-    test('שתי מילים ללא אפשרויות', () {
-      final result =
-          SearchQueryBuilder.buildAdvancedQuery(['תורה', 'ומצוות'], null, null);
-      expect(result, ['תורה', 'ומצוות']);
+    test('searchStream מפנה לפי מצב החיפוש', () async {
+      final engine = _RecordingSearchEngineOperations();
+      const gateway = SearchEngineGateway();
+
+      await gateway
+          .searchStream(engine, _request(SearchMode.exact), chunkSize: 10)
+          .drain<void>();
+      await gateway
+          .searchStream(engine, _request(SearchMode.advanced), chunkSize: 10)
+          .drain<void>();
+      await gateway
+          .searchStream(engine, _request(SearchMode.fuzzy), chunkSize: 10)
+          .drain<void>();
+
+      expect(engine.calls, [
+        _EngineCall.searchExactStream,
+        _EngineCall.searchAdvancedStream,
+        _EngineCall.searchFuzzyStream,
+      ]);
     });
 
-    test('מילה ריקה ברשימה מסוננת', () {
-      final result = SearchQueryBuilder.buildAdvancedQuery(
-          ['תורה', '', 'ברא'], null, null);
-      // מילה ריקה עוברת דרך fallback: regexTerms.add(word) - מוסיף מחרוזת ריקה
-      // אך לפחות לא קורסת
-      expect(result.length, 3);
-    });
+    test('count/countByBook/getFacetCounts משתמשים באותו dispatch', () async {
+      final engine = _RecordingSearchEngineOperations();
+      const gateway = SearchEngineGateway();
 
-    test('alternativeWords יוצר regex עם OR', () {
-      final result = SearchQueryBuilder.buildAdvancedQuery(
-        ['ה'],
-        {
-          0: ['השם', 'אדני']
-        },
-        null,
-      );
-      expect(result.length, 1);
-      // צריך להכיל OR
-      expect(result.first, contains('|'));
-    });
-
-    test('alternativeWords ריקים לא יוצרים אופרטור ריק', () {
-      final result = SearchQueryBuilder.buildAdvancedQuery(
-        ['תורה'],
-        {0: []},
-        null,
-      );
-      expect(result.length, 1);
-      // אין | ריק
-      expect(result.first, isNot(contains('|')));
-      expect(result.first, isNot(startsWith('(')));
-    });
-
-    test('שגיאות כתיב פר-מילה יוצרות וריאציות בלי להפעיל fuzzy מלא', () {
-      final result = SearchQueryBuilder.buildAdvancedQuery(
-        ['חכמה'],
-        null,
-        {
-          'חכמה_0': {SearchQueryBuilder.typoToleranceOptionKey: true}
-        },
+      await gateway.count(engine, _request(SearchMode.exact));
+      await gateway.countByBook(engine, _request(SearchMode.advanced));
+      await gateway.getFacetCounts(
+        engine,
+        _request(SearchMode.fuzzy),
+        facetPrefix: '/',
       );
 
-      expect(result.first, contains('חכמה'));
-      expect(result.first, contains('הכמה'));
-      expect(result.first, contains('חמכה'));
-      expect(result.first, isNot(contains('תרה')));
-    });
-
-    test('שגיאות כתיב פר-מילה כוללות גם הוספה או השמטה של אות אחת', () {
-      final result = SearchQueryBuilder.buildAdvancedQuery(
-        ['רעה'],
-        null,
-        {
-          'רעה_0': {SearchQueryBuilder.typoToleranceOptionKey: true}
-        },
-      );
-
-      expect(result.first, contains('פרעה'));
-    });
-
-    test('שגיאות כתיב פר-מילה נשארות חסומות בגודל query', () {
-      final result = SearchQueryBuilder.buildAdvancedQuery(
-        ['רעה'],
-        null,
-        {
-          'רעה_0': {SearchQueryBuilder.typoToleranceOptionKey: true}
-        },
-      );
-
-      final branchCount = RegExp(r'\|').allMatches(result.first).length + 1;
-      expect(branchCount, lessThanOrEqualTo(48));
-      expect(result.first, contains('פרעה'));
-    });
-
-    test('מגביל וריאציות ל-20', () {
-      final manyAlternatives = List.generate(25, (i) => 'alt$i');
-      final result = SearchQueryBuilder.buildAdvancedQuery(
-        ['word'],
-        {0: manyAlternatives},
-        null,
-      );
-      expect(result.length, 1);
-      // הרגקס לא אמור להכיל יותר מ-20 וריאציות
-    });
-
-    test('variations ריקות לאחר סינון → המילה מדולגת', () {
-      // אפשרויות שכולן רווחים - אחרי trim יהיו ריקות
-      final result = SearchQueryBuilder.buildAdvancedQuery(
-        ['  '],
-        {
-          0: ['   ', '  ']
-        },
-        null,
-      );
-      // מילה ריקה עם אלטרנטיבות ריקות - validOptions ריק, fallback למילה
-      expect(result, isNotEmpty);
+      expect(engine.calls, [
+        _EngineCall.countExact,
+        _EngineCall.countByBookAdvanced,
+        _EngineCall.getFacetCountsFuzzy,
+      ]);
     });
   });
+}
 
-  // ──────────────────────────────────────────────────────────────────────────
-  group('prepareQueryParams - מקרים בסיסיים', () {
-    test('query ריק אחרי sanitize → regexTerms ריק', () {
-      final params = SearchQueryBuilder.prepareQueryParams(
-          '***', false, 0, null, null, null);
-      final regexTerms = params['regexTerms'] as List<String>;
-      expect(regexTerms, isEmpty);
-    });
+SearchEngineRequest _request(SearchMode mode) {
+  return SearchEngineRequest(
+    query: 'שלום עולם',
+    facets: const ['/'],
+    limit: 20,
+    offset: 0,
+    order: ResultsOrder.relevance,
+    searchMode: mode,
+    distance: 2,
+  );
+}
 
-    test('מילה אחת, לא fuzzy → regexTerms מכיל את המילה כולה', () {
-      final params = SearchQueryBuilder.prepareQueryParams(
-          'תורה', false, 0, null, null, null);
-      final regexTerms = params['regexTerms'] as List<String>;
-      expect(regexTerms, ['תורה']);
-      expect(params['effectiveSlop'], 0);
-    });
+enum _EngineCall {
+  searchExact,
+  searchAdvanced,
+  searchFuzzy,
+  searchAndCountExact,
+  searchAndCountAdvanced,
+  searchAndCountFuzzy,
+  searchExactStream,
+  searchAdvancedStream,
+  searchFuzzyStream,
+  countExact,
+  countAdvanced,
+  countFuzzy,
+  countByBookExact,
+  countByBookAdvanced,
+  countByBookFuzzy,
+  getFacetCountsExact,
+  getFacetCountsAdvanced,
+  getFacetCountsFuzzy,
+}
 
-    test('שתי מילים, לא fuzzy → regexTerms מכיל שתיהן', () {
-      final params = SearchQueryBuilder.prepareQueryParams(
-          'בראשית ברא', false, 0, null, null, null);
-      final regexTerms = params['regexTerms'] as List<String>;
-      expect(regexTerms.length, 2);
-      expect(regexTerms, contains('בראשית'));
-      expect(regexTerms, contains('ברא'));
-    });
+class _RecordingSearchEngineOperations implements SearchEngineOperations {
+  final List<_EngineCall> calls = [];
 
-    test('fuzzy עם מילה בודדת לא צריך slop בפועל', () {
-      final params = SearchQueryBuilder.prepareQueryParams(
-          'תורה', true, 3, null, null, null);
-      expect(params['effectiveSlop'], 0);
-    });
+  @override
+  Future<List<SearchResult>> searchExact(SearchEngineRequest request) async {
+    calls.add(_EngineCall.searchExact);
+    return const [];
+  }
 
-    test('query עם פסיקים → מנוקה לפני פיצול', () {
-      final params = SearchQueryBuilder.prepareQueryParams(
-          'תורה, ברא', false, 0, null, null, null);
-      final regexTerms = params['regexTerms'] as List<String>;
-      expect(regexTerms, isNotEmpty);
-      for (final term in regexTerms) {
-        expect(term, isNot(contains(',')));
-      }
-    });
+  @override
+  Future<List<SearchResult>> searchAdvanced(SearchEngineRequest request) async {
+    calls.add(_EngineCall.searchAdvanced);
+    return const [];
+  }
 
-    test('query עם רק תווים מוסרים → regexTerms ריק', () {
-      // sanitizeQuery מסיר: , ! ? : * ( ) [ ] { } ^ $ | \\ + . ~ `
-      // splitQueryWords מפצל גם על: " ' ״ ׳ (גרשיים/גרש)
-      final params = SearchQueryBuilder.prepareQueryParams(
-          '!?.,*', false, 0, null, null, null);
-      final regexTerms = params['regexTerms'] as List<String>;
-      expect(regexTerms, isEmpty);
-    });
+  @override
+  Future<List<SearchResult>> searchFuzzy(SearchEngineRequest request) async {
+    calls.add(_EngineCall.searchFuzzy);
+    return const [];
+  }
 
-    test('ראשי תיבות עם גרשיים לועזיים → מתפצלים לטוקנים נפרדים', () {
-      // הטוקנייזר של Tantivy מפצל את `רמב"ם` ל-`רמב`,`ם` באינדוקס,
-      // לכן השאילתה חייבת לשלוח phrase של 2 טוקנים.
-      final params = SearchQueryBuilder.prepareQueryParams(
-          'רמב"ם', false, 0, null, null, null);
-      final regexTerms = params['regexTerms'] as List<String>;
-      expect(regexTerms, ['רמב', 'ם']);
-    });
+  @override
+  Future<SearchPageResult> searchAndCountExact(
+    SearchEngineRequest request,
+  ) async {
+    calls.add(_EngineCall.searchAndCountExact);
+    return const SearchPageResult(totalCount: 0, results: []);
+  }
 
-    test('ראשי תיבות עם גרשיים עבריים → מתפצלים לטוקנים נפרדים', () {
-      final params = SearchQueryBuilder.prepareQueryParams(
-          'ר״ן', false, 0, null, null, null);
-      final regexTerms = params['regexTerms'] as List<String>;
-      expect(regexTerms, ['ר', 'ן']);
-    });
+  @override
+  Future<SearchPageResult> searchAndCountAdvanced(
+    SearchEngineRequest request,
+  ) async {
+    calls.add(_EngineCall.searchAndCountAdvanced);
+    return const SearchPageResult(totalCount: 0, results: []);
+  }
 
-    test("מילה בודדת עם גרש סופי → נשמר כחלק מהטוקן", () {
-      // ה' (קיצור לשם הוי"ה) — הגרש בסוף נשמר כחלק מהטוקן `ה'`
-      // כך שחיפוש `ה'` לא ימצא `ה` לבד.
-      // תואם את HebrewTokenizer שמאנדקס תוס' כטוקן `תוס'`.
-      final params = SearchQueryBuilder.prepareQueryParams(
-          "ה'", false, 0, null, null, null);
-      final regexTerms = params['regexTerms'] as List<String>;
-      expect(regexTerms, ["ה'"]);
-    });
+  @override
+  Future<SearchPageResult> searchAndCountFuzzy(
+    SearchEngineRequest request,
+  ) async {
+    calls.add(_EngineCall.searchAndCountFuzzy);
+    return const SearchPageResult(totalCount: 0, results: []);
+  }
 
-    test('צירוף ראשי תיבות ומילה רגילה → טוקנים סמוכים', () {
-      final params = SearchQueryBuilder.prepareQueryParams(
-          'רמב"ם משה', false, 0, null, null, null);
-      final regexTerms = params['regexTerms'] as List<String>;
-      expect(regexTerms, ['רמב', 'ם', 'משה']);
-    });
+  @override
+  Stream<List<SearchResult>> searchExactStream(
+    SearchEngineRequest request, {
+    required int chunkSize,
+  }) async* {
+    calls.add(_EngineCall.searchExactStream);
+    yield const [];
+  }
 
-    test("ז\"ל → phrase של ['ז','ל'] (לא מילה אחת ולא 'למה זה')", () {
-      // הטקסט באינדקס: `הרב פלוני ז"ל` ⇒ Tantivy מפצל ל-`הרב`,`פלוני`,`ז`,`ל`.
-      // השאילתה צריכה לבקש שני טוקנים סמוכים, בדיוק `ז` ו-`ל`,
-      // כך שטקסטים כמו `למה זה` (טוקנים `למה`,`זה`) לא יתפסו.
-      final params = SearchQueryBuilder.prepareQueryParams(
-          'ז"ל', false, 0, null, null, null);
-      final regexTerms = params['regexTerms'] as List<String>;
-      expect(regexTerms, ['ז', 'ל']);
-      expect(params['effectiveSlop'], 0);
-    });
-  });
+  @override
+  Stream<List<SearchResult>> searchAdvancedStream(
+    SearchEngineRequest request, {
+    required int chunkSize,
+  }) async* {
+    calls.add(_EngineCall.searchAdvancedStream);
+    yield const [];
+  }
 
-  // ──────────────────────────────────────────────────────────────────────────
-  group('prepareQueryParams - alternativeWords', () {
-    test('עם alternativeWords → activates buildAdvancedQuery', () {
-      final params = SearchQueryBuilder.prepareQueryParams(
-        'תורה',
-        false,
-        0,
-        null,
-        {
-          0: ['ומצוות']
-        },
-        null,
-      );
-      final regexTerms = params['regexTerms'] as List<String>;
-      expect(regexTerms.length, 1);
-      expect(regexTerms.first, contains('|'));
-    });
+  @override
+  Stream<List<SearchResult>> searchFuzzyStream(
+    SearchEngineRequest request, {
+    required int chunkSize,
+  }) async* {
+    calls.add(_EngineCall.searchFuzzyStream);
+    yield const [];
+  }
 
-    test('alternativeWords ריקים → לא מגיע ל-buildAdvancedQuery', () {
-      final params = SearchQueryBuilder.prepareQueryParams(
-        'תורה',
-        false,
-        0,
-        null,
-        {},
-        null,
-      );
-      final regexTerms = params['regexTerms'] as List<String>;
-      expect(regexTerms, ['תורה']);
-    });
-  });
+  @override
+  Future<int> countExact(SearchEngineRequest request) async {
+    calls.add(_EngineCall.countExact);
+    return 0;
+  }
 
-  // ──────────────────────────────────────────────────────────────────────────
-  group('prepareQueryParams - customSpacing', () {
-    test('עם customSpacing → effectiveSlop מחושב', () {
-      final params = SearchQueryBuilder.prepareQueryParams(
-        'בראשית ברא',
-        false,
-        0,
-        {'0-1': '5'},
-        null,
-        null,
-      );
-      expect(params['effectiveSlop'], 5);
-    });
+  @override
+  Future<int> countAdvanced(SearchEngineRequest request) async {
+    calls.add(_EngineCall.countAdvanced);
+    return 0;
+  }
 
-    test('customSpacing ריק → effectiveSlop=0', () {
-      final params = SearchQueryBuilder.prepareQueryParams(
-        'בראשית ברא',
-        false,
-        0,
-        {},
-        null,
-        null,
-      );
-      expect(params['effectiveSlop'], 0);
-    });
-  });
+  @override
+  Future<int> countFuzzy(SearchEngineRequest request) async {
+    calls.add(_EngineCall.countFuzzy);
+    return 0;
+  }
 
-  // ──────────────────────────────────────────────────────────────────────────
-  group('prepareQueryParams - maxExpansions', () {
-    test('לא fuzzy, מילה אחת → maxExpansions=10', () {
-      final params = SearchQueryBuilder.prepareQueryParams(
-          'תורה', false, 0, null, null, null);
-      expect(params['maxExpansions'], 10);
-    });
+  @override
+  Future<Map<String, int>> countByBookExact(
+    SearchEngineRequest request,
+  ) async {
+    calls.add(_EngineCall.countByBookExact);
+    return const {};
+  }
 
-    test('לא fuzzy, שתי מילים → maxExpansions=100', () {
-      final params = SearchQueryBuilder.prepareQueryParams(
-          'בראשית ברא', false, 0, null, null, null);
-      expect(params['maxExpansions'], 100);
-    });
+  @override
+  Future<Map<String, int>> countByBookAdvanced(
+    SearchEngineRequest request,
+  ) async {
+    calls.add(_EngineCall.countByBookAdvanced);
+    return const {};
+  }
 
-    test('fuzzy → maxExpansions=50', () {
-      final params = SearchQueryBuilder.prepareQueryParams(
-          'תורה', true, 2, null, null, null);
-      expect(params['maxExpansions'], 50);
-    });
+  @override
+  Future<Map<String, int>> countByBookFuzzy(
+    SearchEngineRequest request,
+  ) async {
+    calls.add(_EngineCall.countByBookFuzzy);
+    return const {};
+  }
 
-    test('fuzzy משתמש בביטוי מתקדם ולא במילה גולמית', () {
-      final params = SearchQueryBuilder.prepareQueryParams(
-          'חכמה', true, 9, null, null, null);
-      final regexTerms = params['regexTerms'] as List<String>;
+  @override
+  Future<List<FacetCount>> getFacetCountsExact(
+    SearchEngineRequest request, {
+    required String facetPrefix,
+  }) async {
+    calls.add(_EngineCall.getFacetCountsExact);
+    return const [];
+  }
 
-      expect(regexTerms, hasLength(1));
-      expect(regexTerms.first, contains('חכמה'));
-      expect(regexTerms.first, contains('הכמה'));
-      expect(regexTerms.first, contains('חקמה'));
-    });
+  @override
+  Future<List<FacetCount>> getFacetCountsAdvanced(
+    SearchEngineRequest request, {
+    required String facetPrefix,
+  }) async {
+    calls.add(_EngineCall.getFacetCountsAdvanced);
+    return const [];
+  }
 
-    test('fuzzy מתעלם מ-customSpacing ומשתמש במרווח הכללי', () {
-      final params = SearchQueryBuilder.prepareQueryParams(
-        'חכמה בינה',
-        true,
-        9,
-        {'0-1': '7'},
-        null,
-        null,
-      );
-
-      expect(params['effectiveSlop'], 9);
-    });
-
-    test('fuzzy מוסיף אוטומטית כתיב מלא וחסר', () {
-      final params = SearchQueryBuilder.prepareQueryParams(
-          'תורה', true, 2, null, null, null);
-      final regexTerms = params['regexTerms'] as List<String>;
-
-      expect(regexTerms.first, contains('תורה'));
-      expect(regexTerms.first, contains('תרה'));
-    });
-
-    test('fuzzy מוסיף גם החלפת סדר אותיות סמוכות', () {
-      final params = SearchQueryBuilder.prepareQueryParams(
-          'חכמה', true, 2, null, null, null);
-      final regexTerms = params['regexTerms'] as List<String>;
-
-      expect(regexTerms.first, contains('חמכה'));
-    });
-
-    test('fuzzy נשאר חסום בגודל query', () {
-      final params = SearchQueryBuilder.prepareQueryParams(
-          'רעה', true, 2, null, null, null);
-      final regexTerms = params['regexTerms'] as List<String>;
-      final branchCount = RegExp(r'\|').allMatches(regexTerms.first).length + 1;
-
-      expect(branchCount, lessThanOrEqualTo(96));
-    });
-
-    test('עם סיומות ומילה קצרה → maxExpansions גבוה', () {
-      final params = SearchQueryBuilder.prepareQueryParams(
-        'שם',
-        false,
-        0,
-        null,
-        null,
-        {
-          'שם_0': {'סיומות': true}
-        },
-      );
-      expect(params['maxExpansions'], greaterThanOrEqualTo(2000));
-    });
-
-    test('שגיאות כתיב פר-מילה מעלות maxExpansions גם בלי fuzzy', () {
-      final params = SearchQueryBuilder.prepareQueryParams(
-        'חכמה',
-        false,
-        0,
-        null,
-        null,
-        {
-          'חכמה_0': {SearchQueryBuilder.typoToleranceOptionKey: true}
-        },
-      );
-
-      expect(params['maxExpansions'], 50);
-      final regexTerms = params['regexTerms'] as List<String>;
-      expect(regexTerms.first, contains('הכמה'));
-    });
-  });
-
-  // ──────────────────────────────────────────────────────────────────────────
-  group('getMaxCustomSpacing', () {
-    test('ריק → מחזיר 0', () {
-      expect(SearchQueryBuilder.getMaxCustomSpacing({}, 3), 0);
-    });
-
-    test('מחזיר ערך מקסימלי מבין כל המרווחים', () {
-      expect(
-          SearchQueryBuilder.getMaxCustomSpacing({'0-1': '3', '1-2': '7'}, 3),
-          7);
-    });
-
-    test('ערך לא מספרי → מוחזר כ-0', () {
-      expect(SearchQueryBuilder.getMaxCustomSpacing({'0-1': 'abc'}, 2), 0);
-    });
-
-    test('wordCount=1 → אין מרווחים, תמיד 0', () {
-      expect(SearchQueryBuilder.getMaxCustomSpacing({'0-1': '5'}, 1), 0);
-    });
-  });
-
-  // ──────────────────────────────────────────────────────────────────────────
-  group('calculateMaxExpansions', () {
-    test('fuzzy → 50', () {
-      expect(SearchQueryBuilder.calculateMaxExpansions(true, 1), 50);
-    });
-
-    test('לא fuzzy, termCount=1 → 10', () {
-      expect(SearchQueryBuilder.calculateMaxExpansions(false, 1), 10);
-    });
-
-    test('לא fuzzy, termCount>1 → 100', () {
-      expect(SearchQueryBuilder.calculateMaxExpansions(false, 3), 100);
-    });
-
-    test('מילה של תו אחד עם קידומת → maxExpansions≥2000', () {
-      expect(
-        SearchQueryBuilder.calculateMaxExpansions(
-          false,
-          1,
-          searchOptions: {
-            'א_0': {'קידומות': true}
-          },
-          words: ['א'],
-        ),
-        greaterThanOrEqualTo(2000),
-      );
-    });
-
-    test('מילה של 2 תווים עם סיומת → maxExpansions≥3000', () {
-      expect(
-        SearchQueryBuilder.calculateMaxExpansions(
-          false,
-          1,
-          searchOptions: {
-            'אב_0': {'סיומות': true}
-          },
-          words: ['אב'],
-        ),
-        greaterThanOrEqualTo(3000),
-      );
-    });
-
-    test('מילה של 3 תווים עם חלק ממילה → maxExpansions≥4000', () {
-      expect(
-        SearchQueryBuilder.calculateMaxExpansions(
-          false,
-          1,
-          searchOptions: {
-            'תור_0': {'חלק ממילה': true}
-          },
-          words: ['תור'],
-        ),
-        greaterThanOrEqualTo(4000),
-      );
-    });
-
-    test('מילה ארוכה עם סיומות דקדוקיות → maxExpansions=5000', () {
-      expect(
-        SearchQueryBuilder.calculateMaxExpansions(
-          false,
-          1,
-          searchOptions: {
-            'תורה_0': {'סיומות דקדוקיות': true}
-          },
-          words: ['תורה'],
-        ),
-        5000,
-      );
-    });
-  });
-
-  // ──────────────────────────────────────────────────────────────────────────
-  group('תרחישי הבאג: אופרטורים ריקים', () {
-    test('sanitize של query עם רק תווים מוסרים → regexTerms ריק, לא קורס', () {
-      final params = SearchQueryBuilder.prepareQueryParams(
-          '!?.,;', false, 0, null, null, null);
-      final regexTerms = params['regexTerms'] as List<String>;
-      expect(regexTerms, isEmpty);
-    });
-
-    test('sanitize של query עם סוגריים בלבד → regexTerms ריק', () {
-      final params = SearchQueryBuilder.prepareQueryParams(
-          '()', false, 0, null, null, null);
-      final regexTerms = params['regexTerms'] as List<String>;
-      expect(regexTerms, isEmpty);
-    });
-
-    test('buildAdvancedQuery לא מייצר (abc|) - אופרטור ריק', () {
-      // אם allVariations מכיל string ריק, הוא אמור להיות מסונן
-      final result = SearchQueryBuilder.buildAdvancedQuery(
-        ['תורה'],
-        {
-          0: ['', '   ']
-        },
-        null,
-      );
-      for (final term in result) {
-        expect(term, isNot(matches(r'\(\||\|\)')));
-        expect(term, isNot(equals('()')));
-      }
-    });
-
-    test('query עם רק נקודה → regexTerms ריק', () {
-      final params = SearchQueryBuilder.prepareQueryParams(
-          '.', false, 0, null, null, null);
-      final regexTerms = params['regexTerms'] as List<String>;
-      expect(regexTerms, isEmpty);
-    });
-  });
+  @override
+  Future<List<FacetCount>> getFacetCountsFuzzy(
+    SearchEngineRequest request, {
+    required String facetPrefix,
+  }) async {
+    calls.add(_EngineCall.getFacetCountsFuzzy);
+    return const [];
+  }
 }

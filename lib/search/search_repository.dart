@@ -1,8 +1,7 @@
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
-import 'package:otzaria/search/search_query_builder.dart';
+import 'package:otzaria/search/search_engine_gateway.dart';
 import 'package:search_engine/search_engine.dart';
-import 'package:flutter/foundation.dart';
 
 /// Performs a search operation across indexed texts.
 ///
@@ -19,6 +18,23 @@ import 'package:flutter/foundation.dart';
 /// Returns a Future containing a list of search results
 ///
 class SearchRepository {
+  final SearchEngineGateway _gateway;
+  final Future<SearchEngineOperations> Function()? _engineProvider;
+
+  const SearchRepository({
+    SearchEngineGateway gateway = const SearchEngineGateway(),
+    Future<SearchEngineOperations> Function()? engineProvider,
+  })  : _gateway = gateway,
+        _engineProvider = engineProvider;
+
+  Future<SearchEngineOperations> _engine() async {
+    final provider = _engineProvider;
+    if (provider != null) return provider();
+
+    return RustSearchEngineOperations(
+        await TantivyDataProvider.instance.engine);
+  }
+
   Future<List<SearchResult>> searchTexts(
       String query, List<String> facets, int limit,
       {int offset = 0,
@@ -29,59 +45,21 @@ class SearchRepository {
       Map<String, String>? customSpacing,
       Map<int, List<String>>? alternativeWords,
       Map<String, Map<String, bool>>? searchOptions}) async {
-    final index = await TantivyDataProvider.instance.engine;
-    final normalizedParameters = SearchQueryBuilder.normalizeParametersForMode(
-      searchMode,
-      customSpacing: customSpacing,
-      alternativeWords: alternativeWords,
-      searchOptions: searchOptions,
-    );
-
-    // בדיקה אם יש מרווחים מותאמים אישית, מילים חילופיות או אפשרויות חיפוש
-    final hasCustomSpacing = normalizedParameters.customSpacing.isNotEmpty;
-    final hasAlternativeWords =
-        normalizedParameters.alternativeWords.isNotEmpty;
-    debugPrint('🔍 hasCustomSpacing: $hasCustomSpacing');
-    final hasSearchOptions = SearchQueryBuilder.hasEnabledSearchOptions(
-        normalizedParameters.searchOptions);
-
-    debugPrint('🔍 hasSearchOptions: $hasSearchOptions');
-    debugPrint('🔍 hasAlternativeWords: $hasAlternativeWords');
-
-    // המרת החיפוש לפורמט המנוע החדש
-    debugPrint('🔍 Using prepareQueryParams');
-    final params = SearchQueryBuilder.prepareQueryParams(
-      query,
-      fuzzy,
-      distance,
-      normalizedParameters.customSpacing,
-      normalizedParameters.alternativeWords,
-      normalizedParameters.searchOptions,
-    );
-    final List<String> regexTerms = params['regexTerms'] as List<String>;
-    final int effectiveSlop = params['effectiveSlop'] as int;
-    final int maxExpansions = params['maxExpansions'] as int;
-
-    debugPrint('🔍 Final search params:');
-    debugPrint('   regexTerms: $regexTerms');
-    debugPrint('   facets: $facets');
-    debugPrint('   limit: $limit');
-    debugPrint('   offset: $offset');
-    debugPrint('   slop: $effectiveSlop');
-    debugPrint('   maxExpansions: $maxExpansions');
-    debugPrint('🚀 Calling index.search...');
-
-    final results = await index.search(
-        regexTerms: regexTerms,
+    return _gateway.search(
+      await _engine(),
+      SearchEngineRequest(
+        query: query,
         facets: facets,
         limit: limit,
         offset: offset,
-        slop: effectiveSlop,
-        maxExpansions: maxExpansions,
-        order: order);
-
-    debugPrint('✅ Search completed, found ${results.length} results');
-    return results;
+        order: order,
+        searchMode: fuzzy ? SearchMode.fuzzy : searchMode,
+        distance: distance,
+        customSpacing: customSpacing ?? const {},
+        alternativeWords: alternativeWords ?? const {},
+        searchOptions: searchOptions ?? const {},
+      ),
+    );
   }
 
   /// Performs a combined search + count in a single engine pass.
@@ -103,42 +81,21 @@ class SearchRepository {
       Map<String, String>? customSpacing,
       Map<int, List<String>>? alternativeWords,
       Map<String, Map<String, bool>>? searchOptions}) async {
-    final index = await TantivyDataProvider.instance.engine;
-    final normalizedParameters = SearchQueryBuilder.normalizeParametersForMode(
-      searchMode,
-      customSpacing: customSpacing,
-      alternativeWords: alternativeWords,
-      searchOptions: searchOptions,
-    );
-
-    final params = SearchQueryBuilder.prepareQueryParams(
-      query,
-      fuzzy,
-      distance,
-      normalizedParameters.customSpacing,
-      normalizedParameters.alternativeWords,
-      normalizedParameters.searchOptions,
-    );
-    final List<String> regexTerms = params['regexTerms'] as List<String>;
-    final int effectiveSlop = params['effectiveSlop'] as int;
-    final int maxExpansions = params['maxExpansions'] as int;
-
-    debugPrint('🔍 searchTextsAndCount:');
-    debugPrint('   regexTerms: $regexTerms');
-    debugPrint('   facets: $facets, limit: $limit, offset: $offset');
-
-    final result = await index.searchAndCount(
-        regexTerms: regexTerms,
+    return _gateway.searchAndCount(
+      await _engine(),
+      SearchEngineRequest(
+        query: query,
         facets: facets,
         limit: limit,
         offset: offset,
-        slop: effectiveSlop,
-        maxExpansions: maxExpansions,
-        order: order);
-
-    debugPrint(
-        '✅ searchAndCount: ${result.results.length} results / ${result.totalCount} total');
-    return result;
+        order: order,
+        searchMode: fuzzy ? SearchMode.fuzzy : searchMode,
+        distance: distance,
+        customSpacing: customSpacing ?? const {},
+        alternativeWords: alternativeWords ?? const {},
+        searchOptions: searchOptions ?? const {},
+      ),
+    );
   }
 
   /// Performs a streaming search operation across indexed texts.
@@ -168,52 +125,21 @@ class SearchRepository {
       Map<String, String>? customSpacing,
       Map<int, List<String>>? alternativeWords,
       Map<String, Map<String, bool>>? searchOptions}) async* {
-    final index = await TantivyDataProvider.instance.engine;
-    final normalizedParameters = SearchQueryBuilder.normalizeParametersForMode(
-      searchMode,
-      customSpacing: customSpacing,
-      alternativeWords: alternativeWords,
-      searchOptions: searchOptions,
-    );
-
-    // המרת החיפוש לפורמט המנוע החדש
-    final params = SearchQueryBuilder.prepareQueryParams(
-      query,
-      fuzzy,
-      distance,
-      normalizedParameters.customSpacing,
-      normalizedParameters.alternativeWords,
-      normalizedParameters.searchOptions,
-    );
-    final List<String> regexTerms = params['regexTerms'] as List<String>;
-    final int effectiveSlop = params['effectiveSlop'] as int;
-    final int maxExpansions = params['maxExpansions'] as int;
-
-    debugPrint('🔍 Starting streaming search:');
-    debugPrint('   regexTerms: $regexTerms');
-    debugPrint('   facets: $facets');
-    debugPrint('   limit: $limit');
-    debugPrint('   offset: $offset');
-    debugPrint('   chunkSize: $chunkSize');
-    debugPrint('   slop: $effectiveSlop');
-    debugPrint('   maxExpansions: $maxExpansions');
-
-    final stream = index.searchStream(
-      regexTerms: regexTerms,
-      facets: facets,
-      limit: limit,
-      offset: offset,
-      slop: effectiveSlop,
-      maxExpansions: maxExpansions,
-      order: order,
+    yield* _gateway.searchStream(
+      await _engine(),
+      SearchEngineRequest(
+        query: query,
+        facets: facets,
+        limit: limit,
+        offset: offset,
+        order: order,
+        searchMode: fuzzy ? SearchMode.fuzzy : searchMode,
+        distance: distance,
+        customSpacing: customSpacing ?? const {},
+        alternativeWords: alternativeWords ?? const {},
+        searchOptions: searchOptions ?? const {},
+      ),
       chunkSize: chunkSize,
     );
-
-    await for (final chunk in stream) {
-      debugPrint('📦 Received chunk of ${chunk.length} results');
-      yield chunk;
-    }
-
-    debugPrint('✅ Streaming search completed');
   }
 }
