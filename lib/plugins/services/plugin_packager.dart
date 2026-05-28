@@ -128,6 +128,19 @@ class PluginPackager {
     // יכיל את עצמו (במיוחד כש-force מאפשר דריסה תוך כדי כתיבה).
     final normalizedOutPath = p.normalize(p.absolute(resolvedOutPath));
 
+    // תיקיות פיתוח שאין צורך לארוז — שומרות על חבילה רזה ומונעות הדלפת
+    // היסטוריית git/הגדרות IDE לתוך ה-‎.otzplugin שמופץ.
+    const skipDirs = <String>{
+      '.git', '.svn', '.hg', '.idea', '.vscode',
+      'node_modules', '__pycache__', '.claude',
+    };
+    bool isInSkippedDir(String relativePath) {
+      for (final part in p.split(relativePath)) {
+        if (skipDirs.contains(part)) return true;
+      }
+      return false;
+    }
+
     // נאסוף את הקבצים *לפני* יצירת ארכיון הפלט, כדי שהקובץ החדש לא
     // יופיע ב-listSync. (גיבוי בנוסף לבדיקת הנתיב למטה.)
     final filesToPack = <File>[];
@@ -136,6 +149,9 @@ class PluginPackager {
       final entityAbs = p.normalize(p.absolute(entity.path));
       if (entityAbs == normalizedOutPath) {
         // אם הפלט הופנה במפורש אל תוך תיקיית התוסף — דלג עליו.
+        continue;
+      }
+      if (isInSkippedDir(p.relative(entity.path, from: dir.path))) {
         continue;
       }
       filesToPack.add(entity);
