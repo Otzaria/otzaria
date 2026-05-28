@@ -253,5 +253,115 @@ void main() {
         isTrue,
       );
     });
+
+    // ── בדיקות entrypoint בתוך תיקייה מוחרגת ──────────────────────────────
+
+    test('throws when entrypoint is inside node_modules/', () async {
+      // רגרסיה: בלי הולידציה, האריזה הייתה עוברת בהצלחה אך ה-.otzplugin
+      // יוצא שבור — הקובץ הכניסי מוחרג ולא נכלל בארכיון.
+      final manifest = _minimalManifest(
+        entrypoint: 'node_modules/some-pkg/index.html',
+      );
+      final pluginDir = _writePluginDir(
+        tempDir,
+        manifestOverride: manifest,
+        // יוצרים את הקובץ כדי שולידטור המניפסט יעבור את בדיקת הקיום שלו.
+        extraFiles: {'node_modules/some-pkg/index.html': '<html></html>'},
+      );
+
+      await expectLater(
+        () => PluginPackager.packDirectory(directoryPath: pluginDir),
+        throwsA(isA<PluginPackagerException>().having(
+          (e) => e.message,
+          'message',
+          allOf(contains('node_modules'), contains('מוחרגת')),
+        )),
+      );
+    });
+
+    test('throws when entrypoint is nested inside .git/', () async {
+      final manifest = _minimalManifest(entrypoint: '.git/hooks/index.html');
+      final pluginDir = _writePluginDir(
+        tempDir,
+        manifestOverride: manifest,
+        extraFiles: {'.git/hooks/index.html': '<html></html>'},
+      );
+
+      await expectLater(
+        () => PluginPackager.packDirectory(directoryPath: pluginDir),
+        throwsA(isA<PluginPackagerException>().having(
+          (e) => e.message,
+          'message',
+          allOf(contains('.git'), contains('מוחרגת')),
+        )),
+      );
+    });
+
+    test('throws when entrypoint uses ./ prefix into a skipped dir', () async {
+      // וריאנט נתיב עם ./ — normalize+absolute חייב לתפוס גם את זה.
+      final manifest =
+          _minimalManifest(entrypoint: './node_modules/pkg/index.html');
+      final pluginDir = _writePluginDir(
+        tempDir,
+        manifestOverride: manifest,
+        extraFiles: {'node_modules/pkg/index.html': '<html></html>'},
+      );
+
+      await expectLater(
+        () => PluginPackager.packDirectory(directoryPath: pluginDir),
+        throwsA(isA<PluginPackagerException>()),
+      );
+    });
+
+    test('files inside skipped dirs are silently excluded; entrypoint is safe',
+        () async {
+      // תיקיית .git קיימת עם קבצים, אבל ה-entrypoint עצמו בשורש — תקין.
+      final pluginDir = _writePluginDir(
+        tempDir,
+        extraFiles: {
+          '.git/config': '[core]',
+          '.git/HEAD': 'ref: refs/heads/main',
+          'node_modules/lib/util.js': 'export default {}',
+        },
+      );
+
+      final result = await PluginPackager.packDirectory(
+        directoryPath: pluginDir,
+        outputPath: p.join(tempDir.path, 'out.otzplugin'),
+      );
+
+      // רק 2 קבצים — קבצי .git ו-node_modules לא אמורים להיכלל.
+      expect(result.fileCount, 2);
+
+      final bytes = File(result.outputPath).readAsBytesSync();
+      final archive = ZipDecoder().decodeBytes(bytes);
+      final names = archive.files.map((f) => f.name).toSet();
+      expect(names, containsAll(<String>['manifest.json', 'index.html']));
+      expect(names.any((n) => n.startsWith('.git/')), isFalse);
+      expect(names.any((n) => n.startsWith('node_modules/')), isFalse);
+    });
+
+    test('entrypoint in a normal (non-skipped) subdirectory packs correctly',
+        () async {
+      final manifest = _minimalManifest(entrypoint: 'src/app/index.html');
+      final pluginDir = _writePluginDir(
+        tempDir,
+        manifestOverride: manifest,
+        extraFiles: {'src/app/index.html': '<html></html>'},
+      );
+
+      final result = await PluginPackager.packDirectory(
+        directoryPath: pluginDir,
+        outputPath: p.join(tempDir.path, 'out.otzplugin'),
+      );
+
+      expect(result.fileCount, 3); // manifest.json + index.html (root) + src/app/index.html
+      final bytes = File(result.outputPath).readAsBytesSync();
+      final archive = ZipDecoder().decodeBytes(bytes);
+      expect(
+        archive.files.map((f) => f.name),
+        contains('src/app/index.html'),
+      );
+    });
   });
 }

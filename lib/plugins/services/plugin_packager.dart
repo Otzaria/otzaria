@@ -107,6 +107,32 @@ class PluginPackager {
       throw PluginPackagerException(lines.join('\n'));
     }
 
+    // תיקיות פיתוח שאין צורך לארוז — שומרות על חבילה רזה ומונעות הדלפת
+    // היסטוריית git/הגדרות IDE לתוך ה-‎.otzplugin שמופץ.
+    const skipDirs = <String>{
+      '.git', '.svn', '.hg', '.idea', '.vscode',
+      'node_modules', '__pycache__', '.claude',
+    };
+
+    // בדיקת תקינות: ה-entrypoint לא יכול לשבת בתוך תיקייה מוחרגת —
+    // אחרת הקובץ לא ייכלל ב-.otzplugin והפלאגין יישבר בשקט.
+    // resolve מוחלט ואז relative מבטיח טיפול נכון בנתיבים כמו ./node_modules/...
+    // חשוב: בדיקה זו רצה לפני יצירת תיקיות הפלט, כדי שלא ישארו תיקיות ריקות
+    // בדיסק אם הבדיקה נכשלת.
+    final entrypointRelativePath = p.relative(
+      p.normalize(p.absolute(p.join(dir.path, manifest.entrypoint))),
+      from: dir.path,
+    );
+    final blockedDir =
+        p.split(entrypointRelativePath).where(skipDirs.contains).firstOrNull;
+    if (blockedDir != null) {
+      throw PluginPackagerException(
+        'קובץ הכניסה "${manifest.entrypoint}" נמצא בתוך תיקייה מוחרגת מאריזה '
+        '("$blockedDir"). העבר את ה-entrypoint מחוץ לתיקיות: '
+        '${skipDirs.join(', ')}',
+      );
+    }
+
     final resolvedOutPath = outputPath ??
         p.join(dir.parent.path, '${manifest.id}-${manifest.version}.otzplugin');
     final outFile = File(resolvedOutPath);
@@ -127,13 +153,6 @@ class PluginPackager {
     // התוסף, צריך להחריג אותו מהקבצים שמתווספים לארכיון כדי שהארכיון לא
     // יכיל את עצמו (במיוחד כש-force מאפשר דריסה תוך כדי כתיבה).
     final normalizedOutPath = p.normalize(p.absolute(resolvedOutPath));
-
-    // תיקיות פיתוח שאין צורך לארוז — שומרות על חבילה רזה ומונעות הדלפת
-    // היסטוריית git/הגדרות IDE לתוך ה-‎.otzplugin שמופץ.
-    const skipDirs = <String>{
-      '.git', '.svn', '.hg', '.idea', '.vscode',
-      'node_modules', '__pycache__', '.claude',
-    };
 
     // נאסוף את הקבצים *לפני* יצירת ארכיון הפלט, כדי שהקובץ החדש לא
     // יופיע ב-listSync. (גיבוי בנוסף לבדיקת הנתיב למטה.)
