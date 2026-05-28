@@ -1,6 +1,6 @@
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
-import 'package:search_engine/search_engine.dart';
+import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
 /// סנטינל לזיהוי "פרמטר לא הועבר" ב-copyWith כשהשדה nullable וצריך לאפשר
 /// גם איפוס מפורש ל-null. בלי זה, `null` במשמעות "לא הועבר" ו"אפס אותי

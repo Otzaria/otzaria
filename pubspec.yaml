@@ -92,10 +92,10 @@ dependencies:
   googleapis_auth: ^2.3.1
   characters: ^1.4.1
   collection: ^1.19.1
-  search_engine:
+  otzaria_search_engine:
     #path: ../search_engine
     git:
-      url: https://github.com/Y-PLONI/otzaria_search_engine
+      url: https://github.com/gwngdwl/otzaria_search_engine
       ref: use-regex
   window_manager: ^0.5.1
   flutter_spinbox: ^0.13.1

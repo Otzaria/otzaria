@@ -15,7 +15,7 @@ import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:otzaria/search/utils/search_catalogue_order_helper.dart';
 import 'package:flutter/foundation.dart';
-import 'package:search_engine/search_engine.dart';
+import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
 class SearchBloc extends Bloc<SearchEvent, SearchState> {
   final SearchRepository _repository = SearchRepository();

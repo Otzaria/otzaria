@@ -14,7 +14,7 @@ import 'package:otzaria/search/utils/search_catalogue_order_helper.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
 import 'package:path/path.dart' as p;
 import 'package:pdfrx/pdfrx.dart';
-import 'package:search_engine/search_engine.dart';
+import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
 class IndexingRepository {
   final TantivyDataProvider _tantivyDataProvider;

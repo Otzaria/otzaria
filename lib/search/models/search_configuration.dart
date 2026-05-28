@@ -1,4 +1,4 @@
-import 'package:search_engine/search_engine.dart';
+import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
 /// מצבי החיפוש השונים
 enum SearchMode {
