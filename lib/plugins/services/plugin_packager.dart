@@ -134,28 +134,25 @@ class PluginPackager {
       '.git', '.svn', '.hg', '.idea', '.vscode',
       'node_modules', '__pycache__', '.claude',
     };
-    bool isInSkippedDir(String relativePath) {
-      for (final part in p.split(relativePath)) {
-        if (skipDirs.contains(part)) return true;
-      }
-      return false;
-    }
 
     // נאסוף את הקבצים *לפני* יצירת ארכיון הפלט, כדי שהקובץ החדש לא
     // יופיע ב-listSync. (גיבוי בנוסף לבדיקת הנתיב למטה.)
+    // סריקה ידנית (לא רקורסיבית ב-OS) כדי לדלג לחלוטין על תיקיות מוחרגות
+    // ולא לבזבז זמן על סריקת תוכנן (node_modules יכולה להכיל עשרות אלפי קבצים).
     final filesToPack = <File>[];
-    for (final entity in dir.listSync(recursive: true)) {
-      if (entity is! File) continue;
-      final entityAbs = p.normalize(p.absolute(entity.path));
-      if (entityAbs == normalizedOutPath) {
-        // אם הפלט הופנה במפורש אל תוך תיקיית התוסף — דלג עליו.
-        continue;
+    void collectFiles(Directory currentDir) {
+      for (final entity in currentDir.listSync(recursive: false)) {
+        if (skipDirs.contains(p.basename(entity.path))) continue;
+        if (entity is Directory) {
+          collectFiles(entity);
+        } else if (entity is File) {
+          final entityAbs = p.normalize(p.absolute(entity.path));
+          if (entityAbs == normalizedOutPath) continue;
+          filesToPack.add(entity);
+        }
       }
-      if (isInSkippedDir(p.relative(entity.path, from: dir.path))) {
-        continue;
-      }
-      filesToPack.add(entity);
     }
+    collectFiles(dir);
 
     final encoder = ZipFileEncoder();
     encoder.create(resolvedOutPath);
