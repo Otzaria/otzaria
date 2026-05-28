@@ -28,8 +28,8 @@ class SnippetBuilder {
 
   /// מחלקת תווים של אותיות עבריות — לבדיקת גבולות מילה.
   /// תואם את `_isHebrewLetter` בחיפוש המקומי: אותיות בסיס (U+05D0–U+05EA),
-  /// ליגטורות וגרשיים (U+05F0–U+05F4) וצורות תצוגה (U+FB1D–U+FBB1).
-  static const String _hebrewLetters = 'א-תװ-״יִ-ﮱ';
+  /// ליגטורות וגרשיים (U+05F0–U+05F4) וצורות תצוגה (U+FB1D–U+FB4F).
+  static const String _hebrewLetters = 'א-תװ-״יִ-ﭏ';
 
   /// תווי ניקוד וטעמים אופציונליים בין אותיות בטקסט המוצג (U+0591–U+05C7).
   static const String _optionalMarks = '[֑-ׇ]*';

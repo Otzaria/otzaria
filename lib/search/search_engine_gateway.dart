@@ -374,14 +374,14 @@ class SearchEngineGateway {
     SearchEngineOperations engine,
     SearchEngineRequest request, {
     required int chunkSize,
-  }) async* {
+  }) {
     switch (request.searchMode) {
       case SearchMode.exact:
-        yield* engine.searchExactStream(request, chunkSize: chunkSize);
+        return engine.searchExactStream(request, chunkSize: chunkSize);
       case SearchMode.advanced:
-        yield* engine.searchAdvancedStream(request, chunkSize: chunkSize);
+        return engine.searchAdvancedStream(request, chunkSize: chunkSize);
       case SearchMode.fuzzy:
-        yield* engine.searchFuzzyStream(request, chunkSize: chunkSize);
+        return engine.searchFuzzyStream(request, chunkSize: chunkSize);
     }
   }
 
