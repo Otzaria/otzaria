@@ -34,6 +34,21 @@ class LibrarySettingsPanel extends StatelessWidget {
       keywords: ['תצוגה מקדימה', 'preview', 'מופעל', 'לא מופעל'],
     ),
     SettingsSearchEntry(
+      id: 'library.display.auto_expand_subcategories',
+      title: 'פתח תיקיות פנימיות אוטומטית',
+      subtitle: 'תיקיות פנימיות מציגות מיד את התוכן שלהן',
+      tab: SettingsTab.library,
+      cardId: 'library.display',
+      keywords: [
+        'תיקיות',
+        'פנימיות',
+        'פתיחה',
+        'אוטומטי',
+        'מופעל',
+        'לא מופעל',
+      ],
+    ),
+    SettingsSearchEntry(
       id: 'library.external.show',
       title: 'הצגת ספרים מאתרים חיצוניים',
       subtitle: 'הצגת קטלוגים חיצוניים בתצוגת הספרייה',
@@ -114,6 +129,27 @@ class LibrarySettingsPanel extends StatelessWidget {
                     context
                         .read<SettingsBloc>()
                         .add(UpdateLibraryShowPreview(value));
+                  },
+                ),
+                SwitchSettingsTile(
+                  leading: const Icon(FluentIcons.folder_open_24_regular),
+                  title: const Text(
+                    'פתח תיקיות פנימיות אוטומטית',
+                    style: kSettingsTitleStyle,
+                    textDirection: TextDirection.rtl,
+                  ),
+                  subtitle: Text(
+                    state.libraryAutoExpandSubcategories
+                        ? 'תיקיות פנימיות יציגו מיד את התוכן שלהן'
+                        : 'תיקיות פנימיות יישארו סגורות',
+                    style: kSettingsSubtitleStyle,
+                    textDirection: TextDirection.rtl,
+                  ),
+                  value: state.libraryAutoExpandSubcategories,
+                  onChanged: (value) {
+                    context.read<SettingsBloc>().add(
+                          UpdateLibraryAutoExpandSubcategories(value),
+                        );
                   },
                 ),
               ],

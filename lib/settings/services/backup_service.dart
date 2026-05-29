@@ -180,6 +180,7 @@ class BackupService {
       SettingsRepository.keyLibraryPath,
       SettingsRepository.keyDbEffectivePath,
       SettingsRepository.keyHebrewBooksPath,
+      SettingsRepository.keyLibraryAutoExpandSubcategories,
       SettingsRepository.keyDevChannel,
       SettingsRepository.keyAutoSync,
       SettingsRepository.keyOfflineMode,

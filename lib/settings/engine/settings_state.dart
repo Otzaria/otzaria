@@ -32,6 +32,7 @@ class SettingsState extends Equatable {
   final bool isFullscreen;
   final String libraryViewMode;
   final bool libraryShowPreview;
+  final bool libraryAutoExpandSubcategories;
   final Map<String, String> shortcuts;
   final bool enablePerBookSettings;
   final bool pdfBookViewByDefault;
@@ -81,6 +82,7 @@ class SettingsState extends Equatable {
     required this.isFullscreen,
     required this.libraryViewMode,
     required this.libraryShowPreview,
+    required this.libraryAutoExpandSubcategories,
     required this.shortcuts,
     required this.enablePerBookSettings,
     required this.pdfBookViewByDefault,
@@ -127,6 +129,7 @@ class SettingsState extends Equatable {
       isFullscreen: false,
       libraryViewMode: 'grid',
       libraryShowPreview: true,
+      libraryAutoExpandSubcategories: true,
       shortcuts: {},
       enablePerBookSettings: false,
       pdfBookViewByDefault: false,
@@ -169,6 +172,7 @@ class SettingsState extends Equatable {
     bool? isFullscreen,
     String? libraryViewMode,
     bool? libraryShowPreview,
+    bool? libraryAutoExpandSubcategories,
     Map<String, String>? shortcuts,
     bool? enablePerBookSettings,
     bool? pdfBookViewByDefault,
@@ -214,6 +218,8 @@ class SettingsState extends Equatable {
       isFullscreen: isFullscreen ?? this.isFullscreen,
       libraryViewMode: libraryViewMode ?? this.libraryViewMode,
       libraryShowPreview: libraryShowPreview ?? this.libraryShowPreview,
+      libraryAutoExpandSubcategories:
+          libraryAutoExpandSubcategories ?? this.libraryAutoExpandSubcategories,
       shortcuts: shortcuts ?? this.shortcuts,
       enablePerBookSettings:
           enablePerBookSettings ?? this.enablePerBookSettings,
@@ -271,6 +277,7 @@ class SettingsState extends Equatable {
         isFullscreen,
         libraryViewMode,
         libraryShowPreview,
+        libraryAutoExpandSubcategories,
         shortcuts,
         enablePerBookSettings,
         pdfBookViewByDefault,

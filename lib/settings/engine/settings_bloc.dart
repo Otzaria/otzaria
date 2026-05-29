@@ -40,6 +40,9 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     on<UpdateIsFullscreen>(_onUpdateIsFullscreen);
     on<UpdateLibraryViewMode>(_onUpdateLibraryViewMode);
     on<UpdateLibraryShowPreview>(_onUpdateLibraryShowPreview);
+    on<UpdateLibraryAutoExpandSubcategories>(
+      _onUpdateLibraryAutoExpandSubcategories,
+    );
     on<RefreshShortcuts>(_onRefreshShortcuts);
     on<ResetShortcuts>(_onResetShortcuts);
     on<UpdateShortcut>(_onUpdateShortcut);
@@ -101,6 +104,8 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       isFullscreen: settings['isFullscreen'],
       libraryViewMode: settings['libraryViewMode'],
       libraryShowPreview: settings['libraryShowPreview'],
+      libraryAutoExpandSubcategories:
+          settings['libraryAutoExpandSubcategories'] ?? true,
       shortcuts: Map<String, String>.unmodifiable(
         Map<String, String>.from(settings['shortcuts'] as Map),
       ),
@@ -114,8 +119,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       personalNotesCollapsedByDefault:
           settings['personalNotesCollapsedByDefault'] ?? true,
       compactMenuMode: settings['compactMenuMode'] ?? false,
-      mergeUserBooksIntoLibrary:
-          settings['mergeUserBooksIntoLibrary'] ?? false,
+      mergeUserBooksIntoLibrary: settings['mergeUserBooksIntoLibrary'] ?? false,
       protectedModeEnabled: settings['protectedModeEnabled'] ?? false,
       hiddenBuiltInToolIds:
           (settings['hiddenBuiltInToolIds'] as Set<String>?) ?? <String>{},
@@ -465,6 +469,20 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   ) async {
     await _repository.updateLibraryShowPreview(event.libraryShowPreview);
     emit(state.copyWith(libraryShowPreview: event.libraryShowPreview));
+  }
+
+  Future<void> _onUpdateLibraryAutoExpandSubcategories(
+    UpdateLibraryAutoExpandSubcategories event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateLibraryAutoExpandSubcategories(
+      event.libraryAutoExpandSubcategories,
+    );
+    emit(
+      state.copyWith(
+        libraryAutoExpandSubcategories: event.libraryAutoExpandSubcategories,
+      ),
+    );
   }
 
   Future<void> _onRefreshShortcuts(

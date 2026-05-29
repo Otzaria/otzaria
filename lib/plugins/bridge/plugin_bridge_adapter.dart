@@ -69,6 +69,7 @@ const _settingsAllowlist = {
   SettingsRepository.keyRemoveNikudFromTanach,
   SettingsRepository.keyReplaceHolyNames,
   SettingsRepository.keyLibraryViewMode,
+  SettingsRepository.keyLibraryAutoExpandSubcategories,
   SettingsRepository.keyCopyWithHeaders,
   SettingsRepository.keyCopyHeaderFormat,
 };

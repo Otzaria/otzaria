@@ -2198,6 +2198,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
                       current.removeNikudFromTanach ||
                   previous.replaceHolyNames != current.replaceHolyNames ||
                   previous.libraryViewMode != current.libraryViewMode ||
+                  previous.libraryAutoExpandSubcategories !=
+                      current.libraryAutoExpandSubcategories ||
                   previous.copyWithHeaders != current.copyWithHeaders ||
                   previous.copyHeaderFormat != current.copyHeaderFormat;
             },
@@ -2264,6 +2266,11 @@ class MainWindowScreenState extends State<MainWindowScreen>
               if (previous.libraryViewMode != current.libraryViewMode) {
                 dispatch(SettingsRepository.keyLibraryViewMode,
                     current.libraryViewMode);
+              }
+              if (previous.libraryAutoExpandSubcategories !=
+                  current.libraryAutoExpandSubcategories) {
+                dispatch(SettingsRepository.keyLibraryAutoExpandSubcategories,
+                    current.libraryAutoExpandSubcategories);
               }
               if (previous.copyWithHeaders != current.copyWithHeaders) {
                 dispatch(SettingsRepository.keyCopyWithHeaders,

@@ -262,6 +262,17 @@ class UpdateLibraryShowPreview extends SettingsEvent {
   List<Object?> get props => [libraryShowPreview];
 }
 
+class UpdateLibraryAutoExpandSubcategories extends SettingsEvent {
+  final bool libraryAutoExpandSubcategories;
+
+  const UpdateLibraryAutoExpandSubcategories(
+    this.libraryAutoExpandSubcategories,
+  );
+
+  @override
+  List<Object?> get props => [libraryAutoExpandSubcategories];
+}
+
 class RefreshShortcuts extends SettingsEvent {
   const RefreshShortcuts();
 

@@ -57,6 +57,7 @@ void main() {
         'isFullscreen': false,
         'libraryViewMode': 'grid',
         'libraryShowPreview': true,
+        'libraryAutoExpandSubcategories': true,
         'enablePerBookSettings': true,
         'pdfBookViewByDefault': false,
         'shortcuts': <String, String>{},
@@ -109,6 +110,8 @@ void main() {
             isFullscreen: mockSettings['isFullscreen'] as bool,
             libraryViewMode: mockSettings['libraryViewMode'] as String,
             libraryShowPreview: mockSettings['libraryShowPreview'] as bool,
+            libraryAutoExpandSubcategories:
+                mockSettings['libraryAutoExpandSubcategories'] as bool,
             shortcuts: const {},
             enablePerBookSettings:
                 mockSettings['enablePerBookSettings'] as bool,
@@ -306,8 +309,7 @@ void main() {
               .thenAnswer((_) async {});
           return settingsBloc;
         },
-        act: (bloc) =>
-            bloc.add(const UpdateMergeUserBooksIntoLibrary(true)),
+        act: (bloc) => bloc.add(const UpdateMergeUserBooksIntoLibrary(true)),
         expect: () => [
           settingsBloc.state.copyWith(mergeUserBooksIntoLibrary: true),
         ],
@@ -320,6 +322,26 @@ void main() {
       test('initial state defaults to false', () {
         expect(settingsBloc.state.mergeUserBooksIntoLibrary, isFalse);
       });
+    });
+
+    group('UpdateLibraryAutoExpandSubcategories', () {
+      blocTest<SettingsBloc, SettingsState>(
+        'emits updated state when UpdateLibraryAutoExpandSubcategories is added',
+        build: () {
+          when(mockRepository.updateLibraryAutoExpandSubcategories(false))
+              .thenAnswer((_) async {});
+          return settingsBloc;
+        },
+        act: (bloc) =>
+            bloc.add(const UpdateLibraryAutoExpandSubcategories(false)),
+        expect: () => [
+          settingsBloc.state.copyWith(libraryAutoExpandSubcategories: false),
+        ],
+        verify: (_) {
+          verify(mockRepository.updateLibraryAutoExpandSubcategories(false))
+              .called(1);
+        },
+      );
     });
 
     group('UpdateSoftwareAndBookUpdatesEnabled', () {

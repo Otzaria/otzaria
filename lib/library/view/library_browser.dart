@@ -1060,7 +1060,10 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               child: _buildSearchResultsGrid(books, displayLimit),
             );
           }
-          final categoryItems = _buildCategoryContent(state.currentCategory!);
+          final categoryItems = _buildCategoryContent(
+            state.currentCategory!,
+            settingsState,
+          );
           if (categoryItems.isEmpty) {
             final repo = context.read<FocusRepository>();
             return _buildEmptyState(context, state, settingsState, repo);
@@ -1082,7 +1085,10 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     );
   }
 
-  List<Widget> _buildCategoryContent(Category category) {
+  List<Widget> _buildCategoryContent(
+    Category category,
+    SettingsState settingsState,
+  ) {
     final List<Widget> items = [];
     final filteredBooks = category.books.toList();
     final filteredSubCategories = category.subCategories.toList();
@@ -1097,35 +1103,66 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       );
     }
 
-    final allItems = <Widget>[
-      ...filteredSubCategories.map(
-        (c) => KeyedSubtree(
-          key: _tourCategoryKeys.putIfAbsent(c.path, GlobalKey.new),
-          child: CategoryGridItem(
-            category: c,
-            onCategoryClickCallback: () => _openCategory(c),
-          ),
-        ),
-      ),
-    ];
-
     var attachedTourKey = false;
-    for (final book in filteredBooks) {
+    Widget buildBookGridItem(Book book) {
       final item = _buildBookItem(book);
       final isTourBook = _tourPreviewBook != null &&
           !attachedTourKey &&
           book.title == _tourPreviewBook!.title;
-      allItems.add(
-        isTourBook
-            ? KeyedSubtree(
-                key: _tourBookCardKey,
-                child: item,
-              )
-            : item,
-      );
-      if (isTourBook) {
-        attachedTourKey = true;
+      if (!isTourBook) {
+        return item;
       }
+      attachedTourKey = true;
+      return KeyedSubtree(
+        key: _tourBookCardKey,
+        child: item,
+      );
+    }
+
+    Widget buildCategoryGridItem(Category c) {
+      return KeyedSubtree(
+        key: _tourCategoryKeys.putIfAbsent(c.path, GlobalKey.new),
+        child: CategoryGridItem(
+          category: c,
+          onCategoryClickCallback: () => _openCategory(c),
+        ),
+      );
+    }
+
+    final autoExpandSubcategories =
+        settingsState.libraryAutoExpandSubcategories && category is! Library;
+    if (autoExpandSubcategories) {
+      final topLevelItems = filteredBooks.map(buildBookGridItem).toList();
+      if (topLevelItems.isNotEmpty) {
+        items.add(MyGridView(items: topLevelItems));
+      }
+      for (final sub in filteredSubCategories) {
+        final subBooks = sub.books.toList()
+          ..sort((a, b) => a.order.compareTo(b.order));
+        final subCategories = sub.subCategories.toList()
+          ..sort(
+            (a, b) =>
+                _normalizeOrder(a.order).compareTo(_normalizeOrder(b.order)),
+          );
+        final subItems = <Widget>[
+          ...subBooks.map(buildBookGridItem),
+          ...subCategories.map(buildCategoryGridItem),
+        ];
+        if (subItems.isEmpty) {
+          continue;
+        }
+        items.add(Center(child: HeaderItem(category: sub)));
+        items.add(MyGridView(items: subItems));
+      }
+      return items;
+    }
+
+    final allItems = <Widget>[
+      ...filteredSubCategories.map(buildCategoryGridItem),
+    ];
+
+    for (final book in filteredBooks) {
+      allItems.add(buildBookGridItem(book));
     }
     items.add(MyGridView(items: allItems));
     return items;
