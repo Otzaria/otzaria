@@ -1,5 +1,15 @@
+import 'package:bloc_test/bloc_test.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/pdf_book/view/pdf_search_screen.dart';
+import 'package:otzaria/settings/engine/settings_bloc.dart';
+import 'package:otzaria/settings/engine/settings_event.dart';
+import 'package:otzaria/settings/engine/settings_state.dart';
+import 'package:otzaria_search_engine/otzaria_search_engine.dart';
+
+class MockSettingsBloc extends MockBloc<SettingsEvent, SettingsState>
+    implements SettingsBloc {}
 
 void main() {
   group('PdfBookSearchView.computeTargetVisualIndexForTesting', () {
@@ -93,4 +103,92 @@ void main() {
       );
     });
   });
+
+  group('SearchResultTile', () {
+    late MockSettingsBloc settingsBloc;
+
+    setUp(() {
+      settingsBloc = MockSettingsBloc();
+      whenListen(
+        settingsBloc,
+        const Stream<SettingsState>.empty(),
+        initialState: SettingsState.initial(),
+      );
+    });
+
+    tearDown(() async {
+      await settingsBloc.close();
+    });
+
+    testWidgets('מדגיש טקסט רגיל בחיפוש PDF פשוט', (tester) async {
+      await tester.pumpWidget(_buildTile(
+        settingsBloc: settingsBloc,
+        text: 'שלום עולם',
+        query: 'שלום',
+        isSimpleSearch: true,
+      ));
+
+      expect(_highlightedText(tester), 'שלום');
+    });
+
+    testWidgets('מכבד HTML מודגש מתוצאות מנוע החיפוש', (tester) async {
+      await tester.pumpWidget(_buildTile(
+        settingsBloc: settingsBloc,
+        text: '<font color="red">שלום</font> עולם',
+        query: 'שלום',
+        isSimpleSearch: false,
+      ));
+
+      expect(_highlightedText(tester), 'שלום');
+    });
+  });
+}
+
+Widget _buildTile({
+  required SettingsBloc settingsBloc,
+  required String text,
+  required String query,
+  required bool isSimpleSearch,
+}) {
+  return MaterialApp(
+    home: BlocProvider<SettingsBloc>.value(
+      value: settingsBloc,
+      child: Scaffold(
+        body: SearchResultTile(
+          result: SearchResult(
+            id: BigInt.one,
+            title: 'ספר',
+            reference: 'עמוד א',
+            text: text,
+            segment: BigInt.zero,
+            isPdf: true,
+            filePath: 'book.pdf',
+          ),
+          onTap: () {},
+          height: 50,
+          query: query,
+          isSimpleSearch: isSimpleSearch,
+        ),
+      ),
+    ),
+  );
+}
+
+String _highlightedText(WidgetTester tester) {
+  final richText = tester.widgetList<RichText>(find.byType(RichText)).last;
+  final spans = <TextSpan>[];
+
+  void collect(InlineSpan span) {
+    if (span is! TextSpan) return;
+    spans.add(span);
+    for (final child in span.children ?? const <InlineSpan>[]) {
+      collect(child);
+    }
+  }
+
+  collect(richText.text);
+  return spans
+      .where((span) => span.style?.fontWeight == FontWeight.bold)
+      .map((span) => span.text ?? '')
+      .join();
 }

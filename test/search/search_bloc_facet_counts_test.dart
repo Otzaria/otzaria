@@ -4,6 +4,8 @@ import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
+import 'package:otzaria/search/search_repository.dart';
+import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
 void main() {
   group('SearchBloc facet counts', () {
@@ -235,5 +237,169 @@ void main() {
                 []).having((state) => state.hasNoSelectedFacets, 'hasNoSelectedFacets', true),
       ],
     );
+
+    blocTest<SearchBloc, SearchState>(
+      'LoadMoreResults מבקש תוצאות מה-offset הנוכחי ומצרף אותן',
+      build: () => SearchBloc(
+        repository: _FakeSearchRepository(
+          nextResults: [_searchResult(id: 2, text: 'תוצאה חדשה')],
+        ),
+      ),
+      seed: () => SearchState(
+        searchQuery: 'שלום, עולם',
+        results: [_searchResult(id: 1, text: 'תוצאה קיימת')],
+        totalResults: 2,
+        configuration: const SearchConfiguration(
+          currentFacets: ['/ספרים'],
+          searchMode: SearchMode.advanced,
+          distance: 4,
+          sortBy: ResultsOrder.catalogue,
+          numResults: 25,
+        ),
+      ),
+      act: (bloc) => bloc.add(LoadMoreResults(
+        customSpacing: const {'0-1': '3'},
+        alternativeWords: const {
+          0: ['ברכה'],
+        },
+        searchOptions: const {
+          'שלום_0': {'קידומות': true},
+        },
+      )),
+      expect: () => [
+        isA<SearchState>()
+            .having((state) => state.isLoading, 'isLoading', true),
+        isA<SearchState>()
+            .having((state) => state.isLoading, 'isLoading', false)
+            .having((state) => state.results.length, 'results length', 2)
+            .having(
+              (state) => state.results.last.text,
+              'last result text',
+              'תוצאה חדשה',
+            ),
+      ],
+      verify: (bloc) {
+        final repository = bloc.repositoryForTesting as _FakeSearchRepository;
+        expect(repository.searchCalls, 1);
+        expect(repository.lastQuery, 'שלום עולם');
+        expect(repository.lastFacets, ['/ספרים']);
+        expect(repository.lastLimit, 25);
+        expect(repository.lastOffset, 1);
+        expect(repository.lastOrder, ResultsOrder.catalogue);
+        expect(repository.lastSearchMode, SearchMode.advanced);
+        expect(repository.lastDistance, 4);
+        expect(repository.lastCustomSpacing, {'0-1': '3'});
+        expect(repository.lastAlternativeWords, {
+          0: ['ברכה'],
+        });
+        expect(repository.lastSearchOptions, {
+          'שלום_0': {'קידומות': true},
+        });
+      },
+    );
+
+    blocTest<SearchBloc, SearchState>(
+      'LoadMoreResults לא מחפש כשאין עוד תוצאות',
+      build: () => SearchBloc(repository: _FakeSearchRepository()),
+      seed: () => SearchState(
+        searchQuery: 'שלום',
+        results: [_searchResult(id: 1, text: 'יחידה')],
+        totalResults: 1,
+      ),
+      act: (bloc) => bloc.add(LoadMoreResults()),
+      expect: () => const <SearchState>[],
+      verify: (bloc) {
+        final repository = bloc.repositoryForTesting as _FakeSearchRepository;
+        expect(repository.searchCalls, 0);
+      },
+    );
+
+    blocTest<SearchBloc, SearchState>(
+      'LoadMoreResults מחזיר isLoading ל-false כאשר החיפוש נכשל',
+      build: () => SearchBloc(
+        repository: _FakeSearchRepository(throwOnSearch: true),
+      ),
+      seed: () => SearchState(
+        searchQuery: 'שלום',
+        results: [_searchResult(id: 1, text: 'קיימת')],
+        totalResults: 2,
+      ),
+      act: (bloc) => bloc.add(LoadMoreResults()),
+      expect: () => [
+        isA<SearchState>()
+            .having((state) => state.isLoading, 'isLoading', true),
+        isA<SearchState>()
+            .having((state) => state.isLoading, 'isLoading', false)
+            .having((state) => state.results.length, 'results length', 1),
+      ],
+    );
   });
+}
+
+SearchResult _searchResult({required int id, required String text}) {
+  return SearchResult(
+    id: BigInt.from(id),
+    title: 'ספר',
+    reference: 'סימן',
+    text: text,
+    segment: BigInt.from(id),
+    isPdf: false,
+    filePath: 'book.txt',
+  );
+}
+
+class _FakeSearchRepository extends SearchRepository {
+  _FakeSearchRepository({
+    this.nextResults = const [],
+    this.throwOnSearch = false,
+  });
+
+  final List<SearchResult> nextResults;
+  final bool throwOnSearch;
+
+  int searchCalls = 0;
+  String? lastQuery;
+  List<String>? lastFacets;
+  int? lastLimit;
+  int? lastOffset;
+  ResultsOrder? lastOrder;
+  bool? lastFuzzy;
+  int? lastDistance;
+  SearchMode? lastSearchMode;
+  Map<String, String>? lastCustomSpacing;
+  Map<int, List<String>>? lastAlternativeWords;
+  Map<String, Map<String, bool>>? lastSearchOptions;
+
+  @override
+  Future<List<SearchResult>> searchTexts(
+    String query,
+    List<String> facets,
+    int limit, {
+    int offset = 0,
+    ResultsOrder order = ResultsOrder.relevance,
+    bool fuzzy = false,
+    int distance = 0,
+    SearchMode searchMode = SearchMode.exact,
+    Map<String, String>? customSpacing,
+    Map<int, List<String>>? alternativeWords,
+    Map<String, Map<String, bool>>? searchOptions,
+  }) async {
+    searchCalls++;
+    lastQuery = query;
+    lastFacets = List<String>.from(facets);
+    lastLimit = limit;
+    lastOffset = offset;
+    lastOrder = order;
+    lastFuzzy = fuzzy;
+    lastDistance = distance;
+    lastSearchMode = searchMode;
+    lastCustomSpacing = customSpacing;
+    lastAlternativeWords = alternativeWords;
+    lastSearchOptions = searchOptions;
+
+    if (throwOnSearch) {
+      throw StateError('search failed');
+    }
+    return nextResults;
+  }
 }

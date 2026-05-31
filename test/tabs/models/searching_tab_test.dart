@@ -2,7 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
-import 'package:search_engine/search_engine.dart';
+import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -74,8 +74,7 @@ void main() {
       expect(restored.spacingValues['0-1'], '3');
     });
 
-    test(
-        'toJson/fromJson משחזר globalSearchOptions ו-useGlobalSearchOptions',
+    test('toJson/fromJson משחזר globalSearchOptions ו-useGlobalSearchOptions',
         () {
       final source = SearchingTab('חיפוש', 'שלום');
       addTearDown(source.dispose);

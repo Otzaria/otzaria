@@ -105,6 +105,78 @@ void main() {
       ]);
     });
 
+    test('searchAndCount מפנה לפי מצב החיפוש', () async {
+      final engine = _RecordingSearchEngineOperations();
+      const gateway = SearchEngineGateway();
+
+      await gateway.searchAndCount(engine, _request(SearchMode.exact));
+      await gateway.searchAndCount(engine, _request(SearchMode.advanced));
+      await gateway.searchAndCount(engine, _request(SearchMode.fuzzy));
+
+      expect(engine.calls, [
+        _EngineCall.searchAndCountExact,
+        _EngineCall.searchAndCountAdvanced,
+        _EngineCall.searchAndCountFuzzy,
+      ]);
+    });
+
+    test('count מפנה לפי מצב החיפוש', () async {
+      final engine = _RecordingSearchEngineOperations();
+      const gateway = SearchEngineGateway();
+
+      await gateway.count(engine, _request(SearchMode.exact));
+      await gateway.count(engine, _request(SearchMode.advanced));
+      await gateway.count(engine, _request(SearchMode.fuzzy));
+
+      expect(engine.calls, [
+        _EngineCall.countExact,
+        _EngineCall.countAdvanced,
+        _EngineCall.countFuzzy,
+      ]);
+    });
+
+    test('countByBook מפנה לפי מצב החיפוש', () async {
+      final engine = _RecordingSearchEngineOperations();
+      const gateway = SearchEngineGateway();
+
+      await gateway.countByBook(engine, _request(SearchMode.exact));
+      await gateway.countByBook(engine, _request(SearchMode.advanced));
+      await gateway.countByBook(engine, _request(SearchMode.fuzzy));
+
+      expect(engine.calls, [
+        _EngineCall.countByBookExact,
+        _EngineCall.countByBookAdvanced,
+        _EngineCall.countByBookFuzzy,
+      ]);
+    });
+
+    test('getFacetCounts מפנה לפי מצב החיפוש', () async {
+      final engine = _RecordingSearchEngineOperations();
+      const gateway = SearchEngineGateway();
+
+      await gateway.getFacetCounts(
+        engine,
+        _request(SearchMode.exact),
+        facetPrefix: '/',
+      );
+      await gateway.getFacetCounts(
+        engine,
+        _request(SearchMode.advanced),
+        facetPrefix: '/',
+      );
+      await gateway.getFacetCounts(
+        engine,
+        _request(SearchMode.fuzzy),
+        facetPrefix: '/',
+      );
+
+      expect(engine.calls, [
+        _EngineCall.getFacetCountsExact,
+        _EngineCall.getFacetCountsAdvanced,
+        _EngineCall.getFacetCountsFuzzy,
+      ]);
+    });
+
     test('count/countByBook/getFacetCounts משתמשים באותו dispatch', () async {
       final engine = _RecordingSearchEngineOperations();
       const gateway = SearchEngineGateway();

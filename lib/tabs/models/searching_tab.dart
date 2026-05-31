@@ -6,7 +6,7 @@ import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:otzaria/models/books.dart';
-import 'package:search_engine/search_engine.dart';
+import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
 class SearchingTab extends OpenedTab {
   late final SearchBloc searchBloc;

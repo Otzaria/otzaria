@@ -18,8 +18,11 @@ import 'package:flutter/foundation.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
 class SearchBloc extends Bloc<SearchEvent, SearchState> {
-  final SearchRepository _repository = SearchRepository();
+  final SearchRepository _repository;
   int _searchRequestId = 0;
+
+  @visibleForTesting
+  SearchRepository get repositoryForTesting => _repository;
 
   static int _defaultDistanceForMode(SearchMode mode) {
     return mode == SearchMode.fuzzy ? 2 : 0;
@@ -38,8 +41,11 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     return _defaultDistanceForMode(newMode);
   }
 
-  SearchBloc({SearchConfiguration? initialConfiguration})
-      : super(SearchState(
+  SearchBloc({
+    SearchConfiguration? initialConfiguration,
+    SearchRepository repository = const SearchRepository(),
+  })  : _repository = repository,
+        super(SearchState(
           configuration: initialConfiguration ?? const SearchConfiguration(),
         )) {
     on<UpdateSearchQuery>(_onUpdateSearchQuery);
