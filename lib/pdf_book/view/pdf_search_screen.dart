@@ -460,6 +460,7 @@ class _PdfBookSearchViewState extends State<PdfBookSearchView> {
             },
             height: 50,
             query: widget.searchController.text,
+            isSimpleSearch: _isSimpleSearch,
           );
         },
       ),
@@ -569,6 +570,7 @@ class SearchResultTile extends StatelessWidget {
     required this.onTap,
     required this.height,
     required this.query,
+    required this.isSimpleSearch,
     super.key,
   });
 
@@ -576,13 +578,19 @@ class SearchResultTile extends StatelessWidget {
   final void Function() onTap;
   final double height;
   final String query;
+  final bool isSimpleSearch;
 
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<SettingsBloc, SettingsState>(
       builder: (context, settingsState) {
-        final text =
-            _createHighlightedText(result.text, query, settingsState, context);
+        final text = _createHighlightedText(
+          result.text,
+          query,
+          isSimpleSearch,
+          settingsState,
+          context,
+        );
 
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -615,6 +623,7 @@ class SearchResultTile extends StatelessWidget {
   Widget _createHighlightedText(
     String text,
     String query,
+    bool isSimpleSearch,
     SettingsState settingsState,
     BuildContext context,
   ) {
@@ -637,15 +646,33 @@ class SearchResultTile extends StatelessWidget {
       );
     }
 
+    const highlightStyle = TextStyle(
+      fontWeight: FontWeight.bold,
+      fontSize: 18,
+      color: Color(0xFFD32F2F),
+    );
+
+    if (isSimpleSearch) {
+      final spans = SnippetBuilder.highlightLiteral(
+        plainText: utils.stripHtmlIfNeeded(html),
+        query: query,
+        defaultStyle: defaultStyle,
+        highlightStyle: highlightStyle,
+      );
+
+      return Text.rich(
+        TextSpan(
+          children: spans,
+          style: defaultStyle,
+        ),
+      );
+    }
+
     // המנוע מחזיר את ההתאמות מסומנות בתגי הדגשה בתוך ה-HTML.
     final spans = SnippetBuilder.fromHighlightedHtml(
       html: html,
       defaultStyle: defaultStyle,
-      highlightStyle: const TextStyle(
-        fontWeight: FontWeight.bold,
-        fontSize: 18,
-        color: Color(0xFFD32F2F),
-      ),
+      highlightStyle: highlightStyle,
     );
 
     return Text.rich(
