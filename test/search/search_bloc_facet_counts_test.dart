@@ -8,6 +8,8 @@ import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('SearchBloc facet counts', () {
     blocTest<SearchBloc, SearchState>(
       'SetSearchMode מעדכן את מצב החיפוש ומפעיל ריענון שאילתה',
