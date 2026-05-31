@@ -144,7 +144,9 @@ void main() {
 
       expect(currentValue, 'rt');
       expect(tester.takeException(), isNull);
-      expect(find.byIcon(FluentIcons.checkmark_24_regular), findsNothing);
+      // Icons.done הוא אייקון ה"נבחר" שברירת המחדל של SegmentedButton מציגה
+      // כש-showSelectedIcon: true. היעדרו מאמת שאין אייקון נבחר מוצג בפועל.
+      expect(find.byIcon(Icons.done), findsNothing);
     },
   );
 }
