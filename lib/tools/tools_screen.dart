@@ -1171,7 +1171,6 @@ class ToolsScreenState extends State<ToolsScreen>
       child: Theme(
         data: Theme.of(context).copyWith(
           scaffoldBackgroundColor: bgColor,
-          canvasColor: bgColor,
         ),
         child: LayoutBuilder(
           builder: (context, constraints) {

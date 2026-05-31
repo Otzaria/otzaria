@@ -96,7 +96,6 @@ class AppThemeData {
 
     return ThemeData.dark(useMaterial3: true).copyWith(
       scaffoldBackgroundColor: AppColors.darkScaffold,
-      canvasColor: AppColors.darkScaffold,
       cardColor: AppColors.darkCard,
       colorScheme: cs,
       textTheme: ThemeData.dark()
