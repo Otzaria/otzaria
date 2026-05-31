@@ -27,7 +27,7 @@ void _updateAddress(List<String> address, String line) {
 bool _isHebrewLetter(int codeUnit) {
   return (codeUnit >= 0x05D0 && codeUnit <= 0x05EA) ||
       (codeUnit >= 0x05F0 && codeUnit <= 0x05F4) ||
-      (codeUnit >= 0xFB1D && codeUnit <= 0xFBB1);
+      (codeUnit >= 0xFB1D && codeUnit <= 0xFB4F);
 }
 
 bool _containsWholeWord(String text, String query) {
