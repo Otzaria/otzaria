@@ -1,4 +1,3 @@
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -276,11 +275,10 @@ class _SegmentedSettingsTileState<T> extends State<SegmentedSettingsTile<T>> {
       child: SizedBox(
         width: totalW,
         child: SegmentedButton<T>(
-          showSelectedIcon: true,
-          selectedIcon: const Icon(
-            FluentIcons.checkmark_24_regular,
-            size: 16,
-          ),
+          // ללא אייקון "נבחר": כשלאפשרויות אין אייקון, הוא הופיע רק במקטע
+          // הנבחר ודחק את התווית, וכך ה-FittedBox הקטין את הטקסט ושינה את
+          // מבנה הכפתור בכל החלפת בחירה. הבחירה מסומנת ממילא ברקע ובצבע הטקסט.
+          showSelectedIcon: false,
           style: ButtonStyle(
             minimumSize: WidgetStateProperty.all(const Size(0, 40)),
             maximumSize:

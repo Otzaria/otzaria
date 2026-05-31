@@ -99,4 +99,52 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  // רגרסיה: כשלאפשרויות אין אייקון משלהן, אייקון "נבחר" (✓) הופיע רק במקטע
+  // הנבחר, דחק את התווית וגרם ל-FittedBox להקטין את הטקסט בכל החלפת בחירה.
+  // הפקד חייב להישאר ללא אייקון נבחר כדי שמבנה הכפתור יישאר יציב.
+  testWidgets(
+    'SegmentedSettingsTile does not render a selected-icon',
+    (tester) async {
+      String currentValue = 'sunset';
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Scaffold(
+              body: StatefulBuilder(
+                builder: (context, setState) => SegmentedSettingsTile<String>(
+                  icon: FluentIcons.weather_sunny_low_24_regular,
+                  title: 'מעבר יום',
+                  options: const [
+                    SegmentOption(value: 'sunset', label: 'שקיעה'),
+                    SegmentOption(value: 'tzais', label: 'צאה"כ'),
+                    SegmentOption(value: 'rt', label: 'רבינו תם'),
+                    SegmentOption(value: 'midnight', label: '12 בלילה'),
+                  ],
+                  currentValue: currentValue,
+                  onChanged: (value) => setState(() => currentValue = value),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final button = tester.widget<SegmentedButton<String>>(
+        find.byType(SegmentedButton<String>),
+      );
+      expect(button.showSelectedIcon, isFalse);
+
+      // החלפת בחירה אינה מוסיפה אייקון "נבחר" ואינה זורקת חריגה.
+      await tester.tap(find.text('רבינו תם'));
+      await tester.pumpAndSettle();
+
+      expect(currentValue, 'rt');
+      expect(tester.takeException(), isNull);
+      expect(find.byIcon(FluentIcons.checkmark_24_regular), findsNothing);
+    },
+  );
 }
