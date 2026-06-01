@@ -24,36 +24,33 @@ Future<String?> showErrorReportSenderEmailDialog({
   String subtitle =
       'כתובת זו תצורף לדיווח כדי שצוות אוצריא יוכל לחזור אליכם במקרה הצורך.',
 }) async {
-  final controller = TextEditingController(text: initialValue);
+  String capturedValue = initialValue;
 
   final confirmed = await showSingleActionDialog(
     context: context,
     title: title,
     confirmText: 'שמור',
     customContent: EmailFieldWithAutocomplete(
-      controller: controller,
+      initialValue: initialValue,
       subtitle: subtitle,
+      onValueChanged: (v) => capturedValue = v,
     ),
   );
 
-  final value = controller.text.trim();
-  controller.dispose();
-
-  if (confirmed != true) {
-    return null;
-  }
-
-  return value;
+  if (confirmed != true) return null;
+  return capturedValue.trim();
 }
 
 class EmailFieldWithAutocomplete extends StatefulWidget {
-  final TextEditingController controller;
+  final String initialValue;
   final String subtitle;
+  final ValueChanged<String>? onValueChanged;
 
   const EmailFieldWithAutocomplete({
     super.key,
-    required this.controller,
+    required this.initialValue,
     required this.subtitle,
+    this.onValueChanged,
   });
 
   @override
@@ -63,6 +60,7 @@ class EmailFieldWithAutocomplete extends StatefulWidget {
 
 class _EmailFieldWithAutocompleteState
     extends State<EmailFieldWithAutocomplete> {
+  late final TextEditingController _controller;
   final LayerLink _layerLink = LayerLink();
   final GlobalKey _fieldKey = GlobalKey();
   final FocusNode _focusNode = FocusNode();
@@ -72,13 +70,15 @@ class _EmailFieldWithAutocompleteState
   @override
   void initState() {
     super.initState();
-    widget.controller.addListener(_onTextChanged);
+    _controller = TextEditingController(text: widget.initialValue);
+    _controller.addListener(_onTextChanged);
     _focusNode.addListener(_onFocusChanged);
   }
 
   @override
   void dispose() {
-    widget.controller.removeListener(_onTextChanged);
+    _controller.removeListener(_onTextChanged);
+    _controller.dispose();
     _focusNode.removeListener(_onFocusChanged);
     _focusNode.dispose();
     _hideOverlay();
@@ -99,8 +99,9 @@ class _EmailFieldWithAutocompleteState
 
   void _onTextChanged() {
     if (!mounted) return;
-    final text = widget.controller.text;
-    final selection = widget.controller.selection;
+    widget.onValueChanged?.call(_controller.text);
+    final text = _controller.text;
+    final selection = _controller.selection;
 
     if (!selection.isValid || !selection.isCollapsed) {
       _hideOverlay();
@@ -144,8 +145,8 @@ class _EmailFieldWithAutocompleteState
   }
 
   void _applySuggestion(String domain) {
-    final text = widget.controller.text;
-    final selection = widget.controller.selection;
+    final text = _controller.text;
+    final selection = _controller.selection;
     final cursorPos = selection.isValid && selection.isCollapsed
         ? selection.baseOffset.clamp(0, text.length)
         : text.length;
@@ -166,7 +167,7 @@ class _EmailFieldWithAutocompleteState
     final newText = '$base$domain$after';
     final newCursorPos = atIdx + 1 + domain.length;
 
-    widget.controller.value = TextEditingValue(
+    _controller.value = TextEditingValue(
       text: newText,
       selection: TextSelection.collapsed(offset: newCursorPos),
     );
@@ -247,7 +248,7 @@ class _EmailFieldWithAutocompleteState
             child: Directionality(
               textDirection: TextDirection.ltr,
               child: RtlTextField(
-                controller: widget.controller,
+                controller: _controller,
                 focusNode: _focusNode,
                 keyboardType: TextInputType.emailAddress,
                 textAlign: TextAlign.left,

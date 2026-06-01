@@ -8,11 +8,10 @@ void main() {
 
   /// העלאת השדה לבדיקה בתוך MaterialApp + Overlay, עם MediaQuery עם רוחב סביר
   /// כדי שה-OverlayEntry של ההצעות יוצב נכון.
-  Future<TextEditingController> pumpField(
+  Future<void> pumpField(
     WidgetTester tester, {
     String initialText = '',
   }) async {
-    final controller = TextEditingController(text: initialText);
     await tester.pumpWidget(
       MaterialApp(
         home: MediaQuery(
@@ -22,7 +21,7 @@ void main() {
               child: SizedBox(
                 width: 320,
                 child: EmailFieldWithAutocomplete(
-                  controller: controller,
+                  initialValue: initialText,
                   subtitle: 'תיאור',
                 ),
               ),
@@ -32,8 +31,11 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    return controller;
   }
+
+  /// גישה ל-controller הפנימי של ה-widget דרך ה-TextField שבתוכו.
+  TextEditingController getController(WidgetTester tester) =>
+      tester.widget<TextField>(find.byType(TextField)).controller!;
 
   group('commonEmailDomains', () {
     test('מכיל את הסיומות העיקריות הצפויות', () {
@@ -111,7 +113,8 @@ void main() {
 
   group('EmailFieldWithAutocomplete — בחירת הצעה', () {
     testWidgets('לחיצה על הצעה משלימה את הסיומת', (tester) async {
-      final controller = await pumpField(tester);
+      await pumpField(tester);
+      final controller = getController(tester);
 
       await tester.enterText(find.byType(TextField), 'someone@gm');
       await tester.pumpAndSettle();
@@ -145,7 +148,8 @@ void main() {
         (tester) async {
       // רגרסיה: לפני התיקון הטקסט "name@gma|il.com" היה הופך
       // ל-"name@gmail.comil.com" כי ה-after נלקח מהסמן ולא מסוף הדומיין.
-      final controller = await pumpField(tester);
+      await pumpField(tester);
+      final controller = getController(tester);
 
       controller.value = const TextEditingValue(
         text: 'name@gmail.com',
@@ -169,7 +173,8 @@ void main() {
 
     testWidgets('בחירת הצעה שומרת טקסט אחרי הדומיין כשיש מפריד',
         (tester) async {
-      final controller = await pumpField(tester);
+      await pumpField(tester);
+      final controller = getController(tester);
 
       controller.value = const TextEditingValue(
         text: 'a@gm, b@example.com',
@@ -213,7 +218,8 @@ void main() {
     });
 
     testWidgets('Ctrl+V מדביק טקסט לתוך השדה', (tester) async {
-      final controller = await pumpField(tester);
+      await pumpField(tester);
+      final controller = getController(tester);
 
       // מבטיחים שהפוקוס בשדה
       await tester.tap(find.byType(TextField));
