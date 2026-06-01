@@ -217,6 +217,9 @@ class _ScrollablePositionedListScrollbarState
                 final colorScheme = Theme.of(context).colorScheme;
 
                 return GestureDetector(
+                  // opaque: מבטיח שהגרירה והלחיצה יתקבלו בכל שטח ה-track,
+                  // לא רק מעל ה-thumb עצמו — ללא צורך ברקע צבעוני.
+                  behavior: HitTestBehavior.opaque,
                   // down ולא start: מבטיח ש-onVerticalDragStart מקבל את נקודת
                   // המגע המקורית, כך שההבחנה בין גרירת אגודל לגרירת מסילה
                   // והקפיצה אליה מדויקות.
@@ -247,28 +250,26 @@ class _ScrollablePositionedListScrollbarState
                       _jumpToTrackPosition(dy, trackHeight);
                     }
                   },
-                  child: Container(
-                    color: colorScheme.surface.withValues(alpha: 0.92),
-                    child: Stack(
-                      children: [
-                        // ה"אגודל" (Thumb) עצמו
-                        Positioned(
-                          top: thumbPixelTop,
-                          left: 2, // רווח קטן מהקצה
-                          right: 2,
-                          height: thumbPixelHeight,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: _isDragging
-                                  ? colorScheme.primary.withValues(alpha: 0.8)
-                                  : colorScheme.onSurfaceVariant
-                                      .withValues(alpha: 0.4),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      // ה"אגודל" (Thumb) עצמו
+                      Positioned(
+                        top: thumbPixelTop,
+                        left: 2, // רווח קטן מהקצה
+                        right: 2,
+                        height: thumbPixelHeight,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: _isDragging
+                                ? colorScheme.primary.withValues(alpha: 0.8)
+                                : colorScheme.onSurfaceVariant
+                                    .withValues(alpha: 0.4),
+                            borderRadius: BorderRadius.circular(4),
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 );
               },
