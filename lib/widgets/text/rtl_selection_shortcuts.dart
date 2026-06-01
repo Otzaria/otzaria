@@ -120,9 +120,8 @@ bool _isTextInputContext(BuildContext context) {
   if (_isTextInputWidget(context.widget)) {
     return true;
   }
-  if (context.findAncestorWidgetOfExactType<EditableText>() != null) {
-    return true;
-  }
+  // סריקת האבות מכסה גם את ה-EditableText העוטף (אם קיים), ולכן אין צורך
+  // בקריאה נפרדת ל-findAncestorWidgetOfExactType.
   var found = false;
   context.visitAncestorElements((element) {
     if (_isTextInputWidget(element.widget)) {
@@ -135,13 +134,17 @@ bool _isTextInputContext(BuildContext context) {
 }
 
 bool _isTextInputWidget(Widget widget) {
+  // כל שדות הקלט הסטנדרטיים (TextField / RtlTextField / CupertinoTextField)
+  // בנויים מעל EditableText, ולכן בדיקת `is` מכסה אותם בבטחה — גם ב-Release
+  // Mode עם obfuscation, שם שמות מחלקות אינם אמינים.
   if (widget is EditableText) {
     return true;
   }
+  // רשת ביטחון עבור עורכי Quill (חבילה חיצונית) שאינם נגזרים מ-EditableText.
+  // בדיקת שם המחלקה כמחרוזת עלולה להיכשל תחת obfuscation — ולכן זו fallback
+  // בלבד, ולא דרך הזיהוי העיקרית.
   final name = widget.runtimeType.toString();
-  return name.contains('TextField') ||
-      name.contains('EditableText') ||
-      name.contains('QuillRawEditor') ||
+  return name.contains('QuillRawEditor') ||
       name.contains('RawEditor') ||
       name.contains('QuillEditor');
 }
