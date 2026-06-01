@@ -8,6 +8,7 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:otzaria/navigation/view/main_window_screen.dart';
 import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria/widgets/text/rtl_selection_shortcuts.dart';
 import 'package:window_manager/window_manager.dart';
 
 // AppColors הועבר ל-lib/theme/app_colors.dart
@@ -75,12 +76,17 @@ class App extends StatelessWidget {
               ? ThemeMode.system
               : (state.isDarkMode ? ThemeMode.dark : ThemeMode.light),
           builder: (context, child) {
+            // עוטף את כל היישום בתיקון כיוון בחירת הטקסט ב-RTL (Shift+חץ).
+            final content = RtlSelectionShortcuts(
+              child: child ?? const SizedBox.shrink(),
+            );
+
             if (!useVirtualWindowFrame || child == null) {
-              return child ?? const SizedBox.shrink();
+              return content;
             }
 
             return VirtualWindowFrame(
-              child: child,
+              child: content,
             );
           },
           home: MainWindowScreen(key: mainWindowScreenKey),
