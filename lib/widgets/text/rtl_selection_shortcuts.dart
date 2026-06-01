@@ -20,22 +20,23 @@ class _PhysicalExtendSelectionIntent extends Intent {
 /// מתקן את כיוון מקשי Shift+חץ בבחירת טקסט מימין-לשמאל (RTL).
 ///
 /// ## הבעיה
-/// זהו באג ידוע ופתוח ב-Flutter עצמו
+/// שורה של באגים ידועים ופתוחים ב-Flutter עצמו
 /// (https://github.com/flutter/flutter/issues/78660,
+///  https://github.com/flutter/flutter/issues/127783,
 ///  https://github.com/flutter/flutter/issues/144271):
-/// ב-[SelectableRegion] מקש Shift+חץ מרחיב/מצמצם את הבחירה לפי הכיוון הלוגי
-/// (`forward`) של זרימת הטקסט, **בלי** להתחשב בכיווניות התצוגה. לכן בעברית
-/// החצים פועלים הפוך — חץ ימינה מרחיב את הבחירה שמאלה, "כמו באנגלית".
-/// לעומת זאת ב-[EditableText] (שדות קלט) Flutter כן מהפך את הכיוון לפי
-/// הכיווניות, ולכן אסור לגעת בהם.
+/// מקשי Shift+חץ אמורים להרחיב את הבחירה לפי הכיוון ה*פיזי* של המקש, אך
+/// ב-RTL Flutter מתבלבל בין הכיוון הפיזי ללוגי. שני ביטויים לבעיה:
+///   1. ב-[SelectableRegion] (בחירת טקסט בספרים) Flutter כלל אינו מתחשב
+///      בכיווניות — כל מקשי החצים (תו ומילה) פועלים הפוך.
+///   2. ב-[EditableText] (שדות קלט) Flutter מתקן את הכיוון ברמת תו אך לא ברמת
+///      מילה — ולכן בחירת מילה (Ctrl/Alt+Shift+חץ) יוצאת הפוכה.
 ///
 /// ## הפתרון
-/// כל עוד הבאג לא תוקן ב-Flutter, עוטפים את היישום ברמה אחת גבוהה ומיירטים
-/// את Shift+חץ. ה-[Action] בודק היכן נמצא הפוקוס:
-///   * שדה קלט ([EditableText] / עורך Quill) → מעבירים את הכיוון הלוגי המקורי
-///     (Flutter מטפל שם בכיווניות בעצמו) — שמירה על התנהגות תקינה.
-///   * אחרת ([SelectableRegion]) → מהפכים את הכיוון לפי המקש הפיזי ומתקנים את
-///     הבאג.
+/// כל עוד הבאגים לא תוקנו ב-Flutter, עוטפים את היישום ברמה אחת גבוהה ומיירטים
+/// את Shift+חץ. ה-[Action] שולח את ה-Intent עם הכיוון הנכון לפי היעד שבפוקוס
+/// (ראה [_PhysicalExtendSelectionAction.invoke]). הטיפול מאחד את שני הביטויים
+/// לכלל אחד: כמעט תמיד הכיוון הפיזי הוא הנכון, פרט לבחירה ברמת תו בשדה קלט,
+/// שבה Flutter כבר מתקן לבד.
 ///
 /// מיירטים אך ורק Shift+חץ (לא חיצים רגילים), כך שאין התנגשות עם ניווט מקלדת.
 /// בכיווניות LTR ה-widget שקוף לחלוטין ומחזיר את הילד כמות שהוא.
@@ -93,12 +94,16 @@ class _PhysicalExtendSelectionAction
 
     final inTextInput = _isTextInputContext(focusContext);
 
-    // ב-RTL חץ שמאל פיזי = כיוון "קדימה" (downstream) בזרימת הטקסט.
-    // בשדה קלט Flutter כבר מהפך את forward לפי הכיווניות, לכן מעבירים את הכיוון
-    // הלוגי המקורי (שמאל→false, ימין→true). ב-SelectableRegion אין היפוך
-    // פנימי, לכן מעבירים את הכיוון הפיזי ההפוך (שמאל→true, ימין→false).
+    // ב-RTL חץ שמאל פיזי = כיוון "קדימה" (downstream) בזרימת הטקסט, וזה גם
+    // ה-forward הנכון כמעט בכל המקרים:
+    //   * SelectableRegion (בחירה בספרים) — Flutter כלל אינו מתחשב בכיווניות.
+    //   * שדה קלט ברמת מילה — Flutter אינו מהפך כאן את הכיוון (באג flutter#78660
+    //     / #127783), כך שבחירת המילה יוצאת הפוכה ללא התיקון.
+    // היוצא-דופן היחיד: בחירה ברמת תו בשדה קלט — שם Flutter כבר מהפך את הכיוון
+    // נכון לפי הכיווניות, ולכן מעבירים דווקא את הכיוון הלוגי המקורי.
+    final bool textFieldCharacter = inTextInput && !intent.word;
     final bool forward =
-        inTextInput ? !intent.physicalLeft : intent.physicalLeft;
+        textFieldCharacter ? !intent.physicalLeft : intent.physicalLeft;
 
     final Intent realIntent = intent.word
         ? ExtendSelectionToNextWordBoundaryIntent(
