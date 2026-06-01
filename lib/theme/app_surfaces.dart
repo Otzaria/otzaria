@@ -1,58 +1,36 @@
 import 'package:flutter/material.dart';
 
+ColorScheme _cs(BuildContext context) => Theme.of(context).colorScheme;
+
+extension on ColorScheme {
+  bool get isDark => brightness == Brightness.dark;
+}
+
 /// רקעי מסך לסביבות שימוש שונות באפליקציה
-///
-/// משמש ליצירת עקביות ויזואלית בין מסכי "לוח" (panel screens):
-/// הגדרות, ספריה, כלים — בניגוד למסך העיון (המסך הראשי).
+/// כשיש הבדל בין מצב בהיר לכהה, כתוב isDark ומצב כהה מסומן עם ? סימן שאלה.
 class AppSurfaces {
   AppSurfaces._();
 
   /// נקודת ה-override היחידה לרקע מסך העיון (טקסט, PDF, חיפוש).
-  ///
-  /// כל רכיבי העיון — ה-Scaffold, ה-CustomTitleBar, ה-PdfViewer ופס
-  /// הגלילה — מסתמכים על פונקציה זו. כדי לשנות ערכת נושא, מספיק לשנות
-  /// את ערך החזרה כאן; שאר הקוד מתעדכן אוטומטית.
+  /// הכנה לערכות נושא עתידיות שייתכן וירצו להפריד בין רקע מסך עיון לרקע מסכי לוח.
   static Color readerBackground(BuildContext context) =>
-      Theme.of(context).colorScheme.surface;
+      _cs(context).surface;
 
   /// רקע מסכי לוח — הגדרות, ספריה, כלים וכל מסך משני
   ///
-  /// מחזיר:
-  /// - מצב כהה: שחור מוחלט (כרטיסי SettingsCard בולטים מעליו)
-  /// - מצב בהיר: surfaceContainerHighest בשקיפות 48% (טון עדין מעל הרקע הלבן)
-  ///
-  /// **שימוש:**
-  /// ```dart
-  /// Scaffold(
-  ///   backgroundColor: AppSurfaces.panelBackground(context),
-  ///   ...
-  /// )
-  /// ```
   static Color panelBackground(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    if (theme.brightness == Brightness.dark) return Colors.black;
-    return Color.alphaBlend(
-      cs.surfaceContainerHighest.withValues(alpha: 0.475),
-      cs.surface,
-    );
+    final cs = _cs(context);
+    return cs.isDark
+        ? Colors.black
+        : Color.alphaBlend(cs.surfaceContainerHighest.withValues(alpha: 0.475), cs.surface);
   }
 
-  /// זהה ל-[panelBackground] — נשמר לתאימות עם קוד קיים.
-  static Color solidPanelBackground(BuildContext context) =>
-      panelBackground(context);
+  /// נקודת ה-override לרקע מסכי לוח — הכנה לערכות נושא עתידיות.
+  static Color solidPanelBackground(BuildContext context) => panelBackground(context);
 
   /// צבע ברירת המחדל לכרטיסי תוכן באפליקציה.
-  ///
-  /// תואם לכרטיסי הגדרות ולכרטיסי תוצאות בכלים:
-  /// - מצב כהה: [ColorScheme.surfaceContainer]
-  /// - מצב בהיר: [ColorScheme.surface]
-  static Color card(BuildContext context) {
-    final theme = Theme.of(context);
-    return theme.brightness == Brightness.dark
-        ? theme.colorScheme.surfaceContainer
-        : theme.colorScheme.surface;
-  }
+  static Color card(BuildContext context) =>
+      _cs(context).isDark ? _cs(context).surfaceContainer : _cs(context).surface;
 
   /// רקע פריט נבחר ברשימת ניווט (TOC, מפרשים וכד').
   ///
