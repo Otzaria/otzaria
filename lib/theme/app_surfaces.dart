@@ -7,17 +7,13 @@ import 'package:flutter/material.dart';
 class AppSurfaces {
   AppSurfaces._();
 
-  /// צבע ברירת המחדל לכרטיסי תוכן באפליקציה.
+  /// נקודת ה-override היחידה לרקע מסך העיון (טקסט, PDF, חיפוש).
   ///
-  /// תואם לכרטיסי הגדרות ולכרטיסי תוצאות בכלים:
-  /// - מצב כהה: [ColorScheme.surfaceContainer]
-  /// - מצב בהיר: [ColorScheme.surface]
-  static Color card(BuildContext context) {
-    final theme = Theme.of(context);
-    return theme.brightness == Brightness.dark
-        ? theme.colorScheme.surfaceContainer
-        : theme.colorScheme.surface;
-  }
+  /// כל רכיבי העיון — ה-Scaffold, ה-CustomTitleBar, ה-PdfViewer ופס
+  /// הגלילה — מסתמכים על פונקציה זו. כדי לשנות ערכת נושא, מספיק לשנות
+  /// את ערך החזרה כאן; שאר הקוד מתעדכן אוטומטית.
+  static Color readerBackground(BuildContext context) =>
+      Theme.of(context).colorScheme.surface;
 
   /// רקע מסכי לוח — הגדרות, ספריה, כלים וכל מסך משני
   ///
@@ -45,6 +41,18 @@ class AppSurfaces {
   /// זהה ל-[panelBackground] — נשמר לתאימות עם קוד קיים.
   static Color solidPanelBackground(BuildContext context) =>
       panelBackground(context);
+
+  /// צבע ברירת המחדל לכרטיסי תוכן באפליקציה.
+  ///
+  /// תואם לכרטיסי הגדרות ולכרטיסי תוצאות בכלים:
+  /// - מצב כהה: [ColorScheme.surfaceContainer]
+  /// - מצב בהיר: [ColorScheme.surface]
+  static Color card(BuildContext context) {
+    final theme = Theme.of(context);
+    return theme.brightness == Brightness.dark
+        ? theme.colorScheme.surfaceContainer
+        : theme.colorScheme.surface;
+  }
 
   /// רקע פריט נבחר ברשימת ניווט (TOC, מפרשים וכד').
   ///

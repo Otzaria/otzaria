@@ -173,7 +173,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                     decoration: BoxDecoration(
                       color: (navState.currentScreen == Screen.reading ||
                               navState.currentScreen == Screen.search)
-                          ? Theme.of(context).colorScheme.surface
+                          ? AppSurfaces.readerBackground(context)
                           : AppSurfaces.solidPanelBackground(context),
                       border: (navState.currentScreen == Screen.reading ||
                               navState.currentScreen == Screen.search)
@@ -583,7 +583,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
       builder: (context, state) {
         if (!state.hasOpenTabs) return const SizedBox.shrink();
         return Container(
-          color: Theme.of(context).colorScheme.surface,
+          color: AppSurfaces.readerBackground(context),
           height: 40,
           child: _buildScrollableTabsArea(state),
         );

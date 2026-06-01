@@ -23,6 +23,7 @@ import 'package:otzaria/text_book/view/text_book_screen.dart';
 import 'package:otzaria/text_book/view/commentators_tab_screen.dart';
 import 'package:otzaria/pdf_book/view/pdf_commentators_tab_screen.dart';
 import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tour/tour_target_keys.dart';
 
 class ReadingScreen extends StatefulWidget {
@@ -148,78 +149,87 @@ class _ReadingScreenState extends State<ReadingScreen>
         builder: (context, settingsState) {
           return BlocBuilder<TabsBloc, TabsState>(
             builder: (context, state) {
-              if (!state.hasOpenTabs) {
-                return Scaffold(
-                  body: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Padding(
-                          padding: EdgeInsets.all(16.0),
-                          child: Text(
-                            'לא נבחרו ספרים',
-                            style: TextStyle(fontSize: 18),
+              // Scaffold יחיד לשני המצבים — Theme מפיץ את scaffoldBackgroundColor
+              // לכל Scaffold פנימי (TextBookScreen, PdfBookScreen וכד').
+              final readerBg = AppSurfaces.readerBackground(context);
+              return Theme(
+                data: Theme.of(context).copyWith(
+                  scaffoldBackgroundColor: readerBg,
+                ),
+                child: Scaffold(
+                  body: !state.hasOpenTabs
+                      ? Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Text(
+                                  'לא נבחרו ספרים',
+                                  style: TextStyle(fontSize: 18),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: ElevatedButton.icon(
+                                  onPressed: () {
+                                    context.read<NavigationBloc>().add(
+                                          const NavigateToScreen(
+                                              Screen.library),
+                                        );
+                                  },
+                                  icon: const Icon(
+                                      FluentIcons.library_24_regular),
+                                  label: const Text('דפדף בספרייה'),
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: ElevatedButton.icon(
-                            onPressed: () {
-                              context.read<NavigationBloc>().add(
-                                    const NavigateToScreen(Screen.library),
-                                  );
-                            },
-                            icon: const Icon(FluentIcons.library_24_regular),
-                            label: const Text('דפדף בספרייה'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }
-
-              final validIndex =
-                  state.currentTabIndex.clamp(0, state.tabs.length - 1);
-              _ensurePageController(validIndex);
-
-              return Scaffold(
-                body: KeyedSubtree(
-                  key: tourReadingScreenTargetKey,
-                  child: SizedBox.fromSize(
-                    size: MediaQuery.of(context).size,
-                    child: PageView(
-                      key: const ValueKey('normal_tab_view'),
-                      controller: _pageController,
-                      // גלילה בין טאבים רק במובייל; בדסקטופ tab-bar הוא
-                      // אמצעי הניווט, ו-PageScrollPhysics מתנגשת עם
-                      // סימון טקסט אופקי ועם גלילה אופקית ב-PDF.
-                      physics: Platform.isAndroid || Platform.isIOS
-                          ? const PageScrollPhysics()
-                          : const NeverScrollableScrollPhysics(),
-                      // רק במובייל הגלילה ידנית ולכן onPageChanged משקף בחירת
-                      // משתמש שצריך להזין חזרה ל-currentTabIndex. בדסקטופ
-                      // (NeverScrollable) אי-אפשר לגלול ידנית, וה-callback היה
-                      // יורה רק על קפיצות תוכנתיות — כולל ערך clamp שגוי רגעי
-                      // בעת פתיחת טאב חדש — ודורס את האינדקס הנכון. לכן מנוטרל.
-                      onPageChanged: Platform.isAndroid || Platform.isIOS
-                          ? (index) {
-                              if (index < state.tabs.length) {
-                                context
-                                    .read<TabsBloc>()
-                                    .add(SetCurrentTab(index));
-                              }
-                            }
-                          : null,
-                      children: [
-                        for (var i = 0; i < state.tabs.length; i++)
-                          _buildTabView(
-                            state.tabs[i],
-                            enableTourTargets: i == validIndex,
-                          ),
-                      ],
-                    ),
-                  ),
+                        )
+                      : Builder(builder: (context) {
+                          final validIndex = state.currentTabIndex
+                              .clamp(0, state.tabs.length - 1);
+                          _ensurePageController(validIndex);
+                          return KeyedSubtree(
+                            key: tourReadingScreenTargetKey,
+                            child: SizedBox.fromSize(
+                              size: MediaQuery.of(context).size,
+                              child: PageView(
+                                key: const ValueKey('normal_tab_view'),
+                                controller: _pageController,
+                                // גלילה בין טאבים רק במובייל; בדסקטופ tab-bar הוא
+                                // אמצעי הניווט, ו-PageScrollPhysics מתנגשת עם
+                                // סימון טקסט אופקי ועם גלילה אופקית ב-PDF.
+                                physics: Platform.isAndroid || Platform.isIOS
+                                    ? const PageScrollPhysics()
+                                    : const NeverScrollableScrollPhysics(),
+                                // רק במובייל הגלילה ידנית ולכן onPageChanged משקף
+                                // בחירת משתמש שצריך להזין חזרה ל-currentTabIndex.
+                                // בדסקטופ (NeverScrollable) אי-אפשר לגלול ידנית,
+                                // וה-callback היה יורה רק על קפיצות תוכנתיות —
+                                // כולל ערך clamp שגוי רגעי בעת פתיחת טאב חדש —
+                                // ודורס את האינדקס הנכון. לכן מנוטרל.
+                                onPageChanged:
+                                    Platform.isAndroid || Platform.isIOS
+                                        ? (index) {
+                                            if (index < state.tabs.length) {
+                                              context
+                                                  .read<TabsBloc>()
+                                                  .add(SetCurrentTab(index));
+                                            }
+                                          }
+                                        : null,
+                                children: [
+                                  for (var i = 0; i < state.tabs.length; i++)
+                                    _buildTabView(
+                                      state.tabs[i],
+                                      enableTourTargets: i == validIndex,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }),
                 ),
               );
             },

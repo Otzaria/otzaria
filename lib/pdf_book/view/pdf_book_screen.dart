@@ -60,6 +60,7 @@ import 'package:otzaria/printing/view/printing_screen.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/utils/link_helpers.dart';
 import 'package:otzaria/widgets/navigation/panel_tab_header.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 
 final GlobalKey pdfBookNavigationTourTargetKey = GlobalKey(
   debugLabel: 'pdf_book_navigation_tour_target',
@@ -1013,6 +1014,27 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     ];
   }
 
+  /// מחזיר את צבע הרקע שיועבר ל-[PdfViewerParams.backgroundColor].
+  ///
+  /// ה-PdfViewer עטוף ב-[ColorFiltered] עם [BlendMode.difference] במצב כהה,
+  /// שמהפך כל צבע. כדי שהמשתמש יראה [AppSurfaces.readerBackground] בשני
+  /// המצבים, צריך לספק:
+  /// - מצב בהיר: [AppSurfaces.readerBackground] ישירות.
+  /// - מצב כהה: ה-"מהופך מראש" של [AppSurfaces.readerBackground] הכהה,
+  ///   כך שאחרי ההיפוך ייראה כמו [AppSurfaces.readerBackground] הכהה.
+  Color _pdfViewerBgColor() {
+    final base = AppSurfaces.readerBackground(context);
+    if (Theme.of(context).brightness == Brightness.dark) {
+      return Color.from(
+        alpha: 1.0,
+        red: 1.0 - base.r,
+        green: 1.0 - base.g,
+        blue: 1.0 - base.b,
+      );
+    }
+    return base;
+  }
+
   PdfViewerParams _buildPdfViewerParams(PdfLayoutMode layoutMode) {
     if (layoutMode == PdfLayoutMode.bookView) {
       _lockedSpreadStartPage ??= _spreadStartPageFor(widget.tab.pageNumber);
@@ -1118,8 +1140,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           _bloc.add(const pdf_events.SetLoadingState(isLoading: false));
         }
       },
-      backgroundColor:
-          Colors.white, // תמיד לבן - ה-ColorFilter יהפוך לשחור במצב כהה
+      backgroundColor: _pdfViewerBgColor(),
       sizeDelegateProvider: PdfViewerSizeDelegateProviderLegacy(maxScale: 10),
       // חסימת הזיכרון של ה-renderer: ברירת המחדל של pdfrx 2.4.3 היא
       // 100MB; מהודק ל-48MB כדי לצמצם לחץ זיכרון במחשבים עם 8GB RAM
@@ -2199,11 +2220,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     final canvas = Canvas(recorder);
     canvas.scale(pixelRatio);
 
-    // Background — match the dark/light viewer surface so the area outside
-    // the spread doesn't show as a stark transparent strip during the curl.
-    final bgColor = Theme.of(context).brightness == Brightness.dark
-        ? Colors.black
-        : const Color(0xFFFFFFFF);
+    // Background — match the reader surface so the area outside the spread
+    // doesn't show as a stark transparent strip during the curl.
+    // This snapshot is captured after the ColorFilter, so we use the
+    // post-filter color (readerBackground) directly.
+    final bgColor = AppSurfaces.readerBackground(context);
     canvas.drawRect(
       Rect.fromLTWH(0, 0, viewSize.width, viewSize.height),
       Paint()..color = bgColor,
