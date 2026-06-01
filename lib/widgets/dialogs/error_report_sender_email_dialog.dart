@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 
@@ -66,13 +67,50 @@ class _EmailFieldWithAutocompleteState
   final FocusNode _focusNode = FocusNode();
   OverlayEntry? _overlay;
   List<String> _filteredDomains = const [];
+  int _selectedIndex = -1;
 
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: widget.initialValue);
+    _controller = TextEditingController.fromValue(
+      TextEditingValue(
+        text: widget.initialValue,
+        selection: TextSelection(
+          baseOffset: 0,
+          extentOffset: widget.initialValue.length,
+        ),
+      ),
+    );
     _controller.addListener(_onTextChanged);
     _focusNode.addListener(_onFocusChanged);
+    _focusNode.onKeyEvent = _handleKeyEvent;
+  }
+
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (_filteredDomains.isEmpty) return KeyEventResult.ignored;
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      _selectedIndex = (_selectedIndex + 1) % _filteredDomains.length;
+      _overlay?.markNeedsBuild();
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      _selectedIndex = _selectedIndex <= 0
+          ? _filteredDomains.length - 1
+          : _selectedIndex - 1;
+      _overlay?.markNeedsBuild();
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.tab) {
+      if (_selectedIndex >= 0 && _selectedIndex < _filteredDomains.length) {
+        _applySuggestion(_filteredDomains[_selectedIndex]);
+        return KeyEventResult.handled;
+      }
+    }
+    return KeyEventResult.ignored;
   }
 
   @override
@@ -126,6 +164,7 @@ class _EmailFieldWithAutocompleteState
       return;
     }
 
+    if (_filteredDomains != filtered) _selectedIndex = -1;
     _filteredDomains = filtered;
     _showOrUpdateOverlay();
   }
@@ -142,6 +181,7 @@ class _EmailFieldWithAutocompleteState
   void _hideOverlay() {
     _overlay?.remove();
     _overlay = null;
+    _selectedIndex = -1;
   }
 
   void _applySuggestion(String domain) {
@@ -208,16 +248,26 @@ class _EmailFieldWithAutocompleteState
               itemCount: _filteredDomains.length,
               itemBuilder: (context, index) {
                 final domain = _filteredDomains[index];
-                return InkWell(
-                  onTap: () => _applySuggestion(domain),
-                  child: Padding(
+                final isSelected = index == _selectedIndex;
+                return GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  // onTapDown מופעל לפני שהפוקוס מתחלף — מונע סגירת האוברליי
+                  onTapDown: (_) => _applySuggestion(domain),
+                  child: Container(
+                    color: isSelected
+                        ? theme.colorScheme.primaryContainer
+                        : null,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
                       vertical: 10,
                     ),
                     child: Text(
                       '@$domain',
-                      style: theme.textTheme.bodyMedium,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: isSelected
+                            ? theme.colorScheme.onPrimaryContainer
+                            : null,
+                      ),
                       textDirection: TextDirection.ltr,
                     ),
                   ),
