@@ -852,7 +852,8 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
           title: 'כתובת מייל לזיהוי',
           subtitle:
               senderEmail.isEmpty ? 'עדיין לא הוגדרה כתובת זיהוי' : senderEmail,
-          subtitleDirection: TextDirection.ltr,
+          subtitleDirection:
+              senderEmail.isEmpty ? TextDirection.rtl : TextDirection.ltr,
           actions: [
             if (senderEmail.isNotEmpty)
               NeutralActionButton(

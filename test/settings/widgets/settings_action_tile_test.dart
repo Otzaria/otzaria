@@ -125,4 +125,63 @@ void main() {
       expect(find.text('כפתור ב'), findsOneWidget);
     });
   });
+
+  group('SettingsActionTile.path — עיצוב נתיב', () {
+    Widget buildPath({String? path}) => MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 800,
+              child: SettingsActionTile.path(
+                icon: FluentIcons.folder_24_regular,
+                title: 'מיקום',
+                path: path,
+                placeholder: 'בחר מיקום',
+                actions: [
+                  ElevatedButton(onPressed: () {}, child: const Text('שנה')),
+                ],
+              ),
+            ),
+          ),
+        );
+
+    testWidgets('כשאין נתיב מוצג ה-placeholder', (tester) async {
+      await tester.pumpWidget(buildPath());
+      expect(find.text('בחר מיקום'), findsOneWidget);
+    });
+
+    testWidgets('כשיש נתיב הוא מוצג עם סימני LTR אחרי המפרידים',
+        (tester) async {
+      await tester.pumpWidget(buildPath(path: r'C:\Users\test'));
+      // הטקסט המוצג מכיל את הנתיב — מציאת ה-Text widget לפי סוג
+      final texts = tester.widgetList<Text>(find.byType(Text));
+      final subtitleText =
+          texts.firstWhere((t) => t.data?.contains('Users') ?? false);
+      // בודק שיש סימן LTR (‎) אחרי כל \
+      expect(subtitleText.data, contains('‎'));
+    });
+
+    testWidgets('כשיש נתיב עם / הסימן נוסף גם אחריו', (tester) async {
+      await tester.pumpWidget(buildPath(path: '/home/user/docs'));
+      final texts = tester.widgetList<Text>(find.byType(Text));
+      final subtitleText =
+          texts.firstWhere((t) => t.data?.contains('home') ?? false);
+      expect(subtitleText.data, contains('‎'));
+    });
+
+    testWidgets('placeholder מוצג ב-RTL', (tester) async {
+      await tester.pumpWidget(buildPath());
+      final texts = tester.widgetList<Text>(find.byType(Text));
+      final placeholder =
+          texts.firstWhere((t) => t.data == 'בחר מיקום');
+      expect(placeholder.textDirection, TextDirection.rtl);
+    });
+
+    testWidgets('נתיב מוצג ב-LTR', (tester) async {
+      await tester.pumpWidget(buildPath(path: r'C:\Users\test'));
+      final texts = tester.widgetList<Text>(find.byType(Text));
+      final subtitle =
+          texts.firstWhere((t) => t.data?.contains('Users') ?? false);
+      expect(subtitle.textDirection, TextDirection.ltr);
+    });
+  });
 }

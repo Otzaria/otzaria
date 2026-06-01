@@ -32,7 +32,31 @@ class SettingsActionTile extends StatelessWidget {
           subtitle,
           style: kSettingsSubtitleStyle,
           textDirection: subtitleDirection,
+          textAlign: subtitleDirection == TextDirection.ltr
+              ? TextAlign.end
+              : null,
         );
+
+  /// קונסטרקטור ייעודי לנתיבי קבצים.
+  /// מוסיף אוטומטית סימן LTR אחרי כל מפריד כדי למנוע שיבוש BiDi בנתיבים מעורבים.
+  SettingsActionTile.path({
+    super.key,
+    required this.icon,
+    required String title,
+    required String? path,
+    required String placeholder,
+    required this.actions,
+  })  : title = Text(title, style: kSettingsTitleStyle),
+        subtitle = Text(
+          path != null ? _formatPath(path) : placeholder,
+          style: kSettingsSubtitleStyle,
+          textDirection:
+              path != null ? TextDirection.ltr : TextDirection.rtl,
+          textAlign: path != null ? TextAlign.end : null,
+        );
+
+  static String _formatPath(String path) =>
+      path.replaceAllMapped(RegExp(r'[/\\]'), (m) => '${m[0]}‎');
 
   @override
   Widget build(BuildContext context) {
