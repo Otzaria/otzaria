@@ -56,7 +56,7 @@ class SettingsActionTile extends StatelessWidget {
         );
 
   static String _formatPath(String path) =>
-      path.replaceAllMapped(RegExp(r'[/\\]'), (m) => '${m[0]}‎');
+      path.replaceAllMapped(RegExp(r'[/\\]'), (m) => '${m[0]!}‎');
 
   @override
   Widget build(BuildContext context) {
