@@ -1,0 +1,91 @@
+name: "PR Compliance & Enforcement"
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  compliance_check:
+    name: "Check PR Compliance"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Analyze Pull Request
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const body = pr.body ? pr.body.toLowerCase() : "";
+            const title = pr.title.toLowerCase();
+            
+            let isUiChange = false;
+            let hasImages = false;
+            let hasIssueLink = false;
+            let rejectReason = "";
+
+            // 1. Check if it's a UI change (via title, template flags or files changed)
+            if (title.includes("🎨") || title.includes("ui") || title.includes("ux") || title.includes("design") || body.includes("ui/ux change")) {
+              isUiChange = true;
+            }
+
+            // 2. Check for image or video attachments (markdown syntax or asset URLs)
+            const imageRegex = /<img\s|!\[.*?\]\((.*?\.(jpg|jpeg|png|gif|webp|mp4|mov|webm))|https:\/\/github\\.com\/.*\/assets\//i;
+            if (imageRegex.test(body)) {
+              hasImages = true;
+            }
+
+            // 3. Check for issue connection keywords (Closes #123, Fixes #123 etc)
+            const issueRegex = /(closes|fixes|resolves)\s+#\d+/i;
+            if (issueRegex.test(body)) {
+              hasIssueLink = true;
+            }
+
+            // --- Enforcement Logic ---
+            
+            // Rule A: UI change MUST contain images
+            if (isUiChange && !hasImages) {
+              rejectReason += "\n* 🛑 **שינוי UI ללא תמונות:** זיהינו שמדובר בשינוי ממשק (UI/UX) אך לא צורפו צילומי מסך או הוכחה ויזואלית כמבוקש בטופס. אנא פתח PR חדש עם תמונות/וידאו של לפני ואחרי.\n* 🛑 **Missing UI Evidence:** UI/UX changes must include visual proof (screenshots/videos).";
+            }
+
+            // Rule B: Bug fixes or UI changes must link an issue
+            if ((title.includes("🐛") || title.includes("fix") || isUiChange) && !hasIssueLink) {
+              rejectReason += "\n* 🛑 **חובה לקשר Issue פתוח:** לא נמצא קישור תקין ל-Issue (לדוגמה: `Closes #123`). אנא ודא שיש Issue פתוח וקשר אותו ב-PR החדש.\n* 🛑 **Missing Linked Issue:** You must reference an open issue using `Closes #IssueNumber`.";
+            }
+
+            // Rule C: Multi-topic or too massive scope enforcement
+            if (pr.changed_files > 40) {
+              rejectReason += `\n* 🛑 **נושאים מרובים / PR עמוס מדי:** ה-PR הזה מכיל כמות גדולה מאוד של קבצים משונים (${pr.changed_files} קבצים). נא לפצל לענפים (Branches) נפרדים וממוקדים.\n* 🛑 **Multi-topic / Too Large:** This PR modifies too many files (${pr.changed_files}). Please split it into smaller, focused PRs.`;
+            }
+
+            // If any rule is broken - Post a comment and CLOSE the PR
+            if (rejectReason !== "") {
+              const commentMessage = `### ⛔ הגשת ה-Pull Request נדחתה / PR Rejected ⛔\n\nשלום @${pr.user.login},\nה-PR הנוכחי נסגר אוטומטית כיוון שאינו עומד בחוקי המאגר ובצ'קליסט ההגשה:\n${rejectReason}\n\n--- \n*הודעה זו נוצרה אוטומטית על ידי מערכת ה-CI של אוצרייתא.*`;
+              
+              // Post Comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body: commentMessage
+              });
+
+              // Close PR
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+                state: "closed"
+              });
+
+              core.setFailed("PR validation failed. Closed automatically.");
+            } else {
+              console.log("PR passed compliance checks successfully.");
+            }
