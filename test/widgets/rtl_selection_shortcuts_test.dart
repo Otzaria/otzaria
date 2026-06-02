@@ -17,7 +17,8 @@ void main() {
       expect(find.byType(Shortcuts), findsOneWidget);
     });
 
-    testWidgets('בכיווניות LTR שקוף — אינו מוסיף Shortcuts', (tester) async {
+    testWidgets('גם בכיווניות LTR מוסיף Shortcuts לסינון לפי יעד הפוקוס',
+        (tester) async {
       await tester.pumpWidget(
         const Directionality(
           textDirection: TextDirection.ltr,
@@ -25,10 +26,10 @@ void main() {
         ),
       );
 
-      expect(find.byType(Shortcuts), findsNothing);
+      expect(find.byType(Shortcuts), findsOneWidget);
     });
 
-    testWidgets('ממפה את ארבעת מקשי Shift+חץ הבסיסיים', (tester) async {
+    testWidgets('ממפה את קיצורי Shift+חץ הנתמכים', (tester) async {
       await tester.pumpWidget(
         const Directionality(
           textDirection: TextDirection.rtl,
@@ -71,6 +72,26 @@ void main() {
         ),
         isTrue,
       );
+      expect(
+        shortcuts.containsKey(
+          const SingleActivator(
+            LogicalKeyboardKey.arrowLeft,
+            shift: true,
+            alt: true,
+          ),
+        ),
+        isTrue,
+      );
+      expect(
+        shortcuts.containsKey(
+          const SingleActivator(
+            LogicalKeyboardKey.arrowRight,
+            shift: true,
+            alt: true,
+          ),
+        ),
+        isTrue,
+      );
     });
 
     testWidgets('אינו מיירט חיצים רגילים (ללא Shift)', (tester) async {
@@ -100,8 +121,13 @@ void main() {
   });
 
   group('RtlSelectionShortcuts — התנהגות בשדה קלט RTL', () {
-    Future<TextEditingController> pumpRtlTextField(WidgetTester tester) async {
-      final controller = TextEditingController(text: 'שלום עולם ועד');
+    Future<TextEditingController> pumpTextField(
+      WidgetTester tester, {
+      required TextDirection appDirection,
+      required TextDirection fieldDirection,
+      required String text,
+    }) async {
+      final controller = TextEditingController(text: text);
       final focusNode = FocusNode();
       await tester.pumpWidget(
         MaterialApp(
@@ -113,12 +139,15 @@ void main() {
           ],
           supportedLocales: const [Locale('he')],
           home: Directionality(
-            textDirection: TextDirection.rtl,
+            textDirection: appDirection,
             child: RtlSelectionShortcuts(
-              child: Scaffold(
-                body: TextField(
-                  controller: controller,
-                  focusNode: focusNode,
+              child: Directionality(
+                textDirection: fieldDirection,
+                child: Scaffold(
+                  body: TextField(
+                    controller: controller,
+                    focusNode: focusNode,
+                  ),
                 ),
               ),
             ),
@@ -147,7 +176,12 @@ void main() {
     testWidgets(
       'Ctrl+Shift+חץ-שמאל מרחיב מילה במורד הזרם (downstream) — לא הפוך',
       (tester) async {
-        final controller = await pumpRtlTextField(tester);
+        final controller = await pumpTextField(
+          tester,
+          appDirection: TextDirection.rtl,
+          fieldDirection: TextDirection.rtl,
+          text: 'שלום עולם ועד',
+        );
         // הסמן בתחילת המחרוזת (הקצה הימני ויזואלית ב-RTL).
         controller.selection = const TextSelection.collapsed(offset: 0);
         await tester.pump();
@@ -163,7 +197,12 @@ void main() {
     testWidgets(
       'Ctrl+Shift+חץ-ימין מרחיב מילה במעלה הזרם (upstream) — לא הפוך',
       (tester) async {
-        final controller = await pumpRtlTextField(tester);
+        final controller = await pumpTextField(
+          tester,
+          appDirection: TextDirection.rtl,
+          fieldDirection: TextDirection.rtl,
+          text: 'שלום עולם ועד',
+        );
         // הסמן בסוף המחרוזת (הקצה השמאלי ויזואלית ב-RTL).
         final end = controller.text.length;
         controller.selection = TextSelection.collapsed(offset: end);
@@ -175,5 +214,94 @@ void main() {
         expect(controller.selection.extentOffset, lessThan(end));
       },
     );
+
+    testWidgets(
+      'שדה LTR בתוך אפליקציה RTL נשאר עם כיוון ברירת המחדל',
+      (tester) async {
+        final controller = await pumpTextField(
+          tester,
+          appDirection: TextDirection.rtl,
+          fieldDirection: TextDirection.ltr,
+          text: 'one two three',
+        );
+        final end = controller.text.length;
+        controller.selection = TextSelection.collapsed(offset: end);
+        await tester.pump();
+
+        await sendCtrlShift(tester, LogicalKeyboardKey.arrowLeft);
+
+        expect(controller.selection.extentOffset, lessThan(end));
+      },
+    );
+  });
+
+  group('RtlSelectionShortcuts — התנהגות באזור בחירה RTL', () {
+    Future<Intent?> invokeShortcutOnSelectionTarget(
+      WidgetTester tester,
+      LogicalKeyboardKey arrow,
+    ) async {
+      final focusNode = FocusNode();
+      Intent? invokedIntent;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: RtlSelectionShortcuts(
+              child: Actions(
+                actions: <Type, Action<Intent>>{
+                  ExtendSelectionByCharacterIntent:
+                      CallbackAction<ExtendSelectionByCharacterIntent>(
+                    onInvoke: (intent) {
+                      invokedIntent = intent;
+                      return true;
+                    },
+                  ),
+                },
+                child: Focus(
+                  focusNode: focusNode,
+                  child: const Text(
+                    'טקסט לבחירה',
+                    textDirection: TextDirection.rtl,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      focusNode.requestFocus();
+      await tester.pump();
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(arrow);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pump();
+
+      addTearDown(focusNode.dispose);
+      return invokedIntent;
+    }
+
+    testWidgets('Shift+חץ-שמאל מומר ל-forward באזור בחירה RTL', (tester) async {
+      final intent = await invokeShortcutOnSelectionTarget(
+        tester,
+        LogicalKeyboardKey.arrowLeft,
+      );
+
+      expect(intent, isA<ExtendSelectionByCharacterIntent>());
+      expect((intent as ExtendSelectionByCharacterIntent).forward, isTrue);
+      expect(intent.collapseSelection, isFalse);
+    });
+
+    testWidgets('Shift+חץ-ימין מומר ל-backward באזור בחירה RTL',
+        (tester) async {
+      final intent = await invokeShortcutOnSelectionTarget(
+        tester,
+        LogicalKeyboardKey.arrowRight,
+      );
+
+      expect(intent, isA<ExtendSelectionByCharacterIntent>());
+      expect((intent as ExtendSelectionByCharacterIntent).forward, isFalse);
+      expect(intent.collapseSelection, isFalse);
+    });
   });
 }

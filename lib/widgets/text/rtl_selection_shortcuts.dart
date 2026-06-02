@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:otzaria/widgets/text/text_input_context.dart';
 
 /// Intent ביניים פנימי: בקשת הרחבת בחירה לפי הכיוון ה*פיזי* של מקש החץ
 /// (שמאל/ימין), עוד לפני שמחליטים על הכיוון הלוגי (`forward`).
@@ -39,7 +40,8 @@ class _PhysicalExtendSelectionIntent extends Intent {
 /// שבה Flutter כבר מתקן לבד.
 ///
 /// מיירטים אך ורק Shift+חץ (לא חיצים רגילים), כך שאין התנגשות עם ניווט מקלדת.
-/// בכיווניות LTR ה-widget שקוף לחלוטין ומחזיר את הילד כמות שהוא.
+/// ההחלטה אם לתקן מתקבלת לפי הכיווניות של היעד שבפוקוס, ולכן אזורי LTR בתוך
+/// האפליקציה נשארים עם התנהגות ברירת המחדל של Flutter.
 class RtlSelectionShortcuts extends StatelessWidget {
   const RtlSelectionShortcuts({super.key, required this.child});
 
@@ -66,9 +68,6 @@ class RtlSelectionShortcuts extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (Directionality.maybeOf(context) != TextDirection.rtl) {
-      return child;
-    }
     return Shortcuts(
       shortcuts: _shortcuts,
       child: Actions(
@@ -92,7 +91,11 @@ class _PhysicalExtendSelectionAction
       return null;
     }
 
-    final inTextInput = _isTextInputContext(focusContext);
+    if (Directionality.maybeOf(focusContext) != TextDirection.rtl) {
+      return false;
+    }
+
+    final inTextInput = isTextInputContext(focusContext);
 
     // ב-RTL חץ שמאל פיזי = כיוון "קדימה" (downstream) בזרימת הטקסט, וזה גם
     // ה-forward הנכון כמעט בכל המקרים:
@@ -115,41 +118,29 @@ class _PhysicalExtendSelectionAction
             collapseSelection: false,
           );
 
-    return Actions.maybeInvoke(focusContext, realIntent);
-  }
-}
-
-/// בודק אם ה-context הממוקד שייך לשדה קלט טקסטואלי (כולל עורכי Quill),
-/// שבהם Flutter כבר מטפל נכון בכיווניות RTL ואין להפוך את כיוון הבחירה.
-bool _isTextInputContext(BuildContext context) {
-  if (_isTextInputWidget(context.widget)) {
-    return true;
-  }
-  // סריקת האבות מכסה גם את ה-EditableText העוטף (אם קיים), ולכן אין צורך
-  // בקריאה נפרדת ל-findAncestorWidgetOfExactType.
-  var found = false;
-  context.visitAncestorElements((element) {
-    if (_isTextInputWidget(element.widget)) {
-      found = true;
+    final action = Actions.maybeFind<Intent>(
+      focusContext,
+      intent: realIntent,
+    );
+    if (action == null) {
       return false;
     }
-    return true;
-  });
-  return found;
-}
 
-bool _isTextInputWidget(Widget widget) {
-  // כל שדות הקלט הסטנדרטיים (TextField / RtlTextField / CupertinoTextField)
-  // בנויים מעל EditableText, ולכן בדיקת `is` מכסה אותם בבטחה — גם ב-Release
-  // Mode עם obfuscation, שם שמות מחלקות אינם אמינים.
-  if (widget is EditableText) {
-    return true;
+    final (enabled, _) = Actions.of(focusContext).invokeActionIfEnabled(
+      action,
+      realIntent,
+      focusContext,
+    );
+    return enabled;
   }
-  // רשת ביטחון עבור עורכי Quill (חבילה חיצונית) שאינם נגזרים מ-EditableText.
-  // בדיקת שם המחלקה כמחרוזת עלולה להיכשל תחת obfuscation — ולכן זו fallback
-  // בלבד, ולא דרך הזיהוי העיקרית.
-  final name = widget.runtimeType.toString();
-  return name.contains('QuillRawEditor') ||
-      name.contains('RawEditor') ||
-      name.contains('QuillEditor');
+
+  @override
+  KeyEventResult toKeyEventResult(
+    _PhysicalExtendSelectionIntent intent,
+    Object? invokeResult,
+  ) {
+    return invokeResult == true
+        ? KeyEventResult.handled
+        : KeyEventResult.ignored;
+  }
 }

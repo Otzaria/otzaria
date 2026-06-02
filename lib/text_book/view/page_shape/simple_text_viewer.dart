@@ -49,6 +49,8 @@ import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
 import 'package:otzaria/text_book/view/widgets/continuous_reading_paragraph.dart';
 import 'package:otzaria/utils/text/html_link_handler.dart';
 import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart';
+import 'package:otzaria/widgets/text/text_input_context.dart'
+    as text_input_context;
 
 /// מחזירה האם אירוע המקלדת צריך להניע גלילה רציפה בצורת הדף.
 bool shouldHandlePageShapeNavigationKeyEvent(KeyEvent event) {
@@ -60,17 +62,7 @@ bool shouldHandlePageShapeNavigationKeyEvent(KeyEvent event) {
 /// נדרש עבור "צורת הדף", כי העורך של הערות אישיות מבוסס `flutter_quill`
 /// ואינו מזוהה תמיד כ-`EditableText` רגיל.
 bool isTextInputFocusNode(FocusNode? focusNode) {
-  final focusContext = focusNode?.context;
-  if (focusContext == null) {
-    return false;
-  }
-
-  if (_isTextInputWidget(focusContext.widget)) {
-    return true;
-  }
-
-  return focusContext.findAncestorWidgetOfExactType<EditableText>() != null ||
-      _hasQuillEditorAncestor(focusContext);
+  return text_input_context.isTextInputFocusNode(focusNode);
 }
 
 /// בודקת האם הפוקוס הנוכחי נמצא בתוך תפריט (כמו תפריט הקשר/תת-תפריט).
@@ -96,31 +88,6 @@ bool isMenuFocusNode(FocusNode? focusNode) {
     return true;
   });
   return hasMenuAncestor;
-}
-
-bool _hasQuillEditorAncestor(BuildContext context) {
-  var hasQuillAncestor = false;
-  context.visitAncestorElements((element) {
-    if (_isTextInputWidget(element.widget)) {
-      hasQuillAncestor = true;
-      return false;
-    }
-    return true;
-  });
-  return hasQuillAncestor;
-}
-
-bool _isTextInputWidget(Widget widget) {
-  if (widget is EditableText) {
-    return true;
-  }
-
-  final runtimeTypeName = widget.runtimeType.toString();
-  return runtimeTypeName.contains('TextField') ||
-      runtimeTypeName.contains('EditableText') ||
-      runtimeTypeName.contains('QuillRawEditor') ||
-      runtimeTypeName.contains('RawEditor') ||
-      runtimeTypeName.contains('QuillEditor');
 }
 
 bool _isMenuWidget(Widget widget) {
