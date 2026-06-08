@@ -118,6 +118,16 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
     setState(_clearSearch);
   }
 
+  static int _tabToIndex(SettingsTab tab) => switch (tab) {
+        SettingsTab.design => 0,
+        SettingsTab.text => 1,
+        SettingsTab.library => 2,
+        SettingsTab.tools => 3,
+        SettingsTab.shortcuts => 4,
+        SettingsTab.system => 5,
+        SettingsTab.about => 6,
+      };
+
   // ── חיפוש: עיבוד בקשת ניווט מה-registry ──────────────────────────────────
   void _handleSearchNavigation() {
     final request = SettingsSearchRegistry.instance.pendingRequest;
@@ -125,15 +135,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
     SettingsSearchRegistry.instance.consumePendingRequest();
     if (!mounted) return;
 
-    final tabIndex = switch (request.tab) {
-      SettingsTab.design => 0,
-      SettingsTab.text => 1,
-      SettingsTab.library => 2,
-      SettingsTab.tools => 3,
-      SettingsTab.shortcuts => 4,
-      SettingsTab.system => 5,
-      SettingsTab.about => 6,
-    };
+    final tabIndex = _tabToIndex(request.tab);
 
     setState(() {
       _selectedIndex = tabIndex;
@@ -195,15 +197,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
   void _applyRequestedTab(SettingsTab? tab) {
     if (tab == null) return;
 
-    final tabIndex = switch (tab) {
-      SettingsTab.design => 0,
-      SettingsTab.text => 1,
-      SettingsTab.library => 2,
-      SettingsTab.tools => 3,
-      SettingsTab.shortcuts => 4,
-      SettingsTab.system => 5,
-      SettingsTab.about => 6,
-    };
+    final tabIndex = _tabToIndex(tab);
 
     if (!mounted) {
       _selectedIndex = tabIndex;
