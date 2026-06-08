@@ -155,7 +155,7 @@ class DesignSettingsTab extends StatelessWidget {
                     child: SettingsCard(
                       title: 'תצוגה',
                       children: [
-                        ListTile(
+                        SwitchSettingsTile(
                           leading: Icon(state.isFullscreen
                               ? FluentIcons.full_screen_minimize_24_regular
                               : FluentIcons.full_screen_maximize_24_regular),
@@ -163,15 +163,13 @@ class DesignSettingsTab extends StatelessWidget {
                               const Text('מסך מלא', style: kSettingsTitleStyle),
                           subtitle: const Text('החלף מצב מסך מלא',
                               style: kSettingsSubtitleStyle),
-                          trailing: Switch(
-                            value: state.isFullscreen,
-                            onChanged: (value) async {
-                              context
-                                  .read<SettingsBloc>()
-                                  .add(UpdateIsFullscreen(value));
-                              await windowManager.setFullScreen(value);
-                            },
-                          ),
+                          value: state.isFullscreen,
+                          onChanged: (value) async {
+                            context
+                                .read<SettingsBloc>()
+                                .add(UpdateIsFullscreen(value));
+                            await windowManager.setFullScreen(value);
+                          },
                         ),
                       ],
                     ),
