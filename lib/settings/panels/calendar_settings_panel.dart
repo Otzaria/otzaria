@@ -172,34 +172,36 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                       context.read<CalendarCubit>().changeCalendarType(value);
                     },
                   ),
-                  SegmentedSettingsTile<CalendarDayTransition>(
+                  _buildResponsiveDropdownTile<CalendarDayTransition>(
                     icon: FluentIcons.weather_sunny_low_24_regular,
                     title: 'מעבר יום',
                     subtitle:
                         _calendarDayTransitionSubtitle(state.dayTransition),
-                    options: const [
-                      SegmentOption(
+                    value: state.dayTransition,
+                    entries: const [
+                      AppMenuEntry(
                         value: CalendarDayTransition.sunset,
                         label: 'שקיעה',
                       ),
-                      SegmentOption(
+                      AppMenuEntry(
                         value: CalendarDayTransition.tzais,
                         label: 'צאה"כ',
                       ),
-                      SegmentOption(
+                      AppMenuEntry(
                         value: CalendarDayTransition.rabbeinuTam,
                         label: 'רבינו תם',
                       ),
-                      SegmentOption(
+                      AppMenuEntry(
                         value: CalendarDayTransition.midnight,
                         label: '12 בלילה',
                       ),
                     ],
-                    currentValue: state.dayTransition,
-                    onChanged: (value) {
-                      context
-                          .read<CalendarCubit>()
-                          .changeCalendarDayTransition(value);
+                    onSelected: (value) {
+                      if (value != null) {
+                        context
+                            .read<CalendarCubit>()
+                            .changeCalendarDayTransition(value);
+                      }
                     },
                   ),
                   // עיר
