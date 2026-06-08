@@ -12,7 +12,7 @@ import 'package:otzaria/settings/search/settings_search_results_view.dart';
 import 'package:otzaria/settings/tabs/settings_tabs_exports.dart';
 import 'package:otzaria/settings/services/safer_mode/protected_settings_wrapper.dart';
 import 'package:otzaria/widgets/navigation/keyboard_navigator.dart';
-import 'package:otzaria/settings/settings_card.dart';
+import 'package:otzaria/settings/widgets/settings_card.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tour/tour_target_keys.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';

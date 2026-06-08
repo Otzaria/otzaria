@@ -28,7 +28,7 @@ import 'package:otzaria/plugins/utils/fluent_icon_resolver.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
-import 'package:otzaria/settings/settings_card.dart';
+import 'package:otzaria/settings/widgets/settings_card.dart';
 import 'package:otzaria/tour/tour_target_keys.dart';
 
 /// בדיקה האם שני סטים מכילים את אותם הערכים. שימושי ב-`listenWhen`.
