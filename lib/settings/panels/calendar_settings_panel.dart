@@ -172,7 +172,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                       context.read<CalendarCubit>().changeCalendarType(value);
                     },
                   ),
-                  _buildResponsiveDropdownTile<CalendarDayTransition>(
+                  DropdownSettingsTile<CalendarDayTransition>(
                     icon: FluentIcons.weather_sunny_low_24_regular,
                     title: 'מעבר יום',
                     subtitle:
@@ -205,7 +205,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                     },
                   ),
                   // עיר
-                  _buildResponsiveDropdownTile<String>(
+                  DropdownSettingsTile<String>(
                     icon: FluentIcons.location_24_regular,
                     title: 'עיר נבחרת',
                     subtitle: 'בחירת עיר לחישובי זמני היום והלוח',
@@ -258,7 +258,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                           .changeCalendarNotificationSound(value);
                     },
                   ),
-                  _buildResponsiveDropdownTile<int>(
+                  DropdownSettingsTile<int>(
                     icon: FluentIcons.alert_snooze_24_regular,
                     title: 'זמן תזכורת לפני האירוע',
                     subtitle: 'כמה זמן לפני תחילת האירוע תופיע התראה',
@@ -459,84 +459,6 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
     );
   }
 
-  Widget _buildResponsiveDropdownTile<T>({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required T? value,
-    required List<AppMenuEntry<T>> entries,
-    required ValueChanged<T?> onSelected,
-    bool enableSearch = false,
-    double minFieldWidth = 220,
-    double maxFieldWidth = 320,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isCompact = constraints.maxWidth < 620;
-          final fieldWidth = isCompact
-              ? constraints.maxWidth
-              : constraints.maxWidth.clamp(minFieldWidth, maxFieldWidth);
-
-          final info = Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(icon),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title, style: kSettingsTitleStyle),
-                      const SizedBox(height: 4),
-                      Text(subtitle, style: kSettingsSubtitleStyle),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-
-          final field = SizedBox(
-            width: fieldWidth,
-            child: AppDropdownField<T>(
-              value: value,
-              enableSearch: enableSearch,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                isDense: true,
-              ),
-              entries: entries,
-              onSelected: onSelected,
-            ),
-          );
-
-          if (isCompact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(children: [info]),
-                const SizedBox(height: 12),
-                field,
-              ],
-            );
-          }
-
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              info,
-              const SizedBox(width: 16),
-              Flexible(
-                  child: Align(alignment: Alignment.centerLeft, child: field)),
-            ],
-          );
-        },
-      ),
-    );
-  }
 }
 
 String _calendarDayTransitionSubtitle(CalendarDayTransition transition) {

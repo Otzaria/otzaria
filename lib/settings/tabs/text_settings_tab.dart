@@ -600,100 +600,43 @@ class TextSettingsTab extends StatelessWidget {
           },
         ),
         if (state.copyWithHeaders != 'none')
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final isNarrow = constraints.maxWidth < LayoutBreakpoints.compact;
-
-              const formatEntries = [
-                AppMenuEntry(
-                  value: 'same_line_after_brackets',
-                  label: 'אותה שורה אחרי (עם סוגריים)',
-                ),
-                AppMenuEntry(
-                  value: 'same_line_after_no_brackets',
-                  label: 'אותה שורה אחרי (בלי סוגריים)',
-                ),
-                AppMenuEntry(
-                  value: 'same_line_before_brackets',
-                  label: 'אותה שורה לפני (עם סוגריים)',
-                ),
-                AppMenuEntry(
-                  value: 'same_line_before_no_brackets',
-                  label: 'אותה שורה לפני (בלי סוגריים)',
-                ),
-                AppMenuEntry(
-                  value: 'separate_line_after',
-                  label: 'פסקה נפרדת אחרי',
-                ),
-                AppMenuEntry(
-                  value: 'separate_line_before',
-                  label: 'פסקה נפרדת לפני',
-                ),
-              ];
-
-              void onFormatSelected(String? value) {
-                if (value != null) {
-                  context
-                      .read<SettingsBloc>()
-                      .add(UpdateCopyHeaderFormat(value));
-                }
+          DropdownSettingsTile<String>(
+            icon: FluentIcons.text_align_right_24_regular,
+            title: 'עיצוב כותרות',
+            subtitle: formatSubtitle,
+            value: state.copyHeaderFormat,
+            minFieldWidth: 220,
+            maxFieldWidth: 320,
+            entries: const [
+              AppMenuEntry(
+                value: 'same_line_after_brackets',
+                label: 'אותה שורה אחרי (עם סוגריים)',
+              ),
+              AppMenuEntry(
+                value: 'same_line_after_no_brackets',
+                label: 'אותה שורה אחרי (בלי סוגריים)',
+              ),
+              AppMenuEntry(
+                value: 'same_line_before_brackets',
+                label: 'אותה שורה לפני (עם סוגריים)',
+              ),
+              AppMenuEntry(
+                value: 'same_line_before_no_brackets',
+                label: 'אותה שורה לפני (בלי סוגריים)',
+              ),
+              AppMenuEntry(
+                value: 'separate_line_after',
+                label: 'פסקה נפרדת אחרי',
+              ),
+              AppMenuEntry(
+                value: 'separate_line_before',
+                label: 'פסקה נפרדת לפני',
+              ),
+            ],
+            onSelected: (value) {
+              if (value != null) {
+                context.read<SettingsBloc>().add(UpdateCopyHeaderFormat(value));
               }
-
-              if (isNarrow) {
-                return Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(FluentIcons.text_align_right_24_regular),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text('עיצוב כותרות',
-                                    style: kSettingsTitleStyle),
-                                Text(formatSubtitle,
-                                    style: kSettingsSubtitleStyle),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      AppDropdownField<String>(
-                        value: state.copyHeaderFormat,
-                        decoration: const InputDecoration(
-                          border: OutlineInputBorder(),
-                          isDense: true,
-                        ),
-                        entries: formatEntries,
-                        onSelected: onFormatSelected,
-                      ),
-                    ],
-                  ),
-                );
-              }
-
-              return ListTile(
-                leading: const Icon(FluentIcons.text_align_right_24_regular),
-                title: const Text('עיצוב כותרות', style: kSettingsTitleStyle),
-                subtitle: Text(formatSubtitle, style: kSettingsSubtitleStyle),
-                trailing: SizedBox(
-                  width: 220,
-                  child: AppDropdownField<String>(
-                    value: state.copyHeaderFormat,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                    entries: formatEntries,
-                    onSelected: onFormatSelected,
-                  ),
-                ),
-              );
             },
           ),
       ],

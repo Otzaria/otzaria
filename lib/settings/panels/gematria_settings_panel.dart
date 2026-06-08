@@ -138,35 +138,22 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
           child: SettingsCard(
             title: 'חיפוש גימטריה',
             children: [
-              ListTile(
-                leading: const Icon(FluentIcons.number_row_24_regular),
-                title: const Text('מספר תוצאות מקסימלי',
-                    style: kSettingsTitleStyle),
-                subtitle: const Text('כמות התוצאות המקסימלית להצגה',
-                    style: kSettingsSubtitleStyle),
-                trailing: SizedBox(
-                  width: 120,
-                  child: AppDropdownField<int>(
-                    value: maxResults,
-                    entries: [50, 100, 200, 500, 1000]
-                        .map(
-                          (value) =>
-                              AppMenuEntry(value: value, label: '$value'),
-                        )
-                        .toList(),
-                    onSelected: (value) {
-                      if (value != null) {
-                        setState(() => maxResults = value);
-                        Settings.setValue<int>(
-                            'key-gematria-max-results', value);
-                      }
-                    },
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                  ),
-                ),
+              DropdownSettingsTile<int>(
+                icon: FluentIcons.number_row_24_regular,
+                title: 'מספר תוצאות מקסימלי',
+                subtitle: 'כמות התוצאות המקסימלית להצגה',
+                value: maxResults,
+                minFieldWidth: 120,
+                maxFieldWidth: 160,
+                entries: [50, 100, 200, 500, 1000]
+                    .map((value) => AppMenuEntry(value: value, label: '$value'))
+                    .toList(),
+                onSelected: (value) {
+                  if (value != null) {
+                    setState(() => maxResults = value);
+                    Settings.setValue<int>('key-gematria-max-results', value);
+                  }
+                },
               ),
               SwitchSettingsTile(
                 leading: const Icon(FluentIcons.filter_24_regular),
