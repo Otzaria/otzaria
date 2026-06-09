@@ -12,7 +12,7 @@ import 'package:otzaria/shortcuts/view/shortcut_dropdown_tile.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/core/ui_snack.dart';
-import 'package:otzaria/settings/widgets/settings_card.dart';
+import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
 import 'package:otzaria/tour/tour_target_keys.dart';
 
 /// טאב קיצורי מקלדת — מוצג רק בדסקטופ.
@@ -288,18 +288,16 @@ class ShortcutsSettingsTab extends StatelessWidget {
           child: SettingsCard(
             title: 'כללי',
             children: [
-              ListTile(
-                leading: const Icon(FluentIcons.arrow_reset_24_regular),
-                title: const Text('איפוס קיצורי מקשים',
-                    style: kSettingsTitleStyle),
-                subtitle: const Text(
-                  'החזר את כל קיצורי המקשים לברירת המחדל',
-                  style: kSettingsSubtitleStyle,
-                ),
-                trailing: NeutralActionButton(
-                  text: 'איפוס',
-                  onPressed: () => _resetShortcuts(context),
-                ),
+              SettingsActionTile.text(
+                icon: FluentIcons.arrow_reset_24_regular,
+                title: 'איפוס קיצורי מקשים',
+                subtitle: 'החזר את כל קיצורי המקשים לברירת המחדל',
+                actions: [
+                  NeutralActionButton(
+                    text: 'איפוס',
+                    onPressed: () => _resetShortcuts(context),
+                  ),
+                ],
               ),
             ],
           ),
@@ -516,18 +514,16 @@ class ShortcutsSettingsTab extends StatelessWidget {
             subtitle:
                 'פעולות הקיימות באפליקציה ועדיין לא הוגדר להן קיצור מקלדת',
             children: [
-              ListTile(
-                leading: const Icon(FluentIcons.add_24_regular),
-                title: const Text('הוסף קיצור לפעולה זמינה',
-                    style: kSettingsTitleStyle),
-                subtitle: Text(
-                  '${unconfiguredKeys.length} פעולות זמינות',
-                  style: kSettingsSubtitleStyle,
-                ),
-                trailing: RecommendedActionButton(
-                  text: 'הוסף קיצור',
-                  onPressed: () => _addShortcut(context, unconfiguredKeys),
-                ),
+              SettingsActionTile.text(
+                icon: FluentIcons.add_24_regular,
+                title: 'הוסף קיצור לפעולה זמינה',
+                subtitle: '${unconfiguredKeys.length} פעולות זמינות',
+                actions: [
+                  RecommendedActionButton(
+                    text: 'הוסף קיצור',
+                    onPressed: () => _addShortcut(context, unconfiguredKeys),
+                  ),
+                ],
               ),
             ],
           ),

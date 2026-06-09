@@ -103,16 +103,12 @@ class LibrarySettingsPanel extends StatelessWidget {
                         .add(UpdateLibraryViewMode(value));
                   },
                 ),
-                SwitchSettingsTile(
-                  leading: const Icon(FluentIcons.eye_24_regular),
-                  title: const Text('הצג תצוגה מקדימה',
-                      style: kSettingsTitleStyle),
-                  subtitle: Text(
-                    state.libraryShowPreview
-                        ? 'תצוגה מקדימה מוצגת'
-                        : 'תצוגה מקדימה מוסתרת',
-                    style: kSettingsSubtitleStyle,
-                  ),
+                SwitchSettingsTile.text(
+                  icon: FluentIcons.eye_24_regular,
+                  title: 'הצג תצוגה מקדימה',
+                  subtitle: state.libraryShowPreview
+                      ? 'תצוגה מקדימה מוצגת'
+                      : 'תצוגה מקדימה מוסתרת',
                   value: state.libraryShowPreview,
                   onChanged: (value) {
                     context
@@ -132,16 +128,12 @@ class LibrarySettingsPanel extends StatelessWidget {
                 // מיקום היברובוקס (יוצג ראשון במידה והועבר לו ווידג'ט - דסקטופ בלבד)
                 if (hebrewBooksPathWidget != null) hebrewBooksPathWidget!,
 
-                SwitchSettingsTile(
-                  leading: const Icon(FluentIcons.globe_24_regular),
-                  title: const Text('הצגת ספרים מאתרים חיצוניים',
-                      style: kSettingsTitleStyle),
-                  subtitle: Text(
-                    state.showExternalBooks
-                        ? 'יוצגו גם ספרים מאתרים חיצוניים'
-                        : 'יוצגו רק ספרים מספריית אוצריא',
-                    style: kSettingsSubtitleStyle,
-                  ),
+                SwitchSettingsTile.text(
+                  icon: FluentIcons.globe_24_regular,
+                  title: 'הצגת ספרים מאתרים חיצוניים',
+                  subtitle: state.showExternalBooks
+                      ? 'יוצגו גם ספרים מאתרים חיצוניים'
+                      : 'יוצגו רק ספרים מספריית אוצריא',
                   value: state.showExternalBooks,
                   onChanged: (value) async {
                     await ExternalCatalogSettingsHelper.updateExternalBooks(
@@ -151,12 +143,10 @@ class LibrarySettingsPanel extends StatelessWidget {
                   },
                 ),
                 if (state.showExternalBooks) ...[
-                  SwitchSettingsTile(
-                    leading: const Icon(FluentIcons.library_24_regular),
-                    title: const Text('הצג ספרים מאוצר החכמה',
-                        style: kSettingsTitleStyle),
-                    subtitle: const Text('ספרים מאתר אוצר החכמה',
-                        style: kSettingsSubtitleStyle),
+                  SwitchSettingsTile.text(
+                    icon: FluentIcons.library_24_regular,
+                    title: 'הצג ספרים מאוצר החכמה',
+                    subtitle: 'ספרים מאתר אוצר החכמה',
                     value: state.showOtzarHachochma,
                     onChanged: (value) async {
                       await ExternalCatalogSettingsHelper.updateOtzarBooks(
@@ -165,12 +155,10 @@ class LibrarySettingsPanel extends StatelessWidget {
                       );
                     },
                   ),
-                  SwitchSettingsTile(
-                    leading: const Icon(FluentIcons.book_open_24_regular),
-                    title: const Text('הצג ספרים מהיברובוקס',
-                        style: kSettingsTitleStyle),
-                    subtitle: const Text('ספרים מאתר HebrewBooks',
-                        style: kSettingsSubtitleStyle),
+                  SwitchSettingsTile.text(
+                    icon: FluentIcons.book_open_24_regular,
+                    title: 'הצג ספרים מהיברובוקס',
+                    subtitle: 'ספרים מאתר HebrewBooks',
                     value: state.showHebrewBooks,
                     onChanged: (value) async {
                       await ExternalCatalogSettingsHelper.updateHebrewBooks(
@@ -179,12 +167,10 @@ class LibrarySettingsPanel extends StatelessWidget {
                       );
                     },
                   ),
-                  SwitchSettingsTile(
-                    leading: const Icon(FluentIcons.arrow_sync_24_regular),
-                    title: const Text('סנכרון קטלוגים אוטומטי',
-                        style: kSettingsTitleStyle),
-                    subtitle: const Text('עדכן קטלוגים חיצוניים אוטומטית',
-                        style: kSettingsSubtitleStyle),
+                  SwitchSettingsTile.text(
+                    icon: FluentIcons.arrow_sync_24_regular,
+                    title: 'סנכרון קטלוגים אוטומטי',
+                    subtitle: 'עדכן קטלוגים חיצוניים אוטומטית',
                     value: state.autoSyncCatalogs,
                     onChanged: (value) {
                       context

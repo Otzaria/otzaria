@@ -235,10 +235,9 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
               title: 'אירועים ותזכורות',
               children: [
                 // הפעל התראות
-                SwitchSettingsTile(
-                  leading: const Icon(FluentIcons.alert_24_regular),
-                  title: const Text('הפעל התראות על אירועים',
-                      style: kSettingsTitleStyle),
+                SwitchSettingsTile.text(
+                  icon: FluentIcons.alert_24_regular,
+                  title: 'הפעל התראות על אירועים',
                   value: state.calendarNotificationsEnabled,
                   onChanged: (value) {
                     context
@@ -247,10 +246,9 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                   },
                 ),
                 if (state.calendarNotificationsEnabled) ...[
-                  SwitchSettingsTile(
-                    leading: const Icon(FluentIcons.speaker_2_24_regular),
-                    title: const Text('השמע צליל בהתראה',
-                        style: kSettingsTitleStyle),
+                  SwitchSettingsTile.text(
+                    icon: FluentIcons.speaker_2_24_regular,
+                    title: 'השמע צליל בהתראה',
                     value: state.calendarNotificationSound,
                     onChanged: (value) {
                       context
@@ -282,15 +280,12 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                 ],
 
                 // ── לוח שנה גוגל ──
-                SwitchSettingsTile(
-                  leading: const Icon(FluentIcons.arrow_sync_24_regular),
-                  title: const Text('לוח שנה של Google',
-                      style: kSettingsTitleStyle),
-                  subtitle: Text(
-                      isOfflineMode
-                          ? 'מושבת במצב מנותק'
-                          : 'סנכרון אירועים עם Google Calendar',
-                      style: kSettingsSubtitleStyle),
+                SwitchSettingsTile.text(
+                  icon: FluentIcons.arrow_sync_24_regular,
+                  title: 'לוח שנה של Google',
+                  subtitle: isOfflineMode
+                      ? 'מושבת במצב מנותק'
+                      : 'סנכרון אירועים עם Google Calendar',
                   value: state.googleCalendarEnabled,
                   enabled: !isOfflineMode,
                   onChanged: (value) {

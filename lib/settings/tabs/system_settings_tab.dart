@@ -767,22 +767,14 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
             },
           ),
         ),
-        SwitchListTile(
-          secondary: const Icon(FluentIcons.arrow_download_24_regular),
-          title: const Text(
-            'עדכוני תוכנה וספרים',
-            style: TextStyle(fontSize: 16),
-            textDirection: TextDirection.rtl,
-          ),
-          subtitle: Text(
-            state.isOfflineMode
-                ? 'מושבת במצב מנותק'
-                : state.softwareAndBookUpdatesEnabled
-                    ? 'עדכוני תוכנה וספרים פעילים, אך דיווחי שגיאות ימשיכו לעבוד גם אם תכבו אותם'
-                    : 'עדכוני תוכנה וספרים מושבתים, אך שאר שירותי הרשת נשארים פעילים',
-            style: const TextStyle(fontSize: 13),
-            textDirection: TextDirection.rtl,
-          ),
+        SwitchSettingsTile.text(
+          icon: FluentIcons.arrow_download_24_regular,
+          title: 'עדכוני תוכנה וספרים',
+          subtitle: state.isOfflineMode
+              ? 'מושבת במצב מנותק'
+              : state.softwareAndBookUpdatesEnabled
+                  ? 'עדכוני תוכנה וספרים פעילים, אך דיווחי שגיאות ימשיכו לעבוד גם אם תכבו אותם'
+                  : 'עדכוני תוכנה וספרים מושבתים, אך שאר שירותי הרשת נשארים פעילים',
           value: state.canUseSoftwareAndBookUpdates,
           onChanged: state.isOfflineMode
               ? null
@@ -794,20 +786,13 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
         ),
         if (!(Platform.isAndroid || Platform.isIOS) &&
             state.canUseSoftwareAndBookUpdates) ...[
-          SwitchListTile(
-            secondary: const Icon(FluentIcons.arrow_sync_24_regular),
-            title: const Text(
-              'סינכרון הספרייה באופן אוטומטי',
-              style: TextStyle(fontSize: 16),
-              textDirection: TextDirection.rtl,
-            ),
-            subtitle: Text(
-              (Settings.getValue<bool>(SettingsRepository.keyAutoSync) ?? true)
-                  ? 'מסד הנתונים של הספרייה יתעדכן אוטומטית'
-                  : 'סינכרון הספרייה מושבת',
-              style: const TextStyle(fontSize: 13),
-              textDirection: TextDirection.rtl,
-            ),
+          SwitchSettingsTile.text(
+            icon: FluentIcons.arrow_sync_24_regular,
+            title: 'סינכרון הספרייה באופן אוטומטי',
+            subtitle:
+                (Settings.getValue<bool>(SettingsRepository.keyAutoSync) ?? true)
+                    ? 'מסד הנתונים של הספרייה יתעדכן אוטומטית'
+                    : 'סינכרון הספרייה מושבת',
             value:
                 Settings.getValue<bool>(SettingsRepository.keyAutoSync) ?? true,
             onChanged: (value) {
@@ -815,16 +800,13 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
               setState(() {});
             },
           ),
-          SwitchSettingsTile(
-            leading: const Icon(FluentIcons.bug_24_regular),
-            title:
-                const Text('עדכון לגרסאות מפתחים', style: kSettingsTitleStyle),
-            subtitle: Text(
-              Settings.getValue<bool>(SettingsRepository.keyDevChannel) ?? false
-                  ? 'קבלת עדכונים על גרסאות בדיקה — ייתכנו באגים'
-                  : 'קבלת עדכונים על גרסאות יציבות בלבד',
-              style: kSettingsSubtitleStyle,
-            ),
+          SwitchSettingsTile.text(
+            icon: FluentIcons.bug_24_regular,
+            title: 'עדכון לגרסאות מפתחים',
+            subtitle:
+                Settings.getValue<bool>(SettingsRepository.keyDevChannel) ?? false
+                    ? 'קבלת עדכונים על גרסאות בדיקה — ייתכנו באגים'
+                    : 'קבלת עדכונים על גרסאות יציבות בלבד',
             value: Settings.getValue<bool>(SettingsRepository.keyDevChannel) ??
                 false,
             onChanged: (value) {
@@ -865,20 +847,12 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
             ),
           ],
         ),
-        SwitchListTile(
-          secondary: const Icon(FluentIcons.cloud_arrow_up_24_regular),
-          title: const Text(
-            'שמירת דיווחים אוטומטית כשאין חיבור',
-            style: TextStyle(fontSize: 16),
-            textDirection: TextDirection.rtl,
-          ),
-          subtitle: Text(
-            queueWhenOffline
-                ? 'דיווחים שלא נשלחו יישמרו ויישלחו אוטומטית בהמשך'
-                : 'במצב אופליין לא יתבצע תור אוטומטי לדיווחים ישירים',
-            style: const TextStyle(fontSize: 13),
-            textDirection: TextDirection.rtl,
-          ),
+        SwitchSettingsTile.text(
+          icon: FluentIcons.cloud_arrow_up_24_regular,
+          title: 'שמירת דיווחים אוטומטית כשאין חיבור',
+          subtitle: queueWhenOffline
+              ? 'דיווחים שלא נשלחו יישמרו ויישלחו אוטומטית בהמשך'
+              : 'במצב אופליין לא יתבצע תור אוטומטי לדיווחים ישירים',
           value: queueWhenOffline,
           onChanged: (value) async {
             await reportService.setQueueWhenOfflineEnabled(value);
@@ -1980,10 +1954,10 @@ class _BackupOptionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SwitchSettingsTile(
-      leading: Icon(icon),
-      title: Text(title, style: kSettingsTitleStyle),
-      subtitle: Text(subtitle, style: kSettingsSubtitleStyle),
+    return SwitchSettingsTile.text(
+      icon: icon,
+      title: title,
+      subtitle: subtitle,
       value: Settings.getValue<bool>(settingKey) ?? true,
       onChanged: (value) {
         Settings.setValue<bool>(settingKey, value);

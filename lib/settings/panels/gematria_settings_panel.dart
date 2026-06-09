@@ -155,16 +155,12 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
                   }
                 },
               ),
-              SwitchSettingsTile(
-                leading: const Icon(FluentIcons.filter_24_regular),
-                title: const Text('סינון תוצאות כפולות',
-                    style: kSettingsTitleStyle),
-                subtitle: Text(
-                  filterDuplicates
-                      ? 'תוצאות זהות יוצגו פעם אחת בלבד'
-                      : 'כל התוצאות יוצגו',
-                  style: kSettingsSubtitleStyle,
-                ),
+              SwitchSettingsTile.text(
+                icon: FluentIcons.filter_24_regular,
+                title: 'סינון תוצאות כפולות',
+                subtitle: filterDuplicates
+                    ? 'תוצאות זהות יוצגו פעם אחת בלבד'
+                    : 'כל התוצאות יוצגו',
                 value: filterDuplicates,
                 onChanged: (value) {
                   setState(() => filterDuplicates = value);
@@ -172,16 +168,12 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
                       'key-gematria-filter-duplicates', filterDuplicates);
                 },
               ),
-              SwitchSettingsTile(
-                leading: const Icon(FluentIcons.text_word_count_24_regular),
-                title: const Text('חיפוש פסוק שלם בלבד',
-                    style: kSettingsTitleStyle),
-                subtitle: Text(
-                  wholeVerseOnly
-                      ? 'חיפוש רק בפסוקים שלמים'
-                      : 'חיפוש גם בחלקי פסוקים',
-                  style: kSettingsSubtitleStyle,
-                ),
+              SwitchSettingsTile.text(
+                icon: FluentIcons.text_word_count_24_regular,
+                title: 'חיפוש פסוק שלם בלבד',
+                subtitle: wholeVerseOnly
+                    ? 'חיפוש רק בפסוקים שלמים'
+                    : 'חיפוש גם בחלקי פסוקים',
                 value: wholeVerseOnly,
                 onChanged: (value) {
                   setState(() => wholeVerseOnly = value);
@@ -189,14 +181,11 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
                       'key-gematria-whole-verse-only', wholeVerseOnly);
                 },
               ),
-              SwitchSettingsTile(
-                leading: const Icon(FluentIcons.book_24_regular),
-                title:
-                    const Text('חיפוש בתורה בלבד', style: kSettingsTitleStyle),
-                subtitle: Text(
-                  torahOnly ? 'חיפוש רק בחמישה חומשי תורה' : 'חיפוש בכל הספרים',
-                  style: kSettingsSubtitleStyle,
-                ),
+              SwitchSettingsTile.text(
+                icon: FluentIcons.book_24_regular,
+                title: 'חיפוש בתורה בלבד',
+                subtitle:
+                    torahOnly ? 'חיפוש רק בחמישה חומשי תורה' : 'חיפוש בכל הספרים',
                 value: torahOnly,
                 onChanged: (value) {
                   setState(() => torahOnly = value);
@@ -210,11 +199,10 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
         SettingsCard(
           title: 'שיטת חישוב גימטריה',
           children: [
-            SwitchSettingsTile(
-              leading: const Icon(FluentIcons.number_symbol_24_regular),
-              title: const Text('גימטריה קטנה', style: kSettingsTitleStyle),
-              subtitle: const Text('כל אות מחושבת לפי ספרה אחת',
-                  style: kSettingsSubtitleStyle),
+            SwitchSettingsTile.text(
+              icon: FluentIcons.number_symbol_24_regular,
+              title: 'גימטריה קטנה',
+              subtitle: 'כל אות מחושבת לפי ספרה אחת',
               value: useSmallGematria,
               onChanged: (value) {
                 setState(() {
@@ -229,12 +217,10 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
                     'key-gematria-use-small', useSmallGematria);
               },
             ),
-            SwitchSettingsTile(
-              leading: const Icon(FluentIcons.text_font_24_regular),
-              title:
-                  const Text('אותיות סופיות שונות', style: kSettingsTitleStyle),
-              subtitle: const Text('מנצפ"ך בערכים שונים',
-                  style: kSettingsSubtitleStyle),
+            SwitchSettingsTile.text(
+              icon: FluentIcons.text_font_24_regular,
+              title: 'אותיות סופיות שונות',
+              subtitle: 'מנצפ"ך בערכים שונים',
               value: useFinalLetters,
               onChanged: (value) {
                 setState(() {
@@ -248,11 +234,10 @@ class _GematriaSettingsTabState extends State<GematriaSettingsTab> {
                     'key-gematria-use-final-letters', useFinalLetters);
               },
             ),
-            SwitchSettingsTile(
-              leading: const Icon(FluentIcons.add_circle_24_regular),
-              title: const Text('עם הכולל', style: kSettingsTitleStyle),
-              subtitle: const Text('הוספת מספר האותיות לסכום',
-                  style: kSettingsSubtitleStyle),
+            SwitchSettingsTile.text(
+              icon: FluentIcons.add_circle_24_regular,
+              title: 'עם הכולל',
+              subtitle: 'הוספת מספר האותיות לסכום',
               value: useWithKolel,
               onChanged: (value) {
                 setState(() => useWithKolel = value);

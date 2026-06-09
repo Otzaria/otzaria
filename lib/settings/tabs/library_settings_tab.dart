@@ -355,18 +355,12 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
                           title: 'תיקיות מותאמות אישית',
                           children: [
                             const CustomFoldersTile(),
-                            SwitchSettingsTile(
-                              leading: const Icon(FluentIcons.person_24_regular),
-                              title: const Text(
-                                'מיזוג ספרים אישיים לעץ הספרייה',
-                                style: kSettingsTitleStyle,
-                              ),
-                              subtitle: Text(
-                                state.mergeUserBooksIntoLibrary
-                                    ? 'תת-התיקיות של התיקייה הנבחרת ימוזגו לקטגוריות הראשיות לפי שם'
-                                    : 'תיקיות אישיות יוצגו תחת קטגוריית "ספרים אישיים"',
-                                style: kSettingsSubtitleStyle,
-                              ),
+                            SwitchSettingsTile.text(
+                              icon: FluentIcons.person_24_regular,
+                              title: 'מיזוג ספרים אישיים לעץ הספרייה',
+                              subtitle: state.mergeUserBooksIntoLibrary
+                                  ? 'תת-התיקיות של התיקייה הנבחרת ימוזגו לקטגוריות הראשיות לפי שם'
+                                  : 'תיקיות אישיות יוצגו תחת קטגוריית "ספרים אישיים"',
                               value: state.mergeUserBooksIntoLibrary,
                               onChanged: (value) {
                                 // ה-RefreshLibrary מופעל ב-listener למעלה,
@@ -406,14 +400,12 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
     return SettingsCard(
       title: 'חיפוש ואינדקס',
       children: [
-        SwitchSettingsTile(
-          leading: const Icon(FluentIcons.arrow_clockwise_24_regular),
-          title: const Text('עדכון אינדקס אוטומטי', style: kSettingsTitleStyle),
-          subtitle: Text(
-              state.autoUpdateIndex
-                  ? 'אינדקס החיפוש יתעדכן אוטומטית'
-                  : 'אינדקס החיפוש לא יתעדכן אוטומטית',
-              style: kSettingsSubtitleStyle),
+        SwitchSettingsTile.text(
+          icon: FluentIcons.arrow_clockwise_24_regular,
+          title: 'עדכון אינדקס אוטומטי',
+          subtitle: state.autoUpdateIndex
+              ? 'אינדקס החיפוש יתעדכן אוטומטית'
+              : 'אינדקס החיפוש לא יתעדכן אוטומטית',
           value: state.autoUpdateIndex,
           onChanged: (value) {
             context.read<SettingsBloc>().add(UpdateAutoUpdateIndex(value));

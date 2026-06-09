@@ -155,14 +155,12 @@ class DesignSettingsTab extends StatelessWidget {
                     child: SettingsCard(
                       title: 'תצוגה',
                       children: [
-                        SwitchSettingsTile(
-                          leading: Icon(state.isFullscreen
+                        SwitchSettingsTile.text(
+                          icon: state.isFullscreen
                               ? FluentIcons.full_screen_minimize_24_regular
-                              : FluentIcons.full_screen_maximize_24_regular),
-                          title:
-                              const Text('מסך מלא', style: kSettingsTitleStyle),
-                          subtitle: const Text('החלף מצב מסך מלא',
-                              style: kSettingsSubtitleStyle),
+                              : FluentIcons.full_screen_maximize_24_regular,
+                          title: 'מסך מלא',
+                          subtitle: 'החלף מצב מסך מלא',
                           value: state.isFullscreen,
                           onChanged: (value) async {
                             context
@@ -252,20 +250,16 @@ class DesignSettingsTab extends StatelessWidget {
                   child: SettingsCard(
                     title: 'תצוגת PDF',
                     children: [
-                      SwitchSettingsTile(
-                        leading: const Icon(FluentIcons.book_open_24_regular),
-                        title: const Text('תצוגת ספר בPDF',
-                            style: kSettingsTitleStyle),
-                        subtitle: Text(
-                          state.enablePerBookSettings
-                              ? state.pdfBookViewByDefault
-                                  ? 'ספרי PDF ייפתחו בתצוגת ספר'
-                                  : 'ספרי PDF ייפתחו בתצוגה רגילה'
-                              : state.pdfBookViewByDefault
-                                  ? 'כל ספרי ה-PDF ייפתחו בתצוגת ספר'
-                                  : 'כל ספרי ה-PDF ייפתחו בתצוגה רגילה',
-                          style: kSettingsSubtitleStyle,
-                        ),
+                      SwitchSettingsTile.text(
+                        icon: FluentIcons.book_open_24_regular,
+                        title: 'תצוגת ספר בPDF',
+                        subtitle: state.enablePerBookSettings
+                            ? state.pdfBookViewByDefault
+                                ? 'ספרי PDF ייפתחו בתצוגת ספר'
+                                : 'ספרי PDF ייפתחו בתצוגה רגילה'
+                            : state.pdfBookViewByDefault
+                                ? 'כל ספרי ה-PDF ייפתחו בתצוגת ספר'
+                                : 'כל ספרי ה-PDF ייפתחו בתצוגה רגילה',
                         value: state.pdfBookViewByDefault,
                         onChanged: (value) {
                           context
@@ -286,18 +280,12 @@ class DesignSettingsTab extends StatelessWidget {
                     title: 'כרטיסיות הספרים',
                     children: [
                       if (!(Platform.isAndroid || Platform.isIOS))
-                        SwitchSettingsTile(
-                          leading: const Icon(FluentIcons.list_24_regular),
-                          title: const Text(
-                            'תפריטים קומפקטיים',
-                            style: kSettingsTitleStyle,
-                          ),
-                          subtitle: Text(
-                            state.compactMenuMode
-                                ? 'התפריטים יוצגו בצפיפות עבודה בסגנון Chrome'
-                                : 'התפריטים יוצגו במרווח נוח ובגרסה הרגילה',
-                            style: kSettingsSubtitleStyle,
-                          ),
+                        SwitchSettingsTile.text(
+                          icon: FluentIcons.list_24_regular,
+                          title: 'תפריטים קומפקטיים',
+                          subtitle: state.compactMenuMode
+                              ? 'התפריטים יוצגו בצפיפות עבודה בסגנון Chrome'
+                              : 'התפריטים יוצגו במרווח נוח ובגרסה הרגילה',
                           value: state.compactMenuMode,
                           onChanged: (value) {
                             context
@@ -363,14 +351,11 @@ class DesignSettingsTab extends StatelessWidget {
                           }
                         },
                       ),
-                      SwitchSettingsTile(
-                        title: const Text('פתיחת הערות אישיות במצב סגור',
-                            style: kSettingsTitleStyle),
-                        subtitle: Text(
-                            state.personalNotesCollapsedByDefault
-                                ? 'רשימות ההערות יוצגו כשהן סגורות'
-                                : 'רשימות ההערות יוצגו כשהן פתוחות',
-                            style: kSettingsSubtitleStyle),
+                      SwitchSettingsTile.text(
+                        title: 'פתיחת הערות אישיות במצב סגור',
+                        subtitle: state.personalNotesCollapsedByDefault
+                            ? 'רשימות ההערות יוצגו כשהן סגורות'
+                            : 'רשימות ההערות יוצגו כשהן פתוחות',
                         value: state.personalNotesCollapsedByDefault,
                         onChanged: (value) {
                           context.read<SettingsBloc>().add(
@@ -382,14 +367,11 @@ class DesignSettingsTab extends StatelessWidget {
                           final splitedView =
                               Settings.getValue<bool>('key-splited-view') ??
                                   true;
-                          return SwitchSettingsTile(
-                            title: const Text('הצגת המפרשים בחלונית בצד',
-                                style: kSettingsTitleStyle),
-                            subtitle: Text(
-                                splitedView
-                                    ? 'המפרשים יוצגו בחלונית מפוצלת'
-                                    : 'המפרשים יוצגו בתוך הטקסט',
-                                style: kSettingsSubtitleStyle),
+                          return SwitchSettingsTile.text(
+                            title: 'הצגת המפרשים בחלונית בצד',
+                            subtitle: splitedView
+                                ? 'המפרשים יוצגו בחלונית מפוצלת'
+                                : 'המפרשים יוצגו בתוך הטקסט',
                             value: splitedView,
                             onChanged: (value) {
                               setState(() {
