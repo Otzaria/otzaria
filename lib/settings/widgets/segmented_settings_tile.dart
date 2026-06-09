@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/theme/theme_exports.dart';
-import 'package:otzaria/widgets/inputs/segmented_button_tile.dart';
+import 'package:otzaria/widgets/inputs/segmented_control.dart';
 import 'settings_tile_helpers.dart';
 
 const _kSegmentBaseWidthWithIcon = 80.0;
