@@ -1,4 +1,4 @@
-// lib/widgets/inputs/app_input_tokens.dart
+// lib/theme/app_input_tokens.dart
 //
 // Tokens משותפים לכל שדות הקלט באפליקציה.
 // מגדיר גבהים, רדיוסים, גדלי פונט ו-alpha values אחידים.

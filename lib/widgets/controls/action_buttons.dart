@@ -1,4 +1,4 @@
-// lib/widgets/buttons/action_buttons.dart
+// lib/widgets/controls/action_buttons.dart
 //
 // כפתורי פעולה גנריים בסגנון M3.
 //

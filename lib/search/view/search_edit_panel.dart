@@ -11,7 +11,7 @@ import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/search/view/advanced_search_controls.dart';
 import 'package:otzaria/search/view/category_tree_selector.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
-import 'package:otzaria/widgets/buttons/action_buttons.dart';
+import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 
 /// פאנל עריכת חיפוש - מופיע מתחת לשורת "מוצגות תוצאות של..."

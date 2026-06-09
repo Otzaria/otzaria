@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/settings/widgets/segmented_settings_tile.dart';
-import 'package:otzaria/widgets/inputs/segmented_control.dart';
+import 'package:otzaria/widgets/controls/segmented_control.dart';
 
 void main() {
   testWidgets(

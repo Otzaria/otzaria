@@ -3,7 +3,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:otzaria/core/ui_snack.dart';
-import 'package:otzaria/widgets/buttons/action_buttons.dart';
+import 'package:otzaria/widgets/controls/action_buttons.dart';
 
 /// כתובת ה-bootstrapper הרשמי של Microsoft להתקנת WebView2 Runtime.
 /// קובץ התקנה קטן שמוריד ומתקין את הגרסה העדכנית (Evergreen).
