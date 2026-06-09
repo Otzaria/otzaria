@@ -4,7 +4,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/external_catalog/view/external_catalog_settings_helper.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
 import 'package:otzaria/settings/search/settings_search_models.dart';
-import 'package:otzaria/settings/widgets/settings_card.dart';
+import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
 import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 

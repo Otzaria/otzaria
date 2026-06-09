@@ -7,7 +7,7 @@
 // SecondaryIconButton, PrimaryIconButton):
 //   → lib/widgets/buttons/action_buttons.dart
 //
-// Segmented button:
+// Segmented control (AppSegmentedControl, SegmentOption):
 //   → lib/widgets/inputs/segmented_button_tile.dart
 //
 // SwitchSettingsTile:

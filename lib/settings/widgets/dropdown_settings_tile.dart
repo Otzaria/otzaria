@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
+import 'settings_tile_helpers.dart';
 
 /// שורת הגדרה עם תפריט נפתח (dropdown) — מקבילה ל-[SegmentedSettingsTile].
 ///
@@ -58,26 +59,6 @@ class DropdownSettingsTile<T> extends StatelessWidget {
               ? constraints.maxWidth
               : constraints.maxWidth.clamp(minFieldWidth, maxFieldWidth);
 
-          final info = Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(icon),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title, style: AppTextStyles.settingTitle),
-                      const SizedBox(height: 4),
-                      Text(subtitle, style: AppTextStyles.settingSubtitle),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-
           final field = SizedBox(
             width: fieldWidth,
             child: AppDropdownField<T>(
@@ -96,7 +77,7 @@ class DropdownSettingsTile<T> extends StatelessWidget {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Row(children: [info]),
+                SettingsTileInfo(icon: icon, title: title, subtitle: subtitle),
                 const SizedBox(height: 12),
                 field,
               ],
@@ -106,7 +87,13 @@ class DropdownSettingsTile<T> extends StatelessWidget {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              info,
+              Expanded(
+                child: SettingsTileInfo(
+                  icon: icon,
+                  title: title,
+                  subtitle: subtitle,
+                ),
+              ),
               const SizedBox(width: 16),
               Flexible(
                 child: Align(alignment: Alignment.centerLeft, child: field),

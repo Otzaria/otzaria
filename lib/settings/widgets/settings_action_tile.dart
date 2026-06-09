@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:otzaria/theme/layout_tokens.dart';
-import 'package:otzaria/widgets/widgets_exports.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 
 /// שורת הגדרה עם אייקון, כותרת, תת-כותרת וכפתורי פעולה.
 ///
@@ -27,10 +26,10 @@ class SettingsActionTile extends StatelessWidget {
     required String subtitle,
     TextDirection subtitleDirection = TextDirection.rtl,
     required this.actions,
-  })  : title = Text(title, style: kSettingsTitleStyle),
+  })  : title = Text(title, style: AppTextStyles.settingTitle),
         subtitle = Text(
           subtitle,
-          style: kSettingsSubtitleStyle,
+          style: AppTextStyles.settingSubtitle,
           textDirection: subtitleDirection,
           textAlign: subtitleDirection == TextDirection.ltr
               ? TextAlign.end
@@ -46,10 +45,10 @@ class SettingsActionTile extends StatelessWidget {
     required String? path,
     required String placeholder,
     required this.actions,
-  })  : title = Text(title, style: kSettingsTitleStyle),
+  })  : title = Text(title, style: AppTextStyles.settingTitle),
         subtitle = Text(
           (path != null && path.isNotEmpty) ? _formatPath(path) : placeholder,
-          style: kSettingsSubtitleStyle,
+          style: AppTextStyles.settingSubtitle,
           textDirection: (path != null && path.isNotEmpty)
               ? TextDirection.ltr
               : TextDirection.rtl,
