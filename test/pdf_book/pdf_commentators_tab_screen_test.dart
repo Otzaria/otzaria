@@ -67,6 +67,11 @@ void main() {
 
   testWidgets('כרטסיית מפרשי PDF מסתנכרנת עם currentTitle של sourceTab',
       (tester) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     final sourceTab = PdfBookTab(
       book: PdfBook(title: 'PDF בדיקה', path: '/tmp/book.pdf'),
       pageNumber: 1,
@@ -109,6 +114,11 @@ void main() {
   testWidgets(
       'כרטסיית מפרשי PDF מציגה "טוען מפרשים..." בזמן טעינת links של sourceTab',
       (tester) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     final sourceTab = PdfBookTab(
       book: PdfBook(title: 'PDF בדיקה', path: '/tmp/book.pdf'),
       pageNumber: 1,

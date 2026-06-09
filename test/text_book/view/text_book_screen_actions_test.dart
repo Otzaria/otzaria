@@ -84,7 +84,7 @@ void main() {
         tab.dispose();
       });
 
-      await _setSurfaceSize(tester, const Size(1200, 900));
+      await _setSurfaceSize(tester, const Size(1600, 900));
       await _pumpTextBookScreen(
         tester,
         tab: tab,
@@ -133,7 +133,7 @@ void main() {
         tab.dispose();
       });
 
-      await _setSurfaceSize(tester, const Size(1200, 900));
+      await _setSurfaceSize(tester, const Size(1600, 900));
       await _pumpTextBookScreen(
         tester,
         tab: tab,
@@ -189,7 +189,7 @@ void main() {
         tab.dispose();
       });
 
-      await _setSurfaceSize(tester, const Size(1200, 900));
+      await _setSurfaceSize(tester, const Size(1600, 900));
       await _pumpTextBookScreen(
         tester,
         tab: tab,
@@ -265,6 +265,52 @@ void main() {
       expect(find.text('הקטע הקודם'), findsOneWidget);
       expect(find.text('הקטע הבא'), findsOneWidget);
       expect(find.text('הדף/פרק הבא'), findsOneWidget);
+    });
+
+    testWidgets('במצב רגיל כפתורי הניווט גלויים ישירות במרכז הסרגל',
+        (tester) async {
+      final book = TextBook(title: 'ספר בדיקה');
+      final bloc = _TestTextBookBloc(_loadedState(book));
+      final tab = TextBookTab(
+        book: book,
+        index: 0,
+        blocOverride: bloc,
+      );
+      final tabsBloc = _TestTabsBloc(
+        TabsState(tabs: [tab], currentTabIndex: 0),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump();
+        await bloc.close();
+        await tabsBloc.close();
+        await settingsBloc.close();
+        tab.dispose();
+      });
+
+      await _setSurfaceSize(tester, const Size(1600, 900));
+      await _pumpTextBookScreen(
+        tester,
+        tab: tab,
+        textBookBloc: bloc,
+        tabsBloc: tabsBloc,
+        settingsBloc: settingsBloc,
+        focusRepository: focusRepository,
+        shamorZachorDataProvider: shamorZachorDataProvider,
+        shamorZachorProgressProvider: shamorZachorProgressProvider,
+        bookmarkBloc: bookmarkBloc,
+        personalNotesBloc: personalNotesBloc,
+        tourCubit: tourCubit,
+        isInCombinedView: false,
+      );
+
+      // כפתורי הניווט גלויים ישירות במרכז הסרגל — לא דרך תפריט overflow
+      expect(find.byTooltip('הדף/פרק הקודם'), findsOneWidget);
+      expect(find.byTooltip('הקטע הקודם'), findsOneWidget);
+      expect(find.byTooltip('הקטע הבא'), findsOneWidget);
+      expect(find.byTooltip('הדף/פרק הבא'), findsOneWidget);
     });
   });
 }

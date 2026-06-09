@@ -1263,11 +1263,15 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     const gap = 4.0;
     return Center(
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           _buildPreviousTocButton(context, state),
           _buildPreviousPageButton(context, state),
           const SizedBox(width: gap),
-          Flexible(child: _buildTitle(state, textAlign: TextAlign.center)),
+          ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 80, maxWidth: 340),
+            child: _buildTitle(state, textAlign: TextAlign.center),
+          ),
           const SizedBox(width: gap),
           _buildNextPageButton(context, state),
           _buildNextTocButton(context, state),
