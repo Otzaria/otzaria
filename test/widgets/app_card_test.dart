@@ -90,7 +90,7 @@ void main() {
     expect(find.text('three'), findsOneWidget);
   });
 
-  testWidgets('AppCard.section inserts N-1 SizedBox gaps between N children',
+  testWidgets('AppCard.section inserts N-1 Container gaps between N children',
       (tester) async {
     final key = GlobalKey();
     await tester.pumpWidget(MaterialApp(
@@ -102,16 +102,21 @@ void main() {
       ),
     ));
     final cardFinder = find.byKey(key);
-    final gaps = tester
-        .widgetList<SizedBox>(
-          find.descendant(of: cardFinder, matching: find.byType(SizedBox)),
-        )
-        .where((s) => s.height == 1.5)
+    final allContainers = tester.widgetList<Container>(
+      find.descendant(of: cardFinder, matching: find.byType(Container)),
+    );
+    final dividers = allContainers
+        .where((c) {
+          final constraints = c.constraints;
+          return constraints != null &&
+              constraints.minHeight == AppCard.sectionSpacing &&
+              constraints.maxHeight == AppCard.sectionSpacing;
+        })
         .toList();
-    expect(gaps.length, 2); // N-1 = 3-1 = 2
+    expect(dividers.length, 2); // N-1 = 3-1 = 2
   });
 
-  testWidgets('AppCard.section wraps each child in Material', (tester) async {
+  testWidgets('AppCard.section uses single Material with clip', (tester) async {
     final key = GlobalKey();
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
@@ -124,11 +129,15 @@ void main() {
     final cardFinder = find.byKey(key);
     expect(
       find.descendant(of: cardFinder, matching: find.byType(Material)),
-      findsAtLeast(2),
+      findsOneWidget,
     );
+    final material = tester.widget<Material>(
+      find.descendant(of: cardFinder, matching: find.byType(Material)),
+    );
+    expect(material.clipBehavior, Clip.antiAlias);
   });
 
-  testWidgets('AppCard.section uses ClipRRect', (tester) async {
+  testWidgets('AppCard.section does not use ClipRRect', (tester) async {
     final key = GlobalKey();
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
@@ -138,7 +147,7 @@ void main() {
     final cardFinder = find.byKey(key);
     expect(
       find.descendant(of: cardFinder, matching: find.byType(ClipRRect)),
-      findsOneWidget,
+      findsNothing,
     );
   });
 

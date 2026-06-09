@@ -108,23 +108,25 @@ class AppCard extends StatelessWidget {
 
   Widget _buildSection(BuildContext context) {
     final resolvedRadius = BorderRadius.circular(radius ?? AppTokens.radiusXL);
-    final cardColor = AppSurfaces.card(context);
+    final dividerColor = AppSurfaces.cardRowDivider(context);
 
     Widget wrapChild(Widget w) {
       if (padding != null) w = Padding(padding: padding!, child: w);
       if (selected) w = _withSelected(context, w);
-      return Material(color: cardColor, child: w);
+      return w;
     }
 
-    return ClipRRect(
+    return Material(
+      color: AppSurfaces.card(context),
       borderRadius: resolvedRadius,
+      clipBehavior: Clip.antiAlias,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           for (int i = 0; i < children!.length; i++) ...[
             wrapChild(children![i]),
             if (i < children!.length - 1)
-              const SizedBox(height: sectionSpacing),
+              Container(height: sectionSpacing, color: dividerColor),
           ],
         ],
       ),

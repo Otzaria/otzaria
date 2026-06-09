@@ -40,8 +40,7 @@ class AppSurfaces {
   /// צבע מפריד פנימי בין שורות בתוך כרטיס תוכן.
   ///
   /// משמש ב-[AppCard.section] וב-[AppCard.sectionDivider]:
-  /// צבע זה מתאים לרווח (SizedBox) הגלוי בין ColoredBox-ים — שניהם
-  /// מראים את אותו הצבע בין השורות ומייצרים קו הפרדה עקבי.
+  /// נצבע ב-Container בגובה [AppCard.sectionSpacing] בין הילדים.
   ///
   /// **שימוש:**
   /// ```dart
