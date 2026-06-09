@@ -5,7 +5,7 @@ import 'package:otzaria/theme/theme_exports.dart';
 ///
 /// משמש ב-[DropdownSettingsTile] וב-[SegmentedSettingsTile] בלייאוט הצר.
 class SettingsTileInfo extends StatelessWidget {
-  final IconData? icon;
+  final Widget? leading;
 
   /// [String] או [Widget].
   final dynamic title;
@@ -13,7 +13,7 @@ class SettingsTileInfo extends StatelessWidget {
 
   const SettingsTileInfo({
     super.key,
-    this.icon,
+    this.leading,
     required this.title,
     this.subtitle,
   });
@@ -23,8 +23,8 @@ class SettingsTileInfo extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (icon != null) ...[
-          Icon(icon),
+        if (leading != null) ...[
+          leading!,
           const SizedBox(width: 12),
         ],
         Expanded(

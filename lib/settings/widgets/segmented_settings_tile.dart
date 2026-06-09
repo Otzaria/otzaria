@@ -30,6 +30,7 @@ class SegmentedSettingsTile<T> extends StatefulWidget {
   final dynamic title;
   final String? subtitle;
   final IconData? icon;
+  final Widget? leading;
   final List<SegmentOption<T>> options;
   final T currentValue;
   final ValueChanged<T> onChanged;
@@ -39,6 +40,7 @@ class SegmentedSettingsTile<T> extends StatefulWidget {
     required this.title,
     this.subtitle,
     this.icon,
+    this.leading,
     required this.options,
     required this.currentValue,
     required this.onChanged,
@@ -98,7 +100,7 @@ class _SegmentedSettingsTileState<T> extends State<SegmentedSettingsTile<T>> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 SettingsTileInfo(
-                  icon: widget.icon,
+                  leading: widget.leading ?? (widget.icon != null ? Icon(widget.icon!) : null),
                   title: widget.title,
                   subtitle: widget.subtitle,
                 ),
@@ -110,7 +112,7 @@ class _SegmentedSettingsTileState<T> extends State<SegmentedSettingsTile<T>> {
         }
 
         return ListTile(
-          leading: widget.icon != null ? Icon(widget.icon) : null,
+          leading: widget.leading ?? (widget.icon != null ? Icon(widget.icon!) : null),
           title: widget.title is String
               ? Text(widget.title as String, style: AppTextStyles.settingTitle)
               : widget.title as Widget,

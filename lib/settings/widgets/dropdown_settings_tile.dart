@@ -24,7 +24,8 @@ import 'settings_tile_helpers.dart';
 /// )
 /// ```
 class DropdownSettingsTile<T> extends StatelessWidget {
-  final IconData icon;
+  final IconData? icon;
+  final Widget? leading;
   final String title;
   final String subtitle;
   final T? value;
@@ -36,7 +37,8 @@ class DropdownSettingsTile<T> extends StatelessWidget {
 
   const DropdownSettingsTile({
     super.key,
-    required this.icon,
+    this.icon,
+    this.leading,
     required this.title,
     required this.subtitle,
     required this.value,
@@ -77,7 +79,7 @@ class DropdownSettingsTile<T> extends StatelessWidget {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                SettingsTileInfo(icon: icon, title: title, subtitle: subtitle),
+                SettingsTileInfo(leading: leading ?? (icon != null ? Icon(icon!) : null), title: title, subtitle: subtitle),
                 const SizedBox(height: 12),
                 field,
               ],
@@ -89,7 +91,7 @@ class DropdownSettingsTile<T> extends StatelessWidget {
             children: [
               Expanded(
                 child: SettingsTileInfo(
-                  icon: icon,
+                  leading: leading ?? (icon != null ? Icon(icon!) : null),
                   title: title,
                   subtitle: subtitle,
                 ),

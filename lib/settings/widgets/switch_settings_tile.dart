@@ -16,7 +16,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/theme/theme_exports.dart';
-import 'package:otzaria/widgets/misc/rtl_icon.dart';
 
 // ── CustomSwitch ───────────────────────────────────────────────────────────────
 
@@ -101,7 +100,7 @@ class SwitchSettingsTile extends StatefulWidget {
     required this.onChanged,
     this.enabled = true,
   })  : assert(icon == null || leading == null),
-        leading = leading ?? (icon != null ? RtlIcon(icon) : null),
+        leading = leading ?? (icon != null ? Icon(icon) : null),
         title = Text(
           title,
           style: AppTextStyles.settingTitle,

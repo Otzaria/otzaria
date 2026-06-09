@@ -1,20 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
-import 'package:otzaria/widgets/misc/rtl_icon.dart';
 
 /// שורת הגדרה עם אייקון, כותרת, תת-כותרת וכפתורי פעולה.
 ///
 /// במסך רחב הכפתורים מוצגים ב-`trailing` של [ListTile]. במסך צר
 /// (`<LayoutBreakpoints.compact`) הם עוברים לשורה תחת ה-subtitle.
+///
+/// להצגת אייקון רגיל: `icon: FluentIcons.xxx`
+/// להצגת אייקון עם RTL: `leading: RtlIcon(FluentIcons.xxx)`
 class SettingsActionTile extends StatelessWidget {
-  final IconData icon;
+  final Widget? leading;
   final Widget title;
   final Widget subtitle;
   final List<Widget> actions;
 
   const SettingsActionTile({
     super.key,
-    required this.icon,
+    this.leading,
     required this.title,
     required this.subtitle,
     required this.actions,
@@ -22,12 +24,15 @@ class SettingsActionTile extends StatelessWidget {
 
   SettingsActionTile.text({
     super.key,
-    required this.icon,
+    IconData? icon,
+    Widget? leading,
     required String title,
     required String subtitle,
     TextDirection subtitleDirection = TextDirection.rtl,
     required this.actions,
-  })  : title = Text(title, style: AppTextStyles.settingTitle),
+  })  : assert(icon == null || leading == null),
+        leading = leading ?? (icon != null ? Icon(icon) : null),
+        title = Text(title, style: AppTextStyles.settingTitle),
         subtitle = Text(
           subtitle,
           style: AppTextStyles.settingSubtitle,
@@ -41,12 +46,15 @@ class SettingsActionTile extends StatelessWidget {
   /// מוסיף אוטומטית סימן LTR אחרי כל מפריד כדי למנוע שיבוש BiDi בנתיבים מעורבים.
   SettingsActionTile.path({
     super.key,
-    required this.icon,
+    IconData? icon,
+    Widget? leading,
     required String title,
     required String? path,
     required String placeholder,
     required this.actions,
-  })  : title = Text(title, style: AppTextStyles.settingTitle),
+  })  : assert(icon == null || leading == null),
+        leading = leading ?? (icon != null ? Icon(icon) : null),
+        title = Text(title, style: AppTextStyles.settingTitle),
         subtitle = Text(
           (path != null && path.isNotEmpty) ? _formatPath(path) : placeholder,
           style: AppTextStyles.settingSubtitle,
@@ -76,7 +84,7 @@ class SettingsActionTile extends StatelessWidget {
         if (!isNarrow) {
           return ListTile(
             hoverColor: Colors.transparent,
-            leading: RtlIcon(icon),
+            leading: leading,
             title: title,
             subtitle: subtitle,
             trailing: actionsRow,
@@ -91,10 +99,11 @@ class SettingsActionTile extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2, left: 16),
-                    child: RtlIcon(icon),
-                  ),
+                  if (leading != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2, left: 16),
+                      child: leading,
+                    ),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
