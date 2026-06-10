@@ -206,8 +206,6 @@ void main() {
           .where(IndexingRepository.isIndexableBook)
           .map(IndexingRepository.catalogueOrderKey)
           .toList();
-      final catalogueOrderSignature =
-          IndexingRepository.buildCatalogueOrderSignature(library);
       final provider = FakeTantivyDataProvider(
         booksDoneValue: indexedBookKeys,
         ensureIndexStateMatchesCatalogueValue: false,
@@ -235,10 +233,7 @@ void main() {
       expect(result, isTrue);
       expect(actualIndexingStarted, isFalse);
       expect(progressCalls, 0);
-      expect(
-        provider.ensureIndexStateMatchesCatalogueCalls,
-        [catalogueOrderSignature],
-      );
+      expect(provider.ensureIndexStateMatchesCatalogueCalls, 1);
       expect(isolateService.wasUsed, isFalse);
     });
 
@@ -249,8 +244,6 @@ void main() {
           .where(IndexingRepository.isIndexableBook)
           .map(IndexingRepository.catalogueOrderKey)
           .toList();
-      final catalogueOrderSignature =
-          IndexingRepository.buildCatalogueOrderSignature(library);
       final provider = FakeTantivyDataProvider(
         booksDoneValue: indexedBookKeys,
         ensureIndexStateMatchesCatalogueValue: true,
@@ -278,10 +271,7 @@ void main() {
       expect(result, isFalse);
       expect(actualIndexingStarted, isFalse);
       expect(progressCalls, 0);
-      expect(
-        provider.ensureIndexStateMatchesCatalogueCalls,
-        [catalogueOrderSignature],
-      );
+      expect(provider.ensureIndexStateMatchesCatalogueCalls, 1);
       expect(isolateService.wasUsed, isFalse);
     });
   });
@@ -455,16 +445,14 @@ class FakeTantivyDataProvider implements TantivyDataProvider {
 
   final List<String> booksDoneValue;
   final bool ensureIndexStateMatchesCatalogueValue;
-  final List<String> ensureIndexStateMatchesCatalogueCalls = [];
+  int ensureIndexStateMatchesCatalogueCalls = 0;
 
   @override
   List<String> get booksDone => booksDoneValue;
 
   @override
-  Future<bool> ensureIndexStateMatchesCatalogue(
-    String currentCatalogueOrderSignature,
-  ) async {
-    ensureIndexStateMatchesCatalogueCalls.add(currentCatalogueOrderSignature);
+  Future<bool> ensureIndexStateMatchesCatalogue() async {
+    ensureIndexStateMatchesCatalogueCalls++;
     return ensureIndexStateMatchesCatalogueValue;
   }
 

@@ -72,9 +72,7 @@ class IndexingRepository {
       return false;
     }
     await _tantivyDataProvider.engine;
-    return _tantivyDataProvider.requiresManualReindex(
-      currentCatalogueOrderSignature: buildCatalogueOrderSignature(library),
-    );
+    return _tantivyDataProvider.requiresManualReindex();
   }
 
   Future<void> prepareForManualReindex(Library library) async {
@@ -96,9 +94,8 @@ class IndexingRepository {
   }) async {
     final allBooks = library.getAllBooks();
     final totalBooks = allBooks.length;
-    final catalogueOrderSignature = buildCatalogueOrderSignature(library);
-    final requiresManualReindex = await _tantivyDataProvider
-        .ensureIndexStateMatchesCatalogue(catalogueOrderSignature);
+    final requiresManualReindex =
+        await _tantivyDataProvider.ensureIndexStateMatchesCatalogue();
 
     if (shouldUseFastPath(
       books: allBooks,
