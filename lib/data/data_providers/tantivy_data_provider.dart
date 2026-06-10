@@ -12,9 +12,7 @@ import 'package:otzaria/core/app_paths.dart';
 /// maintaining an index for full-text search capabilities.
 class TantivyDataProvider {
   static const SearchEngineGateway _searchGateway = SearchEngineGateway();
-  static const int currentIndexStateVersion = 5;
   static const String _booksDoneKey = 'key-books-done';
-  static const String _indexStateVersionKey = 'key-index-state-version';
   static const String _catalogueOrderSignatureKey =
       'key-catalogue-order-signature';
 
@@ -36,7 +34,11 @@ class TantivyDataProvider {
 
   // Track ongoing counts to prevent duplicates
   static final Set<String> _ongoingCounts = {};
-  int _storedIndexStateVersion = 0;
+  /// האם האינדקס הקיים על הדיסק תואם לגרסת מנוע החיפוש הנוכחית.
+  /// מחושב בעת האתחול באמצעות [checkIndexCompatibility] של מנוע החיפוש,
+  /// שמזהה את גרסת סכמת האינדקס שעל הדיסק ומשווה אותה לגרסה שהמנוע דורש.
+  /// כל עוד אין אינדקס קיים הערך נשאר true (אין מה לבדוק).
+  bool _indexCompatible = true;
   String? _catalogueOrderSignature;
 
   Box? _hiveBox;
@@ -72,6 +74,10 @@ class TantivyDataProvider {
     final indexPath = await AppPaths.getIndexPath();
     final indexExistedBefore = Directory(indexPath).existsSync();
     _indexExistedBeforeInit = indexExistedBefore;
+
+    // בדיקת תאימות האינדקס שעל הדיסק לפני פתיחת המנוע (שכותב מטא-נתונים
+    // מעודכנים לאינדקס תואם). כך נזהה אינדקס שנבנה בגרסת מנוע ישנה.
+    _indexCompatible = _evaluateIndexCompatibility(indexPath, indexExistedBefore);
 
     // Load persisted booksDone from disk.
     await _loadBooksDone();
@@ -207,7 +213,6 @@ class TantivyDataProvider {
       booksDone = await _readBooksDoneFromBox(lockPath);
 
       final box = await _openBox(lockPath);
-      _storedIndexStateVersion = _readIndexStateVersionFromBox(box);
       _catalogueOrderSignature = _readCatalogueOrderSignatureFromBox(box);
     } catch (e) {
       debugPrint('⚠️ Error loading books done: $e');
@@ -224,64 +229,64 @@ class TantivyDataProvider {
     return [];
   }
 
-  int _readIndexStateVersionFromBox(Box box) {
-    final dynamic value = box.get(_indexStateVersionKey, defaultValue: 0);
-    if (value is int) return value;
-    if (value is num) return value.toInt();
-    return 0;
-  }
-
   String? _readCatalogueOrderSignatureFromBox(Box box) {
     final dynamic value = box.get(_catalogueOrderSignatureKey);
     if (value is String && value.isNotEmpty) return value;
     return null;
   }
 
-  @visibleForTesting
-  static bool shouldInvalidateStoredIndexState({
-    required int storedIndexStateVersion,
-    required String? storedCatalogueOrderSignature,
-    required String currentCatalogueOrderSignature,
-  }) {
-    return storedIndexStateVersion != currentIndexStateVersion ||
-        storedCatalogueOrderSignature != currentCatalogueOrderSignature;
+  /// בודק אם האינדקס הקיים בנתיב [indexPath] תואם לגרסת מנוע החיפוש הנוכחית.
+  ///
+  /// משתמש ב-[checkIndexCompatibility] של מנוע החיפוש, שקורא את מטא-הנתונים
+  /// של האינדקס ומזהה את גרסת הסכמה שלו. מחזיר true כשאין אינדקס קיים
+  /// (אין מה לבדוק) או כשהאינדקס תואם. אם הבדיקה עצמה נכשלת לא מכריחים
+  /// בנייה מחדש כדי לא לפגוע במשתמש בלי סיבה ודאית.
+  bool _evaluateIndexCompatibility(String indexPath, bool indexExists) {
+    if (!indexExists) {
+      return true;
+    }
+    try {
+      final compatibility = checkIndexCompatibility(path: indexPath);
+      if (!compatibility.compatible) {
+        debugPrint(
+          '⚠️ אינדקס החיפוש אינו תואם לגרסת המנוע הנוכחית '
+          '(status=${compatibility.status}, '
+          'foundSchemaVersion=${compatibility.foundSchemaVersion}, '
+          'requiredSchemaVersion=${compatibility.requiredSchemaVersion}) '
+          '- נדרש איפוס ובנייה מחדש',
+        );
+      }
+      return compatibility.compatible;
+    } catch (e) {
+      debugPrint('⚠️ כשל בבדיקת תאימות האינדקס: $e');
+      return true;
+    }
   }
 
   @visibleForTesting
   static bool shouldPromptForManualReindex({
     required bool indexExistedBeforeInit,
-    required int storedIndexStateVersion,
-    required String? storedCatalogueOrderSignature,
-    required String currentCatalogueOrderSignature,
+    required bool indexCompatible,
   }) {
-    return indexExistedBeforeInit &&
-        storedIndexStateVersion != currentIndexStateVersion;
+    return indexExistedBeforeInit && !indexCompatible;
   }
 
-  bool requiresManualReindex({
-    required String currentCatalogueOrderSignature,
-  }) {
+  /// מחזיר האם נדרש איפוס ובנייה מחדש של האינדקס באישור המשתמש, כלומר כשקיים
+  /// על הדיסק אינדקס שאינו תואם לגרסת סכמת מנוע החיפוש הנוכחית.
+  bool requiresManualReindex() {
     return shouldPromptForManualReindex(
       indexExistedBeforeInit: _indexExistedBeforeInit,
-      storedIndexStateVersion: _storedIndexStateVersion,
-      storedCatalogueOrderSignature: _catalogueOrderSignature,
-      currentCatalogueOrderSignature: currentCatalogueOrderSignature,
+      indexCompatible: _indexCompatible,
     );
   }
 
-  Future<bool> ensureIndexStateMatchesCatalogue(
-    String currentCatalogueOrderSignature,
-  ) async {
-    if (!requiresManualReindex(
-      currentCatalogueOrderSignature: currentCatalogueOrderSignature,
-    )) {
+  Future<bool> ensureIndexStateMatchesCatalogue() async {
+    if (!requiresManualReindex()) {
       return false;
     }
 
     debugPrint(
-      '⚠️ מצב האינדקס לא תואם לקטלוג הנוכחי '
-      '(version=$_storedIndexStateVersion, '
-      'signatureMatch=${_catalogueOrderSignature == currentCatalogueOrderSignature}) '
+      '⚠️ אינדקס החיפוש אינו תואם לגרסת המנוע הנוכחית '
       '- נדרש איפוס ואינדוקס ידני באישור המשתמש',
     );
     return true;
@@ -292,7 +297,8 @@ class TantivyDataProvider {
   ) async {
     final lockPath = await AppPaths.getTantivyLockPath();
     booksDone = [];
-    _storedIndexStateVersion = currentIndexStateVersion;
+    // לאחר האיפוס והבנייה מחדש המנוע יכתוב מטא-נתונים תואמים לאינדקס החדש.
+    _indexCompatible = true;
     _catalogueOrderSignature = currentCatalogueOrderSignature;
     await _persistIndexState(lockPath);
   }
@@ -300,7 +306,6 @@ class TantivyDataProvider {
   Future<void> _persistIndexState(String directory) async {
     final box = await _openBox(directory);
     await box.put(_booksDoneKey, booksDone);
-    await box.put(_indexStateVersionKey, _storedIndexStateVersion);
     await box.put(_catalogueOrderSignatureKey, _catalogueOrderSignature ?? '');
   }
 
@@ -652,7 +657,8 @@ class TantivyDataProvider {
   Future<void> clear() async {
     isIndexing.value = false;
     booksDone.clear();
-    _storedIndexStateVersion = currentIndexStateVersion;
+    // האינדקס נמחק ונבנה מחדש מאפס, ולכן יהיה תואם לגרסת המנוע הנוכחית.
+    _indexCompatible = true;
 
     // שחרור משאבים לפני מחיקה פיזית של הקבצים (חשוב במיוחד ב-Windows
     // שבו קבצים פתוחים אינם ניתנים למחיקה).
