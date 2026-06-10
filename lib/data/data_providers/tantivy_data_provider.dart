@@ -13,8 +13,6 @@ import 'package:otzaria/core/app_paths.dart';
 class TantivyDataProvider {
   static const SearchEngineGateway _searchGateway = SearchEngineGateway();
   static const String _booksDoneKey = 'key-books-done';
-  static const String _catalogueOrderSignatureKey =
-      'key-catalogue-order-signature';
 
   /// Instance of the search engine pointing to the index directory
   late Future<SearchEngine> engine;
@@ -39,7 +37,6 @@ class TantivyDataProvider {
   /// שמזהה את גרסת סכמת האינדקס שעל הדיסק ומשווה אותה לגרסה שהמנוע דורש.
   /// כל עוד אין אינדקס קיים הערך נשאר true (אין מה לבדוק).
   bool _indexCompatible = true;
-  String? _catalogueOrderSignature;
 
   Box? _hiveBox;
   String? _hiveBoxDirectory;
@@ -56,8 +53,8 @@ class TantivyDataProvider {
   /// Indicates whether the indexing process is currently running
   ValueNotifier<bool> isIndexing = ValueNotifier(false);
 
-  /// מסמן שהטעינה האסינכרונית של מצב האינדקס מהדיסק (booksDone, חתימת קטלוג וכו')
-  /// הסתיימה. עד שהערך הופך ל-true, אסור להסיק "אין אינדקס" מ-booksDone.isEmpty.
+  /// מסמן שהטעינה האסינכרונית של מצב האינדקס מהדיסק (booksDone) הסתיימה.
+  /// עד שהערך הופך ל-true, אסור להסיק "אין אינדקס" מ-booksDone.isEmpty.
   final ValueNotifier<bool> isInitialized = ValueNotifier(false);
 
   /// Maintains a list of processed books to avoid reindexing
@@ -211,9 +208,6 @@ class TantivyDataProvider {
     try {
       final lockPath = await AppPaths.getTantivyLockPath();
       booksDone = await _readBooksDoneFromBox(lockPath);
-
-      final box = await _openBox(lockPath);
-      _catalogueOrderSignature = _readCatalogueOrderSignatureFromBox(box);
     } catch (e) {
       debugPrint('⚠️ Error loading books done: $e');
       booksDone = [];
@@ -227,12 +221,6 @@ class TantivyDataProvider {
       return value.map<String>((e) => e.toString()).toList();
     }
     return [];
-  }
-
-  String? _readCatalogueOrderSignatureFromBox(Box box) {
-    final dynamic value = box.get(_catalogueOrderSignatureKey);
-    if (value is String && value.isNotEmpty) return value;
-    return null;
   }
 
   /// בודק אם האינדקס הקיים בנתיב [indexPath] תואם לגרסת מנוע החיפוש הנוכחית.
@@ -292,21 +280,17 @@ class TantivyDataProvider {
     return true;
   }
 
-  Future<void> prepareForManualReindex(
-    String currentCatalogueOrderSignature,
-  ) async {
+  Future<void> prepareForManualReindex() async {
     final lockPath = await AppPaths.getTantivyLockPath();
     booksDone = [];
     // לאחר האיפוס והבנייה מחדש המנוע יכתוב מטא-נתונים תואמים לאינדקס החדש.
     _indexCompatible = true;
-    _catalogueOrderSignature = currentCatalogueOrderSignature;
     await _persistIndexState(lockPath);
   }
 
   Future<void> _persistIndexState(String directory) async {
     final box = await _openBox(directory);
     await box.put(_booksDoneKey, booksDone);
-    await box.put(_catalogueOrderSignatureKey, _catalogueOrderSignature ?? '');
   }
 
   Future<void> _handleSchemaError() async {
