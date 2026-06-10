@@ -1,8 +1,6 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:crypto/crypto.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
@@ -75,11 +73,9 @@ class IndexingRepository {
     return _tantivyDataProvider.requiresManualReindex();
   }
 
-  Future<void> prepareForManualReindex(Library library) async {
+  Future<void> prepareForManualReindex() async {
     await _tantivyDataProvider.engine;
-    await _tantivyDataProvider.prepareForManualReindex(
-      buildCatalogueOrderSignature(library),
-    );
+    await _tantivyDataProvider.prepareForManualReindex();
   }
 
   /// Indexes all books in the provided library.
@@ -558,14 +554,6 @@ class IndexingRepository {
       return -1;
     }
     return encodedCatalogueOrder - 1;
-  }
-
-  static String buildCatalogueOrderSignature(Library library) {
-    final orderedKeys = SearchCatalogueOrderHelper.buildOrderedKeys(
-      library,
-      keyOf: (book) => catalogueOrderKey(book as Book),
-    );
-    return sha1.convert(utf8.encode(orderedKeys.join('\n'))).toString();
   }
 
   static String catalogueOrderKey(Book book) {

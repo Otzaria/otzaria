@@ -597,7 +597,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
 
     switch (decision) {
       case StartupIndexingDecision.autoReindexThenStart:
-        await _indexingRepository.prepareForManualReindex(library);
+        await _indexingRepository.prepareForManualReindex();
         if (!mounted || !context.mounted) {
           return;
         }
@@ -646,7 +646,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
         return;
       }
 
-      await _indexingRepository.prepareForManualReindex(library);
+      await _indexingRepository.prepareForManualReindex();
       if (!mounted || !context.mounted) {
         return;
       }

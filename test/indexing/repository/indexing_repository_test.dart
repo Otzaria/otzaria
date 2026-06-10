@@ -312,30 +312,6 @@ void main() {
     });
   });
 
-  group('IndexingRepository.buildCatalogueOrderSignature', () {
-    test('משתנה כשסדר הקטלוג משתנה', () {
-      final firstLibrary = _buildLibrary(
-        bavliBooks: const [
-          ('שבת', 1),
-          ('חגיגה', 2),
-        ],
-      );
-      final secondLibrary = _buildLibrary(
-        bavliBooks: const [
-          ('שבת', 2),
-          ('חגיגה', 1),
-        ],
-      );
-
-      expect(
-        IndexingRepository.buildCatalogueOrderSignature(firstLibrary),
-        isNot(
-          IndexingRepository.buildCatalogueOrderSignature(secondLibrary),
-        ),
-      );
-    });
-  });
-
   group('IndexingRepository.isIndexableBook', () {
     test('DocxBook נכלל באינדוקס דרך מיפוי ל-TextBook', () {
       // רגרסיה: לפני התיקון `isIndexableBook` החזיר false ל-DocxBook,
