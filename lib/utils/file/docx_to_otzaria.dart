@@ -11,7 +11,9 @@ import 'dart:convert';
 /// v2: תמונות מוטמעות (data URI) וטבלאות עשירות. v3: רשימות ממוספרות
 /// מקוננות (decimal/רומי/אותיות לטיניות/עבריות/multilevel) לפי numbering.xml.
 /// v4: בקרות-תוכן (`w:sdt`) וטבלאות מקוננות בתאים — מניעת אובדן תוכן.
-const int kDocxConverterVersion = 4;
+/// v5: תיבות-טקסט (`w:txbxContent`) — טקסט בתוך מסגרת, אולי על תמונת-רקע.
+/// v6: דילוג על מסגרות-רקע דקורטיביות (`behindDoc`) שאינן ניתנות לרינדור.
+const int kDocxConverterVersion = 6;
 
 // Windows-1255 Hebrew range: 0xC0–0xD8 and 0xE0–0xFA map to Unicode with offset 1264.
 // 0xE0 (224) + 1264 = 1488 = U+05D0 = א, ... 0xFA (250) + 1264 = 1514 = U+05EA = ת
@@ -301,20 +303,74 @@ Map<String, String> _extractImages(Archive archive) {
   return images;
 }
 
-/// אם ה-run מכיל תמונה מוטמעת (DrawingML `a:blip` או VML `v:imagedata`)
-/// שיש לה data URI מוכן — מחזיר תג `<img>`; אחרת `null`.
-String? _imageHtmlFromRun(xml.XmlElement run, Map<String, String> images) {
+/// מחזיר את ה-data URI של תמונה מוטמעת ב-run (DrawingML `a:blip` או VML
+/// `v:imagedata`), או `null`.
+String? _imageUriFromRun(xml.XmlElement run, Map<String, String> images) {
   if (images.isEmpty) return null;
   for (final blip in run.findAllElements('a:blip')) {
     final id = blip.getAttribute('r:embed') ?? blip.getAttribute('r:link');
     final uri = id == null ? null : images[id];
-    if (uri != null) return '<img src="$uri" style="max-width: 100%;"/>';
+    if (uri != null) return uri;
   }
   for (final data in run.findAllElements('v:imagedata')) {
     final id = data.getAttribute('r:id');
     final uri = id == null ? null : images[id];
-    if (uri != null) return '<img src="$uri" style="max-width: 100%;"/>';
+    if (uri != null) return uri;
   }
+  return null;
+}
+
+/// האם הגרפיקה היא תמונה צפה *מאחורי* הטקסט (`wp:anchor behindDoc="1"`) —
+/// מסגרת/סימן-מים דקורטיבי שנועד לרקע-עמוד. במודל שורה-אחר-שורה של הקורא
+/// אי אפשר לרנדר רקע-עמוד, וזה מופיע כבלוק ריק מבלבל — ולכן מדולג.
+bool _isBehindDocDrawing(xml.XmlElement run) {
+  for (final anchor in run.findAllElements('wp:anchor')) {
+    final bd = anchor.getAttribute('behindDoc');
+    if (bd == '1' || bd == 'true') return true;
+  }
+  return false;
+}
+
+/// מעבד גרפיקה ב-run ומחזיר HTML, או `null` אם אין.
+///
+/// - **תיבת-טקסט / שייפ עם טקסט** (`w:txbxContent`): הטקסט נעטף במסגרת
+///   (`<div>` עם border). אם לשייפ יש גם תמונת-רקע — היא מוטמעת כ-
+///   `background-image` (טקסט *על* התמונה). כך טקסט בתוך מסגרת לא נאבד.
+/// - **תמונה בלבד**: `<img>` (data URI, offline).
+/// - **מסגרת-רקע דקורטיבית** (`behindDoc`): מדולגת (ראו [_isBehindDocDrawing]).
+String? _drawingHtmlFromRun(xml.XmlElement run, _DocxContext ctx) {
+  // תמונת-רקע מאחורי הטקסט — לא ניתנת לרינדור כרקע-עמוד; מדלגים על התמונה
+  // (אך עדיין מעבדים טקסט-בתיבה אם קיים, כדי לא לאבד תוכן).
+  final imgUri =
+      _isBehindDocDrawing(run) ? null : _imageUriFromRun(run, ctx.images);
+
+  xml.XmlElement? txbx;
+  for (final t in run.findAllElements('w:txbxContent')) {
+    txbx = t;
+    break;
+  }
+
+  if (txbx != null) {
+    final parts = <String>[];
+    for (final child in _collectChildren(txbx, const {'w:p', 'w:tbl'})) {
+      if (child.name.qualified == 'w:p') {
+        final inline = _renderParagraphInline(child, ctx);
+        if (inline.trim().isNotEmpty) parts.add(inline.trim());
+      } else {
+        final nested = _buildTableHtml(child, ctx);
+        if (nested != null) parts.add(nested);
+      }
+    }
+    if (parts.isEmpty && imgUri == null) return null;
+    final bg = imgUri != null
+        ? 'background-image: url($imgUri); background-size: contain; '
+            'background-repeat: no-repeat; background-position: center; '
+        : '';
+    return '<div style="${bg}border: 1px solid #999; '
+        'padding: 8px; margin: 4px 0;">${parts.join('<br>')}</div>';
+  }
+
+  if (imgUri != null) return '<img src="$imgUri" style="max-width: 100%;"/>';
   return null;
 }
 
@@ -524,9 +580,19 @@ _Seg? _processRunSeg(xml.XmlElement node) {
 /// בפורמט שהקורא של אוצריא מציג כמפרש בצד:
 ///   `<sup class="footnote-marker">N</sup><i class="footnote">גוף</i>`
 String _renderParagraphInline(xml.XmlElement paragraph, _DocxContext ctx) {
+  // runs שבתוך תיבות-טקסט (`w:txbxContent`) מעובדים *בתוך* התיבה (ב-
+  // _drawingHtmlFromRun), לא inline — אחרת findAllElements היה תופס אותם
+  // פעמיים. אוספים אותם לדילוג.
+  final txbxRuns = <xml.XmlElement>{};
+  for (final tb in paragraph.findAllElements('w:txbxContent')) {
+    txbxRuns.addAll(tb.findAllElements('w:r'));
+  }
+
   // שלב 1: איסוף מקטעים (segments) מכל ה-runs לפי הסדר.
   final segs = <_Seg>[];
   for (final run in paragraph.findAllElements('w:r')) {
+    if (txbxRuns.contains(run)) continue; // מעובד בתוך תיבת-הטקסט
+
     final footnoteRef = run.getElement('w:footnoteReference');
     if (footnoteRef != null) {
       final id = footnoteRef.getAttribute('w:id');
@@ -538,10 +604,10 @@ String _renderParagraphInline(xml.XmlElement paragraph, _DocxContext ctx) {
       continue;
     }
 
-    // תמונה מוטמעת (offline data URI) — מקטע raw שאינו ממוזג.
-    final imgHtml = _imageHtmlFromRun(run, ctx.images);
-    if (imgHtml != null) {
-      segs.add(_Seg.raw(imgHtml));
+    // גרפיקה: תיבת-טקסט (במסגרת, אולי על תמונת-רקע) או תמונה — מקטע raw.
+    final drawingHtml = _drawingHtmlFromRun(run, ctx);
+    if (drawingHtml != null) {
+      segs.add(_Seg.raw(drawingHtml));
       continue;
     }
 

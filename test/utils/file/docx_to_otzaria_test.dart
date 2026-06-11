@@ -981,4 +981,82 @@ void main() {
       expect(result, contains('תא-סדט'), reason: 'תא עטוף ב-sdt לא נאבד');
     });
   });
+
+  group('docxToText - תיבות-טקסט (textbox / shape)', () {
+    const drawNs = '$_xmlNs '
+        'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
+        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
+
+    test('טקסט בתוך תיבת-טקסט מוצג במסגרת (div) ולא נכפל', () {
+      final xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+          '<w:document $drawNs><w:body><w:p><w:r><w:drawing>'
+          '<w:txbxContent>'
+          '<w:p><w:r><w:t>טקסט בתוך מסגרת</w:t></w:r></w:p>'
+          '</w:txbxContent></w:drawing></w:r></w:p></w:body></w:document>';
+      final result = docxToText(_buildDocx(_utf8Xml(xml)), 'ב');
+      expect(result, contains('טקסט בתוך מסגרת'));
+      expect(result, contains('border:'), reason: 'נעטף במסגרת');
+      // לא מופיע פעמיים (פעם inline ופעם בתיבה)
+      expect('טקסט בתוך מסגרת'.allMatches(result), hasLength(1));
+    });
+
+    test('מסגרת-רקע דקורטיבית (behindDoc) מדולגת — לא בלוק ריק', () {
+      final docXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+          '<w:document $drawNs '
+          'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">'
+          '<w:body>'
+          '<w:p><w:r><w:drawing>'
+          '<wp:anchor behindDoc="1"><a:blip r:embed="rId1"/></wp:anchor>'
+          '</w:drawing></w:r></w:p>'
+          '<w:p><w:r><w:t>כותרת הספר</w:t></w:r></w:p>'
+          '</w:body></w:document>';
+      final relsXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+          '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+          '<Relationship Id="rId1" '
+          'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" '
+          'Target="media/i.png"/></Relationships>';
+      final encoder = ZipEncoder();
+      final archive = Archive();
+      final d = utf8.encode(docXml);
+      final rels = utf8.encode(relsXml);
+      final png = [0x89, 0x50, 0x4E, 0x47];
+      archive.addFile(ArchiveFile('word/document.xml', d.length, d));
+      archive.addFile(
+          ArchiveFile('word/_rels/document.xml.rels', rels.length, rels));
+      archive.addFile(ArchiveFile('word/media/i.png', png.length, png));
+      final result =
+          docxToText(Uint8List.fromList(encoder.encode(archive)), 'ב');
+      expect(result, contains('כותרת הספר'), reason: 'הטקסט נשמר');
+      expect(result, isNot(contains('<img')),
+          reason: 'מסגרת-הרקע מדולגת — לא מוצגת כבלוק ריק');
+    });
+
+    test('תיבת-טקסט עם תמונת-רקע → טקסט על background-image', () {
+      final docXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+          '<w:document $drawNs><w:body><w:p><w:r><w:drawing>'
+          '<a:blip r:embed="rId1"/>'
+          '<w:txbxContent>'
+          '<w:p><w:r><w:t>על התמונה</w:t></w:r></w:p>'
+          '</w:txbxContent></w:drawing></w:r></w:p></w:body></w:document>';
+      final relsXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+          '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+          '<Relationship Id="rId1" '
+          'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" '
+          'Target="media/i.png"/></Relationships>';
+      final encoder = ZipEncoder();
+      final archive = Archive();
+      final d = utf8.encode(docXml);
+      final rels = utf8.encode(relsXml);
+      final png = [0x89, 0x50, 0x4E, 0x47];
+      archive.addFile(ArchiveFile('word/document.xml', d.length, d));
+      archive.addFile(
+          ArchiveFile('word/_rels/document.xml.rels', rels.length, rels));
+      archive.addFile(ArchiveFile('word/media/i.png', png.length, png));
+      final result =
+          docxToText(Uint8List.fromList(encoder.encode(archive)), 'ב');
+      expect(result, contains('על התמונה'));
+      expect(result, contains('background-image: url(data:image/png;base64,'),
+          reason: 'הטקסט על תמונת-רקע מוטמעת');
+    });
+  });
 }
