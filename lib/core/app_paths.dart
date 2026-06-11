@@ -11,8 +11,6 @@ enum InstallMode { systemWide, perUser }
 /// Centralizes path construction logic to avoid duplication.
 class AppPaths {
   static String? _cachedDataRootPath;
-  static String? _cachedTantivyLockPathFor;
-  static String? _cachedTantivyLockPathResult;
   static String? _cachedBundledLibraryPath;
   static bool _bundledLibraryProbed = false;
   static String? _resolvedExecutableOverride;
@@ -30,9 +28,6 @@ class AppPaths {
   @visibleForTesting
   static void debugOverrideDataRootPath(String? path) {
     _cachedDataRootPath = path;
-    // הנתיב של ה-Hive box נגזר גם מ-dataRoot, ולכן יש לאפס אותו יחד.
-    _cachedTantivyLockPathFor = null;
-    _cachedTantivyLockPathResult = null;
   }
 
   /// דורס את [Platform.resolvedExecutable] לצורכי בדיקה — נדרש כדי לדמות
@@ -46,14 +41,6 @@ class AppPaths {
 
   static String get _resolvedExecutable =>
       _resolvedExecutableOverride ?? Platform.resolvedExecutable;
-
-  /// מאפס את הקאש של נתיב ה-Hive box של האינדקס.
-  /// נדרש אחרי שינוי [SettingsRepository.keyIndexPath] בזמן ריצה
-  /// (למשל החלפת מיקום אינדקס מ-Settings UI).
-  static void clearTantivyLockPathCache() {
-    _cachedTantivyLockPathFor = null;
-    _cachedTantivyLockPathResult = null;
-  }
 
   /// Returns the default writable root for user-scoped app data.
   static Future<String> getDataRootPath() async {
@@ -336,79 +323,6 @@ class AppPaths {
     final saved = Settings.getValue<String>(SettingsRepository.keyBackupPath);
     if (saved != null && saved.isNotEmpty) return saved;
     return getDefaultBackupPath();
-  }
-
-  /// Gets the shared directory used for Tantivy state files (Hive box).
-  ///
-  /// מועדף: ליד תיקיית האינדקס הפעילה. אם המיקום אינו כתיב (למשל התקנת
-  /// system-wide תחת `C:\ProgramData\otzaria` ללא הרשאות Modify למשתמש),
-  /// נופלים למיקום אישי תחת [getDataRootPath].
-  ///
-  /// Sticky fallback: אם כבר נכתב `books_indexed.hive` ב-fallback בעבר,
-  /// נמשיך להשתמש בו גם אם המיקום המועדף שב להיות כתיב — אחרת היינו
-  /// מאבדים את booksDone וגורמים לבנייה מחדש מיותרת של האינדקס.
-  ///
-  /// קאש: ההחלטה ממוקטמת ע"י [getIndexPath]. בדיקת הכתיבות (write probe)
-  /// רצה רק כשנתיב האינדקס משתנה.
-  static Future<String> getTantivyLockPath() async {
-    final indexPath = await getIndexPath();
-    if (_cachedTantivyLockPathFor == indexPath &&
-        _cachedTantivyLockPathResult != null) {
-      return _cachedTantivyLockPathResult!;
-    }
-
-    final preferredDir =
-        Directory(p.join(p.dirname(indexPath), 'tantivy.lock'));
-    final fallbackDir =
-        Directory(p.join(await getDataRootPath(), 'tantivy_state'));
-    final fallbackBox = File(p.join(fallbackDir.path, 'books_indexed.hive'));
-
-    String result;
-    if (await fallbackBox.exists()) {
-      // Sticky: כבר יש מצב נשמר ב-fallback, ממשיכים איתו.
-      result = fallbackDir.path;
-    } else if (await _ensureWritableDir(preferredDir)) {
-      result = preferredDir.path;
-    } else {
-      await fallbackDir.create(recursive: true);
-      await _migrateTantivyStateIfNeeded(preferredDir, fallbackDir);
-      result = fallbackDir.path;
-    }
-
-    _cachedTantivyLockPathFor = indexPath;
-    _cachedTantivyLockPathResult = result;
-    return result;
-  }
-
-  /// מחזיר true אם [dir] קיימת (יוצרת אם צריך) וכתיבה אליה אפשרית.
-  static Future<bool> _ensureWritableDir(Directory dir) async {
-    try {
-      if (!await dir.exists()) {
-        await dir.create(recursive: true);
-      }
-      final probe = File(p.join(dir.path,
-          '.otzaria_write_probe_${DateTime.now().microsecondsSinceEpoch}'));
-      await probe.writeAsString('ok', flush: true);
-      await probe.delete();
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  /// מעתיק את `books_indexed.hive` מ-[source] אל [target] אם קיים במקור
-  /// ואינו קיים ביעד. שומר על booksDone קיים כשעוברים לנתיב fallback.
-  static Future<void> _migrateTantivyStateIfNeeded(
-      Directory source, Directory target) async {
-    try {
-      final sourceFile = File(p.join(source.path, 'books_indexed.hive'));
-      final targetFile = File(p.join(target.path, 'books_indexed.hive'));
-      if (await sourceFile.exists() && !await targetFile.exists()) {
-        await sourceFile.copy(targetFile.path);
-      }
-    } catch (_) {
-      // Best-effort: כישלון כאן רק מאפס את booksDone — האינדוקס יתרענן.
-    }
   }
 
   /// Gets the manifest file path (library_path/files_manifest.json)

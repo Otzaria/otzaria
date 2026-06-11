@@ -2,32 +2,41 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 
 void main() {
-  group('TantivyDataProvider.shouldPromptForManualReindex', () {
-    test('מחזיר false כשאין אינדקס קיים גם אם האינדקס אינו תואם', () {
-      final shouldPrompt = TantivyDataProvider.shouldPromptForManualReindex(
-        indexExistedBeforeInit: false,
-        indexCompatible: false,
+  group('TantivyDataProvider.isRebuildRequiredStatus', () {
+    test('מחזיר true כשהאינדקס ישן מדי עבור המנוע (rebuild_required)', () {
+      expect(
+        TantivyDataProvider.isRebuildRequiredStatus('rebuild_required'),
+        isTrue,
       );
-
-      expect(shouldPrompt, isFalse);
     });
 
-    test('מחזיר true כשיש אינדקס קיים שאינו תואם לגרסת המנוע', () {
-      final shouldPrompt = TantivyDataProvider.shouldPromptForManualReindex(
-        indexExistedBeforeInit: true,
-        indexCompatible: false,
+    test('מחזיר true כשהאינדקס נוצר ע"י מנוע חדש יותר (engine_too_old)', () {
+      expect(
+        TantivyDataProvider.isRebuildRequiredStatus('engine_too_old'),
+        isTrue,
       );
-
-      expect(shouldPrompt, isTrue);
     });
 
-    test('מחזיר false כשיש אינדקס קיים שתואם לגרסת המנוע', () {
-      final shouldPrompt = TantivyDataProvider.shouldPromptForManualReindex(
-        indexExistedBeforeInit: true,
-        indexCompatible: true,
+    test('מחזיר false לאינדקס תקין', () {
+      expect(
+        TantivyDataProvider.isRebuildRequiredStatus('compatible'),
+        isFalse,
       );
+      expect(
+        TantivyDataProvider.isRebuildRequiredStatus('legacy_compatible'),
+        isFalse,
+      );
+    });
 
-      expect(shouldPrompt, isFalse);
+    test('מחזיר false כשאין אינדקס - אינדוקס רגיל יבנה אותו', () {
+      expect(
+        TantivyDataProvider.isRebuildRequiredStatus('missing_index'),
+        isFalse,
+      );
+    });
+
+    test('מחזיר false כשבדיקת התאימות לא רצה (null)', () {
+      expect(TantivyDataProvider.isRebuildRequiredStatus(null), isFalse);
     });
   });
 }

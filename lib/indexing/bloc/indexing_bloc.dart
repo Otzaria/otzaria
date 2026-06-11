@@ -59,7 +59,6 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
     emit(IndexingInProgress(
       booksProcessed: 0,
       totalBooks: totalBooks,
-      booksDone: _repository.getIndexedBooks(),
       isCreatingIndex: false,
     ));
 
@@ -93,9 +92,7 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
       }
       _activeWorkId = null;
       emit(IndexingError(e.toString(),
-          booksProcessed: state.booksProcessed,
-          totalBooks: state.totalBooks,
-          booksDone: _repository.getIndexedBooks()));
+          booksProcessed: state.booksProcessed, totalBooks: state.totalBooks));
     }
   }
 
@@ -115,7 +112,6 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
     emit(IndexingInProgress(
       booksProcessed: currentState.booksProcessed,
       totalBooks: currentState.totalBooks,
-      booksDone: currentState.booksDone,
       isCreatingIndex: true,
     ));
   }
@@ -137,7 +133,6 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
     emit(IndexingInProgress(
       booksProcessed: 0,
       totalBooks: totalBooks,
-      booksDone: _repository.getIndexedBooks(),
       isCreatingIndex: false,
     ));
 
@@ -171,9 +166,7 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
       }
       _activeWorkId = null;
       emit(IndexingError(e.toString(),
-          booksProcessed: state.booksProcessed,
-          totalBooks: state.totalBooks,
-          booksDone: _repository.getIndexedBooks()));
+          booksProcessed: state.booksProcessed, totalBooks: state.totalBooks));
     }
   }
 
@@ -202,10 +195,7 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
       return;
     }
 
-    final indexedSet = Set<String>.from(_repository.getIndexedBooks());
-    final allIndexed = indexableBooks.every(
-      (book) => indexedSet.contains(IndexingRepository.catalogueOrderKey(book)),
-    );
+    final allIndexed = indexableBooks.every(_repository.isBookIndexed);
     emit(allIndexed ? const IndexingComplete() : IndexingInitial());
   }
 
@@ -246,7 +236,6 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
       emit(IndexingInProgress(
         booksProcessed: event.processed,
         totalBooks: event.total,
-        booksDone: state.booksDone,
         isCreatingIndex: state.isCreatingIndex,
       ));
     }

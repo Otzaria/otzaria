@@ -4,6 +4,7 @@ import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/indexing/services/indexing_isolate_service.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
 void main() {
   group('IndexingRepository.shouldSkipManualReindexCheck', () {
@@ -44,37 +45,8 @@ void main() {
     });
   });
 
-  group('IndexingRepository.shouldResetBeforeFullReindex', () {
-    test('מחזיר true כשמתחילים בנייה מחדש מעל אינדקס קיים', () {
-      final shouldReset = IndexingRepository.shouldResetBeforeFullReindex(
-        indexExistedBeforeInit: true,
-        booksDone: const [],
-      );
-
-      expect(shouldReset, isTrue);
-    });
-
-    test('מחזיר false ביצירה ראשונית של אינדקס חדש', () {
-      final shouldReset = IndexingRepository.shouldResetBeforeFullReindex(
-        indexExistedBeforeInit: false,
-        booksDone: const [],
-      );
-
-      expect(shouldReset, isFalse);
-    });
-
-    test('מחזיר false כשמדובר בעדכון אינקרמנטלי', () {
-      final shouldReset = IndexingRepository.shouldResetBeforeFullReindex(
-        indexExistedBeforeInit: true,
-        booksDone: const ['ספר אחד'],
-      );
-
-      expect(shouldReset, isFalse);
-    });
-  });
-
   group('IndexingRepository.areAllIndexableBooksIndexed', () {
-    test('מחזיר true כשכל הספרים האינדקסביליים קיימים ב-booksDone', () {
+    test('מחזיר true כשכל הספרים האינדקסביליים קיימים באינדקס', () {
       final library = _buildLibrary(
         bavliBooks: const [('שבת', 1)],
         additionalBooks: [
@@ -91,15 +63,16 @@ void main() {
         ],
       );
 
-      final indexedBookKeys = library
+      final indexedFilePaths = library
           .getAllBooks()
           .where(IndexingRepository.isIndexableBook)
-          .map(IndexingRepository.catalogueOrderKey);
+          .map(IndexingRepository.buildIndexedBookFilePath)
+          .toSet();
 
       expect(
         IndexingRepository.areAllIndexableBooksIndexed(
           library.getAllBooks(),
-          indexedBookKeys,
+          indexedFilePaths,
         ),
         isTrue,
       );
@@ -117,14 +90,15 @@ void main() {
         ],
       );
 
-      final indexedBookKeys = [
-        IndexingRepository.catalogueOrderKey(library.getAllBooks().first),
-      ];
+      final indexedFilePaths = {
+        IndexingRepository.buildIndexedBookFilePath(
+            library.getAllBooks().first),
+      };
 
       expect(
         IndexingRepository.areAllIndexableBooksIndexed(
           library.getAllBooks(),
-          indexedBookKeys,
+          indexedFilePaths,
         ),
         isFalse,
       );
@@ -143,55 +117,7 @@ void main() {
       expect(
         IndexingRepository.areAllIndexableBooksIndexed(
           library.getAllBooks(),
-          const [],
-        ),
-        isFalse,
-      );
-    });
-  });
-
-  group('IndexingRepository.shouldUseFastPath', () {
-    test(
-        'מחזיר true רק כשכל הספרים האינדקסביליים מאונדקסים ואין manual reindex',
-        () {
-      final library = _buildLibrary(
-        bavliBooks: const [('שבת', 1)],
-        additionalBooks: [
-          ExternalLibraryBook(
-            title: 'ספר חיצוני',
-            id: 900,
-            link: 'https://example.com/book',
-          ),
-        ],
-      );
-
-      final indexedBookKeys = library
-          .getAllBooks()
-          .where(IndexingRepository.isIndexableBook)
-          .map(IndexingRepository.catalogueOrderKey);
-
-      expect(
-        IndexingRepository.shouldUseFastPath(
-          books: library.getAllBooks(),
-          booksDone: indexedBookKeys,
-          requiresManualReindex: false,
-        ),
-        isTrue,
-      );
-    });
-
-    test('מחזיר false כשנדרש manual reindex גם אם כל הספרים כבר מאונדקסים', () {
-      final library = _buildLibrary(bavliBooks: const [('שבת', 1)]);
-      final indexedBookKeys = library
-          .getAllBooks()
-          .where(IndexingRepository.isIndexableBook)
-          .map(IndexingRepository.catalogueOrderKey);
-
-      expect(
-        IndexingRepository.shouldUseFastPath(
-          books: library.getAllBooks(),
-          booksDone: indexedBookKeys,
-          requiresManualReindex: true,
+          const <String>{},
         ),
         isFalse,
       );
@@ -201,14 +127,14 @@ void main() {
   group('IndexingRepository.indexAllBooks', () {
     test('fast path מחזיר מוקדם בלי להפעיל isolate ובלי callbacks', () async {
       final library = _buildLibrary(bavliBooks: const [('שבת', 1)]);
-      final indexedBookKeys = library
+      final indexedFilePaths = library
           .getAllBooks()
           .where(IndexingRepository.isIndexableBook)
-          .map(IndexingRepository.catalogueOrderKey)
-          .toList();
+          .map(IndexingRepository.buildIndexedBookFilePath)
+          .toSet();
       final provider = FakeTantivyDataProvider(
-        booksDoneValue: indexedBookKeys,
-        ensureIndexStateMatchesCatalogueValue: false,
+        indexedFilePaths: indexedFilePaths,
+        requiresManualReindexValue: false,
       );
       final isolateService = FakeIndexingIsolateService();
 
@@ -233,20 +159,19 @@ void main() {
       expect(result, isTrue);
       expect(actualIndexingStarted, isFalse);
       expect(progressCalls, 0);
-      expect(provider.ensureIndexStateMatchesCatalogueCalls, 1);
       expect(isolateService.wasUsed, isFalse);
     });
 
     test('לא מדלג ב-fast path כשנדרש manual reindex', () async {
       final library = _buildLibrary(bavliBooks: const [('שבת', 1)]);
-      final indexedBookKeys = library
+      final indexedFilePaths = library
           .getAllBooks()
           .where(IndexingRepository.isIndexableBook)
-          .map(IndexingRepository.catalogueOrderKey)
-          .toList();
+          .map(IndexingRepository.buildIndexedBookFilePath)
+          .toSet();
       final provider = FakeTantivyDataProvider(
-        booksDoneValue: indexedBookKeys,
-        ensureIndexStateMatchesCatalogueValue: true,
+        indexedFilePaths: indexedFilePaths,
+        requiresManualReindexValue: true,
       );
       final isolateService = FakeIndexingIsolateService();
 
@@ -271,7 +196,6 @@ void main() {
       expect(result, isFalse);
       expect(actualIndexingStarted, isFalse);
       expect(progressCalls, 0);
-      expect(provider.ensureIndexStateMatchesCatalogueCalls, 1);
       expect(isolateService.wasUsed, isFalse);
     });
   });
@@ -308,6 +232,25 @@ void main() {
       expect(
         IndexingRepository.catalogueOrderKey(first),
         isNot(IndexingRepository.catalogueOrderKey(second)),
+      );
+    });
+  });
+
+  group('IndexingRepository.buildIndexedBookFilePath', () {
+    test('PdfBook ממופה לנתיב הקובץ, ספר טקסט למפתח הקטלוג', () {
+      // המפתח הזה הוא שדה filePath של המסמכים באינדקס, ולכן הוא הבסיס
+      // לשחזור מצב האינדוקס מהאינדקס עצמו (getIndexedFilePaths).
+      final pdf = PdfBook(
+        title: 'שבת',
+        path: r'C:\books\a.pdf',
+        categoryPath: 'תלמוד בבלי, סדר מועד',
+      );
+      final text = TextBook(title: 'בראשית');
+
+      expect(IndexingRepository.buildIndexedBookFilePath(pdf), pdf.path);
+      expect(
+        IndexingRepository.buildIndexedBookFilePath(text),
+        IndexingRepository.catalogueOrderKey(text),
       );
     });
   });
@@ -352,8 +295,8 @@ void main() {
 
   group('DocxBook ↔ TextBook(wrap) — עקביות מפתח קטלוג', () {
     test('catalogueOrderKey זהה ל-DocxBook ול-TextBook העטוף עם id', () {
-      // קריטי: שני המפתחות חייבים להיות זהים כדי שהבדיקה
-      // `booksDone.contains(indexedBookKey)` תזהה אותו ספר בלי לכפול
+      // קריטי: שני המפתחות חייבים להיות זהים כדי שבדיקת isBookIndexed
+      // (לפי filePath שנקרא מהאינדקס) תזהה אותו ספר בלי לכפול
       // את האינדוקס בהפעלות חוזרות.
       final docx = DocxBook(
         id: 42,
@@ -415,23 +358,31 @@ void main() {
 
 class FakeTantivyDataProvider implements TantivyDataProvider {
   FakeTantivyDataProvider({
-    required this.booksDoneValue,
-    required this.ensureIndexStateMatchesCatalogueValue,
-  });
+    required this.indexedFilePaths,
+    required bool requiresManualReindexValue,
+  }) : _requiresManualReindexValue = requiresManualReindexValue;
 
-  final List<String> booksDoneValue;
-  final bool ensureIndexStateMatchesCatalogueValue;
-  int ensureIndexStateMatchesCatalogueCalls = 0;
+  final bool _requiresManualReindexValue;
 
   @override
-  List<String> get booksDone => booksDoneValue;
+  final Set<String> indexedFilePaths;
 
   @override
-  Future<bool> ensureIndexStateMatchesCatalogue() async {
-    ensureIndexStateMatchesCatalogueCalls++;
-    return ensureIndexStateMatchesCatalogueValue;
+  bool get requiresManualReindex => _requiresManualReindexValue;
+
+  @override
+  Future<SearchEngine> get engine async => _FakeSearchEngine();
+
+  @override
+  set engine(Future<SearchEngine> value) {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) {
+    throw UnimplementedError('Unexpected call: $invocation');
   }
+}
 
+class _FakeSearchEngine implements SearchEngine {
   @override
   dynamic noSuchMethod(Invocation invocation) {
     throw UnimplementedError('Unexpected call: $invocation');

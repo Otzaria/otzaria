@@ -3,29 +3,23 @@ import 'package:equatable/equatable.dart';
 sealed class IndexingState extends Equatable {
   final int? booksProcessed;
   final int? totalBooks;
-  final List<String>? booksDone;
   final bool isCreatingIndex;
 
   const IndexingState({
     this.booksProcessed,
     this.totalBooks,
-    this.booksDone,
     this.isCreatingIndex = false,
   });
 
   @override
-  List<Object?> get props =>
-      [booksProcessed, totalBooks, booksDone, isCreatingIndex];
+  List<Object?> get props => [booksProcessed, totalBooks, isCreatingIndex];
 }
 
 class IndexingInitial extends IndexingState {}
 
 class IndexingInProgress extends IndexingState {
   const IndexingInProgress(
-      {super.booksProcessed,
-      super.totalBooks,
-      super.booksDone,
-      super.isCreatingIndex});
+      {super.booksProcessed, super.totalBooks, super.isCreatingIndex});
 }
 
 class IndexingComplete extends IndexingState {
@@ -35,9 +29,8 @@ class IndexingComplete extends IndexingState {
 class IndexingError extends IndexingState {
   final String error;
 
-  const IndexingError(this.error,
-      {super.booksProcessed, super.totalBooks, super.booksDone});
+  const IndexingError(this.error, {super.booksProcessed, super.totalBooks});
 
   @override
-  List<Object?> get props => [error, booksProcessed, totalBooks, booksDone];
+  List<Object?> get props => [error, booksProcessed, totalBooks];
 }

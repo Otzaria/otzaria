@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
-import 'package:hive_ce/hive.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_engine_gateway.dart';
 import 'package:otzaria/core/app_paths.dart';
@@ -10,14 +9,21 @@ import 'package:otzaria/core/app_paths.dart';
 ///
 /// This provider handles the search operations for both text-based and PDF books,
 /// maintaining an index for full-text search capabilities.
+///
+/// מצב האינדקס (אילו ספרים מאונדקסים, האם נדרשת בנייה מחדש) נקרא מהאינדקס
+/// עצמו דרך מנוע החיפוש — לא מאחסון חיצוני של האפליקציה.
 class TantivyDataProvider {
   static const SearchEngineGateway _searchGateway = SearchEngineGateway();
-  static const String _booksDoneKey = 'key-books-done';
+
+  /// סטטוסים של [checkIndexCompatibility] שמשמעותם שהאינדקס הקיים אינו
+  /// תואם למנוע הנוכחי וחובה לאפס ולבנות אותו מחדש.
+  static const Set<String> _rebuildRequiredStatuses = {
+    'rebuild_required',
+    'engine_too_old',
+  };
 
   /// Instance of the search engine pointing to the index directory
   late Future<SearchEngine> engine;
-
-  bool _indexExistedBeforeInit = false;
 
   /// Track if index is being reopened to prevent concurrent reopens
   bool _isReopening = false;
@@ -32,14 +38,11 @@ class TantivyDataProvider {
 
   // Track ongoing counts to prevent duplicates
   static final Set<String> _ongoingCounts = {};
-  /// האם האינדקס הקיים על הדיסק תואם לגרסת מנוע החיפוש הנוכחית.
-  /// מחושב בעת האתחול באמצעות [checkIndexCompatibility] של מנוע החיפוש,
-  /// שמזהה את גרסת סכמת האינדקס שעל הדיסק ומשווה אותה לגרסה שהמנוע דורש.
-  /// כל עוד אין אינדקס קיים הערך נשאר true (אין מה לבדוק).
-  bool _indexCompatible = true;
 
-  Box? _hiveBox;
-  String? _hiveBoxDirectory;
+  /// תוצאת בדיקת התאימות של האינדקס, כפי שנקראה מהאינדקס עצמו
+  /// (otzaria_index_meta.json או meta.json של Tantivy) דרך מנוע החיפוש.
+  IndexCompatibility? _indexCompatibility;
+  IndexCompatibility? get indexCompatibility => _indexCompatibility;
 
   /// Clear global cache when starting new search
   static void clearGlobalCache() {
@@ -53,46 +56,65 @@ class TantivyDataProvider {
   /// Indicates whether the indexing process is currently running
   ValueNotifier<bool> isIndexing = ValueNotifier(false);
 
-  /// מסמן שהטעינה האסינכרונית של מצב האינדקס מהדיסק (booksDone) הסתיימה.
-  /// עד שהערך הופך ל-true, אסור להסיק "אין אינדקס" מ-booksDone.isEmpty.
+  /// מסמן שקריאת מצב האינדקס מהאינדקס עצמו ([indexedFilePaths]) הסתיימה.
+  /// עד שהערך הופך ל-true, אסור להסיק "אין אינדקס" מ-indexedFilePaths.isEmpty.
   final ValueNotifier<bool> isInitialized = ValueNotifier(false);
 
-  /// Maintains a list of processed books to avoid reindexing
-  late List<String> booksDone = [];
+  /// נתיבי הספרים (שדה filePath של המסמכים) שיש להם לפחות מסמך חי באינדקס.
+  /// נקרא מהאינדקס עצמו בעת פתיחת המנוע, ומתעדכן בזיכרון תוך כדי אינדוקס.
+  final Set<String> indexedFilePaths = {};
 
   TantivyDataProvider._internal() {
-    // Initialize sequentially: check index existence BEFORE the engine
-    // recreates the directory, then load booksDone.
     engine = _initAll();
   }
 
+  /// בודק את תאימות האינדקס, פותח את המנוע, וקורא ממנו את רשימת
+  /// הספרים המאונדקסים. בדיקת התאימות רצה לפני פתיחת המנוע, כי המנוע
+  /// יוצר את תיקיית האינדקס (וכותב otzaria_index_meta.json) אם אינה קיימת.
   Future<SearchEngine> _initAll() async {
-    // Check if the index directory existed BEFORE the engine creates it.
+    // בפתיחה מחדש (reopen/clear) הערך כבר true; איפוס מונע מהצרכנים
+    // להסיק "אין אינדקס" מ-indexedFilePaths בזמן שהטעינה מחדש רצה.
+    isInitialized.value = false;
+
     final indexPath = await AppPaths.getIndexPath();
-    final indexExistedBefore = Directory(indexPath).existsSync();
-    _indexExistedBeforeInit = indexExistedBefore;
+    _indexCompatibility = _checkIndexCompatibility(indexPath);
 
-    // בדיקת תאימות האינדקס שעל הדיסק לפני פתיחת המנוע (שכותב מטא-נתונים
-    // מעודכנים לאינדקס תואם). כך נזהה אינדקס שנבנה בגרסת מנוע ישנה.
-    _indexCompatible = _evaluateIndexCompatibility(indexPath, indexExistedBefore);
+    final engine = await _initEngine();
+    await _loadIndexedFilePaths(engine);
 
-    // Load persisted booksDone from disk.
-    await _loadBooksDone();
-
-    // If the index was manually deleted, clear booksDone so every book
-    // is re-indexed from scratch.
-    if (!indexExistedBefore && booksDone.isNotEmpty) {
-      debugPrint('⚠️ תיקיית האינדקס נמחקה – מנקה רשימת ספרים מאונדקסים');
-      booksDone.clear();
-      await saveBooksDoneToDisk();
-    }
-
-    // booksDone כעת משקפת נכונה את מצב האינדקס על הדיסק. צרכנים שמסיקים
-    // "אין אינדקס" מתוך הרשימה צריכים לחכות לסימן הזה כדי לא להציג שגוי בהפעלה.
+    // indexedFilePaths כעת משקפת את מצב האינדקס בפועל. צרכנים שמסיקים
+    // "אין אינדקס" מתוך הקבוצה צריכים לחכות לסימן הזה כדי לא להציג שגוי בהפעלה.
     isInitialized.value = true;
+    return engine;
+  }
 
-    // Now initialise the search engine (creates the directory if needed).
-    return _initEngine();
+  /// קורא את תוצאת בדיקת התאימות מהאינדקס עצמו. כשל בבדיקה אינו עוצר את
+  /// האתחול — המנוע ייפתח כרגיל והסטטוס יישאר לא ידוע (null).
+  IndexCompatibility? _checkIndexCompatibility(String indexPath) {
+    try {
+      final compatibility = checkIndexCompatibility(path: indexPath);
+      debugPrint(
+        '🔎 תאימות אינדקס: ${compatibility.status} '
+        '(נמצא: ${compatibility.foundSchemaVersion}, '
+        'נדרש: ${compatibility.requiredSchemaVersion})',
+      );
+      return compatibility;
+    } catch (e) {
+      debugPrint('⚠️ בדיקת תאימות האינדקס נכשלה: $e');
+      return null;
+    }
+  }
+
+  /// טוען מהאינדקס עצמו את רשימת הספרים שיש להם מסמכים חיים.
+  Future<void> _loadIndexedFilePaths(SearchEngine engine) async {
+    indexedFilePaths.clear();
+    try {
+      indexedFilePaths.addAll(await engine.getIndexedFilePaths());
+      debugPrint(
+          '📚 נקראו ${indexedFilePaths.length} ספרים מאונדקסים מהאינדקס');
+    } catch (e) {
+      debugPrint('⚠️ קריאת הספרים המאונדקסים מהאינדקס נכשלה: $e');
+    }
   }
 
   Future<SearchEngine> _initEngine() async {
@@ -180,118 +202,15 @@ class TantivyDataProvider {
     }
   }
 
-  /// פותח את box ה-Hive בנתיב הנתון. אם כבר פתוח באותו נתיב — מחזיר אותו.
-  /// אם פתוח בנתיב אחר — סוגר קודם ופותח מחדש.
-  Future<Box> _openBox(String directory) async {
-    if (_hiveBox != null &&
-        _hiveBox!.isOpen &&
-        _hiveBoxDirectory == directory) {
-      return _hiveBox!;
-    }
-    if (_hiveBox != null && _hiveBox!.isOpen) {
-      await _hiveBox!.close();
-    }
-    _hiveBox = await Hive.openBox('books_indexed', path: directory);
-    _hiveBoxDirectory = directory;
-    return _hiveBox!;
-  }
+  /// האם האינדקס הקיים דורש איפוס ובנייה מחדש, לפי בדיקת התאימות
+  /// שנקראה מהאינדקס עצמו בעת פתיחת המנוע.
+  bool get requiresManualReindex =>
+      isRebuildRequiredStatus(_indexCompatibility?.status);
 
-  Future<void> _closeBox() async {
-    if (_hiveBox != null && _hiveBox!.isOpen) {
-      await _hiveBox!.close();
-    }
-    _hiveBox = null;
-    _hiveBoxDirectory = null;
-  }
-
-  Future<void> _loadBooksDone() async {
-    try {
-      final lockPath = await AppPaths.getTantivyLockPath();
-      booksDone = await _readBooksDoneFromBox(lockPath);
-    } catch (e) {
-      debugPrint('⚠️ Error loading books done: $e');
-      booksDone = [];
-    }
-  }
-
-  Future<List<String>> _readBooksDoneFromBox(String directory) async {
-    final box = await _openBox(directory);
-    final dynamic value = box.get(_booksDoneKey, defaultValue: []);
-    if (value is List) {
-      return value.map<String>((e) => e.toString()).toList();
-    }
-    return [];
-  }
-
-  /// בודק אם האינדקס הקיים בנתיב [indexPath] תואם לגרסת מנוע החיפוש הנוכחית.
-  ///
-  /// משתמש ב-[checkIndexCompatibility] של מנוע החיפוש, שקורא את מטא-הנתונים
-  /// של האינדקס ומזהה את גרסת הסכמה שלו. מחזיר true כשאין אינדקס קיים
-  /// (אין מה לבדוק) או כשהאינדקס תואם. אם הבדיקה עצמה נכשלת לא מכריחים
-  /// בנייה מחדש כדי לא לפגוע במשתמש בלי סיבה ודאית.
-  bool _evaluateIndexCompatibility(String indexPath, bool indexExists) {
-    if (!indexExists) {
-      return true;
-    }
-    try {
-      final compatibility = checkIndexCompatibility(path: indexPath);
-      if (!compatibility.compatible) {
-        debugPrint(
-          '⚠️ אינדקס החיפוש אינו תואם לגרסת המנוע הנוכחית '
-          '(status=${compatibility.status}, '
-          'foundSchemaVersion=${compatibility.foundSchemaVersion}, '
-          'requiredSchemaVersion=${compatibility.requiredSchemaVersion}) '
-          '- נדרש איפוס ובנייה מחדש',
-        );
-      }
-      return compatibility.compatible;
-    } catch (e) {
-      debugPrint('⚠️ כשל בבדיקת תאימות האינדקס: $e');
-      return true;
-    }
-  }
-
+  /// האם סטטוס תאימות נתון מחייב בנייה מחדש של האינדקס.
   @visibleForTesting
-  static bool shouldPromptForManualReindex({
-    required bool indexExistedBeforeInit,
-    required bool indexCompatible,
-  }) {
-    return indexExistedBeforeInit && !indexCompatible;
-  }
-
-  /// מחזיר האם נדרש איפוס ובנייה מחדש של האינדקס באישור המשתמש, כלומר כשקיים
-  /// על הדיסק אינדקס שאינו תואם לגרסת סכמת מנוע החיפוש הנוכחית.
-  bool requiresManualReindex() {
-    return shouldPromptForManualReindex(
-      indexExistedBeforeInit: _indexExistedBeforeInit,
-      indexCompatible: _indexCompatible,
-    );
-  }
-
-  Future<bool> ensureIndexStateMatchesCatalogue() async {
-    if (!requiresManualReindex()) {
-      return false;
-    }
-
-    debugPrint(
-      '⚠️ אינדקס החיפוש אינו תואם לגרסת המנוע הנוכחית '
-      '- נדרש איפוס ואינדוקס ידני באישור המשתמש',
-    );
-    return true;
-  }
-
-  Future<void> prepareForManualReindex() async {
-    final lockPath = await AppPaths.getTantivyLockPath();
-    booksDone = [];
-    // לאחר האיפוס והבנייה מחדש המנוע יכתוב מטא-נתונים תואמים לאינדקס החדש.
-    _indexCompatible = true;
-    await _persistIndexState(lockPath);
-  }
-
-  Future<void> _persistIndexState(String directory) async {
-    final box = await _openBox(directory);
-    await box.put(_booksDoneKey, booksDone);
-  }
+  static bool isRebuildRequiredStatus(String? status) =>
+      _rebuildRequiredStatuses.contains(status);
 
   Future<void> _handleSchemaError() async {
     try {
@@ -322,14 +241,11 @@ class TantivyDataProvider {
     debugPrint('🔄 Reopening search index...');
 
     try {
-      final indexPath = await AppPaths.getIndexPath();
-      _indexExistedBeforeInit = Directory(indexPath).existsSync();
-
       // Dispose previous engine to release locks
       await dispose();
 
-      // Reset engines
-      engine = _initEngine();
+      // Reset engines (כולל קריאה מחדש של מצב האינדקס מהאינדקס עצמו)
+      engine = _initAll();
 
       // Check engine
       engine.then((value) {
@@ -366,24 +282,11 @@ class TantivyDataProvider {
         }
       });
 
-      await _loadBooksDone();
-
       debugPrint('✅ Search index reopened successfully');
     } finally {
       _isReopening = false;
     }
   }
-
-  /// Persists the list of indexed books to disk using Hive storage.
-  Future<void> saveBooksDoneToDisk() async {
-    final lockPath = await AppPaths.getTantivyLockPath();
-    await _persistIndexState(lockPath);
-  }
-
-  /// מחזיר האם תיקיית האינדקס כבר הייתה קיימת לפני פתיחת המנוע הנוכחי.
-  ///
-  /// משמש כדי להבחין בין יצירת אינדקס ראשונית לבין בנייה מחדש מעל אינדקס ישן.
-  bool get indexExistedBeforeInit => _indexExistedBeforeInit;
 
   Future<int> countTexts(String query, List<String> books, List<String> facets,
       {bool fuzzy = false,
@@ -449,8 +352,7 @@ class TantivyDataProvider {
     }
   }
 
-  Future<void> resetIndex(String indexPath,
-      {bool closeBooksDoneBox = true}) async {
+  Future<void> resetIndex(String indexPath) async {
     debugPrint('🔄 Resetting index at: $indexPath');
 
     // Close engines first to release locks
@@ -462,14 +364,6 @@ class TantivyDataProvider {
     }
 
     Directory indexDirectory = Directory(indexPath);
-    if (closeBooksDoneBox) {
-      try {
-        await _closeBox();
-      } catch (e) {
-        debugPrint('⚠️ Error closing Hive box: $e');
-      }
-    }
-
     if (indexDirectory.existsSync()) {
       try {
         indexDirectory.deleteSync(recursive: true);
@@ -640,9 +534,7 @@ class TantivyDataProvider {
   /// את הספרייה לכונן אחר, האינדקס הבא ייבנה ליד הספרייה החדשה.
   Future<void> clear() async {
     isIndexing.value = false;
-    booksDone.clear();
-    // האינדקס נמחק ונבנה מחדש מאפס, ולכן יהיה תואם לגרסת המנוע הנוכחית.
-    _indexCompatible = true;
+    indexedFilePaths.clear();
 
     // שחרור משאבים לפני מחיקה פיזית של הקבצים (חשוב במיוחד ב-Windows
     // שבו קבצים פתוחים אינם ניתנים למחיקה).
@@ -651,26 +543,17 @@ class TantivyDataProvider {
     } catch (e) {
       debugPrint('⚠️ Engine dispose during clear failed: $e');
     }
-    try {
-      await _closeBox();
-    } catch (e) {
-      debugPrint('⚠️ Hive box close during clear failed: $e');
-    }
 
     // מחיקת תיקיית האינדקס הפעילה + כל ברירות המחדל הישנות. בלי זה,
     // אם נשארת תיקייה ב-APPDATA למשל, getIndexPath בהפעלה הבאה היה
     // ממשיך לבחור בה במקום בנתיב החדש ליד הספרייה.
     await _deleteAllKnownIndexDirectories();
 
-    // אחרי המחיקה אין יותר אינדקס קיים על הדיסק.
-    _indexExistedBeforeInit = false;
-
     // פתיחה מחדש: getIndexPath יחזיר עכשיו את ברירת המחדל הנוכחית
-    // (ליד הספרייה, אם אין הגדרה ידנית ב-keyIndexPath).
-    engine = _initEngine();
-
-    // שמירת המצב הנקי בתיקיית ה-lock של הנתיב החדש.
-    await saveBooksDoneToDisk();
+    // (ליד הספרייה, אם אין הגדרה ידנית ב-keyIndexPath). ההמתנה מבטיחה
+    // שתאימות האינדקס ורשימת הספרים נקראו מחדש לפני שממשיכים.
+    engine = _initAll();
+    await engine;
   }
 
   Future<void> _deleteAllKnownIndexDirectories() async {

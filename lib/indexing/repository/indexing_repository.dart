@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/library/models/library.dart';
@@ -23,14 +22,6 @@ class IndexingRepository {
       {IndexingIsolateService? isolateService})
       : _isolateService = isolateService;
 
-  @visibleForTesting
-  static bool shouldResetBeforeFullReindex({
-    required bool indexExistedBeforeInit,
-    required List<String> booksDone,
-  }) {
-    return indexExistedBeforeInit && booksDone.isEmpty;
-  }
-
   /// בודקת אם בכלל יש טעם להריץ את בדיקת requiresManualReindex.
   /// ספרייה ריקה (כולל המקרה של "אין ספרייה") אין טעם לאפס לה אינדקס,
   /// כי אין מה לאנדקס מחדש.
@@ -42,40 +33,30 @@ class IndexingRepository {
   @visibleForTesting
   static bool areAllIndexableBooksIndexed(
     Iterable<Book> books,
-    Iterable<String> booksDone,
+    Set<String> indexedFilePaths,
   ) {
     final indexableBooks = books.where(isIndexableBook).toList();
     if (indexableBooks.isEmpty) {
       return false;
     }
 
-    final indexedBookKeys = Set<String>.from(booksDone);
     return indexableBooks.every(
-      (book) => indexedBookKeys.contains(catalogueOrderKey(book)),
+      (book) => indexedFilePaths.contains(buildIndexedBookFilePath(book)),
     );
   }
 
-  @visibleForTesting
-  static bool shouldUseFastPath({
-    required Iterable<Book> books,
-    required Iterable<String> booksDone,
-    required bool requiresManualReindex,
-  }) {
-    return !requiresManualReindex &&
-        areAllIndexableBooksIndexed(books, booksDone);
-  }
+  /// האם הספר כבר מאונדקס — לפי המסמכים החיים שנקראו מהאינדקס עצמו.
+  bool isBookIndexed(Book book) => _tantivyDataProvider.indexedFilePaths
+      .contains(buildIndexedBookFilePath(book));
 
+  /// האם האינדקס הקיים דורש איפוס ובנייה מחדש, לפי בדיקת התאימות
+  /// של מנוע החיפוש (נקראת מהאינדקס עצמו).
   Future<bool> requiresManualReindex(Library library) async {
     if (shouldSkipManualReindexCheck(library)) {
       return false;
     }
     await _tantivyDataProvider.engine;
-    return _tantivyDataProvider.requiresManualReindex();
-  }
-
-  Future<void> prepareForManualReindex() async {
-    await _tantivyDataProvider.engine;
-    await _tantivyDataProvider.prepareForManualReindex();
+    return _tantivyDataProvider.requiresManualReindex;
   }
 
   /// Indexes all books in the provided library.
@@ -90,22 +71,22 @@ class IndexingRepository {
   }) async {
     final allBooks = library.getAllBooks();
     final totalBooks = allBooks.length;
-    final requiresManualReindex =
-        await _tantivyDataProvider.ensureIndexStateMatchesCatalogue();
 
-    if (shouldUseFastPath(
-      books: allBooks,
-      booksDone: _tantivyDataProvider.booksDone,
-      requiresManualReindex: requiresManualReindex,
-    )) {
+    if (await requiresManualReindex(library)) {
       debugPrint(
-        '⚡ Fast path: כל הספרים האינדקסביליים כבר מאונדקסים ואין דרישת איפוס ידני - מדלג על האינדוקס',
+        '⚠️ האינדקס דורש איפוס ובנייה מחדש באישור המשתמש - מדלג על אינדוקס אוטומטי',
       );
-      return true;
+      return false;
     }
 
-    if (requiresManualReindex) {
-      return false;
+    if (areAllIndexableBooksIndexed(
+      allBooks,
+      _tantivyDataProvider.indexedFilePaths,
+    )) {
+      debugPrint(
+        '⚡ Fast path: כל הספרים האינדקסביליים כבר מאונדקסים לפי האינדקס עצמו - מדלג על האינדוקס',
+      );
+      return true;
     }
 
     _tantivyDataProvider.isIndexing.value = true;
@@ -114,13 +95,6 @@ class IndexingRepository {
     var didStartActualIndexing = false;
 
     try {
-      if (shouldResetBeforeFullReindex(
-        indexExistedBeforeInit: _tantivyDataProvider.indexExistedBeforeInit,
-        booksDone: _tantivyDataProvider.booksDone,
-      )) {
-        await _resetExistingIndexBeforeFullReindex();
-      }
-
       isolateService = _isolateService ?? await IndexingIsolateService.create();
       _activeIsolateService = isolateService;
       final catalogueOrderByBookKey =
@@ -136,7 +110,7 @@ class IndexingRepository {
 
       debugPrint('📚 התחלת אינדוקס: $totalBooks ספרים');
       debugPrint(
-          '📊 ספרים שכבר מאונדקסים: ${_tantivyDataProvider.booksDone.length}');
+          '📊 ספרים שכבר מאונדקסים: ${_tantivyDataProvider.indexedFilePaths.length}');
 
       for (Book book in allBooks) {
         if (!_tantivyDataProvider.isIndexing.value) {
@@ -146,7 +120,6 @@ class IndexingRepository {
         }
 
         try {
-          final indexedBookKey = catalogueOrderKey(book);
           // DocxBook עובר אינדוקס דרך זרימת TextBook (העטיפה משמרת
           // id/categoryId כדי ש-`book.text` יחלץ docx → text).
           // catalogueOrderKey של DocxBook ו-TextBook העטוף זהה: כשיש id
@@ -156,7 +129,7 @@ class IndexingRepository {
               ? book
               : (book is DocxBook ? book.toTextBook() : null);
           if (textBookForIndex != null) {
-            if (!_tantivyDataProvider.booksDone.contains(indexedBookKey)) {
+            if (!isBookIndexed(book)) {
               debugPrint('📖 מאנדקס ספר טקסט ב-isolate: ${book.title}');
               await _indexTextBook(
                 textBookForIndex,
@@ -174,14 +147,15 @@ class IndexingRepository {
                 cancelled = true;
                 break;
               }
-              _tantivyDataProvider.booksDone.add(indexedBookKey);
+              _tantivyDataProvider.indexedFilePaths
+                  .add(buildIndexedBookFilePath(book));
               actuallyIndexed++;
             } else {
               debugPrint('⏭️ דילוג על ספר טקסט שכבר מאונדקס: ${book.title}');
               skipped++;
             }
           } else if (book is PdfBook) {
-            if (!_tantivyDataProvider.booksDone.contains(indexedBookKey)) {
+            if (!isBookIndexed(book)) {
               debugPrint('📄 מאנדקס PDF ב-isolate: ${book.title}');
               await _indexPdfBook(
                 book,
@@ -199,7 +173,8 @@ class IndexingRepository {
                 cancelled = true;
                 break;
               }
-              _tantivyDataProvider.booksDone.add(indexedBookKey);
+              _tantivyDataProvider.indexedFilePaths
+                  .add(buildIndexedBookFilePath(book));
               actuallyIndexed++;
             } else {
               debugPrint('⏭️ דילוג על PDF שכבר מאונדקס: ${book.title}');
@@ -212,7 +187,6 @@ class IndexingRepository {
             debugPrint('💾 שומר אינדקס (commit)...');
             final index = await _tantivyDataProvider.engine;
             await index.commit();
-            saveIndexedBooks();
           }
 
           if (processedBooks % 50 == 0) {
@@ -244,7 +218,6 @@ class IndexingRepository {
         debugPrint('💾 שומר אינדקס סופי (final commit)...');
         final index = await _tantivyDataProvider.engine;
         await index.commit();
-        saveIndexedBooks();
         debugPrint('⚙️ מבצע optimize לאינדקס...');
         await optimizeIndexBestEffort(index.optimize);
         debugPrint('✅ אינדקס נשמר בהצלחה!');
@@ -260,13 +233,6 @@ class IndexingRepository {
     return !cancelled;
   }
 
-  Future<void> _resetExistingIndexBeforeFullReindex() async {
-    final indexPath = await AppPaths.getIndexPath();
-    debugPrint('🧹 זוהתה בנייה מחדש מלאה - מוחק אינדקס ישן לפני אינדוקס');
-    await _tantivyDataProvider.resetIndex(indexPath);
-    await _tantivyDataProvider.reopenIndex();
-  }
-
   Future<void> _indexTextBook(
     TextBook book,
     IndexingIsolateService isolateService, {
@@ -275,18 +241,25 @@ class IndexingRepository {
     void Function()? onActualIndexingStarted,
   }) async {
     final text = await _loadTextBookText(book, preloadedText: preloadedText);
-    if (text == null) {
-      return;
+    var wroteDocuments = false;
+
+    if (text != null) {
+      final stream = await isolateService.processTextBook(text: text);
+      wroteDocuments = await _consumePreparedDocuments(
+        book: book,
+        stream: stream,
+        isolateService: isolateService,
+        catalogueOrderByBookKey: catalogueOrderByBookKey,
+        onActualIndexingStarted: onActualIndexingStarted,
+      );
     }
 
-    final stream = await isolateService.processTextBook(text: text);
-    await _consumePreparedDocuments(
-      book: book,
-      stream: stream,
-      isolateService: isolateService,
-      catalogueOrderByBookKey: catalogueOrderByBookKey,
-      onActualIndexingStarted: onActualIndexingStarted,
-    );
+    if (!wroteDocuments) {
+      await _writeEmptyBookMarker(
+        book,
+        catalogueOrderByBookKey: catalogueOrderByBookKey,
+      );
+    }
   }
 
   Future<void> _indexPdfBook(
@@ -296,15 +269,44 @@ class IndexingRepository {
     void Function()? onActualIndexingStarted,
   }) async {
     final pages = await _extractPdfPages(book);
-    if (pages.isEmpty) return;
+    var wroteDocuments = false;
 
-    final stream = await isolateService.processPdfPages(pages: pages);
-    await _consumePreparedDocuments(
-      book: book,
-      stream: stream,
-      isolateService: isolateService,
+    if (pages.isNotEmpty) {
+      final stream = await isolateService.processPdfPages(pages: pages);
+      wroteDocuments = await _consumePreparedDocuments(
+        book: book,
+        stream: stream,
+        isolateService: isolateService,
+        catalogueOrderByBookKey: catalogueOrderByBookKey,
+        onActualIndexingStarted: onActualIndexingStarted,
+      );
+    }
+
+    if (!wroteDocuments) {
+      await _writeEmptyBookMarker(
+        book,
+        catalogueOrderByBookKey: catalogueOrderByBookKey,
+      );
+    }
+  }
+
+  /// רושם באינדקס מסמך ריק יחיד עבור ספר שלא הניב תוכן לאינדוקס (למשל PDF
+  /// סרוק ללא שכבת טקסט). מסמך ריק לעולם לא עולה בתוצאות חיפוש, אבל הוא
+  /// גורם לאינדקס עצמו לזכור שהספר כבר עובד — כך הוא לא יעובד מחדש בכל
+  /// הפעלה. בלי זה, מצב האינדוקס (שנקרא מהאינדקס) לעולם לא היה שלם.
+  Future<void> _writeEmptyBookMarker(
+    Book book, {
+    required Map<String, int> catalogueOrderByBookKey,
+  }) async {
+    if (!_tantivyDataProvider.isIndexing.value) {
+      return;
+    }
+    await _writePreparedBatch(
+      book,
+      const [
+        PreparedIndexDocument(reference: '', text: '', segment: 0, ordinal: 0),
+      ],
       catalogueOrderByBookKey: catalogueOrderByBookKey,
-      onActualIndexingStarted: onActualIndexingStarted,
     );
   }
 
@@ -433,18 +435,20 @@ class IndexingRepository {
     return text;
   }
 
-  Future<void> _consumePreparedDocuments({
+  /// מחזירה האם נכתב לאינדקס לפחות מסמך אחד עבור הספר.
+  Future<bool> _consumePreparedDocuments({
     required Book book,
     required Stream<IndexingIsolateUpdate> stream,
     required IndexingIsolateService isolateService,
     required Map<String, int> catalogueOrderByBookKey,
     void Function()? onActualIndexingStarted,
   }) async {
+    var wroteDocuments = false;
     try {
       await for (final update in stream) {
         if (!_tantivyDataProvider.isIndexing.value) {
           await isolateService.cancelActiveWork();
-          return;
+          return wroteDocuments;
         }
 
         if (update is! IndexingBatchReady) {
@@ -457,12 +461,14 @@ class IndexingRepository {
           catalogueOrderByBookKey: catalogueOrderByBookKey,
           onActualIndexingStarted: onActualIndexingStarted,
         );
+        wroteDocuments = wroteDocuments || update.documents.isNotEmpty;
         await update.acknowledge();
       }
     } catch (e) {
       await isolateService.cancelActiveWork();
       rethrow;
     }
+    return wroteDocuments;
   }
 
   Future<void> _writePreparedBatch(
@@ -614,9 +620,6 @@ class IndexingRepository {
     var didStartActualIndexing = false;
 
     try {
-      // לא קוראים ל-ensureIndexStateMatchesCatalogue כאן בכוונה:
-      // indexBooks מוסיף ספרים חדשים לאינדקס קיים תקין.
-      // ניהול חתימת הקטלוג ואיפוס מלא הם אחריות indexAllBooks שרץ בסטארטאפ.
       for (final book in books) {
         if (!_tantivyDataProvider.isIndexing.value) {
           cancelled = true;
@@ -624,13 +627,12 @@ class IndexingRepository {
         }
 
         try {
-          final indexedBookKey = catalogueOrderKey(book);
           // DocxBook ממופה ל-TextBook (ראה הסבר ב-indexAllBooks).
           final TextBook? textBookForIndex = book is TextBook
               ? book
               : (book is DocxBook ? book.toTextBook() : null);
           if (textBookForIndex != null) {
-            if (!_tantivyDataProvider.booksDone.contains(indexedBookKey)) {
+            if (!isBookIndexed(book)) {
               debugPrint('📖 מאנדקס ספר טקסט חדש: ${book.title}');
               await _indexTextBook(
                 textBookForIndex,
@@ -646,11 +648,12 @@ class IndexingRepository {
                 cancelled = true;
                 break;
               }
-              _tantivyDataProvider.booksDone.add(indexedBookKey);
+              _tantivyDataProvider.indexedFilePaths
+                  .add(buildIndexedBookFilePath(book));
               actuallyIndexed++;
             }
           } else if (book is PdfBook) {
-            if (!_tantivyDataProvider.booksDone.contains(indexedBookKey)) {
+            if (!isBookIndexed(book)) {
               debugPrint('📄 מאנדקס PDF חדש: ${book.title}');
               await _indexPdfBook(
                 book,
@@ -666,7 +669,8 @@ class IndexingRepository {
                 cancelled = true;
                 break;
               }
-              _tantivyDataProvider.booksDone.add(indexedBookKey);
+              _tantivyDataProvider.indexedFilePaths
+                  .add(buildIndexedBookFilePath(book));
               actuallyIndexed++;
             }
           }
@@ -688,7 +692,6 @@ class IndexingRepository {
             '✅ אינדוקס ספרים ספציפיים הושלם! (מאונדקסים: $actuallyIndexed, שגיאות: $errors)');
         final index = await _tantivyDataProvider.engine;
         await index.commit();
-        saveIndexedBooks();
       }
     } finally {
       _activeIsolateService = null;
@@ -706,19 +709,9 @@ class IndexingRepository {
     unawaited(_activeIsolateService?.cancelActiveWork());
   }
 
-  /// Persists the list of indexed books to disk.
-  void saveIndexedBooks() {
-    _tantivyDataProvider.saveBooksDoneToDisk();
-  }
-
   /// Clears the index and resets the list of indexed books.
   Future<void> clearIndex() async {
     await _tantivyDataProvider.clear();
-  }
-
-  /// Gets the list of books that have already been indexed.
-  List<String> getIndexedBooks() {
-    return List<String>.from(_tantivyDataProvider.booksDone);
   }
 
   /// Returns true for book types that the indexer actually processes.
@@ -731,7 +724,7 @@ class IndexingRepository {
       book is TextBook || book is PdfBook || book is DocxBook;
 
   /// Waits until the underlying data provider is fully initialized
-  /// (booksDone loaded from disk).
+  /// (indexedFilePaths loaded from the index itself).
   Future<void> awaitReady() async {
     await _tantivyDataProvider.engine;
   }

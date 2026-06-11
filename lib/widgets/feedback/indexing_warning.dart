@@ -14,9 +14,10 @@ enum IndexingWarningMode {
   missing,
 }
 
-/// מחשב את מצב אזהרת האינדקס לפי ה-Bloc + רשימת הספרים שאונדקסו.
-/// אסור להסיק "missing" לפני ש-TantivyDataProvider סיים לטעון את booksDone
-/// מהדיסק (אחרת תוצג אזהרה שגויה בחלון אתחול האפליקציה).
+/// מחשב את מצב אזהרת האינדקס לפי ה-Bloc + הספרים המאונדקסים שנקראו
+/// מהאינדקס עצמו. אסור להסיק "missing" לפני ש-TantivyDataProvider סיים
+/// לקרוא את indexedFilePaths מהאינדקס (אחרת תוצג אזהרה שגויה בחלון
+/// אתחול האפליקציה).
 ///
 /// מחזיר null כשאין אזהרה (אינדקס תקין או שעוד לא ידוע), או כש-inProgress
 /// אבל [inProgressDismissed] מסמן שהמשתמש סגר את הבאנר.
@@ -25,7 +26,8 @@ IndexingWarningMode? resolveIndexingWarningMode({
   required bool providerInitialized,
   required bool inProgressDismissed,
 }) {
-  if (providerInitialized && TantivyDataProvider.instance.booksDone.isEmpty) {
+  if (providerInitialized &&
+      TantivyDataProvider.instance.indexedFilePaths.isEmpty) {
     return IndexingWarningMode.missing;
   }
   if (state is IndexingInProgress && !inProgressDismissed) {
@@ -37,7 +39,8 @@ IndexingWarningMode? resolveIndexingWarningMode({
 /// האם יש לחסום חיפוש שמשתמש באינדקס. מתאים בדיוק ל-mode == missing.
 /// אם ה-provider עוד לא הסתיים לטעון, לא חוסמים — לא ידוע אם יש אינדקס.
 bool isSearchBlockedByMissingIndex({required bool providerInitialized}) {
-  return providerInitialized && TantivyDataProvider.instance.booksDone.isEmpty;
+  return providerInitialized &&
+      TantivyDataProvider.instance.indexedFilePaths.isEmpty;
 }
 
 /// וידג'ט באנר אזהרה (ללא state חיצוני). השתמש ב-[IndexingWarningContainer]
