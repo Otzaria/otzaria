@@ -361,13 +361,17 @@ String? _drawingHtmlFromRun(xml.XmlElement run, _DocxContext ctx) {
         if (nested != null) parts.add(nested);
       }
     }
-    if (parts.isEmpty && imgUri == null) return null;
-    final bg = imgUri != null
-        ? 'background-image: url($imgUri); background-size: contain; '
-            'background-repeat: no-repeat; background-position: center; '
-        : '';
-    return '<div style="${bg}border: 1px solid #999; '
-        'padding: 8px; margin: 4px 0;">${parts.join('<br>')}</div>';
+    // תיבה עם טקסט: עוטפים במסגרת (`<div>`), עם תמונת-הרקע אם קיימת.
+    // תיבה ריקה מטקסט: נופלים לרינדור `<img>` הרגיל בהמשך — `<div>` ריק חסר
+    // גובה ולא היה מציג את תמונת-הרקע ממילא.
+    if (parts.isNotEmpty) {
+      final bg = imgUri != null
+          ? 'background-image: url($imgUri); background-size: contain; '
+              'background-repeat: no-repeat; background-position: center; '
+          : '';
+      return '<div style="${bg}border: 1px solid #999; '
+          'padding: 8px; margin: 4px 0;">${parts.join('<br>')}</div>';
+    }
   }
 
   if (imgUri != null) return '<img src="$imgUri" style="max-width: 100%;"/>';
