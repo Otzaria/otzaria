@@ -153,9 +153,13 @@ void main() {
     });
 
     test(
-        'prepareForWrite/restoreAfterWrite נקראים *בתוך* יחידת התור, סביב הכתיבה '
-        '(תיקון מסך עיון/תצוגה מקדימה ריקים בזמן כתיבת ספרים אישיים)', () async {
+        'יש קבצי links: prepareForWrite/restoreAfterWrite נקראים *בתוך* יחידת '
+        'התור, סביב הכתיבה (תיקון מסך עיון/תצוגה מקדימה ריקים)', () async {
       final folderPath = await makeFolder('תיקייה-hooks', 'ספר-hooks');
+      // קובץ links כלשהו מפעיל את שלב הכתיבה ל-seforim.db (ולכן את ה-hooks).
+      await File(p.join(libPath(), 'links', 'ספר-hooks_links.json'))
+          .create(recursive: true)
+          .then((f) => f.writeAsString('[]', flush: true));
       final events = <String>[];
 
       final result = await runCustomFoldersDbSyncInIsolate(
@@ -176,6 +180,31 @@ void main() {
       // prepare לפני הכתיבה, restore אחריה (ב-finally) — שניהם רצים, בסדר הזה.
       // כך ה-RO נסגר רק למשך הכתיבה ותמיד נפתח מחדש (גם בכשל).
       expect(events, equals(['prepare', 'restore']));
+    });
+
+    test(
+        'אין קבצי links: שלב הכתיבה ל-seforim.db מדולג וה-hooks לא נקראים '
+        '(ה-RO לא נסגר בעלייה רגילה)', () async {
+      final folderPath = await makeFolder('תיקייה-no-links', 'ספר-no-links');
+      final events = <String>[];
+
+      final result = await runCustomFoldersDbSyncInIsolate(
+        dbPath: dbPath,
+        userBooksDbPath: userBooksDbPath,
+        libraryPath: libPath(),
+        customFolders: [
+          CustomFolder(
+              path: folderPath,
+              addToDatabase: false,
+              addedAt: DateTime(2026, 1, 1)),
+        ],
+        prepareForWrite: () async => events.add('prepare'),
+        restoreAfterWrite: () async => events.add('restore'),
+      );
+
+      expect(result.errors, isEmpty);
+      expect(events, isEmpty,
+          reason: 'בלי קבצי links אין כתיבה ל-seforim.db → ה-RO לא נסגר');
     });
 
     test(
