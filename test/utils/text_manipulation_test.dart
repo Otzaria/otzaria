@@ -139,6 +139,17 @@ void main() {
       expect(result, contains('<span style="color: red">נָבוֹן</span>'));
     });
 
+    test('multi-word separated by maqaf - highlights all words', () {
+      // מקף (maqaf) בין מילים בטקסט מנוקד אינו ניקוד הצמוד לאות אלא מפריד —
+      // אסור שייבלע לתוך גבול המילה ויפסול את ההדגשה.
+      const text = 'עֵ֣קֶב אֲשֶׁר־שָׁמַ֣ע אַבְרָהָ֖ם בְּקֹלִ֑י';
+      final result = highLight(text, 'עקב אשר שמע אברהם');
+
+      expect(result, contains('<span style="color: red">אֲשֶׁר</span>'));
+      expect(result, contains('<span style="color: red">שָׁמַ֣ע</span>'));
+      expect(result, contains('<span style="color: red">אַבְרָהָ֖ם</span>'));
+    });
+
     test('yellowBackground - הדגשה רציפה אחת כולל הרווחים בין המילים', () {
       const text = 'אמר רבי יוחנן משום רבי שמעון בן יוחאי';
       final result = highLight(
