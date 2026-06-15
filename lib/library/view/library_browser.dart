@@ -675,14 +675,32 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
   /// בניית תצוגת רשימה עם עץ מתרחב
   Widget _buildListView(Category category) {
-    return ListView(
-      children: _buildCategoryTree(category, 0),
+    // ⚡ Bolt: Use ListView.builder for lazy loading of the category tree.
+    // Instead of building the entire widget tree eagerly (O(n) memory and render time),
+    // we precompute the flattened list of data models and let ListView.builder render them
+    // on-demand. This significantly reduces initial render time and memory usage for large categories.
+    final items = _flattenCategoryTree(category, 0);
+    return ListView.builder(
+      itemCount: items.length,
+      itemBuilder: (context, index) {
+        final item = items[index];
+        if (item.data is Category) {
+          final subCategory = item.data as Category;
+          return _buildListCategoryItem(
+            subCategory,
+            item.level,
+            _expandedCategories.contains(subCategory.path),
+          );
+        } else {
+          return _buildListBookItem(item.data as Book, item.level);
+        }
+      },
     );
   }
 
-  /// בניית עץ קטגוריות ברקורסיבית
-  List<Widget> _buildCategoryTree(Category category, int level) {
-    List<Widget> widgets = [];
+  /// משטח את עץ הקטגוריות לרשימה אחת (מודלים בלבד)
+  List<_ListItem> _flattenCategoryTree(Category category, int level) {
+    List<_ListItem> items = [];
 
     // מיון
     category.books.sort((a, b) => a.order.compareTo(b.order));
@@ -692,20 +710,20 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     for (final subCategory in category.subCategories) {
       final isExpanded = _expandedCategories.contains(subCategory.path);
 
-      widgets.add(_buildListCategoryItem(subCategory, level, isExpanded));
+      items.add(_ListItem(data: subCategory, level: level));
 
       // אם הקטגוריה פתוחה, הוסף את התוכן שלה
       if (isExpanded) {
-        widgets.addAll(_buildCategoryTree(subCategory, level + 1));
+        items.addAll(_flattenCategoryTree(subCategory, level + 1));
       }
     }
 
     // הוספת ספרים בקטגוריה הנוכחית אחרי התיקיות
     for (final book in category.books) {
-      widgets.add(_buildListBookItem(book, level));
+      items.add(_ListItem(data: book, level: level));
     }
 
-    return widgets;
+    return items;
   }
 
   /// פריט קטגוריה בתצוגת רשימה
@@ -1421,4 +1439,10 @@ class _LoadingDotsTextState extends State<_LoadingDotsText>
       },
     );
   }
+}
+
+class _ListItem {
+  final dynamic data;
+  final int level;
+  _ListItem({required this.data, required this.level});
 }
