@@ -79,24 +79,24 @@ Future<FileSyncResult> runCustomFoldersDbSyncInIsolate({
   // [LinkProcessor.processLinksDirectory]), ולכן בפתיחה רגילה אין מה לעבד.
   // דילוג מונע סגירת ה-RO ופתיחת seforim.db RW לחינם — מקור לחסימת פתיחת
   // ספרים בעלייה ולסגירה תקועה כשסוגרים את התוכנה תוך כדי הסנכרון.
-  final FileSyncResult links;
-  if (await _hasPendingLinkFiles(libraryPath)) {
+  // הבדיקה רצה *בתוך* יחידת התור כדי שתהיה סריאלית: אם קריאת סנכרון אחרת
+  // עיבדה ומחקה את ה-links לפנינו, נראה זאת ולא נסגור את ה-RO לחינם.
+  final links = await DatabaseLibraryProvider.operationQueue.enqueue(() async {
+    if (!await _hasPendingLinkFiles(libraryPath)) {
+      return const FileSyncResult();
+    }
     // *רק כאן* סוגרים את ה-RO הראשי (prepareForWrite) ופותחים מחדש
     // (restoreAfterWrite), לזמן הקצר של כתיבת ה-links בלבד.
-    links = await DatabaseLibraryProvider.operationQueue.enqueue(() async {
-      await QueryLoader.initialize();
-      final payload = buildPayload(syncFolders: false, syncLinks: true);
-      if (prepareForWrite != null) await prepareForWrite();
-      try {
-        final resultMap = await _runWorkerIsolate(payload, isDelete: false);
-        return _resultFromMap(resultMap);
-      } finally {
-        if (restoreAfterWrite != null) await restoreAfterWrite();
-      }
-    });
-  } else {
-    links = const FileSyncResult();
-  }
+    await QueryLoader.initialize();
+    final payload = buildPayload(syncFolders: false, syncLinks: true);
+    if (prepareForWrite != null) await prepareForWrite();
+    try {
+      final resultMap = await _runWorkerIsolate(payload, isDelete: false);
+      return _resultFromMap(resultMap);
+    } finally {
+      if (restoreAfterWrite != null) await restoreAfterWrite();
+    }
+  });
 
   return FileSyncResult(
     addedBooks: folders.addedBooks + links.addedBooks,
@@ -114,13 +114,19 @@ Future<FileSyncResult> runCustomFoldersDbSyncInIsolate({
 /// שדילוג כאן מונע את שלב הכתיבה היקר (סגירת RO + פתיחת seforim.db RW) כשאין בו צורך.
 Future<bool> _hasPendingLinkFiles(String libraryPath) async {
   final linksDir = Directory(path.join(libraryPath, 'links'));
-  if (!await linksDir.exists()) return false;
-  await for (final entity in linksDir.list()) {
-    if (entity is File &&
-        path.extension(entity.path) == '.json' &&
-        !path.basename(entity.path).endsWith('_headings.json')) {
-      return true;
+  try {
+    if (!await linksDir.exists()) return false;
+    await for (final entity in linksDir.list()) {
+      if (entity is File &&
+          path.extension(entity.path) == '.json' &&
+          !path.basename(entity.path).endsWith('_headings.json')) {
+        return true;
+      }
     }
+  } on FileSystemException {
+    // תיקייה לא נגישה (הרשאות/מחיקה תוך כדי) — מדלגים על שלב ה-links; אם
+    // באמת יש links הם ייתפסו בפתיחה הבאה, ואין סיבה להפיל את כל הסנכרון.
+    return false;
   }
   return false;
 }
