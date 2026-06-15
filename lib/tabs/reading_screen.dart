@@ -432,6 +432,19 @@ class _ReadingScreenState extends State<ReadingScreen>
           ));
     } else if (tab is SearchingTab) {
       return FullTextSearchScreen(tab: tab);
+    } else if (tab is CommentatorsTab) {
+      return CommentatorsTabScreen(
+        key: ValueKey(tab),
+        tab: tab,
+        openBookCallback: (t, {int index = 1}) {
+          context.read<TabsBloc>().add(OpenOrFocusTab(t, insertAdjacent: true));
+        },
+      );
+    } else if (tab is PdfCommentatorsTab) {
+      return PdfCommentatorsTabScreen(
+        key: ValueKey(tab),
+        tab: tab,
+      );
     }
     return const SizedBox.shrink();
   }
