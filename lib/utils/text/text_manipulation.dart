@@ -12,6 +12,12 @@ final RegExp _htmlStripper = RegExp(r'<[^>]*>|&[^;]+;');
 /// רגקס להסרת ניקוד וטעמים.
 final RegExp _vowelsAndCantillation = RegExp(r'[֑-ׇ]');
 
+/// מחלקת-תווים של ניקוד וטעמים *הצמודים לאות* — ללא מקף (U+05BE) ופסק (U+05C0),
+/// שהם מפרידי מילים. אילו נכללו, ה-`*` היה בולע מקף בין מילים ושובר את
+/// זיהוי גבול המילה (וכך את הדגשת ביטוי כמו "אשר־שמע").
+const String _attachedNikudClass = '֑-ֽֿׁ-ׇ';
+final RegExp _attachedNikud = RegExp('[$_attachedNikudClass]');
+
 /// רגקס להסרת טעמים בלבד.
 final RegExp _cantillationOnly = RegExp(r'[֑-֯]');
 
@@ -299,7 +305,7 @@ class _HighlightRange {
 }
 
 bool _isHebrewMark(String char) {
-  return _vowelsAndCantillation.hasMatch(char);
+  return _attachedNikud.hasMatch(char);
 }
 
 bool _isSearchTokenChar(String char) {
@@ -477,7 +483,7 @@ String highLight(
       final cleanTerm = removeVolwels(term);
       return cleanTerm.split('').map((char) {
         if (RegExp(r'[א-ת]').hasMatch(char)) {
-          return '${RegExp.escape(char)}[\u0591-\u05C7]*';
+          return '${RegExp.escape(char)}[$_attachedNikudClass]*';
         }
         if (char == '"') return '["״]';
         if (char == "'") return "['׳]";
