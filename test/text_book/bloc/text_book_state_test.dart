@@ -48,7 +48,9 @@ void main() {
       expect(withTypoTolerance, isNot(equals(withoutTypoTolerance)));
     });
 
-    test('changes when content version changes even if content length stays same', () {
+    test(
+        'changes when content version changes even if content length stays same',
+        () {
       final older = _loadedState(
         content: const ['שורה א'],
         contentVersion: 1,
@@ -60,6 +62,17 @@ void main() {
 
       expect(older, isNot(equals(newer)));
     });
+
+    test('changes when selected indices change', () {
+      final single = _loadedState(selectedIndices: const {3});
+      final multi = _loadedState(selectedIndices: const {3, 7});
+
+      expect(single, isNot(equals(multi)));
+    });
+
+    test('selectedIndices defaults to empty', () {
+      expect(_loadedState().selectedIndices, isEmpty);
+    });
   });
 }
 
@@ -70,6 +83,7 @@ TextBookLoaded _loadedState({
   Map<int, List<String>> alternativeWords = const {},
   Map<String, String> spacingValues = const {},
   SearchMode searchMode = SearchMode.exact,
+  Set<int> selectedIndices = const {},
 }) {
   return TextBookLoaded(
     book: TextBook(title: 'ספר בדיקה'),
@@ -87,6 +101,7 @@ TextBookLoaded _loadedState({
     tableOfContents: const [],
     removeNikud: false,
     visibleIndices: const [0],
+    selectedIndices: selectedIndices,
     pinLeftPane: false,
     searchText: 'אמר רבי',
     searchOptions: searchOptions,

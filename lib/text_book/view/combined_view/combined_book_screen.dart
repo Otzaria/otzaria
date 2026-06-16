@@ -1522,12 +1522,18 @@ class _CombinedViewState extends State<CombinedView> {
         !segment.isHeader &&
         segment.sourceLineIndices.length > 1;
 
-    final isSelected = state.selectedIndex != null &&
-        (segment?.containsLine(state.selectedIndex!) ??
-            state.selectedIndex == primaryLineIndex);
-    final selectedLineIndex = isSelected && state.selectedIndex != null
-        ? state.selectedIndex!
-        : primaryLineIndex;
+    // ריבוי-בחירה: הקטע נחשב נבחר אם שורת מקור כלשהי שבו נמצאת ב-selectedIndices.
+    int? selectedLineInSegment;
+    for (final selected in state.selectedIndices) {
+      final inSegment =
+          segment?.containsLine(selected) ?? (selected == primaryLineIndex);
+      if (inSegment) {
+        selectedLineInSegment = selected;
+        break;
+      }
+    }
+    final isSelected = selectedLineInSegment != null;
+    final selectedLineIndex = selectedLineInSegment ?? primaryLineIndex;
     int actionLineIndex() {
       final currentIndex = _currentSelectedIndex.value;
       if (isContinuousParagraph &&
@@ -1654,6 +1660,16 @@ class _CombinedViewState extends State<CombinedView> {
                 _selectionManager.setAnchor(actionLineIndex());
               }
               // SelectionArea יטפל בבחירת הטווח
+            },
+            onCtrlClick: () {
+              // Ctrl+Click → הוספה/הסרה של הקטע מבחירה מרובה (ללא גלילה אוטומטית)
+              if (isContinuousParagraph) {
+                return;
+              }
+              _focusNode.requestFocus();
+              _addTextBookEventIfOpen(
+                UpdateSelectedIndex(primaryLineIndex, additive: true),
+              );
             },
             onSecondaryTapDown: (details) {
               // שומר את האינדקס הנוכחי לשימוש בתפריט ההקשר
@@ -1863,7 +1879,8 @@ class _CombinedViewState extends State<CombinedView> {
         return true;
       },
       onLineTap: (lineIndex) {
-        final isLineSelected = state.selectedIndex == lineIndex;
+        final isCtrl = HardwareKeyboard.instance.isControlPressed ||
+            HardwareKeyboard.instance.isMetaPressed;
         _focusNode.requestFocus();
         _savedSelectedText.value = null;
         _savedSelectedIndex.value = null;
@@ -1872,7 +1889,11 @@ class _CombinedViewState extends State<CombinedView> {
         _selectionLineEnd = null;
         _selectionStartColumn = null;
         widget.onSelectedTextChanged?.call(null, null, null);
-        if (isLineSelected) {
+        if (isCtrl) {
+          _addTextBookEventIfOpen(
+            UpdateSelectedIndex(lineIndex, additive: true),
+          );
+        } else if (state.selectedIndex == lineIndex) {
           _addTextBookEventIfOpen(const UpdateSelectedIndex(null));
         } else {
           _addTextBookEventIfOpen(UpdateSelectedIndex(lineIndex));
@@ -1898,7 +1919,7 @@ class _CombinedViewState extends State<CombinedView> {
       }
       final backgroundColor = state.highlightedLine == lineIndex
           ? colorScheme.secondaryContainer.withValues(alpha: 0.4)
-          : state.selectedIndex == lineIndex
+          : state.selectedIndices.contains(lineIndex)
               ? colorScheme.primary.withValues(alpha: 0.08)
               : null;
       final style = backgroundColor == null

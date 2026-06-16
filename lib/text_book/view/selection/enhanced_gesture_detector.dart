@@ -14,6 +14,7 @@ class EnhancedGestureDetector extends StatefulWidget {
   final VoidCallback? onSingleTap;
   final VoidCallback? onDoubleTap;
   final VoidCallback? onShiftClick;
+  final VoidCallback? onCtrlClick;
   final GestureTapDownCallback? onSecondaryTapDown;
   final VoidCallback? onDragSelectionStart;
   final HitTestBehavior? behavior;
@@ -24,6 +25,7 @@ class EnhancedGestureDetector extends StatefulWidget {
     this.onSingleTap,
     this.onDoubleTap,
     this.onShiftClick,
+    this.onCtrlClick,
     this.onSecondaryTapDown,
     this.onDragSelectionStart,
     this.behavior,
@@ -104,6 +106,16 @@ class _EnhancedGestureDetectorState extends State<EnhancedGestureDetector> {
 
     if (isShiftPressed) {
       widget.onShiftClick?.call();
+      _tapDownPosition = null;
+      return;
+    }
+
+    // Ctrl (או Cmd ב-macOS) + לחיצה → הוספת/הסרת קטע מבחירה מרובה.
+    final isCtrlPressed = HardwareKeyboard.instance.isControlPressed ||
+        HardwareKeyboard.instance.isMetaPressed;
+
+    if (isCtrlPressed && widget.onCtrlClick != null) {
+      widget.onCtrlClick!.call();
       _tapDownPosition = null;
       return;
     }

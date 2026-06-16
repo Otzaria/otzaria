@@ -52,11 +52,11 @@ Map<int, List<Link>> buildLinksByLineMap(List<Link> links) {
 List<Link> computeVisibleLinks({
   required List<Link> links,
   required List<int> visibleIndices,
-  required int? selectedIndex,
+  required Set<int> selectedIndices,
   required Map<int, List<Link>> linksByLine,
 }) {
   final targetIndices =
-      selectedIndex != null ? [selectedIndex] : visibleIndices;
+      selectedIndices.isNotEmpty ? selectedIndices : visibleIndices;
 
   final visibleLinks = <Link>[];
 
@@ -95,7 +95,7 @@ Future<
   required List<Link> incomingLinks,
   required bool replaceExisting,
   required List<int> visibleIndices,
-  required int? selectedIndex,
+  required Set<int> selectedIndices,
 }) async {
   const asyncProcessingThreshold = 250;
   final estimatedLinkCount =
@@ -110,7 +110,7 @@ Future<
     final visibleLinks = computeVisibleLinks(
       links: links,
       visibleIndices: visibleIndices,
-      selectedIndex: selectedIndex,
+      selectedIndices: selectedIndices,
       linksByLine: linksByLine,
     );
     return (
@@ -129,7 +129,7 @@ Future<
     final visibleLinks = computeVisibleLinks(
       links: links,
       visibleIndices: visibleIndices,
-      selectedIndex: selectedIndex,
+      selectedIndices: selectedIndices,
       linksByLine: linksByLine,
     );
     return (

@@ -1817,10 +1817,10 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         segment != null &&
         !segment.isHeader &&
         segment.sourceLineIndices.length > 1;
+    // ריבוי-בחירה: הקטע נחשב נבחר אם שורת מקור כלשהי שבו נמצאת ב-selectedIndices.
     final isSelected = widget.isMainText &&
-        state.selectedIndex != null &&
-        (segment?.containsLine(state.selectedIndex!) ??
-            state.selectedIndex == primaryLineIndex);
+        state.selectedIndices.any(
+            (sel) => segment?.containsLine(sel) ?? (sel == primaryLineIndex));
     final isHighlighted = widget.isMainText &&
         state.highlightedLine != null &&
         (segment?.containsLine(state.highlightedLine!) ??
@@ -1886,6 +1886,15 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                     .read<TextBookBloc>()
                     .add(UpdateSelectedIndex(primaryLineIndex));
               }
+            }
+          : null,
+      onCtrlClick: widget.isMainText && !isContinuousParagraph
+          ? () {
+              // Ctrl+Click → הוספה/הסרה של הקטע מבחירה מרובה
+              _requestKeyboardFocus('line-tap-$primaryLineIndex');
+              context
+                  .read<TextBookBloc>()
+                  .add(UpdateSelectedIndex(primaryLineIndex, additive: true));
             }
           : null,
       onDoubleTap: !widget.isMainText && widget.bookTitle != null
@@ -2086,7 +2095,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         return true;
       },
       onLineTap: (lineIndex) {
-        final isLineSelected = state.selectedIndex == lineIndex;
+        final isCtrl = HardwareKeyboard.instance.isControlPressed ||
+            HardwareKeyboard.instance.isMetaPressed;
         _requestKeyboardFocus('line-tap-$lineIndex');
         setState(() {
           _savedSelectedText = null;
@@ -2095,7 +2105,11 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
           _selectionLineEnd = null;
           _selectionStartColumn = null;
         });
-        if (isLineSelected) {
+        if (isCtrl) {
+          context
+              .read<TextBookBloc>()
+              .add(UpdateSelectedIndex(lineIndex, additive: true));
+        } else if (state.selectedIndex == lineIndex) {
           context.read<TextBookBloc>().add(const UpdateSelectedIndex(null));
         } else {
           context.read<TextBookBloc>().add(UpdateSelectedIndex(lineIndex));
@@ -2123,7 +2137,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       }
       final backgroundColor = state.highlightedLine == lineIndex
           ? colorScheme.secondaryContainer.withAlpha((0.4 * 255).round())
-          : state.selectedIndex == lineIndex
+          : state.selectedIndices.contains(lineIndex)
               ? colorScheme.primary.withAlpha((0.08 * 255).round())
               : null;
       final style = backgroundColor == null

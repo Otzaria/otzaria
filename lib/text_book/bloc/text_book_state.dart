@@ -164,7 +164,13 @@ class TextBookLoaded extends TextBookState {
   /// ברמת שורות מקור.
   final List<ReadingSegment> readingSegments;
   final List<int> visibleIndices;
+
+  /// העוגן הראשי של הבחירה — מניע גלילה, highlight, ניווט TOC ודיווח טעות.
   final int? selectedIndex;
+
+  /// כל הקטעים שנבחרו להצגת מפרשים (Ctrl+לחיצה). [selectedIndex] תמיד נכלל בו
+  /// כשאינו null. ריק = אין בחירה.
+  final Set<int> selectedIndices;
   final bool pinLeftPane;
   final String searchText;
   final Map<String, Map<String, bool>> searchOptions;
@@ -232,6 +238,7 @@ class TextBookLoaded extends TextBookState {
     this.readingSegments = const [],
     required this.visibleIndices,
     this.selectedIndex,
+    this.selectedIndices = const {},
     required this.pinLeftPane,
     required this.searchText,
     this.searchOptions = const {},
@@ -331,6 +338,8 @@ class TextBookLoaded extends TextBookState {
     List<ReadingSegment>? readingSegments,
     int? selectedIndex,
     bool clearSelectedIndex = false,
+    Set<int>? selectedIndices,
+    bool clearSelectedIndices = false,
     List<int>? visibleIndices,
     bool? pinLeftPane,
     String? searchText,
@@ -391,6 +400,9 @@ class TextBookLoaded extends TextBookState {
       visibleIndices: visibleIndices ?? this.visibleIndices,
       selectedIndex:
           clearSelectedIndex ? null : (selectedIndex ?? this.selectedIndex),
+      selectedIndices: clearSelectedIndices
+          ? const {}
+          : (selectedIndices ?? this.selectedIndices),
       pinLeftPane: pinLeftPane ?? this.pinLeftPane,
       searchText: searchText ?? this.searchText,
       searchOptions: searchOptions ?? this.searchOptions,
@@ -446,7 +458,7 @@ class TextBookLoaded extends TextBookState {
   @override
   List<Object?> get props => [
         book.title,
-      contentVersion,
+        contentVersion,
         content.length,
         fontSize,
         showLeftPane,
@@ -467,6 +479,7 @@ class TextBookLoaded extends TextBookState {
         readingSegments.length,
         visibleIndices,
         selectedIndex,
+        selectedIndices,
         pinLeftPane,
         searchText,
         _searchOptionsSignature(searchOptions),

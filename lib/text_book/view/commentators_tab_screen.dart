@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/text_book/utils/toc_unit_label.dart';
@@ -176,6 +177,10 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
   // שניתן יהיה לעיין בניווט בפרק אחר מבלי לבטל את בחירת המפרשים הנוכחית.
   TocEntry? _navExpandedChapter;
 
+  // ריבוי-בחירה ב'ניווט' (Ctrl+לחיצה): אינדקסי שורות נוספים להצגת מפרשים מעבר
+  // לבחירה הראשית. ריק = בחירה יחידה רגילה. מתאפס בכל ניווט רגיל.
+  final Set<int> _extraIndexes = <int>{};
+
   @visibleForTesting
   CommentatorsNavSelection get debugNavSelection => CommentatorsNavSelection(
         selectedChapter: _selectedChapter,
@@ -185,12 +190,56 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
 
   /// מחיל מצב חדש שחושב ע"י אחד הרדוסרים הטהורים (ראה [reduceChevronTap]
   /// וחבריו). מבטיח שכל הנתיבים שמשנים את מצב הניווט עוברים דרך אותו צינור.
-  void _applyNavSelection(CommentatorsNavSelection next) {
+  void _applyNavSelection(CommentatorsNavSelection next,
+      {bool clearMulti = true}) {
     setState(() {
       _selectedChapter = next.selectedChapter;
       _selectedVerseIdx = next.selectedVerseIdx;
       _navExpandedChapter = next.navExpandedChapter;
+      // ניווט רגיל מאפס את ריבוי-הבחירה (לחיצת chevron מעבירה clearMulti: false).
+      if (clearMulti) _extraIndexes.clear();
     });
+  }
+
+  /// האינדקסים האפקטיביים להצגת מפרשים: איחוד הבחירה הראשית עם ריבוי-הבחירה
+  /// (Ctrl+לחיצה ב'ניווט'). כשאין ריבוי-בחירה — הבחירה הראשית בלבד.
+  List<int>? _effectiveIndexes(List<TocEntry> chapters, int contentLength) {
+    final primary = _computeIndexes(
+        chapters, _selectedChapter, _selectedVerseIdx, contentLength);
+    if (_extraIndexes.isEmpty) return primary;
+    return <int>{...?primary, ..._extraIndexes}.toList()..sort();
+  }
+
+  /// Ctrl+לחיצה על תת-פריט: מוסיף/מסיר את שורותיו מריבוי-הבחירה (toggle).
+  void _ctrlToggleSubItem(
+      int verseIdx, TocEntry chapter, List<TocEntry> chapters) {
+    final state = widget.tab.bloc.state;
+    final contentLength = state is TextBookLoaded ? state.content.length : 0;
+    final idxs = _computeIndexes(chapters, chapter, verseIdx, contentLength);
+    if (idxs == null || idxs.isEmpty) return;
+    setState(() {
+      if (idxs.every(_extraIndexes.contains)) {
+        _extraIndexes.removeAll(idxs);
+      } else {
+        // שמירת הבחירה הראשית הנוכחית כחלק מהאיחוד לפני הוספת הקטע החדש.
+        final primary = _computeIndexes(
+            chapters, _selectedChapter, _selectedVerseIdx, contentLength);
+        if (primary != null) _extraIndexes.addAll(primary);
+        _extraIndexes.addAll(idxs);
+      }
+    });
+    _triggerLinkLoad(idxs);
+  }
+
+  /// האם שורותיו של תת-פריט נמצאות בריבוי-הבחירה (להדגשה ב'ניווט').
+  bool _isSubItemInMulti(
+      int verseIdx, TocEntry chapter, List<TocEntry> chapters) {
+    if (_extraIndexes.isEmpty) return false;
+    final state = widget.tab.bloc.state;
+    final contentLength = state is TextBookLoaded ? state.content.length : 0;
+    final idxs = _computeIndexes(chapters, chapter, verseIdx, contentLength);
+    if (idxs == null || idxs.isEmpty) return false;
+    return idxs.any(_extraIndexes.contains);
   }
 
   final _commentaryKey = GlobalKey<CommentaryListBaseState>();
@@ -553,8 +602,8 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
 
             final chapters = _getChapters(state.tableOfContents);
 
-            final effectiveIndexes = _computeIndexes(chapters, _selectedChapter,
-                _selectedVerseIdx, state.content.length);
+            final effectiveIndexes =
+                _effectiveIndexes(chapters, state.content.length);
 
             return Focus(
               autofocus: true,
@@ -1470,6 +1519,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
                           IconButton(
                             onPressed: () => _applyNavSelection(
                               reduceChevronTap(debugNavSelection, ch),
+                              clearMulti: false,
                             ),
                             icon: Icon(
                               isExpandedInNav
@@ -1624,8 +1674,15 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
           items.add(
             _TocListItem.subItem(
               text: preview,
-              isSelected: isSelectionContext && _selectedVerseIdx == i,
-              onTap: () => _selectVerseInChapter(i, chapter, allChapters),
+              isSelected: (isSelectionContext && _selectedVerseIdx == i) ||
+                  _isSubItemInMulti(i, chapter, allChapters),
+              onTap: () {
+                if (_isCtrlPressed()) {
+                  _ctrlToggleSubItem(i, chapter, allChapters);
+                } else {
+                  _selectVerseInChapter(i, chapter, allChapters);
+                }
+              },
             ),
           );
         }
@@ -1647,14 +1704,26 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
         items.add(
           _TocListItem.subItem(
             text: preview,
-            isSelected: isSelectionContext && _selectedVerseIdx == i,
-            onTap: () => _selectParaInChapter(i, chapter, allChapters),
+            isSelected: (isSelectionContext && _selectedVerseIdx == i) ||
+                _isSubItemInMulti(i, chapter, allChapters),
+            onTap: () {
+              if (_isCtrlPressed()) {
+                _ctrlToggleSubItem(i, chapter, allChapters);
+              } else {
+                _selectParaInChapter(i, chapter, allChapters);
+              }
+            },
           ),
         );
       }
     }
     return items;
   }
+
+  /// Ctrl (או Cmd ב-macOS) לחוץ כרגע — לזיהוי ריבוי-בחירה בלחיצת ניווט.
+  bool _isCtrlPressed() =>
+      HardwareKeyboard.instance.isControlPressed ||
+      HardwareKeyboard.instance.isMetaPressed;
 
   // הטיפול בלחיצה על תת-פריט (פסוק/פסקה) של פרק כלשהו. מעדכן את כל מצב
   // הניווט באטומיות ע"י [reduceSubItemTap] (setState בודד), ואז טוען את ה-links

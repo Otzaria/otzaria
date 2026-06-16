@@ -146,10 +146,13 @@ class UpdateVisibleIndecies extends TextBookEvent {
 class UpdateSelectedIndex extends TextBookEvent {
   final int? index;
 
-  const UpdateSelectedIndex(this.index);
+  /// Ctrl+לחיצה: מוסיף/מסיר את [index] מהבחירה הקיימת במקום להחליפה.
+  final bool additive;
+
+  const UpdateSelectedIndex(this.index, {this.additive = false});
 
   @override
-  List<Object?> get props => [index];
+  List<Object?> get props => [index, additive];
 }
 
 class HighlightLine extends TextBookEvent {
