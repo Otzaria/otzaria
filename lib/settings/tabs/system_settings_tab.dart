@@ -34,6 +34,7 @@ import 'package:otzaria/services/direct_error_report_service.dart';
 import 'package:otzaria/services/data_collection_service.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
+import 'package:otzaria/widgets/dialogs/selection_dialog.dart';
 import 'package:otzaria/widgets/dialogs/error_report_sender_email_dialog.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
@@ -593,6 +594,46 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     UiSnack.show('הדיווחים השמורים נמחקו.');
   }
 
+  /// קובע לאיזו מערכת הפעלה יותאם סקריפט השליחה. בוינדוס מחזיר מיד Windows;
+  /// ב-Linux/macOS שואל את המשתמש; בשאר (נייד) מחזיר Windows אחרי הבהרה
+  /// שהקובץ מיועד למחשב Windows מחובר. מחזיר null אם המשתמש ביטל.
+  Future<OfflineSendScriptTarget?> _resolveOfflineSendTarget() async {
+    if (Platform.isWindows) {
+      return OfflineSendScriptTarget.windows;
+    }
+
+    if (Platform.isMacOS || Platform.isLinux) {
+      return showSelectionDialog<OfflineSendScriptTarget>(
+        context: context,
+        title: 'מערכת ההפעלה של המחשב המחובר',
+        searchHint: 'חיפוש מערכת הפעלה...',
+        items: const [
+          SelectionItem(
+            label: 'Windows',
+            value: OfflineSendScriptTarget.windows,
+          ),
+          SelectionItem(
+            label: 'Linux / macOS',
+            value: OfflineSendScriptTarget.unix,
+          ),
+        ],
+      );
+    }
+
+    final proceed = await showTwoActionsDialog(
+      context: context,
+      title: 'הקובץ מיועד למחשב Windows',
+      content: 'במכשיר זה אי אפשר להריץ את סקריפט השליחה. יורד קובץ עבור '
+          'מחשב Windows מחובר — העבירו אליו את הקובץ והפעילו אותו שם.',
+      cancelText: 'ביטול',
+      confirmText: 'המשך',
+    );
+    if (proceed != true) {
+      return null;
+    }
+    return OfflineSendScriptTarget.windows;
+  }
+
   Future<void> _exportPendingReportsScript() async {
     final verified = await verifyPasswordForAction(context);
     if (!verified) {
@@ -607,12 +648,22 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
       return;
     }
 
+    final target = await _resolveOfflineSendTarget();
+    if (target == null || !mounted) {
+      return;
+    }
+
+    final script =
+        reportService.buildOfflineSendScript(reports, target: target);
+
     final downloadsDirectory = await getDownloadsDirectory();
     final path = await FilePicker.saveFile(
       dialogTitle: 'בחר מיקום לשמירת סקריפט השליחה',
-      fileName: 'otzaria_send_saved_reports.bat',
+      fileName: script.fileName,
       initialDirectory: downloadsDirectory?.path,
-      allowedExtensions: ['bat'],
+      allowedExtensions: [
+        target == OfflineSendScriptTarget.windows ? 'bat' : 'sh',
+      ],
       type: FileType.custom,
       lockParentWindow: true,
     );
@@ -625,12 +676,21 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     });
 
     try {
-      final script = reportService.buildOfflineSendBatchScript(reports);
-      await File(path).writeAsString(script, encoding: ascii);
+      await File(path).writeAsString(script.content, encoding: utf8);
+
+      // קובץ .sh נשמר ללא הרשאת הרצה; מוסיפים אותה כדי שאפשר יהיה להפעילו ישירות.
+      if (target == OfflineSendScriptTarget.unix &&
+          (Platform.isLinux || Platform.isMacOS)) {
+        await Process.run('chmod', ['+x', path]);
+      }
 
       if (!mounted) return;
       UiSnack.showSuccess(
-        'סקריפט השליחה נשמר בהצלחה. לשליחת הדיווחים הפעילו את הקובץ במחשב מחובר.',
+        target == OfflineSendScriptTarget.unix
+            ? 'סקריפט השליחה נשמר בהצלחה. הריצו אותו במחשב מחובר '
+                '(אם הקובץ אינו ניתן להרצה: bash ${script.fileName}).'
+            : 'סקריפט השליחה נשמר בהצלחה. לשליחת הדיווחים הפעילו את הקובץ '
+                'במחשב מחובר.',
       );
     } catch (e) {
       if (!mounted) return;

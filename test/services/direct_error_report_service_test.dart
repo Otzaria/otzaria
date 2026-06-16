@@ -102,84 +102,65 @@ void main() {
     });
   });
 
-  group('DirectErrorReportService.buildOfflineSendBatchScript', () {
-    test('creates bat file with chunked powershell payloads', () {
-      final service = DirectErrorReportService(
-        queueRepository: HiveListRepository<DirectErrorReport>(
-          boxName: 'test_box',
-          key: 'test_key',
-          fromJson: DirectErrorReport.fromJson,
-          toJson: (report) => report.toJson(),
-        ),
-      );
-      final report = DirectErrorReport(
-        id: 'report-42',
-        senderEmail: 'user@example.com',
-        subject: 'בדיקה',
-        bookTitle: 'ספר מבחן',
-        currentRef: 'פרק ב',
-        lineNumber: 7,
-        selectedText: 'שגיאה',
-        errorDetails: 'פרט',
-        contextText: 'הקשר',
-        filePath: 'C:/books/book.txt',
-        sourceFolder: 'local',
-        createdAt: DateTime.parse('2026-03-16T10:15:00Z'),
+  group('DirectErrorReportService.buildOfflineSendScript', () {
+    final report = DirectErrorReport(
+      id: 'report-42',
+      senderEmail: 'user@example.com',
+      subject: 'בדיקה',
+      bookTitle: 'ספר מבחן',
+      currentRef: 'פרק ב',
+      lineNumber: 7,
+      selectedText: 'שגיאה',
+      errorDetails: 'פרט',
+      contextText: 'הקשר',
+      filePath: 'C:/books/book.txt',
+      sourceFolder: 'local',
+      createdAt: DateTime.parse('2026-03-16T10:15:00Z'),
+    );
+
+    test('windows target builds a readable bat with MessageBox output', () {
+      final service = DirectErrorReportService();
+
+      final script = service.buildOfflineSendScript(
+        [report],
+        target: OfflineSendScriptTarget.windows,
       );
 
-      final bat = service.buildOfflineSendBatchScript([report]);
-      final base64BlockMatch = RegExp(
-        r'> "%OTZARIA_PS_B64%" \((.*?)\n\)',
-        dotAll: true,
-      ).firstMatch(bat);
-
-      expect(bat, contains('@echo off'));
+      expect(script.fileName, 'otzaria_send_saved_reports.bat');
+      expect(script.content, startsWith('@echo off'));
       expect(
-          bat,
-          contains(
-              'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command'));
-      expect(base64BlockMatch, isNotNull);
-
-      final base64Lines = RegExp(r'^\s*echo\s+(.+)$', multiLine: true)
-          .allMatches(base64BlockMatch!.group(1)!)
-          .map((match) => match.group(1)!.trim())
-          .join();
-      final decodedPowerShell = _decodeUtf8Bom(base64.decode(base64Lines));
-      final payloadBase64Match = RegExp(
-        r"\$payloadsJsonBase64\s*=\s*(.*?)\n\s*\$payloadsJson\s*=",
-        dotAll: true,
-      ).firstMatch(decodedPowerShell);
-
-      expect(decodedPowerShell,
-          contains('https://otzaria.org/api/reportingerrors'));
+          script.content, contains('https://otzaria.org/api/reportingerrors'));
+      expect(script.content, contains('Invoke-WebRequest'));
+      // מונע את פרומפט "Script Execution Risk" של PowerShell 5.1.
+      expect(script.content, contains('-UseBasicParsing'));
       expect(
-        decodedPowerShell,
-        contains(
-          r'[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12',
-        ),
+        script.content,
+        contains('[System.Windows.Forms.MessageBox]::Show'),
       );
-      expect(decodedPowerShell, contains('Invoke-WebRequest'));
+      // קריא: ה-JSON מוטמע כפי שהוא, ללא Base64.
+      expect(script.content, isNot(contains('FromBase64String')));
+      expect(script.content, contains('report-42'));
+      // הסמן המלא לא מופיע בשורת הפקודה (נבנה שם מ-[char]35).
+      expect(script.content, contains('[char]35'));
+    });
+
+    test('unix target builds an sh script with curl and a graphical popup', () {
+      final service = DirectErrorReportService();
+
+      final script = service.buildOfflineSendScript(
+        [report],
+        target: OfflineSendScriptTarget.unix,
+      );
+
+      expect(script.fileName, 'otzaria_send_saved_reports.sh');
+      expect(script.content, startsWith('#!/usr/bin/env bash'));
+      expect(script.content, contains('curl'));
       expect(
-        decodedPowerShell,
-        contains(r'$bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($body)'),
-      );
-      expect(decodedPowerShell, contains(r'-Body $bodyBytes'));
-      expect(payloadBase64Match, isNotNull);
-      expect(decodedPowerShell, contains(r'$payloadsJsonBase64 ='));
-      expect(decodedPowerShell,
-          contains(r'[Convert]::FromBase64String($payloadsJsonBase64)'));
-      expect(decodedPowerShell, isNot(contains(r"$payloadsJson = @'")));
-
-      final payloadJson = utf8.decode(
-        base64.decode(
-          RegExp(r"'([^']+)'")
-              .allMatches(payloadBase64Match!.group(1)!)
-              .map((match) => match.group(1)!)
-              .join(),
-        ),
-      );
-
-      expect(payloadJson, contains('report-42'));
+          script.content, contains('https://otzaria.org/api/reportingerrors'));
+      expect(script.content, contains('zenity'));
+      expect(script.content, contains('osascript'));
+      expect(script.content, contains("'report-42'"));
+      expect(script.content, isNot(contains('FromBase64String')));
     });
   });
 
@@ -477,16 +458,6 @@ DirectErrorReport _buildReport({
     queueType: queueType,
     createdAt: DateTime.parse('2026-03-16T10:15:00Z'),
   );
-}
-
-String _decodeUtf8Bom(List<int> bytes) {
-  final bytesWithoutBom = bytes.length >= 3 &&
-          bytes[0] == 0xEF &&
-          bytes[1] == 0xBB &&
-          bytes[2] == 0xBF
-      ? bytes.sublist(3)
-      : bytes;
-  return utf8.decode(bytesWithoutBom);
 }
 
 class InMemoryDirectErrorReportRepository
