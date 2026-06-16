@@ -50,6 +50,17 @@ class DirectReportDeliveryResult {
   bool get isQueued => status == DirectReportDeliveryStatus.queued;
 }
 
+/// מערכת ההפעלה של המחשב המחובר שאליו מיועד סקריפט השליחה האופליין.
+enum OfflineSendScriptTarget { windows, unix }
+
+/// תוצר בניית סקריפט השליחה: תוכן הקובץ ושם הקובץ המתאים.
+class OfflineSendScript {
+  final String content;
+  final String fileName;
+
+  const OfflineSendScript({required this.content, required this.fileName});
+}
+
 class DirectErrorReportService {
   static const String _endpoint = 'https://otzaria.org/api/reportingerrors';
   static const String _queueBoxName = 'error_reports_queue';
@@ -61,6 +72,7 @@ class DirectErrorReportService {
   static const int _maxQueuedFlushPerRun = 20;
   static const String _otzariaDirectReportTarget = 'אוצריא';
   static const String _sefariaDirectReportTarget = 'ספריא';
+  static const String _psBodyMarker = 'OTZARIA_REPORTS_PS_BODY';
 
   static Timer? _flushTimer;
   static bool _isFlushing = false;
@@ -198,35 +210,25 @@ class DirectErrorReportService {
     return result;
   }
 
-  String buildOfflineSendBatchScript(List<DirectErrorReport> reports) {
-    final payloads = reports.map((report) => report.toApiPayload()).toList();
-    final payloadJson = const JsonEncoder.withIndent('  ').convert(payloads);
-    final powerShellScript = _buildOfflineSendPowerShellScript(payloadJson);
-    final encodedScript = base64.encode(
-      Uint8List.fromList(_encodeUtf8Bom(powerShellScript)),
-    );
-    final encodedChunks = _splitIntoChunks(encodedScript, 120);
-    final base64EchoLines =
-        encodedChunks.map((chunk) => '  echo $chunk').join('\n');
-
-    return '''@echo off
-setlocal EnableExtensions DisableDelayedExpansion
-  set "OTZARIA_PS_B64=%TEMP%\\otzaria_send_saved_reports.ps1.b64"
-  set "OTZARIA_PS1=%TEMP%\\otzaria_send_saved_reports.ps1"
-echo Sending saved reports to Otzaria...
-> "%OTZARIA_PS_B64%" (
-$base64EchoLines
-)
-  powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "\$scriptBytes = [Convert]::FromBase64String((Get-Content -Raw \$env:OTZARIA_PS_B64)); [System.IO.File]::WriteAllBytes(\$env:OTZARIA_PS1, \$scriptBytes); & \$env:OTZARIA_PS1"
-set "OTZARIA_EXIT_CODE=%ERRORLEVEL%"
-del "%OTZARIA_PS_B64%" >nul 2>&1
-del "%OTZARIA_PS1%" >nul 2>&1
-if not "%OTZARIA_EXIT_CODE%"=="0" (
-  echo Script execution failed.
-)
-pause
-exit /b %OTZARIA_EXIT_CODE%
-''';
+  /// בונה סקריפט שליחה של הדיווחים השמורים, מותאם למערכת ההפעלה של המחשב
+  /// המחובר שבו יופעל. הסקריפט קריא לבני אדם (ללא Base64), ומציג את התוצאה
+  /// בחלון מערכת כדי להימנע מג'יבריש עברית בקונסול.
+  OfflineSendScript buildOfflineSendScript(
+    List<DirectErrorReport> reports, {
+    required OfflineSendScriptTarget target,
+  }) {
+    switch (target) {
+      case OfflineSendScriptTarget.windows:
+        return OfflineSendScript(
+          content: _buildWindowsBatchScript(reports),
+          fileName: 'otzaria_send_saved_reports.bat',
+        );
+      case OfflineSendScriptTarget.unix:
+        return OfflineSendScript(
+          content: _buildUnixShellScript(reports),
+          fileName: 'otzaria_send_saved_reports.sh',
+        );
+    }
   }
 
   Future<DirectReportDeliveryResult> submitReport(
@@ -450,62 +452,120 @@ exit /b %OTZARIA_EXIT_CODE%
     return statusCode == HttpStatus.badRequest || statusCode == 422;
   }
 
-  String _buildOfflineSendPowerShellScript(String payloadJson) {
-    final payloadBase64 = base64.encode(utf8.encode(payloadJson));
-    final payloadBase64Chunks = _splitIntoChunks(payloadBase64, 120);
-    final payloadBase64Expression =
-        payloadBase64Chunks.map((chunk) => "'$chunk'").join(' +\n  ');
-    const scriptPrefix = r'''
-$ErrorActionPreference = 'Continue'
-$endpoint = 'https://otzaria.org/api/reportingerrors'
+  /// בונה קובץ .bat קריא: שורת הפעלה קצרה שקוראת את הקובץ עצמו, מחלצת את גוף
+  /// ה-PowerShell שאחרי הסמן ומריצה אותו. הסמן נבנה ב-PowerShell מ-[char]35
+  /// כדי שלא יופיע כפי שהוא בשורת הפקודה ויתנגש עם החיפוש.
+  String _buildWindowsBatchScript(List<DirectErrorReport> reports) {
+    final payloads = reports.map((report) => report.toApiPayload()).toList();
+    final payloadJson = jsonEncode(payloads);
+    final powerShellBody = _buildWindowsPowerShellBody(payloadJson);
+    final script = '''@echo off
+powershell -NoProfile -ExecutionPolicy Bypass -Command "\$f=[IO.File]::ReadAllText('%~f0',[Text.Encoding]::UTF8); \$m=[char]35+'$_psBodyMarker'; iex \$f.Substring(\$f.IndexOf(\$m)+\$m.Length)"
+exit /b %ERRORLEVEL%
+#$_psBodyMarker
+$powerShellBody''';
+    // cmd.exe דורש CRLF כדי לפרסר את הקובץ נכון; LF בלבד שובר את ההרצה.
+    return script.replaceAll('\n', '\r\n');
+  }
+
+  String _buildWindowsPowerShellBody(String payloadJson) {
+    return '''Add-Type -AssemblyName System.Windows.Forms | Out-Null
+\$ErrorActionPreference = 'Stop'
+\$endpoint = '$_endpoint'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-  $payloadsJsonBase64 =
-    ''';
-    const scriptSuffix = r'''
-  $payloadsJson = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($payloadsJsonBase64))
-$payloads = $payloadsJson | ConvertFrom-Json
 
-$sent = 0
-$failed = 0
+\$payloadsJson = @'
+$payloadJson
+'@
 
-foreach ($payload in @($payloads)) {
+\$payloads = \$payloadsJson | ConvertFrom-Json
+\$sent = 0
+\$failed = 0
+\$lines = @()
+foreach (\$payload in @(\$payloads)) {
   try {
-    $body = $payload | ConvertTo-Json -Depth 10 -Compress
-    $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($body)
-    $response = Invoke-WebRequest -Uri $endpoint -Method Post -ContentType 'application/json; charset=utf-8' -Body $bodyBytes
-    if ($response.StatusCode -eq 200) {
-      $sent++
-      Write-Host ('נשלח: ' + $payload.report_id) -ForegroundColor Green
+    \$body = \$payload | ConvertTo-Json -Depth 10 -Compress
+    \$bodyBytes = [System.Text.Encoding]::UTF8.GetBytes(\$body)
+    \$response = Invoke-WebRequest -Uri \$endpoint -Method Post -ContentType 'application/json; charset=utf-8' -Body \$bodyBytes -UseBasicParsing
+    if (\$response.StatusCode -eq 200) {
+      \$sent++
+      \$lines += ('נשלח: ' + \$payload.report_id)
     } else {
-      $failed++
-      Write-Host ('נכשל: ' + $payload.report_id + ' (סטטוס ' + $response.StatusCode + ')') -ForegroundColor Yellow
+      \$failed++
+      \$lines += ('נכשל: ' + \$payload.report_id + ' (סטטוס ' + \$response.StatusCode + ')')
     }
   } catch {
-    $failed++
-    Write-Host ('נכשל: ' + $payload.report_id + ' (' + $_.Exception.Message + ')') -ForegroundColor Red
+    \$failed++
+    \$lines += ('נכשל: ' + \$payload.report_id + ' (' + \$_.Exception.Message + ')')
   }
 }
 
-Write-Host ''
-Write-Host ('נשלחו בהצלחה: ' + $sent)
-Write-Host ('נכשלו: ' + $failed)
-''';
-
-    return '$scriptPrefix$payloadBase64Expression\n$scriptSuffix';
+\$summary = "נשלחו בהצלחה: \$sent`r`nנכשלו: \$failed`r`n`r`n" + (\$lines -join "`r`n")
+[System.Windows.Forms.MessageBox]::Show(\$summary, 'שליחת דיווחים שמורים - אוצריא') | Out-Null''';
   }
 
-  List<int> _encodeUtf8Bom(String input) {
-    return <int>[0xEF, 0xBB, 0xBF, ...utf8.encode(input)];
-  }
+  /// בונה קובץ .sh ל-Linux/macOS: שולח כל דיווח ב-curl ומציג את הסיכום בחלון
+  /// גרפי (zenity/kdialog/osascript) עם נפילה חזרה לפלט במסוף אם אין כלי גרפי.
+  String _buildUnixShellScript(List<DirectErrorReport> reports) {
+    final buffer = StringBuffer()
+      ..writeln('#!/usr/bin/env bash')
+      ..writeln("endpoint='$_endpoint'")
+      ..writeln('sent=0')
+      ..writeln('failed=0')
+      ..writeln('results=""')
+      ..writeln('')
+      ..writeln('send_one() {')
+      ..writeln('  local body="\$1"')
+      ..writeln('  local id="\$2"')
+      ..writeln('  local code')
+      ..writeln(
+          "  code=\$(printf '%s' \"\$body\" | curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json; charset=utf-8' --data-binary @- \"\$endpoint\")")
+      ..writeln('  if [ "\$code" = "200" ]; then')
+      ..writeln('    sent=\$((sent + 1))')
+      ..writeln('    results="\${results}\\nנשלח: \${id}"')
+      ..writeln('  else')
+      ..writeln('    failed=\$((failed + 1))')
+      ..writeln('    results="\${results}\\nנכשל: \${id} (סטטוס \${code})"')
+      ..writeln('  fi')
+      ..writeln('}')
+      ..writeln('');
 
-  List<String> _splitIntoChunks(String input, int chunkSize) {
-    final chunks = <String>[];
-    for (var index = 0; index < input.length; index += chunkSize) {
-      final end =
-          (index + chunkSize < input.length) ? index + chunkSize : input.length;
-      chunks.add(input.substring(index, end));
+    for (var index = 0; index < reports.length; index++) {
+      final report = reports[index];
+      final payloadJson = jsonEncode(report.toApiPayload());
+      final delimiter = 'OTZARIA_PAYLOAD_$index';
+      buffer
+        ..writeln('send_one "\$(cat <<\'$delimiter\'')
+        ..writeln(payloadJson)
+        ..writeln(delimiter)
+        ..writeln(')" ${_shellSingleQuote(report.id)}');
     }
-    return chunks;
+
+    buffer
+      ..writeln('')
+      ..writeln(
+          'summary="נשלחו בהצלחה: \${sent}\\nנכשלו: \${failed}\\n\${results}"')
+      ..writeln('tmp="\$(mktemp)"')
+      ..writeln("printf '%b\\n' \"\$summary\" > \"\$tmp\"")
+      ..writeln('if command -v zenity >/dev/null 2>&1; then')
+      ..writeln(
+          "  zenity --text-info --filename=\"\$tmp\" --title='שליחת דיווחים שמורים - אוצריא'")
+      ..writeln('elif command -v kdialog >/dev/null 2>&1; then')
+      ..writeln(
+          "  kdialog --title 'שליחת דיווחים שמורים - אוצריא' --textbox \"\$tmp\"")
+      ..writeln('elif command -v osascript >/dev/null 2>&1; then')
+      ..writeln(
+          "  osascript -e \"display dialog (do shell script \\\"cat \\\" & quoted form of \\\"\$tmp\\\") buttons {\\\"סגור\\\"} with title \\\"שליחת דיווחים שמורים - אוצריא\\\"\" >/dev/null 2>&1")
+      ..writeln('else')
+      ..writeln("  cat \"\$tmp\"")
+      ..writeln('fi')
+      ..writeln('rm -f "\$tmp"');
+
+    return buffer.toString();
+  }
+
+  String _shellSingleQuote(String value) {
+    return "'${value.replaceAll("'", r"'\''")}'";
   }
 }
 
