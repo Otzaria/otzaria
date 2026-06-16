@@ -95,27 +95,33 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
                     );
                   }
 
-                  return GridView.builder(
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
-                      childAspectRatio: 1.2,
-                    ),
-                    itemCount: state.workspaces.length + 1,
-                    itemBuilder: (context, index) {
-                      if (index == state.workspaces.length) {
-                        // "New Workspace" tile
-                        return _buildNewWorkspaceTile(context);
-                      } else {
-                        // Workspace tile
-                        final workspace = state.workspaces[index];
-                        final isActive =
-                            state.activeWorkspaceId == workspace.id;
-                        return _buildWorkspaceTile(
-                            context, workspace, isActive);
-                      }
+                  return LayoutBuilder(
+                    builder: (context, constraints) {
+                      // מספר עמודות לפי הרוחב הזמין; במסך צר יורד ל-1-2 עמודות
+                      final crossAxisCount =
+                          (constraints.maxWidth / 200).floor().clamp(1, 3);
+                      return GridView.builder(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: crossAxisCount,
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 16,
+                          childAspectRatio: 1.2,
+                        ),
+                        itemCount: state.workspaces.length + 1,
+                        itemBuilder: (context, index) {
+                          if (index == state.workspaces.length) {
+                            // "New Workspace" tile
+                            return _buildNewWorkspaceTile(context);
+                          } else {
+                            // Workspace tile
+                            final workspace = state.workspaces[index];
+                            final isActive =
+                                state.activeWorkspaceId == workspace.id;
+                            return _buildWorkspaceTile(
+                                context, workspace, isActive);
+                          }
+                        },
+                      );
                     },
                   );
                 },

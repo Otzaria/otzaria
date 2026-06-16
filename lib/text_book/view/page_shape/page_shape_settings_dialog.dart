@@ -337,10 +337,13 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
 
   @override
   Widget build(BuildContext context) {
+    // הגבלת הרוחב הקבוע לרוחב הזמין במסך צר (AlertDialog משאיר 40px משני הצדדים)
+    final dialogWidth =
+        (MediaQuery.of(context).size.width - 80).clamp(0.0, 450.0);
     return AlertDialog(
       title: const Text('הגדרות צורת הדף'),
       content: SizedBox(
-        width: 450,
+        width: dialogWidth,
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -696,13 +699,16 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
                       children: [
                         IconButton(
                           icon: const Icon(FluentIcons.subtract_24_regular),
+                          padding: EdgeInsets.zero,
+                          constraints:
+                              const BoxConstraints(minWidth: 40, minHeight: 40),
                           onPressed: _commentaryFontSize > 10
                               ? () =>
                                   _onFontSizeChanged(_commentaryFontSize - 1)
                               : null,
                         ),
                         SizedBox(
-                          width: 50,
+                          width: 36,
                           child: Text(
                             '${_commentaryFontSize.round()}',
                             textAlign: TextAlign.center,
@@ -711,6 +717,9 @@ class _PageShapeSettingsDialogState extends State<PageShapeSettingsDialog> {
                         ),
                         IconButton(
                           icon: const Icon(FluentIcons.add_24_regular),
+                          padding: EdgeInsets.zero,
+                          constraints:
+                              const BoxConstraints(minWidth: 40, minHeight: 40),
                           onPressed: _commentaryFontSize < 30
                               ? () =>
                                   _onFontSizeChanged(_commentaryFontSize + 1)
@@ -1038,10 +1047,12 @@ class _CommentatorPickerDialogState extends State<_CommentatorPickerDialog> {
 
   @override
   Widget build(BuildContext context) {
+    // הגבלת הגודל הקבוע למסך צר (Dialog משאיר 40px אופקי ו-24px אנכי מכל צד)
+    final screenSize = MediaQuery.of(context).size;
     return Dialog(
       child: SizedBox(
-        width: 500,
-        height: 600,
+        width: (screenSize.width - 80).clamp(0.0, 500.0),
+        height: (screenSize.height - 48).clamp(0.0, 600.0),
         child: Column(
           children: [
             Padding(

@@ -3634,23 +3634,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   }
 
   List<Widget> _buildPdfActions(BuildContext context, bool wideScreen) {
-    final screenWidth = MediaQuery.of(context).size.width;
-
-    int maxButtons;
-
-    if (screenWidth < 400) {
-      maxButtons = 2;
-    } else if (screenWidth < 500) {
-      maxButtons = 4;
-    } else if (screenWidth < 600) {
-      maxButtons = 6;
-    } else if (screenWidth < 700) {
-      maxButtons = 8;
-    } else if (screenWidth < 900) {
-      maxButtons = 10;
-    } else {
-      maxButtons = 999;
-    }
+    final maxButtons =
+        maxToolbarButtonsForWidth(MediaQuery.of(context).size.width);
 
     return [
       ResponsiveActionBar(
