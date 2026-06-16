@@ -3028,7 +3028,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                   return DualAdaptiveReaderPane(
                     mainContent: _buildReaderMainContent(),
                     showLeftPane: showLeftPane,
-                    leftPaneContent: _buildLeftPaneContent(),
+                    leftPaneContent: _buildLeftPaneContent(showLeftPane),
                     leftPaneWidth: leftPaneWidth,
                     leftMinPaneWidth: 200,
                     leftMaxPaneWidth: 600,
@@ -3284,7 +3284,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     );
   }
 
-  Widget _buildLeftPaneContent() {
+  Widget _buildLeftPaneContent(bool showLeftPane) {
     return Column(
       children: [
         ValueListenableBuilder(
@@ -3327,6 +3327,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                   outline: outline,
                   controller: widget.tab.pdfViewerController,
                   focusNode: _navigationFieldFocusNode,
+                  isPaneOpen: showLeftPane,
                   onNavigateToPage: _goToPageWithSpreadLock,
                 ),
               ),

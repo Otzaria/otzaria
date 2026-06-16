@@ -20,6 +20,7 @@ import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/utils/navigation/open_book.dart';
 import 'package:otzaria/utils/file/page_converter.dart';
 import 'package:otzaria/models/pdf_headings.dart';
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
 import 'package:otzaria/settings/settings_exports.dart';
@@ -71,6 +72,9 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
   final _panelKey = GlobalKey<PdfCommentaryPanelState>();
   final Set<int> _expandedHeadings = {};
 
+  // גלילת רשימת הניווט לכותרת הנבחרת בעת פתיחת הפאנל/מעבר ללשונית הניווט.
+  final ItemScrollController _navScrollController = ItemScrollController();
+
   /// סרגל 3 הלשוניות בפאנל הצד (זהה לכרטיסיית הטקסט): ניווט / מפרשים / חיפוש
   late final TabController _navTabController;
   static const int _commentatorsTabIndex = 1;
@@ -120,7 +124,37 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _searchFocusNode.requestFocus();
       });
+    } else if (_navTabController.index == 0) {
+      // לשונית הניווט: גלילה לכותרת הנבחרת.
+      _scrollNavToSelectedHeading();
     }
+  }
+
+  /// אינדקסי הכותרות המוצגות בלשונית הניווט, מסוננים לפי שאילתת החיפוש.
+  List<int> _navFilteredIndices(String query) {
+    final headings = _sortedHeadings;
+    if (headings == null) return const [];
+    final q = query.trim();
+    final all = List<int>.generate(headings.length, (i) => i);
+    if (q.isEmpty) return all;
+    return all.where((i) => headings[i].key.contains(q)).toList();
+  }
+
+  /// גוללת את רשימת הניווט לכותרת הנבחרת. ה-BlocListener/פתיחת הפאנל לא
+  /// מבצעים זאת לבדם, ולכן יש לקרוא לכך בעת פתיחה ומעבר ללשונית.
+  void _scrollNavToSelectedHeading() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_navScrollController.isAttached) return;
+      final listIdx = _navFilteredIndices(_navSearchController.text)
+          .indexOf(_selectedHeadingIdx);
+      if (listIdx < 0) return;
+      _navScrollController.scrollTo(
+        index: listIdx,
+        alignment: 0.4,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    });
   }
 
   @override
@@ -655,7 +689,12 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
             tooltip: 'ניווט',
             icon: FluentIcons.navigation_24_regular,
             compact: isCompact,
-            onPressed: () => setState(() => _navPaneOpen = !_navPaneOpen),
+            onPressed: () {
+              setState(() => _navPaneOpen = !_navPaneOpen);
+              if (_navPaneOpen && _navTabController.index == 0) {
+                _scrollNavToSelectedHeading();
+              }
+            },
           ),
         ),
       ],
@@ -963,12 +1002,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
     return ValueListenableBuilder<TextEditingValue>(
       valueListenable: _navSearchController,
       builder: (context, val, _) {
-        final query = val.text.trim();
-        final filteredIdx = query.isEmpty
-            ? List<int>.generate(headings.length, (i) => i)
-            : List<int>.generate(headings.length, (i) => i)
-                .where((i) => headings[i].key.contains(query))
-                .toList();
+        final filteredIdx = _navFilteredIndices(val.text);
 
         return Column(
           children: [
@@ -979,7 +1013,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
                 decoration: InputDecoration(
                   hintText: 'איתור כותרת...',
                   prefixIcon: const Icon(FluentIcons.search_24_regular),
-                  suffixIcon: query.isNotEmpty
+                  suffixIcon: val.text.trim().isNotEmpty
                       ? IconButton(
                           icon: const Icon(FluentIcons.dismiss_24_regular),
                           onPressed: () => _navSearchController.clear(),
@@ -993,7 +1027,8 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
               ),
             ),
             Expanded(
-              child: ListView.builder(
+              child: ScrollablePositionedList.builder(
+                itemScrollController: _navScrollController,
                 itemCount: filteredIdx.length,
                 itemBuilder: (context, listIdx) {
                   final idx = filteredIdx[listIdx];
