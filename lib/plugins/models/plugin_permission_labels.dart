@@ -91,6 +91,10 @@ const Map<String, PluginPermissionInfo> _permissionLabels = {
     label: 'הודעות ודיאלוגים',
     description: 'הצגת הודעות, דיאלוגים ועדכונים בממשק המשתמש',
   ),
+  'ui.create_shortcut': PluginPermissionInfo(
+    label: 'יצירת קיצור דרך',
+    description: 'יצירת קיצור דרך בשולחן העבודה או בתפריט ההתחל (לאחר אישור)',
+  ),
 
   // ===== אחסון תוסף =====
   'plugin.storage.read': PluginPermissionInfo(

@@ -98,6 +98,14 @@ List<dynamic> _getBookContentRequest() => [
       }
     ];
 
+/// בקשת RPC ל-shortcut.create.
+List<dynamic> _shortcutCreateRequest() => [
+      {
+        'method': 'shortcut.create',
+        'payload': {'label': 'בדיקה'},
+      }
+    ];
+
 void main() {
   group('PluginBridgeHandler.isRateLimitExempt', () {
     test('library.getBookContent מוחרג ממגביל הקצב', () {
@@ -196,6 +204,26 @@ void main() {
       );
 
       final resp = await handler.handleRpcForTesting(_getBookContentRequest())
+          as Map<String, dynamic>;
+
+      expect(resp['success'], isFalse);
+      expect(resp['error']['code'], 'permission_denied');
+      expect(adapter.executeCalls, 0);
+    });
+
+    test(
+        'shortcut.create ללא ui.create_shortcut במניפסט → permission_denied, '
+        'execute לא נקרא', () async {
+      // מוודא ש-domain shortcut נאכף בשכבת ה-RPC (לא רק ב-adapter): תוסף שלא
+      // הצהיר על ui.create_shortcut נחסם לפני adapter.execute, גם אם ה-DB מאשר.
+      final adapter = _FakeAdapter();
+      final handler = buildHandler(
+        declaredPermissions: const [],
+        granted: true,
+        adapter: adapter,
+      );
+
+      final resp = await handler.handleRpcForTesting(_shortcutCreateRequest())
           as Map<String, dynamic>;
 
       expect(resp['success'], isFalse);

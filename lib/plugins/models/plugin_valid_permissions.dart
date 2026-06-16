@@ -24,6 +24,9 @@ const Map<String, String> apiCallToPermissionHint = {
   // feedback.*
   'feedback.sendEmail': 'feedback.send_email',
 
+  // shortcut.*
+  'shortcut.create': 'ui.create_shortcut',
+
   // history.*
   'history.list': 'history.read',
   'history.listSearches': 'history.read',
@@ -114,6 +117,9 @@ const pluginValidPermissions = <String>[
   // ===== ממשק משתמש =====
   /// הצגת הודעות ודיאלוגים למשתמש
   'ui.feedback',
+
+  /// יצירת קיצור דרך (deep-link) בשולחן העבודה / תפריט ההתחל
+  'ui.create_shortcut',
 
   // ===== אחסון תוסף =====
   /// קריאה מאחסון מפתח-ערך של התוסף

@@ -21,12 +21,13 @@
 10. [הרשאות](#הרשאות)
 11. [ריצת רקע (app.run\_on\_startup)](#ריצת-רקע-apprun_on_startup)
 12. [אבטחה ומגבלות](#אבטחה-ומגבלות)
-13. [מצב פיתוח (Hot Reload)](#מצב-פיתוח-hot-reload)
-14. [אריזה והפצה — יצירת קובץ `.otzplugin`](#אריזה-והפצה--יצירת-קובץ-otzplugin)
-15. [התקנה ובדיקה](#התקנה-ובדיקה)
-16. [שגיאות נפוצות](#שגיאות-נפוצות)
-17. [עיצוב וקבצי עזר](#עיצוב-וקבצי-עזר)
-18. [תמיכה](#תמיכה)
+13. [מסך "אודות" וקיצור דרך לתוסף](#מסך-אודות-וקיצור-דרך-לתוסף)
+14. [מצב פיתוח (Hot Reload)](#מצב-פיתוח-hot-reload)
+15. [אריזה והפצה — יצירת קובץ `.otzplugin`](#אריזה-והפצה--יצירת-קובץ-otzplugin)
+16. [התקנה ובדיקה](#התקנה-ובדיקה)
+17. [שגיאות נפוצות](#שגיאות-נפוצות)
+18. [עיצוב וקבצי עזר](#עיצוב-וקבצי-עזר)
+19. [תמיכה](#תמיכה)
 
 ---
 
@@ -462,6 +463,7 @@ const { data: keys } = await Otzaria.call('storage.list');
 | `plugin.storage.write` | כתיבה ל-storage פרטי |
 | `published_data.write` | פרסום נתונים לאפליקציה |
 | `ui.feedback` | הצגת הודעות ודיאלוגים |
+| `ui.create_shortcut` | יצירת קיצור דרך (deep-link) בשולחן העבודה / תפריט ההתחל — דורש אישור משתמש |
 | `network.access` | גישה לרשת (דורש `network.enabled: true` במניפסט + שה-URL מופיע ב-allowlist הגלובלי של אוצריא בקוד) |
 | `notifications.send` | הצגת הודעות בתוך האפליקציה (UiSnack) |
 | `notifications.system` | התראות מערכת הפעלה (Native notifications) |
@@ -565,6 +567,78 @@ Otzaria.on('plugin.boot', async (payload) => {
 
 ### window.open
 חסום לחלוטין מטעמי אבטחה.
+
+---
+
+## מסך "אודות" וקיצור דרך לתוסף
+
+מומלץ לכלול בתוסף **מסך/כפתור "אודות"** שמרכז מידע למשתמש: שם התוסף, המפתח, הגרסה, תיאור קצר וקישור לדף הבית. זהו גם המקום הטבעי להציע למשתמש **ליצור קיצור דרך** לתוסף — בשולחן העבודה (וב-Windows גם בתפריט ההתחל) — כדי שיוכל לפתוח את התוסף בלחיצה אחת.
+
+### מאיפה מגיע המידע ל"אודות"
+
+הפרטים שהצהרת ב-`manifest.json` (`name`, `author`, `version`, `description`, `homepage`) ידועים לך ממילא. בנוסף, אירוע `plugin.boot` מספק את מזהה התוסף, הגרסה והפלטפורמה הנוכחית:
+
+```javascript
+let pluginId, platform;
+
+Otzaria.on('plugin.boot', (payload) => {
+  pluginId = payload.plugin.id;      // 'com.example.myplugin'
+  platform = payload.app.platform;   // 'windows' | 'macos' | 'linux' | 'android' | 'ios'
+  renderAbout();
+});
+
+const isDesktop = () => ['windows', 'macos', 'linux'].includes(platform);
+```
+
+### יצירת קיצור דרך — `shortcut.create`
+
+קיצור הדרך הוא בעצם **deep-link**: קובץ תלוי-פלטפורמה שאוצריא יוצרת עבורך (`.url` ב-Windows, `.webloc` ב-macOS, `.desktop` ב-Linux). אינך צריך להתעסק בפורמטים — רק לקרוא ל-API אחד. הקיצור פותח תמיד את **התוסף הקורא**, ואוצריא בונה את הקישור (`otzaria://open/plugin/<id>`) בעצמה — אינך מעביר אותו, ולכן אי אפשר ליצור קיצור ל-route אחר.
+
+הוסף את ההרשאה ל-`manifest.json`:
+
+```json
+{ "permissions": ["ui.create_shortcut"] }
+```
+
+הפונקציה שיוצרת את הקיצור:
+
+```javascript
+async function createDesktopShortcut(location = 'desktop') {
+  const res = await Otzaria.call('shortcut.create', {
+    label: 'לוח שנה הלכתי',   // שם התוסף — ישמש כשם הקיצור
+    location,                  // 'desktop' (ברירת מחדל) או 'startMenu' (Windows בלבד)
+  });
+
+  if (!res.success) {
+    await Otzaria.call('ui.showError', { message: 'לא ניתן ליצור קיצור דרך' });
+    return;
+  }
+  if (res.data.created) {
+    await Otzaria.call('ui.showSuccess', { message: 'קיצור הדרך נוצר בהצלחה!' });
+  }
+  // res.data.created === false → המשתמש ביטל את דיאלוג האישור
+}
+```
+
+במסך ה"אודות", הצג את כפתור הקיצור **רק בדסקטופ**, וב-Windows הוסף כפתור נפרד לתפריט ההתחל:
+
+```javascript
+function renderAbout() {
+  // ... הצגת שם התוסף, המפתח, הגרסה, התיאור וקישור לדף הבית ...
+
+  if (!isDesktop()) return;   // אין קיצורי דרך במובייל
+
+  showButton('צור קיצור דרך בשולחן העבודה', () => createDesktopShortcut('desktop'));
+
+  if (platform === 'windows') {
+    showButton('הוסף לתפריט ההתחל', () => createDesktopShortcut('startMenu'));
+  }
+}
+```
+
+> **אישור משתמש אוטומטי:** לפני יצירת הקיצור, אוצריא מציגה למשתמש דיאלוג אישור. אם אישר — הקובץ נוצר ו-`created` יהיה `true`; אם ביטל — `created` יהיה `false` ולא נוצר דבר. אין צורך להוסיף אישור משלך.
+
+> **מגבלות:** `shortcut.create` זמין בדסקטופ בלבד. `location: 'startMenu'` נתמך ב-Windows בלבד (אחרת מוחזר `error.unsupported`). הקישור נבנה בצד אוצריא ופותח תמיד את התוסף הקורא — אינך מעביר אותו.
 
 ---
 

@@ -102,6 +102,7 @@ const Set<String> _knownApiMethods = {
   'database.batchQuery',
   'network.fetch',
   'network.download',
+  'shortcut.create',
 };
 
 /// APIs קיימות בתוספים אך אינן מתועדות פומבית — לא נאזהיר עליהן.
@@ -194,6 +195,7 @@ const Map<String, String> _methodRequiredPermission = {
   'database.batchQuery': 'database.read',
   'network.fetch': 'network.access',
   'network.download': 'network.access',
+  'shortcut.create': 'ui.create_shortcut',
 };
 
 /// שדות שמורים שאינם API methods (כדי שלא ייתפסו ב-shorthand scanner).

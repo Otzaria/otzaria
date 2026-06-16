@@ -389,6 +389,29 @@ export interface DatabaseBatchQueryResult {
   results: DatabaseQueryResult[];
 }
 
+/** Where a `shortcut.create` deep-link shortcut is placed. `startMenu` is Windows-only. */
+export type ShortcutLocation = 'desktop' | 'startMenu';
+
+/**
+ * Arguments for `shortcut.create`. The shortcut always opens the calling plugin
+ * (`otzaria://open/plugin/<id>`); the host builds the deep-link itself, so the
+ * plugin only supplies a display name and an optional location.
+ */
+export interface ShortcutCreateArgs {
+  /** Display name and file name of the shortcut. */
+  label: string;
+  /** Target location. Defaults to `'desktop'`. */
+  location?: ShortcutLocation;
+}
+
+/** Result of `shortcut.create`. */
+export interface ShortcutCreateResult {
+  /** `false` when the user declined the confirmation dialog. */
+  created: boolean;
+  /** Absolute path of the created shortcut file (present only when `created` is `true`). */
+  path?: string;
+}
+
 export type OtzariaMethod =
   | 'app.getInfo'
   | 'app.getTheme'
@@ -449,6 +472,7 @@ export type OtzariaMethod =
   | 'database.batchQuery'
   | 'network.fetch'
   | 'network.download'
+  | 'shortcut.create'
   | 'reader.addContextMenuItem'
   | 'reader.removeContextMenuItem'
   | 'reader.setHighlight'

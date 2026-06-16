@@ -231,6 +231,8 @@ class PluginBridgeHandler {
         // דרך ui.pickFolder (הדורשת ui.feedback). הסכמת המשתמש בדיאלוג היא
         // גבול האבטחה, לא הצהרת הרשאה.
         return null;
+      case 'shortcut':
+        return 'ui.create_shortcut';
       default:
         return null;
     }

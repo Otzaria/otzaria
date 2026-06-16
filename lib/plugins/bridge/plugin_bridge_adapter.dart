@@ -46,6 +46,7 @@ import 'package:otzaria/plugins/models/plugin_network_allowlist.dart';
 import 'package:otzaria/plugins/services/plugin_network_access_resolver.dart';
 import 'package:otzaria/plugins/services/plugin_file_download_service.dart';
 import 'package:otzaria/plugins/services/plugin_fs_service.dart';
+import 'package:otzaria/plugins/services/plugin_shortcut_service.dart';
 import 'package:otzaria/plugins/services/plugin_path_safety.dart';
 import 'package:otzaria/plugins/services/plugin_network_fetch_service.dart';
 
@@ -264,13 +265,15 @@ class PluginBridgeAdapter {
     PluginNetworkFetchService? networkFetchService,
     PluginFileDownloadService? fileDownloadService,
     PluginFsService? fsService,
+    PluginShortcutService? shortcutService,
   })  : _dependencies = dependencies,
         _pluginRepo = pluginRepository ?? PluginRegistryRepository(),
         _notificationService = notificationService ?? NotificationService(),
         _databaseService = databaseService ?? PluginDatabaseService(),
         _networkFetchService = networkFetchService,
         _fileDownloadService = fileDownloadService,
-        _pluginFsService = fsService;
+        _pluginFsService = fsService,
+        _pluginShortcutService = shortcutService;
 
   // שירות הורדת קבצים — מופע יחיד לכל adapter, נוצר עם השימוש הראשון
   // ומשוחרר ב-dispose (אחרת כל הורדה תדליף client ורישום ב-registry).
@@ -282,6 +285,11 @@ class PluginBridgeAdapter {
   // נוצר עם השימוש הראשון. אינו מחזיק משאבים ולכן אינו דורש שחרור ב-dispose.
   PluginFsService? _pluginFsService;
   PluginFsService get _fsService => _pluginFsService ??= PluginFsService();
+
+  // שירות יצירת קיצורי דרך (shortcut.create) — מופע יחיד לכל adapter.
+  PluginShortcutService? _pluginShortcutService;
+  PluginShortcutService get _shortcutService =>
+      _pluginShortcutService ??= const PluginShortcutService();
 
   /// תיקיות שהמשתמש בחר במפורש דרך `ui.pickFolder` עבור התוסף בריצה זו.
   ///
@@ -389,6 +397,8 @@ class PluginBridgeAdapter {
         return await _handleNetwork(action, args);
       case 'fs':
         return await _handleFs(action, args);
+      case 'shortcut':
+        return await _handleShortcut(action, args);
       case 'plugin':
         return await _handlePlugin(action, args);
       default:
@@ -965,6 +975,63 @@ class PluginBridgeAdapter {
         return true;
       default:
         throw Exception('Unknown action in fs: $action');
+    }
+  }
+
+  // ----------------------------------------------------------------
+  // shortcut.*
+  // ----------------------------------------------------------------
+  Future<dynamic> _handleShortcut(
+      String action, Map<String, dynamic> args) async {
+    switch (action) {
+      case 'create':
+        final granted = await _pluginRepo.getPermission(
+            plugin.pluginId, 'ui.create_shortcut');
+        if (granted != true) {
+          throw Exception(
+              'error.permission_denied: ui.create_shortcut required');
+        }
+
+        final label = (args['label'] as String?)?.trim();
+        if (label == null || label.isEmpty) {
+          throw Exception('error.invalid_params: label required');
+        }
+
+        final locationRaw =
+            (args['location'] as String?)?.trim().toLowerCase() ?? 'desktop';
+        final ShortcutLocation location;
+        switch (locationRaw) {
+          case 'desktop':
+            location = ShortcutLocation.desktop;
+          case 'startmenu':
+            location = ShortcutLocation.startMenu;
+          default:
+            throw Exception(
+                'error.invalid_params: location must be "desktop" or "startMenu"');
+        }
+
+        final placeLabel = location == ShortcutLocation.startMenu
+            ? 'תפריט ההתחל'
+            : 'שולחן העבודה';
+        final confirmed = await _dependencies.showConfirmDialog(
+          title: 'יצירת קיצור דרך',
+          content:
+              'התוסף "${plugin.name}" מבקש ליצור קיצור דרך בשם "$label" ב$placeLabel.',
+        );
+        if (!confirmed) {
+          return {'created': false};
+        }
+
+        // ה-deep-link נבנה תמיד בצד ה-host — קיצור לתוסף הנוכחי בלבד, כך
+        // שתוסף אינו יכול לייצר קיצור שמפנה ל-route אחר או לסכמה זרה.
+        final path = await _shortcutService.createShortcut(
+          deepLink: 'otzaria://open/plugin/${plugin.pluginId}',
+          label: label,
+          location: location,
+        );
+        return {'created': true, 'path': path};
+      default:
+        throw Exception('Unknown action in shortcut: $action');
     }
   }
 
