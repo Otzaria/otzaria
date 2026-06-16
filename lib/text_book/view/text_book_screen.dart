@@ -1399,30 +1399,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     TextBookLoaded state,
     bool wideScreen,
   ) {
-    final screenWidth = MediaQuery.of(context).size.width;
-
-    // נקבע כמה כפתורים להציג בהתאם לרוחב המסך
-    // שים לב: הכפתורים יוסתרו בסדר ההצגה (מימין לשמאל, כך שהימני ביותר יעלם אחרון)
-    int maxButtons;
-
-    if (screenWidth < 400) {
-      maxButtons = 2; // 2 כפתורים + "..." במסכים קטנים מאוד
-    } else if (screenWidth < 500) {
-      maxButtons = 4; // 4 כפתורים + "..." במסכים קטנים
-    } else if (screenWidth < 600) {
-      maxButtons = 6; // 6 כפתורים + "..." במסכים בינוניים קטנים
-    } else if (screenWidth < 700) {
-      maxButtons = 8; // 8 כפתורים + "..." במסכים בינוניים
-    } else if (screenWidth < 800) {
-      maxButtons = 10; // 10 כפתורים + "..." במסכים בינוניים גדולים
-    } else if (screenWidth < 900) {
-      maxButtons = 12; // 12 כפתורים + "..." במסכים גדולים
-    } else if (screenWidth < 1100) {
-      maxButtons = 14; // 14 כפתורים + "..." במסכים גדולים יותר
-    } else {
-      maxButtons =
-          999; // כל הכפתורים החיצוניים במסכים רחבים מאוד (ה-5 הקבועים תמיד בתפריט)
-    }
+    final maxButtons =
+        maxToolbarButtonsForWidth(MediaQuery.of(context).size.width);
 
     return [
       Consumer<ShamorZachorDataProvider>(

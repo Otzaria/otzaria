@@ -4,6 +4,20 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 
+/// מחשב כמה כפתורי פעולה ניתן להציג בסרגל הקריאה לפי רוחב המסך.
+///
+/// מנכה את הרוחב הקבוע של אזור המרכז (כפתורי הניווט + כותרת) והכפתור המוביל,
+/// כי ה-AppTopBar מקצה להם את גודלם הטבעי לפני ה-actions. בלי הניכוי הכפתורים
+/// היו גולשים במסכים צרים.
+int maxToolbarButtonsForWidth(double screenWidth) {
+  // center (4 כפתורי ניווט ~168 + כותרת) + leading + ריווחים ≈ 260px קבועים
+  const reservedWidth = 260.0;
+  const buttonWidth = 44.0; // כפתור ~40 + ריווח
+  final available = screenWidth - reservedWidth;
+  if (available <= 0) return 0;
+  return (available / buttonWidth).floor().clamp(0, 999);
+}
+
 /// רכיב שמציג כפתורי פעולה עם יכולת הסתרה במסכים צרים
 /// כשחלק מהכפתורים נסתרים, מוצג כפתור "..." שפותח תפריט
 ///
