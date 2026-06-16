@@ -499,6 +499,7 @@ class IndexingRepository {
       topics: book.topics,
       externalLibraryId: book.externalLibraryId,
       bookId: book.id,
+      isUserBook: book.isUserBook,
       categoryPath: book.category?.path ?? book.categoryPath,
       fileType: book.fileType,
       filePath: book is FileBook ? book.path : book.filePath,
@@ -577,7 +578,9 @@ class IndexingRepository {
     }
 
     if (book.id != null) {
-      return 'id:${book.id}';
+      // id טבעי חופף בין seforim.db ל-user_books.db — בלי תיוג המקור
+      // ספר אישי 'id:5' מתנגש בספר רשמי 'id:5' ומדולג באינדוקס.
+      return book.isUserBook ? 'uid:${book.id}' : 'id:${book.id}';
     }
 
     final categoryKey = book.category?.path ?? book.categoryPath ?? '';

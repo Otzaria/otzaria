@@ -87,6 +87,25 @@ void main() {
       expect(facetPath, '/תנ"ך/תורה/id:1');
     });
 
+    test('ספר אישי עם אותו id מקבל מפתח uid נפרד מספר רשמי', () {
+      final official = BookFacet.buildFacetPath(
+        title: 'שבת',
+        topics: '',
+        bookId: 5,
+        categoryPath: '/תלמוד בבלי',
+      );
+      final userBook = BookFacet.buildFacetPath(
+        title: 'הערות',
+        topics: '',
+        bookId: 5,
+        isUserBook: true,
+        categoryPath: '/ספרים אישיים',
+      );
+
+      expect(official, '/תלמוד בבלי/id:5');
+      expect(userBook, '/ספרים אישיים/uid:5');
+    });
+
     test('מנרמל categoryPath בפורמט פסיקים לנתיב facet עם לוכסנים', () {
       final facetPath = BookFacet.buildFacetPath(
         title: 'בראשית',

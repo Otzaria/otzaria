@@ -234,6 +234,15 @@ void main() {
         isNot(IndexingRepository.catalogueOrderKey(second)),
       );
     });
+
+    test('מבדיל בין ספר רשמי לספר אישי עם אותו id (חפיפת AUTOINCREMENT)', () {
+      // id טבעי זהה בשני ה-DB — בלי תיוג המקור הספר האישי מדולג באינדוקס.
+      final official = TextBook(id: 5, title: 'שבת');
+      final userBook = TextBook(id: 5, title: 'הערות אישיות', isUserBook: true);
+
+      expect(IndexingRepository.catalogueOrderKey(official), 'id:5');
+      expect(IndexingRepository.catalogueOrderKey(userBook), 'uid:5');
+    });
   });
 
   group('IndexingRepository.buildIndexedBookFilePath', () {

@@ -32,6 +32,7 @@ class BookFacet {
       required String topics,
       String? externalLibraryId,
       int? bookId,
+      bool isUserBook = false,
       String? categoryPath,
       String? fileType,
       String? filePath}) {
@@ -45,7 +46,8 @@ class BookFacet {
     if (externalLibraryId != null && externalLibraryId.isNotEmpty) {
       bookKey = 'ext:$externalLibraryId';
     } else if (bookId != null) {
-      bookKey = 'id:$bookId';
+      // id טבעי חופף בין שני ה-DB — ראה IndexingRepository.catalogueOrderKey.
+      bookKey = isUserBook ? 'uid:$bookId' : 'id:$bookId';
     } else {
       final categoryKey = categoryPath ?? '';
       final fileTypeKey = fileType ?? '';
