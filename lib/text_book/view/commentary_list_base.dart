@@ -690,6 +690,34 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
     }
   }
 
+  /// גולל כדי שתוכן מפרש שזה עתה נפתח ייכנס לתצוגה, רק אם הוא חורג מתחתיתה.
+  /// גולל את המינימום הנדרש; אם התוכן ארוך מהתצוגה מביא את הכותרת לראש.
+  void _ensureExpandedGroupVisible(int groupIndex) {
+    if (!_itemScrollController.isAttached) return;
+    ItemPosition? pos;
+    for (final p in _itemPositionsListener.itemPositions.value) {
+      if (p.index == groupIndex) {
+        pos = p;
+        break;
+      }
+    }
+    // התוכן כבר נכנס במלואו, או שהכותרת כבר בראש – אין צורך לגלול
+    if (pos == null ||
+        pos.itemTrailingEdge <= 1.0 ||
+        pos.itemLeadingEdge <= 0.05) {
+      return;
+    }
+    final double overflow = pos.itemTrailingEdge - 1.0;
+    final double targetLeading =
+        (pos.itemLeadingEdge - overflow).clamp(0.05, pos.itemLeadingEdge);
+    _itemScrollController.scrollTo(
+      index: groupIndex,
+      alignment: targetLeading,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
+  }
+
   void _openCommentatorsFilter() {
     setState(() {
       _showCommentatorsFilter = true;
@@ -1008,6 +1036,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
     required CommentaryGroup group,
     required TextBookLoaded state,
     required String indexesKey,
+    required int groupIndex,
   }) {
     final groupKey = group.bookTitle;
 
@@ -1044,10 +1073,12 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
         _expansionStates[groupKey] = expanded;
         // בודק אם כל המפרשים פתוחים או סגורים ומעדכן את המצב הגלובלי
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            setState(() {
-              _updateGlobalExpansionState();
-            });
+          if (!mounted) return;
+          setState(() {
+            _updateGlobalExpansionState();
+          });
+          if (expanded) {
+            _ensureExpandedGroupVisible(groupIndex);
           }
         });
       },
@@ -1449,7 +1480,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                                 initialScrollIndex: _lastScrollIndex.clamp(
                                     0, groups.length - 1),
                                 key: PageStorageKey(
-                                    'commentary_${selectedCommentators.join(',')}_$_allExpanded'),
+                                    'commentary_${selectedCommentators.join(',')}'),
                                 physics: const ClampingScrollPhysics(),
                                 scrollOffsetController: scrollController,
                                 shrinkWrap: widget.shrinkWrap,
@@ -1460,6 +1491,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                                     group: group,
                                     state: state,
                                     indexesKey: indexesKey,
+                                    groupIndex: groupIndex,
                                   );
                                 },
                               );
