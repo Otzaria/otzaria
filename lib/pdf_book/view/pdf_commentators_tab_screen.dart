@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
@@ -57,6 +58,10 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
   int _selectedHeadingIdx = 0;
   int _selectedParagraphIdx = 0;
   List<String>? _textLines;
+
+  // ריבוי-בחירה ב'ניווט' (Ctrl+לחיצה): מספרי שורות נוספים להצגת מפרשים מעבר
+  // לטווח הראשי. ריק = בחירה יחידה רגילה. מתאפס בכל ניווט רגיל.
+  final Set<int> _extraLines = <int>{};
 
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
@@ -156,6 +161,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
     setState(() {
       _selectedHeadingIdx = nextSelectedHeadingIdx;
       _selectedParagraphIdx = _kAllPara;
+      _extraLines.clear();
     });
   }
 
@@ -188,6 +194,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
       _selectedHeadingIdx--;
       _selectedParagraphIdx = _kAllPara;
       _expandedHeadings.add(_selectedHeadingIdx);
+      _extraLines.clear();
     });
   }
 
@@ -203,6 +210,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
       _selectedHeadingIdx++;
       _selectedParagraphIdx = _kAllPara;
       _expandedHeadings.add(_selectedHeadingIdx);
+      _extraLines.clear();
     });
   }
 
@@ -423,6 +431,46 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
     return (start: start, end: end);
   }
 
+  /// Ctrl (או Cmd ב-macOS) לחוץ כרגע — לזיהוי ריבוי-בחירה בלחיצת ניווט.
+  bool _isCtrlPressed() =>
+      HardwareKeyboard.instance.isControlPressed ||
+      HardwareKeyboard.instance.isMetaPressed;
+
+  /// מספרי השורות של טווח כותרת/פסקה (מוגבל למניעת קבוצות ענק).
+  List<int> _linesForNavItem(int headingIdx, int paraIdx) {
+    final paras = _getParagraphs(headingIdx);
+    final safe = paraIdx == _kAllPara || paras.isEmpty
+        ? _kAllPara
+        : paraIdx.clamp(0, paras.length - 1);
+    final range = _getLineRangeForPara(headingIdx, paras, safe);
+    if (range.end < range.start || range.end - range.start > 3000) {
+      return [range.start];
+    }
+    return [for (int l = range.start; l <= range.end; l++) l];
+  }
+
+  /// Ctrl+לחיצה על פריט ניווט: מוסיף/מסיר את שורותיו מריבוי-הבחירה (toggle).
+  void _ctrlToggleNavItem(int headingIdx, int paraIdx) {
+    final lines = _linesForNavItem(headingIdx, paraIdx);
+    if (lines.isEmpty) return;
+    setState(() {
+      if (lines.every(_extraLines.contains)) {
+        _extraLines.removeAll(lines);
+      } else {
+        // שמירת הטווח הראשי הנוכחי כחלק מהאיחוד לפני הוספת הקטע החדש.
+        _extraLines.addAll(
+            _linesForNavItem(_selectedHeadingIdx, _selectedParagraphIdx));
+        _extraLines.addAll(lines);
+      }
+    });
+  }
+
+  /// האם שורות פריט הניווט נמצאות בריבוי-הבחירה (להדגשה).
+  bool _isNavItemInMulti(int headingIdx, int paraIdx) {
+    if (_extraLines.isEmpty) return false;
+    return _linesForNavItem(headingIdx, paraIdx).any(_extraLines.contains);
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context); // נדרש ע"י AutomaticKeepAliveClientMixin
@@ -462,6 +510,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
                     onSelectCommentatorsRequested: _openCommentatorsTab,
                     lineStartOverride: range.start,
                     lineEndOverride: range.end,
+                    extraLineIndices: _extraLines.isEmpty ? null : _extraLines,
                     removeNikud: _removeNikud,
                     removePunctuation: _removePunctuation,
                     openBookCallback: (tab) {
@@ -498,6 +547,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
 
   void _navigateToPrevParagraph() {
     if (!_isNavigationReady) return;
+    _extraLines.clear();
     final paragraphs = _getParagraphs(_selectedHeadingIdx);
     if (_selectedParagraphIdx > 0 && paragraphs.isNotEmpty) {
       setState(() => _selectedParagraphIdx--);
@@ -520,6 +570,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
 
   void _navigateToNextParagraph() {
     if (!_isNavigationReady) return;
+    _extraLines.clear();
     final paragraphs = _getParagraphs(_selectedHeadingIdx);
     // מ"כל הכותרת" (-1) → פסקה ראשונה (0); אחרת לפסקה הבאה
     if (_selectedParagraphIdx + 1 < paragraphs.length) {
@@ -953,18 +1004,24 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
                   final headingRow = _buildHeadingRow(
                     context: context,
                     headingText: headings[idx].key,
-                    // מודגש רק כשנבחרה "כל הכותרת" (לא פסקה ספציפית)
-                    isSelected:
-                        isActiveHeading && _selectedParagraphIdx == _kAllPara,
+                    // מודגש כשנבחרה "כל הכותרת", או כשהיא בריבוי-הבחירה.
+                    isSelected: (isActiveHeading &&
+                            _selectedParagraphIdx == _kAllPara) ||
+                        _isNavItemInMulti(idx, _kAllPara),
                     isExpanded: isExpanded,
                     hasChildren: paras.isNotEmpty,
                     // לחיצה על גוף הכותרת = בחירת כל הכותרת (כל המפרשים) + הרחבה
                     onTap: () {
+                      if (_isCtrlPressed()) {
+                        _ctrlToggleNavItem(idx, _kAllPara);
+                        return;
+                      }
                       setState(() {
                         _selectedHeadingIdx = idx;
                         _selectedParagraphIdx = _kAllPara;
                         if (paras.isNotEmpty) _expandedHeadings.add(idx);
                         _searchController.clear();
+                        _extraLines.clear();
                       });
                     },
                     // לחיצה על החץ = הרחבה/כיווץ בלבד, בלי לשנות את הבחירה
@@ -997,16 +1054,22 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
                             .take(4)
                             .join(' ');
                         final isParaSelected =
-                            isActiveHeading && _selectedParagraphIdx == pi;
+                            (isActiveHeading && _selectedParagraphIdx == pi) ||
+                                _isNavItemInMulti(idx, pi);
                         return _buildParagraphRow(
                           context: context,
                           text: words,
                           isSelected: isParaSelected,
                           onTap: () {
+                            if (_isCtrlPressed()) {
+                              _ctrlToggleNavItem(idx, pi);
+                              return;
+                            }
                             setState(() {
                               _selectedHeadingIdx = idx;
                               _selectedParagraphIdx = pi;
                               _searchController.clear();
+                              _extraLines.clear();
                             });
                           },
                         );

@@ -40,6 +40,19 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 /// Type alias לתאימות - משתמש ב-LinkGroup מה-Service
 typedef CommentaryGroup = LinkGroup;
 
+/// האם קישור (לפי [linkIndex1]) בתחום המוצג: בטווח הראשי [startLine]–[endLine]
+/// או באחת השורות הנוספות של ריבוי-הבחירה ([extraLineIndices], Ctrl+לחיצה).
+@visibleForTesting
+bool pdfLinkInVisibleScope(
+  int linkIndex1,
+  int startLine,
+  int endLine,
+  Set<int>? extraLineIndices,
+) {
+  if (linkIndex1 >= startLine && linkIndex1 <= endLine) return true;
+  return extraLineIndices?.contains(linkIndex1) ?? false;
+}
+
 /// מקבץ רשימת קישורים לקבוצות לפי שם הספר (רק קטעים רצופים)
 /// משתמש ב-CommentaryService
 List<CommentaryGroup> _groupConsecutiveLinks(List<Link> links) {
@@ -74,6 +87,10 @@ class PdfCommentaryPanel extends StatefulWidget {
   final int? lineStartOverride;
   final int? lineEndOverride;
 
+  /// שורות נוספות (לא רצופות) להצגת מפרשים — ריבוי-בחירה ב'ניווט' (Ctrl+לחיצה).
+  /// כשמסופק, קישור נכלל אם הוא בטווח הראשי או ש-index1 שלו נמצא בקבוצה זו.
+  final Set<int>? extraLineIndices;
+
   /// חיפוש חיצוני — כשמסופק, מסתיר שורת חיפוש פנימית
   final TextEditingController? externalSearchController;
   final ValueNotifier<int>? externalTotalResultsNotifier;
@@ -103,6 +120,7 @@ class PdfCommentaryPanel extends StatefulWidget {
     this.onSelectCommentatorsRequested,
     this.lineStartOverride,
     this.lineEndOverride,
+    this.extraLineIndices,
     this.externalSearchController,
     this.externalTotalResultsNotifier,
     this.externalCurrentIndexNotifier,
@@ -1365,8 +1383,11 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     final range = _getCurrentRange(currentLine);
     final commentatorsKey =
         (widget.tab.activeCommentators.toList()..sort()).join('|');
+    final extraKey = widget.extraLineIndices == null
+        ? ''
+        : (widget.extraLineIndices!.toList()..sort()).join(',');
     final cacheKey =
-        '${range.startLine}:${range.endLine}:$commentatorsKey:${widget.tab.links.length}';
+        '${range.startLine}:${range.endLine}:$extraKey:$commentatorsKey:${widget.tab.links.length}';
 
     final existingCache = _visibleContentCache;
     if (existingCache != null && existingCache.cacheKey == cacheKey) {
@@ -1383,11 +1404,10 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     final showAllWhenEmpty =
         !widget.enableInternalFilter && widget.tab.activeCommentators.isEmpty;
 
+    final extraLines = widget.extraLineIndices;
     for (final link in widget.tab.links) {
-      if (link.index1 < range.startLine) {
-        continue;
-      }
-      if (link.index1 > range.endLine) {
+      if (!pdfLinkInVisibleScope(
+          link.index1, range.startLine, range.endLine, extraLines)) {
         continue;
       }
 

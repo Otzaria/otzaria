@@ -455,8 +455,8 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
 
     final selectedCommentators = _selectedCommentators(blocState);
     final rawIndexes = widget.indexes ??
-        (blocState.selectedIndex != null
-            ? [blocState.selectedIndex!]
+        (blocState.selectedIndices.isNotEmpty
+            ? blocState.selectedIndices.toList()
             : blocState.visibleIndices);
     final indexes = rawIndexes.isNotEmpty
         ? rawIndexes
@@ -1147,6 +1147,7 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
               previous.links != current.links || // השוואת רפרנס לביצועים
               !listEquals(previous.visibleIndices, current.visibleIndices) ||
               previous.selectedIndex != current.selectedIndex ||
+              !setEquals(previous.selectedIndices, current.selectedIndices) ||
               previous.fontSize != current.fontSize ||
               previous.removeNikud != current.removeNikud ||
               previous.removePunctuation != current.removePunctuation;
@@ -1214,10 +1215,11 @@ class CommentaryListBaseState extends State<CommentaryListBase> {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                // בודק מראש אם יש קישורים רלוונטיים לאינדקסים הנוכחיים
+                // בודק מראש אם יש קישורים רלוונטיים לאינדקסים הנוכחיים.
+                // ריבוי-בחירה: כל הקטעים שנבחרו (Ctrl+לחיצה), לא רק העוגן.
                 final currentIndexesRaw = widget.indexes ??
-                    (state.selectedIndex != null
-                        ? [state.selectedIndex!]
+                    (state.selectedIndices.isNotEmpty
+                        ? state.selectedIndices.toList()
                         : state.visibleIndices);
 
                 // בהפעלה מחדש/מצבים נדירים יכול להגיע לכאן עם רשימת אינדקסים ריקה,

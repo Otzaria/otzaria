@@ -93,7 +93,7 @@ void main() {
       final visible = computeVisibleLinks(
         links: links,
         visibleIndices: [0],
-        selectedIndex: null,
+        selectedIndices: const {},
         linksByLine: buildLinksByLineMap(links),
       );
 
@@ -107,26 +107,45 @@ void main() {
       final visible = computeVisibleLinks(
         links: links,
         visibleIndices: [2],
-        selectedIndex: null,
+        selectedIndices: const {},
         linksByLine: buildLinksByLineMap(links),
       );
 
       expect(visible, hasLength(1));
     });
 
-    test('selectedIndex גובר על visibleIndices', () {
+    test('selectedIndices גובר על visibleIndices', () {
       final links = [makeLink(index1: 1), makeLink(index1: 5)];
       final byLine = buildLinksByLineMap(links);
 
       final visible = computeVisibleLinks(
         links: links,
         visibleIndices: [0],
-        selectedIndex: 4,
+        selectedIndices: const {4},
         linksByLine: byLine,
       );
 
       expect(visible, hasLength(1));
       expect(visible.first.index1, 5);
+    });
+
+    test('ריבוי קטעים נבחרים מאחד קישורים מכל הקטעים', () {
+      final links = [
+        makeLink(index1: 1),
+        makeLink(index1: 5, index2: 2),
+        makeLink(index1: 9, index2: 3),
+      ];
+      final byLine = buildLinksByLineMap(links);
+
+      final visible = computeVisibleLinks(
+        links: links,
+        visibleIndices: const [],
+        selectedIndices: const {0, 4},
+        linksByLine: byLine,
+      );
+
+      // index1 הוא 1-based: הקטעים 0 ו-4 ממופים לשורות 1 ו-5 (9 לא נבחר).
+      expect(visible.map((l) => l.index1).toSet(), {1, 5});
     });
 
     test('התוצאה ממוינת לפי שם הספר מהנתיב', () {
@@ -138,7 +157,7 @@ void main() {
       final visible = computeVisibleLinks(
         links: links,
         visibleIndices: [0],
-        selectedIndex: null,
+        selectedIndices: const {},
         linksByLine: buildLinksByLineMap(links),
       );
 
@@ -154,7 +173,7 @@ void main() {
         incomingLinks: [makeLink(index1: 2)],
         replaceExisting: false,
         visibleIndices: [0, 1],
-        selectedIndex: null,
+        selectedIndices: const {},
       );
 
       expect(result.links, hasLength(2));
@@ -168,7 +187,7 @@ void main() {
         incomingLinks: [makeLink(index1: 2)],
         replaceExisting: true,
         visibleIndices: [0, 1],
-        selectedIndex: null,
+        selectedIndices: const {},
       );
 
       expect(result.links, hasLength(1));
@@ -185,7 +204,7 @@ void main() {
         incomingLinks: incoming,
         replaceExisting: false,
         visibleIndices: [0],
-        selectedIndex: null,
+        selectedIndices: const {},
       );
 
       expect(result.links, hasLength(300));
