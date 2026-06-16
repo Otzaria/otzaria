@@ -40,10 +40,11 @@ TextBookLoaded _loadedState({
   required List<TocEntry> toc,
   required List<int> visibleIndices,
   int? selectedIndex,
+  bool showLeftPane = true,
 }) {
   return TextBookLoaded(
     book: TextBook(title: 'ספר בדיקה'),
-    showLeftPane: true,
+    showLeftPane: showLeftPane,
     content: const ['שורה א', 'שורה ב', 'שורה ג'],
     fontSize: 18,
     showSplitView: false,
@@ -268,6 +269,56 @@ void main() {
     expect(find.text('first'), findsOneWidget);
     expect(find.text('second'), findsOneWidget);
     expect(find.text('third'), findsOneWidget);
+  });
+
+  testWidgets('פתיחת הפאנל (showLeftPane false→true) גוללת למיקום הפעיל',
+      (tester) async {
+    // TOC ארוך שגולש מהמסך, עם פריט פעיל רחוק. כשהפאנל סגור אסור לגלול
+    // (גלילה ברוחב 0 הייתה משבשת את ה-guard), וברגע הפתיחה יש לגלול אליו.
+    final toc =
+        List.generate(50, (i) => TocEntry(text: 'פרק $i', index: i, level: 1));
+
+    final closed = _loadedState(
+      toc: toc,
+      visibleIndices: const [45],
+      selectedIndex: 45,
+      showLeftPane: false,
+    );
+
+    final bloc = _TestTextBookBloc(closed);
+    addTearDown(bloc.close);
+    final focusNode = FocusNode();
+    addTearDown(focusNode.dispose);
+
+    await tester.pumpWidget(_wrap(
+      TocViewer(
+        scrollController: ItemScrollController(),
+        closeLeftPaneCallback: () {},
+        focusNode: focusNode,
+      ),
+      bloc,
+    ));
+    await tester.pumpAndSettle();
+
+    double tocOffset() => tester
+        .widget<SingleChildScrollView>(find.byType(SingleChildScrollView))
+        .controller!
+        .offset;
+
+    // פאנל סגור → אין גלילה.
+    expect(tocOffset(), 0);
+
+    // פתיחת הפאנל → גלילה למיקום הפעיל. הגלילה משתמשת בשני
+    // addPostFrameCallback מקוננים שלא מבקשים frame בעצמם, ולכן יש
+    // לאלץ frames כדי שהשני ירוץ ושהאנימציה תושלם.
+    bloc.emitState(closed.copyWith(showLeftPane: true));
+    await tester.pump();
+    for (var i = 0; i < 4; i++) {
+      tester.binding.scheduleFrame();
+      await tester.pump(const Duration(milliseconds: 150));
+    }
+
+    expect(tocOffset(), greaterThan(0));
   });
 
   testWidgets('emit חוזר עם אותו state לא קורס ולא משכפל פריטים',

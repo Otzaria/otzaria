@@ -56,6 +56,18 @@ class _TocViewerState extends State<TocViewer>
       ItemPositionsListener.create();
 
   @override
+  void initState() {
+    super.initState();
+    // הפאנל בונה את TocViewer רק כשהוא נפתח, כלומר showLeftPane כבר true
+    // וה-BlocListener לא יירה על ה-state ההתחלתי. גלילה ראשונית למיקום הפעיל.
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final state = context.read<TextBookBloc>().state;
+      if (state is TextBookLoaded) _scrollToActiveItem(state);
+    });
+  }
+
+  @override
   void dispose() {
     _tocScrollController.dispose();
     searchController.dispose();
@@ -89,6 +101,9 @@ class _TocViewerState extends State<TocViewer>
 
   void _scrollToActiveItem(TextBookLoaded state) {
     if (_isManuallyScrolling) return;
+    // כשהפאנל סגור הגלילה נכשלת (רוחב 0) אך משבשת את _lastScrolledTocIndex
+    // ואז חוסמת את הגלילה האמיתית בפתיחה הבאה.
+    if (!state.showLeftPane) return;
 
     final int? activeIndex = state.selectedIndex ??
         (state.visibleIndices.isNotEmpty
@@ -453,7 +468,8 @@ class _TocViewerState extends State<TocViewer>
             : -1;
 
         return previous.selectedIndex != current.selectedIndex ||
-            prevVisibleIndex != currVisibleIndex;
+            prevVisibleIndex != currVisibleIndex ||
+            previous.showLeftPane != current.showLeftPane;
       },
       listener: (context, state) {
         if (state is TextBookLoaded) {

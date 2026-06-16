@@ -22,12 +22,17 @@ class OutlineView extends StatefulWidget {
     required this.outline,
     required this.controller,
     required this.focusNode,
+    this.isPaneOpen = true,
     this.onNavigateToPage,
   });
 
   final List<PdfOutlineNode>? outline;
   final PdfViewerController controller;
   final FocusNode focusNode;
+
+  /// האם הפאנל הצדדי פתוח. כשהוא סגור אין לגלול (הגלילה נכשלת ומשבשת
+  /// את ה-guard), וברגע הפתיחה יש לגלול למיקום הנוכחי.
+  final bool isPaneOpen;
   final Future<void> Function(int pageNumber)? onNavigateToPage;
 
   @override
@@ -52,6 +57,11 @@ class _OutlineViewState extends State<OutlineView>
   void initState() {
     super.initState();
     widget.controller.addListener(_onControllerChanged);
+    // ה-listener נורה רק על שינוי ב-controller; אם הוא כבר מוכן בעת
+    // פתיחת הפאנל, יש לגלול ראשונית למיקום הנוכחי.
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _scrollToActiveItem();
+    });
   }
 
   @override
@@ -60,6 +70,12 @@ class _OutlineViewState extends State<OutlineView>
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller.removeListener(_onControllerChanged);
       widget.controller.addListener(_onControllerChanged);
+    }
+    // מעבר הפאנל מסגור לפתוח: גלילה מחדש למיקום הנוכחי. ה-guard
+    // עלול לחסום אחרת אם נשבש ברקע בזמן שהפאנל היה סגור.
+    if (!oldWidget.isPaneOpen && widget.isPaneOpen) {
+      _lastScrolledPage = null;
+      _scrollToActiveItem();
     }
   }
 
@@ -128,7 +144,8 @@ class _OutlineViewState extends State<OutlineView>
   }
 
   void _scrollToActiveItem() {
-    if (_isManuallyScrolling || !widget.controller.isReady) return;
+    if (_isManuallyScrolling || !widget.isPaneOpen) return;
+    if (!widget.controller.isReady) return;
 
     final currentPage = widget.controller.pageNumber;
     if (currentPage == _lastScrolledPage) return;

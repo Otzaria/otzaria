@@ -33,6 +33,7 @@ import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/search/utils/snippet_builder.dart';
 import 'package:otzaria/widgets/navigation/reader_nav_center.dart';
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 const _kAllChapter = -1;
 
@@ -242,6 +243,11 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
     return idxs.any(_extraIndexes.contains);
   }
 
+  // גלילת רשימת הניווט לפרק הנבחר בעת פתיחת הפאנל/מעבר ללשונית הניווט.
+  final ItemScrollController _navScrollController = ItemScrollController();
+  // ה-items האחרונים שנבנו ברשימת הניווט, לאיתור מיקום הפרק הנבחר.
+  List<_TocListItem> _navItems = const [];
+
   final _commentaryKey = GlobalKey<CommentaryListBaseState>();
   // מצב פתיחה/כיווץ של כל המפרשים, מסונכרן עם CommentaryListBase
   final _allExpandedInChild = ValueNotifier<bool>(true);
@@ -276,6 +282,9 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) _searchFocusNode.requestFocus();
         });
+      } else if (_navTabController.index == 0) {
+        // לשונית הניווט: גלילה לפרק הנבחר.
+        _scrollNavToSelectedChapter();
       }
     });
     // בקשות לפתיחת בחירת מפרשים מ-CommentaryListBase מועברות ישירות אל
@@ -483,6 +492,25 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
 
     _initialChapterResolved = true;
     _onChapterSelected(pos.chapter!, chapters);
+  }
+
+  /// גוללת את רשימת הניווט לפרק הנבחר. נקראת בעת פתיחת הפאנל ומעבר
+  /// ללשונית הניווט, שכן אין מי שיגרום לכך אחרת.
+  void _scrollNavToSelectedChapter() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_navScrollController.isAttached) return;
+      final chapter = _selectedChapter;
+      if (chapter == null) return;
+      final idx =
+          _navItems.indexWhere((it) => it.isChapter && it.chapter == chapter);
+      if (idx < 0) return;
+      _navScrollController.scrollTo(
+        index: idx,
+        alignment: 0.4,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    });
   }
 
   @override
@@ -904,7 +932,12 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
             tooltip: 'ניווט',
             icon: FluentIcons.navigation_24_regular,
             compact: context.read<SettingsBloc>().state.compactMenuMode,
-            onPressed: () => setState(() => _navPaneOpen = !_navPaneOpen),
+            onPressed: () {
+              setState(() => _navPaneOpen = !_navPaneOpen);
+              if (_navPaneOpen && _navTabController.index == 0) {
+                _scrollNavToSelectedChapter();
+              }
+            },
           ),
         ),
       ],
@@ -1445,7 +1478,9 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
                   : chapters.where((ch) => ch.text.contains(query)).toList();
               final items =
                   _buildVisibleTocItems(filteredChapters, chapters, content);
-              return ListView.builder(
+              _navItems = items;
+              return ScrollablePositionedList.builder(
+                itemScrollController: _navScrollController,
                 itemCount: items.length,
                 itemBuilder: (context, index) {
                   final item = items[index];

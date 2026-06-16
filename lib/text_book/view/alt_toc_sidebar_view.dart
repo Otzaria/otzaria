@@ -74,6 +74,9 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
   int? _activeEntryId;
   int? _lastScrolledEntryId;
 
+  // מעקב פתיחת הפאנל: גלילה מחדש למיקום הפעיל רק במעבר סגור→פתוח.
+  bool _wasLeftPaneShown = false;
+
   // Debounce timer to prevent rapid updates during scrolling
   Timer? _debounceTimer;
 
@@ -166,6 +169,14 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
             _toggleStructure(structures.first);
           }
         });
+
+        // הפאנל בונה את התצוגה רק כשהוא נפתח, וה-BlocListener לא יירה על
+        // ה-state ההתחלתי. גלילה ראשונית למיקום הפעיל אחרי טעינת המבנים.
+        final state = context.read<TextBookBloc>().state;
+        if (state is TextBookLoaded && state.showLeftPane) {
+          _wasLeftPaneShown = true;
+        }
+        _updateActiveItemFromBloc();
       }
     } catch (e) {
       if (mounted) {
@@ -244,6 +255,9 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
     if (_isManuallyScrolling) return;
 
     final state = context.read<TextBookBloc>().state;
+    // כשהפאנל סגור הגלילה נכשלת אך משבשת את _lastScrolledEntryId
+    // וחוסמת את הגלילה האמיתית בפתיחה הבאה.
+    if (state is TextBookLoaded && !state.showLeftPane) return;
     if (state is TextBookLoaded && !_isLoading) {
       final index = state.selectedIndex ??
           (state.visibleIndices.isNotEmpty ? state.visibleIndices.first : null);
@@ -509,27 +523,42 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
                         ? current.visibleIndices.first
                         : -1;
 
-                    return prevVisibleIndex != currVisibleIndex;
+                    return prevVisibleIndex != currVisibleIndex ||
+                        previous.showLeftPane != current.showLeftPane;
                   },
                   listener: (context, state) {
-                    if (state is TextBookLoaded &&
-                        !context.read<TextBookBloc>().isClosed) {
-                      if (!_isManuallyScrolling) {
-                        // Use only visibleIndices, not selectedIndex
-                        final index = state.visibleIndices.isNotEmpty
-                            ? state.visibleIndices.first
-                            : null;
-                        if (index != null) {
-                          // Debounce to prevent rapid updates during fast scrolling
-                          _debounceTimer?.cancel();
-                          _debounceTimer =
-                              Timer(const Duration(milliseconds: 300), () {
-                            if (mounted) {
-                              _findAndHighlightEntry(index);
-                            }
-                          });
+                    if (state is! TextBookLoaded ||
+                        context.read<TextBookBloc>().isClosed) {
+                      return;
+                    }
+                    if (!state.showLeftPane) {
+                      _wasLeftPaneShown = false;
+                      return;
+                    }
+                    final justOpened = !_wasLeftPaneShown;
+                    _wasLeftPaneShown = true;
+                    if (_isManuallyScrolling) return;
+
+                    // Use only visibleIndices, not selectedIndex
+                    final index = state.visibleIndices.isNotEmpty
+                        ? state.visibleIndices.first
+                        : null;
+                    if (index == null) return;
+
+                    if (justOpened) {
+                      // פתיחת הפאנל: גלילה מיידית למיקום הפעיל (ה-guard
+                      // עלול לחסום אחרת אם נשבש ברקע בזמן שהפאנל היה סגור).
+                      _lastScrolledEntryId = null;
+                      _findAndHighlightEntry(index);
+                    } else {
+                      // Debounce to prevent rapid updates during fast scrolling
+                      _debounceTimer?.cancel();
+                      _debounceTimer =
+                          Timer(const Duration(milliseconds: 300), () {
+                        if (mounted) {
+                          _findAndHighlightEntry(index);
                         }
-                      }
+                      });
                     }
                   },
                   child: NotificationListener<ScrollNotification>(
