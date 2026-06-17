@@ -23,6 +23,7 @@ import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
 import 'package:otzaria/plugins/view/plugin_side_panel.dart';
 import 'package:otzaria/plugins/view/plugin_tab_page.dart';
+import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
 import 'package:otzaria/plugins/utils/fluent_icon_resolver.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
@@ -494,6 +495,14 @@ class ToolsScreenState extends State<ToolsScreen>
       _activatedToolIds.add(id);
     }
     setActiveToolIdSafely(id, isMounted: () => mounted);
+    // מדווח ל-dispatcher רק מזהה תוסף אמיתי (או null לכלי מובנה), כדי שישהה
+    // את התוסף שעזבנו ויחדש את הנכנס. כלי מובנה => null => רק השהיית הקודם.
+    final isPlugin = id != null &&
+        (_transientPlugin?.pluginId == id ||
+            _descriptors
+                .any((d) => d.toolId == id && d is PluginToolDescriptor));
+    PluginRuntimeDispatcher.instance
+        .setSelectedToolPlugin(isPlugin ? id : null);
   }
 
   void _changeTab(int index) {

@@ -211,6 +211,8 @@ Otzaria.off('calendar.date_changed', handler); // חייב להיות אותו r
 |-------|----------|---------|
 | `plugin.boot` | ✅ כן | `BootPayload` (ראה להלן) |
 | `plugin.ready` | ✅ כן | (ללא) |
+| `plugin.suspended` | 🔁 חוזר | (ללא) — ראה §השהיה ברקע |
+| `plugin.resumed` | 🔁 חוזר | (ללא) — ראה §השהיה ברקע |
 | `theme.changed` | 🔁 חוזר | `ThemePayload` |
 | `navigation.changed` | 🔁 חוזר | `{ screen: string }` |
 | `reader.current_book_changed` | 🔁 חוזר | `{ bookId: string, index: number }` |
@@ -237,6 +239,30 @@ Otzaria.on('plugin.boot', (payload) => {
 
 > ⚠️ **חשוב:** כל הלוגיקה הראשונית חייבת להיות בתוך callback של `plugin.boot`.  
 > לא לקרוא ל-`Otzaria.call()` לפני שאירוע `plugin.boot` ירה.
+
+### השהיה ברקע — `plugin.suspended` / `plugin.resumed`
+
+כשהמשתמש עוזב את לשונית התוסף (מעבר לכלי אחר או למסך אחר), אוצריא **מקפיאה** את
+ה-WebView של התוסף כדי לחסוך CPU/זיכרון, ומחדשת אותו בכניסה חזרה — **בלי לטעון
+מחדש** (ה-state נשמר). ב-Windows/Android ההקפאה נייטיבית ועוצרת את כל ה-timers
+מעצמה; בשאר הפלטפורמות התוסף **אחראי לעצור בעצמו** עבודה מתמשכת.
+
+המודל: `plugin.boot` מתחיל את העבודה, `plugin.suspended` עוצר, `plugin.resumed`
+מתחיל מחדש. שים לב — בטעינה ראשונה **לא** נורה `resumed`, ולכן את העבודה
+הראשונית יש להתחיל ב-`plugin.boot`:
+
+```javascript
+let timer = null;
+function start() { timer = setInterval(poll, 1000); }
+function stop()  { clearInterval(timer); }
+
+Otzaria.on('plugin.boot', start);       // התחלה ראשונית
+Otzaria.on('plugin.resumed', start);    // חזרה מהשהיה
+Otzaria.on('plugin.suspended', stop);   // עצירת timers / polling / WebSocket
+```
+
+> 💡 תוסף שרץ ברקע דרך הרשאת `app.run_on_startup` (`runMode: 'background'`) **אינו**
+> מושהה — זו בדיוק מטרתו. ההשהיה חלה רק על ה-instance של הלשונית.
 
 ---
 
