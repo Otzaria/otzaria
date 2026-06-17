@@ -902,6 +902,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                             positionsListener:
                                                 state.positionsListener,
                                             isMainText: true,
+                                            tab: widget.tab,
                                             labelForIndex:
                                                 state.tableOfContents.isEmpty
                                                     ? null

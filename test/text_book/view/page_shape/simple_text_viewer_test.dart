@@ -389,6 +389,17 @@ void main() {
       ),
       48,
     );
+
+    // הקטע הנבחר מתחת לחלון הנראה (השהיית גלילה בלחיצה רציפה על חץ-למטה):
+    // ממשיכים מהקצה התחתון ולא קופצים לראש החלון (issue: גלילה בחיצים).
+    expect(
+      resolvePageShapeNavigationBaseIndex(
+        selectedIndex: 51,
+        liveVisibleIndices: const [48, 49, 50],
+        stateVisibleIndices: const [47, 48, 49],
+      ),
+      50,
+    );
   });
 
   test('אירועי החזקה של מקש מוכרים לצורך גלילה רציפה', () {
