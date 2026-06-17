@@ -54,6 +54,10 @@ class CustomTitleBar extends StatefulWidget {
 /// עליהם כדי לדלג על maximize/restore (ראה [_CustomTitleBarState._hitTestTab]).
 const String _kTabHitMarker = 'custom-title-bar-tab';
 
+/// סמן ל-hit-test על כפתור הסגירה של טאב, כדי שלחיצה עליו לא תבחר את הטאב
+/// ב-onPointerDown (ראה [_CustomTitleBarState._hitTestCloseButton]).
+const String _kTabCloseButtonHitMarker = 'custom-title-bar-tab-close';
+
 const double _kAppBarControlsWidth = 105.0;
 const double _kWindowCaptionButtonsWidth = 138.0;
 const double _kWindowCaptionButtonWidth = 46.0;
@@ -108,6 +112,24 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
     for (final entry in result.path) {
       final target = entry.target;
       if (target is RenderMetaData && target.metaData == _kTabHitMarker) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// בודק אם הנקודה הגלובלית פוגעת בכפתור הסגירה של טאב (מסומן ב-
+  /// [_kTabCloseButtonHitMarker]). משמש כדי שלחיצה על ה-X לא תבחר את הטאב
+  /// ב-onPointerDown — בחירה שם גורמת ל-rebuild שמשמיד את ה-IconButton
+  /// לפני שה-onPressed שלו יורה, כך שהטאב מתחלף במקום להיסגר.
+  bool _hitTestCloseButton(BuildContext context, Offset globalPosition) {
+    final result = HitTestResult();
+    WidgetsBinding.instance
+        .hitTestInView(result, globalPosition, View.of(context).viewId);
+    for (final entry in result.path) {
+      final target = entry.target;
+      if (target is RenderMetaData &&
+          target.metaData == _kTabCloseButtonHitMarker) {
         return true;
       }
     }
@@ -918,17 +940,20 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                         Tooltip(
                           preferBelow: false,
                           message: closeTabShortcut.toUpperCase(),
-                          child: IconButton(
-                            constraints: const BoxConstraints(
-                              minWidth: 25,
-                              minHeight: 25,
-                              maxWidth: 25,
-                              maxHeight: 25,
-                            ),
-                            onPressed: () => closeTab(tab, context),
-                            icon: const Icon(
-                              FluentIcons.dismiss_24_regular,
-                              size: 10,
+                          child: MetaData(
+                            metaData: _kTabCloseButtonHitMarker,
+                            child: IconButton(
+                              constraints: const BoxConstraints(
+                                minWidth: 25,
+                                minHeight: 25,
+                                maxWidth: 25,
+                                maxHeight: 25,
+                              ),
+                              onPressed: () => closeTab(tab, context),
+                              icon: const Icon(
+                                FluentIcons.dismiss_24_regular,
+                                size: 10,
+                              ),
                             ),
                           ),
                         ),
@@ -956,7 +981,9 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
         onPointerDown: (PointerDownEvent event) {
           if (event.buttons == 4) {
             closeTab(tab, context);
-          } else if (event.buttons == 1 && index != state.currentTabIndex) {
+          } else if (event.buttons == 1 &&
+              index != state.currentTabIndex &&
+              !_hitTestCloseButton(context, event.position)) {
             context.read<TabsBloc>().add(SetCurrentTab(index));
           }
         },

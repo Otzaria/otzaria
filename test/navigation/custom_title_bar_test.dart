@@ -6,6 +6,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/tabs/models/commentators_tab.dart';
+import 'package:otzaria/history/bloc/history_bloc.dart';
+import 'package:otzaria/history/bloc/history_event.dart';
+import 'package:otzaria/history/bloc/history_state.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
@@ -336,6 +339,77 @@ void main() {
               .isNotEmpty;
       expect(hasArrow, isTrue,
           reason: 'overflow של טאבים צריך להציג חיצי גלילה כבר בטעינה');
+    });
+  });
+
+  group('סגירת טאב בלחיצה על כפתור ה-X', () {
+    testWidgets('לחיצה על ה-X של טאב שאינו הנבחר סוגרת אותו (RemoveTab)',
+        (tester) async {
+      // התרחיש שבו הבאג הופיע: לחיצה על ה-X של טאב לא-נבחר בחרה אותו
+      // (SetCurrentTab) וה-rebuild תחת ה-GlobalKey הנבחר הרס את ה-IconButton
+      // לפני שה-onPressed שלו ירה — כך שהטאב התחלף במקום להיסגר.
+      // _SelectingTabsBloc מדמה את אותו emit/rebuild בבחירה.
+      final first = _makeTextTab('ספר א');
+      final second = _makeTextTab('ספר ב');
+      final tabsBloc = _SelectingTabsBloc(
+        TabsState(tabs: [first, second], currentTabIndex: 0),
+      );
+      final navigationBloc = _TestNavigationBloc(
+        const NavigationState(currentScreen: Screen.reading),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final historyBloc = _TestHistoryBloc();
+
+      addTearDown(() async {
+        first.dispose();
+        second.dispose();
+        await tabsBloc.close();
+        await navigationBloc.close();
+        await settingsBloc.close();
+        await historyBloc.close();
+      });
+
+      await _setSurfaceSize(tester, const Size(1200, 800));
+      await _pumpTitleBar(
+        tester,
+        tabsBloc: tabsBloc,
+        navigationBloc: navigationBloc,
+        settingsBloc: settingsBloc,
+        historyBloc: historyBloc,
+      );
+
+      final closeButton = find.descendant(
+        of: find.ancestor(
+          of: find.text('ספר ב'),
+          matching: find.byType(Tab),
+        ),
+        matching: find.byIcon(FluentIcons.dismiss_24_regular),
+      );
+      expect(closeButton, findsOneWidget);
+
+      // לחיצה (pointer-down) על ה-X של טאב לא-נבחר אסור שתבחר אותו: בחירה כאן
+      // גורמת ל-rebuild תחת ה-GlobalKey הנבחר שמשמיד את ה-IconButton לפני
+      // שה-onPressed שלו יורה — כך הטאב התחלף במקום להיסגר (שורש הבאג).
+      final gesture = await tester.startGesture(tester.getCenter(closeButton));
+      await tester.pump();
+      expect(tabsBloc.addedEvents.whereType<SetCurrentTab>(), isEmpty,
+          reason:
+              'לחיצה על ה-X לא צריכה לבחור את הטאב (שתהרוס את כפתור הסגירה)');
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      // ה-onPressed של ה-X מחובר לסגירה. נקרא ישירות כי ה-drag recognizer של
+      // ReorderableListView בולע כל סימולציית tap ב-arena בסביבת הטסט.
+      final iconButton = tester.widget<IconButton>(
+        find.ancestor(of: closeButton, matching: find.byType(IconButton)),
+      );
+      iconButton.onPressed!();
+      await tester.pump();
+
+      final removed = tabsBloc.addedEvents.whereType<RemoveTab>().toList();
+      expect(removed, isNotEmpty, reason: 'כפתור ה-X חייב לסגור את הטאב');
+      expect(removed.last.tab, same(second),
+          reason: 'הטאב שנסגר הוא הטאב שעל ה-X שלו נלחץ');
     });
   });
 
@@ -892,6 +966,7 @@ Future<void> _pumpTitleBar(
   required TabsBloc tabsBloc,
   required NavigationBloc navigationBloc,
   required SettingsBloc settingsBloc,
+  HistoryBloc? historyBloc,
 }) async {
   await tester.pumpWidget(
     MultiBlocProvider(
@@ -899,6 +974,8 @@ Future<void> _pumpTitleBar(
         BlocProvider<TabsBloc>.value(value: tabsBloc),
         BlocProvider<NavigationBloc>.value(value: navigationBloc),
         BlocProvider<SettingsBloc>.value(value: settingsBloc),
+        if (historyBloc != null)
+          BlocProvider<HistoryBloc>.value(value: historyBloc),
       ],
       child: MaterialApp(
         home: Scaffold(
@@ -1014,6 +1091,16 @@ class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
   _TestSettingsBloc(super.initialState) {
     on<SettingsEvent>((event, emit) {});
   }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _TestHistoryBloc extends Cubit<HistoryState> implements HistoryBloc {
+  _TestHistoryBloc() : super(HistoryInitial());
+
+  @override
+  void add(HistoryEvent event) {}
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
