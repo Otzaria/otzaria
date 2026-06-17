@@ -26,6 +26,8 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
+import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
+import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/widgets/text/rtl_selection_shortcuts.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
@@ -452,6 +454,11 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   bool _isTabInForeground() {
     final tab = widget.tab;
     if (tab == null || !mounted) return tab == null;
+    // מסך הקריאה נשמר חי ב-PageView גם כשהמשתמש במסך אחר (כלים/תוספים/הגדרות);
+    // בלי הבדיקה הזו צורת-הדף תחטוף פוקוס משדות קלט של תוספים (issue #472).
+    if (context.read<NavigationBloc>().state.currentScreen != Screen.reading) {
+      return false;
+    }
     final current = context.read<TabsBloc>().state.currentTab;
     if (current == null) return false;
     if (identical(current, tab)) return true;
