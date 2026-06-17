@@ -24,6 +24,9 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria/tabs/models/combined_tab.dart';
+import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
+import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/widgets/text/rtl_selection_shortcuts.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -215,13 +218,22 @@ int resolvePageShapeNavigationBaseIndex({
     }
   }
 
-  if (sortedLiveVisibleIndices.isNotEmpty) {
-    return sortedLiveVisibleIndices.first;
+  // הקטע הנבחר אינו על המסך. נמשיך מקצה החלון הנראה שבכיוון הקטע: אם הקטע
+  // מתחת לחלון (השהיית גלילה בלחיצה רציפה על חץ-למטה, או גלילה ידנית מעלה) —
+  // נמשיך מהקצה התחתון כדי שהניווט ימשיך למטה ולא יקפוץ לראש החלון.
+  int? edgeTowardSelected(List<int> sortedVisible) {
+    if (sortedVisible.isEmpty) return null;
+    if (selectedIndex != null && selectedIndex > sortedVisible.last) {
+      return sortedVisible.last;
+    }
+    return sortedVisible.first;
   }
 
-  if (sortedStateVisibleIndices.isNotEmpty) {
-    return sortedStateVisibleIndices.first;
-  }
+  final liveEdge = edgeTowardSelected(sortedLiveVisibleIndices);
+  if (liveEdge != null) return liveEdge;
+
+  final stateEdge = edgeTowardSelected(sortedStateVisibleIndices);
+  if (stateEdge != null) return stateEdge;
 
   return selectedIndex ?? 0;
 }
@@ -272,6 +284,10 @@ class SimpleTextViewer extends StatefulWidget {
   final TextBook? reportBook;
   final SelectionSyncController? selectionSyncController;
 
+  /// הטאב שאליו שייכת תצוגה זו. משמש לזיהוי האם הטאב פעיל כרגע — כדי שטאב
+  /// צורת-הדף שנשמר חי ברקע לא יחטוף פוקוס מקלדת וישבור בחירת טקסט בטאב הפעיל.
+  final OpenedTab? tab;
+
   /// מחזירה את כתובת היעד עבור אינדקס פריט בסרגל הגלילה. כשהיא מסופקת,
   /// ריחוף/גרירה על הסרגל הפנימי מציגים תווית צפה עם הכתובת. כשהיא null
   /// אין תווית. רלוונטי רק כש-[useInternalScroll] = true.
@@ -297,6 +313,7 @@ class SimpleTextViewer extends StatefulWidget {
     this.onOpenSearch,
     this.reportBook,
     this.selectionSyncController,
+    this.tab,
     this.labelForIndex,
     this.notesRepository,
   });
@@ -429,9 +446,29 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       });
   }
 
+  /// האם הטאב של תצוגה זו הוא הטאב הפעיל (כולל היותו צד בתצוגה משולבת).
+  /// טאבים נשמרים חיים (KeepAlive); טאב רקע אסור לו לחטוף פוקוס מקלדת, אחרת
+  /// בחירת טקסט בטאב הפעיל נשברת מיד (issue #472).
+  bool _isTabInForeground() {
+    final tab = widget.tab;
+    if (tab == null || !mounted) return tab == null;
+    final current = context.read<TabsBloc>().state.currentTab;
+    if (current == null) return false;
+    if (identical(current, tab)) return true;
+    if (current is CombinedTab) {
+      return identical(current.rightTab, tab) ||
+          identical(current.leftTab, tab);
+    }
+    return false;
+  }
+
   void _requestKeyboardFocus(String reason) {
     final focusNode = _resolvedKeyboardFocusNode;
     if (!widget.isMainText || !focusNode.canRequestFocus) {
+      return;
+    }
+
+    if (!_isTabInForeground()) {
       return;
     }
 
@@ -479,6 +516,15 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     // גלילה למיקום הנוכחי אחרי בניית הווידג'ט (רק לטקסט המרכזי)
     if (widget.isMainText) {
       FocusManager.instance.addListener(_handleGlobalFocusChange);
+      // רישום למנגנון הפוקוס הפר-טאבי כדי שמעבר *חזרה* לטאב צורת-הדף ימקד את
+      // אזור הקריאה דרך reading_screen (גלילה בחצים עובדת מיד).
+      final tab = widget.tab;
+      if (tab != null) {
+        FocusRepository().registerTabContentFocusRequester(
+          tab,
+          () => _requestKeyboardFocus('tab-content-focus'),
+        );
+      }
       _scheduleInitialScrollRestore();
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -547,6 +593,10 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         ?.removeListener(_handleExternalSelectionChange);
     if (widget.isMainText) {
       FocusManager.instance.removeListener(_handleGlobalFocusChange);
+      final tab = widget.tab;
+      if (tab != null) {
+        FocusRepository().unregisterTabContentFocusRequester(tab);
+      }
     }
     if (!widget.isMainText) {
       HardwareKeyboard.instance.removeHandler(_handleCommentaryKeyEvent);
@@ -1719,7 +1769,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                         },
                         child: Focus(
                           focusNode: _resolvedKeyboardFocusNode,
-                          autofocus: widget.isMainText,
+                          autofocus: widget.isMainText && _isTabInForeground(),
                           canRequestFocus: widget.isMainText,
                           onFocusChange: (hasFocus) {
                             if (!hasFocus) {
