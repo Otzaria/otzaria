@@ -1313,6 +1313,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
                           builder: (context, settingsState) {
                             return Text(
                               utils.stripHtmlIfNeeded(snapshot.data ?? ''),
+                              textAlign: TextAlign.justify,
                               style: TextStyle(
                                 fontSize: settingsState.commentatorsFontSize,
                                 fontFamily:
