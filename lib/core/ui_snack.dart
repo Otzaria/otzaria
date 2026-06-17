@@ -419,8 +419,6 @@ class _SnackToastState extends State<_SnackToast>
                                   fontWeight: FontWeight.w400,
                                   height: 1.4,
                                 ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                             if (widget.actionLabel != null &&
