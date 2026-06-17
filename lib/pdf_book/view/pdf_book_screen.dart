@@ -3255,7 +3255,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           BlocBuilder<PdfBookBloc, PdfBookState>(
             buildWhen: (prev, curr) {
               if (prev is PdfBookLoaded && curr is PdfBookLoaded) {
-                return prev.showZoomBar != curr.showZoomBar;
+                return prev.showZoomBar != curr.showZoomBar ||
+                    prev.zoom != curr.zoom;
               }
               return true;
             },
@@ -3270,7 +3271,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                 right: 0,
                 child: Center(
                   child: PdfZoomBar(
-                    currentZoom: widget.tab.pdfViewerController.value.zoom,
+                    currentZoom: state.zoom,
                     onZoomIn: _zoomIn,
                     onZoomOut: _zoomOut,
                     onResetZoom: _resetZoom,
