@@ -246,6 +246,19 @@ void main() {
 
       expect(result, equals('משפט עם נקודה.'));
     });
+
+    test('שומר גרשיים בראשי תיבות (אות אחת אחרי הגרשיים)', () {
+      expect(removePunctuation('רש"י'), equals('רש"י'));
+      expect(removePunctuation('שו"ע'), equals('שו"ע'));
+      expect(removePunctuation('ב"ה'), equals('ב"ה'));
+      expect(removePunctuation('רמב"ם'), equals('רמב"ם'));
+    });
+
+    test('מסיר מירכאות ציטוט (שתי אותיות אחרי הגרשיים)', () {
+      expect(removePunctuation('ב"כי יותן'), equals('בכי יותן'));
+      expect(
+          removePunctuation('הרי הן ב"כי יותן.'), equals('הרי הן בכי יותן.'));
+    });
   });
 
   group('normalizeForFindRefMatch', () {
