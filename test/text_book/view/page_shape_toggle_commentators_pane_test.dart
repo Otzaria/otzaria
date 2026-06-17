@@ -4,6 +4,9 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
+import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
+import 'package:otzaria/navigation/bloc/navigation_event.dart';
+import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
@@ -11,6 +14,9 @@ import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
+import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
+import 'package:otzaria/tabs/bloc/tabs_event.dart';
+import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
@@ -65,6 +71,14 @@ void main() {
       index: 0,
       blocOverride: textBookBloc,
     );
+    // צורת-הדף קוראת ב-build את NavigationBloc ו-TabsBloc כדי לבדוק אם הטאב
+    // בחזית (issue #472); הטאב מסומן כפעיל ומסך הקריאה גלוי כדי לדמות חזית.
+    final navigationBloc = _TestNavigationBloc(
+      const NavigationState(currentScreen: Screen.reading),
+    );
+    final tabsBloc = _TestTabsBloc(
+      const TabsState(tabs: [], currentTabIndex: 0).copyWith(tabs: [tab]),
+    );
 
     addTearDown(() async {
       await tester.pumpWidget(const SizedBox.shrink());
@@ -72,6 +86,8 @@ void main() {
       await textBookBloc.close();
       await personalNotesBloc.close();
       await settingsBloc.close();
+      await navigationBloc.close();
+      await tabsBloc.close();
       tab.dispose();
     });
 
@@ -83,6 +99,8 @@ void main() {
               BlocProvider<TextBookBloc>.value(value: textBookBloc),
               BlocProvider<PersonalNotesBloc>.value(value: personalNotesBloc),
               BlocProvider<SettingsBloc>.value(value: settingsBloc),
+              BlocProvider<NavigationBloc>.value(value: navigationBloc),
+              BlocProvider<TabsBloc>.value(value: tabsBloc),
             ],
             child: PageShapeScreen(
               openBookCallback: (_) {},
@@ -191,6 +209,25 @@ class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
     implements SettingsBloc {
   _TestSettingsBloc(super.initialState) {
     on<SettingsEvent>((event, emit) {});
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _TestNavigationBloc extends Bloc<NavigationEvent, NavigationState>
+    implements NavigationBloc {
+  _TestNavigationBloc(super.initialState) {
+    on<NavigationEvent>((event, emit) {});
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _TestTabsBloc extends Bloc<TabsEvent, TabsState> implements TabsBloc {
+  _TestTabsBloc(super.initialState) {
+    on<TabsEvent>((event, emit) {});
   }
 
   @override
