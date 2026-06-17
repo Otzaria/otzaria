@@ -1736,8 +1736,10 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     if (state.showPageShapeView) {
       return FluentIcons.book_open_24_filled;
     }
-    // מפרשים בצד/מתחת - אותו אייקון (הסיבוב מתבצע מחוץ לפונקציה)
-    return FluentIcons.panel_left_24_regular;
+    if (state.showSplitView) {
+      return FluentIcons.panel_left_24_regular;
+    }
+    return FluentIcons.panel_bottom_20_regular;
   }
 
   /// קבלת ה-tooltip למצב התצוגה הנוכחי
@@ -1754,13 +1756,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   /// בניית תפריט נפתח לבחירת מצב תצוגה
   Widget _buildViewModeDropdown(BuildContext context, TextBookLoaded state,
       {Key? key}) {
-    // אייקון מסובב כשמפרשים מתחת
-    final iconWidget = state.showPageShapeView
-        ? Icon(_getViewModeIcon(state))
-        : RotatedBox(
-            quarterTurns: state.showSplitView ? 0 : 3,
-            child: Icon(_getViewModeIcon(state)),
-          );
+    final iconWidget = Icon(_getViewModeIcon(state));
 
     final isSplit = !state.showPageShapeView && state.showSplitView;
     final isBelow = !state.showPageShapeView && !state.showSplitView;
@@ -1827,8 +1823,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           value: _viewModeBelow,
           label: 'מפרשים מתחת',
           icon: isBelow
-              ? FluentIcons.panel_left_24_filled
-              : FluentIcons.panel_left_24_regular,
+              ? FluentIcons.panel_bottom_20_filled
+              : FluentIcons.panel_bottom_20_regular,
         ),
         AppMenuEntry(
           value: _viewModePage,
