@@ -22,6 +22,9 @@ class AppMenuEntry<T> {
   final bool isDestructive;
   final Widget? trailing;
 
+  /// תוכן מותאם להצגה במקום [label] (החיפוש עדיין מתבצע לפי [label]).
+  final Widget? labelWidget;
+
   const AppMenuEntry({
     required this.value,
     required this.label,
@@ -29,6 +32,7 @@ class AppMenuEntry<T> {
     this.enabled = true,
     this.isDestructive = false,
     this.trailing,
+    this.labelWidget,
   });
 }
 
@@ -622,6 +626,7 @@ class _AnchoredSearchMenuContentState<T>
                                       context,
                                       widget.metrics,
                                       label: entry.label,
+                                      labelWidget: entry.labelWidget,
                                       maxWidth: constraints.maxWidth +
                                           widget.metrics.itemPadding.horizontal,
                                       icon: entry.icon,
@@ -785,6 +790,7 @@ PopupMenuEntry<T> buildAppPopupMenuItem<T>(BuildContext context,
       context,
       metrics,
       label: entry.label,
+      labelWidget: entry.labelWidget,
       icon: entry.icon,
       trailing: entry.trailing,
       isSelected: isSelected,

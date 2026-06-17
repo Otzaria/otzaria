@@ -91,7 +91,54 @@ Uint8List _buildTtc(List<Uint8List> fonts) {
       ttc.setUint8(offsets[i] + j, f[j]);
     }
   }
+
+  // Rebase: ב-TTC אמיתי היסטי הטבלאות מוחלטים בתוך הקובץ. לאחר שיבוץ כל SFNT
+  // ב-offset שלו, מוסיפים את ה-offset לכל היסט-טבלה ב-Table Directory.
+  for (int i = 0; i < fonts.length; i++) {
+    final start = offsets[i];
+    final numTables = ttc.getUint16(start + 4);
+    for (int t = 0; t < numTables; t++) {
+      final rec = start + 12 + t * 16;
+      ttc.setUint32(rec + 8, ttc.getUint32(rec + 8) + start);
+    }
+  }
   return ttc.buffer.asUint8List();
+}
+
+/// Builds a minimal SFNT with a single OS/2 table.
+/// [familyClassHi]: high byte of sFamilyClass (-1 to leave the field at 0).
+/// [panoseFamily]/[panoseSerif]: PANOSE bFamilyType / bSerifStyle fallback.
+Uint8List _buildSfntWithOs2({
+  int familyClassHi = 0,
+  int panoseFamily = 0,
+  int panoseSerif = 0,
+}) {
+  const int os2Len = 78;
+  final os2 = ByteData(os2Len)
+    ..setUint16(0, 1) // version
+    ..setUint16(30, (familyClassHi & 0xFF) << 8) // sFamilyClass
+    ..setUint8(32, panoseFamily) // PANOSE bFamilyType
+    ..setUint8(33, panoseSerif); // PANOSE bSerifStyle
+
+  const int os2Offset = 28; // 12 offset table + 16 one record
+  final sfnt = ByteData(os2Offset + os2Len)
+    ..setUint32(0, 0x00010000) // sfVersion
+    ..setUint16(4, 1) // numTables
+    ..setUint16(6, 16)
+    ..setUint16(8, 0)
+    ..setUint16(10, 0)
+    // table record: "OS/2"
+    ..setUint8(12, 0x4F)
+    ..setUint8(13, 0x53)
+    ..setUint8(14, 0x2F)
+    ..setUint8(15, 0x32)
+    ..setUint32(16, 0) // checksum
+    ..setUint32(20, os2Offset) // offset
+    ..setUint32(24, os2Len); // length
+  for (int i = 0; i < os2Len; i++) {
+    sfnt.setUint8(os2Offset + i, os2.getUint8(i));
+  }
+  return sfnt.buffer.asUint8List();
 }
 
 // ---------------------------------------------------------------------------
@@ -164,6 +211,66 @@ void main() {
       // Only 8 bytes: enough for magic + version but not numFonts
       final bad = Uint8List.fromList([0x74, 0x74, 0x63, 0x66, 0, 1, 0, 0]);
       expect(AppFonts.debugSfntSupportsHebrew(bad), isFalse);
+    });
+  });
+
+  group('sfntCategory — OS/2', () {
+    test('sFamilyClass = serif classes → serif', () {
+      for (final hi in [1, 2, 3, 4, 5, 7]) {
+        expect(
+          AppFonts.debugSfntCategory(_buildSfntWithOs2(familyClassHi: hi)),
+          FontCategory.serif,
+          reason: 'class $hi צריך להיות serif',
+        );
+      }
+    });
+
+    test('sFamilyClass = 8 → sans-serif', () {
+      expect(
+        AppFonts.debugSfntCategory(_buildSfntWithOs2(familyClassHi: 8)),
+        FontCategory.sansSerif,
+      );
+    });
+
+    test('sFamilyClass לא מסווג (0) ללא PANOSE → unknown', () {
+      expect(
+        AppFonts.debugSfntCategory(_buildSfntWithOs2(familyClassHi: 0)),
+        FontCategory.unknown,
+      );
+    });
+
+    test('PANOSE כגיבוי: Latin Text + serif style → serif', () {
+      expect(
+        AppFonts.debugSfntCategory(
+          _buildSfntWithOs2(panoseFamily: 2, panoseSerif: 3),
+        ),
+        FontCategory.serif,
+      );
+    });
+
+    test('PANOSE כגיבוי: Latin Text + sans style → sans-serif', () {
+      expect(
+        AppFonts.debugSfntCategory(
+          _buildSfntWithOs2(panoseFamily: 2, panoseSerif: 11),
+        ),
+        FontCategory.sansSerif,
+      );
+    });
+
+    test('ללא טבלת OS/2 → unknown', () {
+      expect(
+        AppFonts.debugSfntCategory(_buildSfnt(hebrewRange: true)),
+        FontCategory.unknown,
+      );
+    });
+
+    test('TTC עם OS/2 (היסטים מוחלטים) → serif', () {
+      final ttc = _buildTtc([_buildSfntWithOs2(familyClassHi: 2)]);
+      expect(AppFonts.debugSfntCategory(ttc), FontCategory.serif);
+    });
+
+    test('נתונים ריקים → unknown', () {
+      expect(AppFonts.debugSfntCategory(Uint8List(0)), FontCategory.unknown);
     });
   });
 

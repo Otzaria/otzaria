@@ -11,6 +11,9 @@ import 'package:flutter/foundation.dart'
 import 'package:system_fonts/system_fonts.dart' show SystemFonts;
 import 'package:otzaria/utils/file/font_file_reader.dart';
 
+/// סיווג גופן לפי סגנון: עם תגיות (serif) או חלק (sans-serif).
+enum FontCategory { serif, sansSerif, unknown }
+
 /// רשימת הגופנים הזמינים באפליקציה
 class AppFonts {
   AppFonts._();
@@ -34,15 +37,24 @@ class AppFonts {
   /// רשימת הגופנים המובנים (מוטמעים באפליקציה / רשימת ברירת מחדל)
   /// הערה: לא כוללת גופני מערכת כלל; בדסקטופ הם נטענים/מסוננים אוטומטית.
   static const List<FontInfo> _bundledFonts = [
-    FontInfo(value: 'TaameyDavidCLM', label: 'דוד'),
-    FontInfo(value: 'FrankRuhlCLM', label: 'פרנק-רוהל'),
-    FontInfo(value: 'TaameyAshkenaz', label: 'טעמי אשכנז'),
-    FontInfo(value: 'KeterYG', label: 'כתר'),
-    FontInfo(value: 'Shofar', label: 'שופר'),
-    FontInfo(value: 'NotoSerifHebrew', label: 'נוטו'),
-    FontInfo(value: 'Tinos', label: 'טינוס'),
-    FontInfo(value: 'NotoRashiHebrew', label: 'רש"י'),
-    FontInfo(value: 'Rubik', label: 'רוביק'),
+    FontInfo(
+        value: 'TaameyDavidCLM', label: 'דוד', category: FontCategory.serif),
+    FontInfo(
+        value: 'FrankRuhlCLM',
+        label: 'פרנק-רוהל',
+        category: FontCategory.serif),
+    FontInfo(
+        value: 'TaameyAshkenaz',
+        label: 'טעמי אשכנז',
+        category: FontCategory.serif),
+    FontInfo(value: 'KeterYG', label: 'כתר', category: FontCategory.serif),
+    FontInfo(value: 'Shofar', label: 'שופר', category: FontCategory.sansSerif),
+    FontInfo(
+        value: 'NotoSerifHebrew', label: 'נוטו', category: FontCategory.serif),
+    FontInfo(value: 'Tinos', label: 'טינוס', category: FontCategory.serif),
+    FontInfo(
+        value: 'NotoRashiHebrew', label: 'רש"י', category: FontCategory.serif),
+    FontInfo(value: 'Rubik', label: 'רוביק', category: FontCategory.sansSerif),
   ];
 
   static List<FontInfo>? _systemFontsHebrewCache;
@@ -106,8 +118,14 @@ class AppFonts {
       for (final name in names) {
         final path = map[name];
         if (path == null || path.isEmpty) continue;
-        if (_fontFileSupportsHebrewSync(path)) {
-          result.add(FontInfo(value: name, label: name));
+        final bytes = _readFontBytesSync(path);
+        if (bytes == null) continue;
+        if (_sfntSupportsHebrew(bytes)) {
+          result.add(FontInfo(
+            value: name,
+            label: name,
+            category: _sfntCategory(bytes),
+          ));
         }
       }
     } catch (_) {
@@ -116,19 +134,21 @@ class AppFonts {
     return result;
   }
 
-  static bool _fontFileSupportsHebrewSync(String path) {
+  static Uint8List? _readFontBytesSync(String path) {
     try {
-      final bytes = Uint8List.fromList(FontFileReader.readBytesSync(path));
-      return _sfntSupportsHebrew(bytes);
+      return Uint8List.fromList(FontFileReader.readBytesSync(path));
     } catch (_) {
-      return false;
+      return null;
     }
   }
 
-  static bool _sfntSupportsHebrew(Uint8List data) {
+  /// [base] = היסט תחילת ה-Offset Table של הגופן. ב-TTC ה-offsets בטבלאות
+  /// מוחלטים (יחסית לקובץ), לכן נשמר על כל ה-data ומקדמים רק את ה-base.
+  static bool _sfntSupportsHebrew(Uint8List data, [int base = 0]) {
     // TTC (TrueType Collection): magic "ttcf" at offset 0.
     // numFonts at offset 8; font offsets start at offset 12.
-    if (data.length >= 16 &&
+    if (base == 0 &&
+        data.length >= 16 &&
         data[0] == 0x74 &&
         data[1] == 0x74 &&
         data[2] == 0x63 &&
@@ -143,7 +163,7 @@ class AppFonts {
             (data[offsetPos + 2] << 8) |
             data[offsetPos + 3];
         if (fontOffset <= 0 || fontOffset >= data.length) continue;
-        if (_sfntSupportsHebrew(Uint8List.sublistView(data, fontOffset))) {
+        if (_sfntSupportsHebrew(data, fontOffset)) {
           return true;
         }
       }
@@ -184,15 +204,15 @@ class AppFonts {
       return String.fromCharCodes(data.sublist(offset, offset + 4));
     }
 
-    // Offset table
-    if (data.length < 12) return false;
-    final numTables = u16(4);
+    // Offset table (ב-base; היסטי הטבלאות מוחלטים בתוך data).
+    if (base + 12 > data.length) return false;
+    final numTables = u16(base + 4);
     if (numTables <= 0) return false;
 
     // Table records
     int cmapOffset = -1;
     int cmapLength = -1;
-    final tableDirOffset = 12;
+    final tableDirOffset = base + 12;
     final recordSize = 16;
     final dirSize = tableDirOffset + numTables * recordSize;
     if (dirSize > data.length) return false;
@@ -308,6 +328,102 @@ class AppFonts {
     return false;
   }
 
+  /// מזהה סגנון גופן (serif / sans-serif) מטבלת OS/2.
+  /// מסתמך על sFamilyClass, ונופל ל-PANOSE כגיבוי. אצל גופנים עבריים
+  /// רבים השדות ריקים — ואז מוחזר [FontCategory.unknown].
+  static FontCategory _sfntCategory(Uint8List data, [int base = 0]) {
+    // TTC: נבדק את הגופן הראשון בלבד לצורך הסיווג.
+    if (base == 0 &&
+        data.length >= 16 &&
+        data[0] == 0x74 &&
+        data[1] == 0x74 &&
+        data[2] == 0x63 &&
+        data[3] == 0x66) {
+      final numFonts =
+          (data[8] << 24) | (data[9] << 16) | (data[10] << 8) | data[11];
+      for (int i = 0; i < numFonts; i++) {
+        final offsetPos = 12 + i * 4;
+        if (offsetPos + 4 > data.length) break;
+        final fontOffset = (data[offsetPos] << 24) |
+            (data[offsetPos + 1] << 16) |
+            (data[offsetPos + 2] << 8) |
+            data[offsetPos + 3];
+        if (fontOffset <= 0 || fontOffset >= data.length) continue;
+        final cat = _sfntCategory(data, fontOffset);
+        if (cat != FontCategory.unknown) return cat;
+      }
+      return FontCategory.unknown;
+    }
+
+    int u16(int offset) {
+      if (offset + 2 > data.length) return -1;
+      return (data[offset] << 8) | data[offset + 1];
+    }
+
+    int u32(int offset) {
+      if (offset + 4 > data.length) return -1;
+      return (data[offset] << 24) |
+          (data[offset + 1] << 16) |
+          (data[offset + 2] << 8) |
+          data[offset + 3];
+    }
+
+    // Offset table (ב-base; היסטי הטבלאות מוחלטים בתוך data).
+    if (base + 12 > data.length) return FontCategory.unknown;
+    final numTables = u16(base + 4);
+    if (numTables <= 0) return FontCategory.unknown;
+
+    final tableDirOffset = base + 12;
+    const recordSize = 16;
+    if (tableDirOffset + numTables * recordSize > data.length) {
+      return FontCategory.unknown;
+    }
+
+    int os2Offset = -1;
+    for (int i = 0; i < numTables; i++) {
+      final rec = tableDirOffset + i * recordSize;
+      if (rec + 4 > data.length) break;
+      if (data[rec] == 0x4F && // 'O'
+          data[rec + 1] == 0x53 && // 'S'
+          data[rec + 2] == 0x2F && // '/'
+          data[rec + 3] == 0x32) {
+        // '2'
+        os2Offset = u32(rec + 8);
+        break;
+      }
+    }
+    if (os2Offset < 0 || os2Offset + 42 > data.length) {
+      return FontCategory.unknown;
+    }
+
+    // sFamilyClass (int16 @ 30) — הבייט הגבוה הוא מזהה המחלקה.
+    final familyClass = u16(os2Offset + 30);
+    if (familyClass >= 0) {
+      final classId = (familyClass >> 8) & 0xFF;
+      switch (classId) {
+        case 1: // Oldstyle Serifs
+        case 2: // Transitional Serifs
+        case 3: // Modern Serifs
+        case 4: // Clarendon Serifs
+        case 5: // Slab Serifs
+        case 7: // Freeform Serifs
+          return FontCategory.serif;
+        case 8: // Sans Serif
+          return FontCategory.sansSerif;
+      }
+    }
+
+    // גיבוי: PANOSE (@ 32). bFamilyType==2 (Latin Text) → bSerifStyle מבחין.
+    final familyType = data[os2Offset + 32];
+    final serifStyle = data[os2Offset + 33];
+    if (familyType == 2) {
+      if (serifStyle >= 2 && serifStyle <= 10) return FontCategory.serif;
+      if (serifStyle >= 11 && serifStyle <= 13) return FontCategory.sansSerif;
+    }
+
+    return FontCategory.unknown;
+  }
+
   /// מיפוי גופנים לנתיבי קבצים (לשימוש בהדפסה)
   /// הערה: רק גופנים עם קבצים בתיקיית fonts נתמכים בהדפסה
   static const Map<String, String> fontPaths = {
@@ -363,23 +479,33 @@ class AppFonts {
     }).toList();
   }
 
+  /// גופני מערכת שכבר נטענו (או בתהליך טעינה) — מונע טעינה כפולה ברשימה גדולה.
+  static final Map<String, Future<void>> _loadingSystemFonts = {};
+
   /// טוען גופן מערכת (אם קיים) כדי שניתן יהיה להשתמש בו ב-TextStyle.
   /// אם הגופן כבר מוטמע באפליקציה או שאין תמיכה בגופני מערכת - לא עושה כלום.
-  static Future<void> ensureFontLoaded(String fontFamily) async {
-    if (fontFamily.isEmpty) return;
-    if (fontPaths.containsKey(fontFamily)) return;
-    if (!_supportsSystemFonts) return;
+  /// הטעינה ממוזכרת: קריאות חוזרות לאותו גופן חולקות את אותו Future.
+  static Future<void> ensureFontLoaded(String fontFamily) {
+    if (fontFamily.isEmpty) return Future.value();
+    if (fontPaths.containsKey(fontFamily)) return Future.value();
+    if (!_supportsSystemFonts) return Future.value();
 
-    try {
-      await SystemFonts().loadFont(fontFamily);
-    } catch (_) {
-      // אם לא ניתן לטעון, נשאיר את fallback של Flutter לעשות את שלו.
-    }
+    return _loadingSystemFonts.putIfAbsent(fontFamily, () async {
+      try {
+        await SystemFonts().loadFont(fontFamily);
+      } catch (_) {
+        // אם הטעינה נכשלה, מסירים מהקאש כדי לאפשר ניסיון חוזר בעתיד.
+        _loadingSystemFonts.remove(fontFamily);
+      }
+    });
   }
 
   @visibleForTesting
   static bool debugSfntSupportsHebrew(Uint8List data) =>
       _sfntSupportsHebrew(data);
+
+  @visibleForTesting
+  static FontCategory debugSfntCategory(Uint8List data) => _sfntCategory(data);
 
   @visibleForTesting
   static List<FontInfo>? get debugSystemFontsHebrewCache =>
@@ -404,6 +530,11 @@ class AppFonts {
 class FontInfo {
   final String value;
   final String label;
+  final FontCategory category;
 
-  const FontInfo({required this.value, required this.label});
+  const FontInfo({
+    required this.value,
+    required this.label,
+    this.category = FontCategory.unknown,
+  });
 }
