@@ -52,7 +52,7 @@ String removeVolwels(String s) {
 
 /// הסרת סימני פיסוק מטקסט
 /// מסיר !:;.,?-— חוץ מ . או : בסוף הקטע
-/// מסיר " ״ כשזה לא באמצע מילה
+/// מסיר " ״ אלא כשזה ראשי תיבות (אות אחת אחרי הגרשיים עד גבול מילה)
 /// מסיר מעבר שורה אם אין . או : בסוף השורה המקורית
 String removePunctuation(String text) {
   if (text.isEmpty) return text;
@@ -141,11 +141,15 @@ String removePunctuation(String text) {
       RegExp(r'["״]'),
       (match) {
         final index = match.start;
-        final hasBefore =
-            index > 0 && RegExp(r'[א-תa-zA-Z]').hasMatch(processed[index - 1]);
-        final hasAfter = index < processed.length - 1 &&
-            RegExp(r'[א-תa-zA-Z]').hasMatch(processed[index + 1]);
-        if (hasBefore && hasAfter) {
+        final letter = RegExp(r'[א-תa-zA-Z]');
+        final hasBefore = index > 0 && letter.hasMatch(processed[index - 1]);
+        // ראשי תיבות: הגרשיים לפני האות האחרונה, כלומר אות אחת בלבד אחריו
+        // ואז גבול מילה. שתי אותיות אחריו = מירכאות ציטוט (כמו ב"כי יותן).
+        final hasSingleLetterAfter = index < processed.length - 1 &&
+            letter.hasMatch(processed[index + 1]) &&
+            (index + 2 >= processed.length ||
+                !letter.hasMatch(processed[index + 2]));
+        if (hasBefore && hasSingleLetterAfter) {
           return match.group(0)!;
         }
         return '';
