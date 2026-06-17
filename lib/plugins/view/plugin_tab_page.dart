@@ -571,6 +571,11 @@ class _PluginTabPageState extends State<PluginTabPage> {
           // הטעינה הצליחה עד הסוף (גם ה-stub וגם ה-boot payload הוזרקו).
           // מסירים את התוסף מ-quarantine כדי שהפעלה הבאה תאפשר טעינה רגילה.
           unawaited(PluginCrashGuard.markLoadSuccess(widget.plugin.pluginId));
+          // אם התוסף נטען בזמן שאינו ה-foreground הפעיל — להשהותו מיד, כדי
+          // שלא ירוץ ברקע. ההשהיה כאן (אחרי load) ולא ב-registerController
+          // כי pause על WebView שעוד לא נטען עלול לקטוע את הטעינה עצמה.
+          unawaited(PluginRuntimeDispatcher.instance
+              .onForegroundInstanceReady(widget.plugin.pluginId));
         } catch (e, st) {
           // Boot ב-Dart נכשל — התהליך חי, לא קריסה native. מנקים את ה-canary
           // כדי שלא נחסום בהפעלה הבאה תוסף שפשוט החזיר שגיאת אתחול רגילה.

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
@@ -31,6 +33,66 @@ class _FakeWebViewController extends Fake implements InAppWebViewController {
 // registerController רק שומר את ה-object במפה; אין קריאות ל-methods שלו
 // בטסטים אלה (אנחנו לא מפעילים dispatchEvent שדורש SQLite).
 class _FakeController extends Fake implements InAppWebViewController {}
+
+// ── fake controller שמתעד pause/resume ואירועי lifecycle ל-JS ─────────────
+class _LifecycleFakeController extends Fake implements InAppWebViewController {
+  int pauseCalls = 0;
+  int resumeCalls = 0;
+  final List<String> jsEvents = [];
+
+  @override
+  Future<void> pause() async => pauseCalls++;
+
+  @override
+  Future<void> resume() async => resumeCalls++;
+
+  @override
+  Future<dynamic> evaluateJavascript({
+    required String source,
+    ContentWorld? contentWorld,
+  }) async {
+    jsEvents.add(source);
+    return null;
+  }
+}
+
+// ── fake controller עם pause/resume שניתן לעכב (gate) — לבדיקת serialization.
+// מתעד את רצף הפעולות הגלובלי בכל הבקרים כדי לוודא שאין חפיפה.
+class _SlowController extends Fake implements InAppWebViewController {
+  _SlowController(this.name, this.log);
+  final String name;
+  final List<String> log;
+  Completer<void>? pauseGate;
+  Completer<void>? resumeGate;
+
+  @override
+  Future<void> pause() async {
+    log.add('$name:pause:start');
+    if (pauseGate != null) await pauseGate!.future;
+    log.add('$name:pause:end');
+  }
+
+  @override
+  Future<void> resume() async {
+    log.add('$name:resume:start');
+    if (resumeGate != null) await resumeGate!.future;
+    log.add('$name:resume:end');
+  }
+
+  @override
+  Future<dynamic> evaluateJavascript({
+    required String source,
+    ContentWorld? contentWorld,
+  }) async {
+    final kind = source.contains('suspended')
+        ? 'suspended'
+        : source.contains('resumed')
+            ? 'resumed'
+            : 'other';
+    log.add('$name:js:$kind');
+    return null;
+  }
+}
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -224,6 +286,182 @@ void main() {
       await _d.reloadPlugin(_kPid);
 
       expect(calls, equals(['fg']));
+    });
+  });
+
+  // ── השהיה/חידוש של ה-instance ה-foreground ────────────────────────────────
+
+  group('foreground suspend/resume', () {
+    const pidA = 'plugin.a';
+    const pidB = 'plugin.b';
+
+    tearDown(() {
+      _d.unregisterController(pidA);
+      _d.unregisterController(pidA, instanceId: 'background');
+      _d.unregisterController(pidB);
+    });
+
+    test('מעבר מתוסף לתוסף משהה את הקודם ומחדש את הנכנס', () async {
+      final a = _LifecycleFakeController();
+      final b = _LifecycleFakeController();
+      _d.registerController(pidA, a);
+      _d.registerController(pidB, b);
+
+      _d.setSelectedToolPlugin(pidA);
+      await pumpEventQueue();
+      expect(a.resumeCalls, 1);
+      expect(a.jsEvents.last, contains('plugin.resumed'));
+
+      _d.setSelectedToolPlugin(pidB);
+      await pumpEventQueue();
+      expect(a.pauseCalls, 1);
+      expect(a.jsEvents, contains(contains('plugin.suspended')));
+      expect(b.resumeCalls, 1);
+    });
+
+    test('יציאה ממסך הכלים משהה, וחזרה מחדשת', () async {
+      final a = _LifecycleFakeController();
+      _d.registerController(pidA, a);
+
+      _d.setSelectedToolPlugin(pidA);
+      await pumpEventQueue();
+      expect(a.resumeCalls, 1);
+
+      _d.setToolsScreenVisible(false);
+      await pumpEventQueue();
+      expect(a.pauseCalls, 1);
+
+      _d.setToolsScreenVisible(true);
+      await pumpEventQueue();
+      expect(a.resumeCalls, 2);
+    });
+
+    test('instance הרקע אינו מושהה ביציאה', () async {
+      final bg = _LifecycleFakeController();
+      _d.registerController(pidA, bg, instanceId: 'background');
+
+      _d.setSelectedToolPlugin(pidA);
+      _d.setToolsScreenVisible(false);
+      await pumpEventQueue();
+
+      expect(bg.pauseCalls, 0);
+      expect(bg.resumeCalls, 0);
+    });
+
+    test('תוסף עם foreground ורקע — רק ה-foreground מושהה', () async {
+      final fg = _LifecycleFakeController();
+      final bg = _LifecycleFakeController();
+      _d.registerController(pidA, fg, instanceId: 'default');
+      _d.registerController(pidA, bg, instanceId: 'background');
+
+      _d.setSelectedToolPlugin(pidA);
+      await pumpEventQueue();
+      _d.setToolsScreenVisible(false);
+      await pumpEventQueue();
+
+      expect(fg.pauseCalls, 1);
+      expect(bg.pauseCalls, 0);
+    });
+
+    test('מעבר לכלי מובנה (null) משהה את התוסף ולא מנסה לחדש', () async {
+      final a = _LifecycleFakeController();
+      _d.registerController(pidA, a);
+
+      _d.setSelectedToolPlugin(pidA);
+      await pumpEventQueue();
+      _d.setSelectedToolPlugin(null);
+      await pumpEventQueue();
+
+      expect(a.pauseCalls, 1);
+    });
+  });
+
+  // ── serialization של פעולות מחזור-חיים (race בין reconciles חופפים) ────────
+
+  group('lifecycle serialization', () {
+    const pidA = 'plugin.a';
+    const pidB = 'plugin.b';
+
+    tearDown(() {
+      _d.unregisterController(pidA);
+      _d.unregisterController(pidB);
+    });
+
+    test('reconcile חופף לא רץ עד שהקודם הסתיים, והפעולות אינן משתלבות',
+        () async {
+      final log = <String>[];
+      final a = _SlowController('a', log);
+      final b = _SlowController('b', log);
+      _d.registerController(pidA, a);
+      _d.registerController(pidB, b);
+
+      // חוסמים את resume של A כדי לדמות reconcile איטי שעדיין רץ.
+      a.resumeGate = Completer<void>();
+
+      _d.setSelectedToolPlugin(pidA); // reconcile #1: resume A (נחסם)
+      await pumpEventQueue();
+      // המעבר ל-B נכנס לתור — אסור שיתחיל כל עוד #1 חסום.
+      _d.setSelectedToolPlugin(pidB);
+      await pumpEventQueue();
+      expect(log, equals(['a:resume:start']),
+          reason: 'reconcile #2 לא אמור להתחיל בזמן ש-#1 חסום');
+
+      // משחררים את #1; כעת #2 רץ אחריו ברצף.
+      a.resumeGate!.complete();
+      await pumpEventQueue();
+
+      expect(
+        log,
+        equals([
+          'a:resume:start',
+          'a:resume:end',
+          'a:js:resumed',
+          'a:js:suspended',
+          'a:pause:start',
+          'a:pause:end',
+          'b:resume:start',
+          'b:resume:end',
+          'b:js:resumed',
+        ]),
+      );
+    });
+  });
+
+  // ── controller שנרשם אחרי הבחירה (טעינה ראשונה / נטען לרקע) ───────────────
+
+  group('onForegroundInstanceReady', () {
+    const pidA = 'plugin.a';
+    const pidB = 'plugin.b';
+
+    tearDown(() {
+      _d.unregisterController(pidA);
+      _d.unregisterController(pidB);
+    });
+
+    test('תוסף שנטען כשהוא ה-foreground הנבחר — אינו מושהה', () async {
+      // הבחירה מגיעה לפני שה-controller קיים (טעינה ראשונה).
+      _d.setSelectedToolPlugin(pidA);
+      await pumpEventQueue();
+
+      final a = _LifecycleFakeController();
+      _d.registerController(pidA, a);
+      await _d.onForegroundInstanceReady(pidA);
+
+      expect(a.pauseCalls, 0);
+    });
+
+    test('תוסף שנטען כשכבר עברו ממנו — מושהה מיד', () async {
+      // בוחרים A ואז B עוד לפני ש-A נטען; A נבנה "לרקע" ב-IndexedStack.
+      _d.setSelectedToolPlugin(pidA);
+      _d.setSelectedToolPlugin(pidB);
+      await pumpEventQueue();
+
+      final a = _LifecycleFakeController();
+      _d.registerController(pidA, a);
+      await _d.onForegroundInstanceReady(pidA);
+
+      expect(a.pauseCalls, 1);
+      expect(a.jsEvents, contains(contains('suspended')));
     });
   });
 }
