@@ -33,6 +33,21 @@ class AppThemeData {
     return cs.surfaceContainerHigh;
   }
 
+  /// בונה [ColorScheme] מצבע seed ובהירות. צבע ניטרלי (אפור/לבן, רוויה
+  /// נמוכה) מקבל וריאנט monochrome כדי שלא יקבל גוון צבעוני לא רצוי.
+  /// מקור אמת יחיד לבניית הסכמה — נצרך גם ב-app.dart וגם בבניית ה-payload
+  /// לתוספים, כדי שכולם יקבלו בדיוק אותם צבעים.
+  static ColorScheme createColorScheme(Color seedColor, Brightness brightness) {
+    final isNeutral = HSLColor.fromColor(seedColor).saturation < 0.1;
+    return ColorScheme.fromSeed(
+      seedColor: seedColor,
+      brightness: brightness,
+      dynamicSchemeVariant: isNeutral
+          ? DynamicSchemeVariant.monochrome
+          : DynamicSchemeVariant.tonalSpot,
+    );
+  }
+
   // ── Light Theme ──────────────────────────────────────────────────────────
   static ThemeData light(
     ColorScheme cs, {

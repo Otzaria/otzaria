@@ -82,7 +82,8 @@ import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/utils/fluent_icon_resolver.dart';
 import 'package:otzaria/plugins/bridge/plugin_bridge_adapter.dart'
-    show buildThemePayload;
+    show buildThemePayloadFromScheme;
+import 'package:otzaria/theme/app_theme_data.dart' show AppThemeData;
 import 'package:otzaria/core/external_activation_queue.dart';
 import 'package:otzaria/core/external_activation_channel.dart';
 import 'package:otzaria/core/external_uri_router.dart';
@@ -2334,7 +2335,19 @@ class MainWindowScreenState extends State<MainWindowScreen>
                       current.commentatorsFontFamily ||
                   previous.commentatorsFontSize != current.commentatorsFontSize;
               if (isThemeChange) {
-                final themePayload = buildThemePayload(context);
+                // ה-MaterialApp מתעדכן רק ב-frame הבא, כך ש-Theme.of(context)
+                // כאן עדיין מחזיר את הצבעים הישנים. לכן בונים את ה-payload
+                // דטרמיניסטית מתוך ה-state (שכבר עדכני) ולא מ-Theme.
+                final brightness = current.followSystemTheme
+                    ? WidgetsBinding
+                        .instance.platformDispatcher.platformBrightness
+                    : (current.isDarkMode ? Brightness.dark : Brightness.light);
+                final isDark = brightness == Brightness.dark;
+                final seed = isDark ? current.darkSeedColor : current.seedColor;
+                final colorScheme =
+                    AppThemeData.createColorScheme(seed, brightness);
+                final themePayload =
+                    buildThemePayloadFromScheme(colorScheme, isDark: isDark);
                 PluginRuntimeDispatcher.instance
                     .dispatchEvent('theme.changed', themePayload);
               }
