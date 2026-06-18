@@ -230,6 +230,22 @@ void main() {
     });
   });
 
+  group('stripHtmlPreservingBreaks', () {
+    test('ממיר <br> למעבר שורה במקום לדחוס לרצף', () {
+      expect(
+        stripHtmlPreservingBreaks('שורה ראשונה<br>שורה שנייה'),
+        equals('שורה ראשונה\nשורה שנייה'),
+      );
+    });
+
+    test('תומך בגרסאות <br/> ו-<BR> ומסיר שאר תגים', () {
+      expect(
+        stripHtmlPreservingBreaks('א<br/>ב<BR>ג <b>ד</b>'),
+        equals('א\nב\nג ד'),
+      );
+    });
+  });
+
   group('removePunctuation', () {
     test('keeps dot and colon inside nested parentheses', () {
       const input = 'שלום: עולם! (א:ב. (ג:ד.))';

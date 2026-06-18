@@ -1312,7 +1312,8 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
                         return BlocBuilder<SettingsBloc, SettingsState>(
                           builder: (context, settingsState) {
                             return Text(
-                              utils.stripHtmlIfNeeded(snapshot.data ?? ''),
+                              utils.stripHtmlPreservingBreaks(
+                                  snapshot.data ?? ''),
                               textAlign: TextAlign.justify,
                               style: TextStyle(
                                 fontSize: settingsState.commentatorsFontSize,

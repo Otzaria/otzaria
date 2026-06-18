@@ -41,6 +41,14 @@ String stripHtmlIfNeeded(String text) {
   return withSpaces.replaceAll(_htmlStripper, '');
 }
 
+/// כמו [stripHtmlIfNeeded], אך ממיר תגי <br> למעבר שורה אמיתי לפני הסרת התגים,
+/// כדי שטקסט המוצג ב-Text רגיל ישמור על מבנה השורות במקום להידחס לרצף.
+String stripHtmlPreservingBreaks(String text) {
+  final withBreaks =
+      text.replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n');
+  return stripHtmlIfNeeded(withBreaks);
+}
+
 String truncate(String text, int length) {
   return text.length > length ? '${text.substring(0, length)}...' : text;
 }
