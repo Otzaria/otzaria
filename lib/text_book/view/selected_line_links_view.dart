@@ -573,10 +573,6 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
   Widget _buildHighlightedText(String content, Link link) {
     return BlocBuilder<SettingsBloc, SettingsState>(
       builder: (context, settingsState) {
-        final cleanContent = normalizeSelectedLinkText(
-          TextRendererService.stripHtml(content),
-        );
-
         // חיפוש בתוכן - בדיקה אם הקישור הזה מכיל תוצאות
         String searchText = '';
         if (_searchQuery.isNotEmpty && _searchInContent) {
@@ -589,8 +585,10 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
         return FutureBuilder<bool>(
           future: _resolveRemoveNikudForLink(link, settingsState),
           builder: (context, snapshot) {
+            // מעבירים HTML גולמי ל-SmartTextWidget (כמו במפרשים) כדי ש-<br>
+            // ומבני HTML אחרים יעובדו; הסרת התגים מראש איבדה את מעברי השורה.
             return SmartTextWidget(
-              text: cleanContent,
+              text: content,
               settings: buildSelectedLinkRenderSettings(
                 settingsState: settingsState,
                 removeNikud: snapshot.data ?? false,
