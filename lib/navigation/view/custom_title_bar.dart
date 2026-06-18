@@ -733,6 +733,10 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
 
   Widget _buildFullscreenCaptionButton(
       BuildContext context, SettingsState settingsState) {
+    // הכפתור מוצג רק בהקשר שמתיר מסך מלא (עיון/כלים).
+    if (!FullscreenHelper.isAllowedInContext(context)) {
+      return const SizedBox.shrink();
+    }
     return _CaptionActionButton(
       brightness: Theme.of(context).brightness,
       tooltip: settingsState.isFullscreen ? 'צא ממסך מלא' : 'מסך מלא',

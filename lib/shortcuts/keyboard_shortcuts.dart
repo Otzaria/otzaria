@@ -288,8 +288,11 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
       return KeyEventResult.handled;
     }
 
-    // F11 - מסך מלא
+    // F11 - מסך מלא (רק בעיון/כלים)
     if (ShortcutHelper.matchesShortcut(event, 'f11')) {
+      if (!FullscreenHelper.isAllowedInContext(context)) {
+        return KeyEventResult.ignored;
+      }
       final settingsBloc = context.read<SettingsBloc>();
       final newFullscreenState = !settingsBloc.state.isFullscreen;
       FullscreenHelper.toggleFullscreen(context, newFullscreenState);
