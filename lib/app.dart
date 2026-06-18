@@ -16,30 +16,6 @@ import 'package:window_manager/window_manager.dart';
 class App extends StatelessWidget {
   const App({super.key});
 
-  /// Check if a color is neutral (white/gray) based on its saturation
-  bool _isNeutralColor(Color color) {
-    final hslColor = HSLColor.fromColor(color);
-    // If saturation is very low, it's a neutral color (white/gray/black)
-    return hslColor.saturation < 0.1;
-  }
-
-  /// Create a ColorScheme that respects neutral colors
-  ColorScheme _createColorScheme(Color seedColor, Brightness brightness) {
-    if (_isNeutralColor(seedColor)) {
-      // For neutral colors, use monochrome variant to avoid color tinting
-      return ColorScheme.fromSeed(
-        seedColor: seedColor,
-        brightness: brightness,
-        dynamicSchemeVariant: DynamicSchemeVariant.monochrome,
-      );
-    }
-    return ColorScheme.fromSeed(
-      seedColor: seedColor,
-      brightness: brightness,
-      dynamicSchemeVariant: DynamicSchemeVariant.tonalSpot,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<SettingsBloc, SettingsState>(
@@ -53,9 +29,9 @@ class App extends StatelessWidget {
       builder: (context, settingsState) {
         final state = settingsState;
         final lightColorScheme =
-            _createColorScheme(state.seedColor, Brightness.light);
-        final darkColorScheme =
-            _createColorScheme(state.darkSeedColor, Brightness.dark);
+            AppThemeData.createColorScheme(state.seedColor, Brightness.light);
+        final darkColorScheme = AppThemeData.createColorScheme(
+            state.darkSeedColor, Brightness.dark);
         final useVirtualWindowFrame = !kIsWeb &&
             (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
         return MaterialApp(

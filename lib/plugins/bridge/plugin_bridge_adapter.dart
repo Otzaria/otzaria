@@ -93,8 +93,16 @@ const _settingsBlocklist = {
 // ===================================================================
 Map<String, dynamic> buildThemePayload(BuildContext context) {
   final theme = Theme.of(context);
-  final cs = theme.colorScheme;
-  final isDark = theme.brightness == Brightness.dark;
+  return buildThemePayloadFromScheme(theme.colorScheme,
+      isDark: theme.brightness == Brightness.dark);
+}
+
+/// בונה את ה-payload מ-[ColorScheme] מפורש במקום מ-`Theme.of(context)`.
+/// נצרך כשמדווחים על שינוי theme בזמן אמת: ה-`MaterialApp` מתעדכן רק ב-frame
+/// הבא, כך ש-`Theme.of(context)` עדיין מחזיר את הצבעים הישנים. בנייה מ-scheme
+/// שמחושב ישירות מההגדרות מבטיחה שהתוסף יקבל את הצבעים הנכונים.
+Map<String, dynamic> buildThemePayloadFromScheme(ColorScheme cs,
+    {required bool isDark}) {
   String hex(Color c) =>
       '#${c.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}';
 

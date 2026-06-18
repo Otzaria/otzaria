@@ -18,12 +18,19 @@ class PluginRuntimeDispatcher {
   /// ב-PluginBackgroundHost כשהוענקה ההרשאה `app.run_on_startup`.
   final Map<String, Map<PluginInstanceId, InAppWebViewController>>
       _controllersByPlugin = {};
-  final PluginRegistryRepository _repository = PluginRegistryRepository();
+  PluginRegistryRepository _repository = PluginRegistryRepository();
+
+  @visibleForTesting
+  set repositoryForTesting(PluginRegistryRepository repo) => _repository = repo;
   _PluginRuntimeShutdownMode _shutdownMode = _PluginRuntimeShutdownMode.idle;
 
   // Cache in-memory למניעת שאילתות SQLite חוזרות במסלול החם
   final Map<String, bool> _enabledCache = {};
   final Map<String, Map<String, bool?>> _permissionCache = {};
+
+  // ה-payload האחרון של theme.changed — תוסף מושהה לא מקבל את האירוע
+  // (ה-WebView מוקפא), ולכן מסנכרנים אותו מחדש בהתעוררות.
+  Map<String, dynamic>? _lastThemePayload;
 
   /// callback לטעינה מחדש של תוסף — מופעל פר instance כדי שכל
   /// host יוכל לרענן את ה-webview שלו בנפרד.
@@ -151,6 +158,28 @@ class PluginRuntimeDispatcher {
       debugPrint('PluginRuntimeDispatcher: resume failed for $pluginId: $e');
     }
     await _dispatchLifecycleEvent(controller, pluginId, 'plugin.resumed');
+    await _resyncThemeOnResume(controller, pluginId);
+  }
+
+  /// שולח מחדש את ה-theme העדכני לתוסף שזה עתה התעורר — בזמן שהיה הוא לא
+  /// קיבל את theme.changed (ה-WebView היה מוקפא), והיה נשאר בצבעים ישנים.
+  /// מכבד enabled+permission כמו dispatchEvent, כדי שתוסף שהרשאתו נשללה
+  /// בזמן ההשהיה לא יקבל את האירוע בהתעוררות.
+  Future<void> _resyncThemeOnResume(
+    InAppWebViewController controller,
+    String pluginId,
+  ) async {
+    final payload = _lastThemePayload;
+    if (payload == null) return;
+    if (!await _canReceiveEvent(pluginId, 'theme.changed')) return;
+    try {
+      await controller.evaluateJavascript(
+        source:
+            "window.dispatchEvent(new CustomEvent('theme.changed', { detail: ${jsonEncode(payload)} }));",
+      );
+    } catch (e) {
+      debugPrint('Failed to resync theme to plugin $pluginId: $e');
+    }
   }
 
   Future<void> _dispatchLifecycleEvent(
@@ -198,6 +227,7 @@ class PluginRuntimeDispatcher {
     _selectedToolPluginId = null;
     _runningForegroundPluginId = null;
     _toolsScreenVisible = true;
+    _lastThemePayload = null;
     _lifecycleLock = Future.value();
 
     for (final controller in allControllers) {
@@ -248,8 +278,26 @@ class PluginRuntimeDispatcher {
     }
   }
 
+  /// בודק אם מותר לשלוח [topic] ל-[pluginId]: התוסף מופעל ויש לו הרשאת
+  /// events.subscribe לנושא. משתמש ב-cache למניעת שאילתות SQLite חוזרות.
+  Future<bool> _canReceiveEvent(String pluginId, String topic) async {
+    final isEnabled =
+        _enabledCache[pluginId] ?? await _repository.getIsEnabled(pluginId);
+    _enabledCache[pluginId] = isEnabled;
+    if (!isEnabled) return false;
+
+    _permissionCache[pluginId] ??= {};
+    final permKey = 'events.subscribe:$topic';
+    if (!_permissionCache[pluginId]!.containsKey(permKey)) {
+      _permissionCache[pluginId]![permKey] =
+          await _repository.getPermission(pluginId, permKey);
+    }
+    return _permissionCache[pluginId]![permKey] == true;
+  }
+
   Future<void> dispatchEvent(String topic, Map<String, dynamic> payload) async {
     if (_shutdownMode != _PluginRuntimeShutdownMode.idle) return;
+    if (topic == 'theme.changed') _lastThemePayload = payload;
     final jsonPayload = jsonEncode(payload);
     debugPrint('PluginRuntimeDispatcher: Dispatching $topic');
 
@@ -259,20 +307,7 @@ class PluginRuntimeDispatcher {
       if (instances.isEmpty) continue;
 
       try {
-        // בדוק שהתוסף מופעל - עם cache למניעת שאילתות SQLite חוזרות
-        final isEnabled =
-            _enabledCache[pluginId] ?? await _repository.getIsEnabled(pluginId);
-        _enabledCache[pluginId] = isEnabled;
-        if (!isEnabled) continue;
-
-        // בדוק הרשאה - עם cache
-        _permissionCache[pluginId] ??= {};
-        final permKey = 'events.subscribe:$topic';
-        if (!_permissionCache[pluginId]!.containsKey(permKey)) {
-          _permissionCache[pluginId]![permKey] =
-              await _repository.getPermission(pluginId, permKey);
-        }
-        if (_permissionCache[pluginId]![permKey] != true) continue;
+        if (!await _canReceiveEvent(pluginId, topic)) continue;
 
         // כשקיים instance foreground ('default') ו-instance background במקביל,
         // שולחים רק ל-foreground — מונע כפילות של handlers גלובליים.

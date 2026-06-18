@@ -2,7 +2,22 @@ import 'dart:async';
 
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
+
+// ── fake repository לשליטה ב-enabled/permission בלי SQLite ────────────────
+class _FakeRegistryRepo extends Fake implements PluginRegistryRepository {
+  _FakeRegistryRepo({this.enabled = true, this.permission = true});
+  final bool enabled;
+  final bool? permission;
+
+  @override
+  Future<bool> getIsEnabled(String pluginId) async => enabled;
+
+  @override
+  Future<bool?> getPermission(String pluginId, String permission) async =>
+      this.permission;
+}
 
 class _FakeWebViewController extends Fake implements InAppWebViewController {
   int loadUrlCalls = 0;
@@ -299,6 +314,8 @@ void main() {
       _d.unregisterController(pidA);
       _d.unregisterController(pidA, instanceId: 'background');
       _d.unregisterController(pidB);
+      // שחזור ה-repository האמיתי לטסטים שהזריקו fake.
+      _d.repositoryForTesting = PluginRegistryRepository();
     });
 
     test('מעבר מתוסף לתוסף משהה את הקודם ומחדש את הנכנס', () async {
@@ -373,6 +390,65 @@ void main() {
       await pumpEventQueue();
 
       expect(a.pauseCalls, 1);
+    });
+
+    test('חידוש תוסף מסנכרן מחדש את ה-theme האחרון (שאבד בזמן ההשהיה)',
+        () async {
+      _d.repositoryForTesting =
+          _FakeRegistryRepo(enabled: true, permission: true);
+      // dispatchEvent ללא controllers רשומים — שומר רק את ה-payload האחרון
+      // ומדמה החלפת מצב כהה בזמן שהתוסף מושהה.
+      await _d.dispatchEvent('theme.changed', {'mode': 'dark'});
+
+      final a = _LifecycleFakeController();
+      _d.registerController(pidA, a);
+
+      _d.setSelectedToolPlugin(pidA);
+      await pumpEventQueue();
+
+      expect(a.resumeCalls, 1);
+      expect(
+        a.jsEvents,
+        contains(allOf(contains('theme.changed'), contains('dark'))),
+      );
+    });
+
+    test('חידוש לא שולח theme כשאין הרשאת events.subscribe', () async {
+      _d.repositoryForTesting =
+          _FakeRegistryRepo(enabled: true, permission: false);
+      await _d.dispatchEvent('theme.changed', {'mode': 'dark'});
+
+      final a = _LifecycleFakeController();
+      _d.registerController(pidA, a);
+
+      _d.setSelectedToolPlugin(pidA);
+      await pumpEventQueue();
+
+      expect(a.resumeCalls, 1);
+      expect(a.jsEvents.any((e) => e.contains('theme.changed')), isFalse);
+    });
+
+    test('חידוש לא שולח theme כשהתוסף מושבת', () async {
+      _d.repositoryForTesting = _FakeRegistryRepo(enabled: false);
+      await _d.dispatchEvent('theme.changed', {'mode': 'dark'});
+
+      final a = _LifecycleFakeController();
+      _d.registerController(pidA, a);
+
+      _d.setSelectedToolPlugin(pidA);
+      await pumpEventQueue();
+
+      expect(a.jsEvents.any((e) => e.contains('theme.changed')), isFalse);
+    });
+
+    test('חידוש ללא theme קודם — לא שולח theme.changed', () async {
+      final a = _LifecycleFakeController();
+      _d.registerController(pidA, a);
+
+      _d.setSelectedToolPlugin(pidA);
+      await pumpEventQueue();
+
+      expect(a.jsEvents.any((e) => e.contains('theme.changed')), isFalse);
     });
   });
 
