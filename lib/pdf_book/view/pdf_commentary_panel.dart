@@ -1347,6 +1347,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       bookId: bookId,
       categoryId: widget.tab.book.categoryId,
       isPdf: true,
+      pdfOutline: widget.tab.outline,
       visibleLineIndices: _getVisibleLineIndicesForCurrentPage(),
       onNavigateToLine: (lineNumber) {
         if (widget.tab.pdfHeadings != null) {

@@ -3,7 +3,10 @@ import 'package:flutter/foundation.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/models/books.dart';
+import 'package:otzaria/personal_notes/utils/note_location_ref.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
@@ -26,6 +29,10 @@ class PersonalNotesSidebar extends StatefulWidget {
   final bool isPdf;
   final List<int>? visibleLineIndices;
 
+  /// ה-outline של ה-PDF לחישוב כתובת המיקום של כל הערה. רלוונטי רק כש-[isPdf].
+  /// מועבר כ-listenable כי ה-outline עשוי להיטען אחרי בניית הפאנל.
+  final ValueListenable<List<PdfOutlineNode>?>? pdfOutline;
+
   const PersonalNotesSidebar({
     super.key,
     required this.bookId,
@@ -33,6 +40,7 @@ class PersonalNotesSidebar extends StatefulWidget {
     required this.onNavigateToLine,
     this.isPdf = false,
     this.visibleLineIndices,
+    this.pdfOutline,
   });
 
   @override
@@ -207,10 +215,23 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
                           context,
                           state,
                           selectedLineNumber: selectedLineNumber,
+                          tableOfContents: textBookState is TextBookLoaded
+                              ? textBookState.tableOfContents
+                              : null,
                         );
                       },
                     )
-                  : _buildContent(context, state, selectedLineNumber: null),
+                  : widget.isPdf && widget.pdfOutline != null
+                      ? ValueListenableBuilder<List<PdfOutlineNode>?>(
+                          valueListenable: widget.pdfOutline!,
+                          builder: (context, outline, _) => _buildContent(
+                            context,
+                            state,
+                            selectedLineNumber: null,
+                            pdfOutline: outline,
+                          ),
+                        )
+                      : _buildContent(context, state, selectedLineNumber: null),
             ),
           ],
         );
@@ -238,10 +259,38 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
     return child;
   }
 
+  /// כתובת המיקום של ההערה (שם הספר + דף/עמוד) כשורת משנה מתחת לכותרת.
+  Widget? _buildLocationSubtitle(
+    BuildContext context,
+    PersonalNote note, {
+    List<TocEntry>? tableOfContents,
+    List<PdfOutlineNode>? pdfOutline,
+  }) {
+    final ref = personalNoteLocationRef(
+      note,
+      isPdf: widget.isPdf,
+      bookTitle: widget.bookId,
+      tableOfContents: tableOfContents,
+      pdfOutline: pdfOutline,
+    );
+    if (ref == null) return null;
+
+    return Text(
+      ref,
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
+
   Widget _buildContent(
     BuildContext context,
     PersonalNotesState state, {
     int? selectedLineNumber,
+    List<TocEntry>? tableOfContents,
+    List<PdfOutlineNode>? pdfOutline,
   }) {
     if (state.errorMessage != null) {
       return Center(
@@ -280,6 +329,12 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
             onDelete: () => _confirmDelete(context, note),
             onLinkTap: (url) => _handleNoteLinkTap(context, url),
             defaultExpanded: defaultExpanded,
+            subtitle: _buildLocationSubtitle(
+              context,
+              note,
+              tableOfContents: tableOfContents,
+              pdfOutline: pdfOutline,
+            ),
             expandToken: note.lineNumber == state.expandRequestLineNumber
                 ? state.expandRequestToken
                 : null,

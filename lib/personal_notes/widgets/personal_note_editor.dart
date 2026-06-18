@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_link_dialog.dart';
+import 'package:otzaria/widgets/misc/rtl_icon.dart';
 
 // RTL-aware arrow key shortcuts for QuillEditor.
 //
@@ -368,6 +369,11 @@ class _PersonalNoteToolbar extends StatelessWidget {
     required this.onInsertLink,
   });
 
+  static const double _minFontSize = 12;
+  static const double _maxFontSize = 32;
+  static const double _defaultFontSize = 16;
+  static const double _fontSizeStep = 2;
+
   void _toggleAttribute(quill.Attribute attribute) {
     final selectedAttributes = controller.getSelectionStyle().attributes;
     final isActive = _isAttributeActive(attribute, selectedAttributes);
@@ -379,6 +385,25 @@ class _PersonalNoteToolbar extends StatelessWidget {
     // לחיצה על IconButton גוזלת פוקוס מ-QuillEditor, ובדסקטופ Quill לא
     // מחזיר אותו אוטומטית (_keyboardVisible תמיד true). מחזירים פוקוס
     // ידנית כדי שהסמן יישאר נראה ושטקסט שיוקלד יקבל את ה-toggledStyle.
+    editorFocusNode.requestFocus();
+  }
+
+  double _currentFontSize() {
+    final value = controller
+        .getSelectionStyle()
+        .attributes[quill.Attribute.size.key]
+        ?.value;
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value) ?? _defaultFontSize;
+    return _defaultFontSize;
+  }
+
+  void _adjustFontSize(double delta) {
+    final newSize =
+        (_currentFontSize() + delta).clamp(_minFontSize, _maxFontSize);
+    controller.formatSelection(
+      quill.Attribute.fromKeyValue(quill.Attribute.size.key, newSize),
+    );
     editorFocusNode.requestFocus();
   }
 
@@ -429,6 +454,16 @@ class _PersonalNoteToolbar extends StatelessWidget {
           onPressed: () => _toggleAttribute(
             const quill.BackgroundAttribute('#fff59d'),
           ),
+        ),
+        IconButton(
+          tooltip: 'הגדל כתב',
+          icon: const RtlIcon(FluentIcons.font_increase_24_regular, size: 18),
+          onPressed: () => _adjustFontSize(_fontSizeStep),
+        ),
+        IconButton(
+          tooltip: 'הקטן כתב',
+          icon: const RtlIcon(FluentIcons.font_decrease_24_regular, size: 18),
+          onPressed: () => _adjustFontSize(-_fontSizeStep),
         ),
         IconButton(
           tooltip: 'כותרת',
