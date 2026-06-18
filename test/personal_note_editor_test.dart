@@ -97,6 +97,81 @@ void main() {
     );
   });
 
+  testWidgets('כפתורי הגדלה/הקטנה משנים את גודל הכתב של הטקסט הנבחר',
+      (tester) async {
+    final controller = buildPersonalNoteEditorController(
+      initialContent: 'שלום',
+      initialFormat: PersonalNoteContentFormat.plain,
+    );
+
+    void selectAll() => controller.quillController.updateSelection(
+          const TextSelection(baseOffset: 0, extentOffset: 4),
+          quill.ChangeSource.local,
+        );
+
+    selectAll();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: PersonalNoteEditorBody(
+            controller: controller,
+            focusNode: FocusNode(),
+            scrollController: ScrollController(),
+            autofocus: false,
+            linkableNotes: const [],
+          ),
+        ),
+      ),
+    );
+
+    // ללא size קיים יוצאים מ-16 (ברירת מחדל) ועולים בצעד של 2.
+    await tester.tap(find.byIcon(FluentIcons.font_increase_24_regular));
+    await tester.pump();
+    expect(_deltaSizeValue(controller), 18.0);
+
+    selectAll();
+    await tester.tap(find.byIcon(FluentIcons.font_decrease_24_regular));
+    await tester.pump();
+    expect(_deltaSizeValue(controller), 16.0);
+  });
+
+  testWidgets('הקטנת כתב לא יורדת מתחת לרצפה (12)', (tester) async {
+    final controller = buildPersonalNoteEditorController(
+      initialContent: 'שלום',
+      initialFormat: PersonalNoteContentFormat.plain,
+    );
+
+    void selectAll() => controller.quillController.updateSelection(
+          const TextSelection(baseOffset: 0, extentOffset: 4),
+          quill.ChangeSource.local,
+        );
+
+    selectAll();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: PersonalNoteEditorBody(
+            controller: controller,
+            focusNode: FocusNode(),
+            scrollController: ScrollController(),
+            autofocus: false,
+            linkableNotes: const [],
+          ),
+        ),
+      ),
+    );
+
+    // 16 → 14 → 12 → נשאר 12 (רצפה).
+    for (var i = 0; i < 5; i++) {
+      selectAll();
+      await tester.tap(find.byIcon(FluentIcons.font_decrease_24_regular));
+      await tester.pump();
+    }
+    expect(_deltaSizeValue(controller), 12.0);
+  });
+
   testWidgets('לחיצה על כפתור עיצוב מחזירה פוקוס לעורך', (tester) async {
     // רגרסיה: בעבר לחיצה על IconButton בטולבר גזלה פוקוס מ-QuillEditor
     // ובדסקטופ הפוקוס לא חזר אוטומטית, כי skipRequestKeyboard לבדו לא
@@ -186,6 +261,22 @@ void main() {
     );
     expect(editor.config.enableSelectionToolbar, isFalse);
   });
+}
+
+double? _deltaSizeValue(PersonalNoteEditorController controller) {
+  final operations = jsonDecode(
+    jsonEncode(controller.quillController.document.toDelta().toJson()),
+  ) as List<dynamic>;
+
+  for (final operation in operations) {
+    final attributes = (operation as Map<String, dynamic>)['attributes'];
+    if (attributes is Map<String, dynamic> && attributes.containsKey('size')) {
+      final value = attributes['size'];
+      return value is num ? value.toDouble() : double.tryParse('$value');
+    }
+  }
+
+  return null;
 }
 
 bool _deltaHasAttribute(

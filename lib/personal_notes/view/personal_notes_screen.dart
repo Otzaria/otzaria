@@ -16,6 +16,7 @@ import 'package:otzaria/personal_notes/widgets/personal_note_content_view.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_editor.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_editor_dialog.dart';
 import 'package:otzaria/personal_notes/widgets/personal_notes_export_dialog.dart';
+import 'package:otzaria/personal_notes/utils/note_location_ref.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
@@ -64,6 +65,8 @@ class _PersonalNotesManagerScreenState
   String? _booksError;
   final Map<String, PersonalNotesState> _bookStates = {};
   final Map<String, bool> _expansionState = {};
+  // קאש ל-TOC לכל ספר, לחישוב כתובת המיקום של ההערות. נטען עצלן פעם אחת.
+  final Map<String, Future<List<TocEntry>?>> _tocFutureByBook = {};
   bool _isNavigationVisible = true;
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
@@ -437,6 +440,17 @@ class _PersonalNotesManagerScreenState
         );
       },
     );
+  }
+
+  /// טוען (פעם אחת, עם קאש) את ה-TOC של ספר טקסט לפי כותרתו, לחישוב המיקום.
+  /// מחזיר Future ל-null כשהספר אינו ספר טקסט או שאינו בספרייה.
+  Future<List<TocEntry>?> _tocFor(String bookId) {
+    return _tocFutureByBook.putIfAbsent(bookId, () {
+      final library = context.read<LibraryBloc>().state.library;
+      final book = library?.findBookByTitle(bookId, TextBook);
+      if (book is! TextBook) return Future.value(null);
+      return book.tableOfContents;
+    });
   }
 
   List<PersonalNote> _collectAllNotes() {
@@ -959,30 +973,40 @@ class _PersonalNotesManagerScreenState
                   ],
                 ),
               ),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                const minCardWidth = 280.0;
-                const maxCardsPerRow = 3;
-                const spacing = 12.0;
-                final availableWidth = constraints.maxWidth;
-                int crossAxisCount =
-                    ((availableWidth + spacing) / (minCardWidth + spacing))
-                        .floor();
-                crossAxisCount = crossAxisCount.clamp(1, maxCardsPerRow);
+            FutureBuilder<List<TocEntry>?>(
+              future: _tocFor(group.bookId),
+              builder: (context, tocSnapshot) {
+                final toc = tocSnapshot.data;
+                return LayoutBuilder(
+                  builder: (context, constraints) {
+                    const minCardWidth = 280.0;
+                    const maxCardsPerRow = 3;
+                    const spacing = 12.0;
+                    final availableWidth = constraints.maxWidth;
+                    int crossAxisCount =
+                        ((availableWidth + spacing) / (minCardWidth + spacing))
+                            .floor();
+                    crossAxisCount = crossAxisCount.clamp(1, maxCardsPerRow);
 
-                return GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: crossAxisCount,
-                    crossAxisSpacing: spacing,
-                    mainAxisSpacing: spacing,
-                    mainAxisExtent: 170,
-                  ),
-                  itemCount: group.notes.length,
-                  itemBuilder: (context, noteIndex) {
-                    final item = group.notes[noteIndex];
-                    return _buildNoteCard(item.note, item.isMissing);
+                    return GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossAxisCount,
+                        crossAxisSpacing: spacing,
+                        mainAxisSpacing: spacing,
+                        mainAxisExtent: 170,
+                      ),
+                      itemCount: group.notes.length,
+                      itemBuilder: (context, noteIndex) {
+                        final item = group.notes[noteIndex];
+                        return _buildNoteCard(
+                          item.note,
+                          item.isMissing,
+                          tableOfContents: toc,
+                        );
+                      },
+                    );
                   },
                 );
               },
@@ -1032,9 +1056,23 @@ class _PersonalNotesManagerScreenState
     );
   }
 
-  Widget _buildNoteCard(PersonalNote note, bool isMissing) {
+  Widget _buildNoteCard(
+    PersonalNote note,
+    bool isMissing, {
+    List<TocEntry>? tableOfContents,
+  }) {
     final cs = Theme.of(context).colorScheme;
     final hebrewDate = getHebrewDateFormattedAsString(note.updatedAt);
+    // שם הספר כבר מוצג ככותרת הקבוצה, לכן כאן מציגים רק את הדף/העמוד.
+    final locationRef = isMissing
+        ? null
+        : personalNoteLocationRef(
+            note,
+            isPdf: false,
+            bookTitle: note.bookId,
+            tableOfContents: tableOfContents,
+            includeBookTitle: false,
+          );
 
     return AppCard(
       radius: AppTokens.radiusMD,
@@ -1059,6 +1097,17 @@ class _PersonalNotesManagerScreenState
               ),
             ],
           ),
+          if (locationRef != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              locationRef,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
           const SizedBox(height: 8),
           // תצוגה מקדימה מעוצבת: מרנדרים את ה-Quill Delta במקום טקסט פשוט,
           // כך שהעיצוב (מודגש/נטוי/קו תחתי/קו חוצה וכו') יופיע גם בכרטיס.
