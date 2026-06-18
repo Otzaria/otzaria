@@ -4,6 +4,7 @@ import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
+import 'package:otzaria/navigation/view/main_window_screen.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/commentators_tab.dart';
@@ -271,6 +272,17 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
         builder: (context) => const WorkspaceSwitcherDialog(),
       );
       return KeyEventResult.handled;
+    }
+
+    // פתיחת כלי לפי קיצור אופציונלי (ללא ברירת מחדל) — דרך deep-link פנימי.
+    for (final entry in ShortcutValidator.openToolShortcutKeys.entries) {
+      final toolShortcut = shortcutOf(entry.key);
+      if (toolShortcut.isNotEmpty &&
+          ShortcutHelper.matchesShortcut(event, toolShortcut)) {
+        mainWindowScreenKey.currentState
+            ?.handleInternalDeepLink('otzaria://open/tool/${entry.value}');
+        return KeyEventResult.handled;
+      }
     }
 
     // Ctrl+Tab / Ctrl+Shift+Tab - מעבר בין טאבים.

@@ -21,6 +21,18 @@ class ShortcutValidator {
     currentWindowSearchKey: [legacySearchInBookKey],
   };
 
+  /// קיצורי "פתיחת כלי" אופציונליים (deep-link `otzaria://open/tool/<id>`).
+  /// כל מפתח חייב להופיע גם ב-[shortcutKeys], [defaultShortcuts] (ריק), [shortcutNames].
+  static const Map<String, String> openToolShortcutKeys = {
+    'key-shortcut-open-tool-calendar': 'builtin.calendar',
+    'key-shortcut-open-tool-shamor-zachor': 'builtin.shamor_zachor',
+    'key-shortcut-open-tool-measurements': 'builtin.measurements',
+    'key-shortcut-open-tool-notes': 'builtin.notes',
+    'key-shortcut-open-tool-gematria': 'builtin.gematria',
+    'key-shortcut-open-tool-aramaic-dictionary': 'builtin.aramaic_dictionary',
+    'key-shortcut-open-tool-acronyms-dictionary': 'builtin.acronyms_dictionary',
+  };
+
   /// List of all shortcut setting keys
   static const List<String> shortcutKeys = [
     'key-shortcut-open-library-browser',
@@ -49,6 +61,14 @@ class ShortcutValidator {
     'key-shortcut-toggle-nav-pane',
     'key-shortcut-toggle-commentators-pane',
     'key-shortcut-open-commentators-tab',
+    // פתיחת כלים — אופציונלי, ללא ברירת מחדל (ראה openToolShortcutKeys).
+    'key-shortcut-open-tool-calendar',
+    'key-shortcut-open-tool-shamor-zachor',
+    'key-shortcut-open-tool-measurements',
+    'key-shortcut-open-tool-notes',
+    'key-shortcut-open-tool-gematria',
+    'key-shortcut-open-tool-aramaic-dictionary',
+    'key-shortcut-open-tool-acronyms-dictionary',
   ];
 
   /// Default values for shortcuts
@@ -79,6 +99,13 @@ class ShortcutValidator {
     'key-shortcut-toggle-nav-pane': 'ctrl+shift+l',
     'key-shortcut-toggle-commentators-pane': 'ctrl+shift+c',
     'key-shortcut-open-commentators-tab': '',
+    'key-shortcut-open-tool-calendar': '',
+    'key-shortcut-open-tool-shamor-zachor': '',
+    'key-shortcut-open-tool-measurements': '',
+    'key-shortcut-open-tool-notes': '',
+    'key-shortcut-open-tool-gematria': '',
+    'key-shortcut-open-tool-aramaic-dictionary': '',
+    'key-shortcut-open-tool-acronyms-dictionary': '',
   };
 
   /// Shortcut names for display
@@ -109,6 +136,13 @@ class ShortcutValidator {
     'key-shortcut-toggle-nav-pane': 'פתח/סגור חלונית ניווט',
     'key-shortcut-toggle-commentators-pane': 'פתח/סגור חלונית מפרשים',
     'key-shortcut-open-commentators-tab': 'פתח כרטיסיית מפרשים',
+    'key-shortcut-open-tool-calendar': 'פתיחת לוח שנה',
+    'key-shortcut-open-tool-shamor-zachor': 'פתיחת שמור וזכור',
+    'key-shortcut-open-tool-measurements': 'פתיחת מדות ושיעורים',
+    'key-shortcut-open-tool-notes': 'פתיחת הערות אישיות',
+    'key-shortcut-open-tool-gematria': 'פתיחת גימטריה',
+    'key-shortcut-open-tool-aramaic-dictionary': 'פתיחת מילון ארמי-עברי',
+    'key-shortcut-open-tool-acronyms-dictionary': 'פתיחת ראשי תיבות',
   };
 
   /// Check for conflicts in current shortcuts

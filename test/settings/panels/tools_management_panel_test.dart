@@ -304,8 +304,8 @@ void main() {
 
       // הכלי עדיין מופיע בטבלה — רק הוא מוסתר מהממשק הראשי.
       expect(find.text('לוח שנה'), findsOneWidget);
-      // תווית "מוסתר" צריכה להופיע.
-      expect(find.text('מוסתר'), findsOneWidget);
+      // תגית "מוסתר" (אייקון עם tooltip) צריכה להופיע.
+      expect(find.byTooltip('מוסתר'), findsOneWidget);
       // הלחצן בשורת לוח-שנה צריך להציע "הצג בממשק" (ולא "הסתר").
       expect(_rowButton('לוח שנה', 'הצג בממשק'), findsOneWidget);
     },

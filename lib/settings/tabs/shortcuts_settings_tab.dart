@@ -239,6 +239,63 @@ class ShortcutsSettingsTab extends StatelessWidget {
       cardId: 'shortcuts.main',
       keywords: ['שמור וזכור', 'סינון', 'מקלדת', 'ctrl+s'],
     ),
+    // ── פתיחת כלים ──
+    SettingsSearchEntry(
+      id: 'shortcuts.open_tool.calendar',
+      title: 'קיצור לפתיחת לוח שנה',
+      subtitle: 'פתיחה מהירה של כלי לוח השנה',
+      tab: SettingsTab.shortcuts,
+      cardId: 'shortcuts.main',
+      keywords: ['לוח שנה', 'כלים', 'פתיחה', 'מקלדת'],
+    ),
+    SettingsSearchEntry(
+      id: 'shortcuts.open_tool.shamor_zachor',
+      title: 'קיצור לפתיחת שמור וזכור',
+      subtitle: 'פתיחה מהירה של כלי שמור וזכור',
+      tab: SettingsTab.shortcuts,
+      cardId: 'shortcuts.main',
+      keywords: ['שמור וזכור', 'כלים', 'פתיחה', 'מקלדת'],
+    ),
+    SettingsSearchEntry(
+      id: 'shortcuts.open_tool.measurements',
+      title: 'קיצור לפתיחת מדות ושיעורים',
+      subtitle: 'פתיחה מהירה של כלי מדות ושיעורים',
+      tab: SettingsTab.shortcuts,
+      cardId: 'shortcuts.main',
+      keywords: ['מדות', 'שיעורים', 'כלים', 'פתיחה', 'מקלדת'],
+    ),
+    SettingsSearchEntry(
+      id: 'shortcuts.open_tool.notes',
+      title: 'קיצור לפתיחת הערות אישיות',
+      subtitle: 'פתיחה מהירה של כלי ההערות האישיות',
+      tab: SettingsTab.shortcuts,
+      cardId: 'shortcuts.main',
+      keywords: ['הערות', 'אישיות', 'כלים', 'פתיחה', 'מקלדת'],
+    ),
+    SettingsSearchEntry(
+      id: 'shortcuts.open_tool.gematria',
+      title: 'קיצור לפתיחת גימטריה',
+      subtitle: 'פתיחה מהירה של כלי הגימטריה',
+      tab: SettingsTab.shortcuts,
+      cardId: 'shortcuts.main',
+      keywords: ['גימטריה', 'כלים', 'פתיחה', 'מקלדת'],
+    ),
+    SettingsSearchEntry(
+      id: 'shortcuts.open_tool.aramaic_dictionary',
+      title: 'קיצור לפתיחת מילון ארמי-עברי',
+      subtitle: 'פתיחה מהירה של המילון הארמי-עברי',
+      tab: SettingsTab.shortcuts,
+      cardId: 'shortcuts.main',
+      keywords: ['מילון', 'ארמי', 'עברי', 'כלים', 'פתיחה', 'מקלדת'],
+    ),
+    SettingsSearchEntry(
+      id: 'shortcuts.open_tool.acronyms_dictionary',
+      title: 'קיצור לפתיחת ראשי תיבות',
+      subtitle: 'פתיחה מהירה של מילון ראשי התיבות',
+      tab: SettingsTab.shortcuts,
+      cardId: 'shortcuts.main',
+      keywords: ['ראשי תיבות', 'מילון', 'כלים', 'פתיחה', 'מקלדת'],
+    ),
   ];
 
   /// אוסף הקיצורים הזמינים לבחירה ב-dropdown. התווית נגזרת דינמית כדי
@@ -325,6 +382,53 @@ class ShortcutsSettingsTab extends StatelessWidget {
     final unconfiguredKeys = ShortcutValidator.shortcutKeys
         .where((k) => (ShortcutValidator.getShortcutValue(k) ?? '').isEmpty)
         .toList();
+
+    // קיצורי "פתיחת כלים" הם ללא ברירת מחדל, ולכן הכרטיס מוצג רק אם המשתמש
+    // הגדיר קיצור לפחות לכלי אחד.
+    final openToolTiles = _onlyConfigured([
+      _ShortcutTile(
+        settingKey: 'key-shortcut-open-tool-calendar',
+        label: 'פתיחת לוח שנה',
+        icon: FluentIcons.calendar_24_regular,
+        allShortcuts: _shortcutsList,
+      ),
+      _ShortcutTile(
+        settingKey: 'key-shortcut-open-tool-shamor-zachor',
+        label: 'פתיחת שמור וזכור',
+        icon: FluentIcons.checkmark_circle_24_regular,
+        allShortcuts: _shortcutsList,
+      ),
+      _ShortcutTile(
+        settingKey: 'key-shortcut-open-tool-measurements',
+        label: 'פתיחת מדות ושיעורים',
+        icon: FluentIcons.ruler_24_regular,
+        allShortcuts: _shortcutsList,
+      ),
+      _ShortcutTile(
+        settingKey: 'key-shortcut-open-tool-notes',
+        label: 'פתיחת הערות אישיות',
+        icon: FluentIcons.note_24_regular,
+        allShortcuts: _shortcutsList,
+      ),
+      _ShortcutTile(
+        settingKey: 'key-shortcut-open-tool-gematria',
+        label: 'פתיחת גימטריה',
+        icon: FluentIcons.calculator_24_regular,
+        allShortcuts: _shortcutsList,
+      ),
+      _ShortcutTile(
+        settingKey: 'key-shortcut-open-tool-aramaic-dictionary',
+        label: 'פתיחת מילון ארמי-עברי',
+        icon: FluentIcons.translate_24_regular,
+        allShortcuts: _shortcutsList,
+      ),
+      _ShortcutTile(
+        settingKey: 'key-shortcut-open-tool-acronyms-dictionary',
+        label: 'פתיחת ראשי תיבות',
+        icon: FluentIcons.text_quote_24_regular,
+        allShortcuts: _shortcutsList,
+      ),
+    ]);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -533,6 +637,16 @@ class ShortcutsSettingsTab extends StatelessWidget {
             ),
           ]),
         ),
+
+        // ── פתיחת כלים (אופציונלי) — מוצג רק כשהוגדר קיצור לכלי אחד לפחות ──
+        if (openToolTiles.isNotEmpty) ...[
+          kSettingsCardSpacing,
+          SettingsCard(
+            title: 'פתיחת כלים',
+            subtitle: 'קיצורים לפתיחה מהירה של כלי מתוך מסך הכלים',
+            children: openToolTiles,
+          ),
+        ],
 
         // ── פעולות זמינות להגדרת קיצור ────────────────────────────────
         if (unconfiguredKeys.isNotEmpty) ...[
