@@ -17,6 +17,7 @@ import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/utils/ui/context_menu_utils.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/widgets/text/rtl_selection_shortcuts.dart';
+import 'package:otzaria/widgets/text/selection_copy_shortcuts.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
 import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart';
 import 'package:otzaria/text_book/view/selection/selection_hit_test.dart';
@@ -491,83 +492,96 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
       );
     }
 
-    return RtlSelectionShortcuts(
-        child: SelectionArea(
-      key: ValueKey(
-        'selected_link_${buildSelectedLinkInstanceKey(link)}_$_selectionRevision',
-      ),
-      contextMenuBuilder: (context, selectableRegionState) {
-        return const SizedBox.shrink();
-      },
-      onSelectionChanged: (selection) {
-        // עדכון מעקב כיוון הגרירה (ל-RtlSelectionShortcuts).
-        trackRtlSelection(selection?.plainText);
-        // שינוי בחירה זמני בזמן priming — לא לעבד.
-        if (rtlSelectionPriming) return;
-        if (selection != null && selection.plainText.isNotEmpty) {
-          widget.selectionSyncController?.activate(_selectionOwner);
-          _savedSelectedText = selection.plainText;
-          _savedSelectedLink = link;
-        } else if (selection == null || selection.plainText.trim().isEmpty) {
-          widget.selectionSyncController?.clear(_selectionOwner);
-          _savedSelectedText = null;
-          _savedSelectedLink = null;
-        }
-      },
-      child: AppContextMenuRegion(
-        // לחיצה ימנית על הטקסט המסומן בפועל לא תשחרר את הבחירה (התנהגות ברירת
-        // המחדל של SelectableRegion ב-Windows); לחיצה על חלק לא-מסומן מבטלת
-        // כרגיל. הבחירה מנוהלת ע"י SelectionArea פר-קישור, לכן מחשבים את קטע
-        // הבחירה ישירות מול הפסקה שעליה לחצו.
-        shouldPreserveSelectionOnSecondaryTap: (globalPosition) {
-          final selected = _savedSelectedText;
-          if (selected == null || selected.isEmpty) return false;
-          final root = context.findRenderObject();
-          if (root == null) return true; // סלחני
-          return clickIsOnSelectionWithinArea(
-                root: root,
-                globalPosition: globalPosition,
-                selectedText: selected,
-              ) ??
-              true; // לא הוכרע — סלחני
-        },
-        menuBuilder: (menuCtx, _) =>
-            ContextMenuUtils.buildCommentaryContextMenu(
-          context: menuCtx,
-          link: link,
-          openBookCallback: widget.openBookCallback,
-          fontSize: widget.fontSize,
-          savedSelectedText: _savedSelectedText,
-          onCopySelected: () => ContextMenuUtils.copyFormattedText(
-            context: menuCtx,
-            savedSelectedText: _savedSelectedText,
-            fontSize: widget.fontSize,
-            link: _savedSelectedLink,
-          ),
-        ),
-        child: GestureDetector(
-          onTap: () {
-            widget.openBookCallback(
-              TextBookTab(
-                book: TextBook(
-                  title: utils.getTitleFromPath(link.path2),
+    // יירוט Ctrl+C ממוקם *מעל* ה-SelectionArea — שם מנגנון ה-override של
+    // CopySelectionTextIntent מאתר אותו (מתחתיו הוא נשאר בלתי-נראה).
+    return SelectionCopyShortcuts(
+        onCopy: () => ContextMenuUtils.copyFormattedText(
+              context: context,
+              savedSelectedText: _savedSelectedText,
+              fontSize: widget.fontSize,
+              link: _savedSelectedLink,
+            ),
+        child: RtlSelectionShortcuts(
+          child: SelectionArea(
+            key: ValueKey(
+              'selected_link_${buildSelectedLinkInstanceKey(link)}_$_selectionRevision',
+            ),
+            contextMenuBuilder: (context, selectableRegionState) {
+              return const SizedBox.shrink();
+            },
+            onSelectionChanged: (selection) {
+              // עדכון מעקב כיוון הגרירה (ל-RtlSelectionShortcuts).
+              trackRtlSelection(selection?.plainText);
+              // שינוי בחירה זמני בזמן priming — לא לעבד.
+              if (rtlSelectionPriming) return;
+              if (selection != null && selection.plainText.isNotEmpty) {
+                widget.selectionSyncController?.activate(_selectionOwner);
+                _savedSelectedText = selection.plainText;
+                _savedSelectedLink = link;
+              } else if (selection == null ||
+                  selection.plainText.trim().isEmpty) {
+                widget.selectionSyncController?.clear(_selectionOwner);
+                _savedSelectedText = null;
+                _savedSelectedLink = null;
+              }
+            },
+            child: AppContextMenuRegion(
+              // לחיצה ימנית על הטקסט המסומן בפועל לא תשחרר את הבחירה (התנהגות ברירת
+              // המחדל של SelectableRegion ב-Windows); לחיצה על חלק לא-מסומן מבטלת
+              // כרגיל. הבחירה מנוהלת ע"י SelectionArea פר-קישור, לכן מחשבים את קטע
+              // הבחירה ישירות מול הפסקה שעליה לחצו.
+              shouldPreserveSelectionOnSecondaryTap: (globalPosition) {
+                final selected = _savedSelectedText;
+                if (selected == null || selected.isEmpty) return false;
+                final root = context.findRenderObject();
+                if (root == null) return true; // סלחני
+                return clickIsOnSelectionWithinArea(
+                      root: root,
+                      globalPosition: globalPosition,
+                      selectedText: selected,
+                    ) ??
+                    true; // לא הוכרע — סלחני
+              },
+              menuBuilder: (menuCtx, _) =>
+                  ContextMenuUtils.buildCommentaryContextMenu(
+                context: menuCtx,
+                link: link,
+                openBookCallback: widget.openBookCallback,
+                fontSize: widget.fontSize,
+                savedSelectedText: _savedSelectedText,
+                onCopySelected: () => ContextMenuUtils.copyFormattedText(
+                  context: menuCtx,
+                  savedSelectedText: _savedSelectedText,
+                  fontSize: widget.fontSize,
+                  link: _savedSelectedLink,
                 ),
-                index: link.index2 - 1,
-                openLeftPane:
-                    (Settings.getValue<bool>('key-pin-sidebar') ?? false) ||
-                        (Settings.getValue<bool>('key-default-sidebar-open') ??
-                            false),
               ),
-            );
-          },
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12.0),
-            child: _buildHighlightedText(content, link),
+              child: GestureDetector(
+                onTap: () {
+                  widget.openBookCallback(
+                    TextBookTab(
+                      book: TextBook(
+                        title: utils.getTitleFromPath(link.path2),
+                      ),
+                      index: link.index2 - 1,
+                      openLeftPane:
+                          (Settings.getValue<bool>('key-pin-sidebar') ??
+                                  false) ||
+                              (Settings.getValue<bool>(
+                                      'key-default-sidebar-open') ??
+                                  false),
+                    ),
+                  );
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12.0),
+                  child: _buildHighlightedText(content, link),
+                ),
+              ),
+            ),
           ),
-        ),
-      ),
-    ));
+        ));
   }
 
   Widget _buildHighlightedText(String content, Link link) {
