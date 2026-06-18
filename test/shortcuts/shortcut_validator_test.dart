@@ -1,6 +1,8 @@
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/core/external_uri_router.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
+import 'package:otzaria/tools/built_in_tools_catalog.dart';
 
 void main() {
   setUp(() async {
@@ -126,6 +128,34 @@ void main() {
         ShortcutValidator.hasConflict('key-shortcut-open-commentators-tab'),
         isFalse,
       );
+    });
+  });
+
+  group('openToolShortcutKeys', () {
+    test('כל מפתח רשום ב-shortcutKeys, defaultShortcuts (ריק) ו-shortcutNames',
+        () {
+      for (final key in ShortcutValidator.openToolShortcutKeys.keys) {
+        expect(ShortcutValidator.shortcutKeys, contains(key));
+        expect(ShortcutValidator.defaultShortcuts[key], '');
+        expect(ShortcutValidator.shortcutNames[key], isNotNull);
+      }
+    });
+
+    test('כל מזהה כלי קיים בקטלוג הכלים המובנים', () {
+      final catalogIds = kBuiltInToolsCatalog.map((m) => m.toolId).toSet();
+      for (final toolId in ShortcutValidator.openToolShortcutKeys.values) {
+        expect(catalogIds, contains(toolId),
+            reason: 'הכלי "$toolId" אינו קיים בקטלוג');
+      }
+    });
+
+    test('ה-deep-link שהקיצור מפעיל מתפענח ל-OpenToolAction של אותו כלי', () {
+      for (final toolId in ShortcutValidator.openToolShortcutKeys.values) {
+        final action = ExternalUriRouter.parseUri(
+            Uri.parse('otzaria://open/tool/$toolId'));
+        expect(action, isA<OpenToolAction>());
+        expect((action as OpenToolAction).toolId, toolId);
+      }
     });
   });
 

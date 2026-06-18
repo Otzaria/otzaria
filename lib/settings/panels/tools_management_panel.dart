@@ -21,6 +21,7 @@ import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/built_in_tools_catalog.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
+import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/misc/tool_ui_helpers.dart';
 
 const String _networkAccessPermission = 'network.access';
@@ -739,10 +740,12 @@ class _BuiltInToolRow extends StatelessWidget {
     return ListTile(
       hoverColor: Colors.transparent,
       leading: toolIcon,
-      title: Text(meta.label),
-      subtitle: _StatusBadges(
-        hidden: hidden,
-        pinnedToNavRail: pinnedToNavRail,
+      title: _RowTitle(
+        label: meta.label,
+        badges: _StatusBadges(
+          hidden: hidden,
+          pinnedToNavRail: pinnedToNavRail,
+        ),
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -850,14 +853,14 @@ class _PluginRow extends StatelessWidget {
     return ListTile(
       hoverColor: Colors.transparent,
       leading: Checkbox(value: selected, onChanged: onSelectChanged),
-      title: Text(
-        '${plugin.name}  •  v${plugin.version}',
-      ),
-      subtitle: _StatusBadges(
-        hidden: plugin.hiddenFromTools,
-        pinnedToNavRail: plugin.pinnedToNavRail,
-        disabled: !plugin.enabled,
-        networkDeclared: plugin.manifest.networkEnabled,
+      title: _RowTitle(
+        label: '${plugin.name}  •  v${plugin.version}',
+        badges: _StatusBadges(
+          hidden: plugin.hiddenFromTools,
+          pinnedToNavRail: plugin.pinnedToNavRail,
+          disabled: !plugin.enabled,
+          networkDeclared: plugin.manifest.networkEnabled,
+        ),
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -911,6 +914,34 @@ class _SettingsDragFeedback extends StatelessWidget {
   }
 }
 
+/// כותרת שורה: שם הכלי/התוסף ולצדו תגיות הסטטוס (אייקונים בלבד). התגיות מוצגות
+/// רק כשרוחב השורה מאפשר, אחרת השם מקבל את כל המקום.
+class _RowTitle extends StatelessWidget {
+  final String label;
+  final _StatusBadges badges;
+
+  const _RowTitle({required this.label, required this.badges});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final showBadges = badges.hasAny && constraints.maxWidth > 220;
+        return Row(
+          children: [
+            Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
+            if (showBadges) ...[
+              const SizedBox(width: 8),
+              badges,
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// תגיות סטטוס לשורת כלי/תוסף — אייקונים בלבד; ההסבר מופיע ב-tooltip בריחוף.
 class _StatusBadges extends StatelessWidget {
   final bool hidden;
   final bool pinnedToNavRail;
@@ -924,48 +955,48 @@ class _StatusBadges extends StatelessWidget {
     this.networkDeclared = false,
   });
 
+  bool get hasAny => hidden || pinnedToNavRail || disabled || networkDeclared;
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final chips = <Widget>[];
+    final badges = <Widget>[];
     if (disabled) {
-      chips.add(_badge(context, 'מושבת', cs.errorContainer, cs.onErrorContainer,
-          FluentIcons.pause_circle_24_regular));
+      badges.add(_badge(context, 'מושבת', cs.errorContainer,
+          cs.onErrorContainer, FluentIcons.pause_circle_24_regular));
     }
     if (hidden) {
-      chips.add(_badge(context, 'מוסתר', cs.surfaceContainerHighest,
+      badges.add(_badge(context, 'מוסתר', cs.surfaceContainerHighest,
           cs.onSurfaceVariant, FluentIcons.eye_off_24_regular));
     }
     if (pinnedToNavRail) {
-      chips.add(_badge(context, 'בסרגל ניווט', cs.primaryContainer,
+      badges.add(_badge(context, 'בסרגל ניווט', cs.primaryContainer,
           cs.onPrimaryContainer, FluentIcons.pin_24_regular));
     }
     if (networkDeclared) {
-      chips.add(_badge(context, 'משתמש ברשת', cs.tertiaryContainer,
+      badges.add(_badge(context, 'משתמש ברשת', cs.tertiaryContainer,
           cs.onTertiaryContainer, FluentIcons.globe_24_regular));
     }
-    if (chips.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(top: 4),
-      child: Wrap(spacing: 6, runSpacing: 4, children: chips),
+    if (badges.isEmpty) return const SizedBox.shrink();
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < badges.length; i++) ...[
+          if (i > 0) const SizedBox(width: 6),
+          badges[i],
+        ],
+      ],
     );
   }
 
   Widget _badge(
-      BuildContext context, String text, Color bg, Color fg, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: fg),
-          const SizedBox(width: 4),
-          Text(text, style: TextStyle(color: fg, fontSize: 12)),
-        ],
+      BuildContext context, String tooltip, Color bg, Color fg, IconData icon) {
+    return Tooltip(
+      message: tooltip,
+      child: Container(
+        padding: const EdgeInsets.all(5),
+        decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+        child: RtlIcon(icon, size: 14, color: fg),
       ),
     );
   }
