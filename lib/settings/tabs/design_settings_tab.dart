@@ -4,7 +4,6 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart'
     hide SwitchSettingsTile;
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:window_manager/window_manager.dart';
 import 'package:otzaria/settings/dialogs/settings_dialogs_exports.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
 import 'package:otzaria/settings/search/settings_anchor.dart';
@@ -27,14 +26,6 @@ class DesignSettingsTab extends StatelessWidget {
   /// פריטים בעלי הגדרות לחיפוש בהגדרות. נסרק על-ידי
   /// tool/generate_search_index.dart בעת בנייה ומשולב באינדקס המאוחד.
   static const List<SettingsSearchEntry> searchEntries = [
-    SettingsSearchEntry(
-      id: 'design.display.fullscreen',
-      title: 'מסך מלא',
-      subtitle: 'החלף מצב מסך מלא',
-      tab: SettingsTab.design,
-      cardId: 'design.display',
-      keywords: ['מסך מלא', 'fullscreen', 'מופעל', 'לא מופעל'],
-    ),
     SettingsSearchEntry(
       id: 'design.theme.follow_system',
       title: 'מעקב אחר צבע המערכת',
@@ -149,34 +140,6 @@ class DesignSettingsTab extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // מסך מלא (רק בדסקטופ)
-                if (!(Platform.isAndroid || Platform.isIOS))
-                  SettingsAnchor(
-                    cardId: 'design.display',
-                    child: SettingsCard(
-                      title: 'תצוגה',
-                      children: [
-                        SwitchSettingsTile.text(
-                          icon: state.isFullscreen
-                              ? FluentIcons.full_screen_minimize_24_regular
-                              : FluentIcons.full_screen_maximize_24_regular,
-                          title: 'מסך מלא',
-                          subtitle: 'החלף מצב מסך מלא',
-                          value: state.isFullscreen,
-                          onChanged: (value) async {
-                            context
-                                .read<SettingsBloc>()
-                                .add(UpdateIsFullscreen(value));
-                            await windowManager.setFullScreen(value);
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-
-                if (!(Platform.isAndroid || Platform.isIOS))
-                  kSettingsCardSpacing,
-
                 // מצב כהה וצבע בסיס
                 SettingsAnchor(
                   cardId: 'design.theme',

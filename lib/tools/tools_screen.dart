@@ -930,7 +930,7 @@ class ToolsScreenState extends State<ToolsScreen>
     );
   }
 
-  Widget _buildDesktop(Color bgColor) {
+  Widget _buildDesktop(Color bgColor, {required bool isImmersive}) {
     final currentIndex =
         _descriptors.indexWhere((d) => d.toolId == _selectedToolId);
     final safeIndex = currentIndex.clamp(
@@ -961,114 +961,119 @@ class ToolsScreenState extends State<ToolsScreen>
                 },
                 child: Column(
                   children: [
-                    ColoredBox(
-                      color: bgColor,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: AppTokens.spaceXS,
-                        ),
-                        child: Row(
-                          children: [
-                            // חץ ימני – מוצג כשיש תוכן נסתר בצד ימין
-                            SizedBox(
-                              width: 36,
-                              height: 40,
-                              child: AnimatedOpacity(
-                                duration: const Duration(milliseconds: 200),
-                                opacity: _canTabScrollLeft ? 1.0 : 0.0,
-                                child: IgnorePointer(
-                                  ignoring: !_canTabScrollLeft,
-                                  child: IconButton(
-                                    icon: const RtlIcon(
-                                        FluentIcons.chevron_right_24_regular),
-                                    iconSize: 18,
-                                    onPressed: () => _tabScrollBy(-150),
-                                    tooltip: 'גלול ימינה',
-                                    constraints: const BoxConstraints(
-                                        minWidth: 32, minHeight: 32),
-                                    padding: EdgeInsets.zero,
+                    // במסך מלא (כלים/תוספים) סרגל הלשוניות העליון מוסתר.
+                    if (!isImmersive)
+                      ColoredBox(
+                        color: bgColor,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: AppTokens.spaceXS,
+                          ),
+                          child: Row(
+                            children: [
+                              // חץ ימני – מוצג כשיש תוכן נסתר בצד ימין
+                              SizedBox(
+                                width: 36,
+                                height: 40,
+                                child: AnimatedOpacity(
+                                  duration: const Duration(milliseconds: 200),
+                                  opacity: _canTabScrollLeft ? 1.0 : 0.0,
+                                  child: IgnorePointer(
+                                    ignoring: !_canTabScrollLeft,
+                                    child: IconButton(
+                                      icon: const RtlIcon(
+                                          FluentIcons.chevron_right_24_regular),
+                                      iconSize: 18,
+                                      onPressed: () => _tabScrollBy(-150),
+                                      tooltip: 'גלול ימינה',
+                                      constraints: const BoxConstraints(
+                                          minWidth: 32, minHeight: 32),
+                                      padding: EdgeInsets.zero,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                            Expanded(
-                              child: NotificationListener<
-                                  ScrollMetricsNotification>(
-                                onNotification: (n) {
-                                  if (n.metrics.axis == Axis.horizontal) {
-                                    _onTabScrollMetrics(n.metrics);
-                                  }
-                                  return false;
-                                },
-                                child: NotificationListener<ScrollNotification>(
+                              Expanded(
+                                child: NotificationListener<
+                                    ScrollMetricsNotification>(
                                   onNotification: (n) {
                                     if (n.metrics.axis == Axis.horizontal) {
                                       _onTabScrollMetrics(n.metrics);
                                     }
                                     return false;
                                   },
-                                  child: Center(
-                                    child: SingleChildScrollView(
-                                      scrollDirection: Axis.horizontal,
-                                      controller: _tabScrollController,
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          for (int index = 0;
-                                              index < _descriptors.length;
-                                              index++) ...[
-                                            _descriptors[index].buildTopNavItem(
-                                              key: tourToolTabTargetKeys[
-                                                  _descriptors[index].toolId],
-                                              isSelected: _selectedToolId ==
-                                                  _descriptors[index].toolId,
-                                              onTap: () => _changeTab(index),
-                                            ),
-                                            if (index < _descriptors.length - 1)
-                                              const SizedBox(
-                                                  width: AppTokens.spaceXS),
+                                  child:
+                                      NotificationListener<ScrollNotification>(
+                                    onNotification: (n) {
+                                      if (n.metrics.axis == Axis.horizontal) {
+                                        _onTabScrollMetrics(n.metrics);
+                                      }
+                                      return false;
+                                    },
+                                    child: Center(
+                                      child: SingleChildScrollView(
+                                        scrollDirection: Axis.horizontal,
+                                        controller: _tabScrollController,
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            for (int index = 0;
+                                                index < _descriptors.length;
+                                                index++) ...[
+                                              _descriptors[index]
+                                                  .buildTopNavItem(
+                                                key: tourToolTabTargetKeys[
+                                                    _descriptors[index].toolId],
+                                                isSelected: _selectedToolId ==
+                                                    _descriptors[index].toolId,
+                                                onTap: () => _changeTab(index),
+                                              ),
+                                              if (index <
+                                                  _descriptors.length - 1)
+                                                const SizedBox(
+                                                    width: AppTokens.spaceXS),
+                                            ],
                                           ],
-                                        ],
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
-                            // חץ שמאלי – מוצג כשיש תוכן נסתר בצד שמאל
-                            SizedBox(
-                              width: 36,
-                              height: 40,
-                              child: AnimatedOpacity(
-                                duration: const Duration(milliseconds: 200),
-                                opacity: _canTabScrollRight ? 1.0 : 0.0,
-                                child: IgnorePointer(
-                                  ignoring: !_canTabScrollRight,
-                                  child: IconButton(
-                                    icon: const RtlIcon(
-                                        FluentIcons.chevron_left_24_regular),
-                                    iconSize: 18,
-                                    onPressed: () => _tabScrollBy(150),
-                                    tooltip: 'גלול שמאלה',
-                                    constraints: const BoxConstraints(
-                                        minWidth: 32, minHeight: 32),
-                                    padding: EdgeInsets.zero,
+                              // חץ שמאלי – מוצג כשיש תוכן נסתר בצד שמאל
+                              SizedBox(
+                                width: 36,
+                                height: 40,
+                                child: AnimatedOpacity(
+                                  duration: const Duration(milliseconds: 200),
+                                  opacity: _canTabScrollRight ? 1.0 : 0.0,
+                                  child: IgnorePointer(
+                                    ignoring: !_canTabScrollRight,
+                                    child: IconButton(
+                                      icon: const RtlIcon(
+                                          FluentIcons.chevron_left_24_regular),
+                                      iconSize: 18,
+                                      onPressed: () => _tabScrollBy(150),
+                                      tooltip: 'גלול שמאלה',
+                                      constraints: const BoxConstraints(
+                                          minWidth: 32, minHeight: 32),
+                                      padding: EdgeInsets.zero,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                            // כפתור תוספים מוצמד לשמאל חזותי (סוף Row ב-RTL)
-                            IconButton(
-                              icon: const Icon(
-                                  FluentIcons.puzzle_piece_24_regular),
-                              onPressed: () =>
-                                  setState(() => _isPanelOpen = !_isPanelOpen),
-                              tooltip: 'תוספים',
-                            ),
-                          ],
+                              // כפתור תוספים מוצמד לשמאל חזותי (סוף Row ב-RTL)
+                              IconButton(
+                                icon: const Icon(
+                                    FluentIcons.puzzle_piece_24_regular),
+                                onPressed: () => setState(
+                                    () => _isPanelOpen = !_isPanelOpen),
+                                tooltip: 'תוספים',
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
                     Expanded(
                       child: Stack(
                         children: [
@@ -1131,6 +1136,10 @@ class ToolsScreenState extends State<ToolsScreen>
     super.build(context);
 
     final bgColor = AppSurfaces.panelBackground(context);
+    // מסך מלא מותר רק בעיון/כלים; מסך הכלים נראה רק כשהמסך הוא Screen.more,
+    // ולכן די לבדוק את דגל מסך-מלא כדי לדעת שאנו במצב אימרסיבי בכלים.
+    final isImmersive =
+        context.select((SettingsBloc b) => b.state.isFullscreen);
 
     return MultiBlocListener(
       listeners: [
@@ -1190,7 +1199,7 @@ class ToolsScreenState extends State<ToolsScreen>
                 ? (_showMobileMenu
                     ? _buildMobileMenu(bgColor)
                     : _buildMobileContent(bgColor))
-                : _buildDesktop(bgColor);
+                : _buildDesktop(bgColor, isImmersive: isImmersive);
 
             // החזרת content ישירות — ללא AnimatedSwitcher וללא KeyedSubtree.
             // AnimatedSwitcher עם key משתנה גורם ל-Flutter לשמיד ולהקים

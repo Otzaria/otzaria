@@ -1,0 +1,32 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/navigation/bloc/navigation_state.dart';
+import 'package:otzaria/utils/ui/fullscreen_helper.dart';
+
+void main() {
+  group('FullscreenHelper.isContextAllowed', () {
+    test('מתיר בעיון כשיש טאב פתוח', () {
+      expect(FullscreenHelper.isContextAllowed(Screen.reading, true), isTrue);
+    });
+
+    test('חוסם בעיון ללא טאבים פתוחים', () {
+      expect(FullscreenHelper.isContextAllowed(Screen.reading, false), isFalse);
+    });
+
+    test('מתיר בכלים/תוספים ללא תלות בטאבים', () {
+      expect(FullscreenHelper.isContextAllowed(Screen.more, false), isTrue);
+      expect(FullscreenHelper.isContextAllowed(Screen.more, true), isTrue);
+    });
+
+    test('חוסם בספרייה/חיפוש/איתור/הגדרות', () {
+      for (final screen in [
+        Screen.library,
+        Screen.find,
+        Screen.search,
+        Screen.settings,
+      ]) {
+        expect(FullscreenHelper.isContextAllowed(screen, true), isFalse,
+            reason: '$screen should not allow fullscreen');
+      }
+    });
+  });
+}
