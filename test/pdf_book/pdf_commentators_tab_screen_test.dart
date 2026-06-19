@@ -112,6 +112,127 @@ void main() {
   });
 
   testWidgets(
+      'תצוגת ספר: כותרת משולבת נפתחת על העמוד הראשון ומציגה גם את העמוד השני',
+      (tester) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final sourceTab = PdfBookTab(
+      book: PdfBook(title: 'PDF בדיקה', path: '/tmp/book.pdf'),
+      pageNumber: 2,
+    );
+    addTearDown(sourceTab.dispose);
+
+    sourceTab.pdfHeadings = PdfHeadings(
+      bookTitle: 'PDF בדיקה',
+      headingsMap: {
+        'פרק א': 1,
+        'פרק ב': 10,
+        'פרק ג': 20,
+      },
+    );
+    // כותרת ספירייד משולבת (כפי שנוצרת בתצוגת ספר)
+    sourceTab.currentTitle.value = 'פרק ב — פרק ג';
+
+    final tab = PdfCommentatorsTab(sourceTab: sourceTab);
+
+    await tester.pumpWidget(
+      _wrap(PdfCommentatorsTabScreen(tab: tab)),
+    );
+    await tester.pump();
+
+    PdfCommentaryPanel panel() =>
+        tester.widget<PdfCommentaryPanel>(find.byType(PdfCommentaryPanel));
+
+    // לא נופל ל'פרק א' (שורה 1) — נבחר העמוד הראשון בספירייד, 'פרק ב' (שורה 10)
+    expect(panel().lineStartOverride, 10);
+    // העמוד השני בספירייד ('פרק ג', שורה 20) נכלל דרך extraLineIndices
+    expect(panel().extraLineIndices, contains(20));
+  });
+
+  testWidgets('כותרת חוקית עם מקף ארוך אינה מפוצלת בטעות לספירייד',
+      (tester) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final sourceTab = PdfBookTab(
+      book: PdfBook(title: 'PDF בדיקה', path: '/tmp/book.pdf'),
+      pageNumber: 3,
+    );
+    addTearDown(sourceTab.dispose);
+
+    sourceTab.pdfHeadings = PdfHeadings(
+      bookTitle: 'PDF בדיקה',
+      headingsMap: {
+        'שער': 1,
+        'שער — מבוא': 30,
+        'פרק א': 40,
+      },
+    );
+    // כותרת בודדת חוקית שמכילה מקף ארוך — אינה ספירייד
+    sourceTab.currentTitle.value = 'שער — מבוא';
+
+    final tab = PdfCommentatorsTab(sourceTab: sourceTab);
+
+    await tester.pumpWidget(
+      _wrap(PdfCommentatorsTabScreen(tab: tab)),
+    );
+    await tester.pump();
+
+    PdfCommentaryPanel panel() =>
+        tester.widget<PdfCommentaryPanel>(find.byType(PdfCommentaryPanel));
+
+    // נבחרה הכותרת המלאה (שורה 30), לא 'שער' (שורה 1)
+    expect(panel().lineStartOverride, 30);
+    // אין הוספת עמוד שני — זו כותרת בודדת
+    expect(panel().extraLineIndices, isNull);
+  });
+
+  testWidgets('ספירייד שכותרתו הראשונה מכילה מקף — מתפצל במקום הנכון',
+      (tester) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final sourceTab = PdfBookTab(
+      book: PdfBook(title: 'PDF בדיקה', path: '/tmp/book.pdf'),
+      pageNumber: 2,
+    );
+    addTearDown(sourceTab.dispose);
+
+    sourceTab.pdfHeadings = PdfHeadings(
+      bookTitle: 'PDF בדיקה',
+      headingsMap: {
+        'שער — מבוא': 10,
+        'פרק א': 20,
+        'פרק ב': 30,
+      },
+    );
+    // העמוד הראשון בספירייד הוא הכותרת 'שער — מבוא' (מכילה מקף בעצמה)
+    sourceTab.currentTitle.value = 'שער — מבוא — פרק א';
+
+    final tab = PdfCommentatorsTab(sourceTab: sourceTab);
+
+    await tester.pumpWidget(
+      _wrap(PdfCommentatorsTabScreen(tab: tab)),
+    );
+    await tester.pump();
+
+    PdfCommentaryPanel panel() =>
+        tester.widget<PdfCommentaryPanel>(find.byType(PdfCommentaryPanel));
+
+    // העמוד הראשון נבחר נכון ('שער — מבוא', שורה 10) ולא פוצל ל'שער'
+    expect(panel().lineStartOverride, 10);
+    // העמוד השני ('פרק א', שורה 20) נכלל
+    expect(panel().extraLineIndices, contains(20));
+  });
+
+  testWidgets(
       'כרטסיית מפרשי PDF מציגה "טוען מפרשים..." בזמן טעינת links של sourceTab',
       (tester) async {
     tester.view.physicalSize = const Size(1600, 900);

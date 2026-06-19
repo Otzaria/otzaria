@@ -19,6 +19,7 @@ import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/utils/navigation/open_book.dart';
 import 'package:otzaria/utils/file/page_converter.dart';
+import 'package:otzaria/pdf_book/utils/pdf_spread_layout.dart';
 import 'package:otzaria/models/pdf_headings.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
@@ -172,9 +173,12 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
     if (headings == null || headings.isEmpty) return;
     _sortedHeadings = headings;
     final currentTitle = widget.tab.sourceTab.currentTitle.value;
-    final idx = headings.indexWhere((e) => e.key == currentTitle);
-    _selectedHeadingIdx = idx >= 0 ? idx : 0;
+    final selection = _resolveTitleSelection(headings, currentTitle);
+    _selectedHeadingIdx = selection.firstIdx >= 0 ? selection.firstIdx : 0;
     _selectedParagraphIdx = _kAllPara;
+    _extraLines
+      ..clear()
+      ..addAll(_spreadExtraLines(selection));
   }
 
   void _syncWithSourceTab() {
@@ -183,20 +187,53 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
     final headings = widget.tab.sourceTab.pdfHeadings?.getSortedHeadings();
     final currentTitle = widget.tab.sourceTab.currentTitle.value;
     var nextSelectedHeadingIdx = _selectedHeadingIdx;
+    var selection = (firstIdx: nextSelectedHeadingIdx, secondIdx: -1);
 
     if (headings != null && headings.isNotEmpty) {
       _sortedHeadings = headings;
-      final matchedIndex = headings.indexWhere((e) => e.key == currentTitle);
-      if (matchedIndex >= 0) {
-        nextSelectedHeadingIdx = matchedIndex;
+      selection = _resolveTitleSelection(headings, currentTitle);
+      if (selection.firstIdx >= 0) {
+        nextSelectedHeadingIdx = selection.firstIdx;
       }
     }
 
     setState(() {
       _selectedHeadingIdx = nextSelectedHeadingIdx;
       _selectedParagraphIdx = _kAllPara;
-      _extraLines.clear();
+      _extraLines
+        ..clear()
+        ..addAll(_spreadExtraLines(selection));
     });
+  }
+
+  /// מזהה את בחירת הכותרת עבור [title]. מנסה תחילה התאמה מלאה (כדי לא לפצל
+  /// בטעות כותרת חוקית שמכילה מקף ארוך), ורק אחריה מזהה ספירייד — פיצול לשתי
+  /// כותרות קיימות. [secondIdx] >= 0 רק בספירייד אמיתי. [firstIdx] = -1 כשאין
+  /// התאמה כלל.
+  ({int firstIdx, int secondIdx}) _resolveTitleSelection(
+      List<MapEntry<String, int>> headings, String title) {
+    final full = headings.indexWhere((e) => e.key == title);
+    if (full >= 0) return (firstIdx: full, secondIdx: -1);
+    final known = headings.map((e) => e.key).toSet();
+    final split = pdfSplitSpreadTitleByKnown(title, known);
+    if (split == null) return (firstIdx: -1, secondIdx: -1);
+    return (
+      firstIdx: headings.indexWhere((e) => e.key == split.first),
+      secondIdx: headings.indexWhere((e) => e.key == split.second),
+    );
+  }
+
+  /// בתצוגת ספר — שורות העמוד השני בספירייד (עד [secondIdx]), כדי שמפרשי שני
+  /// העמודים יוצגו יחד עם הטווח הראשי. בעמוד יחיד מחזיר רשימה ריקה.
+  List<int> _spreadExtraLines(({int firstIdx, int secondIdx}) selection) {
+    if (selection.firstIdx < 0 || selection.secondIdx <= selection.firstIdx) {
+      return const [];
+    }
+    final lines = <int>[];
+    for (int i = selection.firstIdx; i <= selection.secondIdx; i++) {
+      lines.addAll(_linesForNavItem(i, _kAllPara));
+    }
+    return lines;
   }
 
   void _openSearchPanel() {

@@ -121,4 +121,34 @@ void main() {
       expect(pdfCombineSpreadTitles('', ''), '');
     });
   });
+
+  group('pdfSplitSpreadTitleByKnown', () {
+    test('כותרת משולבת מפוצלת לשתי כותרות קיימות', () {
+      final split =
+          pdfSplitSpreadTitleByKnown('פרק א — פרק ב', {'פרק א', 'פרק ב'});
+      expect(split, (first: 'פרק א', second: 'פרק ב'));
+    });
+
+    test('round-trip עם pdfCombineSpreadTitles', () {
+      final combined = pdfCombineSpreadTitles('ברכות ב.', 'ברכות ב:');
+      final split =
+          pdfSplitSpreadTitleByKnown(combined, {'ברכות ב.', 'ברכות ב:'});
+      expect(split, (first: 'ברכות ב.', second: 'ברכות ב:'));
+    });
+
+    test('כותרת עמוד יחיד (ללא מפריד) מחזירה null', () {
+      expect(pdfSplitSpreadTitleByKnown('פרק א', {'פרק א'}), isNull);
+    });
+
+    test('כותרת חוקית שמכילה מקף — חלקיה אינם כותרות — מחזירה null', () {
+      expect(pdfSplitSpreadTitleByKnown('שער — מבוא', {'שער — מבוא'}), isNull);
+    });
+
+    test('כותרת ראשונה המכילה מקף מתפצלת במקום הנכון', () {
+      // "שער — מבוא" היא כותרת קיימת, "פרק א" כותרת קיימת — הספירייד ביניהן.
+      final split = pdfSplitSpreadTitleByKnown(
+          'שער — מבוא — פרק א', {'שער — מבוא', 'פרק א'});
+      expect(split, (first: 'שער — מבוא', second: 'פרק א'));
+    });
+  });
 }

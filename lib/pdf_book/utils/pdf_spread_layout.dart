@@ -39,11 +39,32 @@ int pdfSpreadStartPage(int pageNumber) {
   return (startPage: startPage, endPageExclusive: endExclusive);
 }
 
+/// המפריד בין שתי כותרות הספירייד בכותרת תצוגה משולבת.
+const String kSpreadTitleSeparator = ' — ';
+
 /// משלב שתי כותרות לכותרת תצוגה אחת.
 /// אם אחת ריקה — מחזיר את השנייה. אם הן זהות — מחזיר אחת.
 /// אחרת — משלב עם מקף ארוך.
 String pdfCombineSpreadTitles(String first, String second) {
   if (first.isEmpty) return second;
   if (second.isEmpty || second == first) return first;
-  return '$first — $second';
+  return '$first$kSpreadTitleSeparator$second';
+}
+
+/// מפצל כותרת תצוגה משולבת (מ-[pdfCombineSpreadTitles]) לשני חלקיה, כשכל אחד
+/// מהם כותרת הקיימת ב-[known]. עובר על כל מופעי המפריד ובוחר את הפיצול הראשון
+/// ששני חלקיו מוכרים — כך כותרת ראשונה שמכילה בעצמה מקף ארוך לא מתפצלת במקום
+/// הלא נכון. מחזיר null אם אין פיצול תקף (כותרת עמוד יחיד או לא מוכרת).
+({String first, String second})? pdfSplitSpreadTitleByKnown(
+    String combined, Set<String> known) {
+  var idx = combined.indexOf(kSpreadTitleSeparator);
+  while (idx >= 0) {
+    final first = combined.substring(0, idx);
+    final second = combined.substring(idx + kSpreadTitleSeparator.length);
+    if (known.contains(first) && known.contains(second)) {
+      return (first: first, second: second);
+    }
+    idx = combined.indexOf(kSpreadTitleSeparator, idx + 1);
+  }
+  return null;
 }
