@@ -73,9 +73,8 @@ Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; Value
 ; התקנה שקטה של WebView2 Runtime אם הוא חסר. waituntilterminated כדי
 ; לוודא שאוצריא לא מופעלת לפני שה-runtime מוכן.
 Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "מתקין Microsoft WebView2 Runtime..."; Flags: waituntilterminated; Check: ShouldInstallWV2
-; אסור postinstall — רשומות postinstall תלויות בדף הסיום שלא מוצג ב-VERYSILENT,
-; ולכן לא ירוצו לעולם. runasoriginaluser מונע הרצת אוצריא מורמת אחרי התקנה עם UAC.
-Filename: "{app}\{#MyAppExeName}"; Flags: nowait runasoriginaluser
+; אין כאן השקת אוצריא: ב-VERYSILENT רשומות [Run] רצות לפני ssPostInstall,
+; אז ההשקה הייתה פותחת על ספרייה ריקה. במקום זה משיקים בקוד בסוף החילוץ.
 
 [Languages]
 Name: "hebrew"; MessagesFile: "compiler:Languages\Hebrew.isl"
@@ -891,6 +890,7 @@ procedure CurStepChanged(CurStep: TSetupStep);
 var
   ErrorLogPath: string;
   ZstdPath, SevenZipPath: String;
+  ResultCode: Integer;
 begin
   if CurStep = ssInstall then
   begin
@@ -946,4 +946,9 @@ begin
     ForceDirectories(SelectedBooksPath);
     WriteLibraryPathToPrefs(SelectedBooksPath);
   end;
+
+  // משיקים את אוצריא רק עכשיו — אחרי שהחילוץ הסתיים — כדי שלא תיפתח על ספרייה
+  // ריקה. ExecAsOriginalUser מוריד הרשאות כמו דגל runasoriginaluser בהתקנה מורמת.
+  ExecAsOriginalUser(ExpandConstant('{app}\{#MyAppExeName}'), '',
+    ExpandConstant('{app}'), SW_SHOWNORMAL, ewNoWait, ResultCode);
 end;
