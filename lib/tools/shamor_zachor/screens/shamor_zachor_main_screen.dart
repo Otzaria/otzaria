@@ -3,12 +3,15 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:logging/logging.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import '../providers/shamor_zachor_data_provider.dart';
 import '../providers/shamor_zachor_progress_provider.dart';
 import '../widgets/error_boundary.dart';
 import '../shamor_zachor_widget.dart';
 import '../widgets/shamor_zachor_sidebar.dart';
 import '../widgets/category_books_grid.dart';
+import '../widgets/add_books_to_tracking_dialog.dart';
+import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import '../models/book_model.dart';
 import 'book_detail_screen.dart';
 import 'package:otzaria/settings/settings_exports.dart';
@@ -49,7 +52,10 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
   String? _selectedBookName;
   BookDetails? _selectedBookDetails;
   String _searchQuery = ''; // Search query from top bar
-  String _selectedFilter = 'all'; // all, in_progress, completed
+  String _selectedFilter = 'in_progress'; // in_progress, completed, all
+
+  /// מפתח שמירת מצב הצגת/הסתרת הסרגל בין הפעלות
+  static const String _sidebarVisibleKey = 'sz:sidebar_visible';
   bool _isSidebarVisible = true;
   double _sidebarWidth = 300.0;
 
@@ -60,6 +66,8 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
   void initState() {
     super.initState();
     _logger.info('Initialized ShamorZachorMainScreen (Split View)');
+    _isSidebarVisible =
+        Settings.getValue<bool>(_sidebarVisibleKey, defaultValue: true) ?? true;
     widget.focusController?.bind(_focusWindow);
 
     WidgetsBinding.instance.addPostFrameCallback((_) => _focusWindow());
@@ -151,6 +159,14 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
     _windowFocusNode.requestFocus();
   }
 
+  /// מעדכן ושומר את מצב הצגת/הסתרת הסרגל כך שיישמר להפעלות הבאות
+  void _setSidebarVisible(bool visible) {
+    setState(() {
+      _isSidebarVisible = visible;
+    });
+    Settings.setValue<bool>(_sidebarVisibleKey, visible);
+  }
+
   void _closeBookDetails() {
     setState(() {
       _selectedBookName = null;
@@ -180,16 +196,80 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
     });
   }
 
-  /// מחזור בין הסינונים: all -> in_progress -> completed -> all
+  /// מחזור בין הסינונים: in_progress -> completed -> all -> in_progress
   void _cycleFilter() {
-    setState(() {
-      _selectedFilter = switch (_selectedFilter) {
-        'all' => 'in_progress',
-        'in_progress' => 'completed',
-        'completed' => 'all',
-        _ => 'all',
-      };
+    _onFilterChanged(switch (_selectedFilter) {
+      'in_progress' => 'completed',
+      'completed' => 'all',
+      'all' => 'in_progress',
+      _ => 'in_progress',
     });
+  }
+
+  void _onFilterChanged(String value) {
+    setState(() {
+      _selectedFilter = value;
+      // שינוי הסינון חוזר לרשימת הספרים גם אם ספר פתוח כעת
+      _selectedBookName = null;
+      _selectedBookDetails = null;
+    });
+    _notifyTitleChange();
+  }
+
+  /// בונה את שורת הסינון: [בתהליך | הושלם] [+ הוספה] [הכל].
+  /// הבורר מפוצל לשניים כדי למקם את לחצן ההוספה בין "הושלם" ל"הכל".
+  Widget _buildFilterControls() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Flexible(
+          child: AppSegmentedControl<String>(
+            options: const [
+              SegmentOption<String>(
+                value: 'in_progress',
+                label: 'בתהליך',
+                icon: FluentIcons.hourglass_24_regular,
+              ),
+              SegmentOption<String>(
+                value: 'completed',
+                label: 'הושלם',
+                icon: FluentIcons.checkmark_circle_24_regular,
+              ),
+            ],
+            currentValue: _selectedFilter,
+            onChanged: _onFilterChanged,
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          child: IconButton.filledTonal(
+            tooltip: 'הוסף ספרים למעקב',
+            visualDensity: VisualDensity.compact,
+            onPressed: _openAddBooksDialog,
+            icon: const RtlIcon(FluentIcons.add_24_regular),
+          ),
+        ),
+        AppSegmentedControl<String>(
+          options: const [
+            SegmentOption<String>(
+              value: 'all',
+              label: 'הכל',
+              icon: FluentIcons.library_24_regular,
+            ),
+          ],
+          currentValue: _selectedFilter,
+          onChanged: _onFilterChanged,
+        ),
+      ],
+    );
+  }
+
+  Future<void> _openAddBooksDialog() async {
+    final dataProvider = context.read<ShamorZachorDataProvider>();
+    await showAddBooksToTrackingDialog(
+      context: context,
+      dataProvider: dataProvider,
+    );
   }
 
   bool _isTextFieldFocused() {
@@ -424,59 +504,10 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
                       final screenWidth = MediaQuery.sizeOf(context).width;
                       final useSecondaryRow = screenWidth < 900;
                       final filterControl = ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 420),
-                        child: AppSegmentedControl<String>(
-                          options: const [
-                            SegmentOption<String>(
-                              value: 'all',
-                              label: 'הכל',
-                              icon: FluentIcons.library_24_regular,
-                            ),
-                            SegmentOption<String>(
-                              value: 'in_progress',
-                              label: 'בתהליך',
-                              icon: FluentIcons.hourglass_24_regular,
-                            ),
-                            SegmentOption<String>(
-                              value: 'completed',
-                              label: 'הושלם',
-                              icon: FluentIcons.checkmark_circle_24_regular,
-                            ),
-                          ],
-                          currentValue: _selectedFilter,
-                          onChanged: (value) {
-                            setState(() {
-                              _selectedFilter = value;
-                            });
-                          },
-                        ),
+                        constraints: const BoxConstraints(maxWidth: 460),
+                        child: _buildFilterControls(),
                       );
-                      final narrowFilterControl = AppSegmentedControl<String>(
-                        expandToFillWidth: true,
-                        options: const [
-                          SegmentOption<String>(
-                            value: 'all',
-                            label: 'הכל',
-                            icon: FluentIcons.library_24_regular,
-                          ),
-                          SegmentOption<String>(
-                            value: 'in_progress',
-                            label: 'בתהליך',
-                            icon: FluentIcons.hourglass_24_regular,
-                          ),
-                          SegmentOption<String>(
-                            value: 'completed',
-                            label: 'הושלם',
-                            icon: FluentIcons.checkmark_circle_24_regular,
-                          ),
-                        ],
-                        currentValue: _selectedFilter,
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedFilter = value;
-                          });
-                        },
-                      );
+                      final narrowFilterControl = _buildFilterControls();
 
                       return Column(
                         children: [
@@ -487,11 +518,8 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
                                   tooltip: _isSidebarVisible
                                       ? 'הסתר ניווט'
                                       : 'הצג ניווט',
-                                  onPressed: () {
-                                    setState(() {
-                                      _isSidebarVisible = !_isSidebarVisible;
-                                    });
-                                  },
+                                  onPressed: () =>
+                                      _setSidebarVisible(!_isSidebarVisible),
                                   icon: AnimatedSwitcher(
                                     duration: AppTokens.animFast,
                                     transitionBuilder: (child, animation) =>
@@ -560,16 +588,8 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
                                 alignment: AlignmentDirectional.centerEnd,
                                 paneWidth: _sidebarWidth,
                                 minMainContentWidth: 320,
-                                onClose: () {
-                                  setState(() {
-                                    _isSidebarVisible = false;
-                                  });
-                                },
-                                onOpen: () {
-                                  setState(() {
-                                    _isSidebarVisible = true;
-                                  });
-                                },
+                                onClose: () => _setSidebarVisible(false),
+                                onOpen: () => _setSidebarVisible(true),
                                 isResizable: true,
                                 minPaneWidth: 220,
                                 maxPaneWidth: 420,

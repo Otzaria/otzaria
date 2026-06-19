@@ -78,25 +78,14 @@ void main() {
 
       await tester.pumpAndSettle();
 
+      // ברירת המחדל היא "בתהליך" - מוצג רק הספר הפעיל
       expect(find.text('ספר פעיל'), findsOneWidget);
-      expect(find.text('ספר הושלם'), findsOneWidget);
+      expect(find.text('ספר הושלם'), findsNothing);
 
       outsideFocusNode.requestFocus();
       await tester.pump();
 
-      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
-      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyS);
-      await tester.pump();
-      await tester.sendKeyUpEvent(LogicalKeyboardKey.keyS);
-      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
-      await tester.pumpAndSettle();
-
-      expect(find.text('ספר פעיל'), findsOneWidget);
-      expect(find.text('ספר הושלם'), findsOneWidget);
-
-      focusController.requestKeyboardFocus();
-      await tester.pump();
-
+      // המוקד מחוץ למסך - הקיצור לא אמור לפעול, התצוגה נשארת זהה
       await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
       await tester.sendKeyDownEvent(LogicalKeyboardKey.keyS);
       await tester.pump();
@@ -106,6 +95,20 @@ void main() {
 
       expect(find.text('ספר פעיל'), findsOneWidget);
       expect(find.text('ספר הושלם'), findsNothing);
+
+      focusController.requestKeyboardFocus();
+      await tester.pump();
+
+      // המוקד חזר למסך - הקיצור פועל ומחזר ל"הושלם"
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyS);
+      await tester.pump();
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.keyS);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+
+      expect(find.text('ספר פעיל'), findsNothing);
+      expect(find.text('ספר הושלם'), findsOneWidget);
     });
 
     testWidgets('book card stays stable with long category path',
@@ -175,6 +178,10 @@ void main() {
         ),
       );
 
+      await tester.pumpAndSettle();
+
+      // ברירת המחדל היא "בתהליך" - נעבור ל"הכל" כדי לחפש בכל הספרים
+      await tester.tap(find.text('הכל'));
       await tester.pumpAndSettle();
 
       await tester.enterText(find.byType(EditableText).first, 'ספר כפול');

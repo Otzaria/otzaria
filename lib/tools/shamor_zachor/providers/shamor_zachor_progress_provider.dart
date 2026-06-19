@@ -6,7 +6,6 @@ import '../models/progress_model.dart';
 import '../models/book_model.dart';
 import '../models/error_model.dart';
 import '../services/progress_service.dart';
-import 'package:otzaria/core/ui_snack.dart';
 
 /// Events emitted when significant progress milestones are reached
 enum CompletionEventType {
@@ -41,9 +40,15 @@ class ShamorZachorProgressProvider with ChangeNotifier {
   ProgressMapById _progressById = {};
   CompletionDatesByIdMap _completionDatesById = {};
 
+  /// הגדרות העמודות המותאמות לכל ספר (bookId → רשימת עמודות)
+  Map<int, List<ProgressColumn>> _columnsByBookId = {};
+
   final Map<int, BookProgressSummary> _progressSummaryCache = {};
   bool _isLoading = false;
   ShamorZachorError? _error;
+
+  /// מספר העמודות המרבי שניתן להגדיר לספר
+  static const int maxColumns = 8;
 
   // Column names for progress tracking
   static const String learnColumn = 'learn';
@@ -56,6 +61,61 @@ class ShamorZachorProgressProvider with ChangeNotifier {
     review2Column,
     review3Column,
   ];
+
+  /// העמודות המוגדרות לספר; אם אין הגדרה מותאמת - עמודות ברירת המחדל
+  List<ProgressColumn> getColumnsForBook(int bookId) =>
+      _columnsByBookId[bookId] ?? kDefaultProgressColumns;
+
+  List<String> _columnIdsForBook(int bookId) =>
+      getColumnsForBook(bookId).map((c) => c.id).toList();
+
+  /// משנה את שם העמודה (ה-id והמעקב נשמרים)
+  Future<void> renameColumn(
+      int bookId, String columnId, String newLabel) async {
+    final trimmed = newLabel.trim();
+    if (trimmed.isEmpty) return;
+    final columns = List<ProgressColumn>.from(getColumnsForBook(bookId));
+    final index = columns.indexWhere((c) => c.id == columnId);
+    if (index == -1) return;
+    columns[index] = columns[index].copyWith(label: trimmed);
+    await _persistColumns(bookId, columns);
+  }
+
+  /// מוסיף עמודת מעקב חדשה לספר
+  Future<void> addColumn(int bookId, String label) async {
+    final trimmed = label.trim();
+    if (trimmed.isEmpty) return;
+    final columns = List<ProgressColumn>.from(getColumnsForBook(bookId));
+    if (columns.length >= maxColumns) return;
+    final id = 'col_${DateTime.now().microsecondsSinceEpoch}';
+    columns.add(ProgressColumn(id: id, label: trimmed));
+    await _persistColumns(bookId, columns);
+  }
+
+  /// מסיר עמודת מעקב מהספר (חייבת להישאר לפחות עמודה אחת) ומנקה את הסימונים שלה
+  Future<void> removeColumn(int bookId, String columnId) async {
+    final columns = List<ProgressColumn>.from(getColumnsForBook(bookId));
+    if (columns.length <= 1) return;
+    columns.removeWhere((c) => c.id == columnId);
+
+    final bookProgress = _progressById[bookId];
+    if (bookProgress != null) {
+      for (final progress in bookProgress.values) {
+        progress.removeColumn(columnId);
+      }
+      bookProgress.removeWhere((_, progress) => progress.isEmpty);
+      if (bookProgress.isEmpty) _progressById.remove(bookId);
+      await _progressService.saveProgressDataById(_progressById);
+    }
+    await _persistColumns(bookId, columns);
+  }
+
+  Future<void> _persistColumns(int bookId, List<ProgressColumn> columns) async {
+    _columnsByBookId[bookId] = columns;
+    await _progressService.saveColumnsByBookId(_columnsByBookId);
+    _invalidateSummaryCache(bookId);
+    notifyListeners();
+  }
 
   // Stream for completion events
   final _completionEventController =
@@ -114,6 +174,7 @@ class ShamorZachorProgressProvider with ChangeNotifier {
     try {
       _progressById = await _progressService.loadProgressDataById();
       _completionDatesById = await _progressService.loadCompletionDatesById();
+      _columnsByBookId = await _progressService.loadColumnsByBookId();
 
       _logger
           .info('Successfully loaded progress: ${_progressById.length} books');
@@ -163,35 +224,6 @@ class ShamorZachorProgressProvider with ChangeNotifier {
     try {
       final itemIndexKey = absoluteIndex.toString();
 
-      if (value && !isBulkUpdate) {
-        final currentProgress = getProgressForItemById(bookId, absoluteIndex);
-
-        if (columnName == 'review1' && !currentProgress.learn) {
-          UiSnack.show('יש לסמן תחילה את הלימוד הראשוני');
-          return;
-        } else if (columnName == 'review2' &&
-            (!currentProgress.learn || !currentProgress.review1)) {
-          if (!currentProgress.learn) {
-            UiSnack.show('יש לסמן תחילה את הלימוד הראשוני');
-          } else {
-            UiSnack.show('יש לסמן תחילה את החזרה הראשונה');
-          }
-          return;
-        } else if (columnName == 'review3' &&
-            (!currentProgress.learn ||
-                !currentProgress.review1 ||
-                !currentProgress.review2)) {
-          if (!currentProgress.learn) {
-            UiSnack.show('יש לסמן תחילה את הלימוד הראשוני');
-          } else if (!currentProgress.review1) {
-            UiSnack.show('יש לסמן תחילה את החזרה הראשונה');
-          } else {
-            UiSnack.show('יש לסמן תחילה את החזרה השנייה');
-          }
-          return;
-        }
-      }
-
       // Make sure data is loaded before mutating - prevents accidental wipes
       if (_progressById.isEmpty && !_isLoading) {
         _progressById = await _progressService.loadProgressDataById();
@@ -233,6 +265,9 @@ class ShamorZachorProgressProvider with ChangeNotifier {
   }
 
   /// Handle completion events when progress is updated (by ID)
+  ///
+  /// העמודות עצמאיות: סימון של כל עמודה עשוי להשלים מחזור (העמודה כולה)
+  /// או את הספר כולו (כל העמודות).
   Future<void> _handleCompletionEventsById(
     int bookId,
     String columnName,
@@ -240,51 +275,33 @@ class ShamorZachorProgressProvider with ChangeNotifier {
   ) async {
     _invalidateSummaryCache(bookId);
 
-    if (columnName == learnColumn) {
-      final wasAlreadyCompleted = getCompletionDateSyncById(bookId) != null;
-      final isNowComplete = isBookCompletedById(bookId, bookDetails);
+    // השלמת הספר כולו (כל העמודות בכל הפריטים)
+    final wasAlreadyCompleted = getCompletionDateSyncById(bookId) != null;
+    final isNowComplete = isBookCompletedById(bookId, bookDetails);
 
-      if (isNowComplete && !wasAlreadyCompleted) {
-        await _progressService.saveCompletionDateById(
-            bookId, DateTime.now().toIso8601String());
-        _completionDatesById = await _progressService.loadCompletionDatesById();
-        _invalidateSummaryCache(bookId);
+    if (isNowComplete && !wasAlreadyCompleted) {
+      await _progressService.saveCompletionDateById(
+          bookId, DateTime.now().toIso8601String());
+      _completionDatesById = await _progressService.loadCompletionDatesById();
+      _invalidateSummaryCache(bookId);
 
-        _completionEventController.add(CompletionEvent(
-          CompletionEventType.bookCompleted,
-          bookId: bookId,
-        ));
-      }
-    } else if (columnName.startsWith('review')) {
-      int? reviewCycleNumber;
-      switch (columnName) {
-        case review1Column:
-          reviewCycleNumber = 1;
-          break;
-        case review2Column:
-          reviewCycleNumber = 2;
-          break;
-        case review3Column:
-          reviewCycleNumber = 3;
-          break;
-      }
+      _completionEventController.add(CompletionEvent(
+        CompletionEventType.bookCompleted,
+        bookId: bookId,
+      ));
+    }
 
-      if (reviewCycleNumber != null) {
-        final cycleJustCompleted = _isReviewCycleCompletedById(
-          bookId,
-          reviewCycleNumber,
-          bookDetails,
-        );
-
-        if (cycleJustCompleted) {
-          _invalidateSummaryCache(bookId);
-          _completionEventController.add(CompletionEvent(
-            CompletionEventType.reviewCycleCompleted,
-            bookId: bookId,
-            reviewCycleNumber: reviewCycleNumber,
-          ));
-        }
-      }
+    // השלמת מחזור (עמודה שלמה) - מספר המחזור הוא מיקום העמודה ברשימה
+    final columns = _columnIdsForBook(bookId);
+    final columnIndex = columns.indexOf(columnName);
+    if (columnIndex != -1 &&
+        _isColumnCompleteById(bookId, columnName, bookDetails)) {
+      _invalidateSummaryCache(bookId);
+      _completionEventController.add(CompletionEvent(
+        CompletionEventType.reviewCycleCompleted,
+        bookId: bookId,
+        reviewCycleNumber: columnIndex + 1,
+      ));
     }
   }
 
@@ -295,7 +312,7 @@ class ShamorZachorProgressProvider with ChangeNotifier {
     String columnName,
     bool selectAll,
   ) async {
-    if (!allColumnNames.contains(columnName)) {
+    if (!_columnIdsForBook(bookId).contains(columnName)) {
       _logger.warning('Invalid column name: $columnName');
       return;
     }
@@ -313,7 +330,7 @@ class ShamorZachorProgressProvider with ChangeNotifier {
       await _progressService.saveProgressDataById(_progressById);
       _invalidateSummaryCache(bookId);
 
-      if (selectAll && columnName == learnColumn) {
+      if (selectAll) {
         final wasAlreadyCompleted = getCompletionDateSyncById(bookId) != null;
         final isNowComplete = isBookCompletedById(bookId, bookDetails);
 
@@ -362,7 +379,7 @@ class ShamorZachorProgressProvider with ChangeNotifier {
       await _progressService.saveProgressDataById(_progressById);
       _invalidateSummaryCache(bookId);
 
-      if (selectAll && columnName == learnColumn) {
+      if (selectAll) {
         final wasAlreadyCompleted = getCompletionDateSyncById(bookId) != null;
         final isNowComplete = isBookCompletedById(bookId, bookDetails);
 
@@ -418,12 +435,8 @@ class ShamorZachorProgressProvider with ChangeNotifier {
     int bookId,
     BookDetails? bookDetails,
   ) {
-    final columnStates = <String, bool?>{
-      learnColumn: null,
-      review1Column: null,
-      review2Column: null,
-      review3Column: null,
-    };
+    final columnIds = _columnIdsForBook(bookId);
+    final columnStates = <String, bool?>{for (final id in columnIds) id: null};
 
     if (bookDetails == null) return columnStates;
 
@@ -435,7 +448,7 @@ class ShamorZachorProgressProvider with ChangeNotifier {
       return columnStates;
     }
 
-    for (final currentColumnName in allColumnNames) {
+    for (final currentColumnName in columnIds) {
       int itemsChecked = 0;
       if (bookProgress != null) {
         for (final item in bookDetails.learnableItems) {
@@ -484,35 +497,29 @@ class ShamorZachorProgressProvider with ChangeNotifier {
     return null;
   }
 
-  /// Get learn progress percentage by book ID
-  double getLearnProgressPercentageById(int bookId, BookDetails bookDetails) {
-    final bookProgress = _progressById[bookId];
-    final totalTargetItems = bookDetails.totalLearnableItems;
-    if (totalTargetItems == 0 || bookProgress == null) return 0.0;
-
-    final learnedPagesCount =
-        ProgressService.getCompletedPagesCount(bookProgress);
-    return learnedPagesCount / totalTargetItems;
-  }
-
-  /// Get review progress percentage by book ID
-  double getReviewProgressPercentageById(
+  /// אחוז ההשלמה של עמודה נתונה בספר (0.0 עד 1.0)
+  double getColumnProgressPercentageById(
     int bookId,
     BookDetails bookDetails,
-    int reviewNumber,
+    String columnId,
   ) {
     final bookProgress = _progressById[bookId];
     final totalTargetItems = bookDetails.totalLearnableItems;
     if (totalTargetItems == 0 || bookProgress == null) return 0.0;
 
-    final reviewPagesCount = ProgressService.getReviewCompletedPagesCount(
-      bookProgress,
-      reviewNumber,
-    );
-    return reviewPagesCount / totalTargetItems;
+    final count =
+        ProgressService.getColumnCompletedCount(bookProgress, columnId);
+    return count / totalTargetItems;
   }
 
-  /// Check if book is completed by ID
+  /// תאימות אחורה: אחוז ההשלמה של העמודה הראשונה בספר
+  double getLearnProgressPercentageById(int bookId, BookDetails bookDetails) {
+    final columns = _columnIdsForBook(bookId);
+    if (columns.isEmpty) return 0.0;
+    return getColumnProgressPercentageById(bookId, bookDetails, columns.first);
+  }
+
+  /// Check if book is completed by ID - כל העמודות מסומנות בכל הפריטים
   bool isBookCompletedById(int bookId, BookDetails bookDetails) {
     final bookProgress = _progressById[bookId];
     if (bookProgress == null) return false;
@@ -520,15 +527,19 @@ class ShamorZachorProgressProvider with ChangeNotifier {
     final totalTargetItems = bookDetails.totalLearnableItems;
     if (totalTargetItems == 0) return false;
 
-    final learnedItemsCount =
-        ProgressService.getCompletedPagesCount(bookProgress);
-    return learnedItemsCount >= totalTargetItems;
+    for (final columnId in _columnIdsForBook(bookId)) {
+      if (ProgressService.getColumnCompletedCount(bookProgress, columnId) <
+          totalTargetItems) {
+        return false;
+      }
+    }
+    return true;
   }
 
-  /// Check if a review cycle is completed by ID
-  bool _isReviewCycleCompletedById(
+  /// בודק אם עמודה נתונה הושלמה (מסומנת בכל הפריטים)
+  bool _isColumnCompleteById(
     int bookId,
-    int reviewCycleNumber,
+    String columnId,
     BookDetails bookDetails,
   ) {
     final bookProgress = _progressById[bookId];
@@ -536,53 +547,33 @@ class ShamorZachorProgressProvider with ChangeNotifier {
     if (totalItems == 0 || bookProgress == null || bookProgress.isEmpty) {
       return false;
     }
-
-    final completedItemsInCycle = ProgressService.getReviewCompletedPagesCount(
-      bookProgress,
-      reviewCycleNumber,
-    );
-
-    return completedItemsInCycle >= totalItems;
+    return ProgressService.getColumnCompletedCount(bookProgress, columnId) >=
+        totalItems;
   }
 
-  /// Check if book is considered in progress by ID
+  /// Check if book is considered in progress by ID - יש סימון כלשהו אך לא הושלם
   bool isBookConsideredInProgressById(int bookId, BookDetails bookDetails) {
     final bookProgress = _progressById[bookId];
     if (bookProgress == null || bookProgress.isEmpty) {
       return false;
     }
-
-    final learnProgress = getLearnProgressPercentageById(bookId, bookDetails);
-    if (learnProgress > 0 && learnProgress < 1.0) return true;
-
-    for (int i = 1; i <= 3; i++) {
-      final reviewProgress =
-          getReviewProgressPercentageById(bookId, bookDetails, i);
-      if (reviewProgress > 0 && reviewProgress < 1.0) return true;
-    }
-
-    return false;
+    if (isBookCompletedById(bookId, bookDetails)) return false;
+    return bookProgress.values.any((progress) => !progress.isEmpty);
   }
 
-  /// Get number of completed cycles by book ID
+  /// Get number of completed cycles (columns) by book ID
   int getNumberOfCompletedCyclesById(int bookId, BookDetails bookDetails) {
     final bookProgress = _progressById[bookId];
     final totalTargetItems = bookDetails.totalLearnableItems;
     if (totalTargetItems == 0 || bookProgress == null) return 0;
 
     int cycles = 0;
-
-    if (ProgressService.getCompletedPagesCount(bookProgress) >=
-        totalTargetItems) {
-      cycles++;
-    }
-    for (int i = 1; i <= 3; i++) {
-      if (ProgressService.getReviewCompletedPagesCount(bookProgress, i) >=
+    for (final columnId in _columnIdsForBook(bookId)) {
+      if (ProgressService.getColumnCompletedCount(bookProgress, columnId) >=
           totalTargetItems) {
         cycles++;
       }
     }
-
     return cycles;
   }
 
@@ -607,6 +598,7 @@ class ShamorZachorProgressProvider with ChangeNotifier {
       bookDetails,
       bookProgress,
       completionDate: completionDate,
+      columns: _columnIdsForBook(bookId),
     );
     _progressSummaryCache[bookId] = summary;
     return summary;
@@ -656,6 +648,7 @@ class ShamorZachorProgressProvider with ChangeNotifier {
       await _progressService.clearAllProgress();
       _progressById.clear();
       _completionDatesById.clear();
+      _columnsByBookId.clear();
       _clearSummaryCache();
       notifyListeners();
     } catch (e, stackTrace) {

@@ -6,6 +6,7 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/layout/app_card.dart';
 import '../models/book_model.dart';
+import '../models/progress_model.dart';
 import '../providers/shamor_zachor_progress_provider.dart';
 
 class BookCardWidget extends StatefulWidget {
@@ -36,17 +37,12 @@ class BookCardWidget extends StatefulWidget {
 
 class _BookCardWidgetState extends State<BookCardWidget> {
   static final Logger _logger = BookCardWidget._logger;
-  static const List<String> _cycles = [
-    'learn',
-    'review1',
-    'review2',
-    'review3',
-  ];
   final FocusNode _focusNode = FocusNode();
 
+  List<ProgressColumn> _columns = kDefaultProgressColumns;
   double _learnProgress = 0.0;
   bool _isCompleted = false;
-  List<double> _cycleProgress = const [0.0, 0.0, 0.0, 0.0];
+  List<double> _cycleProgress = const [];
   bool _isInitialized = false;
 
   ShamorZachorProgressProvider? _progressProvider;
@@ -98,13 +94,15 @@ class _BookCardWidgetState extends State<BookCardWidget> {
 
       final double newLearnProgress;
       final bool newIsCompleted;
-      final cycleTotals = List<int>.filled(_cycles.length, 0);
-      final cycleCompleted = List<int>.filled(_cycles.length, 0);
 
       final bookId = widget.bookDetails.id;
       if (bookId == null) {
         return;
       }
+
+      final columns = pp.getColumnsForBook(bookId);
+      final cycleTotals = List<int>.filled(columns.length, 0);
+      final cycleCompleted = List<int>.filled(columns.length, 0);
 
       for (final item in widget.bookDetails.learnableItems) {
         final progress = pp.getProgressForItemById(
@@ -112,16 +110,16 @@ class _BookCardWidgetState extends State<BookCardWidget> {
           item.absoluteIndex,
         );
 
-        for (int index = 0; index < _cycles.length; index++) {
+        for (int index = 0; index < columns.length; index++) {
           cycleTotals[index]++;
-          if (progress.getProperty(_cycles[index])) {
+          if (progress.getProperty(columns[index].id)) {
             cycleCompleted[index]++;
           }
         }
       }
 
       final newCycleProgress = List<double>.generate(
-        _cycles.length,
+        columns.length,
         (index) => cycleTotals[index] == 0
             ? 0.0
             : cycleCompleted[index] / cycleTotals[index],
@@ -142,8 +140,10 @@ class _BookCardWidgetState extends State<BookCardWidget> {
 
       if (newLearnProgress != _learnProgress ||
           newIsCompleted != _isCompleted ||
-          !_sameProgress(_cycleProgress, newCycleProgress)) {
+          !_sameProgress(_cycleProgress, newCycleProgress) ||
+          !_sameColumns(_columns, columns)) {
         setState(() {
+          _columns = columns;
           _learnProgress = newLearnProgress;
           _isCompleted = newIsCompleted;
           _cycleProgress = newCycleProgress;
@@ -165,6 +165,14 @@ class _BookCardWidgetState extends State<BookCardWidget> {
       }
     }
 
+    return true;
+  }
+
+  bool _sameColumns(List<ProgressColumn> left, List<ProgressColumn> right) {
+    if (left.length != right.length) return false;
+    for (int index = 0; index < left.length; index++) {
+      if (left[index] != right[index]) return false;
+    }
     return true;
   }
 
@@ -310,7 +318,9 @@ class _BookCardWidgetState extends State<BookCardWidget> {
           Expanded(
             child: _buildCycleIndicator(
               context,
-              visibleIndices[j] + 1,
+              visibleIndices[j] < _columns.length
+                  ? _columns[visibleIndices[j]].label
+                  : 'מחזור ${visibleIndices[j] + 1}',
               _cycleProgress[visibleIndices[j]],
               _cycleProgress[visibleIndices[j]] >= 1.0,
             ),
@@ -320,29 +330,13 @@ class _BookCardWidgetState extends State<BookCardWidget> {
     );
   }
 
-  /// בניית אינדיקטור למחזור בודד
+  /// בניית אינדיקטור לעמודה בודדת (מחזור)
   Widget _buildCycleIndicator(
     BuildContext context,
-    int cycleNumber,
+    String cycleName,
     double progress,
     bool isCompleted,
   ) {
-    // המרת מספר מחזור לטקסט עברי
-    String getCycleName(int num) {
-      switch (num) {
-        case 1:
-          return 'מחזור ראשון';
-        case 2:
-          return 'מחזור שני';
-        case 3:
-          return 'מחזור שלישי';
-        case 4:
-          return 'מחזור רביעי';
-        default:
-          return 'מחזור $num';
-      }
-    }
-
     final cs = Theme.of(context).colorScheme;
 
     if (isCompleted) {
@@ -362,7 +356,7 @@ class _BookCardWidgetState extends State<BookCardWidget> {
             ),
             const SizedBox(height: 1),
             Text(
-              getCycleName(cycleNumber),
+              cycleName,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     fontSize: 8,
                     color: cs.onSurface,
@@ -393,7 +387,7 @@ class _BookCardWidgetState extends State<BookCardWidget> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            getCycleName(cycleNumber),
+            cycleName,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   fontWeight: FontWeight.bold,
                   fontSize: 9,

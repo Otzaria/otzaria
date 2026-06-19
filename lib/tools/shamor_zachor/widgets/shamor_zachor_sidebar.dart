@@ -116,8 +116,8 @@ class _ShamorZachorSidebarState extends State<ShamorZachorSidebar> {
   Widget _buildCategoryNode(BookCategory category, String topLevelName,
       {required int level}) {
     final path = category.name;
-    // Default: expand first two levels
-    final isExpanded = _expansionState[path] ?? level <= 1;
+    // קטגוריות פנימיות סגורות כברירת מחדל (רק "כל הספרים" פתוח)
+    final isExpanded = _expansionState[path] ?? false;
     final hasChildren = category.subcategories?.isNotEmpty == true;
     final isSelected = widget.selectedCategoryName == path ||
         widget.selectedCategoryName == category.name;

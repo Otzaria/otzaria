@@ -17,6 +17,48 @@ class ProgressService {
   static const String _completionDatesByIdKey =
       '${_keyPrefix}completion_dates_by_id';
   static const String _lastAccessedKey = '${_keyPrefix}last_accessed';
+  static const String _bookColumnsKey = '${_keyPrefix}book_columns';
+
+  /// טוען את הגדרות העמודות המותאמות לכל ספר (bookId → רשימת עמודות).
+  /// ספר שאינו מופיע יקבל את עמודות ברירת המחדל בשכבת ה-Provider.
+  Future<Map<int, List<ProgressColumn>>> loadColumnsByBookId() async {
+    try {
+      final jsonString = Settings.getValue<String>(_bookColumnsKey);
+      if (jsonString == null || jsonString.isEmpty) return {};
+
+      final Map<String, dynamic> decoded = json.decode(jsonString);
+      final result = <int, List<ProgressColumn>>{};
+      decoded.forEach((bookIdKey, value) {
+        if (value is List) {
+          result[int.parse(bookIdKey)] = value
+              .whereType<Map>()
+              .map((e) => ProgressColumn.fromJson(Map<String, dynamic>.from(e)))
+              .toList();
+        }
+      });
+      return result;
+    } catch (e, stackTrace) {
+      _logger.warning('Failed to load book columns', e, stackTrace);
+      return {};
+    }
+  }
+
+  /// שומר את הגדרות העמודות המותאמות לכל ספר.
+  Future<void> saveColumnsByBookId(
+      Map<int, List<ProgressColumn>> columnsByBookId) async {
+    try {
+      final jsonData = columnsByBookId.map((bookId, columns) =>
+          MapEntry(bookId.toString(), columns.map((c) => c.toJson()).toList()));
+      await Settings.setValue<String>(_bookColumnsKey, json.encode(jsonData));
+    } catch (e, stackTrace) {
+      throw ShamorZachorError.fromException(
+        e,
+        stackTrace: stackTrace,
+        type: ShamorZachorErrorType.storageUnavailable,
+        customMessage: 'Failed to save book columns',
+      );
+    }
+  }
 
   /// Load progress data by book ID
   Future<ProgressMapById> loadProgressDataById() async {
@@ -155,6 +197,9 @@ class ProgressService {
   }
 
   /// Build a book progress summary from in-memory progress data.
+  ///
+  /// [columns] רשימת מזהי העמודות של הספר. פריט נחשב "הושלם" כשכל העמודות
+  /// מסומנות בו; ספר "במחזור פעיל" כשעמודה אחת הושלמה ואחרת בתהליך חלקי.
   BookProgressSummary buildBookProgressSummary(
     String categoryName,
     String bookName,
@@ -162,16 +207,14 @@ class ProgressService {
     Map<String, PageProgress> bookProgress, {
     String? completionDate,
     DateTime? lastAccessed,
+    required List<String> columns,
   }) {
     final totalItems = bookDetails.totalLearnableItems;
     int completedItems = 0;
     int inProgressItems = 0;
 
     for (final progress in bookProgress.values) {
-      if (progress.learn &&
-          progress.review1 &&
-          progress.review2 &&
-          progress.review3) {
+      if (progress.isCompleteFor(columns)) {
         completedItems++;
       } else if (!progress.isEmpty) {
         inProgressItems++;
@@ -179,24 +222,18 @@ class ProgressService {
     }
 
     bool isActiveReview = false;
-    if (totalItems > 0 && completedItems == totalItems) {
-      final review1Progress =
-          getReviewCompletedPagesCount(bookProgress, 1) / totalItems;
-      final review2Progress =
-          getReviewCompletedPagesCount(bookProgress, 2) / totalItems;
-      final review3Progress =
-          getReviewCompletedPagesCount(bookProgress, 3) / totalItems;
-
-      final review1Active = review1Progress > 0 && review1Progress < 1.0;
-      final review2Active = review1Progress == 1.0 &&
-          review2Progress > 0 &&
-          review2Progress < 1.0;
-      final review3Active = review1Progress == 1.0 &&
-          review2Progress == 1.0 &&
-          review3Progress > 0 &&
-          review3Progress < 1.0;
-
-      isActiveReview = review1Active || review2Active || review3Active;
+    if (totalItems > 0 && columns.length > 1) {
+      int fullyDoneColumns = 0;
+      bool anyPartialColumn = false;
+      for (final columnId in columns) {
+        final count = getColumnCompletedCount(bookProgress, columnId);
+        if (count >= totalItems) {
+          fullyDoneColumns++;
+        } else if (count > 0) {
+          anyPartialColumn = true;
+        }
+      }
+      isActiveReview = fullyDoneColumns >= 1 && anyPartialColumn;
     }
 
     return BookProgressSummary(
@@ -211,25 +248,14 @@ class ProgressService {
     );
   }
 
-  /// Static helper methods for progress calculations
-  static int getCompletedPagesCount(Map<String, PageProgress> bookProgress) {
-    return bookProgress.values.where((progress) => progress.learn).length;
-  }
-
-  static int getReviewCompletedPagesCount(
+  /// סופר כמה פריטים מסומנים בעמודה נתונה
+  static int getColumnCompletedCount(
     Map<String, PageProgress> bookProgress,
-    int reviewNumber,
+    String columnId,
   ) {
-    switch (reviewNumber) {
-      case 1:
-        return bookProgress.values.where((progress) => progress.review1).length;
-      case 2:
-        return bookProgress.values.where((progress) => progress.review2).length;
-      case 3:
-        return bookProgress.values.where((progress) => progress.review3).length;
-      default:
-        throw ArgumentError('Invalid review number: $reviewNumber');
-    }
+    return bookProgress.values
+        .where((progress) => progress.getProperty(columnId))
+        .length;
   }
 
   /// Update last accessed timestamp
@@ -248,12 +274,14 @@ class ProgressService {
       final progressJsonString = Settings.getValue<String>(_progressByIdKey);
       final completionDatesJsonString =
           Settings.getValue<String>(_completionDatesByIdKey);
+      final bookColumnsJsonString = Settings.getValue<String>(_bookColumnsKey);
 
       final Map<String, String?> dataToExport = {
         'progress_by_id': progressJsonString,
         'completion_dates_by_id': completionDatesJsonString,
+        'book_columns': bookColumnsJsonString,
         'export_timestamp': DateTime.now().toIso8601String(),
-        'schema_version': '2',
+        'schema_version': '3',
       };
 
       return json.encode(dataToExport);
@@ -275,11 +303,14 @@ class ProgressService {
           decodedData['progress_by_id'] as String?;
       final String? completionDatesByIdString =
           decodedData['completion_dates_by_id'] as String?;
+      final String? bookColumnsString = decodedData['book_columns'] as String?;
 
       await Settings.setValue<String>(
           _progressByIdKey, progressByIdString ?? '{}');
       await Settings.setValue<String>(
           _completionDatesByIdKey, completionDatesByIdString ?? '{}');
+      await Settings.setValue<String>(
+          _bookColumnsKey, bookColumnsString ?? '{}');
 
       _logger.info('Successfully imported progress data');
       return true;
@@ -303,6 +334,7 @@ class ProgressService {
     try {
       await Settings.setValue<String?>(_progressByIdKey, null);
       await Settings.setValue<String?>(_completionDatesByIdKey, null);
+      await Settings.setValue<String?>(_bookColumnsKey, null);
       await Settings.setValue<String?>(_lastAccessedKey, null);
 
       _logger.info('Cleared all progress data');

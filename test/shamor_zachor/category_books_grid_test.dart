@@ -10,18 +10,17 @@ import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_progress_pro
 import 'package:otzaria/tools/shamor_zachor/widgets/category_books_grid.dart';
 
 class _FakeDataProvider extends ShamorZachorDataProvider {
-  _FakeDataProvider(this.removeCompleter);
+  _FakeDataProvider(this.removeCompleter, {this.trackedIds = const {}});
 
   final Completer<void> removeCompleter;
+  final Set<int> trackedIds;
   int? removedBookId;
 
   @override
-  Future<void> removeCustomBook({
-    required String categoryName,
-    required String bookName,
-    int? bookId,
-    int? categoryId,
-  }) async {
+  bool isBookTrackedById(int bookId) => trackedIds.contains(bookId);
+
+  @override
+  Future<void> removeBookFromTracking(int bookId) async {
     removedBookId = bookId;
     await removeCompleter.future;
   }
@@ -229,5 +228,111 @@ void main() {
     expect(tester.takeException(), isNull);
 
     addTearDown(() => tester.binding.setSurfaceSize(null));
+  });
+
+  testWidgets('tracked book appears under "in progress" without any progress',
+      (tester) async {
+    final dataProvider = _FakeDataProvider(Completer<void>(), trackedIds: {42});
+    final progressProvider = _FakeProgressProvider(Completer<void>());
+
+    final category = BookCategory(
+      name: 'תלמוד בבלי',
+      contentType: 'text',
+      books: {
+        'ברכות': BookDetails(
+          contentType: 'text',
+          isCustom: true,
+          id: 42,
+          categoryPath: 'תלמוד בבלי',
+          parts: const [
+            BookPart(name: 'ראשי', startPage: 1, endPage: 1),
+          ],
+        ),
+      },
+      defaultStartPage: 1,
+      isCustom: false,
+      sourceFile: 'test',
+    );
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<ShamorZachorDataProvider>.value(
+            value: dataProvider,
+          ),
+          ChangeNotifierProvider<ShamorZachorProgressProvider>.value(
+            value: progressProvider,
+          ),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: CategoryBooksGrid(
+              categoryName: 'תלמוד בבלי',
+              topLevelName: 'תלמוד בבלי',
+              category: category,
+              selectedFilter: 'in_progress',
+              onBookSelected: (_, __, ___) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('ברכות'), findsOneWidget);
+  });
+
+  testWidgets('shows in-progress empty state with add hint when no books match',
+      (tester) async {
+    final dataProvider = _FakeDataProvider(Completer<void>());
+    final progressProvider = _FakeProgressProvider(Completer<void>());
+
+    final category = BookCategory(
+      name: 'תלמוד בבלי',
+      contentType: 'text',
+      books: {
+        'ברכות': BookDetails(
+          contentType: 'text',
+          isCustom: false,
+          id: 42,
+          categoryPath: 'תלמוד בבלי',
+          parts: const [
+            BookPart(name: 'ראשי', startPage: 1, endPage: 1),
+          ],
+        ),
+      },
+      defaultStartPage: 1,
+      isCustom: false,
+      sourceFile: 'test',
+    );
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<ShamorZachorDataProvider>.value(
+            value: dataProvider,
+          ),
+          ChangeNotifierProvider<ShamorZachorProgressProvider>.value(
+            value: progressProvider,
+          ),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: CategoryBooksGrid(
+              categoryName: 'תלמוד בבלי',
+              topLevelName: 'תלמוד בבלי',
+              category: category,
+              selectedFilter: 'in_progress',
+              onBookSelected: (_, __, ___) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('ברכות'), findsNothing);
+    expect(find.text('אין ספרים בתהליך'), findsOneWidget);
+    expect(find.textContaining('לחצן ההוספה'), findsOneWidget);
   });
 }
