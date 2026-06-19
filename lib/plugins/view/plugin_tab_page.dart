@@ -511,6 +511,10 @@ class _PluginTabPageState extends State<PluginTabPage> {
               'platform': Platform.operatingSystem,
               'locale': 'he-IL',
               'textDirection': 'rtl',
+              // חושף לתוסף אם הוא נטען כתוסף פיתוח (sourceType=development).
+              // בתוסף ארוז זה false — מאפשר לתוסף לדלג על שערים פיתוחיים
+              // (כמו שער סיסמה) רק במצב פיתוח ולא בפרודקשן.
+              'devMode': widget.plugin.isDevelopment,
             },
             'theme': theme,
             'permissions': permissions

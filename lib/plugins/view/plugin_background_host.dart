@@ -536,6 +536,9 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner> {
               // סימון לתוסף שהוא רץ ברקע — מאפשר לקוד התוסף להתנהג אחרת
               // (למשל לא לבצע ניווט יזום) כשאין UI גלוי.
               'runMode': 'background',
+              // חושף לתוסף אם הוא נטען כתוסף פיתוח (sourceType=development).
+              // בתוסף ארוז זה false.
+              'devMode': widget.plugin.isDevelopment,
             },
             'theme': theme,
             'permissions': permissions
