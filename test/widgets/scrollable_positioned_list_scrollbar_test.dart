@@ -431,6 +431,98 @@ void main() {
     expect(find.textContaining('יעד'), findsNothing);
   });
 
+  testWidgets('הקלקה בודדת על המסילה אינה משאירה תווית תקועה (מסך מגע)',
+      (tester) async {
+    // רגרסיה: במסך מגע אין onExit שיסתיר את התווית. כשהקלקה בודדת הציגה
+    // אותה, היא נשארה קפואה על התוכן גם אחרי שהאצבע עזבה.
+    final listener = ItemPositionsListener.create();
+    final controller = _RecordingItemScrollController();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ScrollablePositionedListScrollbar(
+            scrollController: controller,
+            itemPositionsListener: listener,
+            itemCount: 100,
+            labelForIndex: (index) => 'יעד $index',
+            child: const SizedBox.expand(),
+          ),
+        ),
+      ),
+    );
+
+    (listener.itemPositions as ValueNotifier<Iterable<ItemPosition>>).value =
+        const [
+      ItemPosition(index: 0, itemLeadingEdge: 0, itemTrailingEdge: 0.02),
+      ItemPosition(index: 1, itemLeadingEdge: 0.02, itemTrailingEdge: 0.04),
+    ];
+    await tester.pump();
+
+    final track = find.byType(GestureDetector);
+    final trackTopLeft = tester.getTopLeft(track);
+    final trackBottomRight = tester.getBottomRight(track);
+    final tapCenter = Offset(
+      (trackTopLeft.dx + trackBottomRight.dx) / 2,
+      (trackTopLeft.dy + trackBottomRight.dy) / 2,
+    );
+
+    await tester.tapAt(tapCenter);
+    await tester.pump();
+
+    expect(find.textContaining('יעד'), findsNothing,
+        reason: 'הקלקה בודדת לא אמורה להשאיר תווית תקועה');
+  });
+
+  testWidgets('ביטול גרירה (הרשימה ניצחה ב-arena) מסתיר את תווית היעד',
+      (tester) async {
+    // רגרסיה: בלי onVerticalDragCancel, גרירה שנקטעה השאירה את התווית תקועה
+    // בזמן שהתוכן ממשיך לגלול.
+    final listener = ItemPositionsListener.create();
+    final controller = _RecordingItemScrollController();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ScrollablePositionedListScrollbar(
+            scrollController: controller,
+            itemPositionsListener: listener,
+            itemCount: 100,
+            labelForIndex: (index) => 'יעד $index',
+            child: const SizedBox.expand(),
+          ),
+        ),
+      ),
+    );
+
+    (listener.itemPositions as ValueNotifier<Iterable<ItemPosition>>).value =
+        const [
+      ItemPosition(index: 0, itemLeadingEdge: 0, itemTrailingEdge: 0.02),
+      ItemPosition(index: 1, itemLeadingEdge: 0.02, itemTrailingEdge: 0.04),
+    ];
+    await tester.pump();
+
+    final track = find.byType(GestureDetector);
+    final trackTopLeft = tester.getTopLeft(track);
+    final trackBottomRight = tester.getBottomRight(track);
+    final startNearBottom = Offset(
+      (trackTopLeft.dx + trackBottomRight.dx) / 2,
+      trackBottomRight.dy - 5,
+    );
+
+    final gesture = await tester.startGesture(startNearBottom);
+    await tester.pump();
+    await gesture.moveBy(const Offset(0, 30));
+    await tester.pump();
+    expect(find.textContaining('יעד'), findsOneWidget,
+        reason: 'בזמן גרירה התווית מוצגת');
+
+    await gesture.cancel();
+    await tester.pump();
+    expect(find.textContaining('יעד'), findsNothing,
+        reason: 'ביטול גרירה חייב להסתיר את התווית');
+  });
+
   testWidgets('בלי labelForIndex אין תווית ואין קריסה בריחוף', (tester) async {
     final listener = ItemPositionsListener.create();
     final controller = ItemScrollController();
