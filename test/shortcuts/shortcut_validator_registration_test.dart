@@ -46,6 +46,23 @@ void main() {
       );
     });
 
+    test('קיצורי ניווט קטע/דף-פרק רשומים עם ברירות מחדל ושמות', () {
+      const navKeys = {
+        'key-shortcut-prev-segment': ('alt+arrowup', 'הקטע הקודם'),
+        'key-shortcut-next-segment': ('alt+arrowdown', 'הקטע הבא'),
+        'key-shortcut-prev-toc': ('alt+pageup', 'הדף/פרק הקודם'),
+        'key-shortcut-next-toc': ('alt+pagedown', 'הדף/פרק הבא'),
+      };
+      for (final entry in navKeys.entries) {
+        expect(ShortcutValidator.shortcutKeys, contains(entry.key));
+        expect(
+          ShortcutValidator.defaultShortcuts[entry.key],
+          entry.value.$1,
+        );
+        expect(ShortcutValidator.shortcutNames[entry.key], entry.value.$2);
+      }
+    });
+
     test('פתיחת כרטיסיית מפרשים — ללא ברירת מחדל (המשתמש יבחר)', () {
       expect(
         ShortcutValidator

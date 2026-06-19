@@ -65,5 +65,35 @@ void main() {
       expect(calls, 2);
       expect(tab.toggleCommentatorsPaneNotifier.value, 2);
     });
+
+    test('notifiers של ניווט קטע/דף-פרק מתחילים ב-0 ומשדרים ל-listener', () {
+      final bloc = _StubTextBookBloc();
+      final tab = TextBookTab(
+        book: TextBook(title: 'ספר בדיקה'),
+        index: 0,
+        blocOverride: bloc,
+      );
+      addTearDown(tab.dispose);
+
+      final navNotifiers = [
+        tab.navPreviousSegmentNotifier,
+        tab.navNextSegmentNotifier,
+        tab.navPreviousTocNotifier,
+        tab.navNextTocNotifier,
+      ];
+
+      for (final notifier in navNotifiers) {
+        expect(notifier.value, 0);
+        var calls = 0;
+        void listener() => calls++;
+        notifier.addListener(listener);
+        addTearDown(() => notifier.removeListener(listener));
+
+        notifier.value++;
+
+        expect(calls, 1);
+        expect(notifier.value, 1);
+      }
+    });
   });
 }

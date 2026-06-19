@@ -115,6 +115,10 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
         shortcutOf('key-shortcut-toggle-commentators-pane');
     final openCommentatorsTabShortcut =
         shortcutOf('key-shortcut-open-commentators-tab');
+    final prevSegmentShortcut = shortcutOf('key-shortcut-prev-segment');
+    final nextSegmentShortcut = shortcutOf('key-shortcut-next-segment');
+    final prevTocShortcut = shortcutOf('key-shortcut-prev-toc');
+    final nextTocShortcut = shortcutOf('key-shortcut-next-toc');
 
     // פתח/סגור חלונית ניווט. אם הטאב הפעיל אינו ספר — מחזירים `ignored`
     // כדי לא לבלוע את הקיצור (כך מנוע ה-shortcut יכול להמשיך הלאה במקום
@@ -168,6 +172,27 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
         return KeyEventResult.handled;
       }
       return KeyEventResult.ignored;
+    }
+
+    // ניווט קטע/דף-פרק בספר טקסט — מגלגל את ה-notifier המתאים בטאב, שהמסך
+    // מאזין לו ומבצע בדיוק את אותו ניווט כמו לחיצה על הכפתור. רלוונטי רק
+    // ל-TextBookTab; במסכים אחרים מחזירים `ignored` כדי לא לבלוע את הקיצור.
+    final navTab = context.read<TabsBloc>().state.currentTab;
+    if (navTab is TextBookTab) {
+      ValueNotifier<int>? navNotifier;
+      if (ShortcutHelper.matchesShortcut(event, prevSegmentShortcut)) {
+        navNotifier = navTab.navPreviousSegmentNotifier;
+      } else if (ShortcutHelper.matchesShortcut(event, nextSegmentShortcut)) {
+        navNotifier = navTab.navNextSegmentNotifier;
+      } else if (ShortcutHelper.matchesShortcut(event, prevTocShortcut)) {
+        navNotifier = navTab.navPreviousTocNotifier;
+      } else if (ShortcutHelper.matchesShortcut(event, nextTocShortcut)) {
+        navNotifier = navTab.navNextTocNotifier;
+      }
+      if (navNotifier != null) {
+        navNotifier.value++;
+        return KeyEventResult.handled;
+      }
     }
 
     if (ShortcutHelper.matchesShortcut(event, libraryShortcut)) {

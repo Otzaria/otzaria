@@ -59,9 +59,8 @@ class ShortcutHelper {
     // מקש Control הפיזי לא נבדק כלל — מאחד את הסמנטיקה ומונע אי-עקביות
     // בקיצור `ctrl+meta+X` (שאם נבדק כפשוטו היה נשבר).
     final requiresCtrl = _treatCtrlAsMeta ? null : hasCtrlToken;
-    final requiresMeta = _treatCtrlAsMeta
-        ? (hasMetaToken || hasCtrlToken)
-        : hasMetaToken;
+    final requiresMeta =
+        _treatCtrlAsMeta ? (hasMetaToken || hasCtrlToken) : hasMetaToken;
 
     // בדיקת modifiers
     final controlPressed =
@@ -177,22 +176,35 @@ class ShortcutHelper {
   /// המוצג חייב להיות עקבי עם ההתנהגות. `alt` מוצג כ-`⌥`, `shift` כ-`⇧`.
   /// בשאר הפלטפורמות נשמרת התצוגה הקלאסית `CTRL + X`.
   static String formatShortcutForDisplay(String shortcut) {
+    final String formatted;
     if (_treatCtrlAsMeta) {
-      return shortcut
+      formatted = shortcut
           .replaceAll('ctrl+', '⌘ + ')
           .replaceAll('control+', '⌘ + ')
           .replaceAll('meta+', '⌘ + ')
           .replaceAll('shift+', '⇧ + ')
           .replaceAll('alt+', '⌥ + ')
           .toUpperCase();
+    } else {
+      formatted = shortcut
+          .replaceAll('ctrl+', 'CTRL + ')
+          .replaceAll('shift+', 'SHIFT + ')
+          .replaceAll('alt+', 'ALT + ')
+          .replaceAll('meta+', 'WIN + ')
+          .toUpperCase();
     }
-    return shortcut
-        .replaceAll('ctrl+', 'CTRL + ')
-        .replaceAll('shift+', 'SHIFT + ')
-        .replaceAll('alt+', 'ALT + ')
-        .replaceAll('meta+', 'WIN + ')
-        .toUpperCase();
+    return _prettifyKeyTokens(formatted);
   }
+
+  /// ממיר שמות מקשי ניווט מילוליים (אחרי uppercase) לסמלים/תוויות קריאות,
+  /// כדי שקיצור כמו `alt+arrowup` יוצג כ-`ALT + ↑` ולא `ALT + ARROWUP`.
+  static String _prettifyKeyTokens(String display) => display
+      .replaceAll('ARROWUP', '↑')
+      .replaceAll('ARROWDOWN', '↓')
+      .replaceAll('ARROWLEFT', '←')
+      .replaceAll('ARROWRIGHT', '→')
+      .replaceAll('PAGEUP', 'Page Up')
+      .replaceAll('PAGEDOWN', 'Page Down');
 
   /// ממיר מחרוזת קיצור (כגון `'ctrl+f'`) ל-[ShortcutActivator].
   ///

@@ -72,6 +72,13 @@ class TextBookTab extends OpenedTab {
   /// המאזין הוא [SplitedViewScreen] בלבד; כל הגדלה = פתח על טאב הערות.
   final ValueNotifier<int> openNotesTabNotifier = ValueNotifier<int>(0);
 
+  /// counter-ים שמתגלגלים עם בקשת ניווט מקיצור מקלדת גלובלי. המאזין הוא
+  /// מסך הספר; כל הגדלה = ניווט יחיד (זהה ללחיצה על כפתור הניווט המתאים).
+  final ValueNotifier<int> navPreviousSegmentNotifier = ValueNotifier<int>(0);
+  final ValueNotifier<int> navNextSegmentNotifier = ValueNotifier<int>(0);
+  final ValueNotifier<int> navPreviousTocNotifier = ValueNotifier<int>(0);
+  final ValueNotifier<int> navNextTocNotifier = ValueNotifier<int>(0);
+
   List<String>? commentators;
   bool _lastSplitView = false;
   bool _lastShowPageShapeView = false;
@@ -174,6 +181,10 @@ class TextBookTab extends OpenedTab {
     currentTitle.dispose();
     toggleCommentatorsPaneNotifier.dispose();
     openNotesTabNotifier.dispose();
+    navPreviousSegmentNotifier.dispose();
+    navNextSegmentNotifier.dispose();
+    navPreviousTocNotifier.dispose();
+    navNextTocNotifier.dispose();
     bloc.close();
     super.dispose();
   }

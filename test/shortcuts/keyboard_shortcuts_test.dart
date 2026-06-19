@@ -25,7 +25,11 @@ import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
+import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
+import 'package:otzaria/text_book/bloc/text_book_event.dart';
+import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:provider/provider.dart';
 import '../helpers/memory_settings_cache.dart';
 
@@ -58,6 +62,22 @@ class _StubNavigationBloc extends Bloc<NavigationEvent, NavigationState>
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _StubTextBookBloc extends Bloc<TextBookEvent, TextBookState>
+    implements TextBookBloc {
+  _StubTextBookBloc()
+      : super(TextBookInitial.named(
+          TextBook(title: 'ספר בדיקה'),
+          0,
+          false,
+          const [],
+        )) {
+    on<TextBookEvent>((_, __) {});
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
 }
 
 class _FakeTabsRepository extends TabsRepository {
@@ -339,6 +359,119 @@ void main() {
       expect(tabsBloc.state.tabs[1].title, 'חיפוש ב');
 
       await tester.pump(const Duration(milliseconds: 400));
+    });
+  });
+
+  group('KeyboardShortcuts - ניווט קטע/דף-פרק (Alt+חיצים, Alt+Page)', () {
+    late MockSettingsBloc settingsBlocLocal;
+    late StreamController<SettingsState> settingsControllerLocal;
+
+    setUpAll(() async {
+      await Settings.init(cacheProvider: MemorySettingsCache());
+    });
+
+    setUp(() {
+      FocusRepository().resetForTesting();
+      settingsBlocLocal = MockSettingsBloc();
+      settingsControllerLocal = StreamController<SettingsState>.broadcast();
+      whenListen(
+        settingsBlocLocal,
+        settingsControllerLocal.stream,
+        initialState: SettingsState.initial().copyWith(
+          shortcuts: const {
+            'key-shortcut-prev-segment': 'alt+arrowup',
+            'key-shortcut-next-segment': 'alt+arrowdown',
+            'key-shortcut-prev-toc': 'alt+pageup',
+            'key-shortcut-next-toc': 'alt+pagedown',
+          },
+        ),
+      );
+    });
+
+    tearDown(() async {
+      await settingsControllerLocal.close();
+      FocusRepository().resetForTesting();
+    });
+
+    Future<void> pumpWithTab(WidgetTester tester, OpenedTab tab) async {
+      final tabsBloc = _StubTabsBloc(
+        TabsState(tabs: [tab], currentTabIndex: 0),
+      );
+      final historyBloc = _StubHistoryBloc();
+      final navigationBloc = _StubNavigationBloc();
+      addTearDown(() async {
+        await tabsBloc.close();
+        await historyBloc.close();
+        await navigationBloc.close();
+      });
+
+      await tester.pumpWidget(
+        MultiBlocProvider(
+          providers: [
+            BlocProvider<SettingsBloc>.value(value: settingsBlocLocal),
+            BlocProvider<TabsBloc>.value(value: tabsBloc),
+            BlocProvider<HistoryBloc>.value(value: historyBloc),
+            BlocProvider<NavigationBloc>.value(value: navigationBloc),
+            Provider<FocusRepository>.value(value: FocusRepository()),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: KeyboardShortcuts(
+                onFindRefRequested: () {},
+                child: const SizedBox(width: 100, height: 100),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+    }
+
+    Future<void> sendAlt(WidgetTester tester, LogicalKeyboardKey key) async {
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+      await tester.sendKeyDownEvent(key);
+      await tester.sendKeyUpEvent(key);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+      await tester.pump();
+    }
+
+    testWidgets('כל אחד מהקיצורים מגלגל את ה-notifier התואם ב-TextBookTab',
+        (tester) async {
+      final tab = TextBookTab(
+        book: TextBook(title: 'ספר בדיקה'),
+        index: 0,
+        blocOverride: _StubTextBookBloc(),
+      );
+      addTearDown(tab.dispose);
+
+      await pumpWithTab(tester, tab);
+
+      await sendAlt(tester, LogicalKeyboardKey.arrowUp);
+      expect(tab.navPreviousSegmentNotifier.value, 1);
+
+      await sendAlt(tester, LogicalKeyboardKey.arrowDown);
+      expect(tab.navNextSegmentNotifier.value, 1);
+
+      await sendAlt(tester, LogicalKeyboardKey.pageUp);
+      expect(tab.navPreviousTocNotifier.value, 1);
+
+      await sendAlt(tester, LogicalKeyboardKey.pageDown);
+      expect(tab.navNextTocNotifier.value, 1);
+    });
+
+    testWidgets('קיצור ניווט ב-PdfBookTab אינו מגלגל notifier (TextBook בלבד)',
+        (tester) async {
+      final tab = PdfBookTab(
+        book: PdfBook(title: 'ספר PDF', path: '/x.pdf'),
+        pageNumber: 1,
+      );
+      addTearDown(tab.dispose);
+
+      await pumpWithTab(tester, tab);
+
+      // לא אמור לזרוק ולא להשפיע — מאומת דרך היעדר חריגה.
+      await sendAlt(tester, LogicalKeyboardKey.arrowUp);
+      expect(tester.takeException(), isNull);
     });
   });
 }

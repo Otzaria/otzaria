@@ -540,6 +540,12 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       });
     });
 
+    // האזנה לקיצורי הניווט הגלובליים (קטע/דף-פרק קודם והבא).
+    widget.tab.navPreviousSegmentNotifier.addListener(_onNavPreviousSegment);
+    widget.tab.navNextSegmentNotifier.addListener(_onNavNextSegment);
+    widget.tab.navPreviousTocNotifier.addListener(_onNavPreviousToc);
+    widget.tab.navNextTocNotifier.addListener(_onNavNextToc);
+
     // רישום ה-FocusNode ב-FocusRepository
     _focusRepository = context.read<FocusRepository>();
     _focusRepository!.registerBookContentFocusNode(_bookContentFocusNode);
@@ -791,6 +797,11 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   void dispose() {
     // ביטול רישום ה-FocusNode מ-FocusRepository (שימוש בהפניה שנשמרה)
     _focusRepository?.unregisterBookContentFocusNode(_bookContentFocusNode);
+
+    widget.tab.navPreviousSegmentNotifier.removeListener(_onNavPreviousSegment);
+    widget.tab.navNextSegmentNotifier.removeListener(_onNavNextSegment);
+    widget.tab.navPreviousTocNotifier.removeListener(_onNavPreviousToc);
+    widget.tab.navNextTocNotifier.removeListener(_onNavNextToc);
 
     tabController.dispose();
     textSearchFocusNode.dispose();
@@ -2001,6 +2012,18 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       onPressed: () => _scrollToPreviousSegment(state),
     );
   }
+
+  /// מריץ פעולת ניווט מקיצור מקלדת מול ה-state הנוכחי, אם הספר כבר נטען.
+  void _runNavigation(void Function(TextBookLoaded) action) {
+    if (!mounted) return;
+    final state = context.read<TextBookBloc>().state;
+    if (state is TextBookLoaded) action(state);
+  }
+
+  void _onNavPreviousSegment() => _runNavigation(_scrollToPreviousSegment);
+  void _onNavNextSegment() => _runNavigation(_scrollToNextSegment);
+  void _onNavPreviousToc() => _runNavigation(_navigateToPreviousToc);
+  void _onNavNextToc() => _runNavigation(_navigateToNextToc);
 
   void _scrollToPreviousSegment(TextBookLoaded state) {
     final positions = state.positionsListener.itemPositions.value;

@@ -220,6 +220,17 @@ void main() {
       expect(display, 'CTRL + F');
     });
 
+    test('formatShortcutForDisplay: מקשי ניווט מוצגים כסמלים/תוויות קריאות',
+        () {
+      expect(ShortcutHelper.formatShortcutForDisplay('alt+arrowup'), 'ALT + ↑');
+      expect(
+          ShortcutHelper.formatShortcutForDisplay('alt+arrowdown'), 'ALT + ↓');
+      expect(ShortcutHelper.formatShortcutForDisplay('alt+pageup'),
+          'ALT + Page Up');
+      expect(ShortcutHelper.formatShortcutForDisplay('alt+pagedown'),
+          'ALT + Page Down');
+    });
+
     test('activatorFromShortcut: ctrl+f ממופה ל-control:true', () {
       final activator =
           ShortcutHelper.activatorFromShortcut('ctrl+f')! as SingleActivator;
