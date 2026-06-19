@@ -16,6 +16,7 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
+import 'package:otzaria/widgets/misc/rtl_icon.dart';
 
 /// Screen for displaying and managing progress for a specific book
 class BookDetailScreen extends StatefulWidget {
@@ -68,12 +69,11 @@ class _BookDetailScreenState extends State<BookDetailScreen>
   final Map<String, bool> _expandedSections = {};
   StreamSubscription<CompletionEvent>? _completionSubscription;
 
-  final List<Map<String, String>> _columnData = [
-    {'id': 'learn', 'label': 'לימוד'},
-    {'id': 'review1', 'label': 'חזרה 1'},
-    {'id': 'review2', 'label': 'חזרה 2'},
-    {'id': 'review3', 'label': 'חזרה 3'},
-  ];
+  /// העמודות המוגדרות לספר זה (נטענות מה-Provider, ברירת מחדל אם אין הגדרה)
+  List<ProgressColumn> _columnsOf(ShamorZachorProgressProvider pp) =>
+      widget.bookId != null
+          ? pp.getColumnsForBook(widget.bookId!)
+          : kDefaultProgressColumns;
 
   @override
   void initState() {
@@ -351,16 +351,18 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     BookDetails bookDetails,
     ShamorZachorProgressProvider progressProvider,
   ) {
+    final columns = _columnsOf(progressProvider);
+    if (columns.isEmpty) return 0.0;
+
     int totalChecks = 0;
     int completedChecks = 0;
 
     for (final item in bookDetails.learnableItems) {
       final progress = _getProgress(progressProvider, item.absoluteIndex);
-      totalChecks += 4;
-      if (progress.learn) completedChecks++;
-      if (progress.review1) completedChecks++;
-      if (progress.review2) completedChecks++;
-      if (progress.review3) completedChecks++;
+      for (final column in columns) {
+        totalChecks++;
+        if (progress.getProperty(column.id)) completedChecks++;
+      }
     }
 
     return totalChecks > 0 ? completedChecks / totalChecks : 0.0;
@@ -380,6 +382,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       return const SizedBox.shrink();
     }
 
+    final columns = _columnsOf(progressProvider);
     final columnSelectionStates = progressProvider.getColumnSelectionStatesById(
       widget.bookId!,
       bookDetails,
@@ -402,16 +405,24 @@ class _BookDetailScreenState extends State<BookDetailScreen>
         children: [
           Expanded(
             flex: 2,
-            child: const SizedBox
-                .shrink(), // הסרת הכפילות של שם הספר/סוג תוכן בראש הרשימה
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: columns.length < ShamorZachorProgressProvider.maxColumns
+                  ? IconButton(
+                      tooltip: 'הוסף עמודה',
+                      visualDensity: VisualDensity.compact,
+                      icon: const RtlIcon(FluentIcons.add_24_regular),
+                      onPressed: () => _addColumn(progressProvider),
+                    )
+                  : const SizedBox.shrink(),
+            ),
           ),
           Expanded(
             flex: 10,
             child: Row(
               // אין spaceEvenly כדי לשמור פריסה זהה בכל עומק
-              children: _columnData.map((col) {
-                final columnId = col['id']!;
-                final columnLabel = col['label']!;
+              children: columns.map((col) {
+                final columnId = col.id;
                 final bool? checkboxValue = columnSelectionStates[columnId];
 
                 return Expanded(
@@ -437,15 +448,8 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                         tristate: true,
                         activeColor: theme.primaryColor,
                       ),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          columnLabel,
-                          style: TextStyle(
-                              fontSize: 11, color: theme.colorScheme.onSurface),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
+                      _buildColumnHeaderLabel(
+                          progressProvider, col, columns.length),
                     ],
                   ),
                 );
@@ -455,6 +459,109 @@ class _BookDetailScreenState extends State<BookDetailScreen>
         ],
       ),
     );
+  }
+
+  /// כותרת עמודה לחיצה - פותחת תפריט לשינוי שם או הסרת העמודה
+  Widget _buildColumnHeaderLabel(
+    ShamorZachorProgressProvider progressProvider,
+    ProgressColumn column,
+    int columnCount,
+  ) {
+    final theme = Theme.of(context);
+    return PopupMenuButton<String>(
+      tooltip: 'אפשרויות עמודה',
+      padding: EdgeInsets.zero,
+      onSelected: (value) {
+        if (value == 'rename') {
+          _renameColumn(progressProvider, column);
+        } else if (value == 'remove') {
+          _removeColumn(progressProvider, column);
+        }
+      },
+      itemBuilder: (_) => [
+        const PopupMenuItem<String>(
+          value: 'rename',
+          child: Row(children: [
+            RtlIcon(FluentIcons.rename_24_regular, size: 18),
+            SizedBox(width: 8),
+            Text('שנה שם'),
+          ]),
+        ),
+        if (columnCount > 1)
+          const PopupMenuItem<String>(
+            value: 'remove',
+            child: Row(children: [
+              RtlIcon(FluentIcons.delete_24_regular, size: 18),
+              SizedBox(width: 8),
+              Text('הסר עמודה'),
+            ]),
+          ),
+      ],
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                column.label,
+                style:
+                    TextStyle(fontSize: 11, color: theme.colorScheme.onSurface),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+          const SizedBox(width: 2),
+          RtlIcon(FluentIcons.chevron_down_24_regular,
+              size: 11, color: theme.colorScheme.onSurfaceVariant),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _addColumn(ShamorZachorProgressProvider progressProvider) async {
+    if (widget.bookId == null) return;
+    final name = await showInputDialog(
+      context: context,
+      title: 'הוספת עמודה',
+      labelText: 'שם העמודה',
+      confirmText: 'הוסף',
+    );
+    if (name == null || name.isEmpty) return;
+    await progressProvider.addColumn(widget.bookId!, name);
+  }
+
+  Future<void> _renameColumn(
+    ShamorZachorProgressProvider progressProvider,
+    ProgressColumn column,
+  ) async {
+    if (widget.bookId == null) return;
+    final name = await showInputDialog(
+      context: context,
+      title: 'שינוי שם עמודה',
+      labelText: 'שם העמודה',
+      initialValue: column.label,
+    );
+    if (name == null || name.isEmpty) return;
+    await progressProvider.renameColumn(widget.bookId!, column.id, name);
+  }
+
+  Future<void> _removeColumn(
+    ShamorZachorProgressProvider progressProvider,
+    ProgressColumn column,
+  ) async {
+    if (widget.bookId == null) return;
+    final confirmed = await showWarningDialog(
+      context: context,
+      title: 'הסרת עמודה',
+      content: 'האם להסיר את העמודה "${column.label}"?',
+      subtitle: 'הסימונים שנשמרו בעמודה זו יימחקו',
+      cancelText: 'ביטול',
+      confirmText: 'הסר',
+    );
+    if (confirmed != true) return;
+    await progressProvider.removeColumn(widget.bookId!, column.id);
   }
 
   Widget _buildFlatItemsSliver(
@@ -536,11 +643,11 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                     Expanded(
                       flex: 10,
                       child: Row(
-                        children: _columnData.map((col) {
-                          final columnName = col['id']!;
+                        children: _columnsOf(progressProvider).map((col) {
+                          final columnName = col.id;
                           return Expanded(
                             child: Tooltip(
-                              message: col['label'],
+                              message: col.label,
                               child: Checkbox(
                                 visualDensity: VisualDensity.compact,
                                 value: pageProgress.getProperty(columnName),
@@ -660,11 +767,11 @@ class _BookDetailScreenState extends State<BookDetailScreen>
             Expanded(
               flex: _gridFlex,
               child: Row(
-                children: _columnData.map((col) {
-                  final columnName = col['id']!;
+                children: _columnsOf(progressProvider).map((col) {
+                  final columnName = col.id;
                   return Expanded(
                     child: Tooltip(
-                      message: col['label']!,
+                      message: col.label,
                       child: Checkbox(
                         visualDensity: VisualDensity.compact,
                         value: pageProgress.getProperty(columnName),
@@ -741,8 +848,8 @@ class _BookDetailScreenState extends State<BookDetailScreen>
               Expanded(
                 flex: _gridFlex,
                 child: Row(
-                  children: _columnData.map((col) {
-                    final columnId = col['id']!;
+                  children: _columnsOf(progressProvider).map((col) {
+                    final columnId = col.id;
 
                     // אם אין bookId, נחזיר checkbox ריק
                     if (widget.bookId == null) {

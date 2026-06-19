@@ -1,90 +1,116 @@
-/// Represents the progress for a single page/item
-/// Includes initial learning and up to 3 reviews
+/// עמודת מעקב בטבלת ההתקדמות (לימוד / חזרה / מפרש).
+///
+/// [id] מזהה יציב שלפיו נשמרת ההתקדמות; [label] השם המוצג, ניתן לעריכה.
+class ProgressColumn {
+  final String id;
+  final String label;
+
+  const ProgressColumn({required this.id, required this.label});
+
+  factory ProgressColumn.fromJson(Map<String, dynamic> json) => ProgressColumn(
+        id: json['id'] as String,
+        label: json['label'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {'id': id, 'label': label};
+
+  ProgressColumn copyWith({String? label}) =>
+      ProgressColumn(id: id, label: label ?? this.label);
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ProgressColumn &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          label == other.label;
+
+  @override
+  int get hashCode => id.hashCode ^ label.hashCode;
+
+  @override
+  String toString() => 'ProgressColumn(id: $id, label: $label)';
+}
+
+/// עמודות ברירת המחדל לספר ללא הגדרה מותאמת.
+/// המזהים תואמים לנתונים ההיסטוריים (learn/review1/2/3) לשמירת תאימות אחורה.
+const List<ProgressColumn> kDefaultProgressColumns = [
+  ProgressColumn(id: 'learn', label: 'לימוד'),
+  ProgressColumn(id: 'review1', label: 'חזרה 1'),
+  ProgressColumn(id: 'review2', label: 'חזרה 2'),
+  ProgressColumn(id: 'review3', label: 'חזרה 3'),
+];
+
+/// Represents the progress for a single page/item.
+///
+/// ההתקדמות נשמרת כמפה דינמית של מזהה-עמודה → סומן, כדי לתמוך במספר עמודות
+/// משתנה ובשמות מותאמים. רק עמודות מסומנות נשמרות במפה.
 class PageProgress {
-  bool learn;
-  bool review1;
-  bool review2;
-  bool review3;
+  final Map<String, bool> _done;
 
   PageProgress({
-    this.learn = false,
-    this.review1 = false,
-    this.review2 = false,
-    this.review3 = false,
-  });
+    bool learn = false,
+    bool review1 = false,
+    bool review2 = false,
+    bool review3 = false,
+  }) : _done = {
+          if (learn) 'learn': true,
+          if (review1) 'review1': true,
+          if (review2) 'review2': true,
+          if (review3) 'review3': true,
+        };
 
-  /// Convert to JSON for storage
-  Map<String, bool> toJson() => {
-        'learn': learn,
-        'review1': review1,
-        'review2': review2,
-        'review3': review3,
-      };
+  PageProgress._fromMap(this._done);
 
-  /// Create from JSON data
+  /// Convert to JSON for storage (only checked columns are stored)
+  Map<String, bool> toJson() => Map<String, bool>.from(_done);
+
+  /// Create from JSON data (any column id → bool)
   factory PageProgress.fromJson(Map<String, dynamic> json) {
-    return PageProgress(
-      learn: json['learn'] ?? false,
-      review1: json['review1'] ?? false,
-      review2: json['review2'] ?? false,
-      review3: json['review3'] ?? false,
-    );
+    final done = <String, bool>{};
+    json.forEach((key, value) {
+      if (value == true) done[key] = true;
+    });
+    return PageProgress._fromMap(done);
   }
+
+  // Getters לתאימות אחורה עם העמודות ההיסטוריות
+  bool get learn => _done['learn'] ?? false;
+  bool get review1 => _done['review1'] ?? false;
+  bool get review2 => _done['review2'] ?? false;
+  bool get review3 => _done['review3'] ?? false;
 
   /// Check if no progress has been made
-  bool get isEmpty => !learn && !review1 && !review2 && !review3;
+  bool get isEmpty => _done.isEmpty;
 
-  /// Check if all learning and reviews are complete
+  /// מספר העמודות המסומנות בפריט זה
+  int get completedCount => _done.length;
+
+  /// תאימות אחורה: הושלם לפי עמודות ברירת המחדל
   bool get isComplete => learn && review1 && review2 && review3;
 
-  /// Get the number of completed items (learn + reviews)
-  int get completedCount {
-    int count = 0;
-    if (learn) count++;
-    if (review1) count++;
-    if (review2) count++;
-    if (review3) count++;
-    return count;
-  }
+  /// האם כל העמודות שברשימה מסומנות בפריט זה
+  bool isCompleteFor(List<String> columnIds) =>
+      columnIds.isNotEmpty && columnIds.every((id) => _done[id] == true);
 
-  /// Get progress as a percentage (0.0 to 1.0)
-  double get progressPercentage => completedCount / 4.0;
+  /// כמה מבין העמודות שברשימה מסומנות בפריט זה
+  int completedCountFor(List<String> columnIds) =>
+      columnIds.where((id) => _done[id] == true).length;
 
-  /// Set a specific property by name
-  void setProperty(String propertyName, bool value) {
-    switch (propertyName) {
-      case 'learn':
-        learn = value;
-        break;
-      case 'review1':
-        review1 = value;
-        break;
-      case 'review2':
-        review2 = value;
-        break;
-      case 'review3':
-        review3 = value;
-        break;
-      default:
-        throw ArgumentError('Unknown property: $propertyName');
+  /// Set a specific column by id
+  void setProperty(String columnId, bool value) {
+    if (value) {
+      _done[columnId] = true;
+    } else {
+      _done.remove(columnId);
     }
   }
 
-  /// Get a specific property by name
-  bool getProperty(String propertyName) {
-    switch (propertyName) {
-      case 'learn':
-        return learn;
-      case 'review1':
-        return review1;
-      case 'review2':
-        return review2;
-      case 'review3':
-        return review3;
-      default:
-        throw ArgumentError('Unknown property: $propertyName');
-    }
-  }
+  /// Get a specific column by id
+  bool getProperty(String columnId) => _done[columnId] ?? false;
+
+  /// מסיר עמודה מההתקדמות (בעת מחיקת עמודה מהספר)
+  void removeColumn(String columnId) => _done.remove(columnId);
 
   /// Create a copy with modified values
   PageProgress copyWith({
@@ -93,32 +119,47 @@ class PageProgress {
     bool? review2,
     bool? review3,
   }) {
-    return PageProgress(
-      learn: learn ?? this.learn,
-      review1: review1 ?? this.review1,
-      review2: review2 ?? this.review2,
-      review3: review3 ?? this.review3,
-    );
+    final next = Map<String, bool>.from(_done);
+    void apply(String id, bool? value) {
+      if (value == null) return;
+      if (value) {
+        next[id] = true;
+      } else {
+        next.remove(id);
+      }
+    }
+
+    apply('learn', learn);
+    apply('review1', review1);
+    apply('review2', review2);
+    apply('review3', review3);
+    return PageProgress._fromMap(next);
   }
 
   @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is PageProgress &&
-          runtimeType == other.runtimeType &&
-          learn == other.learn &&
-          review1 == other.review1 &&
-          review2 == other.review2 &&
-          review3 == other.review3;
-
-  @override
-  int get hashCode =>
-      learn.hashCode ^ review1.hashCode ^ review2.hashCode ^ review3.hashCode;
-
-  @override
-  String toString() {
-    return 'PageProgress(learn: $learn, review1: $review1, review2: $review2, review3: $review3)';
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! PageProgress || runtimeType != other.runtimeType) {
+      return false;
+    }
+    if (_done.length != other._done.length) return false;
+    for (final entry in _done.entries) {
+      if (other._done[entry.key] != entry.value) return false;
+    }
+    return true;
   }
+
+  @override
+  int get hashCode {
+    int hash = 0;
+    for (final entry in _done.entries) {
+      hash ^= entry.key.hashCode ^ entry.value.hashCode;
+    }
+    return hash;
+  }
+
+  @override
+  String toString() => 'PageProgress($_done)';
 }
 
 /// Type definitions for complex progress data structures

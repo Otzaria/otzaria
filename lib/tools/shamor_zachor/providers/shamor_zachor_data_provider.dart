@@ -48,6 +48,12 @@ class ShamorZachorDataProvider with ChangeNotifier {
   ShamorZachorError? get error => _error;
   bool get hasData => _allBookData.isNotEmpty;
 
+  /// מזהי הספרים שהמשתמש הוסיף ידנית למעקב (להבדיל מספרי בסיס שמוצגים תמיד)
+  Set<int> get trackedBookIds => Set.unmodifiable(_trackedBookIds);
+
+  /// בודק אם ספר נוסף ידנית למעקב לפי מזהה
+  bool isBookTrackedById(int bookId) => _trackedBookIds.contains(bookId);
+
   /// Constructor accepting SqliteDataProvider
   ///
   /// NOTE: Data is NOT loaded automatically in the constructor to avoid
@@ -565,6 +571,62 @@ class ShamorZachorDataProvider with ChangeNotifier {
       _logger.warning("Failed to add book to Shamor Zachor tracking", e);
       rethrow;
     }
+  }
+
+  /// מוסיף מספר ספרים למעקב בקריאה אחת, עם טעינה מחדש אחת בלבד בסוף.
+  ///
+  /// כל פריט מזוהה לפי [bookName] ו-[categoryId] מול מסד הנתונים.
+  /// מחזיר את מספר הספרים שנוספו ואת מספר אלו שלא נמצאו/נכשלו.
+  Future<({int added, int failed})> addCustomBooks(
+    List<({String bookName, int? categoryId})> books,
+  ) async {
+    if (_sqliteDataProvider?.repository == null) {
+      _logger.warning("Repository not initialized");
+      throw Exception('מסד הנתונים לא מאותחל');
+    }
+
+    if (_trackedBookIds.isEmpty) {
+      await _loadTrackedBooksList();
+    }
+
+    int added = 0;
+    int failed = 0;
+    for (final book in books) {
+      try {
+        final existing = (await BookDatabaseResolver.resolveBook(
+          title: book.bookName,
+          categoryId: book.categoryId,
+          preferUserBooks: true,
+        ))
+            ?.book;
+        if (existing == null) {
+          _logger.warning("Book '${book.bookName}' not found in database");
+          failed++;
+          continue;
+        }
+        _trackedBookIds.add(existing.id);
+        added++;
+      } catch (e) {
+        _logger.warning("Failed to add book '${book.bookName}' to tracking", e);
+        failed++;
+      }
+    }
+
+    if (added > 0) {
+      await _saveTrackedBooksList();
+      await loadAllData();
+    }
+
+    return (added: added, failed: failed);
+  }
+
+  /// מסיר ספר מרשימת המעקב לפי מזהה, ללא תלות בהיותו ספר בסיס.
+  ///
+  /// בניגוד ל-[removeCustomBook], אינו זורק על ספר בסיס - הוא פשוט יורד
+  /// מרשימת "בתהליך". ספר בסיס יישאר זמין תחת "הכל".
+  Future<void> removeBookFromTracking(int bookId) async {
+    await _removeFromTrackedBooksList(bookId);
+    await loadAllData();
   }
 
   /// Remove a book from Shamor Zachor tracking

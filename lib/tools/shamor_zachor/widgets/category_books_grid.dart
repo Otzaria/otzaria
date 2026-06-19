@@ -85,13 +85,14 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
                     )
                     .toList(growable: false);
                 final filteredBooks =
-                    _filterBooks(searchBooks, progressProvider);
+                    _filterBooks(searchBooks, progressProvider, dataProvider);
 
                 if (filteredBooks.isEmpty) {
                   return _buildEmptyState();
                 }
 
-                return _buildBooksGrid(filteredBooks, progressProvider,
+                return _buildBooksGrid(
+                    filteredBooks, progressProvider, dataProvider,
                     shrinkWrap: false);
               }
 
@@ -106,6 +107,15 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
                 // Check if we should group by subcategories
                 if (widget.category!.subcategories != null &&
                     widget.category!.subcategories!.isNotEmpty) {
+                  // אם כל הספרים סוננו (אין תוצאות בפילטר) - הצג חיווי במקום עץ ריק
+                  final allFiltered = _filterBooks(
+                      _getAllBooksRecursive(
+                          widget.category!, effectiveTopLevelName),
+                      progressProvider,
+                      dataProvider);
+                  if (allFiltered.isEmpty) {
+                    return _buildEmptyState();
+                  }
                   return ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
@@ -124,8 +134,8 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
                                   defaultStartPage:
                                       widget.category!.defaultStartPage),
                               effectiveTopLevelName);
-                          final filtered =
-                              _filterBooks(directBooks, progressProvider);
+                          final filtered = _filterBooks(
+                              directBooks, progressProvider, dataProvider);
                           if (filtered.isEmpty) return const SizedBox.shrink();
 
                           return Column(
@@ -133,7 +143,8 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
                             children: [
                               _buildSectionHeader(
                                   'ספרים ב${widget.category!.name}'),
-                              _buildBooksGrid(filtered, progressProvider,
+                              _buildBooksGrid(
+                                  filtered, progressProvider, dataProvider,
                                   shrinkWrap: true),
                               const SizedBox(height: 24),
                             ],
@@ -148,8 +159,8 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
                             : effectiveTopLevelName;
                         final subBooks =
                             _getAllBooksRecursive(sub, subTopLevelName);
-                        final filtered =
-                            _filterBooks(subBooks, progressProvider);
+                        final filtered = _filterBooks(
+                            subBooks, progressProvider, dataProvider);
 
                         if (filtered.isEmpty) return const SizedBox.shrink();
 
@@ -157,7 +168,8 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _buildSectionHeader(sub.name),
-                            _buildBooksGrid(filtered, progressProvider,
+                            _buildBooksGrid(
+                                filtered, progressProvider, dataProvider,
                                 shrinkWrap: true),
                             const SizedBox(height: 32),
                           ],
@@ -170,12 +182,13 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
                   final allBooks = _getAllBooksRecursive(
                       widget.category!, effectiveTopLevelName);
                   final filteredBooks =
-                      _filterBooks(allBooks, progressProvider);
+                      _filterBooks(allBooks, progressProvider, dataProvider);
 
                   if (filteredBooks.isEmpty) {
                     return _buildEmptyState();
                   }
-                  return _buildBooksGrid(filteredBooks, progressProvider,
+                  return _buildBooksGrid(
+                      filteredBooks, progressProvider, dataProvider,
                       shrinkWrap: false);
                 }
               }
@@ -189,10 +202,26 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
   }
 
   Widget _buildEmptyState() {
-    return const ToolEmptyState(
-      icon: FluentIcons.book_24_regular,
-      message: 'אין ספרים להצגה',
-    );
+    switch (widget.selectedFilter) {
+      case 'in_progress':
+        return const ToolEmptyState(
+          icon: FluentIcons.hourglass_24_regular,
+          message: 'אין ספרים בתהליך',
+          subtitle:
+              'ניתן להוסיף ספרים למעקב באמצעות לחצן ההוספה (+) שליד הסינון, '
+              'והם יופיעו כאן.',
+        );
+      case 'completed':
+        return const ToolEmptyState(
+          icon: FluentIcons.checkmark_circle_24_regular,
+          message: 'אין ספרים שהושלמו',
+        );
+      default:
+        return const ToolEmptyState(
+          icon: FluentIcons.book_24_regular,
+          message: 'אין ספרים להצגה',
+        );
+    }
   }
 
   Widget _buildSectionHeader(String title) {
@@ -214,8 +243,10 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
     );
   }
 
-  List<Map<String, dynamic>> _filterBooks(List<Map<String, dynamic>> books,
-      ShamorZachorProgressProvider progressProvider) {
+  List<Map<String, dynamic>> _filterBooks(
+      List<Map<String, dynamic>> books,
+      ShamorZachorProgressProvider progressProvider,
+      ShamorZachorDataProvider dataProvider) {
     return books.where((book) {
       final name = book['name'] as String;
       final details = book['details'] as BookDetails;
@@ -228,18 +259,22 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
       final bookId = details.id;
       final bool isCompleted;
       final bool isInProgress;
+      final bool isTracked;
 
       if (bookId != null) {
         isCompleted = progressProvider.isBookCompletedById(bookId, details);
         isInProgress =
             progressProvider.isBookConsideredInProgressById(bookId, details);
+        isTracked = dataProvider.isBookTrackedById(bookId);
       } else {
         isCompleted = false;
         isInProgress = false;
+        isTracked = false;
       }
 
       if (widget.selectedFilter == 'in_progress') {
-        return isInProgress && !isCompleted;
+        // ספר שנוסף ידנית למעקב נחשב "בתהליך" עד שמושלם, גם ללא התקדמות בפועל
+        return (isTracked || isInProgress) && !isCompleted;
       }
       if (widget.selectedFilter == 'completed') {
         return isCompleted;
@@ -248,9 +283,12 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
     }).toList();
   }
 
-  Widget _buildBooksGrid(List<Map<String, dynamic>> books,
-      ShamorZachorProgressProvider progressProvider,
-      {bool shrinkWrap = false}) {
+  Widget _buildBooksGrid(
+    List<Map<String, dynamic>> books,
+    ShamorZachorProgressProvider progressProvider,
+    ShamorZachorDataProvider dataProvider, {
+    bool shrinkWrap = false,
+  }) {
     return FocusTraversalGroup(
       policy: ReadingOrderTraversalPolicy(),
       child: GridView.builder(
@@ -272,6 +310,15 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
           final category = book['category'] as String;
           final categoryPath = book['categoryPath'] as String?;
 
+          // ניתן להסיר ספר שנוסף ידנית (custom או tracked) או שיש לו התקדמות
+          final bookId = details.id;
+          final canRemove = details.isCustom ||
+              (bookId != null &&
+                  (dataProvider.isBookTrackedById(bookId) ||
+                      progressProvider
+                          .getProgressForBookById(bookId)
+                          .isNotEmpty));
+
           return BookCardWidget(
             key: ValueKey('${details.id ?? 'no-id'}::$category::$name'),
             topLevelCategoryKey: category,
@@ -281,7 +328,7 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
             onTap: () {
               widget.onBookSelected(category, name, details);
             },
-            onDelete: details.isCustom
+            onDelete: canRemove
                 ? () => _confirmRemoveBook(context, name, details)
                 : null,
           );
@@ -294,10 +341,15 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
       BuildContext context, String bookName, BookDetails details) async {
     final progressProvider = context.read<ShamorZachorProgressProvider>();
     final dataProvider = context.read<ShamorZachorDataProvider>();
+
+    // ספר בסיס נשאר זמין תחת "הכל" - ההסרה רק מורידה אותו מ"בתהליך"
+    final isBaseBook = !details.isCustom;
     final confirmed = await showWarningDialog(
       context: context,
-      title: 'הסרת ספר משמור וזכור',
-      content: 'האם להסיר את "$bookName" משמור וזכור?',
+      title: isBaseBook ? 'הסרה מרשימת המעקב' : 'הסרת ספר משמור וזכור',
+      content: isBaseBook
+          ? 'האם להסיר את "$bookName" מרשימת "בתהליך"?'
+          : 'האם להסיר את "$bookName" משמור וזכור?',
       subtitle: 'ההתקדמות השמורה תימחק ולא ניתן לשחזר אותה',
       cancelText: 'ביטול',
       confirmText: 'הסר',
@@ -305,35 +357,32 @@ class _CategoryBooksGridState extends State<CategoryBooksGrid> {
 
     if (confirmed != true || !context.mounted) return;
 
-    try {
-      final topLevelCategory =
-          details.categoryPath ?? widget.categoryName ?? '';
-      final localBookKey = _bookLocalKey(topLevelCategory, bookName, details);
+    final topLevelCategory = details.categoryPath ?? widget.categoryName ?? '';
+    final localBookKey = _bookLocalKey(topLevelCategory, bookName, details);
 
-      setState(() {
-        _locallyRemovedBookKeys.add(localBookKey);
-      });
+    try {
+      // הסתרה מיידית רק לספר מותאם (שנעלם לגמרי); ספר בסיס נשאר ב"הכל"
+      if (!isBaseBook) {
+        setState(() {
+          _locallyRemovedBookKeys.add(localBookKey);
+        });
+      }
 
       if (details.id != null) {
         await progressProvider.clearBookProgressById(
           details.id!,
           bookDetails: details,
         );
+        await dataProvider.removeBookFromTracking(details.id!);
       }
 
-      await dataProvider.removeCustomBook(
-        categoryName: topLevelCategory,
-        bookName: bookName,
-        bookId: details.id,
-      );
       if (context.mounted) {
-        UiSnack.show('הספר "$bookName" הוסר משמור וזכור');
+        UiSnack.show(isBaseBook
+            ? 'הספר "$bookName" הוסר מרשימת המעקב'
+            : 'הספר "$bookName" הוסר משמור וזכור');
       }
     } catch (e) {
-      final topLevelCategory =
-          details.categoryPath ?? widget.categoryName ?? '';
-      final localBookKey = _bookLocalKey(topLevelCategory, bookName, details);
-      if (mounted) {
+      if (mounted && !isBaseBook) {
         setState(() {
           _locallyRemovedBookKeys.remove(localBookKey);
         });
