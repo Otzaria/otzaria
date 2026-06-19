@@ -133,7 +133,7 @@ class _PluginInstallScreenState extends State<PluginInstallScreen> {
                         'עדכון גרסה',
                       ),
                       subtitle: Text(
-                        '${widget.previousVersion}  →  ${widget.manifest.version}',
+                        '${widget.previousVersion}  ←  ${widget.manifest.version}',
                       ),
                       hoverColor: Colors.transparent,
                     )

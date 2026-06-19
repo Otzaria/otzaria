@@ -282,7 +282,7 @@ void main() {
     await _openDialog(tester, bloc, _manifest(version: '2.0.0'),
         previousVersion: '1.0.0');
 
-    expect(find.text('1.0.0  →  2.0.0'), findsOneWidget);
+    expect(find.text('1.0.0  ←  2.0.0'), findsOneWidget);
     expect(find.text('עדכון גרסה'), findsOneWidget);
   });
 
