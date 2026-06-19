@@ -24,10 +24,11 @@
 13. [מסך "אודות" וקיצור דרך לתוסף](#מסך-אודות-וקיצור-דרך-לתוסף)
 14. [מצב פיתוח (Hot Reload)](#מצב-פיתוח-hot-reload)
 15. [אריזה והפצה — יצירת קובץ `.otzplugin`](#אריזה-והפצה--יצירת-קובץ-otzplugin)
-16. [התקנה ובדיקה](#התקנה-ובדיקה)
-17. [שגיאות נפוצות](#שגיאות-נפוצות)
-18. [עיצוב וקבצי עזר](#עיצוב-וקבצי-עזר)
-19. [תמיכה](#תמיכה)
+16. [פרסום אוטומטי ל-CI (GitHub Action)](#פרסום-אוטומטי-ל-ci-github-action)
+17. [התקנה ובדיקה](#התקנה-ובדיקה)
+18. [שגיאות נפוצות](#שגיאות-נפוצות)
+19. [עיצוב וקבצי עזר](#עיצוב-וקבצי-עזר)
+20. [תמיכה](#תמיכה)
 
 ---
 
@@ -847,6 +848,69 @@ Rename-Item .\my-plugin.zip my-plugin.otzplugin
 2. ה-`id` ב-manifest חייב להיות ייחודי — בפורמט `com.company.plugin-name`.
 3. ה-`version` חייב לעלות בכל שחרור.
 4. אל תכלול קבצי פיתוח (`.git/`, `node_modules/`, `*.map`).
+
+---
+
+## פרסום אוטומטי ל-CI (GitHub Action)
+
+אם קוד התוסף נמצא ב-GitHub, אפשר לוותר על אריזה והעלאה ידנית בכל גרסה: ה-Action הרשמי
+[**Otzaria/otzaria-plugin-validator**](https://github.com/Otzaria/otzaria-plugin-validator)
+מאמת את התוסף (אותן בדיקות בדיוק כמו בחנות), בונה את ה-`.otzplugin`, ו**מפרסם אותו לחנות**
+אוטומטית — מזהה את התוסף לפי ה-`id` שב-`manifest.json`, כך שאין צורך לדעת מזהים פנימיים.
+
+### Workflow מינימלי
+
+הוסיפו לריפו של התוסף את `.github/workflows/release.yml`:
+
+```yaml
+name: Publish plugin
+on:
+  push:
+    branches: [main]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Otzaria/otzaria-plugin-validator@v1
+        with:
+          otzaria-user: ${{ secrets.OTZARIA_USER }}
+          otzaria-password: ${{ secrets.OTZARIA_PASSWORD }}
+```
+
+זה הכל. כל `push` ל-`main` שמעלה את `version` ב-`manifest.json` → מאמת, בונה, ומפרסם.
+
+### הסודות שיש להגדיר
+
+ב-`Settings → Secrets and variables → Actions` בריפו של התוסף:
+
+| Secret | מה זה |
+|---|---|
+| `OTZARIA_USER` | האימייל / שם המשתמש של חשבון החנות שלכם (יוצר התוסף). |
+| `OTZARIA_PASSWORD` | הסיסמה לאותו חשבון. |
+
+**אין צורך במזהה תוסף** — הוא נפתר אוטומטית מה-`id` שב-`manifest.json`.
+
+### מה חשוב לדעת
+
+- **זיהוי לפי `manifest.id`**: התוסף מזוהה לפי ה-`id` שלו. שנו אותו — והחנות תראה תוסף אחר.
+- **חובה עליית גרסה**: כל פרסום מחייב `version` גבוה מהקיים בחנות (אחרת הריצה מדלגת/נכשלת).
+- **אישור מנהל**: עדכון של בעלים נכנס כ"ממתין לאישור"; הגרסה הקודמת ממשיכה בחנות עד שמנהל מאשר.
+- **דחיפה ראשונה (תוסף חדש)**: החנות מחייבת לפחות צילום מסך אחד. ספקו אותו בקלט `screenshots`:
+  ```yaml
+      - uses: Otzaria/otzaria-plugin-validator@v1
+        with:
+          otzaria-user: ${{ secrets.OTZARIA_USER }}
+          otzaria-password: ${{ secrets.OTZARIA_PASSWORD }}
+          screenshots: screenshots/main.png
+  ```
+- **בטיחות**: הפרסום **לעולם לא רץ ב-`pull_request`** (כדי שלא ידלפו סודות מ-fork). בלי הסודות
+  ה-Action רק מאמת — מצוין כבדיקת PR.
+- **קלטים אופציונליים**: `fail-on-warnings` (אזהרות מפילות), `force` (פרסום מחדש של אותה גרסה),
+  `sync-metadata` (סנכרון שדות מה-manifest, פעיל כברירת מחדל).
+
+תיעוד מלא של כל הקלטים והפלטים: ב-README של [המאגר](https://github.com/Otzaria/otzaria-plugin-validator).
 
 ---
 
