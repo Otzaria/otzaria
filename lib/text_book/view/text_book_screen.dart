@@ -24,6 +24,7 @@ import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/utils/visible_index.dart';
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
@@ -152,6 +153,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   bool _hasPdfBook = false;
   bool _hasResolvedCompanionPdf = false;
   bool _leftPaneAutoCloseQueuedByScroll = false;
+  // מצב חלונית הצד שזוהה לאחרונה, לעיגון-מחדש של הטקסט בעת פתיחה/סגירה.
+  bool _lastShowLeftPaneForReanchor = false;
 
   // Key עבור PageShapeScreen
   final Key _pageShapeKey = UniqueKey();
@@ -951,6 +954,12 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                   _resolveCompanionPdf();
                   if (!state.showLeftPane) {
                     _leftPaneAutoCloseQueuedByScroll = false;
+                  }
+                  // פתיחת/סגירת חלונית הצד משנה את רוחב הטקסט; מעגנים מחדש
+                  // לפריט העליון הנראה כדי שהתצוגה לא תקפוץ בזרימה-מחדש.
+                  if (state.showLeftPane != _lastShowLeftPaneForReanchor) {
+                    _lastShowLeftPaneForReanchor = state.showLeftPane;
+                    _reanchorMainContentToTopmostVisible();
                   }
                   final pendingSidebarTab =
                       Settings.getValue<int>('key-sidebar-tab-index-pending');
@@ -2340,6 +2349,30 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
     UiSnack.showQuick(
         bookmarkAdded ? 'הסימניה נוספה בהצלחה' : 'הסימניה כבר קיימת');
+  }
+
+  /// עיגון מחדש לפריט העליון הנראה לפני שינוי רוחב התוכן: SPL שומר היסט בפיקסלים
+  /// מול שורת הפתיחה, כך שבלעדי זה זרימה-מחדש ברוחב אחר מקפיצה את התצוגה.
+  void _reanchorMainContentToTopmostVisible() {
+    final controller = widget.tab.scrollController;
+    if (!controller.isAttached) return;
+
+    final visible = widget.tab.positionsListener.itemPositions.value
+        .where((p) => p.itemLeadingEdge < 1 && p.itemTrailingEdge > 0);
+    if (visible.isEmpty) return;
+
+    ItemPosition pickByMinLeadingEdge(Iterable<ItemPosition> items) =>
+        items.reduce((a, b) => a.itemLeadingEdge <= b.itemLeadingEdge ? a : b);
+
+    final atOrBelowFold = visible.where((p) => p.itemLeadingEdge >= 0);
+    final anchor = atOrBelowFold.isNotEmpty
+        ? pickByMinLeadingEdge(atOrBelowFold)
+        : pickByMinLeadingEdge(visible);
+
+    controller.jumpTo(
+      index: anchor.index,
+      alignment: anchor.itemLeadingEdge.clamp(0.0, 1.0),
+    );
   }
 
   Widget _buildBody(
