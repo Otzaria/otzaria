@@ -336,14 +336,18 @@ class _ScrollablePositionedListScrollbarState
                           details.globalPosition);
                     },
                     onVerticalDragEnd: (_) => _onDragEnd(),
+                    // גרירה שנקטעה (הרשימה ניצחה ב-gesture arena וגללה את
+                    // התוכן) חייבת להסתיר את התווית — אחרת היא נשארת תקועה.
+                    onVerticalDragCancel: _onDragEnd,
                     // קפיצה רק כשהלחיצה על המסילה. לחיצה על האגודל עצמו נורית גם
                     // כשהמחווה הופכת מיד לגרירה — קפיצה כאן הייתה ממקמת אותו מחדש
                     // סביב הסמן ומקפיצה את הרשימה לפני שהגרירה התחילה.
                     onTapDown: (details) {
                       final dy = details.localPosition.dy;
+                      // לחיצה בודדת קופצת אך לא מציגה תווית: במסך מגע אין
+                      // onExit שיסתיר אותה, והיא הייתה נשארת תקועה.
                       if (_isOutsideThumb(dy, trackHeight)) {
-                        _jumpToTrackPosition(
-                            dy, trackHeight, details.globalPosition);
+                        _jumpToTrackPosition(dy, trackHeight);
                       }
                     },
                     child: Stack(
