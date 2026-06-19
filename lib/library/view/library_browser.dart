@@ -215,19 +215,18 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
   bool _handleScrollNotification(ScrollNotification notification) {
     if (notification is! ScrollUpdateNotification) return false;
-    final delta = notification.scrollDelta ?? 0;
 
-    bool? desired;
-    if (delta > 3) desired = false;
-    if (delta < -3) desired = true;
-    if (desired == null || desired == _lastScrollVisible) return false;
+    // מוצג רק בראש הרשימה — לא לפי כיוון הגלילה, אחרת כל תנועה כלפי מעלה
+    // באמצע הרשימה הייתה מחזירה את השורה השנייה.
+    final atTop = notification.metrics.pixels <= 8;
+    if (atTop == _lastScrollVisible) return false;
 
-    _lastScrollVisible = desired;
+    _lastScrollVisible = atTop;
     _scrollDebounce?.cancel();
     _scrollDebounce = Timer(
       const Duration(milliseconds: _kScrollDebounceMs),
       () {
-        if (mounted) _secondaryRowVisible.value = desired!;
+        if (mounted) _secondaryRowVisible.value = atTop;
       },
     );
     return false;
@@ -313,13 +312,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                         // גובה השורה השניה המקסימלי משמש כ-fallback לפני שיש
                         // מדידה בפועל מה-AppTopBar.
                         const double kSecondaryRowMaxH = 52.0;
-                        final hasSecondaryRow = !dafYomiInline ||
-                            (context
-                                    .read<FocusRepository>()
-                                    .librarySearchController
-                                    .text
-                                    .length >
-                                2);
+                        final hasSecondaryRow = !dafYomiInline;
                         final topPad = hasSecondaryRow
                             ? primaryBarH + kSecondaryRowMaxH
                             : primaryBarH;
@@ -463,7 +456,6 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     // ── Secondary row ─────────────────────────────────────────────────────
     final secondaryRow = _buildSecondaryRow(
       context,
-      state,
       settingsState,
       showDafYomi: !dafYomiInline,
     );
@@ -523,15 +515,11 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
   Widget? _buildSecondaryRow(
     BuildContext context,
-    LibraryState state,
     SettingsState settingsState, {
     required bool showDafYomi,
   }) {
     final cs = Theme.of(context).colorScheme;
     final isCompact = settingsState.compactMenuMode;
-    final searchText =
-        context.read<FocusRepository>().librarySearchController.text;
-    final hasSearch = searchText.length > 2 && state.searchResults != null;
 
     final children = <Widget>[];
 
@@ -554,11 +542,6 @@ class _LibraryBrowserState extends State<LibraryBrowser>
           ),
         ),
       );
-    }
-
-    if (hasSearch) {
-      final topicsWidget = _buildTopicsSelection(context, state, settingsState);
-      if (topicsWidget != null) children.add(topicsWidget);
     }
 
     if (children.isEmpty) return null;
@@ -701,7 +684,6 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   Widget? _buildTopicsSelection(
     BuildContext context,
     LibraryState state,
-    SettingsState settingsState,
   ) {
     if (state.searchResults == null) return null;
     const categoryTopics = [
@@ -732,8 +714,10 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       wrapAlignment: WrapAlignment.center,
       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
       onSelectionChanged: (list) {
+        // סינון מקומי בלבד של התוצאות המוצגות — בלי חיפוש מחדש, כדי שלא
+        // יוצג סמל חיפוש ושצ'יפי שאר הקטגוריות יישארו (מבוססים על כל התוצאות).
         context.read<LibraryBloc>().add(SelectTopics(list));
-        _update(context, state, settingsState, restoreSearchFocus: true);
+        _refocusSearchBar();
       },
       chipBuilder: (context, item, isSelected) => Padding(
         padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
@@ -1054,10 +1038,18 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               final repo = context.read<FocusRepository>();
               return _buildEmptyState(context, state, settingsState, repo);
             }
-            final displayLimit = min(books.length, 100);
+            final displayBooks =
+                _filterBooksByTopics(books, state.selectedTopics);
+            final displayLimit = min(displayBooks.length, 100);
+            final topicsHeader = _buildTopicsSelection(context, state);
             return SingleChildScrollView(
               key: PageStorageKey(state.currentCategory),
-              child: _buildSearchResultsGrid(books, displayLimit),
+              child: Column(
+                children: [
+                  if (topicsHeader != null) topicsHeader,
+                  _buildSearchResultsGrid(displayBooks, displayLimit),
+                ],
+              ),
             );
           }
           final categoryItems = _buildCategoryContent(state.currentCategory!);
@@ -1075,7 +1067,10 @@ class _LibraryBrowserState extends State<LibraryBrowser>
             final repo = context.read<FocusRepository>();
             return _buildEmptyState(context, state, settingsState, repo);
           }
-          return _buildSearchListView(state.searchResults!);
+          return _buildSearchListView(
+            _filterBooksByTopics(state.searchResults!, state.selectedTopics),
+            _buildTopicsSelection(context, state),
+          );
         }
         return _buildListView(state.currentCategory!);
       },
@@ -1185,8 +1180,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   void _showBookPreview(Book book) =>
       context.read<LibraryBloc>().add(SelectBookForPreview(book));
 
-  Widget _buildSearchListView(List<Book> books) {
+  Widget _buildSearchListView(List<Book> books, Widget? header) {
     return _LibraryBrowserList(
+      header: header,
       itemCount: books.length,
       forPanel: false,
       itemBuilder: (context, index) {
@@ -1882,6 +1878,17 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     return topics.toList();
   }
 
+  /// מסנן את התוצאות המוצגות לפי הקטגוריות הנבחרות — ספר נכלל אם הוא שייך לאחת
+  /// מהן (OR). כל צ'יפ נגזר מהתוצאות הקיימות, ולכן הסינון לעולם לא ריק. הרשימה
+  /// המלאה נשמרת ב-state כדי שצ'יפי שאר הקטגוריות יישארו.
+  List<Book> _filterBooksByTopics(List<Book> books, List<String>? topics) {
+    if (topics == null || topics.isEmpty) return books;
+    return books.where((book) {
+      final bookTopics = book.topics.split(',').map((t) => t.trim()).toSet();
+      return topics.any(bookTopics.contains);
+    }).toList();
+  }
+
   void _update(
     BuildContext context,
     LibraryState state,
@@ -2106,6 +2113,7 @@ class _LibraryBrowserList extends StatelessWidget {
     this.children,
     this.itemCount,
     this.itemBuilder,
+    this.header,
     this.forPanel = false,
   }) : assert(
           children != null || (itemCount != null && itemBuilder != null),
@@ -2115,6 +2123,9 @@ class _LibraryBrowserList extends StatelessWidget {
   final List<Widget>? children;
   final int? itemCount;
   final NullableIndexedWidgetBuilder? itemBuilder;
+
+  /// פריט קבוע בראש הרשימה (למשל צ'יפי סינון) — נגלל יחד עם התוצאות.
+  final Widget? header;
   final bool forPanel;
 
   @override
@@ -2126,14 +2137,21 @@ class _LibraryBrowserList extends StatelessWidget {
     if (children != null) {
       return ListView(
         padding: padding,
-        children: children!,
+        children: [
+          if (header != null) header!,
+          ...children!,
+        ],
       );
     }
 
+    final hasHeader = header != null;
     return ListView.builder(
       padding: padding,
-      itemCount: itemCount,
-      itemBuilder: itemBuilder!,
+      itemCount: itemCount! + (hasHeader ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (hasHeader && index == 0) return header!;
+        return itemBuilder!(context, hasHeader ? index - 1 : index);
+      },
     );
   }
 }

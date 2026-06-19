@@ -441,7 +441,6 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
       final searchGeneration = ++_searchGeneration;
       final query = state.searchQuery!;
       final category = state.currentCategory;
-      final topics = List<String>.from(state.selectedTopics ?? const []);
       final includeOtzar = event.showOtzarHachochma ?? false;
       final includeHebrewBooks = event.showHebrewBooks ?? false;
 
@@ -450,18 +449,17 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
         searchResults: state.searchResults,
       ));
 
+      // החיפוש מחזיר את כל ההתאמות; סינון הקטגוריות נעשה מקומית בתצוגה בלבד.
       final results = await _repository.findBooks(
         query,
         category,
-        topics: topics,
         includeOtzar: includeOtzar,
         includeHebrewBooks: includeHebrewBooks,
       );
 
       if (searchGeneration != _searchGeneration ||
           state.searchQuery != query ||
-          state.currentCategory != category ||
-          !_sameStringList(state.selectedTopics ?? const [], topics)) {
+          state.currentCategory != category) {
         // אם אין חיפוש חדש שעקף (אותה גנרציה), נאפס את דגל הטעינה
         // כדי שלא יישאר תקוע (למשל אחרי NavigateToCategory מבלי SearchBooks).
         if (searchGeneration == _searchGeneration) {
@@ -497,14 +495,6 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     }
   }
 
-  bool _sameStringList(List<String> first, List<String> second) {
-    if (first.length != second.length) return false;
-    for (var i = 0; i < first.length; i++) {
-      if (first[i] != second[i]) return false;
-    }
-    return true;
-  }
-
   void _onSelectTopics(
     SelectTopics event,
     Emitter<LibraryState> emit,
@@ -516,7 +506,9 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
       final filteredResults = event.topics.isEmpty
           ? state.searchResults!
           : state.searchResults!.where((book) {
-              return event.topics.any((topic) => book.topics.contains(topic));
+              final bookTopics =
+                  book.topics.split(',').map((t) => t.trim()).toSet();
+              return event.topics.any(bookTopics.contains);
             }).toList();
 
       if (filteredResults.isNotEmpty) {
