@@ -10,9 +10,12 @@ const _kSegmentCharWidthMultiplier = 8.0;
 const _kSegmentGroupPadding = 24.0;
 const _kSegmentMinTotalWidth = 180.0;
 const _kSegmentMaxTotalWidth = 400.0;
-const _kSegmentNarrowLayoutThreshold = 200.0;
 
-double _groupWidth(List<SegmentOption<dynamic>> options) {
+/// המרווח שמעל רוחב הסגמנט שמתחתיו עוברים ללייאוט אנכי (כותרת מעל הסגמנט).
+const kSegmentNarrowLayoutThreshold = 200.0;
+
+/// רוחב קבוצת הסגמנטים לפי מספר האופציות ואורך התווית הארוכה ביותר.
+double segmentGroupWidth(List<SegmentOption<dynamic>> options) {
   final hasIcons = options.any((o) => o.icon != null);
   final maxLen =
       options.map((o) => o.label.length).reduce((a, b) => a > b ? a : b);
@@ -82,12 +85,12 @@ class _SegmentedSettingsTileState<T> extends State<SegmentedSettingsTile<T>> {
 
   @override
   Widget build(BuildContext context) {
-    final totalW = _groupWidth(widget.options);
+    final totalW = segmentGroupWidth(widget.options);
 
     return LayoutBuilder(
       builder: (ctx, constraints) {
         final isNarrow =
-            constraints.maxWidth < totalW + _kSegmentNarrowLayoutThreshold;
+            constraints.maxWidth < totalW + kSegmentNarrowLayoutThreshold;
         final button = _buildButton(totalW);
 
         if (isNarrow) {

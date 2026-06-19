@@ -1516,42 +1516,74 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
         // שורה ראשית — לחיצה פותחת/סוגרת
         KeyedSubtree(
           key: tourBackupSettingsTargetKey,
-          child: InkWell(
-            onTap: () => setState(() => _isBackupExpanded = !_isBackupExpanded),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                children: [
-                  const Icon(FluentIcons.calendar_clock_24_regular),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'גיבוי אוטומטי',
-                      style: kSettingsTitleStyle,
-                    ),
-                  ),
-                  // AppSegmentedControl לבחירת תדירות
-                  AppSegmentedControl<String>(
-                    options: const [
-                      SegmentOption<String>(value: 'none', label: 'ללא'),
-                      SegmentOption<String>(value: 'weekly', label: 'שבועי'),
-                      SegmentOption<String>(value: 'monthly', label: 'חודשי'),
-                    ],
-                    currentValue: autoFrequency,
-                    onChanged: (value) {
-                      Settings.setValue<String>(_keyAutoBackupFrequency, value);
-                      setState(() {});
-                    },
-                  ),
-                  const SizedBox(width: 12),
-                  Icon(
-                    _isBackupExpanded
-                        ? FluentIcons.chevron_up_24_regular
-                        : FluentIcons.chevron_down_24_regular,
-                  ),
-                ],
-              ),
-            ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              const frequencyOptions = [
+                SegmentOption<String>(value: 'none', label: 'ללא'),
+                SegmentOption<String>(value: 'weekly', label: 'שבועי'),
+                SegmentOption<String>(value: 'monthly', label: 'חודשי'),
+              ];
+              final segmentControl = AppSegmentedControl<String>(
+                options: frequencyOptions,
+                currentValue: autoFrequency,
+                onChanged: (value) {
+                  Settings.setValue<String>(_keyAutoBackupFrequency, value);
+                  setState(() {});
+                },
+              );
+              final totalW = segmentGroupWidth(frequencyOptions);
+              final isNarrow =
+                  constraints.maxWidth < totalW + kSegmentNarrowLayoutThreshold;
+
+              const icon = Icon(FluentIcons.calendar_clock_24_regular);
+              final title = Expanded(
+                child: Text('גיבוי אוטומטי', style: kSettingsTitleStyle),
+              );
+              final chevron = Icon(
+                _isBackupExpanded
+                    ? FluentIcons.chevron_up_24_regular
+                    : FluentIcons.chevron_down_24_regular,
+              );
+
+              return InkWell(
+                onTap: () =>
+                    setState(() => _isBackupExpanded = !_isBackupExpanded),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: isNarrow
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                icon,
+                                const SizedBox(width: 12),
+                                title,
+                                const SizedBox(width: 12),
+                                chevron,
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: SizedBox(
+                                  width: totalW, child: segmentControl),
+                            ),
+                          ],
+                        )
+                      : Row(
+                          children: [
+                            icon,
+                            const SizedBox(width: 12),
+                            title,
+                            segmentControl,
+                            const SizedBox(width: 12),
+                            chevron,
+                          ],
+                        ),
+                ),
+              );
+            },
           ),
         ),
 
