@@ -208,27 +208,33 @@ void main() {
         int currentLine,
         int? categoryId,
         String? fileType,
+        bool preferUserBooks,
       })>[];
 
       final bloc = _createBloc(
         repository: repository,
         showPageShapeView: false,
+        // ספר אישי בשם זהה לספר רשמי: בלי preferUserBooks ה-quick preview
+        // היה מאתר את הספר הרשמי לפי שם בלבד מ-seforim.db.
         book: TextBook(
           title: 'ספר כפול',
           categoryId: 42,
           fileType: 'txt',
+          isUserBook: true,
         ),
         quickPreviewLoader: (
           String title,
           int currentLine, {
           int? categoryId,
           String? fileType,
+          bool preferUserBooks = false,
         }) async {
           quickPreviewCalls.add((
             title: title,
             currentLine: currentLine,
             categoryId: categoryId,
             fileType: fileType,
+            preferUserBooks: preferUserBooks,
           ));
 
           if (categoryId == 42 && fileType == 'txt') {
@@ -255,6 +261,7 @@ void main() {
       expect(quickPreviewCalls.single.currentLine, 10);
       expect(quickPreviewCalls.single.categoryId, 42);
       expect(quickPreviewCalls.single.fileType, 'txt');
+      expect(quickPreviewCalls.single.preferUserBooks, isTrue);
 
       final state = bloc.state;
       expect(state, isA<TextBookLoaded>());
@@ -855,6 +862,7 @@ void main() {
           int currentLine, {
           int? categoryId,
           String? fileType,
+          bool preferUserBooks = false,
         }) async {
           return 'שורת preview 10\nשורת preview 11';
         },
@@ -916,6 +924,7 @@ void main() {
             int currentLine, {
             int? categoryId,
             String? fileType,
+            bool preferUserBooks = false,
           }) async =>
               null, // ללא preview – הבלוק נשאר ב-Loading עד getBookContent
         );
@@ -1078,6 +1087,7 @@ TextBookBloc _createBloc({
     int currentLine, {
     int? categoryId,
     String? fileType,
+    bool preferUserBooks,
   })? quickPreviewLoader,
 }) {
   return TextBookBloc(

@@ -50,6 +50,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     int currentLine, {
     int? categoryId,
     String? fileType,
+    bool preferUserBooks,
   }) _quickPreviewLoader;
   final ItemScrollController scrollController;
   final ItemPositionsListener positionsListener;
@@ -117,6 +118,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       int currentLine, {
       int? categoryId,
       String? fileType,
+      bool preferUserBooks,
     })? quickPreviewLoader,
     required TextBookInitial initialState,
     required this.scrollController,
@@ -559,6 +561,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
             visibleIndices.first,
             categoryId: book.categoryId,
             fileType: book.fileType,
+            preferUserBooks: book.isUserBook,
           );
 
           if (preview != null && preview.isNotEmpty) {
