@@ -69,6 +69,7 @@ import 'package:otzaria/core/http_client_registry.dart';
 import 'package:otzaria/services/direct_error_report_service.dart';
 import 'package:otzaria/data/cache/books_cache.dart';
 import 'package:otzaria/data/cache/acronyms_cache.dart';
+import 'package:otzaria/data/cache/generation_cache.dart';
 import 'package:otzaria/find_ref/repository/reference_books_cache.dart';
 import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository.dart';
 import 'package:pdfrx/pdfrx.dart';
@@ -732,6 +733,9 @@ Future<void> _runDeferredCacheWarmups() async {
   unawaited(AcronymsCache.instance.warmUp().catchError((e) {
     if (kDebugMode) debugPrint('Failed to warm up AcronymsCache: $e');
   }));
+  unawaited(GenerationCache.instance.warmUp().catchError((e) {
+    if (kDebugMode) debugPrint('Failed to warm up GenerationCache: $e');
+  }));
   unawaited(AppFonts.warmUpSystemFontsCache().catchError((e) {
     if (kDebugMode) debugPrint('Failed to warm up system fonts: $e');
   }));
@@ -1095,6 +1099,7 @@ void cleanup() {
   // Clear shared book/acronym caches
   BooksCache.instance.clear();
   AcronymsCache.instance.clear();
+  GenerationCache.instance.clear();
 }
 
 // Note: TOC parsing helper moved to lib/utils/toc_parser.dart for reuse

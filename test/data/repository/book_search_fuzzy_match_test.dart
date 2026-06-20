@@ -116,6 +116,88 @@ void main() {
       expect(search('מסילת ישרים'), equals([2]));
     });
 
+    test('בתוך אותה שכבת רלוונטיות, סדר הדורות קודם ל-ratio', () {
+      // שני הספרים מכילים את השאילתה אך אינם התאמה מדויקת (אותה שכבה);
+      // הדור צריך להכריע לפני ה-ratio.
+      const byEra = [
+        // אחרון עם כותרת קצרה (ratio גבוה) - בכל זאת אמור לרדת מתחת לראשון.
+        BookSearchEntry(
+            index: 0,
+            title: 'דיני שכירות',
+            author: '',
+            topics: '',
+            eraOrder: 3),
+        // ראשון עם כותרת ארוכה (ratio נמוך) - אמור לצוף מעל האחרון.
+        BookSearchEntry(
+            index: 1,
+            title: 'משנה תורה, הלכות שכירות',
+            author: '',
+            topics: '',
+            eraOrder: 2),
+      ];
+      final results = filterBookSearchEntries(
+        entries: byEra,
+        queryWords: const ['שכירות'],
+        topics: const [],
+        sortByRatio: true,
+        normalizedQuery: 'שכירות',
+      );
+      expect(results, equals([1, 0]),
+          reason: 'הראשונים (1) קודמים לאחרונים (0) למרות ratio נמוך יותר');
+    });
+
+    test('התאמה מדויקת לכותרת גוברת על סדר הדורות', () {
+      // ספר יסוד נטול-דור ('קידושין', other) אך התאמה מדויקת — אמור לצוף מעל
+      // פירוש מתוארך (ראשונים) שרק מכיל את השאילתה. זה מונע קבירת המסכת.
+      const exactVsEra = [
+        BookSearchEntry(
+            index: 0,
+            title: 'חידושי הר"ן על קידושין',
+            author: '',
+            topics: '',
+            eraOrder: 2),
+        BookSearchEntry(
+            index: 1, title: 'קידושין', author: '', topics: '', eraOrder: 5),
+      ];
+      final results = filterBookSearchEntries(
+        entries: exactVsEra,
+        queryWords: const ['קידושין'],
+        topics: const [],
+        sortByRatio: true,
+        normalizedQuery: 'קידושין',
+      );
+      expect(results.first, 1, reason: 'המסכת המדויקת קודמת לפירוש המתוארך');
+    });
+
+    test('שכבת רלוונטיות גוברת על סדר הדורות', () {
+      // התאמת כותרת מדויקת (שכבה 2) של אחרון גוברת על התאמת כינוי (שכבה 1)
+      // של ראשון, גם אם הדור מאוחר יותר.
+      const mixed = [
+        BookSearchEntry(
+            index: 0,
+            title: 'קידושין',
+            author: '',
+            topics: '',
+            acronyms: ['מסכת קידושין'],
+            eraOrder: 2),
+        BookSearchEntry(
+            index: 1,
+            title: 'מסכת קידושין מבוארת',
+            author: '',
+            topics: '',
+            eraOrder: 3),
+      ];
+      final results = filterBookSearchEntries(
+        entries: mixed,
+        queryWords: 'מסכת קידושין'.split(' '),
+        topics: const [],
+        sortByRatio: true,
+        normalizedQuery: 'מסכת קידושין',
+      );
+      expect(results.indexOf(1), lessThan(results.indexOf(0)),
+          reason: 'התאמת כותרת (שכבה גבוהה) גוברת על דור מוקדם יותר בכינוי');
+    });
+
     test('כותרת מדויקת מדורגת לפני כותרת ארוכה שמכילה את השאילתה', () {
       const withExactAndLong = [
         BookSearchEntry(

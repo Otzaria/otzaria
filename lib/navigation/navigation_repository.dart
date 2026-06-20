@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/data/cache/acronyms_cache.dart';
+import 'package:otzaria/data/cache/generation_cache.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/cache/books_cache.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
@@ -71,6 +72,7 @@ class NavigationRepository {
       ReferenceBooksCache.instance.clear();
       BooksCache.instance.clear();
       AcronymsCache.instance.clear();
+      GenerationCache.instance.clear();
       // ה-FindRefRepository מחזיק caches פנימיים (מפרשים, AltToc שטוח) שלא
       // ניזונים מהקאשים שלמעלה. בלי איפוס יזום הם ישרדו עד restart מלא.
       FindRefRepository.clearAllCaches();
