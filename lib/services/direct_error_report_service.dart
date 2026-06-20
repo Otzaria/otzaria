@@ -464,8 +464,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "\$f=[IO.File]::ReadAllTe
 exit /b %ERRORLEVEL%
 #$_psBodyMarker
 $powerShellBody''';
-    // cmd.exe דורש CRLF כדי לפרסר את הקובץ נכון; LF בלבד שובר את ההרצה.
-    return script.replaceAll('\n', '\r\n');
+    // cmd.exe דורש CRLF; מנרמלים קודם ל-LF כדי שמקור CRLF לא ייצור \r\r\n.
+    return script.replaceAll('\r\n', '\n').replaceAll('\n', '\r\n');
   }
 
   String _buildWindowsPowerShellBody(String payloadJson) {

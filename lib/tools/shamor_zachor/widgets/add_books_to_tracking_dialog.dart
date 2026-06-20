@@ -40,7 +40,7 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
 
   final TextEditingController _searchController = TextEditingController();
   final Map<String, bool> _expansionState = {};
-  final Set<Book> _selectedBooks = {};
+  final Map<int, Book> _selectedBooks = {};
   bool _isAdding = false;
 
   String get _query => _searchController.text.trim();
@@ -56,11 +56,12 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
       book.id != null && widget.dataProvider.isBookTrackedById(book.id!);
 
   void _toggleBook(Book book, bool selected) {
+    if (book.id == null) return;
     setState(() {
       if (selected) {
-        _selectedBooks.add(book);
+        _selectedBooks[book.id!] = book;
       } else {
-        _selectedBooks.remove(book);
+        _selectedBooks.remove(book.id);
       }
     });
   }
@@ -74,7 +75,7 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
     setState(() => _isAdding = true);
 
     final result = await widget.dataProvider.addCustomBooks(
-      _selectedBooks
+      _selectedBooks.values
           .map((b) => (bookName: b.title, categoryId: b.categoryId))
           .toList(),
     );
@@ -294,7 +295,7 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
 
   Widget _buildBookTile(Book book, ColorScheme colorScheme, int level) {
     final alreadyTracked = _isTracked(book);
-    final isSelected = _selectedBooks.contains(book);
+    final isSelected = book.id != null && _selectedBooks.containsKey(book.id);
 
     return Padding(
       padding: EdgeInsets.only(right: level * 16.0),
