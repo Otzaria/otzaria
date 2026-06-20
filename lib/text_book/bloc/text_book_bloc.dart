@@ -17,6 +17,7 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/services/nikud_display_service.dart';
+import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_commentary_selection.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
@@ -964,7 +965,25 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   ) {
     if (state is TextBookLoaded) {
       final currentState = state as TextBookLoaded;
-      _userTouchedCommentators = true;
+
+      // בחירה אוטומטית (ברירת מחדל) ושחזור שמור גוברים על בחירה אוטומטית
+      // קודמת (כגון אוטו-בחירת 'הערות'), כל עוד המשתמש לא בחר ידנית בסשן זה.
+      if (!event.isUserAction) {
+        if (_userTouchedCommentators) return;
+        // שחזור בחירה שמורה הוא בחירת המשתמש האמיתית — נועלים אותה מפני
+        // אוטו-בחירה מאוחרת (כולל הוספת 'הערות' אוטומטית), גם כשהיא ריקה.
+        if (event.isRestore) _userTouchedCommentators = true;
+      } else {
+        _userTouchedCommentators = true;
+        // שמירה פר-ספר של בחירת המשתמש (כולל בחירה ריקה) — תמיד, כדי שתיטען
+        // בכל פתיחה. ספרים אישיים אינם נשמרים פר-ספר.
+        if (!currentState.book.isUserBook) {
+          unawaited(_saveActiveCommentatorsPerBook(
+            currentState.book.title,
+            event.commentators,
+          ));
+        }
+      }
 
       final updatedState = currentState.copyWith(
         activeCommentators: event.commentators,
@@ -2312,8 +2331,49 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       // הזיהוי של 'הערות' כמפרש וירטואלי נעשה בנפרד דרך
       // _withInlineNotesCommentator שמופעל בכל עדכון של ה-content.
       add(UpdateAvailableCommentators(availableCommentators, groups));
+
+      // בחירה שמורה פר-ספר גוברת על ברירת המחדל: אם המשתמש בחר בעבר (כולל
+      // בחירה ריקה) — משחזרים אותה; אחרת בוחרים את מפרשי ברירת המחדל.
+      final saved = book.isUserBook
+          ? null
+          : await TextBookPerBookSettings.load(book.title);
+      if (isClosed) return;
+
+      if (saved?.activeCommentators != null) {
+        add(UpdateCommentators(saved!.activeCommentators!,
+            isUserAction: false, isRestore: true));
+        return;
+      }
+
+      // בחירה אוטומטית של מפרשי ברירת המחדל בפתיחה — מוחלת רק אם המשתמש
+      // עוד לא בחר ידנית ואין מפרשים פעילים (נאכף ב-_onUpdateCommentators).
+      final initialSelection = await DefaultCommentators.getInitialSelection(
+        book,
+        availableCommentators: availableCommentators,
+        baseCommentators: baseCommentators,
+      );
+      if (initialSelection.isNotEmpty && !isClosed) {
+        add(UpdateCommentators(initialSelection, isUserAction: false));
+      }
     } catch (e) {
       debugPrint('⚠️ Failed to load commentators in background: $e');
+    }
+  }
+
+  /// שומר את בחירת המפרשים פר-ספר (תמיד, ללא תלות ב-enablePerBookSettings),
+  /// כדי שתיטען בכל פתיחה. בחירה ריקה נשמרת אף היא (המשתמש ביטל את הכל).
+  Future<void> _saveActiveCommentatorsPerBook(
+    String bookTitle,
+    List<String> commentators,
+  ) async {
+    try {
+      await TextBookPerBookSettings.mutate(
+        bookTitle,
+        (existing) => (existing ?? TextBookPerBookSettings())
+            .copyWith(activeCommentators: List<String>.from(commentators)),
+      );
+    } catch (e) {
+      debugPrint('⚠️ Failed to save active commentators per book: $e');
     }
   }
 

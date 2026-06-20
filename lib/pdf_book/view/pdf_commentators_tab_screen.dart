@@ -23,6 +23,7 @@ import 'package:otzaria/pdf_book/utils/pdf_spread_layout.dart';
 import 'package:otzaria/models/pdf_headings.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
+import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dart';
 import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
@@ -404,6 +405,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
       }
     }
     final available = commentatorsSet.toList();
+    await _applyDefaultCommentatorsIfNeeded(available);
     final eras = await utils.splitByEra(available);
     final known = <String>{
       ...?eras['תורה שבכתב'],
@@ -432,6 +434,27 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
         CommentatorGroup(title: 'שאר מפרשים', commentators: others),
       ];
     });
+  }
+
+  /// בוחר אוטומטית את מפרשי ברירת המחדל של הספר (כמו בכרטיסיית הטקסט), כל עוד
+  /// אין בחירה פר-ספר שמורה ואין מפרשים פעילים. [available] = המפרשים הזמינים
+  /// מתוך ה-links של הספר.
+  Future<void> _applyDefaultCommentatorsIfNeeded(List<String> available) async {
+    final sourceTab = widget.tab.sourceTab;
+    if (available.isEmpty || sourceTab.activeCommentators.isNotEmpty) return;
+
+    final saved = await PdfBookPerBookSettings.load(sourceTab.book.title);
+    final selection = await DefaultCommentators.resolveAutoSelection(
+      sourceTab.book,
+      availableCommentators: available,
+      savedSelection: saved?.activeCommentators,
+    );
+    if (!mounted ||
+        selection == null ||
+        sourceTab.activeCommentators.isNotEmpty) {
+      return;
+    }
+    setState(() => sourceTab.activeCommentators.addAll(selection));
   }
 
   @override
@@ -1016,14 +1039,13 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) setState(() {});
         });
-        final settingsBloc = context.read<SettingsBloc>();
-        if (settingsBloc.state.enablePerBookSettings) {
-          final settings = PdfBookPerBookSettings(
-            activeCommentators:
-                List.from(widget.tab.sourceTab.activeCommentators),
-          );
-          await settings.save(widget.tab.sourceTab.book.title);
-        }
+        // שמירה פר-ספר תמיד (לא תלוי ב-enablePerBookSettings) כדי שהבחירה
+        // תיטען בכל פתיחה.
+        final settings = PdfBookPerBookSettings(
+          activeCommentators:
+              List.from(widget.tab.sourceTab.activeCommentators),
+        );
+        await settings.save(widget.tab.sourceTab.book.title);
       },
     );
   }

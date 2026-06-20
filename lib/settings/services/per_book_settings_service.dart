@@ -159,12 +159,16 @@ class PerBookSettings {
             isRedundant = false;
           }
 
-          // רוחבי הטורים בצורת הדף הם מאפיין פר-ספר אמיתי שאין לו ברירת מחדל
-          // קבועה (תלוי בגודל המסך), לכן קובץ שמכיל אותם לעולם אינו מיותר.
+          // שדות פר-ספר אמיתיים שאין להם ברירת מחדל גלובלית להשוואה (רוחבי
+          // צורת הדף, בחירת מפרשים, זום ופריסת PDF) — קובץ שמכיל אותם לעולם
+          // אינו מיותר ואסור למחוק אותו בניקוי.
           if (json['pageShapeLeftWidth'] != null ||
               json['pageShapeRightWidth'] != null ||
               json['pageShapeBottomHeight'] != null ||
-              json['pageShapeBottomLeftWidth'] != null) {
+              json['pageShapeBottomLeftWidth'] != null ||
+              json['activeCommentators'] != null ||
+              json['zoom'] != null ||
+              json['layoutMode'] != null) {
             isRedundant = false;
           }
 
@@ -195,6 +199,10 @@ class TextBookPerBookSettings {
   final bool? removePunctuation;
   final bool? continuousReadingMode;
 
+  /// המפרשים הנבחרים בספר זה. נשמר תמיד (לא תלוי ב-enablePerBookSettings) כדי
+  /// שבחירת המשתמש תיטען בכל פתיחה. רשימה ריקה = המשתמש ביטל את כל הבחירה.
+  final List<String>? activeCommentators;
+
   // רוחב/גודל הטורים בצורת הדף (נשמר רק אם המשתמש שינה אותם בתצוגה זו)
   final double? pageShapeLeftWidth; // רוחב טור המפרש השמאלי
   final double? pageShapeRightWidth; // רוחב טור המפרש הימני
@@ -207,6 +215,7 @@ class TextBookPerBookSettings {
     this.removeNikud,
     this.removePunctuation,
     this.continuousReadingMode,
+    this.activeCommentators,
     this.pageShapeLeftWidth,
     this.pageShapeRightWidth,
     this.pageShapeBottomHeight,
@@ -220,6 +229,8 @@ class TextBookPerBookSettings {
         if (removePunctuation != null) 'removePunctuation': removePunctuation,
         if (continuousReadingMode != null)
           'continuousReadingMode': continuousReadingMode,
+        if (activeCommentators != null)
+          'activeCommentators': activeCommentators,
         if (pageShapeLeftWidth != null)
           'pageShapeLeftWidth': pageShapeLeftWidth,
         if (pageShapeRightWidth != null)
@@ -237,6 +248,8 @@ class TextBookPerBookSettings {
       removeNikud: json['removeNikud'] as bool?,
       removePunctuation: json['removePunctuation'] as bool?,
       continuousReadingMode: json['continuousReadingMode'] as bool?,
+      activeCommentators:
+          (json['activeCommentators'] as List<dynamic>?)?.cast<String>(),
       pageShapeLeftWidth: (json['pageShapeLeftWidth'] as num?)?.toDouble(),
       pageShapeRightWidth: (json['pageShapeRightWidth'] as num?)?.toDouble(),
       pageShapeBottomHeight:
@@ -252,6 +265,7 @@ class TextBookPerBookSettings {
     bool? removeNikud,
     bool? removePunctuation,
     bool? continuousReadingMode,
+    List<String>? activeCommentators,
     double? pageShapeLeftWidth,
     double? pageShapeRightWidth,
     double? pageShapeBottomHeight,
@@ -264,6 +278,7 @@ class TextBookPerBookSettings {
       removePunctuation: removePunctuation ?? this.removePunctuation,
       continuousReadingMode:
           continuousReadingMode ?? this.continuousReadingMode,
+      activeCommentators: activeCommentators ?? this.activeCommentators,
       pageShapeLeftWidth: pageShapeLeftWidth ?? this.pageShapeLeftWidth,
       pageShapeRightWidth: pageShapeRightWidth ?? this.pageShapeRightWidth,
       pageShapeBottomHeight:

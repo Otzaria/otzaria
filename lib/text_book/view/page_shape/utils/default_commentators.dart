@@ -18,7 +18,7 @@ class DefaultCommentators {
       ({
         List<({String title, int position})> commentators,
         List<String> targums
-      })> _fetchDefaults(TextBook book) async {
+      })> _fetchDefaults(Book book) async {
     const empty =
         (commentators: <({String title, int position})>[], targums: <String>[]);
 
@@ -51,9 +51,52 @@ class DefaultCommentators {
 
   /// מחזיר את רשימת המפרשים הבסיסיים של [book] (מפרשים ואחריהם תרגומים),
   /// ממוינת לפי `position`. משמש להקדמת המפרשים הבסיסיים בתוך קבוצות הדורות.
-  static Future<List<String>> getBaseCommentators(TextBook book) async {
+  static Future<List<String>> getBaseCommentators(Book book) async {
     final data = await _fetchDefaults(book);
     return [...data.commentators.map((c) => c.title), ...data.targums];
+  }
+
+  /// מחזיר את בחירת המפרשים ההתחלתית לפאנל/כרטסיית המפרשים של [book]:
+  /// מפרשי ברירת המחדל המוגדרים (אם יש), אחרת כל המפרשים אם יש עד 4.
+  /// כשאין ברירת מחדל ויש יותר מ-4 מפרשים — מחזיר רשימה ריקה (בחירה ידנית).
+  /// [availableCommentators] = המפרשים הזמינים בפועל לספר.
+  static Future<List<String>> getInitialSelection(
+    Book book, {
+    required List<String> availableCommentators,
+    List<String>? baseCommentators,
+  }) async {
+    if (availableCommentators.isEmpty) return const [];
+
+    final base = baseCommentators ?? await getBaseCommentators(book);
+    final resolved = <String>[];
+    for (final name in base) {
+      final match = _findMatchingCommentator(name, availableCommentators);
+      if (match != null && !resolved.contains(match)) {
+        resolved.add(match);
+      }
+    }
+    if (resolved.isNotEmpty) return resolved;
+
+    if (availableCommentators.length <= 4) {
+      return List<String>.from(availableCommentators);
+    }
+    return const [];
+  }
+
+  /// מחליט את בחירת המפרשים האוטומטית לפתיחה, בהתחשב בבחירה שמורה פר-ספר.
+  /// בחירה שמורה (גם ריקה) היא מקור-האמת ולכן מבטלת אוטו-בחירה — מחזיר null.
+  /// אחרת מחזיר את מפרשי ברירת המחדל ([getInitialSelection]), או null אם אין.
+  static Future<List<String>?> resolveAutoSelection(
+    Book book, {
+    required List<String> availableCommentators,
+    required List<String>? savedSelection,
+  }) async {
+    if (savedSelection != null) return null;
+    final defaults = await getInitialSelection(
+      book,
+      availableCommentators: availableCommentators,
+    );
+    return defaults.isEmpty ? null : defaults;
   }
 
   /// מחזיר מפרשי ברירת מחדל למיקומי צורת הדף (right/left/bottom/bottomRight),

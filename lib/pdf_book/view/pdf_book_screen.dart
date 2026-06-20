@@ -15,6 +15,7 @@ import 'package:otzaria/bookmarks/view/bookmark_screen.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dart';
 import 'package:otzaria/models/links.dart' as otz_links;
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/services/commentary_service.dart';
@@ -1288,15 +1289,16 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         final hasSavedZoom = savedZoom != null && savedZoom != 1.0;
         bool shouldFitToWidth =
             layoutMode != PdfLayoutMode.bookView && !hasSavedZoom;
-        if (enablePerBookSettings) {
-          final settings = await _loadPerBookSettings();
-          shouldFitToWidth = shouldFitToWidth && settings?.zoom == null;
 
-          // טעינת המפרשים הפעילים
-          if (settings?.activeCommentators != null) {
-            widget.tab.activeCommentators.clear();
-            widget.tab.activeCommentators.addAll(settings!.activeCommentators!);
-          }
+        // בחירת המפרשים נטענת תמיד (לא תלוי ב-enablePerBookSettings); זום ופריסה
+        // נשארים כפופים להגדרה.
+        final settings = await _loadPerBookSettings();
+        if (settings?.activeCommentators != null) {
+          widget.tab.activeCommentators.clear();
+          widget.tab.activeCommentators.addAll(settings!.activeCommentators!);
+        }
+        if (enablePerBookSettings) {
+          shouldFitToWidth = shouldFitToWidth && settings?.zoom == null;
         }
 
         final currentReadyPage = resolveReadyPdfPageNumber(
@@ -2476,10 +2478,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     }
   }
 
+  /// שומר את בחירת המפרשים פר-ספר (תמיד, ללא תלות ב-enablePerBookSettings),
+  /// כדי שתיטען בכל פתיחה. בחירה ריקה נשמרת אף היא (המשתמש ביטל את הכל).
   Future<void> _saveActiveCommentators() async {
-    final settingsBloc = context.read<SettingsBloc>();
-    if (!settingsBloc.state.enablePerBookSettings) return;
-
     final settings = PdfBookPerBookSettings(
       activeCommentators: List.from(widget.tab.activeCommentators),
     );
@@ -2496,15 +2497,33 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         PdfBookPerBookSettings.load(widget.tab.book.title);
   }
 
+  /// טוען את בחירת המפרשים השמורה פר-ספר (תמיד, ללא תלות ב-enablePerBookSettings).
   Future<void> _loadActiveCommentators() async {
-    final settingsBloc = context.read<SettingsBloc>();
-    if (!settingsBloc.state.enablePerBookSettings) return;
-
     final settings = await _loadPerBookSettings();
     if (settings?.activeCommentators != null && mounted) {
       widget.tab.activeCommentators.clear();
       widget.tab.activeCommentators.addAll(settings!.activeCommentators!);
     }
+  }
+
+  /// בוחר אוטומטית את מפרשי ברירת המחדל של הספר בפתיחה (כמו בכרטיסיית הטקסט),
+  /// כל עוד אין בחירה פר-ספר שמורה ואין מפרשים פעילים. [available] = המפרשים
+  /// הזמינים מתוך ה-links של הספר.
+  Future<void> _applyDefaultCommentatorsIfNeeded(List<String> available) async {
+    if (available.isEmpty) return;
+
+    final settings = await _loadPerBookSettings();
+    final selection = await DefaultCommentators.resolveAutoSelection(
+      widget.tab.book,
+      availableCommentators: available,
+      savedSelection: settings?.activeCommentators,
+    );
+    if (!mounted ||
+        selection == null ||
+        widget.tab.activeCommentators.isNotEmpty) {
+      return;
+    }
+    setState(() => widget.tab.activeCommentators.addAll(selection));
   }
 
   Future<void> _loadCommentatorGroups() async {
@@ -2515,6 +2534,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         commentatorsSet.add(utils.getTitleFromPath(link.path2));
       }
     }
+    await _applyDefaultCommentatorsIfNeeded(commentatorsSet.toList());
     final eras = await utils.splitByEra(commentatorsSet.toList());
     final known = <String>{
       ...?eras['תורה שבכתב'],

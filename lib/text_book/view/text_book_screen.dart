@@ -2950,6 +2950,7 @@ Future<void> _savePerBookSettingsDirectly(
       removeNikud: newRemoveNikud,
       removePunctuation: newRemovePunctuation,
       continuousReadingMode: newContinuousReadingMode,
+      activeCommentators: existingSettings?.activeCommentators,
       pageShapeLeftWidth: existingSettings?.pageShapeLeftWidth,
       pageShapeRightWidth: existingSettings?.pageShapeRightWidth,
       pageShapeBottomHeight: existingSettings?.pageShapeBottomHeight,

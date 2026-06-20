@@ -100,6 +100,39 @@ void main() {
       expect(updated.pageShapeBottomHeight, isNull);
     });
 
+    test('round-trip שומר את רשימת המפרשים הנבחרים', () {
+      final original = TextBookPerBookSettings(
+        activeCommentators: const ['רש"י', 'תוספות'],
+      );
+
+      final restored = TextBookPerBookSettings.fromJson(original.toJson());
+
+      expect(restored.activeCommentators, ['רש"י', 'תוספות']);
+    });
+
+    test('רשימת מפרשים ריקה שורדת round-trip (בחירה שבוטלה)', () {
+      // בחירה ריקה היא מצב מכוון (המשתמש הסיר את כל המפרשים) ולכן נשמרת
+      // ולא נחשבת כ-null.
+      final settings = TextBookPerBookSettings(activeCommentators: const []);
+      final json = settings.toJson();
+      expect(json.containsKey('activeCommentators'), isTrue);
+
+      final restored = TextBookPerBookSettings.fromJson(json);
+      expect(restored.activeCommentators, isEmpty);
+    });
+
+    test('toJson משמיט activeCommentators כשהוא null', () {
+      final settings = TextBookPerBookSettings(fontSize: 18.0);
+      expect(settings.toJson().containsKey('activeCommentators'), isFalse);
+    });
+
+    test('copyWith משמר את activeCommentators כשלא ניתן', () {
+      final base = TextBookPerBookSettings(activeCommentators: const ['רש"י']);
+      final updated = base.copyWith(fontSize: 20.0);
+      expect(updated.activeCommentators, ['רש"י']);
+      expect(updated.fontSize, 20.0);
+    });
+
     test('continuousReadingMode=false שורד round-trip', () {
       // toJson משמיט רק null (לא false). אם בעתיד מישהו ירצה לשמור
       // false במפורש — הוא חייב לעבוד. _savePerBookSettingsDirectly

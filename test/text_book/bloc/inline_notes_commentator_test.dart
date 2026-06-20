@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -47,9 +50,21 @@ void main() {
 
   late TextBookBloc bloc;
   late TextBook book;
+  late Directory tempDataRoot;
 
   setUpAll(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
+    // הפניית כתיבת ההגדרות הפר-ספריות לתיקיית temp במקום ל-AppData האמיתי,
+    // כדי שהשמירה (fire-and-forget) בבחירת מפרשים לא תזהם נתוני משתמש.
+    tempDataRoot = await Directory.systemTemp.createTemp('otzaria_test_');
+    AppPaths.debugOverrideDataRootPath(tempDataRoot.path);
+  });
+
+  tearDownAll(() async {
+    AppPaths.debugOverrideDataRootPath(null);
+    if (await tempDataRoot.exists()) {
+      await tempDataRoot.delete(recursive: true);
+    }
   });
 
   setUp(() {
@@ -354,4 +369,83 @@ void main() {
       expect(bloc.inlineNotesFullScanDoneForTesting, isFalse);
     },
   );
+
+  // ── בחירה אוטומטית (ברירת מחדל) ושחזור בחירה שמורה ──────────────────────
+  group('UpdateCommentators auto/restore guards', () {
+    blocTest<TextBookBloc, TextBookState>(
+      'בחירת ברירת מחדל (isUserAction:false) מוחלת כשאין מפרשים פעילים',
+      build: () => bloc,
+      seed: () => _seed(book: book, content: const ['preview']),
+      act: (bloc) => bloc.add(
+          const UpdateCommentators(['רש"י', 'תוספות'], isUserAction: false)),
+      verify: (bloc) {
+        expect((bloc.state as TextBookLoaded).activeCommentators,
+            ['רש"י', 'תוספות']);
+        // בחירה אוטומטית אינה מסמנת שהמשתמש נגע בבחירה.
+        expect(bloc.userTouchedCommentatorsForTesting, isFalse);
+      },
+    );
+
+    blocTest<TextBookBloc, TextBookState>(
+      'בחירת ברירת מחדל גוברת על אוטו-בחירת הערות (ספר עם הערות)',
+      build: () => bloc,
+      seed: () => _seed(
+        book: book,
+        content: const ['preview'],
+        activeCommentators: const [kNotesCommentatorTitle],
+      ),
+      act: (bloc) => bloc
+          .add(const UpdateCommentators(['רש"י', 'רד"ק'], isUserAction: false)),
+      verify: (bloc) {
+        expect((bloc.state as TextBookLoaded).activeCommentators,
+            ['רש"י', 'רד"ק']);
+      },
+    );
+
+    blocTest<TextBookBloc, TextBookState>(
+      'שחזור בחירה שמורה (isRestore) גובר על בחירה אוטומטית קיימת (כגון הערות)',
+      build: () => bloc,
+      seed: () => _seed(
+        book: book,
+        content: const ['preview'],
+        activeCommentators: const [kNotesCommentatorTitle],
+      ),
+      act: (bloc) => bloc.add(const UpdateCommentators(['רש"י'],
+          isUserAction: false, isRestore: true)),
+      verify: (bloc) {
+        expect((bloc.state as TextBookLoaded).activeCommentators, ['רש"י']);
+      },
+    );
+
+    blocTest<TextBookBloc, TextBookState>(
+      'שחזור בחירה ריקה מנקה גם בחירה אוטומטית קיימת',
+      build: () => bloc,
+      seed: () => _seed(
+        book: book,
+        content: const ['preview'],
+        activeCommentators: const [kNotesCommentatorTitle],
+      ),
+      act: (bloc) => bloc.add(
+          const UpdateCommentators([], isUserAction: false, isRestore: true)),
+      verify: (bloc) {
+        expect((bloc.state as TextBookLoaded).activeCommentators, isEmpty);
+      },
+    );
+
+    blocTest<TextBookBloc, TextBookState>(
+      'אחרי בחירה ידנית, שחזור/אוטומט מאוחרים אינם דורסים',
+      build: () => bloc,
+      seed: () => _seed(book: book, content: const ['preview']),
+      act: (bloc) async {
+        bloc.add(const UpdateCommentators(['רש"י'])); // בחירת משתמש
+        await Future<void>.delayed(Duration.zero);
+        bloc.add(const UpdateCommentators(['רמב"ן'],
+            isUserAction: false, isRestore: true));
+      },
+      verify: (bloc) {
+        expect((bloc.state as TextBookLoaded).activeCommentators, ['רש"י']);
+        expect(bloc.userTouchedCommentatorsForTesting, isTrue);
+      },
+    );
+  });
 }

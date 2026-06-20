@@ -465,7 +465,9 @@ class TextBookLoaded extends TextBookState {
         showSplitView,
         showTzuratHadafView,
         showPageShapeView,
-        activeCommentators.length,
+        // השוואה לפי תוכן (לא רק אורך) — אחרת החלפת מפרש אחד באחר באותו אורך
+        // נבלעת ע"י השוואת ה-state והבחירה לא מתעדכנת.
+        activeCommentators,
         commentatorGroups,
         availableCommentators.length,
         links.length,

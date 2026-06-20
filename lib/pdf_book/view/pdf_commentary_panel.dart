@@ -649,13 +649,12 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) setState(() {});
           });
-          final settingsBloc = context.read<SettingsBloc>();
-          if (settingsBloc.state.enablePerBookSettings) {
-            final settings = PdfBookPerBookSettings(
-              activeCommentators: List.from(widget.tab.activeCommentators),
-            );
-            await settings.save(widget.tab.book.title);
-          }
+          // שמירה פר-ספר תמיד (לא תלוי ב-enablePerBookSettings) כדי שהבחירה
+          // תיטען בכל פתיחה.
+          final settings = PdfBookPerBookSettings(
+            activeCommentators: List.from(widget.tab.activeCommentators),
+          );
+          await settings.save(widget.tab.book.title);
         },
       ),
     );

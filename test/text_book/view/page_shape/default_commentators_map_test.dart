@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/models/books.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dart';
 
 /// טסטים למיפוי מפרשי ברירת המחדל ל-4 מיקומי צורת הדף:
@@ -80,6 +81,116 @@ void main() {
       expect(result['left'], isNull);
       expect(result['bottom'], isNull);
       expect(result['bottomRight'], isNull);
+    });
+  });
+
+  // הבחירה ההתחלתית לפאנל/כרטסיית המפרשים: ברירת מחדל אם הוגדרה, אחרת כל
+  // המפרשים אם יש עד 4. baseCommentators מועבר מפורשות כדי לבדוק את הלוגיקה
+  // הטהורה ללא גישה ל-DB.
+  group('DefaultCommentators.getInitialSelection', () {
+    final book = TextBook(title: 'ספר');
+
+    test('מפרשי ברירת מחדל מוגדרים → נבחרים גם כשיש יותר מ-4 זמינים', () async {
+      final result = await DefaultCommentators.getInitialSelection(
+        book,
+        availableCommentators: const [
+          'רש"י',
+          'תוספות',
+          'רמב"ן',
+          'ספורנו',
+          'אבן עזרא',
+        ],
+        baseCommentators: const ['רש"י', 'תוספות'],
+      );
+
+      expect(result, ['רש"י', 'תוספות']);
+    });
+
+    test('עד 4 מפרשים ללא ברירת מחדל → כולם נבחרים', () async {
+      final result = await DefaultCommentators.getInitialSelection(
+        book,
+        availableCommentators: const ['א', 'ב', 'ג', 'ד'],
+        baseCommentators: const [],
+      );
+
+      expect(result, ['א', 'ב', 'ג', 'ד']);
+    });
+
+    test('יותר מ-4 מפרשים ללא ברירת מחדל → רשימה ריקה (בחירה ידנית)', () async {
+      final result = await DefaultCommentators.getInitialSelection(
+        book,
+        availableCommentators: const ['א', 'ב', 'ג', 'ד', 'ה'],
+        baseCommentators: const [],
+      );
+
+      expect(result, isEmpty);
+    });
+
+    test('אין מפרשים זמינים → רשימה ריקה', () async {
+      final result = await DefaultCommentators.getInitialSelection(
+        book,
+        availableCommentators: const [],
+        baseCommentators: const ['רש"י'],
+      );
+
+      expect(result, isEmpty);
+    });
+
+    test('ברירת מחדל מותאמת לשם המלא הזמין; שם שאינו קיים נושר', () async {
+      final result = await DefaultCommentators.getInitialSelection(
+        book,
+        availableCommentators: const ['רש"י על התורה', 'תוספות'],
+        baseCommentators: const ['רש"י', 'לא קיים'],
+      );
+
+      expect(result, ['רש"י על התורה']);
+    });
+  });
+
+  // resolveAutoSelection מחליטה אם להחיל ברירת מחדל בפתיחה: בחירה שמורה (גם
+  // ריקה) גוברת ומבטלת אוטו-בחירה. ה-repository של ה-DB אינו מאותחל בבדיקה,
+  // לכן getBaseCommentators מחזירה ריק ונבדק מסלול "עד 4 → כל הזמינים".
+  group('DefaultCommentators.resolveAutoSelection', () {
+    final book = TextBook(title: 'ספר');
+
+    test('בחירה שמורה ריקה גוברת — לא מחילים ברירת מחדל (null)', () async {
+      final result = await DefaultCommentators.resolveAutoSelection(
+        book,
+        availableCommentators: const ['רש"י', 'רד"ק'],
+        savedSelection: const [],
+      );
+
+      expect(result, isNull);
+    });
+
+    test('בחירה שמורה לא-ריקה גוברת — לא מחילים ברירת מחדל (null)', () async {
+      final result = await DefaultCommentators.resolveAutoSelection(
+        book,
+        availableCommentators: const ['רש"י', 'רד"ק'],
+        savedSelection: const ['אבן עזרא'],
+      );
+
+      expect(result, isNull);
+    });
+
+    test('ללא בחירה שמורה ועד 4 מפרשים → מחזיר את כל הזמינים', () async {
+      final result = await DefaultCommentators.resolveAutoSelection(
+        book,
+        availableCommentators: const ['רש"י', 'רד"ק'],
+        savedSelection: null,
+      );
+
+      expect(result, ['רש"י', 'רד"ק']);
+    });
+
+    test('ללא בחירה שמורה ויותר מ-4 מפרשים ללא ברירת מחדל → null', () async {
+      final result = await DefaultCommentators.resolveAutoSelection(
+        book,
+        availableCommentators: const ['א', 'ב', 'ג', 'ד', 'ה'],
+        savedSelection: null,
+      );
+
+      expect(result, isNull);
     });
   });
 }
