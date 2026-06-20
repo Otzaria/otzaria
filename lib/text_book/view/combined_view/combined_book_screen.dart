@@ -1387,11 +1387,14 @@ class _CombinedViewState extends State<CombinedView> {
                   child: widget.isPreviewMode
                       ? Scrollbar(
                           controller: _previewScrollController,
-                          thumbVisibility: true,
                           thickness: 8.0,
                           radius: const Radius.circular(4.0),
                           child: ListView.builder(
                             controller: _previewScrollController,
+                            // מרווח אופקי סימטרי שמשאיר תעלה לפס הגלילה (8px)
+                            // בצד שמאל ב-RTL, כך שלא יכסה את הטקסט.
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 12.0),
                             itemCount: state.readingSegments.isNotEmpty
                                 ? state.readingSegments.length
                                 : widget.data.length,
