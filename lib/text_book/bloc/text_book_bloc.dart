@@ -1078,14 +1078,16 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       }
 
       int? index = currentState.selectedIndex;
-      if (index != null && !event.visibleIndecies.contains(index)) {
-        final oldFirst = currentState.visibleIndices.isNotEmpty
-            ? currentState.visibleIndices.first
-            : 0;
-        final newFirst =
-            event.visibleIndecies.isNotEmpty ? event.visibleIndecies.first : 0;
-
-        if ((oldFirst - newFirst).abs() > 3) {
+      if (index != null &&
+          !event.visibleIndecies.contains(index) &&
+          event.visibleIndecies.isNotEmpty) {
+        // כמה שורות הקטע הנבחר יצא מעבר לקצה הקרוב של החלון הנראה. נמדד מול
+        // הקטע עצמו (עוגן יציב) ולא מהשורה הקודמת, אחרת בגלילה רציפה כל אירוע
+        // זז מעט והבחירה לא משתחררת. מול הקצה הקרוב כדי שיהיה סימטרי בשני הכיוונים.
+        final distance = index < event.visibleIndecies.first
+            ? event.visibleIndecies.first - index
+            : index - event.visibleIndecies.last;
+        if (distance > 3) {
           index = null;
         }
       }

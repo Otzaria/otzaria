@@ -1273,7 +1273,6 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
   List<Link> _relevantLinks = [];
   int? _lastSyncedIndex; // האינדקס האחרון שסונכרן
   int _initialSyncAttempts = 0; // ניסיונות סנכרון ראשוני עד שה-controller מחובר
-  int? _clickedVisibleFirst; // visibleIndices.first בעת הלחיצה האחרונה
   List<Link>? _lastLinks; // לדידוב: מסנן מחדש רק כשהקישורים השתנו
   StreamSubscription<TextBookState>? _blocSubscription;
   Set<int> _highlightedIndices = {}; // אינדקסים להדגשה
@@ -1756,19 +1755,8 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
     int currentMainIndex;
     if (state.selectedIndex != null) {
       currentMainIndex = state.selectedIndex!;
-      _clickedVisibleFirst =
-          state.visibleIndices.isNotEmpty ? state.visibleIndices.first : null;
     } else if (state.visibleIndices.isNotEmpty) {
-      final currentFirst = state.visibleIndices.first;
-      // אם לא גללנו יותר מ-3 שורות מאז הלחיצה — לא לדרוס את מיקום הלחיצה
-      // (מתואם עם הסף של ה-BLoC לאיפוס selectedIndex). זיהוי הגלילה נשאר
-      // לפי השורה העליונה, כדי להתאים לסף של ה-BLoC.
-      if (_clickedVisibleFirst != null &&
-          (currentFirst - _clickedVisibleFirst!).abs() <= 3) {
-        return;
-      }
-      _clickedVisibleFirst = null; // גלילה משמעותית — מאפסים
-      // אך היעד לסנכרון הוא מרכז המסך, לא השורה העליונה
+      // היעד לסנכרון הוא מרכז המסך, לא השורה העליונה
       currentMainIndex = _referenceVisibleIndex(state.visibleIndices);
     } else {
       return; // אין מידע על מיקום נוכחי

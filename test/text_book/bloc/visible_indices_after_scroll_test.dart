@@ -163,6 +163,108 @@ void main() {
       await bloc.close();
     });
   });
+
+  group('שחרור selectedIndex בגלילה רציפה', () {
+    Future<TextBookBloc> loadedBloc() async {
+      final bloc = TextBookBloc(
+        repository: _TwoSectionRepository(),
+        initialState: TextBookInitial.named(
+          TextBook(title: 'ספר בדיקה'),
+          10,
+          false,
+          const [],
+          searchMode: SearchMode.exact,
+          showPageShapeView: false,
+        ),
+        scrollController: ItemScrollController(),
+        positionsListener: ItemPositionsListener.create(),
+      );
+      bloc.add(const LoadContent(
+        fontSize: 20,
+        showSplitView: false,
+        removeNikud: false,
+        loadCommentators: false,
+      ));
+      await _waitFor(
+        () => bloc.state is TextBookLoaded,
+        description: 'מצב טעון',
+      );
+      return bloc;
+    }
+
+    // שולח אירוע גלילה אחד וממתין שהשורה העליונה תתעדכן.
+    Future<void> scrollTo(TextBookBloc bloc, int first) async {
+      bloc.add(UpdateVisibleIndecies(
+        List.generate(5, (i) => first + i),
+      ));
+      await _waitFor(
+        () {
+          final s = bloc.state as TextBookLoaded;
+          return s.visibleIndices.isNotEmpty && s.visibleIndices.first == first;
+        },
+        description: 'visibleIndices.first == $first',
+      );
+    }
+
+    test('גלילה רציפה בצעדים קטנים מעבר ל-3 שורות מהקטע הנבחר מאפסת אותו',
+        () async {
+      final bloc = await loadedBloc();
+      await scrollTo(bloc, 8); // הקטע 10 גלוי
+      bloc.add(const UpdateSelectedIndex(10));
+      await _waitFor(
+        () => (bloc.state as TextBookLoaded).selectedIndex == 10,
+        description: 'selectedIndex == 10',
+      );
+
+      // גלילה רציפה: כל אירוע מזיז את השורה העליונה בשורה אחת בלבד.
+      // קודם הבאג נמדד event-to-event, אז delta תמיד 1 והבחירה לא השתחררה.
+      for (final first in [9, 10, 11, 12, 13, 14]) {
+        await scrollTo(bloc, first);
+      }
+
+      // first=14 → |10-14|=4 > 3, הבחירה משתחררת.
+      expect((bloc.state as TextBookLoaded).selectedIndex, isNull);
+      await bloc.close();
+    });
+
+    test('גלילה רציפה כלפי מעלה מעבר ל-3 שורות מהקטע הנבחר מאפסת אותו',
+        () async {
+      final bloc = await loadedBloc();
+      await scrollTo(bloc, 10); // הקטע 10 בראש החלון
+      bloc.add(const UpdateSelectedIndex(10));
+      await _waitFor(
+        () => (bloc.state as TextBookLoaded).selectedIndex == 10,
+        description: 'selectedIndex == 10',
+      );
+
+      // גלילה כלפי מעלה: הקטע 10 יוצא מהקצה התחתון. המדידה מול הקצה הקרוב
+      // מבטיחה התנהגות סימטרית — שחרור אחרי 3 שורות, כמו בגלילה כלפי מטה.
+      for (final first in [9, 8, 7, 6, 5, 4, 3, 2]) {
+        await scrollTo(bloc, first);
+      }
+
+      // last=6 → |10-6|=4 > 3, הבחירה משתחררת (ולא מיד עם השורה הראשונה).
+      expect((bloc.state as TextBookLoaded).selectedIndex, isNull);
+      await bloc.close();
+    });
+
+    test('גלילה זעירה (עד 3 שורות מהקטע הנבחר) שומרת על הבחירה', () async {
+      final bloc = await loadedBloc();
+      await scrollTo(bloc, 8);
+      bloc.add(const UpdateSelectedIndex(10));
+      await _waitFor(
+        () => (bloc.state as TextBookLoaded).selectedIndex == 10,
+        description: 'selectedIndex == 10',
+      );
+
+      // 10 יצא מהתצוגה אך השורה העליונה במרחק 3 בלבד — בולעים קפיצת viewport.
+      await scrollTo(bloc, 11); // first=11 → |10-11|=1
+      await scrollTo(bloc, 13); // first=13 → |10-13|=3
+
+      expect((bloc.state as TextBookLoaded).selectedIndex, 10);
+      await bloc.close();
+    });
+  });
 }
 
 Future<void> _waitFor(
