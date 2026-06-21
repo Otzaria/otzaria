@@ -1133,7 +1133,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         }
       },
       backgroundColor: _pdfViewerBgColor(),
-      sizeDelegateProvider: PdfViewerSizeDelegateProviderLegacy(maxScale: 10),
+      sizeDelegateProvider: PdfViewerSizeDelegateProviderLegacy(maxScale: 20),
       // חסימת הזיכרון של ה-renderer: ברירת המחדל של pdfrx 2.4.3 היא
       // 100MB; מהודק ל-48MB כדי לצמצם לחץ זיכרון במחשבים עם 8GB RAM
       // (תרחיש ה-OOM ב-Microsoft Store).
