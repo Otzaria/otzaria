@@ -8,6 +8,9 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
+import 'package:otzaria/plugins/bloc/plugin_system_event.dart';
+import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
@@ -19,6 +22,10 @@ import '../helpers/memory_settings_cache.dart';
 
 class _MockSettingsBloc extends MockBloc<SettingsEvent, SettingsState>
     implements SettingsBloc {}
+
+class _MockPluginSystemBloc
+    extends MockBloc<PluginSystemEvent, PluginSystemState>
+    implements PluginSystemBloc {}
 
 class _FakeSettingsEvent extends Fake implements SettingsEvent {}
 
@@ -227,15 +234,26 @@ void main() {
   // key-shortcut-open-commentators-tab ריק כברירת מחדל ולכן הכרטיס תמיד מופיע.
 
   group('ShortcutsSettingsTab - זרימת הוסף קיצור', () {
-    Widget buildTab() => MaterialApp(
-          navigatorKey: navigatorKey,
-          home: Scaffold(
-            body: BlocProvider<SettingsBloc>.value(
-              value: settingsBloc,
-              child: const ShortcutsSettingsTab(),
-            ),
+    Widget buildTab() {
+      final pluginBloc = _MockPluginSystemBloc();
+      whenListen(
+        pluginBloc,
+        const Stream<PluginSystemState>.empty(),
+        initialState: PluginSystemInitial(),
+      );
+      return MaterialApp(
+        navigatorKey: navigatorKey,
+        home: Scaffold(
+          body: MultiBlocProvider(
+            providers: [
+              BlocProvider<SettingsBloc>.value(value: settingsBloc),
+              BlocProvider<PluginSystemBloc>.value(value: pluginBloc),
+            ],
+            child: const ShortcutsSettingsTab(),
           ),
-        );
+        ),
+      );
+    }
 
     // מסייע: מנווט עד ל-CustomShortcutDialog ומחזיר לאחר פתיחתו.
     Future<void> openCustomDialog(

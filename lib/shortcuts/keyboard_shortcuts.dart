@@ -310,6 +310,20 @@ class _KeyboardShortcutsState extends State<KeyboardShortcuts> {
       }
     }
 
+    // פתיחת תוסף פעיל לפי קיצור אופציונלי — דרך deep-link `otzaria://open/plugin/<id>`.
+    // מסתמכים על המפתחות הרשומים (תוספים פעילים בלבד) ולא על PluginSystemBloc,
+    // כדי לא לדרוש Provider בכל אירוע מקש.
+    for (final pluginKey in ShortcutValidator.pluginShortcutKeys) {
+      final pluginShortcut = shortcutOf(pluginKey);
+      if (pluginShortcut.isNotEmpty &&
+          ShortcutHelper.matchesShortcut(event, pluginShortcut)) {
+        final pluginId = ShortcutValidator.pluginIdFromShortcutKey(pluginKey);
+        mainWindowScreenKey.currentState
+            ?.handleInternalDeepLink('otzaria://open/plugin/$pluginId');
+        return KeyEventResult.handled;
+      }
+    }
+
     // Ctrl+Tab / Ctrl+Shift+Tab - מעבר בין טאבים.
     // לא משתמשים ב-matchesShortcut כדי לא להפוך ל-Cmd ב-Mac: Cmd+Tab
     // שמור למערכת ההפעלה, ולכן ב-Mac נשארים עם Ctrl פיזי (זמין שם).

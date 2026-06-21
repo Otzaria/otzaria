@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
+import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
+import 'package:otzaria/plugins/models/installed_plugin.dart';
+import 'package:otzaria/plugins/utils/fluent_icon_resolver.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
 import 'package:otzaria/settings/search/settings_anchor.dart';
 import 'package:otzaria/settings/search/settings_search_models.dart';
@@ -462,6 +466,23 @@ class ShortcutsSettingsTab extends StatelessWidget {
       ),
     ]);
 
+    // קיצורי "פתיחת תוסף" אופציונליים, לכל תוסף מותקן פעיל. כמו פתיחת כלים,
+    // הכרטיס מוצג רק אם הוגדר קיצור לתוסף אחד לפחות.
+    final pluginState = context.watch<PluginSystemBloc>().state;
+    final enabledPlugins = pluginState is PluginSystemLoaded
+        ? pluginState.plugins.where((p) => p.enabled).toList()
+        : const <InstalledPlugin>[];
+    final openPluginTiles = _onlyConfigured([
+      for (final plugin in enabledPlugins)
+        _ShortcutTile(
+          settingKey: ShortcutValidator.openPluginShortcutKey(plugin.pluginId),
+          label: 'פתיחת ${plugin.name}',
+          icon: fluentIconFromName(plugin.manifest.toolTabIconName) ??
+              FluentIcons.puzzle_piece_24_regular,
+          allShortcuts: _shortcutsList,
+        ),
+    ]);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -701,6 +722,16 @@ class ShortcutsSettingsTab extends StatelessWidget {
             title: 'פתיחת כלים',
             subtitle: 'קיצורים לפתיחה מהירה של כלי מתוך מסך הכלים',
             children: openToolTiles,
+          ),
+        ],
+
+        // ── פתיחת תוספים (אופציונלי) — מוצג רק כשהוגדר קיצור לתוסף אחד לפחות ──
+        if (openPluginTiles.isNotEmpty) ...[
+          kSettingsCardSpacing,
+          SettingsCard(
+            title: 'פתיחת תוספים',
+            subtitle: 'קיצורים לפתיחה מהירה של תוסף מותקן',
+            children: openPluginTiles,
           ),
         ],
 

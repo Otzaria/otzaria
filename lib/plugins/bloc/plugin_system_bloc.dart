@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_event.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
+import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/services/plugin_installer_service.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
@@ -8,6 +9,7 @@ import 'package:otzaria/plugins/services/context_menu_registry.dart';
 import 'package:otzaria/plugins/services/plugin_dev_loader_service.dart';
 import 'package:otzaria/plugins/services/plugin_dev_watch_service.dart';
 import 'package:otzaria/plugins/services/plugin_download_service.dart';
+import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -81,11 +83,23 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     try {
       final plugins = await repository.getAllPlugins();
       devWatchService.syncWatchers(await repository.getDevelopmentPlugins());
+      _registerPluginShortcuts(plugins);
       emit(PluginSystemLoaded(plugins));
     } catch (e) {
       emit(PluginSystemError(e.toString()));
       UiSnack.showError('שגיאה בטעינת תוספים: ${e.toString()}');
     }
+  }
+
+  /// רושם מפתחות קיצור לפתיחת התוספים הפעילים — רק פעילים, כי תוסף מושבת
+  /// אינו נפתח דרך ה-deep-link ולכן אין טעם לזהות לו קונפליקט.
+  void _registerPluginShortcuts(List<InstalledPlugin> plugins) {
+    ShortcutValidator.registerPluginShortcutKeys({
+      for (final p in plugins)
+        if (p.enabled)
+          ShortcutValidator.openPluginShortcutKey(p.pluginId):
+              'פתיחת ${p.name}',
+    });
   }
 
   Future<void> _onPinPluginRequested(

@@ -33,8 +33,33 @@ class ShortcutValidator {
     'key-shortcut-open-tool-acronyms-dictionary': 'builtin.acronyms_dictionary',
   };
 
-  /// List of all shortcut setting keys
-  static const List<String> shortcutKeys = [
+  static const String _openPluginKeyPrefix = 'key-shortcut-open-plugin-';
+
+  /// מפתח הגדרת הקיצור לפתיחת תוסף לפי מזההו (deep-link
+  /// `otzaria://open/plugin/<id>`). אופציונלי, ללא ברירת מחדל.
+  static String openPluginShortcutKey(String pluginId) =>
+      '$_openPluginKeyPrefix$pluginId';
+
+  /// קיצורי "פתיחת תוסף" נרשמים דינמית לפי התוספים המותקנים הפעילים (מפתח →
+  /// שם תצוגה), כדי שזיהוי הקונפליקטים והתצוגה יכירו בהם. נדחף מ-PluginSystemBloc.
+  static Map<String, String> _pluginShortcutNames = const {};
+
+  static void registerPluginShortcutKeys(Map<String, String> keyToName) {
+    _pluginShortcutNames = Map.unmodifiable(keyToName);
+  }
+
+  /// המפתחות של קיצורי "פתיחת תוסף" הרשומים כעת (תוספים פעילים בלבד).
+  static Iterable<String> get pluginShortcutKeys => _pluginShortcutNames.keys;
+
+  /// מחלץ את מזהה התוסף ממפתח קיצור "פתיחת תוסף".
+  static String pluginIdFromShortcutKey(String key) =>
+      key.substring(_openPluginKeyPrefix.length);
+
+  /// List of all shortcut setting keys (סטטיים + מפתחות תוספים רשומים)
+  static List<String> get shortcutKeys =>
+      [..._baseShortcutKeys, ..._pluginShortcutNames.keys];
+
+  static const List<String> _baseShortcutKeys = [
     'key-shortcut-open-library-browser',
     currentWindowSearchKey,
     'key-shortcut-open-find-ref',
@@ -116,8 +141,11 @@ class ShortcutValidator {
     'key-shortcut-open-tool-acronyms-dictionary': '',
   };
 
-  /// Shortcut names for display
-  static const Map<String, String> shortcutNames = {
+  /// Shortcut names for display (סטטיים + שמות תוספים רשומים)
+  static Map<String, String> get shortcutNames =>
+      {..._baseShortcutNames, ..._pluginShortcutNames};
+
+  static const Map<String, String> _baseShortcutNames = {
     'key-shortcut-open-library-browser': 'ספרייה',
     currentWindowSearchKey: 'חיפוש בספר הפתוח',
     'key-shortcut-open-find-ref': 'איתור',

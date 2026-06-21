@@ -9,6 +9,11 @@ void main() {
     await Settings.init(cacheProvider: _MemoryCacheProvider());
   });
 
+  tearDown(() {
+    // מנקה רישום קיצורי תוספים כדי שלא יזלוג בין טסטים.
+    ShortcutValidator.registerPluginShortcutKeys(const {});
+  });
+
   group('getShortcutValue', () {
     test('מחזיר ברירת מחדל כשלא הוגדר ערך', () {
       expect(
@@ -156,6 +161,43 @@ void main() {
         expect(action, isA<OpenToolAction>());
         expect((action as OpenToolAction).toolId, toolId);
       }
+    });
+  });
+
+  group('קיצורי תוספים (registerPluginShortcutKeys)', () {
+    const pluginId = 'com.example.my_plugin';
+    final key = ShortcutValidator.openPluginShortcutKey(pluginId);
+
+    test('openPluginShortcutKey בונה מפתח עם הקידומת', () {
+      expect(key, 'key-shortcut-open-plugin-$pluginId');
+    });
+
+    test('רישום מוסיף את המפתח ל-shortcutKeys ו-shortcutNames', () {
+      expect(ShortcutValidator.shortcutKeys, isNot(contains(key)));
+      ShortcutValidator.registerPluginShortcutKeys({key: 'פתיחת התוסף שלי'});
+      expect(ShortcutValidator.shortcutKeys, contains(key));
+      expect(ShortcutValidator.shortcutNames[key], 'פתיחת התוסף שלי');
+    });
+
+    test('רישום ריק מסיר מפתחות תוספים קודמים', () {
+      ShortcutValidator.registerPluginShortcutKeys({key: 'פתיחת התוסף שלי'});
+      ShortcutValidator.registerPluginShortcutKeys(const {});
+      expect(ShortcutValidator.shortcutKeys, isNot(contains(key)));
+      expect(ShortcutValidator.shortcutNames[key], isNull);
+    });
+
+    test('קיצור תוסף נכלל בזיהוי קונפליקטים מול פעולה מובנית', () async {
+      ShortcutValidator.registerPluginShortcutKeys({key: 'פתיחת התוסף שלי'});
+      await Settings.setValue<String>(key, 'ctrl+l');
+      // ctrl+l הוא ברירת המחדל של פתיחת הספרייה — צפוי קונפליקט.
+      expect(ShortcutValidator.hasConflict(key), isTrue);
+    });
+
+    test('ה-deep-link שהקיצור מפעיל מתפענח ל-OpenPluginAction', () {
+      final action = ExternalUriRouter.parseUri(
+          Uri.parse('otzaria://open/plugin/$pluginId'));
+      expect(action, isA<OpenPluginAction>());
+      expect((action as OpenPluginAction).pluginId, pluginId);
     });
   });
 
