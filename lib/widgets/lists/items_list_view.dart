@@ -19,6 +19,9 @@ class ItemsListView extends StatefulWidget {
   final String Function(dynamic item)? searchKeyBuilder;
   final bool Function(dynamic item)? additionalFilter;
 
+  /// כשמסופק, מוצג בצד שדה החיפוש באותה שורה (למשל כפתור מיון).
+  final Widget? searchFieldTrailing;
+
   /// כשמסופק, מחזיר את הכותרת הראשית של הפריט. ברירת מחדל — `item.book.title`.
   /// תן callback כדי לתמוך בפריטים שאינם בנויים סביב `book`.
   final String Function(dynamic item)? titleBuilder;
@@ -50,6 +53,7 @@ class ItemsListView extends StatefulWidget {
     this.subtitleTooltipBuilder,
     this.searchKeyBuilder,
     this.additionalFilter,
+    this.searchFieldTrailing,
     this.groupKeyBuilder,
     this.groupTitleBuilder,
     this.itemSortComparator,
@@ -319,14 +323,25 @@ class _ItemsListViewState extends State<ItemsListView> {
       children: [
         Padding(
           padding: const EdgeInsets.all(8.0),
-          child: OtzariaSearchField(
-            controller: _searchController,
-            focusNode: _searchFocusNode,
-            hintText: widget.hintText,
-            onClear: () {
-              setState(() {
-                _searchQuery = '';
-              });
+          child: Builder(
+            builder: (context) {
+              final searchField = OtzariaSearchField(
+                controller: _searchController,
+                focusNode: _searchFocusNode,
+                hintText: widget.hintText,
+                onClear: () {
+                  setState(() {
+                    _searchQuery = '';
+                  });
+                },
+              );
+              if (widget.searchFieldTrailing == null) return searchField;
+              return Row(
+                children: [
+                  Expanded(child: searchField),
+                  widget.searchFieldTrailing!,
+                ],
+              );
             },
           ),
         ),

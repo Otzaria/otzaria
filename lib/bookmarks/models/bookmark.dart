@@ -49,6 +49,10 @@ class Bookmark {
   final SearchMode? searchMode;
   final BookmarkTargetKind targetKind;
 
+  /// מועד יצירת הסימניה — משמש למיון "לפי תאריך הוספה".
+  /// null בסימניות ישנות שנשמרו לפני הוספת השדה.
+  final DateTime? createdAt;
+
   /// A stable key for history management, unique per book title.
   String get historyKey => isSearch ? ref : '${targetKind.name}:${book.title}';
 
@@ -65,6 +69,7 @@ class Bookmark {
     this.searchScopeFacets,
     this.searchMode,
     this.targetKind = BookmarkTargetKind.book,
+    this.createdAt,
   });
 
   factory Bookmark.fromJson(Map<String, dynamic> json) {
@@ -109,6 +114,9 @@ class Bookmark {
               orElse: () => BookmarkTargetKind.book,
             )
           : BookmarkTargetKind.book,
+      createdAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt'] as String)
+          : null,
     );
   }
 
@@ -137,6 +145,7 @@ class Bookmark {
       'searchScopeFacets': searchScopeFacets,
       'searchMode': searchMode?.name,
       'targetKind': targetKind.name,
+      'createdAt': createdAt?.toIso8601String(),
     };
   }
 }

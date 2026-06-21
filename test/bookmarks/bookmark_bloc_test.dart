@@ -89,6 +89,12 @@ void main() {
         expect(bloc.state.bookmarks.first.ref, 'בראשית א');
       });
 
+      test('מגדיר createdAt בסימנייה חדשה', () async {
+        final bloc = await _makeBloc();
+        bloc.addBookmark(ref: 'בראשית א', book: _book(), index: 0);
+        expect(bloc.state.bookmarks.first.createdAt, isNotNull);
+      });
+
       test('לא מוסיף סימנייה כפולה (אותו ספר + אותו index) ומחזיר false',
           () async {
         final bloc = await _makeBloc(initial: [_bookmark(ref: 'בראשית א')]);
@@ -468,6 +474,28 @@ void main() {
       };
       final bm = Bookmark.fromJson(json);
       expect(bm.targetKind, BookmarkTargetKind.book);
+    });
+
+    test('toJson/fromJson שומרים createdAt', () {
+      final created = DateTime(2026, 6, 21, 10, 30);
+      final original = Bookmark(
+        ref: 'א',
+        book: _book(),
+        index: 0,
+        createdAt: created,
+      );
+      final restored = Bookmark.fromJson(original.toJson());
+      expect(restored.createdAt, created);
+    });
+
+    test('fromJson מטפל ב-createdAt חסר (ברירת מחדל null)', () {
+      final json = {
+        'ref': 'א',
+        'index': 0,
+        'book': _book().toJson(),
+      };
+      final bm = Bookmark.fromJson(json);
+      expect(bm.createdAt, isNull);
     });
   });
 }

@@ -44,7 +44,8 @@ class BookmarkBloc extends Cubit<BookmarkState> {
         book: book,
         index: index,
         commentatorsToShow: commentatorsToShow ?? [],
-        targetKind: targetKind);
+        targetKind: targetKind,
+        createdAt: DateTime.now());
     // כפילות נמדדת לפי זיהוי הספר + המיקום (index), כדי לאפשר מספר סימניות
     // באותו ספר במיקומים שונים. ref לבדו לא מספיק - ב-PDF כל הסימניות באותו
     // פרק יקבלו ref זהה (כותרת הפרק), וב-TextBook מספר מיקומים באותו סעיף.
