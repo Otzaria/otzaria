@@ -232,15 +232,21 @@ class Library extends Category {
       return candidates.first;
     }
 
-    // חיפוש חלקי - האם הכותרת מכילה או מוכלת
+    // חיפוש חלקי - הכלה כמילה שלמה בלבד (מונע "רות" בתוך "טהרות")
     candidates = allBooks.where((book) {
       if (type != null && book.runtimeType != type) return false;
       String bookNormalized = _normalizeTitle(book.title);
-      return bookNormalized.contains(normalizedTitle) ||
-          normalizedTitle.contains(bookNormalized);
+      return _containsAsWholeWord(bookNormalized, normalizedTitle) ||
+          _containsAsWholeWord(normalizedTitle, bookNormalized);
     }).toList();
 
     return candidates.isNotEmpty ? candidates.first : null;
+  }
+
+  /// בודק אם [needle] מוכל ב-[haystack] כרצף מילים שלם (גבול מילה ברווחים).
+  bool _containsAsWholeWord(String haystack, String needle) {
+    if (needle.isEmpty) return false;
+    return ' $haystack '.contains(' $needle ');
   }
 
   /// מנרמל כותרת לצורך השוואה
