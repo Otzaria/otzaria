@@ -102,12 +102,35 @@ class FindRefRepository {
   /// קטגוריית הספר. In production: [ReferenceBooksCache.instance.getCategoryPathForBookSync].
   final String? Function(int bookId)? getCategoryPathSync;
 
+  /// Injection for testing: חיפוש מצב "דור + נושא". In production:
+  /// [ReferenceBooksCache.instance.searchByEraAndTopic].
+  final List<ReferenceBookHit> Function(
+    CommentaryEra era,
+    List<String> topicTokens, {
+    int limit,
+  })? searchByEraAndTopic;
+
   /// קאש בזיכרון. המפתח כולל את כל הפרמטרים שמשפיעים על תוצאת ה-loader
   /// (`bookId`, `sourceLineId`, `isAltToc`, `tocLevel`, `segment`) — לא מספיק
   /// `bookId:sourceLineId` בלבד: TOC רגיל ו-AltToc יכולים לחלוק את אותה שורת
   /// התחלה (למשל "בראשית פרק א" ו"פרשת בראשית" — שניהם בשורה הראשונה), אך
   /// הטווח המחושב להם שונה. חי כל זמן שה-repository חי; קטן יחסית בפועל.
   final Map<String, List<DbCommentatorEntry>> _commentatorsCache = {};
+
+  /// חיתוך בסיס של רשימת התוצאות. מורחב ע"י [_rankResults] לכל מי שחולק את
+  /// מפתח-הרלוונטיות של התוצאה ה-15, כך שתוצאות שווֹת-רלוונטיות לא נחתכות
+  /// באמצע (ראה גם [_maxResultCap]).
+  static const int _baseResultCap = 15;
+
+  /// תקרת-ביטחון מוחלטת על מספר התוצאות — רשת מפני קבוצת-רלוונטיות פתולוגית
+  /// (למשל נושא רחב במצב era). הסט הלגיטימי הגדול בפועל קטן בהרבה.
+  static const int _maxResultCap = 100;
+
+  /// מילות-דור של טוקן יחיד שמפעילות את מצב "דור + נושא".
+  static const Map<String, CommentaryEra> _singleTokenEras = {
+    'ראשונים': CommentaryEra.rishonim,
+    'אחרונים': CommentaryEra.acharonim,
+  };
 
   /// מפתח קאש לרשומות מפרשים — ראה [_commentatorsCache].
   static String _cacheKeyFor(DbReferenceResult ref) =>
@@ -140,6 +163,7 @@ class FindRefRepository {
     this.fetchCommentatorRows,
     this.getBookEra,
     this.getCategoryPathSync,
+    this.searchByEraAndTopic,
   }) {
     _liveInstances.add(this);
   }
@@ -403,6 +427,15 @@ class FindRefRepository {
           ReferenceBooksCache.instance.warmUp());
     }
 
+    // מצב "דור + נושא": "ראשונים סנהדרין" / "סנהדרין ראשונים" → כל הראשונים על
+    // סנהדרין. מזוהה בכל מיקום בשאילתה. אם הוא לא מחזיר תוצאות — נופלים למסלול
+    // הרגיל כדי שהשאילתה תמיד תעשה משהו סביר.
+    final eraQuery = _detectEraQuery(queryTokens);
+    if (eraQuery != null) {
+      final eraResults = await _findByEra(eraQuery.era, eraQuery.topicTokens);
+      if (eraResults.isNotEmpty) return eraResults;
+    }
+
     final searchBooks =
         searchReferenceBooks ?? ReferenceBooksCache.instance.search;
 
@@ -505,8 +538,7 @@ class FindRefRepository {
 
       final unique = _dedupeRefs(results);
       final ranked = _rankResults(unique, queryTokens);
-      final limited = ranked.length > 15 ? ranked.take(15).toList() : ranked;
-      return await _enrichWithPaths(limited);
+      return await _enrichWithPaths(ranked);
     }
 
     // If the *next* token after the matched book-phrase is an exact book match,
@@ -727,11 +759,74 @@ class FindRefRepository {
     final unique = _dedupeRefs(results);
     final pruned = _suppressDeeperVariants(unique);
     final ranked = _rankResults(pruned, queryTokens);
-    final limited = ranked.length > 15 ? ranked.take(15).toList() : ranked;
 
-    debugPrint('[FindRef] Final results: ${limited.length}');
+    debugPrint('[FindRef] Final results: ${ranked.length}');
 
-    return await _enrichWithPaths(limited);
+    return await _enrichWithPaths(ranked);
+  }
+
+  /// מזהה מילת-דור בשאילתה (בכל מיקום) ומחזיר את הדור + טוקני-הנושא שנותרו.
+  /// תומך ב"ראשונים"/"אחרונים" (טוקן יחיד) וב"מחברי זמננו" (שני טוקנים).
+  ///
+  /// מחזיר `null` אם אין מילת-דור, או אם לא נותר טוקן-נושא **משמעותי** (באורך
+  /// 2 לפחות) — כדי ש"ראשונים" לבד או "ראשונים ב" לא יציפו מאות ספרים.
+  ({CommentaryEra era, List<String> topicTokens})? _detectEraQuery(
+      List<String> tokens) {
+    CommentaryEra? era;
+    final topic = <String>[];
+    for (var i = 0; i < tokens.length; i++) {
+      final tok = tokens[i];
+      // "מחברי זמננו" — שני טוקנים רצופים.
+      if (era == null &&
+          tok == 'מחברי' &&
+          i + 1 < tokens.length &&
+          tokens[i + 1] == 'זמננו') {
+        era = CommentaryEra.modern;
+        i++; // דלג על "זמננו"
+        continue;
+      }
+      final single = _singleTokenEras[tok];
+      if (era == null && single != null) {
+        era = single;
+        continue;
+      }
+      topic.add(tok);
+    }
+    if (era == null) return null;
+    // משאירים רק טוקנים משמעותיים (אורך >=2). טוקן של אות בודדת הוא מציין
+    // מיקום (דף/פרק) ולא חלק משם הספר — להשאירו בהתאמה היה דורש מילה בכותרת
+    // שמתחילה בו ומסנן תוצאות לגיטימיות ("ראשונים סנהדרין ב").
+    final meaningful = topic.where((t) => t.length >= 2).toList();
+    if (meaningful.isEmpty) return null;
+    return (era: era, topicTokens: meaningful);
+  }
+
+  /// בונה תוצאות עבור מצב "דור + נושא": כל הספרים בדור [era] שכותרתם תואמת את
+  /// [topicTokens]. התוצאות הן ברמת-ספר (פתיחה לתחילת הספר), ועוברות את אותו
+  /// דירוג + cap מודע-רלוונטיות של המסלול הרגיל ([_rankResults]).
+  Future<List<DbReferenceResult>> _findByEra(
+      CommentaryEra era, List<String> topicTokens) async {
+    final searchFn =
+        searchByEraAndTopic ?? ReferenceBooksCache.instance.searchByEraAndTopic;
+    final hits = searchFn(era, topicTokens, limit: _maxResultCap);
+    if (hits.isEmpty) return const [];
+
+    final results = [
+      for (final hit in hits)
+        DbReferenceResult(
+          title: hit.title,
+          reference: hit.title,
+          segment: 0,
+          isPdf: hit.fileType == 'pdf',
+          filePath: hit.filePath,
+          orderIndex: hit.orderIndex,
+          bookId: hit.bookId,
+        ),
+    ];
+
+    final unique = _dedupeRefs(results);
+    final ranked = _rankResults(unique, topicTokens);
+    return await _enrichWithPaths(ranked);
   }
 
   /// מסיר ערכי TOC/AltToc כאשר קיים ערך-אב באותו ספר שה-reference שלו הוא
@@ -1027,7 +1122,10 @@ class FindRefRepository {
       );
     });
 
-    decorated.sort((a, b) {
+    // משווה שתי תוצאות לפי **רלוונטיות** בלבד (שכבות 1-7). שובר-השוויון
+    // האלפביתי/אורך-ה-reference אינו רלוונטיות אלא סדר-תצוגה, ולכן אינו כאן —
+    // כך ה-cap המודע-רלוונטיות לא יחתוך באמצע קבוצת תוצאות שווֹת-רלוונטיות.
+    int compareRelevance(_RankKey a, _RankKey b) {
       // 1. התאמה מלאה של שם הספר
       if (a.exactMatch != b.exactMatch) return a.exactMatch ? -1 : 1;
 
@@ -1086,11 +1184,34 @@ class FindRefRepository {
               : b.result.tocLevel + 1);
       if (aRank != bRank) return aRank.compareTo(bRank);
 
-      // 7. ציון קצר יותר עולה קודם (כשאותו ספר מחזיר מספר רמות)
+      return 0;
+    }
+
+    decorated.sort((a, b) {
+      final rel = compareRelevance(a, b);
+      if (rel != 0) return rel;
+      // שובר-שוויון לתצוגה בלבד: ציון קצר יותר עולה קודם.
       return a.result.reference.length.compareTo(b.result.reference.length);
     });
 
-    return decorated.map((d) => d.result).toList();
+    // cap מודע-רלוונטיות: חותכים ב-[_baseResultCap], אך מרחיבים לכל מי שחולק
+    // את מפתח-הרלוונטיות של התוצאה האחרונה שבחיתוך — כך שתוצאות שווֹת-רלוונטיות
+    // מוצגות יחד. הרשימה נעצרת רק כשמגיעים לתוצאה *פחות* רלוונטית.
+    if (decorated.length <= _baseResultCap) {
+      return decorated.map((d) => d.result).toList();
+    }
+    final boundary = decorated[_baseResultCap - 1];
+    var end = _baseResultCap;
+    while (end < decorated.length &&
+        compareRelevance(decorated[end], boundary) == 0) {
+      end++;
+    }
+    if (end > _maxResultCap) {
+      debugPrint(
+          '[FindRef] relevance-tie cap truncated ${decorated.length} → $_maxResultCap');
+      end = _maxResultCap;
+    }
+    return [for (var i = 0; i < end; i++) decorated[i].result];
   }
 
   /// מחזיר true כשהשאילתה נראית כציון בסגנון גמרא (דף + עמוד).

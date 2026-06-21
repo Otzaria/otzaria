@@ -12,6 +12,7 @@ import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/category.dart' as db_models;
 import 'package:otzaria/migration/models/pdf_outline_cache_entry.dart';
+import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 import 'package:pdfrx/pdfrx.dart';
 
@@ -486,6 +487,22 @@ class ReferenceBooksCache {
       ..addAll(books);
   }
 
+  /// בדיקות בלבד — מזריק את הכותרות המנורמלות ונתיבי הקטגוריה ישירות, כדי
+  /// לבדוק את [searchByEraAndTopic] בלי warmUp מלא מול DB.
+  @visibleForTesting
+  void seedForTesting({
+    required Map<int, String> normalizedTitles,
+    required Map<int, String> categoryPaths,
+  }) {
+    _normalizedTitles
+      ..clear()
+      ..addAll(normalizedTitles);
+    _categoryPaths
+      ..clear()
+      ..addAll(categoryPaths);
+    _isLoaded = true;
+  }
+
   /// בדיקות בלבד — חושף את מצב מטמון ה-outline (filePath → Future של ערכי
   /// outline) כדי לבדוק אילו קבצים נטענו.
   @visibleForTesting
@@ -601,6 +618,59 @@ class ReferenceBooksCache {
 
     final merged = <ReferenceBookHit>[...starts, ...contains];
     return merged.length > limit ? merged.take(limit).toList() : merged;
+  }
+
+  /// מצב "דור + נושא" של איתור מקורות: מחזיר את כל הספרים שדורם (לפי נתיב
+  /// הקטגוריה) הוא [era] וכותרתם תואמת את כל [topicTokens]. למשל
+  /// `era=ראשונים, topic=["סנהדרין"]` → "חידושי רמב"ן על סנהדרין", "רש"י על
+  /// סנהדרין" וכו'.
+  ///
+  /// אפס שאילתות DB — מסתמך על [_normalizedTitles] ו-[_categoryPaths] שכבר
+  /// במטמון. ההתאמה בכותרת זהה במהותה ל-[search]: כל טוקן-נושא חייב להופיע
+  /// כתחילית של טוקן כלשהו בכותרת.
+  List<ReferenceBookHit> searchByEraAndTopic(
+    CommentaryEra era,
+    List<String> topicTokens, {
+    int limit = 200,
+  }) {
+    if (topicTokens.isEmpty) return const <ReferenceBookHit>[];
+
+    final hits = <ReferenceBookHit>[];
+    for (final book in BooksCache.instance.books) {
+      final path = _categoryPaths[book.id];
+      if (path == null || path.isEmpty) continue;
+      if (_eraFromCategoryPath(path) != era) continue;
+
+      final t = _normalizedTitles[book.id] ?? '';
+      if (t.isEmpty) continue;
+      final titleTokens = t.split(' ').where((w) => w.isNotEmpty);
+      final matches =
+          topicTokens.every((qt) => titleTokens.any((w) => w.startsWith(qt)));
+      if (!matches) continue;
+
+      hits.add(ReferenceBookHit(
+        bookId: book.id,
+        title: book.title,
+        normalizedTitle: t,
+        filePath: book.filePath ?? '',
+        fileType: book.fileType,
+        matchRank: 0,
+        orderIndex: book.orderIndex,
+      ));
+      if (hits.length >= limit) break;
+    }
+    return hits;
+  }
+
+  /// מסווג ספר לדור לפי segment בנתיב הקטגוריה. מכסה ראשונים/אחרונים/מחברי
+  /// זמננו — אלה היחידים שמופיעים כ-segment בעץ. ספרי-יסוד וקורפוס מקור
+  /// (תנ"ך/תלמוד) אינם מתויגים כך ולכן מוחזרים כ-[CommentaryEra.other].
+  static CommentaryEra _eraFromCategoryPath(String path) {
+    final parts = path.split(', ');
+    if (parts.contains('ראשונים')) return CommentaryEra.rishonim;
+    if (parts.contains('אחרונים')) return CommentaryEra.acharonim;
+    if (parts.contains('מחברי זמננו')) return CommentaryEra.modern;
+    return CommentaryEra.other;
   }
 
   static String _normalizeForMatch(String input) =>

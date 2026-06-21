@@ -4,6 +4,7 @@ import 'package:mockito/mockito.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
 import 'package:otzaria/find_ref/repository/reference_books_cache.dart';
+import 'package:otzaria/services/commentary_service.dart';
 
 class MockDataRepository extends Mock implements DataRepository {}
 
@@ -3118,6 +3119,202 @@ void main() {
 
       expect(loadCount, equals(2),
           reason: 'אחרי clearCaches הרשימה חייבת להיטען מחדש מה-DB');
+    });
+  });
+
+  // ─── מצב "דור + נושא" (era) ──────────────────────────────────────────────
+
+  group('FindRef — מצב era (דור + נושא)', () {
+    /// בונה repository למצב era עם injection של חיפוש ה-era.
+    FindRefRepository buildEraRepo({
+      required List<ReferenceBookHit> Function(
+              CommentaryEra era, List<String> topic)
+          eraSearch,
+      List<ReferenceBookHit> Function(String query, {int limit})? normalSearch,
+      Future<List<Map<String, dynamic>>> Function(int, String,
+              {List<String>? queryTokens})?
+          tocFetch,
+    }) {
+      return FindRefRepository(
+        dataRepository: MockDataRepository(),
+        isReferenceBooksCacheLoaded: () => true,
+        warmUpReferenceBooksCache: () async {},
+        searchReferenceBooks:
+            normalSearch ?? (query, {int limit = 50}) => const [],
+        getTocEntriesForReference:
+            tocFetch ?? (_, __, {queryTokens}) async => const [],
+        getCategoryPathSync: (_) => null,
+        getCategoryPath: (_) async => '',
+        searchByEraAndTopic: (era, topic, {int limit = 200}) =>
+            eraSearch(era, topic),
+      );
+    }
+
+    test('"ראשונים סנהדרין" ו-"סנהדרין ראשונים" — אותו דור ונושא', () async {
+      CommentaryEra? seenEra;
+      List<String>? seenTopic;
+      final repo = buildEraRepo(
+        eraSearch: (era, topic) {
+          seenEra = era;
+          seenTopic = topic;
+          return [
+            _hit(bookId: 1, title: 'חידושי רמב"ן על סנהדרין', orderIndex: 999),
+            _hit(bookId: 2, title: 'רש"י על סנהדרין', orderIndex: 999),
+          ];
+        },
+      );
+
+      final r1 = await repo.findRefs('ראשונים סנהדרין');
+      expect(seenEra, CommentaryEra.rishonim);
+      expect(seenTopic, ['סנהדרין']);
+      expect(r1.map((r) => r.title),
+          containsAll(['חידושי רמב"ן על סנהדרין', 'רש"י על סנהדרין']));
+
+      final r2 = await repo.findRefs('סנהדרין ראשונים');
+      expect(seenEra, CommentaryEra.rishonim);
+      expect(seenTopic, ['סנהדרין'],
+          reason: 'מילת-הדור מזוהה בכל מיקום; הנושא זהה בשני הסדרים');
+      expect(r2, hasLength(2));
+    });
+
+    test('"מחברי זמננו" (שני טוקנים) מזוהה כדור modern', () async {
+      CommentaryEra? seenEra;
+      List<String>? seenTopic;
+      final repo = buildEraRepo(
+        eraSearch: (era, topic) {
+          seenEra = era;
+          seenTopic = topic;
+          return [_hit(bookId: 1, title: 'רשימות שיעורים על סנהדרין')];
+        },
+      );
+
+      await repo.findRefs('מחברי זמננו סנהדרין');
+      expect(seenEra, CommentaryEra.modern);
+      expect(seenTopic, ['סנהדרין']);
+    });
+
+    test('מילת-דור בלבד אינה מפעילה את מצב era', () async {
+      var eraCalled = false;
+      final repo = buildEraRepo(
+        eraSearch: (era, topic) {
+          eraCalled = true;
+          return const [];
+        },
+      );
+
+      await repo.findRefs('ראשונים');
+      expect(eraCalled, isFalse,
+          reason: 'אין טוקן-נושא — חייבים ליפול למסלול הרגיל');
+    });
+
+    test('טוקן-מיקום קצר ("ראשונים סנהדרין ב") אינו נכנס לחיפוש הנושא',
+        () async {
+      List<String>? seenTopic;
+      final repo = buildEraRepo(
+        eraSearch: (era, topic) {
+          seenTopic = topic;
+          return [_hit(bookId: 1, title: 'רש"י על סנהדרין')];
+        },
+      );
+
+      await repo.findRefs('ראשונים סנהדרין ב');
+      expect(seenTopic, ['סנהדרין'],
+          reason: 'ה-"ב" הוא מציין מיקום ומסונן מטוקני-הנושא');
+    });
+
+    test('טוקן-נושא של אות בודדת ("ראשונים ב") אינו מפעיל מצב era', () async {
+      var eraCalled = false;
+      final repo = buildEraRepo(
+        eraSearch: (era, topic) {
+          eraCalled = true;
+          return const [];
+        },
+      );
+
+      await repo.findRefs('ראשונים ב');
+      expect(eraCalled, isFalse);
+    });
+
+    test('כשמצב era ריק — נפילה למסלול הרגיל', () async {
+      var eraCalled = false;
+      final repo = buildEraRepo(
+        eraSearch: (era, topic) {
+          eraCalled = true;
+          return const []; // ריק → fallback
+        },
+        normalSearch: (query, {int limit = 50}) {
+          if (query == 'ראשונים') {
+            return [_hit(bookId: 9, title: 'ראשונים', orderIndex: 1.0)];
+          }
+          return const [];
+        },
+        tocFetch: (bookId, title, {queryTokens}) async {
+          if (bookId == 9 && listEquals(queryTokens, const ['סנהדרין'])) {
+            return [
+              {'reference': 'ראשונים סנהדרין', 'segment': 5, 'level': 2},
+            ];
+          }
+          return const [];
+        },
+      );
+
+      final results = await repo.findRefs('ראשונים סנהדרין');
+      expect(eraCalled, isTrue, reason: 'מצב era נוסה תחילה');
+      expect(results.map((r) => r.reference), contains('ראשונים סנהדרין'),
+          reason: 'התוצאה הגיעה מהמסלול הרגיל אחרי שמצב era החזיר ריק');
+    });
+
+    test('cap מודע-רלוונטיות: תוצאות era שווֹת-רלוונטיות אינן נחתכות ב-15',
+        () async {
+      final repo = buildEraRepo(
+        eraSearch: (era, topic) => List.generate(
+          20,
+          (i) => _hit(bookId: 100 + i, title: 'ספר ראשון $i', orderIndex: 999),
+        ),
+      );
+
+      final results = await repo.findRefs('ראשונים סנהדרין');
+      expect(results, hasLength(20),
+          reason:
+              'כל 20 שווי-רלוונטיות (אותו tier ו-orderIndex) → כולם מוצגים');
+    });
+  });
+
+  // ─── cap מודע-רלוונטיות במסלול הרגיל (גלובלי) ──────────────────────────────
+
+  group('FindRef — cap מודע-רלוונטיות גלובלי', () {
+    test('תוצאות TOC שווֹת-רלוונטיות מאותו ספר אינן נחתכות ב-15', () async {
+      final repo = FindRefRepository(
+        dataRepository: MockDataRepository(),
+        isReferenceBooksCacheLoaded: () => true,
+        warmUpReferenceBooksCache: () async {},
+        getCategoryPathSync: (_) => null,
+        getCategoryPath: (_) async => '',
+        searchReferenceBooks: (query, {int limit = 50}) {
+          if (query == 'ברכות') {
+            return [_hit(bookId: 1, title: 'ברכות', orderIndex: 0.0)];
+          }
+          return const [];
+        },
+        getTocEntriesForReference: (bookId, title, {queryTokens}) async {
+          if (bookId == 1) {
+            // 20 ערכי TOC רמה-2 — זהים בכל מפתחות-הרלוונטיות, נבדלים רק בטקסט.
+            return List.generate(
+              20,
+              (i) => {
+                'reference': 'ברכות פרק ${20 + i}',
+                'segment': i,
+                'level': 2,
+              },
+            );
+          }
+          return const [];
+        },
+      );
+
+      final results = await repo.findRefs('ברכות פרק');
+      expect(results.length, greaterThan(15),
+          reason: 'הכלל הגלובלי מציג את כל שווי-הרלוונטיות, לא רק 15');
     });
   });
 }

@@ -114,6 +114,18 @@ class BooksCache {
     _isLoaded = false;
     _loadingFuture = null;
   }
+
+  /// בדיקות בלבד — מזריק רשימת ספרים ישירות בלי לעבור דרך ה-DB.
+  @visibleForTesting
+  void setBooksForTesting(List<BookCacheEntry> books) {
+    _books
+      ..clear()
+      ..addAll(books);
+    _booksById
+      ..clear()
+      ..addEntries(books.map((b) => MapEntry(b.id, b)));
+    _isLoaded = true;
+  }
 }
 
 /// Represents a single book entry in the cache
