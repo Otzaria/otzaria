@@ -23,6 +23,7 @@ class SettingsState extends Equatable {
   final bool defaultRemoveNikud;
   final bool removeNikudFromTanach;
   final bool defaultSidebarOpen;
+  final bool defaultCommentaryOpen;
   final bool pinSidebar;
   final double sidebarWidth;
   final double facetFilteringWidth;
@@ -72,6 +73,7 @@ class SettingsState extends Equatable {
     required this.defaultRemoveNikud,
     required this.removeNikudFromTanach,
     required this.defaultSidebarOpen,
+    required this.defaultCommentaryOpen,
     required this.pinSidebar,
     required this.sidebarWidth,
     required this.facetFilteringWidth,
@@ -118,6 +120,7 @@ class SettingsState extends Equatable {
       defaultRemoveNikud: false,
       removeNikudFromTanach: false,
       defaultSidebarOpen: false,
+      defaultCommentaryOpen: false,
       pinSidebar: false,
       sidebarWidth: 300,
       facetFilteringWidth: 235,
@@ -160,6 +163,7 @@ class SettingsState extends Equatable {
     bool? defaultRemoveNikud,
     bool? removeNikudFromTanach,
     bool? defaultSidebarOpen,
+    bool? defaultCommentaryOpen,
     bool? pinSidebar,
     double? sidebarWidth,
     double? facetFilteringWidth,
@@ -205,6 +209,8 @@ class SettingsState extends Equatable {
       removeNikudFromTanach:
           removeNikudFromTanach ?? this.removeNikudFromTanach,
       defaultSidebarOpen: defaultSidebarOpen ?? this.defaultSidebarOpen,
+      defaultCommentaryOpen:
+          defaultCommentaryOpen ?? this.defaultCommentaryOpen,
       pinSidebar: pinSidebar ?? this.pinSidebar,
       sidebarWidth: sidebarWidth ?? this.sidebarWidth,
       facetFilteringWidth: facetFilteringWidth ?? this.facetFilteringWidth,
@@ -262,6 +268,7 @@ class SettingsState extends Equatable {
         defaultRemoveNikud,
         removeNikudFromTanach,
         defaultSidebarOpen,
+        defaultCommentaryOpen,
         pinSidebar,
         sidebarWidth,
         facetFilteringWidth,

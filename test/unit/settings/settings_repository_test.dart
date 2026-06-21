@@ -245,6 +245,14 @@ void main() {
           .called(1);
     });
 
+    test('updateDefaultCommentaryOpen calls setValue on settings wrapper',
+        () async {
+      await repository.updateDefaultCommentaryOpen(true);
+      verify(mockSettingsWrapper.setValue(
+              SettingsRepository.keyDefaultCommentaryOpen, true))
+          .called(1);
+    });
+
     test('updatePinSidebar calls setValue on settings wrapper', () async {
       await repository.updatePinSidebar(true);
       verify(mockSettingsWrapper.setValue(

@@ -31,6 +31,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     on<UpdateDefaultRemoveNikud>(_onUpdateDefaultRemoveNikud);
     on<UpdateRemoveNikudFromTanach>(_onUpdateRemoveNikudFromTanach);
     on<UpdateDefaultSidebarOpen>(_onUpdateDefaultSidebarOpen);
+    on<UpdateDefaultCommentaryOpen>(_onUpdateDefaultCommentaryOpen);
     on<UpdatePinSidebar>(_onUpdatePinSidebar);
     on<UpdateSidebarWidth>(_onUpdateSidebarWidth);
     on<UpdateFacetFilteringWidth>(_onUpdateFacetFilteringWidth);
@@ -92,6 +93,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       defaultRemoveNikud: settings['defaultRemoveNikud'],
       removeNikudFromTanach: settings['removeNikudFromTanach'],
       defaultSidebarOpen: settings['defaultSidebarOpen'],
+      defaultCommentaryOpen: settings['defaultCommentaryOpen'],
       pinSidebar: settings['pinSidebar'],
       sidebarWidth: settings['sidebarWidth'],
       facetFilteringWidth: settings['facetFilteringWidth'],
@@ -114,8 +116,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       personalNotesCollapsedByDefault:
           settings['personalNotesCollapsedByDefault'] ?? true,
       compactMenuMode: settings['compactMenuMode'] ?? false,
-      mergeUserBooksIntoLibrary:
-          settings['mergeUserBooksIntoLibrary'] ?? false,
+      mergeUserBooksIntoLibrary: settings['mergeUserBooksIntoLibrary'] ?? false,
       protectedModeEnabled: settings['protectedModeEnabled'] ?? false,
       hiddenBuiltInToolIds:
           (settings['hiddenBuiltInToolIds'] as Set<String>?) ?? <String>{},
@@ -393,6 +394,14 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   ) async {
     await _repository.updateDefaultSidebarOpen(event.defaultSidebarOpen);
     emit(state.copyWith(defaultSidebarOpen: event.defaultSidebarOpen));
+  }
+
+  Future<void> _onUpdateDefaultCommentaryOpen(
+    UpdateDefaultCommentaryOpen event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateDefaultCommentaryOpen(event.defaultCommentaryOpen);
+    emit(state.copyWith(defaultCommentaryOpen: event.defaultCommentaryOpen));
   }
 
   Future<void> _onUpdatePinSidebar(

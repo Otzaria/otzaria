@@ -16,6 +16,7 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dart';
+import 'package:otzaria/utils/ui/commentary_pane_policy.dart';
 import 'package:otzaria/models/links.dart' as otz_links;
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/services/commentary_service.dart';
@@ -2526,6 +2527,29 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     setState(() => widget.tab.activeCommentators.addAll(selection));
   }
 
+  // פתיחה אוטומטית של פאנל המפרשים מתבצעת פעם אחת בלבד לכל טעינת מסך.
+  bool _didAutoOpenCommentary = false;
+
+  /// פותח אוטומטית את פאנל המפרשים (right pane) בפתיחת ספר, אם ההגדרה דולקת
+  /// ויש מפרשים נבחרים. פעם אחת בלבד, כדי לא להיאבק עם סגירה ידנית של המשתמש.
+  void _maybeAutoOpenCommentaryPane() {
+    if (!mounted) return;
+    final pdfState = _bloc.state;
+    if (!shouldAutoOpenCommentaryPane(
+      settingEnabled: context.read<SettingsBloc>().state.defaultCommentaryOpen,
+      isSupportedMode: true,
+      hasSelectedCommentators: widget.tab.activeCommentators.isNotEmpty,
+      alreadyAutoOpened: _didAutoOpenCommentary,
+      paneAlreadyOpen: pdfState is PdfBookLoaded && pdfState.showRightPane,
+    )) {
+      return;
+    }
+    _didAutoOpenCommentary = true;
+    _bloc.add(const pdf_events.ToggleRightPane(show: true, initialTabIndex: 0));
+    // פתיחה אוטומטית נחשבת כ"שימוש במפרשים" — מדכאת את טיפ "כדאי לפתוח מפרשים".
+    _recordCommentaryOpenedIfNeeded();
+  }
+
   Future<void> _loadCommentatorGroups() async {
     final commentatorsSet = <String>{};
     for (final link in widget.tab.links) {
@@ -2534,7 +2558,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         commentatorsSet.add(utils.getTitleFromPath(link.path2));
       }
     }
+    // ודא שבחירה שמורה הוחלה לפני קביעת ברירת מחדל והפתיחה האוטומטית.
+    await _loadActiveCommentators();
     await _applyDefaultCommentatorsIfNeeded(commentatorsSet.toList());
+    _maybeAutoOpenCommentaryPane();
     final eras = await utils.splitByEra(commentatorsSet.toList());
     final known = <String>{
       ...?eras['תורה שבכתב'],

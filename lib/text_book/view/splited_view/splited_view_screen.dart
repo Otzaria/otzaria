@@ -11,6 +11,7 @@ import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart';
 import 'package:otzaria/text_book/view/tabbed_commentary_panel.dart';
 import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
+import 'package:otzaria/utils/ui/commentary_pane_policy.dart';
 import 'package:otzaria/tour/bloc/tour_cubit.dart';
 import 'package:otzaria/tour/models/live_tip.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
@@ -53,6 +54,8 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
 
   late final MultiSplitViewController _controller;
   bool _paneOpen = false;
+  // פתיחה אוטומטית של פאנל המפרשים מתבצעת פעם אחת בלבד לכל טעינת מסך.
+  bool _didAutoOpenCommentary = false;
   int? _currentTabIndex;
   late double _leftPaneWidth;
   final ValueNotifier<String?> _savedSelectedText =
@@ -78,6 +81,11 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
     widget.tab.toggleCommentatorsPaneNotifier
         .addListener(_onToggleCommentatorsPaneRequest);
     widget.tab.openNotesTabNotifier.addListener(_onOpenNotesTabRequest);
+    // אם המפרשים כבר נטענו עד שהמסך נבנה — ה-BlocListener לא יראה מעבר,
+    // לכן בודקים גם פעם אחת אחרי ה-frame הראשון.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _maybeAutoOpenCommentaryPane();
+    });
   }
 
   /// טוגל חכם של חלונית המפרשים מקיצור מקלדת:
@@ -237,6 +245,36 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
     }
   }
 
+  /// פותח אוטומטית את פאנל המפרשים בפתיחת ספר, אם ההגדרה דולקת, אנחנו במצב
+  /// "מפרשים בצד" (showSplitView) ויש מפרשים נבחרים. פעם אחת בלבד, כדי לא
+  /// להיאבק עם סגירה ידנית של המשתמש. במצב "מפרשים מתחת"/"צורת הדף" לא רלוונטי.
+  void _maybeAutoOpenCommentaryPane() {
+    if (!mounted) return;
+    final state = context.read<TextBookBloc>().state;
+    if (state is! TextBookLoaded) return;
+    if (!shouldAutoOpenCommentaryPane(
+      settingEnabled: context.read<SettingsBloc>().state.defaultCommentaryOpen,
+      isSupportedMode: widget.showSplitView,
+      hasSelectedCommentators: state.activeCommentators.isNotEmpty,
+      alreadyAutoOpened: _didAutoOpenCommentary,
+      paneAlreadyOpen: _paneOpen,
+    )) {
+      return;
+    }
+    _didAutoOpenCommentary = true;
+    setState(() {
+      _paneOpen = true;
+      _currentTabIndex = _commentaryTabIndex;
+    });
+    // פתיחה אוטומטית נחשבת כ"שימוש במפרשים" — מדכאת את טיפ "כדאי לפתוח מפרשים".
+    context.read<TourCubit>().recordInteraction(
+          TourInteraction(
+            type: TourInteractionType.commentaryUsed,
+            primaryValue: widget.tab.title,
+          ),
+        );
+  }
+
   @override
   void dispose() {
     widget.tab.toggleCommentatorsPaneNotifier
@@ -263,8 +301,9 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
         return false;
       },
       listener: (context, state) {
-        // מפרשים עברו לטור הימני, אז לא צריך לפתוח את הטור השמאלי
-        // כשמוסיפים מפרשים
+        // כשמפרשים נטענים בפתיחה (ברירת מחדל/שמורים) — פתח את הפאנל אוטומטית
+        // אם ההגדרה דולקת.
+        _maybeAutoOpenCommentaryPane();
       },
       child: TextBookStateBuilder(
         buildWhen: (previous, current) {

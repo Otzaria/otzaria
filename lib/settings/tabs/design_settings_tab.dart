@@ -320,6 +320,20 @@ class DesignSettingsTab extends StatelessWidget {
                         },
                       ),
                       SwitchSettingsTile.text(
+                        icon: FluentIcons.panel_right_24_regular,
+                        title: 'פתיחת פאנל המפרשים בפתיחת ספר',
+                        subtitle: state.defaultCommentaryOpen
+                            ? 'פאנל המפרשים ייפתח אוטומטית כשיש מפרשים נבחרים '
+                                '(מפרשים בצד ו-PDF בלבד)'
+                            : 'פאנל המפרשים לא ייפתח אוטומטית בפתיחת ספר',
+                        value: state.defaultCommentaryOpen,
+                        onChanged: (value) {
+                          context
+                              .read<SettingsBloc>()
+                              .add(UpdateDefaultCommentaryOpen(value));
+                        },
+                      ),
+                      SwitchSettingsTile.text(
                         title: 'פתיחת הערות אישיות במצב סגור',
                         subtitle: state.personalNotesCollapsedByDefault
                             ? 'רשימות ההערות יוצגו כשהן סגורות'

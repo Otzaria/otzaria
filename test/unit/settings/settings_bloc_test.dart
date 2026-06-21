@@ -48,6 +48,7 @@ void main() {
         'defaultRemoveNikud': true,
         'removeNikudFromTanach': true,
         'defaultSidebarOpen': true,
+        'defaultCommentaryOpen': true,
         'pinSidebar': true,
         'sidebarWidth': 300.0,
         'facetFilteringWidth': 235.0,
@@ -100,6 +101,8 @@ void main() {
             removeNikudFromTanach:
                 mockSettings['removeNikudFromTanach'] as bool,
             defaultSidebarOpen: mockSettings['defaultSidebarOpen'] as bool,
+            defaultCommentaryOpen:
+                mockSettings['defaultCommentaryOpen'] as bool,
             pinSidebar: mockSettings['pinSidebar'] as bool,
             sidebarWidth: mockSettings['sidebarWidth'] as double,
             facetFilteringWidth: mockSettings['facetFilteringWidth'] as double,
@@ -251,6 +254,20 @@ void main() {
       );
     });
 
+    group('UpdateDefaultCommentaryOpen', () {
+      blocTest<SettingsBloc, SettingsState>(
+        'emits updated state when UpdateDefaultCommentaryOpen is added',
+        build: () => settingsBloc,
+        act: (bloc) => bloc.add(const UpdateDefaultCommentaryOpen(true)),
+        expect: () => [
+          settingsBloc.state.copyWith(defaultCommentaryOpen: true),
+        ],
+        verify: (_) {
+          verify(mockRepository.updateDefaultCommentaryOpen(true)).called(1);
+        },
+      );
+    });
+
     group('UpdatePinSidebar', () {
       blocTest<SettingsBloc, SettingsState>(
         'emits updated state when UpdatePinSidebar is added',
@@ -306,8 +323,7 @@ void main() {
               .thenAnswer((_) async {});
           return settingsBloc;
         },
-        act: (bloc) =>
-            bloc.add(const UpdateMergeUserBooksIntoLibrary(true)),
+        act: (bloc) => bloc.add(const UpdateMergeUserBooksIntoLibrary(true)),
         expect: () => [
           settingsBloc.state.copyWith(mergeUserBooksIntoLibrary: true),
         ],

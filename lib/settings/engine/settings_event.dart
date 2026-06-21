@@ -181,6 +181,15 @@ class UpdateDefaultSidebarOpen extends SettingsEvent {
   List<Object?> get props => [defaultSidebarOpen];
 }
 
+class UpdateDefaultCommentaryOpen extends SettingsEvent {
+  final bool defaultCommentaryOpen;
+
+  const UpdateDefaultCommentaryOpen(this.defaultCommentaryOpen);
+
+  @override
+  List<Object?> get props => [defaultCommentaryOpen];
+}
+
 class UpdatePinSidebar extends SettingsEvent {
   final bool pinSidebar;
 
