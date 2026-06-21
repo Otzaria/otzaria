@@ -177,16 +177,11 @@ class DataRepository {
 
     final searchEntries = <BookSearchEntry>[
       for (var i = 0; i < allBooks.length; i++)
-        BookSearchEntry(
-          index: i,
-          title: allBooks[i].title,
-          author: allBooks[i].author ?? '',
-          topics: allBooks[i].topics,
-          acronyms: allBooks[i].id == null
-              ? const []
-              : AcronymsCache.instance.getAcronymsForBook(allBooks[i].id!) ??
-                  const [],
-          eraOrder: GenerationCache.instance.getOrderForBook(allBooks[i].id),
+        buildBookSearchEntry(
+          i,
+          allBooks[i],
+          acronymsForId: AcronymsCache.instance.getAcronymsForBook,
+          eraOrderForId: GenerationCache.instance.getOrderForBook,
         ),
     ];
 
@@ -214,6 +209,30 @@ class DataRepository {
   }
 }
 
+/// בונה [BookSearchEntry] לספר בודד. ה-lookups מוזרקים כדי לאפשר בדיקה
+/// בלי DB. עבור ספר אישי מדלגים על כינויים ודור — ל-id שלו אין משמעות
+/// במאגרים הרשמיים (מרחבי id נפרדים), אחרת הוא יורש נתון של ספר רשמי זר.
+@visibleForTesting
+BookSearchEntry buildBookSearchEntry(
+  int index,
+  Book book, {
+  required List<String>? Function(int bookId) acronymsForId,
+  required int Function(int? bookId) eraOrderForId,
+}) {
+  final id = book.id;
+  return BookSearchEntry(
+    index: index,
+    title: book.title,
+    author: book.author ?? '',
+    topics: book.topics,
+    acronyms: id == null || book.isUserBook
+        ? const []
+        : acronymsForId(id) ?? const [],
+    eraOrder: eraOrderForId(book.isUserBook ? null : id),
+    isUserBook: book.isUserBook,
+  );
+}
+
 @visibleForTesting
 class BookSearchEntry {
   final int index;
@@ -227,6 +246,9 @@ class BookSearchEntry {
   /// סדר הדור של הספר (נמוך = מוקדם). ראה [GenerationCache]; ברירת מחדל = סוף.
   final int eraOrder;
 
+  /// ספר אישי של המשתמש — תמיד אחרון בתוך תת-המיון של הדורות.
+  final bool isUserBook;
+
   const BookSearchEntry({
     required this.index,
     required this.title,
@@ -234,6 +256,7 @@ class BookSearchEntry {
     required this.topics,
     this.acronyms = const [],
     this.eraOrder = 5,
+    this.isUserBook = false,
   });
 }
 
@@ -268,6 +291,7 @@ List<int> filterBookSearchEntries({
       topics: topics,
       acronyms: entry.acronyms,
       eraOrder: entry.eraOrder,
+      isUserBook: entry.isUserBook,
     );
   });
 
@@ -312,11 +336,14 @@ List<int> filterBookSearchEntries({
                       ? 1
                       : 0,
           eraOrder: entry.eraOrder,
+          isUserBook: entry.isUserBook,
           ratio: ratio(normalizedQuery, entry.normalizedTitle),
         ),
     ]..sort((a, b) {
         if (a.tier != b.tier) return b.tier.compareTo(a.tier);
         if (a.eraOrder != b.eraOrder) return a.eraOrder.compareTo(b.eraOrder);
+        // בתוך אותו דור — ספרים אישיים תמיד אחרונים.
+        if (a.isUserBook != b.isUserBook) return a.isUserBook ? 1 : -1;
         if (a.ratio != b.ratio) return b.ratio.compareTo(a.ratio);
         return a.index.compareTo(b.index);
       });
@@ -340,6 +367,7 @@ class _PreparedBookSearchEntry {
   final Set<String> topics;
   final List<String> acronyms;
   final int eraOrder;
+  final bool isUserBook;
 
   const _PreparedBookSearchEntry({
     required this.index,
@@ -348,6 +376,7 @@ class _PreparedBookSearchEntry {
     required this.topics,
     required this.acronyms,
     required this.eraOrder,
+    required this.isUserBook,
   });
 }
 
@@ -355,12 +384,14 @@ class _ScoredBookSearchEntry {
   final int index;
   final int tier;
   final int eraOrder;
+  final bool isUserBook;
   final int ratio;
 
   const _ScoredBookSearchEntry({
     required this.index,
     required this.tier,
     required this.eraOrder,
+    required this.isUserBook,
     required this.ratio,
   });
 }
