@@ -53,9 +53,10 @@ class PersonalNotesService {
     int? selectionColumn,
   }) async {
     final lines = splitBookContentIntoLines(bookContent);
-    // Handle empty book content - use line 1 as minimum
-    final maxLine = lines.isEmpty ? 1 : lines.length;
-    final normalizedLineNumber = lineNumber.clamp(1, maxLine);
+    // ספר ללא תוכן טקסטואלי (PDF): lineNumber הוא מספר עמוד ונשמר כפי שהוא,
+    // אחרת כיווץ ל-1 היה מאחד את כל ההערות לעמוד הראשון.
+    final normalizedLineNumber =
+        lines.isEmpty ? max(1, lineNumber) : lineNumber.clamp(1, lines.length);
 
     // Use selectedText if provided, otherwise extract display text from the line
     // Always remove nikud and te'amim from the display title
@@ -163,9 +164,10 @@ class PersonalNotesService {
     }
 
     final lines = splitBookContentIntoLines(bookContent);
-    // Handle empty book content - use line 1 as minimum
-    final maxLine = lines.isEmpty ? 1 : lines.length;
-    final normalizedLineNumber = lineNumber.clamp(1, maxLine);
+    // ספר ללא תוכן טקסטואלי (PDF): lineNumber הוא מספר עמוד ונשמר כפי שהוא,
+    // אחרת כיווץ ל-1 היה מאחד את כל ההערות לעמוד הראשון.
+    final normalizedLineNumber =
+        lines.isEmpty ? max(1, lineNumber) : lineNumber.clamp(1, lines.length);
     final newDisplayTitle = extractDisplayTextFromLines(
         lines, normalizedLineNumber,
         excludeBookTitle: bookId);
@@ -189,6 +191,12 @@ class PersonalNotesService {
   PersonalNote _reconcileLocation(
       PersonalNote note, List<String> lines, String bookId) {
     if (note.status == PersonalNoteStatus.missing || note.lineNumber == null) {
+      return note;
+    }
+
+    // ספר ללא תוכן טקסטואלי (PDF): אין שורות לעגן אליהן — ה-lineNumber הוא
+    // מספר עמוד ונשאר תקף, בלי לסמן 'חסר'.
+    if (lines.isEmpty) {
       return note;
     }
 

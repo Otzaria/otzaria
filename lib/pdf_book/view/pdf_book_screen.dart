@@ -4070,20 +4070,24 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     final currentPage = widget.tab.pdfViewerController.isReady
         ? (widget.tab.pdfViewerController.pageNumber ?? 1)
         : 1;
+    // עיגון למספר השורה הלוגי בטקסט המקביל (כמו מפרשים/קישורים), כדי שכותרת
+    // ההערה והסינון לפי עמוד נוכחי יתאימו. בספרים ללא טקסט מקביל
+    // currentTextLineNumber שווה ממילא לעמוד הפיזי.
+    final anchorLine = widget.tab.currentTextLineNumber ?? currentPage;
 
     final notesBloc = context.read<PersonalNotesBloc>();
 
     final draftService = PersonalNoteDraftService();
     final draft = await draftService.loadDraft(
       bookId: widget.tab.book.title,
-      lineNumber: currentPage,
+      lineNumber: anchorLine,
     );
 
     if (!mounted) return;
 
     notesBloc.add(StartCreatingPersonalNote(
       bookId: widget.tab.book.title,
-      lineNumber: currentPage,
+      lineNumber: anchorLine,
       referenceText: 'עמוד $currentPage',
       initialContent: draft?.content ?? '',
       initialFormat: draft?.contentFormat ?? PersonalNoteContentFormat.plain,

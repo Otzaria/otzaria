@@ -6,8 +6,10 @@ import 'package:otzaria/utils/text/ref_helper.dart';
 
 /// כתובת המיקום של הערה אישית (שם הספר + דף/עמוד), לתצוגה כשורת משנה בכרטיס.
 ///
-/// בטקסט נגזרת מ-[tableOfContents] לפי שורת ההערה, וב-PDF מ-[pdfOutline] לפי
-/// מספר העמוד. מחזירה null כשאין להערה מיקום או כשמקור הכתובת עדיין לא נטען.
+/// בטקסט נגזרת מ-[tableOfContents] לפי שורת ההערה. ב-PDF נגזרת מ-[pdfOutline]
+/// לפי מספר העמוד — אך כשלהערה יש כותרת (מילות הדף, ב-PDF עם טקסט מקביל)
+/// מוחזר null, כי הכותרת כבר כוללת את המיקום והכתובת הנפרדת הייתה שגויה.
+/// מחזירה null גם כשאין להערה מיקום או כשמקור הכתובת עדיין לא נטען.
 /// [includeBookTitle] קובע אם להקדים את שם הספר — כבים אותו כשהשם כבר מוצג
 /// בנפרד (למשל ככותרת קבוצה במסך הריכוז).
 String? personalNoteLocationRef(
@@ -20,6 +22,13 @@ String? personalNoteLocationRef(
 }) {
   final lineNumber = note.lineNumber;
   if (lineNumber == null) return null;
+
+  // ב-PDF העוגן הוא שורת-טקסט לוגית, אך הכתובת מחושבת ממספר עמוד — אי-התאמה
+  // שמייצרת כתובת שגויה. כשכבר יש כותרת (מילות הדף) היא כוללת את המיקום, ולכן
+  // מדלגים על הכתובת הנפרדת. בלי כותרת (PDF ללא טקסט) משאירים אותה כפי שהיא.
+  if (isPdf && (note.displayTitle?.isNotEmpty ?? false)) {
+    return null;
+  }
 
   String ref;
   if (isPdf) {

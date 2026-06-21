@@ -1,12 +1,15 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/utils/note_location_ref.dart';
 
-PersonalNote _note({required int? lineNumber}) => PersonalNote(
+PersonalNote _note({required int? lineNumber, String? displayTitle}) =>
+    PersonalNote(
       id: 'n',
       bookId: 'בבא קמא',
       lineNumber: lineNumber,
+      displayTitle: displayTitle,
       lastKnownLineNumber: null,
       status: lineNumber == null
           ? PersonalNoteStatus.missing
@@ -82,12 +85,40 @@ void main() {
   });
 
   group('personalNoteLocationRef - PDF', () {
+    final outline = [
+      PdfOutlineNode(
+        title: 'דף ט',
+        dest: const PdfDest(3, PdfDestCommand.unknown, null),
+        children: const [],
+      ),
+    ];
+
     test('מחזיר null כשה-outline עדיין לא נטען', () {
       final ref = personalNoteLocationRef(
         _note(lineNumber: 3),
         isPdf: true,
         bookTitle: 'בבא קמא',
         pdfOutline: null,
+      );
+      expect(ref, isNull);
+    });
+
+    test('בונה כתובת מהעמוד כשאין כותרת (PDF ללא טקסט מקביל)', () {
+      final ref = personalNoteLocationRef(
+        _note(lineNumber: 3),
+        isPdf: true,
+        bookTitle: 'בבא קמא',
+        pdfOutline: outline,
+      );
+      expect(ref, 'בבא קמא, דף ט');
+    });
+
+    test('מדלג על הכתובת כשיש כותרת — היא כבר כוללת את המיקום', () {
+      final ref = personalNoteLocationRef(
+        _note(lineNumber: 3, displayTitle: 'דף ט.'),
+        isPdf: true,
+        bookTitle: 'בבא קמא',
+        pdfOutline: outline,
       );
       expect(ref, isNull);
     });
