@@ -572,4 +572,70 @@ void main() {
           equals(bBefore.map((r) => r['reference']).toList()));
     });
   });
+
+  // ── Fallback שטוח לכותרת עמוקה כשאין alt_toc ("הזוהר המתורגם דף לו") ────────
+  group('SeforimRepository — fallback שטוח ל-TOC עמוק בלי alt_toc', () {
+    // מבנה זהה ל"הזוהר המתורגם": ספר(L1) → פרשה(L2) → דף(L3), ללא alt_toc.
+    Future<int> buildBuriedDafBook(String title) async {
+      final catId = await createCategory();
+      final bookId = await createBook(catId, title);
+      await insertLines(bookId, ['l0', 'l1', 'l2', 'l3']);
+
+      final bookNode =
+          await insertToc(bookId: bookId, lineIndex: 0, text: title, level: 1);
+      final parsha = await insertToc(
+          bookId: bookId,
+          lineIndex: 0,
+          text: 'פרשת בראשית',
+          level: 2,
+          parentId: bookNode);
+      await insertToc(
+          bookId: bookId,
+          lineIndex: 1,
+          text: 'דף לו עמוד א',
+          level: 3,
+          parentId: parsha);
+      await insertToc(
+          bookId: bookId,
+          lineIndex: 2,
+          text: 'דף לז עמוד א',
+          level: 3,
+          parentId: parsha);
+
+      await repository.updateTocEntryLineIdsByLineIndex(bookId);
+      return bookId;
+    }
+
+    test('טוקן בודד "לו" מגיע ל"דף לו" העמוק כש-alt_toc חסר', () async {
+      final bookId = await buildBuriedDafBook('הזוהר המתורגם בראשית');
+
+      final results = await repository.getTocEntriesForReference(
+          bookId, 'הזוהר המתורגם בראשית',
+          queryTokens: ['לו']);
+
+      // רק "דף לו" — ולא "דף לז" — מאשר שאין הצפה (ההגנה: הטוקן בעלה).
+      expect(results, hasLength(1));
+      expect(results.first['reference'], contains('דף לו עמוד א'));
+      expect(results.first['reference'], isNot(contains('דף לז')));
+      expect(results.first['level'], equals(3));
+    });
+
+    test('כש-ההיררכי מצליח ה-fallback לא נכנס — אין הזרקת "דף" מיותרת',
+        () async {
+      final bookId = await buildBuriedDafBook('הזוהר המתורגם בראשית');
+
+      // "בראשית" תואם היררכית את צומת הספר (L1) → ההיררכי מחזיר אותו וה-fallback
+      // נדלג. אסור שיופיעו ערכי ה"דף" העמוקים.
+      final results = await repository.getTocEntriesForReference(
+          bookId, 'הזוהר המתורגם בראשית',
+          queryTokens: ['בראשית']);
+
+      expect(results, hasLength(1));
+      expect(results.first['level'], equals(1));
+      expect(
+        results.every((r) => !(r['reference'] as String).contains('דף')),
+        isTrue,
+      );
+    });
+  });
 }

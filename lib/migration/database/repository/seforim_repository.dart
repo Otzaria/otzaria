@@ -2417,7 +2417,19 @@ extension BookAcronymRepository on SeforimRepository {
 
     // חיפוש היררכי: יורד רמה-אחר-רמה עם תמיכה בטרנספוזיציית אותיות.
     final matches = _searchTocHierarchically(cache, queryTokens);
-    return matches.map((e) => e.toMap()).toList();
+    if (matches.isNotEmpty) {
+      return matches.map((e) => e.toMap()).toList();
+    }
+
+    // Fallback שטוח — רק כשההיררכי לא מצא דבר **ולספר אין מבנה alt_toc**.
+    // מאפשר לטוקן בודד להגיע לכותרת עמוקה (כמו "דף לו" תחת ספר→פרשה→דף
+    // ב"הזוהר המתורגם") בלי לדרוש את שמות הביניים. ספרים עם alt_toc ("ספר
+    // הזהר") כבר חושפים דפים שם — להם נשמר החיפוש ההיררכי בלבד, כדי לא
+    // להציף בכותרות-משנה לא רלוונטיות ("פרק לו"/"סימן לו").
+    final altCache = await _buildAltTocCacheForBook(bookId, bookTitle);
+    if (altCache.all.isNotEmpty) return const [];
+
+    return _searchTocFlat(cache, queryTokens).map((e) => e.toMap()).toList();
   }
 
   /// מחזיר את שורות המפרשים הגולמיות עבור תוצאת איתור מקורות, מוכנות לעיבוד
@@ -2654,6 +2666,30 @@ extension BookAcronymRepository on SeforimRepository {
       yield child;
       yield* _getAllDescendants(cache, child);
     }
+  }
+
+  /// חיפוש **שטוח** על ה-TOC הרגיל — מבנה זהה ל-[_searchAltTocFlat], אך מחשב
+  /// את טוקני הנתיב מתוך ה-reference (ה-TOC הרגיל אינו שומר `pathTokens`).
+  /// משמש כ-fallback בלבד (ראה [getTocEntriesForReference]); ההגנה מפני הצפה
+  /// זהה: הטוקן האחרון חייב להופיע בעלה עצמו, וכל הטוקנים בנתיב המלא.
+  List<_CachedTocEntry> _searchTocFlat(
+      _TocBookCache cache, List<String> tokens) {
+    if (tokens.isEmpty) return const [];
+
+    final lastAlts = _hebrewTokenAlternatives(tokens.last);
+
+    return cache.all.where((e) {
+      if (!lastAlts.any((a) => e.ownTokens.contains(a))) return false;
+      final pathTokens = normalizeForFindRefMatch(e.reference)
+          .split(' ')
+          .where((t) => t.isNotEmpty)
+          .toList(growable: false);
+      for (final token in tokens) {
+        final alts = _hebrewTokenAlternatives(token);
+        if (!alts.any((a) => pathTokens.contains(a))) return false;
+      }
+      return true;
+    }).toList();
   }
 
   // ─────────────────────────────────────────────────────────────────────────
