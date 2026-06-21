@@ -285,6 +285,12 @@ class TextSettingsTab extends StatelessWidget {
                                   .add(UpdateFontFamily(value));
                             }
                           },
+                          bold: state.fontBold,
+                          onBoldChanged: (value) {
+                            context
+                                .read<SettingsBloc>()
+                                .add(UpdateFontBold(value));
+                          },
                         ),
                       ],
                     ),
@@ -322,6 +328,12 @@ class TextSettingsTab extends StatelessWidget {
                                   .read<SettingsBloc>()
                                   .add(UpdateFontFamily(value));
                             }
+                          },
+                          bold: state.fontBold,
+                          onBoldChanged: (value) {
+                            context
+                                .read<SettingsBloc>()
+                                .add(UpdateFontBold(value));
                           },
                         ),
                       ),
@@ -369,6 +381,12 @@ class TextSettingsTab extends StatelessWidget {
                                   .add(UpdateCommentatorsFontFamily(value));
                             }
                           },
+                          bold: state.commentatorsFontBold,
+                          onBoldChanged: (value) {
+                            context
+                                .read<SettingsBloc>()
+                                .add(UpdateCommentatorsFontBold(value));
+                          },
                         ),
                       ],
                     ),
@@ -408,6 +426,12 @@ class TextSettingsTab extends StatelessWidget {
                                   .read<SettingsBloc>()
                                   .add(UpdateCommentatorsFontFamily(value));
                             }
+                          },
+                          bold: state.commentatorsFontBold,
+                          onBoldChanged: (value) {
+                            context
+                                .read<SettingsBloc>()
+                                .add(UpdateCommentatorsFontBold(value));
                           },
                         ),
                       ),
@@ -828,12 +852,18 @@ class _FontDropdown extends StatelessWidget {
   final FontCategory? categoryFilter;
   final ValueChanged<String?> onChanged;
 
+  /// האם הגופן מוצג כעת במשקל מודגש (בולד).
+  final bool bold;
+  final ValueChanged<bool> onBoldChanged;
+
   const _FontDropdown({
     required this.icon,
     required this.label,
     required this.value,
     required this.categoryFilter,
     required this.onChanged,
+    required this.bold,
+    required this.onBoldChanged,
   });
 
   @override
@@ -910,6 +940,14 @@ class _FontDropdown extends StatelessWidget {
             },
             onSelected: onChanged,
           ),
+        ),
+        const SizedBox(width: 8),
+        IconButton(
+          tooltip: bold ? 'הצגה במשקל רגיל' : 'הדגשת הגופן (בולד)',
+          isSelected: bold,
+          onPressed: () => onBoldChanged(!bold),
+          icon: const RtlIcon(FluentIcons.text_bold_24_regular),
+          selectedIcon: const RtlIcon(FluentIcons.text_bold_24_filled),
         ),
       ],
     );

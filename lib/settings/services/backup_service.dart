@@ -160,6 +160,8 @@ class BackupService {
       SettingsRepository.keySwatchColor,
       SettingsRepository.keyFontSize,
       SettingsRepository.keyFontFamily,
+      SettingsRepository.keyFontBold,
+      SettingsRepository.keyCommentatorsFontBold,
       SettingsRepository.keyShowOtzarHachochma,
       SettingsRepository.keyShowHebrewBooks,
       SettingsRepository.keyShowExternalBooks,

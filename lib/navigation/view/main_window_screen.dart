@@ -2237,6 +2237,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
                   previous.fontFamily != current.fontFamily ||
                   previous.commentatorsFontFamily !=
                       current.commentatorsFontFamily ||
+                  previous.fontBold != current.fontBold ||
+                  previous.commentatorsFontBold !=
+                      current.commentatorsFontBold ||
                   previous.commentatorsFontSize !=
                       current.commentatorsFontSize ||
                   previous.lineHeight != current.lineHeight ||

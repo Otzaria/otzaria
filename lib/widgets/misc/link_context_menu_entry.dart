@@ -122,6 +122,9 @@ class LinkHoverPreviewContent extends StatelessWidget {
                         replaceHolyNames: settingsState.replaceHolyNames,
                         fontSize: settingsState.commentatorsFontSize,
                         fontFamily: settingsState.commentatorsFontFamily,
+                        fontWeight: settingsState.commentatorsFontBold
+                            ? FontWeight.bold
+                            : null,
                         lineHeight: settingsState.lineHeight,
                         justifyText: true,
                       ),

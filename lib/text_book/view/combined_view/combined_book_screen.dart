@@ -1188,6 +1188,7 @@ class _CombinedViewState extends State<CombinedView> {
       searchDistance: state.searchDistance,
       fontSize: widget.textSize,
       fontFamily: settingsState.fontFamily,
+      fontWeight: settingsState.fontBold ? FontWeight.bold : null,
       lineHeight: settingsState.lineHeight,
     );
   }
@@ -1780,6 +1781,8 @@ class _CombinedViewState extends State<CombinedView> {
                             searchDistance: state.searchDistance,
                             fontSize: widget.textSize,
                             fontFamily: settingsState.fontFamily,
+                            fontWeight:
+                                settingsState.fontBold ? FontWeight.bold : null,
                             lineHeight: settingsState.lineHeight,
                           ),
                           onOpenBook: widget.openBookCallback,
@@ -2004,6 +2007,7 @@ class _CombinedViewState extends State<CombinedView> {
         searchDistance: effectiveSearchDistance,
         fontSize: widget.textSize,
         fontFamily: settingsState.fontFamily,
+        fontWeight: settingsState.fontBold ? FontWeight.bold : null,
         lineHeight: settingsState.lineHeight,
       ),
     );

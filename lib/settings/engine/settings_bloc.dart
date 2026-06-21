@@ -20,6 +20,8 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     on<UpdateFontSize>(_onUpdateFontSize);
     on<UpdateFontFamily>(_onUpdateFontFamily);
     on<UpdateCommentatorsFontFamily>(_onUpdateCommentatorsFontFamily);
+    on<UpdateFontBold>(_onUpdateFontBold);
+    on<UpdateCommentatorsFontBold>(_onUpdateCommentatorsFontBold);
     on<UpdateCommentatorsFontSize>(_onUpdateCommentatorsFontSize);
     on<UpdateLineHeight>(_onUpdateLineHeight);
     on<UpdateShowOtzarHachochma>(_onUpdateShowOtzarHachochma);
@@ -82,6 +84,8 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       fontSize: settings['fontSize'],
       fontFamily: settings['fontFamily'],
       commentatorsFontFamily: settings['commentatorsFontFamily'],
+      fontBold: settings['fontBold'] ?? false,
+      commentatorsFontBold: settings['commentatorsFontBold'] ?? false,
       commentatorsFontSize: settings['commentatorsFontSize'],
       lineHeight: settings['lineHeight'],
       showOtzarHachochma: settings['showOtzarHachochma'],
@@ -303,6 +307,22 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     await _repository
         .updateCommentatorsFontFamily(event.commentatorsFontFamily);
     emit(state.copyWith(commentatorsFontFamily: event.commentatorsFontFamily));
+  }
+
+  Future<void> _onUpdateFontBold(
+    UpdateFontBold event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateFontBold(event.fontBold);
+    emit(state.copyWith(fontBold: event.fontBold));
+  }
+
+  Future<void> _onUpdateCommentatorsFontBold(
+    UpdateCommentatorsFontBold event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateCommentatorsFontBold(event.commentatorsFontBold);
+    emit(state.copyWith(commentatorsFontBold: event.commentatorsFontBold));
   }
 
   Future<void> _onUpdateCommentatorsFontSize(

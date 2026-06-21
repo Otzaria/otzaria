@@ -2086,6 +2086,9 @@ class _NotesCommentaryWidget extends StatelessWidget {
                           currentSearchIndex: -1,
                           fontSize: fontSize * 0.85,
                           fontFamily: settingsState.commentatorsFontFamily,
+                          fontWeight: settingsState.commentatorsFontBold
+                              ? FontWeight.bold
+                              : null,
                           lineHeight: settingsState.lineHeight,
                         ),
                         onOpenBook: (tab) {

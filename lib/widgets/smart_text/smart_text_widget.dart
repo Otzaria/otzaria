@@ -56,6 +56,7 @@ class SmartTextWidget extends StatelessWidget {
       textStyle: TextStyle(
         fontSize: settings.fontSize,
         fontFamily: settings.fontFamily,
+        fontWeight: settings.fontWeight,
         height: settings.lineHeight,
       ),
       customStylesBuilder: (dom.Element element) {

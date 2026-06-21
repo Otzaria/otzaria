@@ -133,6 +133,9 @@ class RenderSettings {
   /// משפחת הגופן
   final String? fontFamily;
 
+  /// משקל הגופן (null = רגיל / ברירת מחדל w400)
+  final FontWeight? fontWeight;
+
   /// גובה השורה
   final double lineHeight;
 
@@ -163,6 +166,7 @@ class RenderSettings {
     this.searchDistance = 0,
     this.fontSize = 18.0,
     this.fontFamily,
+    this.fontWeight,
     this.lineHeight = 1.5,
     this.enableInlineLinks = false,
     this.formatParentheses = true,
@@ -186,6 +190,7 @@ class RenderSettings {
     int? searchDistance,
     double? fontSize,
     String? fontFamily,
+    FontWeight? fontWeight,
     double? lineHeight,
     bool? enableInlineLinks,
     bool? formatParentheses,
@@ -207,6 +212,7 @@ class RenderSettings {
       searchDistance: searchDistance ?? this.searchDistance,
       fontSize: fontSize ?? this.fontSize,
       fontFamily: fontFamily ?? this.fontFamily,
+      fontWeight: fontWeight ?? this.fontWeight,
       lineHeight: lineHeight ?? this.lineHeight,
       enableInlineLinks: enableInlineLinks ?? this.enableInlineLinks,
       formatParentheses: formatParentheses ?? this.formatParentheses,
@@ -234,6 +240,7 @@ class RenderSettings {
         searchDistance == other.searchDistance &&
         fontSize == other.fontSize &&
         fontFamily == other.fontFamily &&
+        fontWeight == other.fontWeight &&
         lineHeight == other.lineHeight &&
         enableInlineLinks == other.enableInlineLinks &&
         formatParentheses == other.formatParentheses &&
@@ -258,6 +265,7 @@ class RenderSettings {
       searchDistance,
       fontSize,
       fontFamily,
+      fontWeight,
       lineHeight,
       enableInlineLinks,
       formatParentheses,

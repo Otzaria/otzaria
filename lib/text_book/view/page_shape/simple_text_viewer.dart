@@ -865,6 +865,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       searchDistance: widget.isMainText ? state.searchDistance : 0,
       fontSize: widget.fontSize,
       fontFamily: widget.fontFamily ?? settingsState.fontFamily,
+      fontWeight: settingsState.fontBold ? FontWeight.bold : null,
       lineHeight: settingsState.lineHeight,
     );
   }
@@ -2098,6 +2099,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                           widget.isMainText ? state.searchDistance : 0,
                       fontSize: widget.fontSize,
                       fontFamily: widget.fontFamily ?? settingsState.fontFamily,
+                      fontWeight:
+                          settingsState.fontBold ? FontWeight.bold : null,
                       lineHeight: settingsState.lineHeight,
                     ),
                     onOpenBook: widget.openBookCallback,
@@ -2256,6 +2259,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         searchDistance: useStateSearchSettings ? state.searchDistance : 0,
         fontSize: widget.fontSize,
         fontFamily: widget.fontFamily ?? settingsState.fontFamily,
+        fontWeight: settingsState.fontBold ? FontWeight.bold : null,
         lineHeight: settingsState.lineHeight,
       ),
     );

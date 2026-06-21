@@ -11,6 +11,12 @@ class SettingsState extends Equatable {
   final double fontSize;
   final String fontFamily;
   final String commentatorsFontFamily;
+
+  /// הצגת גופן הטקסט הראשי במשקל מודגש (בולד).
+  final bool fontBold;
+
+  /// הצגת גופן המפרשים במשקל מודגש (בולד).
+  final bool commentatorsFontBold;
   final double commentatorsFontSize;
   final double
       lineHeight; // מרווח בין שורות (1.0 = רגיל, 1.5 = מרווח וחצי, וכו')
@@ -62,6 +68,8 @@ class SettingsState extends Equatable {
     required this.fontSize,
     required this.fontFamily,
     required this.commentatorsFontFamily,
+    this.fontBold = false,
+    this.commentatorsFontBold = false,
     required this.commentatorsFontSize,
     required this.lineHeight,
     required this.showOtzarHachochma,
@@ -152,6 +160,8 @@ class SettingsState extends Equatable {
     double? fontSize,
     String? fontFamily,
     String? commentatorsFontFamily,
+    bool? fontBold,
+    bool? commentatorsFontBold,
     double? commentatorsFontSize,
     double? lineHeight,
     bool? showOtzarHachochma,
@@ -197,6 +207,8 @@ class SettingsState extends Equatable {
       fontFamily: fontFamily ?? this.fontFamily,
       commentatorsFontFamily:
           commentatorsFontFamily ?? this.commentatorsFontFamily,
+      fontBold: fontBold ?? this.fontBold,
+      commentatorsFontBold: commentatorsFontBold ?? this.commentatorsFontBold,
       commentatorsFontSize: commentatorsFontSize ?? this.commentatorsFontSize,
       lineHeight: lineHeight ?? this.lineHeight,
       showOtzarHachochma: showOtzarHachochma ?? this.showOtzarHachochma,
@@ -257,6 +269,8 @@ class SettingsState extends Equatable {
         fontSize,
         fontFamily,
         commentatorsFontFamily,
+        fontBold,
+        commentatorsFontBold,
         commentatorsFontSize,
         lineHeight,
         showOtzarHachochma,

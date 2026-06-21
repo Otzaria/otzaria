@@ -82,6 +82,24 @@ class UpdateCommentatorsFontFamily extends SettingsEvent {
   List<Object?> get props => [commentatorsFontFamily];
 }
 
+class UpdateFontBold extends SettingsEvent {
+  final bool fontBold;
+
+  const UpdateFontBold(this.fontBold);
+
+  @override
+  List<Object?> get props => [fontBold];
+}
+
+class UpdateCommentatorsFontBold extends SettingsEvent {
+  final bool commentatorsFontBold;
+
+  const UpdateCommentatorsFontBold(this.commentatorsFontBold);
+
+  @override
+  List<Object?> get props => [commentatorsFontBold];
+}
+
 class UpdateCommentatorsFontSize extends SettingsEvent {
   final double commentatorsFontSize;
 

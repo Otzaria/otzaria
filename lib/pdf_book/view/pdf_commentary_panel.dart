@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:pdfrx/pdfrx.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -34,7 +35,6 @@ import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/printing/commentary_print_builder.dart';
 import 'package:otzaria/printing/view/printing_screen.dart';
-import 'package:pdfrx/pdfrx.dart';
 import 'dart:async'; // Added for Timer
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
@@ -1323,6 +1323,9 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
                                 fontSize: settingsState.commentatorsFontSize,
                                 fontFamily:
                                     settingsState.commentatorsFontFamily,
+                                fontWeight: settingsState.commentatorsFontBold
+                                    ? FontWeight.bold
+                                    : null,
                               ),
                             );
                           },
@@ -1349,6 +1352,8 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       pdfOutline: widget.tab.outline,
       visibleLineIndices: _getVisibleLineIndicesForCurrentPage(),
       onNavigateToLine: (lineNumber) {
+        // lineNumber הוא מספר שורה לוגי — ממירים אותו לעמוד דרך ה-heading
+        // הקרוב לפניו, ונופלים לפרשנות-עמוד-ישירה בספרים ללא headings.
         if (widget.tab.pdfHeadings != null) {
           final sortedHeadings = widget.tab.pdfHeadings!.getSortedHeadings();
 
@@ -1358,8 +1363,6 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
               final targetPage = _findPageForHeading(headingTitle);
 
               if (targetPage != null) {
-                debugPrint(
-                    'Navigating from line $lineNumber to page: $targetPage');
                 if (widget.tab.pdfViewerController.isReady) {
                   widget.tab.pdfViewerController
                       .goToPage(pageNumber: targetPage);
@@ -1371,7 +1374,6 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
           }
         }
 
-        debugPrint('Navigating to page: $lineNumber');
         if (widget.tab.pdfViewerController.isReady) {
           widget.tab.pdfViewerController.goToPage(pageNumber: lineNumber);
         }

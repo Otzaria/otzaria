@@ -15,6 +15,8 @@ class SettingsRepository {
   static const String keyFontFamily = 'key-font-family';
   static const String keyCommentatorsFontFamily =
       'key-commentators-font-family';
+  static const String keyFontBold = 'key-font-bold';
+  static const String keyCommentatorsFontBold = 'key-commentators-font-bold';
   static const String keyCommentatorsFontSize = 'key-commentators-font-size';
   static const String keyLineHeight = 'key-line-height';
   static const String keyShowOtzarHachochma = 'key-show-otzar-hachochma';
@@ -147,6 +149,11 @@ class SettingsRepository {
       'commentatorsFontFamily': _settings.getValue<String>(
         keyCommentatorsFontFamily,
         defaultValue: AppFonts.defaultCommentatorsFont,
+      ),
+      'fontBold': _settings.getValue<bool>(keyFontBold, defaultValue: false),
+      'commentatorsFontBold': _settings.getValue<bool>(
+        keyCommentatorsFontBold,
+        defaultValue: false,
       ),
       'commentatorsFontSize': _settings.getValue<double>(
         keyCommentatorsFontSize,
@@ -389,6 +396,14 @@ class SettingsRepository {
 
   Future<void> updateCommentatorsFontFamily(String value) async {
     await _settings.setValue(keyCommentatorsFontFamily, value);
+  }
+
+  Future<void> updateFontBold(bool value) async {
+    await _settings.setValue(keyFontBold, value);
+  }
+
+  Future<void> updateCommentatorsFontBold(bool value) async {
+    await _settings.setValue(keyCommentatorsFontBold, value);
   }
 
   Future<void> updateCommentatorsFontSize(double value) async {
@@ -774,6 +789,8 @@ class SettingsRepository {
     await _settings.setValue(keyFontFamily, AppFonts.defaultFont);
     await _settings.setValue(
         keyCommentatorsFontFamily, AppFonts.defaultCommentatorsFont);
+    await _settings.setValue(keyFontBold, false);
+    await _settings.setValue(keyCommentatorsFontBold, false);
     await _settings.setValue(keyCommentatorsFontSize, 22.0);
     await _settings.setValue(keyLineHeight, 1.5);
     await _settings.setValue(keyShowOtzarHachochma, false);

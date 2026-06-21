@@ -35,6 +35,7 @@ RenderSettings buildSelectedLinkRenderSettings({
     searchText: searchText,
     fontSize: settingsState.commentatorsFontSize,
     fontFamily: settingsState.commentatorsFontFamily,
+    fontWeight: settingsState.commentatorsFontBold ? FontWeight.bold : null,
     lineHeight: settingsState.lineHeight,
     justifyText: true,
   );

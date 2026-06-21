@@ -165,6 +165,9 @@ class _CommentaryContentState extends State<CommentaryContent> {
                       currentSearchIndex: widget.currentSearchIndex,
                       fontSize: widget.fontSize,
                       fontFamily: settingsState.commentatorsFontFamily,
+                      fontWeight: settingsState.commentatorsFontBold
+                          ? FontWeight.bold
+                          : null,
                       lineHeight: settingsState.lineHeight,
                     );
 

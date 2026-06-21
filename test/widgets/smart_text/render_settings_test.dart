@@ -1,3 +1,4 @@
+import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 
@@ -39,6 +40,16 @@ void main() {
       expect(withAlternative, isNot(equals(withoutAlternative)));
       expect(
           withAlternative.hashCode, isNot(equals(withoutAlternative.hashCode)));
+    });
+
+    test('changes when font weight changes', () {
+      const bold = RenderSettings(fontWeight: FontWeight.bold);
+      const regular = RenderSettings();
+
+      expect(bold, isNot(equals(regular)));
+      expect(bold.hashCode, isNot(equals(regular.hashCode)));
+      expect(regular.fontWeight, isNull);
+      expect(regular.copyWith(fontWeight: FontWeight.bold), equals(bold));
     });
   });
 }
