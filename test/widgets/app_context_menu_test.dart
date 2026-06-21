@@ -1026,5 +1026,61 @@ void main() {
       expect(find.text(previewText), findsNothing,
           reason: 'החלונית הצפה מוסרת יחד עם סגירת התפריט');
     });
+
+    group('מגע — לחיצה ארוכה במקום רפרוף', () {
+      Future<void> pumpTouchMenu(WidgetTester tester) async {
+        final key = GlobalKey<AppContextMenuRegionState>();
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: AppContextMenuRegion(
+                key: key,
+                menuBuilder: (_, __) => [
+                  AppContextMenuEntry(
+                    label: 'קישור א',
+                    onTap: () {},
+                    hoverPreviewBuilder: (_) => const Text(previewText),
+                  ),
+                ],
+                child: const SizedBox(
+                  width: 400,
+                  height: 400,
+                  child: ColoredBox(color: Colors.amber),
+                ),
+              ),
+            ),
+          ),
+        );
+        await key.currentState!.openMenuAt(const Offset(100, 100));
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets('לחיצה ארוכה על הפריט פותחת את החלונית הצפה', (tester) async {
+        await pumpTouchMenu(tester);
+
+        await tester.longPress(find.text('קישור א'));
+        await tester.pumpAndSettle();
+
+        expect(find.text(previewText), findsOneWidget,
+            reason: 'לחיצה ארוכה מחליפה את הרפרוף ופותחת את התצוגה');
+      });
+
+      testWidgets('הקשה מחוץ לחלונית סוגרת אותה ומשאירה את התפריט פתוח',
+          (tester) async {
+        await pumpTouchMenu(tester);
+
+        await tester.longPress(find.text('קישור א'));
+        await tester.pumpAndSettle();
+        expect(find.text(previewText), findsOneWidget);
+
+        await tester.tapAt(const Offset(10, 590));
+        await tester.pumpAndSettle();
+
+        expect(find.text(previewText), findsNothing,
+            reason: 'הקשה על המחסום מחוץ לחלונית סוגרת את התצוגה');
+        expect(find.text('קישור א'), findsOneWidget,
+            reason: 'התפריט עצמו נשאר פתוח להמשך בחירה');
+      });
+    });
   });
 }

@@ -1070,6 +1070,8 @@ class _MenuItemHoverPreviewState extends State<_MenuItemHoverPreview> {
   final GlobalKey _panelKey = GlobalKey();
   Offset? _panelOffset;
   bool _panelVisible = false;
+  // נפתח בלחיצה ארוכה (מגע) ולא ברפרוף — נסגר בהקשה מחוץ לחלונית.
+  bool _touchTriggered = false;
 
   @override
   void dispose() {
@@ -1084,6 +1086,7 @@ class _MenuItemHoverPreviewState extends State<_MenuItemHoverPreview> {
     _previewEntry = null;
     _panelOffset = null;
     _panelVisible = false;
+    _touchTriggered = false;
   }
 
   void _scheduleShow() {
@@ -1152,7 +1155,7 @@ class _MenuItemHoverPreviewState extends State<_MenuItemHoverPreview> {
       builder: (overlayContext) {
         final offset =
             _panelOffset ?? const Offset(_screenPadding, _screenPadding);
-        return Positioned(
+        final panel = Positioned(
           left: offset.dx,
           top: offset.dy,
           child: Visibility(
@@ -1181,6 +1184,19 @@ class _MenuItemHoverPreviewState extends State<_MenuItemHoverPreview> {
               ),
             ),
           ),
+        );
+        if (!_touchTriggered) return panel;
+        // במגע אין onExit לסגירה — מחסום שקוף מאחורי החלונית סוגר בהקשה בחוץ.
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _removePreview,
+              ),
+            ),
+            panel,
+          ],
         );
       },
     );
@@ -1259,12 +1275,26 @@ class _MenuItemHoverPreviewState extends State<_MenuItemHoverPreview> {
     );
   }
 
+  // במגע אין רפרוף עכבר (גם במסכי מגע של דסקטופ); לחיצה ארוכה מחליפה אותו
+  // כטריגר. בעכבר הריחוף כבר הציג, ולכן הקריאה כאן חוזרת מוקדם.
+  void _handleLongPress() {
+    if (_previewEntry != null) return;
+    _showTimer?.cancel();
+    _showTimer = null;
+    _touchTriggered = true;
+    _showPreview();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => _scheduleShow(),
-      onExit: (_) => _scheduleHide(),
-      child: widget.child,
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onLongPress: _handleLongPress,
+      child: MouseRegion(
+        onEnter: (_) => _scheduleShow(),
+        onExit: (_) => _scheduleHide(),
+        child: widget.child,
+      ),
     );
   }
 }
