@@ -28,13 +28,34 @@ class LineProjection {
 bool _isDiacritic(int code) =>
     code >= 0x0591 && code <= 0x05C7 && code != 0x05BE;
 
+// בודק אם המקטע rawLine[start..end] (מ-'<' עד '>') הוא תגית <br>.
+bool _isBreakTag(String s, int start, int end) {
+  int i = start + 1;
+  if (i < end && s[i] == '/') i++;
+  if (i + 1 >= end) return false;
+  final c0 = s.codeUnitAt(i);
+  final c1 = s.codeUnitAt(i + 1);
+  final isBr = (c0 == 0x62 || c0 == 0x42) && (c1 == 0x72 || c1 == 0x52);
+  if (!isBr) return false;
+  final next = (i + 2) < end ? s[i + 2] : '>';
+  return next == '>' || next == '/' || next.trim().isEmpty;
+}
+
 /// מקרין שורה גולמית (HTML+ניקוד) למחרוזת מנורמלת עם מפת אינדקסים חזרה.
 LineProjection projectLine(String rawLine) {
   final buffer = StringBuffer();
   final rawIndex = <int>[];
   bool inTag = false;
+  int tagStart = 0;
   bool pendingWhitespace = false;
   int pendingWhitespaceRawStart = 0;
+
+  void markWhitespace(int rawStart) {
+    if (!pendingWhitespace) {
+      pendingWhitespace = true;
+      pendingWhitespaceRawStart = rawStart;
+    }
+  }
 
   void flushWhitespace() {
     if (pendingWhitespace) {
@@ -49,11 +70,17 @@ LineProjection projectLine(String rawLine) {
     final code = rawLine.codeUnitAt(i);
 
     if (inTag) {
-      if (ch == '>') inTag = false;
+      if (ch == '>') {
+        inTag = false;
+        // <br> הוא שבירת שורה — הרינדור מציג אותו כרווח, לכן גם כאן, אחרת
+        // בחירה שחוצה <br> לא תאותר בעיגון ותיפול לסימון כל השורה.
+        if (_isBreakTag(rawLine, tagStart, i)) markWhitespace(tagStart);
+      }
       continue;
     }
     if (ch == '<') {
       inTag = true;
+      tagStart = i;
       continue;
     }
 
@@ -63,10 +90,7 @@ LineProjection projectLine(String rawLine) {
     // מקף עברי (מקף) ורווחים — מכווצים לרווח יחיד.
     final isWhitespace = code == 0x05BE || ch.trim().isEmpty;
     if (isWhitespace) {
-      if (!pendingWhitespace) {
-        pendingWhitespace = true;
-        pendingWhitespaceRawStart = i;
-      }
+      markWhitespace(i);
       continue;
     }
 
@@ -309,9 +333,8 @@ String wrapHtmlRanges(String text, List<HtmlWrapRange> ranges) {
     if (range.start > currentPos) {
       buffer.write(text.substring(currentPos, range.start));
     }
-    buffer.write(range.openTag);
-    buffer.write(text.substring(range.start, range.end));
-    buffer.write(range.closeTag);
+    _appendWrapped(
+        buffer, text, range.start, range.end, range.openTag, range.closeTag);
     currentPos = range.end;
   }
 
@@ -320,4 +343,68 @@ String wrapHtmlRanges(String text, List<HtmlWrapRange> ranges) {
   }
 
   return buffer.toString();
+}
+
+/// עוטף את [text] בטווח [start,end) ב-openTag/closeTag, אך סוגר ופותח מחדש את
+/// העטיפה סביב תגיות שאינן מאוזנות בתוך הטווח (סגירה/פתיחה שבן-זוגה מחוץ לטווח,
+/// וכן <br>). בלי זה, עטיפה של טווח שחוצה גבול תגית יוצרת HTML מוצלב
+/// (למשל `<b><a>...</b>...</a>`) שמוצג חלקית. תגיות מאוזנות (כגון
+/// `<i data-commentator></i>` של שו"ע) נשארות בתוך העטיפה כדי לשמור קו רציף.
+void _appendWrapped(
+  StringBuffer buffer,
+  String text,
+  int start,
+  int end,
+  String openTag,
+  String closeTag,
+) {
+  // שלב 1: איתור אינדקסי ה-'<' של תגיות לא-מאוזנות בטווח.
+  final boundaries = <int>{};
+  final openStack = <int>[];
+  int i = start;
+  while (i < end) {
+    if (text[i] != '<') {
+      i++;
+      continue;
+    }
+    final gt = text.indexOf('>', i);
+    final tagEnd = (gt < 0 || gt >= end) ? end - 1 : gt;
+    final isClose = i + 1 < end && text[i + 1] == '/';
+    final isSelfClose = tagEnd > i && text[tagEnd - 1] == '/';
+    if (isClose) {
+      if (openStack.isNotEmpty) {
+        openStack.removeLast();
+      } else {
+        boundaries.add(i);
+      }
+    } else if (!isSelfClose) {
+      openStack.add(i);
+    }
+    i = tagEnd + 1;
+  }
+  boundaries.addAll(openStack);
+
+  // שלב 2: בנייה — עוטפים רצפי טקסט, סוגרים/פותחים סביב תגיות-הגבול.
+  bool wrapOpen = false;
+  i = start;
+  while (i < end) {
+    if (text[i] == '<') {
+      final gt = text.indexOf('>', i);
+      final tagEnd = (gt < 0 || gt >= end) ? end - 1 : gt;
+      if (boundaries.contains(i) && wrapOpen) {
+        buffer.write(closeTag);
+        wrapOpen = false;
+      }
+      buffer.write(text.substring(i, tagEnd + 1));
+      i = tagEnd + 1;
+    } else {
+      if (!wrapOpen) {
+        buffer.write(openTag);
+        wrapOpen = true;
+      }
+      buffer.write(text[i]);
+      i++;
+    }
+  }
+  if (wrapOpen) buffer.write(closeTag);
 }

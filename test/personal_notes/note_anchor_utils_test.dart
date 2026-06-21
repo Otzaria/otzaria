@@ -29,6 +29,17 @@ void main() {
       final range = locateAnchor(rawLine: raw, anchorText: 'כל ישראל');
       expect(range, isNotNull);
     });
+
+    test('<br> נחשב רווח — בחירה שחוצה אותו מאותרת (תרחיש שו"ע)', () {
+      // בשו"ע כותרת הסעיף מופרדת מהגוף ב-<br>; ברינדור זה רווח/שורה חדשה,
+      // ולכן הבחירה כוללת רווח שם — חייב להתאים לעיגון.
+      const raw = '<b>ובו ט סעיפים:</b><br>יתגבר כארי';
+      final p = projectLine(raw);
+      expect(p.normalized, 'ובו ט סעיפים: יתגבר כארי');
+      // הטקסט שנבחר (\n מ-<br>) מנורמל לרווח ונמצא בעיגון.
+      final range = locateAnchor(rawLine: raw, anchorText: 'סעיפים:\nיתגבר');
+      expect(range, isNotNull);
+    });
   });
 
   group('locateAnchor', () {

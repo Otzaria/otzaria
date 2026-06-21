@@ -110,4 +110,36 @@ void main() {
     expect(html.startsWith('<a href="otzaria://note?line=2"'), isTrue);
     expect(html.endsWith('</a>'), isTrue);
   });
+
+  test('טווח שחוצה גבול תגית מפוצל ולא יוצר HTML מוצלב (תרחיש שו"ע)', () {
+    // כותרת סעיף ב-<b> מופרדת מהגוף ב-<br>; בחירה שחוצה אותו מסומנת בשני
+    // קטעי <a> תקינים, לא ב-<a> אחד שחוצה את </b>.
+    const raw = '<b>ובו ט סעיפים:</b><br>יתגבר כארי';
+    final html = buildAnnotatedLineHtml(
+      rawLine: raw,
+      notesForLine: [_note(anchorText: 'סעיפים: יתגבר')],
+      lineIndex0: 0,
+      underlineColor: color,
+    );
+    // ה-<a> נסגר לפני </b> ולפני <br> — אין mis-nesting.
+    expect(html.contains('סעיפים:</a></b>'), isTrue);
+    expect(html.contains('<br><a '), isTrue);
+    expect(html.contains('>יתגבר</a>'), isTrue);
+    // אין <a> בודד שבולע את </b>.
+    expect(html.contains('סעיפים:</b>'), isFalse);
+  });
+
+  test('טווח עם תגיות מאוזנות פנימיות נשאר ב-<a> רציף אחד', () {
+    // סימוני מפרשים ריקים (<i ...></i>) של שו"ע מאוזנים — לא מפצלים סביבם.
+    const raw = 'מעורר <i data-commentator="x"></i>השחר';
+    final html = buildAnnotatedLineHtml(
+      rawLine: raw,
+      notesForLine: [_note(anchorText: 'מעורר השחר')],
+      lineIndex0: 0,
+      underlineColor: color,
+    );
+    // עטיפה אחת רציפה שכוללת את התגית הריקה בתוכה.
+    expect('<a '.allMatches(html).length, 1);
+    expect(html.contains('<i data-commentator="x"></i>השחר</a>'), isTrue);
+  });
 }
