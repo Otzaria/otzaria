@@ -46,6 +46,24 @@ class LibraryBrowser extends StatefulWidget {
 
 enum ViewMode { grid, list }
 
+abstract class _LibraryListItem {
+  final int level;
+  _LibraryListItem(this.level);
+}
+
+class _CategoryListItem extends _LibraryListItem {
+  final Category category;
+  final bool isExpanded;
+
+  _CategoryListItem(this.category, int level, this.isExpanded) : super(level);
+}
+
+class _BookListItem extends _LibraryListItem {
+  final Book book;
+
+  _BookListItem(this.book, int level) : super(level);
+}
+
 class _LibraryBrowserState extends State<LibraryBrowser>
     with AutomaticKeepAliveClientMixin {
   @override
@@ -673,16 +691,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     );
   }
 
-  /// בניית תצוגת רשימה עם עץ מתרחב
-  Widget _buildListView(Category category) {
-    return ListView(
-      children: _buildCategoryTree(category, 0),
-    );
-  }
-
-  /// בניית עץ קטגוריות ברקורסיבית
-  List<Widget> _buildCategoryTree(Category category, int level) {
-    List<Widget> widgets = [];
+  /// בניית עץ קטגוריות ברקורסיבית כרשימה שטוחה לטובת ביצועים
+  List<_LibraryListItem> _flattenCategoryTree(Category category, int level) {
+    List<_LibraryListItem> items = [];
 
     // מיון
     category.books.sort((a, b) => a.order.compareTo(b.order));
@@ -692,20 +703,38 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     for (final subCategory in category.subCategories) {
       final isExpanded = _expandedCategories.contains(subCategory.path);
 
-      widgets.add(_buildListCategoryItem(subCategory, level, isExpanded));
+      items.add(_CategoryListItem(subCategory, level, isExpanded));
 
       // אם הקטגוריה פתוחה, הוסף את התוכן שלה
       if (isExpanded) {
-        widgets.addAll(_buildCategoryTree(subCategory, level + 1));
+        items.addAll(_flattenCategoryTree(subCategory, level + 1));
       }
     }
 
     // הוספת ספרים בקטגוריה הנוכחית אחרי התיקיות
     for (final book in category.books) {
-      widgets.add(_buildListBookItem(book, level));
+      items.add(_BookListItem(book, level));
     }
 
-    return widgets;
+    return items;
+  }
+
+  /// בניית תצוגת רשימה עם עץ מתרחב (משתמש ב-ListView.builder לביצועים טובים יותר)
+  Widget _buildListView(Category category) {
+    final flattenedItems = _flattenCategoryTree(category, 0);
+
+    return ListView.builder(
+      itemCount: flattenedItems.length,
+      itemBuilder: (context, index) {
+        final item = flattenedItems[index];
+        if (item is _CategoryListItem) {
+          return _buildListCategoryItem(item.category, item.level, item.isExpanded);
+        } else if (item is _BookListItem) {
+          return _buildListBookItem(item.book, item.level);
+        }
+        return const SizedBox.shrink();
+      },
+    );
   }
 
   /// פריט קטגוריה בתצוגת רשימה
