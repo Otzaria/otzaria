@@ -27,7 +27,7 @@ jobs:
     #   CARGO_HOME:  ${{ github.workspace }}\.cargo
     steps:
       - name: Clone repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -39,7 +39,7 @@ jobs:
       #   uses: dtolnay/rust-toolchain@stable
 
       # - name: Cache cargo registry and git
-      #   uses: actions/cache@v4
+      #   uses: actions/cache@v3
       #   with:
       #     path: |
       #       ${{ env.CARGO_HOME }}\registry
@@ -194,7 +194,7 @@ jobs:
       CARGO_HOME:  ${{ github.workspace }}/.cargo
     steps:
       - name: Clone repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -213,7 +213,7 @@ jobs:
           rustup show
 
       - name: Cache cargo registry and git
-        uses: actions/cache@v4
+        uses: actions/cache@v3
         with:
           path: |
             ${{ env.CARGO_HOME }}/registry
@@ -372,7 +372,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -402,7 +402,7 @@ jobs:
       CARGO_HOME:  ${{ github.workspace }}/.cargo
     steps:
       - name: Clone repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -424,7 +424,7 @@ jobs:
 
       # (רשות אבל מומלץ) קאשינג לספריות cargo כדי לזרז בניות
       - name: Cache cargo registry and git
-        uses: actions/cache@v4
+        uses: actions/cache@v3
         with:
           path: |
             ${{ env.CARGO_HOME }}/registry
@@ -450,7 +450,7 @@ jobs:
 
     steps:
       - name: Clone repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
       
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -563,7 +563,7 @@ jobs:
 
     steps:
       - name: Clone repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
       
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -665,7 +665,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout (full history + tags)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0   # חובה כדי לאפשר גישה לכל ההיסטוריה והתגים
           fetch-tags: true

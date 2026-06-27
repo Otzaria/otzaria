@@ -24,7 +24,7 @@ jobs:
       CARGO_HOME: ${{ github.workspace }}/.cargo
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
         with:
           ref: ${{ github.ref }}
 
@@ -62,7 +62,7 @@ jobs:
           rustup show
 
       - name: Cache Rust
-        uses: actions/cache@v4
+        uses: actions/cache@v3
         with:
           path: |
             ${{ env.CARGO_HOME }}/registry
@@ -108,7 +108,7 @@ jobs:
           install_target_with_retry "i686-linux-android"
 
       - name: Cache Gradle
-        uses: actions/cache@v4
+        uses: actions/cache@v3
         with:
           path: |
             ~/.gradle/caches
@@ -118,7 +118,7 @@ jobs:
             ${{ runner.os }}-gradle-
 
       - name: Cache Pub
-        uses: actions/cache@v4
+        uses: actions/cache@v3
         with:
           path: |
             ~/.pub-cache
