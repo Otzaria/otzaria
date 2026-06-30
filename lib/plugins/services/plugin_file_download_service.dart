@@ -115,6 +115,12 @@ class PluginFileDownloadService {
   /// ההורדות), המאפשר לתוסף לשמור את הקובץ למבנה תיקיות שהמשתמש בחר.
   /// תיקיית האב נוצרת במידת הצורך, וקובץ קיים באותו נתיב נדרס.
   ///
+  /// כאשר [resume] הוא `true` ויש קובץ חלקי בנתיב [destPath], ההורדה ממשיכה
+  /// מנקודת הסיום של הקובץ הקיים באמצעות `Range: bytes=N-`. אם השרת מחזיר
+  /// 206 Partial Content — הנתונים מצורפים לקובץ; אם הוא מחזיר 200 (התעלם
+  /// מה-Range) — הקובץ נכתב מחדש. במצב resume כשל לא ימחק את הקובץ החלקי,
+  /// כך שניסיון נוסף יוכל להמשיך מאותה נקודה.
+  ///
   /// **גבול אבטחה:** השירות אינו מאמת את [destPath] — האחריות לוודא שהוא
   /// בתוך תיקייה שהמשתמש אישר מוטלת על הקורא (האדפטר). אכיפת ה-allowlist על
   /// ה-URL ועל כל redirect זהה ל-[downloadToDownloads]: [isAllowed] נבדק על
@@ -128,17 +134,28 @@ class PluginFileDownloadService {
     String destPath, {
     required Future<bool> Function(Uri) isAllowed,
     bool Function(Uri previous, Uri target)? isRedirectAllowed,
+    bool resume = false,
   }) async {
+    final outFile = File(destPath);
+    await outFile.parent.create(recursive: true);
+
+    // אם resume=true ויש קובץ חלקי — שלח Range: bytes=N-
+    final existingBytes =
+        (resume && await outFile.exists()) ? await outFile.length() : 0;
+
     final response = await _fetchFollowingAllowedRedirects(
       downloadUri,
       isAllowed,
       isRedirectAllowed,
+      rangeStart: existingBytes,
     );
 
-    final outFile = File(destPath);
-    await outFile.parent.create(recursive: true);
+    // 206 = השרת כיבד את ה-Range → צרף לקובץ קיים; 200 = כתוב מחדש
+    final shouldAppend = existingBytes > 0 && response.statusCode == 206;
+    final sink = outFile.openWrite(
+      mode: shouldAppend ? FileMode.append : FileMode.write,
+    );
 
-    final sink = outFile.openWrite();
     try {
       await sink.addStream(response.stream.timeout(_stallTimeout));
       await sink.flush();
@@ -147,7 +164,8 @@ class PluginFileDownloadService {
       try {
         await sink.close();
       } catch (_) {}
-      if (await outFile.exists()) {
+      // במצב resume — שמור את הקובץ החלקי לניסיון הבא
+      if (!resume && await outFile.exists()) {
         await outFile.delete();
       }
       rethrow;
@@ -159,11 +177,14 @@ class PluginFileDownloadService {
   /// מבצעת GET תוך מעקב ידני אחרי redirects, כשכל יעד נבדק מול [isAllowed]
   /// ועבור יעדי redirect גם מול [isRedirectAllowed] (בהינתן ה-hop הקודם).
   /// מחזירה את התשובה הסופית (2xx). מנקזת תשובות-ביניים כדי לשחרר sockets.
+  /// [rangeStart] אופציונלי — אם גדול מ-0, מוסיף `Range: bytes=N-` לכל בקשה
+  /// בשרשרת ה-redirects כדי לתמוך בהמשך הורדה (resume).
   Future<http.StreamedResponse> _fetchFollowingAllowedRedirects(
     Uri initialUri,
     Future<bool> Function(Uri) isAllowed,
-    bool Function(Uri previous, Uri target)? isRedirectAllowed,
-  ) async {
+    bool Function(Uri previous, Uri target)? isRedirectAllowed, {
+    int rangeStart = 0,
+  }) async {
     var current = initialUri;
     Uri? previous;
     for (var hop = 0; hop <= _maxRedirects; hop++) {
@@ -179,6 +200,9 @@ class PluginFileDownloadService {
       }
 
       final request = http.Request('GET', current)..followRedirects = false;
+      if (rangeStart > 0) {
+        request.headers['Range'] = 'bytes=$rangeStart-';
+      }
       final response = await _client.send(request).timeout(_stallTimeout);
 
       if (_isRedirect(response.statusCode)) {
