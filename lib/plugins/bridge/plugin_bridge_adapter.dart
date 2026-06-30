@@ -2114,6 +2114,7 @@ class PluginBridgeAdapter {
         // תיקיית ההורדות. הנתיב חייב להיות בתוך תיקייה שהמשתמש אישר דרך
         // ui.pickFolder — אותו גבול אבטחה של פעולות ה-fs.
         final destPath = args['destPath'] as String?;
+        final resume = args['resume'] as bool? ?? false;
         if (destPath != null && destPath.isNotEmpty) {
           if (!_isPathInGrantedFolder(destPath)) {
             throw Exception(
@@ -2125,6 +2126,7 @@ class PluginBridgeAdapter {
             isAllowed: (candidate) => PluginNetworkAccessResolver.instance
                 .isUriAllowedForPlugin(candidate, plugin.manifest),
             isRedirectAllowed: isGithubReleaseRedirectAllowed,
+            resume: resume,
           );
           return {'path': result.path, 'filename': result.filename};
         }
