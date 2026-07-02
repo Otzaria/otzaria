@@ -265,6 +265,8 @@ export interface OtzariaEventMap {
   /** User selected text in the reader. Requires permission: events.subscribe:reader.selection_changed */
   'reader.selection_changed': {
     text: string;
+    start: number | null;
+    end: number | null;
     currentRef: string;
     currentBook: string;
     currentBookId: string;
@@ -392,11 +394,51 @@ export interface DatabaseBatchQueryResult {
 /** Where a `shortcut.create` deep-link shortcut is placed. `startMenu` is Windows-only. */
 export type ShortcutLocation = 'desktop' | 'startMenu';
 
-/**
- * Arguments for `shortcut.create`. The shortcut always opens the calling plugin
- * (`otzaria://open/plugin/<id>`); the host builds the deep-link itself, so the
- * plugin only supplies a display name and an optional location.
- */
+// ---------------------------------------------------------------------------
+// Plugin highlight types
+// ---------------------------------------------------------------------------
+
+/** A highlight created by a plugin on a text line. */
+export interface PluginHighlight {
+  bookId: string;
+  index: number;
+  pluginId: string;
+  color?: string;
+  label?: string;
+  /** Character offset where the inline highlight starts (present only for inline highlights). */
+  start?: number;
+  /** Character offset where the inline highlight ends (present only for inline highlights). */
+  end?: number;
+}
+
+// ---------------------------------------------------------------------------
+// Context menu item types
+// ---------------------------------------------------------------------------
+
+/** Type of a plugin-registered context menu item. */
+export type PluginContextMenuItemType = 'item' | 'group';
+
+/** Arguments for `reader.addContextMenuItem`. */
+export interface AddContextMenuItemArgs {
+  /** Unique identifier for this item. */
+  id: string;
+  /** Display label. */
+  label: string;
+  /** Optional FluentUI icon name (e.g. `'bookmark_24_regular'`). */
+  icon?: string;
+  /**
+   * Optional parent item id. When set, this item becomes a child of the
+   * specified parent and is shown in a submenu.
+   * The parent must already be registered by the same plugin.
+   */
+  parentId?: string;
+  /**
+   * `'item'` (default) — clickable menu entry that fires `reader.context_menu_item_clicked`.
+   * `'group'` — non-clickable section header displayed between item groups.
+   */
+  type?: PluginContextMenuItemType;
+}
+
 export interface ShortcutCreateArgs {
   /** Display name and file name of the shortcut. */
   label: string;

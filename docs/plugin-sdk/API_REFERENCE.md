@@ -1762,17 +1762,98 @@ const List<String> pluginNetworkAllowlist = <String>[
 רישום פריט תפריט הקשר מותאם אישית. הפריט יופיע בתפריט שנפתח בלחיצה ימנית על טקסט בקורא.
 
 ```javascript
+// פריט פשוט
 await Otzaria.call('reader.addContextMenuItem', {
   id: 'my-save-item',       // מזהה ייחודי (חובה)
   label: 'הוסף למראי המקומות שלי',  // טקסט לתצוגה (חובה)
   icon: 'bookmark_24_regular'   // שם אייקון FluentUI System Icons (אופציונלי)
 });
+
+// תת-תפריט: הגדרת הורה ובנים
+await Otzaria.call('reader.addContextMenuItem', {
+  id: 'marker-root',
+  label: 'מרקר',
+  icon: 'highlight_24_regular'
+  // ללא parentId → פריט ברמה ראשית עם חץ לתת-תפריט
+});
+await Otzaria.call('reader.addContextMenuItem', {
+  id: 'mark-yellow',
+  label: '● צהוב',
+  icon: 'highlight_24_regular',
+  parentId: 'marker-root'
+});
+
+// כותרת מפרידה (GroupHeader) — לא לחיצה, מקבצת פריטים ויזואלית
+await Otzaria.call('reader.addContextMenuItem', {
+  id: 'marker-header',
+  type: 'group',   // ← כותרת לא-לחיצה
+  label: 'מרקר'
+});
+
+// שורת כפתורים (buttonRow) — מציגה כפתורי אייקון או גושי צבע בשורה אופקית
+// 1. רישום ה-buttonRow עצמו (ברמה ראשית)
+await Otzaria.call('reader.addContextMenuItem', {
+  id: 'marker-row',
+  type: 'buttonRow',   // ← שורת כפתורים
+  label: 'סמן'         // כותרת קצרה לשמאל הכפתורים
+});
+// 2. הוספת כפתורי צבע (כל אחד עם color)
+await Otzaria.call('reader.addContextMenuItem', {
+  id: 'mark-red',
+  label: 'סמן אדום',
+  color: '#E91E63',     // ← גוש צבע מלבני
+  parentId: 'marker-row'
+});
+await Otzaria.call('reader.addContextMenuItem', {
+  id: 'mark-blue',
+  label: 'סמן כחול',
+  color: '#2196F3',
+  parentId: 'marker-row'
+});
+await Otzaria.call('reader.addContextMenuItem', {
+  id: 'mark-green',
+  label: 'סמן ירוק',
+  color: '#4CAF50',
+  parentId: 'marker-row'
+});
+await Otzaria.call('reader.addContextMenuItem', {
+  id: 'mark-yellow',
+  label: 'סמן צהוב',
+  color: '#FFEB3B',
+  parentId: 'marker-row'
+});
+// 3. כפתור עם אייקון (בלי color)
+await Otzaria.call('reader.addContextMenuItem', {
+  id: 'mark-custom',
+  label: 'צבע מותאם',
+  icon: 'color_24_regular',   // ← אייקון FluentUI
+  parentId: 'marker-row'
+});
 // true
 ```
 
+**תצוגת buttonRow:**
+כל בן בשורת כפתורים מוצג כ:
+- `color` מוגדר → גוש צבע מעוגל (color swatch)
+- `icon` מוגדר → אייקון FluentUI
+- שניהם ריקים → טקסט קצר מ-`label`
+
+בלחיצה על כפתור כלשהו נורה האירוע `reader.context_menu_item_clicked` עם `itemId` של הבן שנלחץ.
+
 **הערות:**
-- אם פריט עם אותו `id` כבר קיים, הוא יוחלף
+- אם פריט עם אותו `id` כבר קיים, הוא יוחלף (ללא צריכת slot חדש)
 - הפריטים נשמרים בזיכרון בלבד — יש לרשום מחדש בכל `plugin.boot`
+- `parentId` חייב להצביע על פריט הורה שכבר נרשם על ידי אותו תוסף
+- `type: 'group'` יוצר כותרת מפרידה שאינה לחיצה ואינה מפעילה אירוע
+- `type: 'buttonRow'` יוצר שורת כפתורים; הבנים שלו מוצגים אופקית
+
+**מדיניות מכסה:**
+- כל תוסף רשאי לרשום **לכל היותר 2 RootItems** (פריטי רמה ראשית)
+- GroupHeader ו-buttonRow נחשבים כ-RootItem אחד כל אחד
+- פריטי בנים (עם `parentId`) אינם מוגבלים במספר
+- חריגה מהמכסה מחזירה `error.quota_exceeded`
+
+שגיאות אפשריות: `error.invalid_params` (id/label חסר, parentId ריק, parentId לא קיים, type לא מוכר), `error.quota_exceeded` (חריגה ממכסת 2 root items)
 
 ---
 
@@ -1839,17 +1920,35 @@ Otzaria.on('reader.selection_changed', (data) => {
 ### `reader.setHighlight`
 **הרשאה:** `reader.highlight`
 
-הוספת הדגשה צבעונית לשורה בטקסט.
+הוספת הדגשה צבעונית לשורה בטקסט. תומך בשתי רמות:
+- **הדגשת שורה שלמה** — ללא `start`/`end` (ברירת מחדל, תאימות לאחור)
+- **הדגשה מדויקת** — עם `start` ו-`end` שמציינים תחום תווים בתוך השורה
 
 ```javascript
+// הדגשת שורה שלמה (כמו קודם — תאימות לאחור)
 await Otzaria.call('reader.setHighlight', {
   bookId: 'בראשית',   // מזהה הספר (חובה)
   index: 42,           // אינדקס השורה (חובה)
   color: '#FFFF00',    // צבע CSS (אופציונלי)
   label: 'שמרתי'      // תווית (אופציונלי)
 });
+
+// הדגשה מדויקת ברמת תו — ניתן להשתמש ישירות בנתוני reader.selection_changed
+await Otzaria.call('reader.setHighlight', {
+  bookId: 'בראשית',
+  index: 42,
+  color: '#FFF176',
+  label: 'מרקר',
+  start: 120,   // ← תו התחלה בתוך השורה (חובה יחד עם end)
+  end: 131      // ← תו סיום (חובה יחד עם start)
+});
 // true
 ```
+
+**ולידציה:**
+- `start` ו-`end` חייבים להיות מסופקים **יחד** — אחד בלבד מחזיר `error.invalid_params`
+- `start` חייב להיות ≤ `end` (start == end = הדגשת תו יחיד — תקין)
+- שניהם חייבים להיות מספרים שלמים אי-שליליים
 
 ---
 
@@ -1864,9 +1963,13 @@ const { data } = await Otzaria.call('reader.getHighlights', {
 });
 // [
 //   { bookId: "בראשית", index: 42, color: "#FFFF00", label: "שמרתי", pluginId: "my-plugin" },
+//   // הדגשה מדויקת — מכילה start ו-end:
+//   { bookId: "בראשית", index: 42, color: "#FFF176", label: "מרקר", pluginId: "my-plugin", start: 120, end: 131 },
 //   ...
 // ]
 ```
+
+**הערה:** הדגשות שנוצרו ללא `start`/`end` לא יכילו שדות אלה בתשובה (תאימות לאחור).
 
 ---
 
@@ -1876,9 +1979,18 @@ const { data } = await Otzaria.call('reader.getHighlights', {
 הסרת הדגשה ספציפית. פעולה idempotent — לא תחזיר שגיאה אם ה-index לא קיים.
 
 ```javascript
+// מחיקה רחבה — מוחק את כל ההדגשות לאותו index (שורה שלמה + מדויקות)
 await Otzaria.call('reader.clearHighlight', {
   bookId: 'בראשית',
   index: 42
+});
+
+// מחיקה מדויקת — מוחק רק את ההדגשה התואמת ל-start/end, לא פוגע בשאר
+await Otzaria.call('reader.clearHighlight', {
+  bookId: 'בראשית',
+  index: 42,
+  start: 120,   // ← חובה יחד עם end
+  end: 131
 });
 // true
 ```

@@ -51,6 +51,7 @@ import 'package:otzaria/plugins/services/plugin_file_server.dart';
 import 'package:otzaria/plugins/services/plugin_shortcut_service.dart';
 import 'package:otzaria/plugins/services/plugin_path_safety.dart';
 import 'package:otzaria/plugins/services/plugin_network_fetch_service.dart';
+import 'package:otzaria/plugins/services/plugin_highlight_registry.dart';
 
 // ===================================================================
 // Spec-compliant allowlist for settings.get/getMany
@@ -339,8 +340,9 @@ class PluginBridgeAdapter {
   PluginNetworkFetchService get _fetchService =>
       _networkFetchService ??= PluginNetworkFetchService();
 
-  // bookId → index → PluginHighlight (in-memory, per adapter instance)
-  final Map<String, Map<int, PluginHighlight>> _highlights = {};
+  // bookId → key → PluginHighlight (in-memory, per adapter instance)
+  // key = "$index" for whole-line highlights, "$index:$start:$end" for inline
+  final Map<String, Map<String, PluginHighlight>> _highlights = {};
 
   // bookId → טקסט מלא של הספר (מטמון LRU קצר, per adapter instance) עבור
   // getBookContent. ראה _loadBookRawText.
@@ -796,11 +798,37 @@ class PluginBridgeAdapter {
         if (id == null || label == null) {
           throw Exception('error.invalid_params: id and label required');
         }
-        ContextMenuRegistry.instance.register(
+        // parentId — must not be an empty string
+        final rawParentId = args['parentId'];
+        final parentId = rawParentId as String?;
+        if (parentId != null && parentId.isEmpty) {
+          throw Exception('error.invalid_params: parentId must not be empty');
+        }
+        // type — must be a recognised value if provided
+        final rawType = args['type'] as String?;
+        PluginContextMenuItemType itemType;
+        if (rawType == null || rawType == 'item') {
+          itemType = PluginContextMenuItemType.item;
+        } else if (rawType == 'group') {
+          itemType = PluginContextMenuItemType.group;
+        } else if (rawType == 'buttonRow') {
+          itemType = PluginContextMenuItemType.buttonRow;
+        } else {
+          throw Exception(
+              'error.invalid_params: unknown type "$rawType". Valid values: item, group, buttonRow');
+        }
+        final menuError = ContextMenuRegistry.instance.register(
           plugin.pluginId,
           PluginContextMenuItem(
-              id: id, label: label, icon: args['icon'] as String?),
+            id: id,
+            label: label,
+            icon: args['icon'] as String?,
+            color: args['color'] as String?,
+            parentId: parentId,
+            type: itemType,
+          ),
         );
+        if (menuError != null) throw Exception(menuError);
         return true;
       case 'removeContextMenuItem':
         final id = args['id'] as String?;
@@ -813,13 +841,48 @@ class PluginBridgeAdapter {
         if (bookId == null || index == null) {
           throw Exception('error.invalid_params: bookId and index required');
         }
-        _highlights.putIfAbsent(bookId, () => {})[index] = PluginHighlight(
+        final rawStart = args['start'];
+        final rawEnd = args['end'];
+        final hasStart = rawStart != null;
+        final hasEnd = rawEnd != null;
+        // start and end must be provided together
+        if (hasStart != hasEnd) {
+          throw Exception(
+              'error.invalid_params: start and end must both be provided or both omitted');
+        }
+        int? start;
+        int? end;
+        if (hasStart && hasEnd) {
+          start = rawStart is num
+              ? rawStart.toInt()
+              : int.tryParse(rawStart.toString());
+          end =
+              rawEnd is num ? rawEnd.toInt() : int.tryParse(rawEnd.toString());
+          if (start == null || start < 0) {
+            throw Exception(
+                'error.invalid_params: start must be a non-negative integer');
+          }
+          if (end == null || end < 0) {
+            throw Exception(
+                'error.invalid_params: end must be a non-negative integer');
+          }
+          if (start > end) {
+            throw Exception('error.invalid_params: start must be <= end');
+          }
+        }
+        final key =
+            (start != null && end != null) ? '$index:$start:$end' : '$index';
+        final highlight = PluginHighlight(
           bookId: bookId,
           index: index,
           color: args['color'] as String?,
           label: args['label'] as String?,
           pluginId: plugin.pluginId,
+          start: start,
+          end: end,
         );
+        _highlights.putIfAbsent(bookId, () => {})[key] = highlight;
+        PluginHighlightRegistry.instance.put(bookId, key, highlight);
         return true;
       case 'getHighlights':
         final bookId = args['bookId'] as String?;
@@ -835,14 +898,39 @@ class PluginBridgeAdapter {
         if (bookId == null || index == null) {
           throw Exception('error.invalid_params: bookId and index required');
         }
-        _highlights[bookId]?.remove(index); // idempotent
+        final clRawStart = args['start'];
+        final clRawEnd = args['end'];
+        if (clRawStart != null && clRawEnd != null) {
+          // precise deletion: remove only the matching inline key
+          final clStart = clRawStart is num
+              ? clRawStart.toInt()
+              : int.tryParse(clRawStart.toString());
+          final clEnd = clRawEnd is num
+              ? clRawEnd.toInt()
+              : int.tryParse(clRawEnd.toString());
+          if (clStart != null && clEnd != null) {
+            _highlights[bookId]?.remove('$index:$clStart:$clEnd');
+            PluginHighlightRegistry.instance
+                .remove(bookId, '$index:$clStart:$clEnd');
+          }
+        } else {
+          // broad deletion: remove all highlights for this index
+          final bookHighlights = _highlights[bookId];
+          if (bookHighlights != null) {
+            bookHighlights.removeWhere(
+                (k, _) => k == '$index' || k.startsWith('$index:'));
+          }
+          PluginHighlightRegistry.instance.removeForIndex(bookId, index);
+        }
         return true;
       case 'clearAllHighlights':
         final bookId = args['bookId'] as String?;
         if (bookId != null) {
           _highlights.remove(bookId);
+          PluginHighlightRegistry.instance.clearBook(bookId);
         } else {
           _highlights.clear();
+          PluginHighlightRegistry.instance.clearAll();
         }
         return true;
       default:

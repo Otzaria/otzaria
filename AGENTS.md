@@ -167,7 +167,6 @@ Add it to the appropriate set/map in `lib/widgets/misc/rtl_icon.dart`, then use 
 - Random icon packages
 - `mirrorIcon` parameter on any widget — **FORBIDDEN**, removed in commit 3b4d357
 - Manual `Transform.scale(scaleX: -1, ...)` or `Transform.flip(flipX: true, ...)` around icons — register in `rtl_icon.dart` instead
-- Comments explaining why `RtlIcon` or `Icon(...)` was chosen — the decision rule is documented here; do NOT repeat it inline in code
 
 ### 2. User Messages - ONLY via `UiSnack`
 ```dart
@@ -603,7 +602,6 @@ if (Platform.isAndroid || Platform.isIOS) {
 - Forgetting to use `RtlIcon` for icons that **are** registered in `lib/widgets/misc/rtl_icon.dart`
 - Adding `mirrorIcon` parameter to any widget — FORBIDDEN (removed in commit 3b4d357)
 - Manual `Transform.scale(scaleX: -1)` or `Transform.flip` on icons — register the icon in `rtl_icon.dart` instead
-- Adding inline comments that explain why `RtlIcon` or `Icon(...)` was chosen — the decision rule lives in AGENTS.md, not in code
 - Showing messages without `UiSnack`
 - Using custom dialogs instead of `custom_ui_components` dialogs
 - Using `ElevatedButton`/`TextButton` instead of `RecommendedActionButton`/`NeutralActionButton`

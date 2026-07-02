@@ -412,6 +412,19 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
         );
       }
 
+      // שורת כפתורים אופקית (plugin buttonRow)
+      if (entry.isButtonRow) {
+        return _PluginButtonRow(
+          label: entry.label ?? '',
+          buttons: entry.children ?? const [],
+          metrics: metrics,
+          onButtonTap: (child) {
+            _closeContextMenu();
+            child.onTap?.call();
+          },
+        );
+      }
+
       if (entry.childrenBuilder != null) {
         if (!entry.enabled) {
           return MenuItemButton(
@@ -1327,6 +1340,179 @@ class _MenuItemHoverPreviewState extends State<_MenuItemHoverPreview> {
         child: widget.child,
       ),
     );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// _PluginButtonRow — שורת כפתורים אופקית לתוספים בתפריט הקשר
+//
+// מציגה כותרת קצרה (label) ולצדה שורת כפתורים. כל כפתור יכול להציג:
+//   • אייקון (icon != null) — IconData מ-FluentUI
+//   • גוש צבע (color != null) — מלבן צבעוני מעוגל
+//   • טקסט קצר בלבד (label בלבד, ללא icon/color)
+// ═══════════════════════════════════════════════════════════════════════════
+
+class _PluginButtonRow extends StatelessWidget {
+  final String label;
+  final List<AppContextMenuEntry> buttons;
+  final AppMenuMetrics metrics;
+  final void Function(AppContextMenuEntry child) onButtonTap;
+
+  const _PluginButtonRow({
+    required this.label,
+    required this.buttons,
+    required this.metrics,
+    required this.onButtonTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    const double buttonSize = 32;
+    const double colorSwatchSize = 22;
+    const double rowPaddingV = 6;
+    const double rowPaddingH = 12;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: rowPaddingH, vertical: rowPaddingV),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // כותרת השורה
+          if (label.isNotEmpty) ...[
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: 'Roboto',
+                fontSize: metrics.fontSize,
+                color: colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
+          // הכפתורים
+          ...buttons.map((btn) {
+            final isColorSwatch = btn.icon == null &&
+                btn.label != null &&
+                (btn.label!.startsWith('#') || _isNamedColor(btn.label!));
+
+            return Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: Tooltip(
+                message: isColorSwatch ? '' : (btn.label ?? ''),
+                waitDuration: const Duration(milliseconds: 500),
+                child: InkWell(
+                  onTap: () => onButtonTap(btn),
+                  borderRadius: BorderRadius.circular(6),
+                  child: SizedBox(
+                    width: buttonSize,
+                    height: buttonSize,
+                    child: Center(
+                      child: isColorSwatch
+                          ? _ColorSwatch(
+                              colorString: btn.label!,
+                              size: colorSwatchSize,
+                            )
+                          : btn.icon != null
+                              ? Icon(
+                                  btn.icon,
+                                  size: metrics.iconSize,
+                                  color: colorScheme.onSurface,
+                                )
+                              : Text(
+                                  btn.label ?? '',
+                                  style: TextStyle(
+                                    fontSize: metrics.fontSize - 1,
+                                    color: colorScheme.onSurface,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  static bool _isNamedColor(String s) {
+    const named = {
+      'red',
+      'blue',
+      'yellow',
+      'green',
+      'orange',
+      'pink',
+      'purple',
+      'cyan',
+      'white',
+      'black',
+    };
+    return named.contains(s.toLowerCase());
+  }
+}
+
+/// מציג גוש צבע מעוגל מ-CSS color string (hex או שם).
+class _ColorSwatch extends StatelessWidget {
+  final String colorString;
+  final double size;
+
+  const _ColorSwatch({required this.colorString, required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    // parseCssColor נמצאת ב-plugin_highlight.dart — מיובאת דרך הגדרות הקובץ.
+    // כאן נחזור על הפרסר המינימלי ישירות.
+    final color = _parse(colorString);
+    if (color == null) return const SizedBox.shrink();
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(5),
+        border: Border.all(
+          color: Colors.black.withValues(alpha: 0.18),
+          width: 1,
+        ),
+      ),
+    );
+  }
+
+  static Color? _parse(String value) {
+    final v = value.toLowerCase().trim();
+    const namedColors = {
+      'red': 0xFFFF0000,
+      'blue': 0xFF0000FF,
+      'yellow': 0xFFFFFF00,
+      'green': 0xFF008000,
+      'orange': 0xFFFFA500,
+      'pink': 0xFFFFC0CB,
+      'purple': 0xFF800080,
+      'cyan': 0xFF00FFFF,
+      'white': 0xFFFFFFFF,
+      'black': 0xFF000000,
+    };
+    if (namedColors.containsKey(v)) return Color(namedColors[v]!);
+    if (v.startsWith('#')) {
+      var hex = v.substring(1);
+      if (hex.length == 3) hex = hex.split('').map((c) => '$c$c').join();
+      if (hex.length == 6) {
+        final n = int.tryParse(hex, radix: 16);
+        if (n != null) return Color(0xFF000000 | n);
+      }
+      if (hex.length == 8) {
+        // CSS format: RRGGBBAA — Flutter Color expects AARRGGBB
+        final reordered = '${hex.substring(6, 8)}${hex.substring(0, 6)}';
+        final n = int.tryParse(reordered, radix: 16);
+        if (n != null) return Color(n);
+      }
+    }
+    return null;
   }
 }
 

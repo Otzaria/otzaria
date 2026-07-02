@@ -105,6 +105,11 @@ class AppContextMenuEntry {
   final bool isDestructive;
   final bool isSelected;
   final bool isHighlighted;
+
+  /// מסמן שורת כפתורים אופקית (plugin buttonRow).
+  /// כשה-flag דלוק, [children] מכיל את הכפתורים להצגה אופקית.
+  final bool isButtonRow;
+
   final VoidCallback? onTap;
   final Widget? trailing;
   // תת-פריטים לתפריט משנה
@@ -136,7 +141,8 @@ class AppContextMenuEntry {
     this.childrenRefreshStream,
     this.hoverPreviewBuilder,
   })  : iconRowActions = null,
-        isDivider = false;
+        isDivider = false,
+        isButtonRow = false;
 
   /// שורת כפתורי אייקון בראש התפריט (סגנון Windows 11).
   const AppContextMenuEntry.iconRow(List<AppContextMenuIconAction> actions)
@@ -148,6 +154,7 @@ class AppContextMenuEntry {
         icon = null,
         enabled = true,
         isDivider = false,
+        isButtonRow = false,
         isDestructive = false,
         isSelected = false,
         isHighlighted = false,
@@ -165,12 +172,34 @@ class AppContextMenuEntry {
         icon = null,
         enabled = false,
         isDivider = true,
+        isButtonRow = false,
         isDestructive = false,
         isSelected = false,
         isHighlighted = false,
         onTap = null,
         trailing = null,
         children = null,
+        childrenBuilder = null,
+        childrenRefreshStream = null,
+        hoverPreviewBuilder = null,
+        iconRowActions = null;
+
+  /// Constructor לשורת כפתורים אופקית (plugin buttonRow).
+  /// [label] הוא כותרת האזור, [children] הם הכפתורים בשורה.
+  const AppContextMenuEntry.buttonRow({
+    required this.label,
+    required List<AppContextMenuEntry> this.children,
+  })  : key = null,
+        labelWidget = null,
+        icon = null,
+        enabled = true,
+        isDivider = false,
+        isButtonRow = true,
+        isDestructive = false,
+        isSelected = false,
+        isHighlighted = false,
+        onTap = null,
+        trailing = null,
         childrenBuilder = null,
         childrenRefreshStream = null,
         hoverPreviewBuilder = null,
