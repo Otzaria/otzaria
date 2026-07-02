@@ -6,28 +6,104 @@ on:
       - main
       - dev
 
-jobs:
-  test:
-    name: Analyze & Test on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+permissions:
+  contents: read
 
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest]
+jobs:
+  # שער אבטחה+עומס: רץ על runner של GitHub (לא על ה-self-hosted) ומחליט על איזה
+  # runner להריץ את הטסטים. השרת נגע רק ע"י מורשים ורק מחוץ לחלון העמוס.
+  gate:
+    name: Select runner
+    runs-on: ubuntu-latest
+    outputs:
+      runner: ${{ steps.decide.outputs.runner }}
+    steps:
+      - name: Decide runner by author + load window
+        id: decide
+        env:
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          set -euo pipefail
+
+          # מורשים להריץ על ה-self-hosted runner (שמות משתמש ב-GitHub, מופרדים ברווח).
+          AUTHORIZED="Y-PLONI palmoni5 gwngdwl YOSEFTT DeveShlomo mmichaelush Nathaniel-260 arieldaniely"
+
+          authorized=false
+          for u in $AUTHORIZED; do
+            if [ "$u" = "$PR_AUTHOR" ]; then authorized=true; break; fi
+          done
+
+          # חלון עמוס: יום חמישי 15:00–20:00 UTC, מסונכרן ל-cron של weekly-pipeline
+          # (ב-repo otzaria-library). ב-UTC בלבד — אין תלות בשעון קיץ/חורף.
+          dow=$(date -u +%u)    # 1=שני .. 7=ראשון; חמישי=4
+          hour=$(date -u +%-H)  # 0..23 ללא אפס מוביל
+          busy=false
+          if [ "$dow" = "4" ] && [ "$hour" -ge 15 ] && [ "$hour" -lt 20 ]; then
+            busy=true
+          fi
+
+          if [ "$authorized" = true ] && [ "$busy" = false ]; then
+            echo 'runner=["self-hosted","Linux","ARM64"]' >> "$GITHUB_OUTPUT"
+            echo "מורשה ומחוץ לחלון עמוס → self-hosted"
+          else
+            echo 'runner="ubuntu-latest"' >> "$GITHUB_OUTPUT"
+            echo "runner של GitHub (author=$PR_AUTHOR, authorized=$authorized, busy=$busy)"
+          fi
+
+  test:
+    name: Analyze & Test on ${{ needs.gate.outputs.runner }}
+    needs: gate
+    runs-on: ${{ fromJSON(needs.gate.outputs.runner) }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # שימוש ב-channel stable + flutter-version קבוע, אחיד עם build-and-announce.yml.
-      # הגרסה ננעלת מפני שדרוגים אוטומטיים של pub/CI אחרי שחרור גרסת flutter יציבה חדשה.
-      - name: Setup Flutter
+      # GitHub-hosted (x64): ה-action מוריד artifact רשמי של Flutter, מהיר ו-cached.
+      # הגרסה ננעלת מפני שדרוגים אוטומטיים אחרי שחרור גרסת flutter יציבה חדשה.
+      - name: Setup Flutter (GitHub-hosted)
+        if: runner.environment == 'github-hosted'
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           flutter-version: 3.44.0
           cache: true
+
+      # self-hosted (Oracle Linux ARM64): אין artifact רשמי של Flutter ל-Linux ARM64,
+      # לכן מתקינים דרך git clone שנשאר בין ריצות. אם הגרסה הנכונה כבר מותקנת —
+      # מדלגים על ההתקנה כדי לחסוך את זמן ההורדה.
+      - name: Setup Flutter (self-hosted, persistent)
+        if: runner.environment == 'self-hosted'
+        env:
+          FLUTTER_VERSION: 3.44.0
+          FLUTTER_HOME: ${{ runner.tool_cache }}/flutter
+        run: |
+          set -euo pipefail
+
+          for cmd in git jq curl unzip xz; do
+            command -v "$cmd" >/dev/null \
+              || { echo "::error::חסר '$cmd' על ה-runner (התקן ידנית, למשל: sudo dnf install -y $cmd)"; exit 1; }
+          done
+
+          git config --global --add safe.directory "$FLUTTER_HOME" || true
+
+          installed=""
+          if [ -x "$FLUTTER_HOME/bin/flutter" ]; then
+            installed=$("$FLUTTER_HOME/bin/flutter" --version 2>/dev/null \
+              | grep -oE 'Flutter [0-9]+\.[0-9]+\.[0-9]+' | head -1 | awk '{print $2}' || true)
+          fi
+
+          if [ "$installed" = "$FLUTTER_VERSION" ]; then
+            echo "Flutter $FLUTTER_VERSION כבר מותקן — מדלג על ההתקנה"
+          else
+            echo "מתקין Flutter $FLUTTER_VERSION (מותקן כעת: ${installed:-אין})"
+            rm -rf "$FLUTTER_HOME"
+            git clone --depth 1 -b "$FLUTTER_VERSION" \
+              https://github.com/flutter/flutter.git "$FLUTTER_HOME"
+          fi
+
+          echo "$FLUTTER_HOME/bin" >> "$GITHUB_PATH"
+          "$FLUTTER_HOME/bin/flutter" --version
 
       - name: Install dependencies
         run: flutter pub get
