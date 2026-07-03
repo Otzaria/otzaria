@@ -702,7 +702,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
             _ShortcutTile(
               settingKey: 'key-shortcut-toggle-commentators-pane',
               label: 'פתח/סגור חלונית מפרשים',
-              icon: FluentIcons.book_open_24_regular,
+              icon: FluentIcons.panel_right_24_regular,
               allShortcuts: _shortcutsList,
             ),
             _ShortcutTile(

@@ -105,7 +105,7 @@ class CalendarSettingsTab extends StatefulWidget {
     SettingsSearchEntry(
       id: 'tools.calendar.google_calendar',
       title: 'לוח שנה של Google',
-      subtitle: 'סנכרון אירועים עם Google Calendar',
+      subtitle: 'סנכרן אירועים עם Google Calendar',
       tab: SettingsTab.tools,
       cardId: 'tools.calendar',
       keywords: [
@@ -147,22 +147,24 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
               children: [
                 // סוג לוח
                 SettingsActionTile.segmentedTile<CalendarType>(
-                  icon: FluentIcons.calendar_24_regular,
                   title: 'סוג לוח שנה',
                   options: const [
                     SegmentOption(
                       value: CalendarType.hebrew,
                       label: 'עברי',
-                      subtitle: 'יוצג לוח השנה היהודי בלבד',
+                      icon: FluentIcons.calendar_rtl_24_regular,
+                      subtitle: 'יוצג לוח השנה העברי בלבד',
                     ),
                     SegmentOption(
                       value: CalendarType.combined,
                       label: 'משולב',
+                      icon: FluentIcons.calendar_multiple_24_regular,
                       subtitle: 'יוצגו תאריכים מהלוח העברי והלועזי יחד',
                     ),
                     SegmentOption(
                       value: CalendarType.gregorian,
                       label: 'לועזי',
+                      icon: FluentIcons.calendar_ltr_24_regular,
                       subtitle: 'יוצג לוח השנה הלועזי בלבד',
                     ),
                   ],
@@ -287,11 +289,11 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
 
                 // ── לוח שנה גוגל ──
                 SettingsActionTile.switchTile(
-                  icon: FluentIcons.arrow_sync_24_regular,
+                  icon: FluentIcons.calendar_sync_24_regular,
                   title: 'לוח שנה של Google',
                   subtitle: isOfflineMode
                       ? 'מושבת במצב מנותק'
-                      : 'סנכרון אירועים עם Google Calendar',
+                      : 'סנכרן אירועים עם Google Calendar',
                   value: state.googleCalendarEnabled,
                   enabled: !isOfflineMode,
                   onChanged: (value) {

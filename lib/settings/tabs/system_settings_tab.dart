@@ -925,8 +925,8 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
           subtitle: state.isOfflineMode
               ? 'מושבת במצב מנותק'
               : state.softwareAndBookUpdatesEnabled
-                  ? 'עדכוני תוכנה וספרים פעילים, אך דיווחי שגיאות ימשיכו לעבוד גם אם תכבו אותם'
-                  : 'עדכוני תוכנה וספרים מושבתים, אך שאר שירותי הרשת נשארים פעילים',
+                  ? 'עדכוני תוכנה וספרים פעילים'
+                  : 'עדכוני מערכת של התוכנה והספרים מושבתים',
           value: state.canUseSoftwareAndBookUpdates,
           enabled: !state.isOfflineMode,
           onChanged: state.isOfflineMode

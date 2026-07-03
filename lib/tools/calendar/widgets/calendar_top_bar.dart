@@ -600,6 +600,7 @@ class _CalendarTopBarState extends State<CalendarTopBar>
           );
           final todayBtn = BarButton.text(
             text: 'היום',
+            icon: FluentIcons.calendar_today_24_regular,
             onPressed: _withClose(widget.onJumpToToday),
           );
           // כשהחיפוש פתוח — כפתור ה-jump הופך לכפתור סגירה עם אייקון X
@@ -614,12 +615,9 @@ class _CalendarTopBarState extends State<CalendarTopBar>
             iconWidget: widget.isJumpToDateSearchOpen
                 ? Icon(FluentIcons.dismiss_24_regular,
                     size: isCompact ? 16 : 20)
-                : Transform.flip(
-                    flipX: true,
-                    child: Icon(
-                      FluentIcons.calendar_search_20_regular,
-                      size: isCompact ? 16 : 20,
-                    ),
+                : Icon(
+                    FluentIcons.calendar_search_20_regular,
+                    size: isCompact ? 16 : 20,
                   ),
             selected: widget.isJumpToDateSearchOpen,
             onPressed: widget.onToggleJumpToDateSearch,
