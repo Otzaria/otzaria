@@ -280,6 +280,10 @@ List<Map<String, dynamic>> _loadInverseSourceRows(
   final types = LinkTypes.dependentTextTypes.toList();
   final typePlaceholders = List.filled(types.length, '?').join(', ');
   final hasRange = startLineIndex != null && endLineIndex != null;
+  // בשאילתה ההפוכה השורה המוצגת היא צד היעד של הקישור השמור.
+  final hasLinkAnchor = _hasLinkAnchorTable(db);
+  final anchorSelect = _anchorSelectColumns(hasLinkAnchor);
+  final anchorJoin = _anchorJoinClause(hasLinkAnchor, displayedSide: 1);
 
   if (hasRange) {
     // כשיש טווח: מוצאים תחילה את ה-line IDs בטווח דרך idx_line_book_index,
@@ -301,12 +305,14 @@ List<Map<String, dynamic>> _loadInverseSourceRows(
           sb.title as targetBookTitle,
           sb.categoryId as targetCategoryId,
           NULL as targetFileType,
+          $anchorSelect
           'SOURCE' as connectionTypeName
         FROM link l
         JOIN line tl ON l.targetLineId = tl.id
         JOIN line sl ON l.sourceLineId = sl.id
         JOIN book sb ON l.sourceBookId = sb.id
         JOIN connection_type ct ON l.connectionTypeId = ct.id
+        $anchorJoin
         WHERE l.targetLineId IN (
           SELECT id FROM line WHERE bookId = ? AND lineIndex BETWEEN ? AND ?
         )
@@ -326,17 +332,82 @@ List<Map<String, dynamic>> _loadInverseSourceRows(
         sb.title as targetBookTitle,
         sb.categoryId as targetCategoryId,
         NULL as targetFileType,
+        $anchorSelect
         'SOURCE' as connectionTypeName
       FROM link l
       JOIN line tl ON l.targetLineId = tl.id
       JOIN line sl ON l.sourceLineId = sl.id
       JOIN book sb ON l.sourceBookId = sb.id
       JOIN connection_type ct ON l.connectionTypeId = ct.id
+      $anchorJoin
       WHERE l.targetBookId = ?
         AND ct.name IN ($typePlaceholders)
         AND l.sourceBookId != l.targetBookId
       ORDER BY tl.lineIndex
     ''', params).toMapList();
+}
+
+/// עוגני-מילה (link_anchor) — קיים רק במסדים חדשים; במסד ישן השאילתות חוזרות
+/// לעמודות NULL. side=0 = העוגן יושב בשורת המקור של הקישור, side=1 = בשורת
+/// היעד. `displayedSide` הוא הצד שהשורה שלו מוצגת בגוף הטקסט (הסמן/הטווח
+/// מוזרקים אליה), והצד הנגדי הוא קטע-הפאנל (anchorLinked*).
+bool _hasLinkAnchorTable(sqlite3.Database db) => db
+    .select(
+      "SELECT 1 FROM sqlite_master WHERE type='table' AND name='link_anchor' LIMIT 1",
+    )
+    .isNotEmpty;
+
+String _anchorSelectColumns(bool hasLinkAnchor) => hasLinkAnchor
+    ? '''la.charStart as anchorCharStart,
+          la.charEnd as anchorCharEnd,
+          la.label as anchorLabel,
+          la.spans as anchorSpans,
+          lal.charStart as anchorLinkedCharStart,
+          lal.charEnd as anchorLinkedCharEnd,'''
+    : '''NULL as anchorCharStart,
+          NULL as anchorCharEnd,
+          NULL as anchorLabel,
+          NULL as anchorSpans,
+          NULL as anchorLinkedCharStart,
+          NULL as anchorLinkedCharEnd,''';
+
+/// עוגני הקישור מקובצים לשורה אחת לכל קישור וצד: העוגן הראשון (MIN) לאות
+/// שבפאנל, ו-spans מקודד את כולם ("start:end:label;...", ראו
+/// [_parseAnchorSpans]) כך שקישור עם כמה עוגנים באותה שורה מציג את כולם.
+/// דטרמיניזם: charEnd/label הלא-אגרגטיביים מגיעים לפי חוזה SQLite משורת
+/// ה-MIN, ושורת ה-MIN יחידה — (linkId, side, charStart) הוא ה-PK של
+/// link_anchor, כך שאין שני עוגנים לאותו קישור/צד עם אותו charStart.
+String _anchorJoinClause(bool hasLinkAnchor, {required int displayedSide}) =>
+    hasLinkAnchor
+        ? '''LEFT JOIN (
+          SELECT linkId, MIN(charStart) AS charStart, charEnd, label,
+                 GROUP_CONCAT(charStart || ':' || COALESCE(charEnd, '') || ':' || COALESCE(label, ''), ';') AS spans
+          FROM link_anchor WHERE side = $displayedSide GROUP BY linkId
+        ) la ON la.linkId = l.id
+        LEFT JOIN (
+          SELECT linkId, MIN(charStart) AS charStart, charEnd
+          FROM link_anchor WHERE side = ${1 - displayedSide} GROUP BY linkId
+        ) lal ON lal.linkId = l.id'''
+        : '';
+
+/// מפענח את מחרוזת ה-spans מהשאילתה לרשימת עוגנים ממוינת לפי מיקום.
+List<LinkAnchorSpan> _parseAnchorSpans(String? spans) {
+  if (spans == null || spans.isEmpty) return const [];
+  final result = <LinkAnchorSpan>[];
+  for (final part in spans.split(';')) {
+    final fields = part.split(':');
+    final start = int.tryParse(fields.first);
+    if (start == null) continue;
+    final end = fields.length > 1 ? int.tryParse(fields[1]) : null;
+    final label = fields.length > 2 ? fields.sublist(2).join(':') : '';
+    result.add(LinkAnchorSpan(
+      start: start,
+      end: end,
+      label: label.isEmpty ? null : label,
+    ));
+  }
+  result.sort((a, b) => a.start.compareTo(b.start));
+  return result;
 }
 
 List<Map<String, dynamic>> _loadBookLinksRowsInIsolate({
@@ -359,6 +430,7 @@ List<Map<String, dynamic>> _loadBookLinksRowsInIsolate({
     }
 
     final bookId = bookResults.first['id'] as int;
+    final hasLinkAnchor = _hasLinkAnchorTable(db);
 
     final forwardRows = db.select('''
         SELECT
@@ -370,12 +442,14 @@ List<Map<String, dynamic>> _loadBookLinksRowsInIsolate({
           tb.title as targetBookTitle,
           tb.categoryId as targetCategoryId,
           NULL as targetFileType,
+          ${_anchorSelectColumns(hasLinkAnchor)}
           ct.name as connectionTypeName
         FROM link l
         JOIN line sl ON l.sourceLineId = sl.id
         JOIN line tl ON l.targetLineId = tl.id
         JOIN book tb ON l.targetBookId = tb.id
         LEFT JOIN connection_type ct ON l.connectionTypeId = ct.id
+        ${_anchorJoinClause(hasLinkAnchor, displayedSide: 0)}
         WHERE l.sourceBookId = ?
         ORDER BY sl.lineIndex
       ''', [bookId]).toMapList();
@@ -437,6 +511,7 @@ List<Map<String, dynamic>> _loadBookLinksRowsInRangeInIsolate({
             ? 'AND (ct.name IS NULL OR ct.name NOT IN ($depTypesIn) OR tb.title IN ($targetBookPlaceholders))'
             : 'AND (ct.name IS NULL OR ct.name NOT IN ($depTypesIn))';
 
+    final hasLinkAnchor = _hasLinkAnchorTable(db);
     final rows = db.select('''
         SELECT
           sl.lineIndex as sourceLineIndex,
@@ -445,12 +520,14 @@ List<Map<String, dynamic>> _loadBookLinksRowsInRangeInIsolate({
           tb.title as targetBookTitle,
           tb.categoryId as targetCategoryId,
           NULL as targetFileType,
+          ${_anchorSelectColumns(hasLinkAnchor)}
           ct.name as connectionTypeName
         FROM link l
         JOIN line sl ON l.sourceLineId = sl.id
         JOIN line tl ON l.targetLineId = tl.id
         JOIN book tb ON l.targetBookId = tb.id
         LEFT JOIN connection_type ct ON l.connectionTypeId = ct.id
+        ${_anchorJoinClause(hasLinkAnchor, displayedSide: 0)}
         WHERE l.sourceBookId = ?
           AND sl.lineIndex BETWEEN ? AND ?
           $commentaryFilterClause
@@ -2495,6 +2572,12 @@ class DatabaseLibraryProvider implements LibraryProvider {
           connectionType: connectionType,
           targetCategoryId: row['targetCategoryId'] as int?,
           targetFileType: row['targetFileType'] as String?,
+          anchorStart: row['anchorCharStart'] as int?,
+          anchorEnd: row['anchorCharEnd'] as int?,
+          anchorLabel: row['anchorLabel'] as String?,
+          linkedAnchorStart: row['anchorLinkedCharStart'] as int?,
+          linkedAnchorEnd: row['anchorLinkedCharEnd'] as int?,
+          anchorSpans: _parseAnchorSpans(row['anchorSpans'] as String?),
         );
       }).toList();
 
@@ -2554,6 +2637,12 @@ class DatabaseLibraryProvider implements LibraryProvider {
           connectionType: connectionType,
           targetCategoryId: row['targetCategoryId'] as int?,
           targetFileType: row['targetFileType'] as String?,
+          anchorStart: row['anchorCharStart'] as int?,
+          anchorEnd: row['anchorCharEnd'] as int?,
+          anchorLabel: row['anchorLabel'] as String?,
+          linkedAnchorStart: row['anchorLinkedCharStart'] as int?,
+          linkedAnchorEnd: row['anchorLinkedCharEnd'] as int?,
+          anchorSpans: _parseAnchorSpans(row['anchorSpans'] as String?),
         );
       }).toList();
       return links;

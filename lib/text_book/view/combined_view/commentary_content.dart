@@ -11,6 +11,7 @@ import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/feedback/app_future_builder.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
 import 'package:otzaria/search/utils/snippet_builder.dart';
+import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
 import 'package:otzaria/text_book/view/selection/selected_text_restore.dart';
 
 class CommentaryContent extends StatefulWidget {
@@ -188,8 +189,25 @@ class _CommentaryContentState extends State<CommentaryContent> {
 
                     _reportRenderedText(data, renderSettings);
 
+                    // עוגן בצד המקושר (ציטוט מ-charLevelData): הדגשת הטווח
+                    // המצוטט בתוך קטע המפרש, באופסטים של תווים-גלויים.
+                    var displayData = data;
+                    final linkedStart = widget.link.linkedAnchorStart;
+                    final linkedEnd = widget.link.linkedAnchorEnd;
+                    if (linkedStart != null &&
+                        linkedEnd != null &&
+                        linkedEnd > linkedStart) {
+                      displayData = wrapVisibleRange(
+                        html: data,
+                        start: linkedStart,
+                        end: linkedEnd,
+                        openTag: '<span class="link-anchor-range">',
+                        closeTag: '</span>',
+                      );
+                    }
+
                     return SmartTextWidget(
-                      text: data,
+                      text: displayData,
                       settings: renderSettings,
                     );
                   },

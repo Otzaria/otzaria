@@ -15,6 +15,7 @@ import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
 import 'package:otzaria/text_book/view/combined_view/commentary_content.dart';
 import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/text_book/utils/commentator_group_builder.dart';
+import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
 import 'package:otzaria/text_book/view/commentators_list_screen.dart';
 import 'package:otzaria/widgets/misc/commentators_filter_button.dart';
 import 'package:otzaria/widgets/layout/commentators_filter_screen.dart';
@@ -1945,6 +1946,14 @@ class _CollapsibleCommentaryGroupState
                           builder: (context, snapshot) {
                             String displayTitle =
                                 snapshot.data ?? link.fallbackDisplayReference;
+                            // קישור עם עוגן-מילה: אות הסימון שמופיעה בגוף
+                            // הטקסט מוצגת גם לפני כותרת ההערה.
+                            if (link.anchorStart != null) {
+                              final markerLetter = anchorMarkerLetter(link);
+                              if (markerLetter != null) {
+                                displayTitle = '($markerLetter) $displayTitle';
+                              }
+                            }
                             if (settingsState.replaceHolyNames) {
                               displayTitle =
                                   utils.replaceHolyNames(displayTitle);

@@ -302,7 +302,8 @@ TextStyle _styleForElement(dom.Element element, TextStyle parentStyle) {
     style = style.copyWith(fontSize: inlineFontSize);
   }
   if (localName == 'sup' ||
-      element.classes.contains('footnote-marker-number')) {
+      element.classes.contains('footnote-marker-number') ||
+      element.classes.contains('link-anchor')) {
     style = style.copyWith(
       fontSize: (style.fontSize ?? 18) * 0.75,
       fontStyle: FontStyle.italic,

@@ -12,6 +12,7 @@ import 'package:otzaria/settings/services/nikud_display_service.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
 import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
 import 'package:otzaria/widgets/feedback/app_future_builder.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
@@ -405,13 +406,19 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
       ),
       subtitle: BlocBuilder<SettingsBloc, SettingsState>(
         builder: (context, settingsState) {
-          final fallbackSubtitle = settingsState.replaceHolyNames
+          // קישור עם עוגן-מילה: אות הסימון שבגוף הטקסט מוצגת לפני ההפניה.
+          var markerPrefix = '';
+          if (link.anchorStart != null) {
+            final markerLetter = anchorMarkerLetter(link);
+            if (markerLetter != null) markerPrefix = '($markerLetter) ';
+          }
+          final rawFallback = settingsState.replaceHolyNames
               ? utils.replaceHolyNames(link.fallbackDisplayReference)
               : link.fallbackDisplayReference;
 
           if (!isExpanded) {
             return Text(
-              fallbackSubtitle,
+              markerPrefix + rawFallback,
               style: TextStyle(
                 fontSize: settingsState.commentatorsFontSize - 4,
                 fontWeight: FontWeight.normal,
@@ -423,9 +430,10 @@ class _SelectedLineLinksViewState extends State<SelectedLineLinksView> {
 
           return FutureBuilder<String>(
             future: link.displayReference,
-            initialData: fallbackSubtitle,
+            initialData: rawFallback,
             builder: (context, snapshot) {
-              String displaySubtitle = snapshot.data ?? fallbackSubtitle;
+              String displaySubtitle =
+                  markerPrefix + (snapshot.data ?? rawFallback);
               if (settingsState.replaceHolyNames) {
                 displaySubtitle = utils.replaceHolyNames(displaySubtitle);
               }

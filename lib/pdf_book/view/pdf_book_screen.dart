@@ -2360,13 +2360,18 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   void _enqueueSpreadPrerender(int spread) {
     if (!_queuedSpreadPrerenders.add(spread)) return;
     _spreadPrerenderQueue = _spreadPrerenderQueue.then((_) async {
-      _queuedSpreadPrerenders.remove(spread);
-      if (!mounted || !_isBookViewModeActive()) return;
-      final controller = widget.tab.pdfViewerController;
-      if (!controller.isReady) return;
-      final currentSpread = _spreadStartPageFor(controller.pageNumber ?? 1);
-      if ((spread - currentSpread).abs() > _kSpreadKeepRange) return;
-      await _renderSpreadPagesIntoCache(spread);
+      // ההסרה רק בסיום (finally): כך הדה-דופ מכסה גם את זמן הרינדור עצמו,
+      // ולא רק את ההמתנה בתור — דפדוף הלוך-חזור לא יוסיף רשומה כפולה.
+      try {
+        if (!mounted || !_isBookViewModeActive()) return;
+        final controller = widget.tab.pdfViewerController;
+        if (!controller.isReady) return;
+        final currentSpread = _spreadStartPageFor(controller.pageNumber ?? 1);
+        if ((spread - currentSpread).abs() > _kSpreadKeepRange) return;
+        await _renderSpreadPagesIntoCache(spread);
+      } finally {
+        _queuedSpreadPrerenders.remove(spread);
+      }
     }).catchError((Object e, StackTrace s) {
       _queuedSpreadPrerenders.remove(spread);
       debugPrint('Spread pre-render queue error for $spread: $e\n$s');

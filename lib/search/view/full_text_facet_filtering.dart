@@ -565,8 +565,10 @@ class _MaybeTooltipText extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        // style.hashCode ולא שדות בודדים: TextStyle ממש hashCode מלא, כך
+        // שכל שינוי עיצוב (גופן, letterSpacing וכד') יפסל את הרשומה הישנה.
         final cacheKey =
-            '$text|${constraints.maxWidth.round()}|${style.fontSize}|${style.fontWeight}';
+            '$text|${constraints.maxWidth.round()}|${style.hashCode}';
         // חסם גס לצבירה בעקבות שינויי רוחב חוזרים; אין צורך ב-LRU — חישוב
         // מחדש של ערך בודד זול.
         if (_overflowCache.length >= _overflowCacheMaxEntries) {
