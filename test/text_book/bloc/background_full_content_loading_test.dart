@@ -70,4 +70,41 @@ void main() {
           .having((state) => state.searchText, 'searchText', 'שלום'),
     ],
   );
+
+  blocTest<TextBookBloc, TextBookState>(
+    'ApplyBookContentRanges מחיל כמה טווחים ב-emission יחיד',
+    build: () => bloc,
+    seed: () => TextBookLoaded(
+      book: book,
+      content: const ['שורה 0', 'שורה 1'],
+      fontSize: 20,
+      showLeftPane: true,
+      showSplitView: false,
+      activeCommentators: const [],
+      commentatorGroups: const [],
+      availableCommentators: const [],
+      links: const [],
+      linksByLine: const {},
+      tableOfContents: const [],
+      removeNikud: false,
+      visibleIndices: const [0],
+      pinLeftPane: false,
+      searchText: '',
+      scrollController: ItemScrollController(),
+      positionsListener: ItemPositionsListener.create(),
+    ),
+    act: (bloc) => bloc.add(const ApplyBookContentRanges(
+      bookTitle: 'ספר בדיקה',
+      ranges: [
+        (startLine: 2, totalLines: 6, lines: ['שורה 2', 'שורה 3']),
+        (startLine: 4, totalLines: 6, lines: ['שורה 4', 'שורה 5']),
+      ],
+    )),
+    expect: () => [
+      isA<TextBookLoaded>()
+          .having((state) => state.content.length, 'content length', 6)
+          .having((state) => state.content[3], 'line 3', 'שורה 3')
+          .having((state) => state.content[5], 'line 5', 'שורה 5'),
+    ],
+  );
 }

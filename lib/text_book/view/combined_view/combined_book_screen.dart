@@ -1684,16 +1684,12 @@ class _CombinedViewState extends State<CombinedView> {
                         // איסוף קישורי inline (start/end מתייחסים לטקסט המקורי)
                         List<Link> linksForLine = const [];
                         if (settingsState.enableHtmlLinks) {
-                          try {
-                            linksForLine = state.links
-                                .where((link) =>
-                                    link.index1 == primaryLineIndex + 1 &&
-                                    link.start != null &&
-                                    link.end != null)
-                                .toList();
-                          } catch (e) {
-                            linksForLine = const [];
-                          }
+                          linksForLine =
+                              (state.linksByLine[primaryLineIndex + 1] ??
+                                      const <Link>[])
+                                  .where((link) =>
+                                      link.start != null && link.end != null)
+                                  .toList();
                         }
 
                         // הזרקת סימוני הערות אישיות (וקישורי inline) ל-HTML.
@@ -1909,18 +1905,11 @@ class _CombinedViewState extends State<CombinedView> {
   }) {
     var textWithLinks = rawText;
     if (settingsState.enableHtmlLinks) {
-      try {
-        final linksForLine = state.links
-            .where((link) =>
-                link.index1 == lineIndex + 1 &&
-                link.start != null &&
-                link.end != null)
-            .toList();
-        if (linksForLine.isNotEmpty) {
-          textWithLinks = addInlineLinksToText(rawText, linksForLine);
-        }
-      } catch (_) {
-        textWithLinks = rawText;
+      final linksForLine = (state.linksByLine[lineIndex + 1] ?? const <Link>[])
+          .where((link) => link.start != null && link.end != null)
+          .toList();
+      if (linksForLine.isNotEmpty) {
+        textWithLinks = addInlineLinksToText(rawText, linksForLine);
       }
     }
 

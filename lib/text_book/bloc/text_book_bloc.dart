@@ -40,6 +40,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   static const int _contentLookBehindLines = 120;
   static const int _contentLookAheadLines = 260;
   static const int _contentWarmChunkLines = 640;
+  static const int _warmFlushChunkCount = 8;
   static const int _contentReloadThresholdLines = 60;
   static const Duration _visibleIndicesDebounceDuration =
       Duration(milliseconds: 160);
@@ -149,6 +150,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     on<UpdateSearchText>(_onUpdateSearchText);
     on<ApplyFullBookContent>(_onApplyFullBookContent);
     on<ApplyBookContentRange>(_onApplyBookContentRange);
+    on<ApplyBookContentRanges>(_onApplyBookContentRanges);
     on<CreateNoteFromToolbar>(_onCreateNoteFromToolbar);
     on<UpdateSelectedTextForNote>(_onUpdateSelectedTextForNote);
     on<UpdateLinks>(_onUpdateLinks);
@@ -1625,78 +1627,127 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     ApplyBookContentRange event,
     Emitter<TextBookState> emit,
   ) {
+    _applyContentRanges(
+      event.bookTitle,
+      [
+        (
+          startLine: event.startLine,
+          totalLines: event.totalLines,
+          lines: event.lines,
+        ),
+      ],
+      emit,
+    );
+  }
+
+  void _onApplyBookContentRanges(
+    ApplyBookContentRanges event,
+    Emitter<TextBookState> emit,
+  ) {
+    _applyContentRanges(event.bookTitle, event.ranges, emit);
+  }
+
+  void _applyContentRanges(
+    String bookTitle,
+    List<BookContentRangeChunk> ranges,
+    Emitter<TextBookState> emit,
+  ) {
     if (state is! TextBookLoaded) {
       return;
     }
 
     final currentState = state as TextBookLoaded;
-    if (currentState.book.title != event.bookTitle || event.lines.isEmpty) {
+    final applicable = ranges.where((range) => range.lines.isNotEmpty).toList();
+    if (currentState.book.title != bookTitle || applicable.isEmpty) {
       return;
     }
 
     final nextContent = List<String>.of(currentState.content);
     final nextLoadedFlags = List<bool>.of(_loadedContentFlags);
-    final targetLength = event.startLine + event.lines.length;
-    var hasContentChanged = targetLength > nextContent.length;
-    var hasLoadedFlagsChanged = targetLength > nextLoadedFlags.length;
-    if (nextContent.length < targetLength) {
-      nextContent.addAll(
-        List<String>.filled(targetLength - nextContent.length, ''),
-      );
-    }
-    if (nextLoadedFlags.length < targetLength) {
-      nextLoadedFlags.addAll(
-        List<bool>.filled(targetLength - nextLoadedFlags.length, false),
-      );
+    var hasContentChanged = false;
+    var hasLoadedFlagsChanged = false;
+
+    for (final range in applicable) {
+      final targetLength = range.startLine + range.lines.length;
+      if (nextContent.length < targetLength) {
+        hasContentChanged = true;
+        nextContent.addAll(
+          List<String>.filled(targetLength - nextContent.length, ''),
+        );
+      }
+      if (nextLoadedFlags.length < targetLength) {
+        hasLoadedFlagsChanged = true;
+        nextLoadedFlags.addAll(
+          List<bool>.filled(targetLength - nextLoadedFlags.length, false),
+        );
+      }
+
+      for (var offset = 0; offset < range.lines.length; offset++) {
+        final targetIndex = range.startLine + offset;
+        if (targetIndex >= 0 && targetIndex < nextContent.length) {
+          if (nextContent[targetIndex] != range.lines[offset]) {
+            hasContentChanged = true;
+          }
+          if (!nextLoadedFlags[targetIndex]) {
+            hasLoadedFlagsChanged = true;
+          }
+          nextContent[targetIndex] = range.lines[offset];
+          nextLoadedFlags[targetIndex] = true;
+        }
+      }
     }
 
-    for (var offset = 0; offset < event.lines.length; offset++) {
-      final targetIndex = event.startLine + offset;
-      if (targetIndex >= 0 && targetIndex < nextContent.length) {
-        if (nextContent[targetIndex] != event.lines[offset]) {
-          hasContentChanged = true;
-        }
-        if (!nextLoadedFlags[targetIndex]) {
-          hasLoadedFlagsChanged = true;
-        }
-        nextContent[targetIndex] = event.lines[offset];
-        nextLoadedFlags[targetIndex] = true;
+    void markAllRanges() {
+      for (final range in applicable) {
+        _markLoadedContentRange(
+          currentState.book,
+          range.startLine,
+          range.startLine + range.lines.length - 1,
+          totalLines: range.totalLines,
+        );
       }
     }
 
     if (!hasContentChanged && !hasLoadedFlagsChanged) {
-      _markLoadedContentRange(
-        currentState.book,
-        event.startLine,
-        event.startLine + event.lines.length - 1,
-        totalLines: event.totalLines,
-      );
+      markAllRanges();
       return;
     }
 
     _setLoadedContentFlags(currentState.book, nextLoadedFlags);
-    _markLoadedContentRange(
-      currentState.book,
-      event.startLine,
-      event.startLine + event.lines.length - 1,
-      totalLines: event.totalLines,
-    );
+    markAllRanges();
+
+    // מיזוג טווחים סמוכים/חופפים: עדכון הסגמנטים מעתיק את הרשימה המלאה לכל
+    // טווח, ואצוות חימום הן כמעט תמיד רצף אחד — כך נשארת העתקה אחת לאצווה.
+    var mergedRanges = const <({int startLine, int endLine})>[];
+    for (final range in applicable) {
+      mergedRanges = mergeLoadedContentRangesForTesting(
+        mergedRanges,
+        startLine: range.startLine,
+        endLine: range.startLine + range.lines.length - 1,
+      );
+    }
+
+    var readingSegments = currentState.readingSegments;
+    for (final range in mergedRanges) {
+      readingSegments = updateReadingSegmentsForRange(
+        readingSegments,
+        nextContent,
+        loadedLineFlags: nextLoadedFlags,
+        continuous: currentState.continuousReadingMode,
+        startLine: range.startLine,
+        endLine: range.endLine,
+      );
+    }
+
     emit(_withInlineNotesCommentator(
       currentState.copyWith(
         content: nextContent,
         contentVersion: currentState.contentVersion + 1,
-        readingSegments: updateReadingSegmentsForRange(
-          currentState.readingSegments,
-          nextContent,
-          loadedLineFlags: nextLoadedFlags,
-          continuous: currentState.continuousReadingMode,
-          startLine: event.startLine,
-          endLine: event.startLine + event.lines.length - 1,
-        ),
+        readingSegments: readingSegments,
       ),
       // אופטימיזציה: לסרוק רק את השורות החדשות במקום את כל ה-content
       // המצטבר (מונע עבודה ריבועית במהלך warming הדרגתי של ספר ארוך).
-      scanOnly: event.lines,
+      scanOnly: [for (final range in applicable) ...range.lines],
     ));
   }
 
@@ -1903,20 +1954,6 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     );
   }
 
-  int? _nextWarmContentStart(List<int> visibleIndices) {
-    final totalLines = _loadedContentTotalLines;
-    if (totalLines == null) {
-      return null;
-    }
-
-    return nextWarmContentStartNearViewportForTesting(
-      loadedRanges: _loadedContentRanges,
-      totalLines: totalLines,
-      visibleIndices: visibleIndices,
-      chunkLines: _contentWarmChunkLines,
-    );
-  }
-
   ({int startLine, int endLine}) _calculateContentWindow(
     List<int> visibleIndices,
   ) {
@@ -1989,6 +2026,25 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     }
 
     _isWarmingContentCache = true;
+
+    // chunks שנטענו וטרם נשלחו ל-state. שליחה פר-chunk גררה rebuild מלא של
+    // ה-viewport עשרות פעמים לספר — לכן צוברים ושולחים באצוות.
+    final pendingChunks = <BookContentRangeChunk>[];
+    // הטווחים שהחימום כבר טען (כולל אלו שבהמתנה) — _loadedContentRanges
+    // מתעדכן רק כשה-chunk מוחל בפועל, ולכן לבדו היה גורר טעינה חוזרת.
+    var warmedRanges = <({int startLine, int endLine})>[];
+
+    void flushPendingChunks() {
+      if (pendingChunks.isEmpty || isClosed) {
+        return;
+      }
+      add(ApplyBookContentRanges(
+        bookTitle: book.title,
+        ranges: List.of(pendingChunks),
+      ));
+      pendingChunks.clear();
+    }
+
     try {
       List<int> lastWarmVisible = const [];
       while (!isClosed) {
@@ -2011,7 +2067,20 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           return;
         }
 
-        final nextStart = _nextWarmContentStart(currentState.visibleIndices);
+        var effectiveRanges = _loadedContentRanges;
+        for (final range in warmedRanges) {
+          effectiveRanges = mergeLoadedContentRangesForTesting(
+            effectiveRanges,
+            startLine: range.startLine,
+            endLine: range.endLine,
+          );
+        }
+        final nextStart = nextWarmContentStartNearViewportForTesting(
+          loadedRanges: effectiveRanges,
+          totalLines: totalLines,
+          visibleIndices: currentState.visibleIndices,
+          chunkLines: _contentWarmChunkLines,
+        );
         if (nextStart == null || nextStart >= totalLines) {
           return;
         }
@@ -2029,12 +2098,19 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           return;
         }
 
-        add(ApplyBookContentRange(
-          bookTitle: book.title,
+        pendingChunks.add((
           startLine: range.startLine,
           totalLines: range.totalLines,
           lines: range.lines,
         ));
+        warmedRanges = mergeLoadedContentRangesForTesting(
+          warmedRanges,
+          startLine: range.startLine,
+          endLine: range.startLine + range.lines.length - 1,
+        );
+        if (pendingChunks.length >= _warmFlushChunkCount) {
+          flushPendingChunks();
+        }
 
         await SchedulerBinding.instance.endOfFrame;
       }
@@ -2044,6 +2120,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
             '⚠️ TextBookBloc::warmContentCache failed for ${book.title}: $e');
       }
     } finally {
+      flushPendingChunks();
       _isWarmingContentCache = false;
     }
   }
