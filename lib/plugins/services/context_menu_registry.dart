@@ -1,4 +1,7 @@
 import 'package:otzaria/plugins/models/plugin_context_menu_item.dart';
+import 'package:otzaria/plugins/utils/fluent_icon_resolver.dart';
+import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
+import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 
 /// מספר ה-RootItems המקסימלי שתוסף בודד רשאי לרשום.
 const int _kMaxRootItemsPerPlugin = 2;
@@ -122,4 +125,64 @@ class ContextMenuRegistry {
     }
     return result;
   }
+}
+
+/// ממיר את פריטי תפריט ההקשר של הפלאגינים ל-[AppContextMenuEntry] מקונן,
+/// כולל תמיכה ב-buttonRow ותת-תפריט רגיל.
+/// [eventData] — שדות נוספים שיועברו ל-[reader.context_menu_item_clicked].
+List<AppContextMenuEntry> buildPluginContextMenuEntries(
+    Map<String, dynamic> eventData) {
+  final groups = ContextMenuRegistry.instance.getStructured();
+  if (groups.isEmpty) return const [];
+
+  return groups.map((group) {
+    final pluginId = group.pluginId;
+    final root = group.rootItem;
+
+    void dispatch(String itemId) {
+      PluginRuntimeDispatcher.instance.dispatchEventToPlugin(
+        pluginId,
+        'reader.context_menu_item_clicked',
+        {'itemId': itemId, ...eventData},
+      );
+    }
+
+    // buttonRow: שורת כפתורי צבע אופקית
+    if (root.isButtonRow) {
+      final buttons = group.children
+          .map((child) => AppContextMenuEntry(
+                label: child.label,
+                icon: fluentIconFromName(child.icon),
+                onTap: () => dispatch(child.id),
+              ))
+          .toList();
+      return AppContextMenuEntry.buttonRow(
+        label: root.label,
+        children: buttons,
+      );
+    }
+
+    // submenu רגיל: תת-תפריט עם ילדים
+    if (group.children.isNotEmpty) {
+      final childEntries = group.children
+          .map((child) => AppContextMenuEntry(
+                label: child.label,
+                icon: fluentIconFromName(child.icon),
+                onTap: () => dispatch(child.id),
+              ))
+          .toList();
+      return AppContextMenuEntry(
+        label: root.label,
+        icon: fluentIconFromName(root.icon),
+        children: childEntries,
+      );
+    }
+
+    // פריט בודד ללא ילדים
+    return AppContextMenuEntry(
+      label: root.label,
+      icon: fluentIconFromName(root.icon),
+      onTap: () => dispatch(root.id),
+    );
+  }).toList();
 }

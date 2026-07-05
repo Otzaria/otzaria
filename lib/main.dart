@@ -592,14 +592,9 @@ Future<void> _recoverInterruptedLibraryUpdate() async {
         debugPrint('📦 ${result.detail}');
       case RecoveryAction.blockedMissingBackup:
         // עדכון דלתא שנקטע: ה-apply אטומי (transaction), אז ה-DB תקין — מקור או
-        // יעד. הבדיקה פותחת RW כדי לגלגל hot journal שנשאר מהקריסה, ומריצה
-        // quick_check. פגום (נדיר, לא-SQLite) → הורדה מלאה.
-        if (recovery.checkDbHealthAfterCrash(dbPath)) {
-          debugPrint('📦 ${result.detail}: ה-DB עבר quick_check; מנקה סימון');
-          recovery.clearStaleArtifacts(dbPath);
-        } else {
-          debugPrint('   ⚠️ ה-DB פגום/לא קריא — נדרשת הורדה מלאה; משאיר סימון');
-        }
+        // יעד. מנקים את סימון הנעילה ומתקדמים.
+        debugPrint('📦 ${result.detail}: מנקה סימון ומתקדם');
+        recovery.clearStaleArtifacts(dbPath);
       case RecoveryAction.none:
         break;
     }

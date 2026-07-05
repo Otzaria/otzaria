@@ -52,7 +52,6 @@ import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository
 import 'package:otzaria/utils/text/word_at_position.dart';
 import 'package:otzaria/plugins/services/context_menu_registry.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
-import 'package:otzaria/plugins/utils/fluent_icon_resolver.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart'
     as inline_notes;
 import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
@@ -905,33 +904,17 @@ class _CombinedViewState extends State<CombinedView> {
       ),
       // פריטי תפריט מפלאגינים
       ...() {
-        final pluginItems = ContextMenuRegistry.instance.getAll();
-        if (pluginItems.isEmpty) return const <AppContextMenuEntry>[];
+        final pluginEntries = buildPluginContextMenuEntries({
+          'selectedText': selectedText ?? '',
+          'currentRef': state.currentTitle ?? '',
+          'currentBook': state.book.title,
+          'currentBookId': state.book.title,
+          'currentIndex': paragraphIndex,
+        });
+        if (pluginEntries.isEmpty) return const <AppContextMenuEntry>[];
         return <AppContextMenuEntry>[
           const AppContextMenuEntry.divider(),
-          ...pluginItems.map((record) {
-            final pluginId = record.$1;
-            final item = record.$2;
-            return AppContextMenuEntry(
-              label: item.label,
-              icon: fluentIconFromName(item.icon),
-              onTap: () {
-                unawaited(
-                    PluginRuntimeDispatcher.instance.dispatchEventToPlugin(
-                  pluginId,
-                  'reader.context_menu_item_clicked',
-                  {
-                    'itemId': item.id,
-                    'selectedText': selectedText ?? '',
-                    'currentRef': state.currentTitle ?? '',
-                    'currentBook': state.book.title,
-                    'currentBookId': state.book.title,
-                    'currentIndex': paragraphIndex,
-                  },
-                ));
-              },
-            );
-          }),
+          ...pluginEntries,
         ];
       }(),
     ];
