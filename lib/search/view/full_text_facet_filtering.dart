@@ -221,28 +221,9 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final textStyle = const TextStyle(fontSize: 14);
-                  final textPainter = TextPainter(
-                    text: TextSpan(text: book.title, style: textStyle),
-                    maxLines: 2,
-                    textDirection: TextDirection.rtl,
-                  )..layout(maxWidth: constraints.maxWidth);
-
-                  final textWidget = Text(
-                    book.title,
-                    style: textStyle,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  );
-
-                  if (textPainter.didExceedMaxLines) {
-                    return _IsolatedTooltip(
-                        message: book.title, child: textWidget);
-                  }
-                  return textWidget;
-                },
+              child: _MaybeTooltipText(
+                text: book.title,
+                style: const TextStyle(fontSize: 14),
               ),
             ),
             // מספר התוצאות
@@ -357,35 +338,13 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final textStyle = TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: Theme.of(context).colorScheme.primary,
-                      );
-                      final textPainter = TextPainter(
-                        text: TextSpan(
-                          text: category.title,
-                          style: textStyle,
-                        ),
-                        maxLines: 2,
-                        textDirection: TextDirection.rtl,
-                      )..layout(maxWidth: constraints.maxWidth);
-
-                      final textWidget = Text(
-                        category.title,
-                        style: textStyle,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      );
-
-                      if (textPainter.didExceedMaxLines) {
-                        return _IsolatedTooltip(
-                            message: category.title, child: textWidget);
-                      }
-                      return textWidget;
-                    },
+                  child: _MaybeTooltipText(
+                    text: category.title,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                   ),
                 ),
                 // מספר התוצאות
@@ -586,6 +545,56 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
           child: _buildFacetTree(),
         ),
       ],
+    );
+  }
+}
+
+/// טקסט של עד 2 שורות שמקבל tooltip רק אם הוא נחתך. תוצאת בדיקת החיתוך
+/// ממוזגת סטטית — TextPainter.layout פר-צומת בכל build היה עלות מרכזית
+/// בעץ ה-facets בחיפוש.
+class _MaybeTooltipText extends StatelessWidget {
+  final String text;
+  final TextStyle style;
+
+  const _MaybeTooltipText({required this.text, required this.style});
+
+  static final Map<String, bool> _overflowCache = {};
+  static const int _overflowCacheMaxEntries = 4096;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // style.hashCode ולא שדות בודדים: TextStyle ממש hashCode מלא, כך
+        // שכל שינוי עיצוב (גופן, letterSpacing וכד') יפסל את הרשומה הישנה.
+        final cacheKey =
+            '$text|${constraints.maxWidth.round()}|${style.hashCode}';
+        // חסם גס לצבירה בעקבות שינויי רוחב חוזרים; אין צורך ב-LRU — חישוב
+        // מחדש של ערך בודד זול.
+        if (_overflowCache.length >= _overflowCacheMaxEntries) {
+          _overflowCache.clear();
+        }
+        final exceedsMaxLines = _overflowCache.putIfAbsent(cacheKey, () {
+          final textPainter = TextPainter(
+            text: TextSpan(text: text, style: style),
+            maxLines: 2,
+            textDirection: TextDirection.rtl,
+          )..layout(maxWidth: constraints.maxWidth);
+          return textPainter.didExceedMaxLines;
+        });
+
+        final textWidget = Text(
+          text,
+          style: style,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        );
+
+        if (exceedsMaxLines) {
+          return _IsolatedTooltip(message: text, child: textWidget);
+        }
+        return textWidget;
+      },
     );
   }
 }

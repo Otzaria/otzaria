@@ -96,4 +96,53 @@ void main() {
       expect(out, isNot(contains('footnote-marker-number')));
     });
   });
+
+  group('TextRendererService - מטמון render', () {
+    setUp(TextRendererService.clearRenderCacheForTesting);
+
+    test('קריאה חוזרת עם אותו טקסט והגדרות מחזירה את אותו instance מהמטמון',
+        () {
+      const settings = RenderSettings(removeNikud: true);
+      const text = 'בְּרֵאשִׁית בָּרָא אֱלֹהִים';
+
+      final first = TextRendererService.processText(text, settings);
+      final second = TextRendererService.processText(text, settings);
+
+      expect(identical(first, second), isTrue);
+    });
+
+    test('שינוי בשדות עיצוב בלבד (גופן/יישור) לא מפספס את המטמון', () {
+      const text = 'בראשית ברא אלהים';
+
+      final first = TextRendererService.processText(
+          text, const RenderSettings(fontSize: 18));
+      final second = TextRendererService.processText(
+          text, const RenderSettings(fontSize: 24, justifyText: false));
+
+      expect(identical(first, second), isTrue);
+    });
+
+    test('שינוי בהגדרות שמשפיעות על הפלט מחזיר תוצאה שונה', () {
+      const text = 'בְּרֵאשִׁית בָּרָא';
+
+      final withNikud =
+          TextRendererService.render(text, const RenderSettings());
+      final withoutNikud = TextRendererService.render(
+          text, const RenderSettings(removeNikud: true));
+
+      expect(withNikud, isNot(equals(withoutNikud)));
+      expect(withoutNikud, isNot(contains('ְ')));
+    });
+
+    test('התוצאה מהמטמון זהה לתוצאת חישוב מלא', () {
+      const settings = RenderSettings(searchText: 'ארץ');
+      const text = 'את השמים ואת הארץ';
+
+      final cached = TextRendererService.render(text, settings);
+      TextRendererService.clearRenderCacheForTesting();
+      final fresh = TextRendererService.render(text, settings);
+
+      expect(cached, equals(fresh));
+    });
+  });
 }

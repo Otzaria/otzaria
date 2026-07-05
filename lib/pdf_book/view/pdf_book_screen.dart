@@ -370,6 +370,15 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   final Map<int, PdfPageRenderCancellationToken> _spreadCancellationTokens = {};
   int? _lastPrerenderTriggeredSpread;
 
+  // תור סדרתי יחיד לכל ה-prerenders: כל עדכון controller מתזמן כפולות,
+  // ובלי תור משותף דפדוף מהיר מריץ כמה רינדורים נייטיביים במקביל ומקפיץ
+  // את שיא הזיכרון (זה מה שהקריס מכונות חלשות).
+  Future<void> _spreadPrerenderQueue = Future.value();
+  final Set<int> _queuedSpreadPrerenders = {};
+
+  /// כפולות רחוקות מהנוכחית מעבר לטווח הזה לא מרונדרות ומפונות מהמטמון.
+  static const int _kSpreadKeepRange = 4;
+
   // Tracks the most recent page-turn target we *initiated* (animation started
   // or queued). next/prev navigation reads this instead of
   // `controller.pageNumber` while a goToPage is in flight, so rapid clicks
@@ -2149,10 +2158,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         final cancellationToken = page.createCancellationToken();
         _spreadCancellationTokens[spreadStartPage] = cancellationToken;
 
-        // 2.0 = render at 2x the page's natural 72-DPI size; sharp on most
-        // displays without blowing memory. The painter scales down on draw
-        // when the viewport is smaller.
-        const renderScale = 2.0;
+        // 1.5x the page's natural 72-DPI size: sharp on most displays. 2.0
+        // blew native memory (~78% more bitmap bytes) and crashed weak
+        // machines when several spreads rendered at once.
+        const renderScale = 1.5;
         final pdfImage = await page.render(
           fullWidth: page.width * renderScale,
           fullHeight: page.height * renderScale,
@@ -2339,20 +2348,42 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
     for (final spread in candidates) {
       if (spread >= 1 && spread <= totalPages) {
-        unawaited(_renderSpreadPagesIntoCache(spread));
+        _enqueueSpreadPrerender(spread);
       }
     }
 
     _evictSpreadCacheFarFrom(currentSpread);
   }
 
-  /// Keeps cache memory bounded by evicting spreads more than [keepRange]
-  /// pages away from the current spread.
+  /// מוסיף כפולה לתור הסדרתי. בעת הביצוע (שעשוי להתעכב מאחורי כפולות
+  /// קודמות) הרלוונטיות נבדקת שוב — אם המשתמש כבר דפדף הלאה, מדלגים.
+  void _enqueueSpreadPrerender(int spread) {
+    if (!_queuedSpreadPrerenders.add(spread)) return;
+    _spreadPrerenderQueue = _spreadPrerenderQueue.then((_) async {
+      // ההסרה רק בסיום (finally): כך הדה-דופ מכסה גם את זמן הרינדור עצמו,
+      // ולא רק את ההמתנה בתור — דפדוף הלוך-חזור לא יוסיף רשומה כפולה.
+      try {
+        if (!mounted || !_isBookViewModeActive()) return;
+        final controller = widget.tab.pdfViewerController;
+        if (!controller.isReady) return;
+        final currentSpread = _spreadStartPageFor(controller.pageNumber ?? 1);
+        if ((spread - currentSpread).abs() > _kSpreadKeepRange) return;
+        await _renderSpreadPagesIntoCache(spread);
+      } finally {
+        _queuedSpreadPrerenders.remove(spread);
+      }
+    }).catchError((Object e, StackTrace s) {
+      _queuedSpreadPrerenders.remove(spread);
+      debugPrint('Spread pre-render queue error for $spread: $e\n$s');
+    });
+  }
+
+  /// Keeps cache memory bounded by evicting spreads more than
+  /// [_kSpreadKeepRange] pages away from the current spread.
   void _evictSpreadCacheFarFrom(int currentSpread) {
-    const keepRange = 4;
     final toRemove = <int>[];
     for (final spread in _spreadCache.keys) {
-      if ((spread - currentSpread).abs() > keepRange) {
+      if ((spread - currentSpread).abs() > _kSpreadKeepRange) {
         toRemove.add(spread);
       }
     }

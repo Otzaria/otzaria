@@ -1,3 +1,6 @@
+import 'dart:collection';
+
+import 'package:flutter/foundation.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart' as notes;
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
@@ -13,7 +16,32 @@ class TextRendererService {
   /// [settings] - הגדרות הרינדור
   ///
   /// מחזיר את הטקסט המעובד כ-HTML מוכן להצגה
+  ///
+  /// התוצאה ממוזגת ב-LRU לפי (טקסט, הגדרות): שרשרת ה-regex רצה מחדש לכל
+  /// קטע נראה בכל build (גלילה = עשרות קריאות לפריים) — המטמון מנטרל את זה.
   static String processText(String rawText, RenderSettings settings) {
+    final key = _RenderCacheKey(rawText, _processingOnlySettings(settings));
+    final cached = _renderCache.remove(key);
+    if (cached != null) {
+      _renderCache[key] = cached;
+      return cached;
+    }
+
+    final result = _processTextUncached(rawText, settings);
+
+    _renderCache[key] = result;
+    _renderCacheChars += rawText.length + result.length;
+    while (
+        _renderCacheChars > _renderCacheMaxChars && _renderCache.length > 1) {
+      final oldestKey = _renderCache.keys.first;
+      final oldestValue = _renderCache.remove(oldestKey)!;
+      _renderCacheChars -= oldestKey.text.length + oldestValue.length;
+    }
+
+    return result;
+  }
+
+  static String _processTextUncached(String rawText, RenderSettings settings) {
     String processed = rawText;
 
     // 0. תיקון סדר סימוני הערות (<sup>) ב-RTL
@@ -191,6 +219,34 @@ class TextRendererService {
     return '<div style="text-align: $textAlign; direction: rtl;">$text</div>';
   }
 
+  /// מנרמל את ההגדרות לשדות שבאמת משפיעים על [processText] (שדות עיצוב כמו
+  /// גופן/יישור נשארים בברירת מחדל) — אחרת שינוי גודל גופן מרוקן את המטמון.
+  /// חובה לעדכן כאן כל שדה חדש ש-processText יתחיל להשתמש בו.
+  static RenderSettings _processingOnlySettings(RenderSettings settings) {
+    return RenderSettings(
+      removeNikud: settings.removeNikud,
+      removePunctuation: settings.removePunctuation,
+      removeTeamim: settings.removeTeamim,
+      replaceHolyNames: settings.replaceHolyNames,
+      searchText: settings.searchText,
+      currentSearchIndex: settings.currentSearchIndex,
+      searchOptions: settings.searchOptions,
+      alternativeWords: settings.alternativeWords,
+      spacingValues: settings.spacingValues,
+      isFuzzySearch: settings.isFuzzySearch,
+      searchDistance: settings.searchDistance,
+      formatParentheses: settings.formatParentheses,
+      highlightYellowBackground: settings.highlightYellowBackground,
+      partialWordHighlight: settings.partialWordHighlight,
+    );
+  }
+
+  // המטמון של processText, חסום לפי סך תווים.
+  static final LinkedHashMap<_RenderCacheKey, String> _renderCache =
+      LinkedHashMap<_RenderCacheKey, String>();
+  static int _renderCacheChars = 0;
+  static const int _renderCacheMaxChars = 4 * 1024 * 1024;
+
   /// מעבד ועוטף טקסט בפעולה אחת
   ///
   /// זהו ה-entry point העיקרי לשימוש - מקבל טקסט גולמי והגדרות,
@@ -198,6 +254,12 @@ class TextRendererService {
   static String render(String rawText, RenderSettings settings) {
     final processed = processText(rawText, settings);
     return wrapWithRtlDiv(processed, justifyText: settings.justifyText);
+  }
+
+  @visibleForTesting
+  static void clearRenderCacheForTesting() {
+    _renderCache.clear();
+    _renderCacheChars = 0;
   }
 
   /// ספירת התאמות חיפוש בטקסט
@@ -219,4 +281,22 @@ class TextRendererService {
   static String truncate(String text, int maxLength) {
     return utils.truncate(text, maxLength);
   }
+}
+
+class _RenderCacheKey {
+  final String text;
+  final RenderSettings settings;
+
+  @override
+  final int hashCode;
+
+  _RenderCacheKey(this.text, this.settings)
+      : hashCode = Object.hash(text, settings);
+
+  @override
+  bool operator ==(Object other) =>
+      other is _RenderCacheKey &&
+      hashCode == other.hashCode &&
+      text == other.text &&
+      settings == other.settings;
 }

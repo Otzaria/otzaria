@@ -55,6 +55,7 @@ import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/utils/fluent_icon_resolver.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart'
     as inline_notes;
+import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
 import 'package:otzaria/text_book/utils/note_inline_render.dart';
 import 'package:otzaria/text_book/utils/reading_segments.dart';
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
@@ -229,6 +230,40 @@ class _CombinedViewState extends State<CombinedView> {
   late final TextBookBloc _textBookBloc;
 
   bool _hasScrolledToInitialPosition = false;
+
+  // הקצאת וריאנט טיפוגרפי קבוע לכל מפרש עם עוגני-מילה. ממוזכר לפי זהות
+  // רשימת הקישורים של ה-state (מתחלפת רק כשהקישורים נטענים מחדש).
+  List<Link>? _anchorStyleSourceLinks;
+  Map<String, int> _anchorStyleCache = const {};
+
+  Map<String, int> _anchorStyles(TextBookLoaded state) {
+    if (!identical(_anchorStyleSourceLinks, state.links)) {
+      _anchorStyleSourceLinks = state.links;
+      _anchorStyleCache = anchorStyleIndexByCommentator(state.links);
+    }
+    return _anchorStyleCache;
+  }
+
+  /// סמני עוגן-מילה, למשל (א), בנקודה המדויקת בשורה. מוזרקים על שורת המקור
+  /// כפי שנשמרה — לפני הזרקות שמוסיפות תוכן גלוי (הערות אישיות וכד'), כי
+  /// anchorStart נמדד בתווים גלויים של התוכן השמור.
+  String _injectAnchorMarkersForLine(
+    String rawLine,
+    int lineIndex0,
+    TextBookLoaded state,
+  ) {
+    // linksByLine ולא state.links: סינון על כל קישורי הספר (עשרות אלפים)
+    // פר-שורה פר-build מקרטע את הגלילה.
+    final anchorLinks = (state.linksByLine[lineIndex0 + 1] ?? const <Link>[])
+        .where((link) => link.anchorStart != null)
+        .toList();
+    if (anchorLinks.isEmpty) return rawLine;
+    return injectLinkAnchorMarkers(
+      rawLine: rawLine,
+      anchorLinks: anchorLinks,
+      styleIndexByCommentator: _anchorStyles(state),
+    );
+  }
 
   // האם להציג את שורת "יד הרמב"ם" מעל השורה הראשונה (נטען פעם אחת לכל ספר).
   bool _showSourceBanner = false;
@@ -1681,19 +1716,19 @@ class _CombinedViewState extends State<CombinedView> {
 
                         String data = widget.data[primaryLineIndex];
 
+                        // סמני עוגן-מילה — לפני כל עיבוד שמוסיף תוכן גלוי.
+                        data = _injectAnchorMarkersForLine(
+                            data, primaryLineIndex, state);
+
                         // איסוף קישורי inline (start/end מתייחסים לטקסט המקורי)
                         List<Link> linksForLine = const [];
                         if (settingsState.enableHtmlLinks) {
-                          try {
-                            linksForLine = state.links
-                                .where((link) =>
-                                    link.index1 == primaryLineIndex + 1 &&
-                                    link.start != null &&
-                                    link.end != null)
-                                .toList();
-                          } catch (e) {
-                            linksForLine = const [];
-                          }
+                          linksForLine =
+                              (state.linksByLine[primaryLineIndex + 1] ??
+                                      const <Link>[])
+                                  .where((link) =>
+                                      link.start != null && link.end != null)
+                                  .toList();
                         }
 
                         // הזרקת סימוני הערות אישיות (וקישורי inline) ל-HTML.
@@ -1907,20 +1942,17 @@ class _CombinedViewState extends State<CombinedView> {
     required TextBookLoaded state,
     required SettingsState settingsState,
   }) {
-    var textWithLinks = rawText;
+    // סמני עוגן-מילה — על הטקסט השמור, לפני קישורי ה-inline (שממילא לא
+    // מתקיימים יחד איתם: start/end מגיעים רק מקבצי ספרייה, עוגנים רק מהמסד).
+    var textWithLinks = _injectAnchorMarkersForLine(rawText, lineIndex, state);
     if (settingsState.enableHtmlLinks) {
-      try {
-        final linksForLine = state.links
-            .where((link) =>
-                link.index1 == lineIndex + 1 &&
-                link.start != null &&
-                link.end != null)
-            .toList();
-        if (linksForLine.isNotEmpty) {
-          textWithLinks = addInlineLinksToText(rawText, linksForLine);
-        }
-      } catch (_) {
-        textWithLinks = rawText;
+      // linksByLine ולא state.links: שליפה ב-O(1) במקום סינון כל קישורי הספר
+      // פר-שורה. מוזרק על textWithLinks (שכבר כולל סמני עוגן) כדי לשמרם.
+      final linksForLine = (state.linksByLine[lineIndex + 1] ?? const <Link>[])
+          .where((link) => link.start != null && link.end != null)
+          .toList();
+      if (linksForLine.isNotEmpty) {
+        textWithLinks = addInlineLinksToText(textWithLinks, linksForLine);
       }
     }
 

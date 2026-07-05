@@ -269,6 +269,28 @@ class ApplyBookContentRange extends TextBookEvent {
   List<Object?> get props => [bookTitle, startLine, totalLines, lines];
 }
 
+/// טווח שורות בודד עבור [ApplyBookContentRanges].
+typedef BookContentRangeChunk = ({
+  int startLine,
+  int totalLines,
+  List<String> lines,
+});
+
+/// החלת כמה טווחי תוכן ב-emission יחיד — חימום הרקע צובר chunks ושולח
+/// באצווה כדי לא לגרור rebuild של ה-viewport על כל chunk.
+class ApplyBookContentRanges extends TextBookEvent {
+  final String bookTitle;
+  final List<BookContentRangeChunk> ranges;
+
+  const ApplyBookContentRanges({
+    required this.bookTitle,
+    required this.ranges,
+  });
+
+  @override
+  List<Object?> get props => [bookTitle, ranges];
+}
+
 class CreateNoteFromToolbar extends TextBookEvent {
   const CreateNoteFromToolbar();
 

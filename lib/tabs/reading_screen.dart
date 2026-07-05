@@ -25,7 +25,6 @@ import 'package:otzaria/search/view/full_text_search_screen.dart';
 import 'package:otzaria/text_book/view/text_book_screen.dart';
 import 'package:otzaria/text_book/view/commentators_tab_screen.dart';
 import 'package:otzaria/pdf_book/view/pdf_commentators_tab_screen.dart';
-import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tour/tour_target_keys.dart';
 
@@ -251,97 +250,90 @@ class _ReadingScreenState extends State<ReadingScreen>
               previous.hasOpenTabs && !current.hasOpenTabs,
         ),
       ],
-      child: BlocBuilder<SettingsBloc, SettingsState>(
-        builder: (context, settingsState) {
-          return BlocBuilder<TabsBloc, TabsState>(
-            builder: (context, state) {
-              // Scaffold יחיד לשני המצבים — Theme מפיץ את scaffoldBackgroundColor
-              // לכל Scaffold פנימי (TextBookScreen, PdfBookScreen וכד').
-              final readerBg = AppSurfaces.readerBackground(context);
-              final validIndex = state.hasOpenTabs
-                  ? state.currentTabIndex.clamp(0, state.tabs.length - 1)
-                  : 0;
-              if (state.hasOpenTabs) {
-                _ensurePageController(validIndex);
-              }
-              return Theme(
-                data: Theme.of(context).copyWith(
-                  scaffoldBackgroundColor: readerBg,
-                ),
-                child: Scaffold(
-                  body: !state.hasOpenTabs
-                      ? Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Padding(
-                                padding: EdgeInsets.all(16.0),
-                                child: Text(
-                                  'לא נבחרו ספרים',
-                                  style: TextStyle(fontSize: 18),
-                                ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.all(8.0),
-                                child: ElevatedButton.icon(
-                                  onPressed: () {
-                                    context.read<NavigationBloc>().add(
-                                          const NavigateToScreen(
-                                              Screen.library),
-                                        );
-                                  },
-                                  icon: const Icon(
-                                      FluentIcons.library_24_regular),
-                                  label: const Text('דפדף בספרייה'),
-                                ),
-                              ),
-                            ],
+      child: BlocBuilder<TabsBloc, TabsState>(
+        builder: (context, state) {
+          // Scaffold יחיד לשני המצבים — Theme מפיץ את scaffoldBackgroundColor
+          // לכל Scaffold פנימי (TextBookScreen, PdfBookScreen וכד').
+          final readerBg = AppSurfaces.readerBackground(context);
+          final validIndex = state.hasOpenTabs
+              ? state.currentTabIndex.clamp(0, state.tabs.length - 1)
+              : 0;
+          if (state.hasOpenTabs) {
+            _ensurePageController(validIndex);
+          }
+          return Theme(
+            data: Theme.of(context).copyWith(
+              scaffoldBackgroundColor: readerBg,
+            ),
+            child: Scaffold(
+              body: !state.hasOpenTabs
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Padding(
+                            padding: EdgeInsets.all(16.0),
+                            child: Text(
+                              'לא נבחרו ספרים',
+                              style: TextStyle(fontSize: 18),
+                            ),
                           ),
-                        )
-                      : KeyedSubtree(
-                          key: tourReadingScreenTargetKey,
-                          child: SizedBox.fromSize(
-                            size: MediaQuery.of(context).size,
-                            child: _wrapWithDesktopTabSwipe(PageView(
-                              key: const ValueKey('normal_tab_view'),
-                              controller: _pageController,
-                              // גלילת PageView רק במובייל; בדסקטופ
-                              // PageScrollPhysics מתנגשת עם סימון טקסט אופקי,
-                              // עם גלילה אופקית ב-PDF ועם אירועי גלגלת.
-                              // החלקת טאצ'פד/מגע בדסקטופ ממומשת בנפרד
-                              // ב-_wrapWithDesktopTabSwipe.
-                              physics: Platform.isAndroid || Platform.isIOS
-                                  ? const PageScrollPhysics()
-                                  : const NeverScrollableScrollPhysics(),
-                              // רק במובייל הגלילה ידנית ולכן onPageChanged משקף
-                              // בחירת משתמש שצריך להזין חזרה ל-currentTabIndex.
-                              // בדסקטופ (NeverScrollable) אי-אפשר לגלול ידנית,
-                              // וה-callback היה יורה רק על קפיצות תוכנתיות —
-                              // כולל ערך clamp שגוי רגעי בעת פתיחת טאב חדש —
-                              // ודורס את האינדקס הנכון. לכן מנוטרל.
-                              onPageChanged:
-                                  Platform.isAndroid || Platform.isIOS
-                                      ? (index) {
-                                          if (index < state.tabs.length) {
-                                            context
-                                                .read<TabsBloc>()
-                                                .add(SetCurrentTab(index));
-                                          }
-                                        }
-                                      : null,
-                              children: [
-                                for (var i = 0; i < state.tabs.length; i++)
-                                  _buildTabView(
-                                    state.tabs[i],
-                                    enableTourTargets: i == validIndex,
-                                  ),
-                              ],
-                            )),
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                context.read<NavigationBloc>().add(
+                                      const NavigateToScreen(Screen.library),
+                                    );
+                              },
+                              icon: const Icon(FluentIcons.library_24_regular),
+                              label: const Text('דפדף בספרייה'),
+                            ),
                           ),
-                        ),
-                ),
-              );
-            },
+                        ],
+                      ),
+                    )
+                  : KeyedSubtree(
+                      key: tourReadingScreenTargetKey,
+                      child: SizedBox.fromSize(
+                        size: MediaQuery.of(context).size,
+                        child: _wrapWithDesktopTabSwipe(PageView(
+                          key: const ValueKey('normal_tab_view'),
+                          controller: _pageController,
+                          // גלילת PageView רק במובייל; בדסקטופ
+                          // PageScrollPhysics מתנגשת עם סימון טקסט אופקי,
+                          // עם גלילה אופקית ב-PDF ועם אירועי גלגלת.
+                          // החלקת טאצ'פד/מגע בדסקטופ ממומשת בנפרד
+                          // ב-_wrapWithDesktopTabSwipe.
+                          physics: Platform.isAndroid || Platform.isIOS
+                              ? const PageScrollPhysics()
+                              : const NeverScrollableScrollPhysics(),
+                          // רק במובייל הגלילה ידנית ולכן onPageChanged משקף
+                          // בחירת משתמש שצריך להזין חזרה ל-currentTabIndex.
+                          // בדסקטופ (NeverScrollable) אי-אפשר לגלול ידנית,
+                          // וה-callback היה יורה רק על קפיצות תוכנתיות —
+                          // כולל ערך clamp שגוי רגעי בעת פתיחת טאב חדש —
+                          // ודורס את האינדקס הנכון. לכן מנוטרל.
+                          onPageChanged: Platform.isAndroid || Platform.isIOS
+                              ? (index) {
+                                  if (index < state.tabs.length) {
+                                    context
+                                        .read<TabsBloc>()
+                                        .add(SetCurrentTab(index));
+                                  }
+                                }
+                              : null,
+                          children: [
+                            for (var i = 0; i < state.tabs.length; i++)
+                              _buildTabView(
+                                state.tabs[i],
+                                enableTourTargets: i == validIndex,
+                              ),
+                          ],
+                        )),
+                      ),
+                    ),
+            ),
           );
         },
       ),

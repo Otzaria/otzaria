@@ -8,6 +8,16 @@ import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 
+/// עוגן-מילה בודד של קישור בשורה המוצגת. קישור יכול לשאת כמה עוגנים
+/// (למשל הערה אחת שמסומנת בשני מקומות בשורה).
+class LinkAnchorSpan {
+  final int start;
+  final int? end;
+  final String? label;
+
+  const LinkAnchorSpan({required this.start, this.end, this.label});
+}
+
 /// Represents a link between two books in the library.
 class Link {
   static const int _maxContentCacheEntries = 400;
@@ -44,6 +54,26 @@ class Link {
   /// The end character position of the link in the text (optional, for character-based links).
   final int? end;
 
+  /// עוגן-מילה מטבלת link_anchor שבמסד: אופסט בתווים *גלויים* (תגי HTML לא
+  /// נספרים, entity = תו אחד — מוסכמת line.charCount) בשורת המקור שבה יושבת
+  /// ההערה. null כשאין לקישור עוגן-מילה.
+  final int? anchorStart;
+
+  /// סוף טווח העוגן (אקסקלוסיבי), באותה מוסכמה. null לעוגן-נקודה.
+  final int? anchorEnd;
+
+  /// אות הסימון המודפסת (למשל "א") כשהמקור סיפק אותה.
+  final String? anchorLabel;
+
+  /// עוגן בצד המקושר (path2/index2) — הטווח המצוטט בתוך קטע-הפאנל, באותה
+  /// מוסכמת תווים-גלויים. משמש להדגשת הציטוט בתוך תוכן הקישור המוצג.
+  final int? linkedAnchorStart;
+  final int? linkedAnchorEnd;
+
+  /// כל עוגני הקישור בשורה המוצגת, ממוינים לפי מיקום. anchorStart/End/Label
+  /// הם הראשון שבהם (לתאימות ולאות שבפאנל); ההזרקה לטקסט עוברת על כולם.
+  final List<LinkAnchorSpan> anchorSpans;
+
   /// Creates a new instance of [Link] with the provided parameters.
   Link({
     required this.heRef,
@@ -56,6 +86,12 @@ class Link {
     this.targetIsUserBook = false,
     this.start,
     this.end,
+    this.anchorStart,
+    this.anchorEnd,
+    this.anchorLabel,
+    this.linkedAnchorStart,
+    this.linkedAnchorEnd,
+    this.anchorSpans = const [],
   });
 
   static final LinkedHashMap<String, Future<String>> _contentCache =
@@ -177,7 +213,14 @@ class Link {
         start = json['start'] != null
             ? int.tryParse(json['start'].toString())
             : null,
-        end = json['end'] != null ? int.tryParse(json['end'].toString()) : null;
+        end = json['end'] != null ? int.tryParse(json['end'].toString()) : null,
+        // עוגני-מילה מגיעים רק ממסד הנתונים (link_anchor), לא מקבצי JSON.
+        anchorStart = null,
+        anchorEnd = null,
+        anchorLabel = null,
+        linkedAnchorStart = null,
+        linkedAnchorEnd = null,
+        anchorSpans = const [];
 }
 
 /// Retrieves a list of [Link] objects for the given list of [indexes] and the [links] to be processed.

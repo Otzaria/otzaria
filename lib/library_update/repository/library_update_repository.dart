@@ -345,7 +345,6 @@ class LibraryUpdateRepository implements LibraryUpdateService {
           fromVersion: step.fromVersion,
           toVersion: step.toVersion,
           timestamp: nowTimestamp(),
-          createBackup: false,
         );
         await _applyPatchInIsolate(
           dbPath: dbPath,
