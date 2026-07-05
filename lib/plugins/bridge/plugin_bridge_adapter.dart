@@ -52,6 +52,7 @@ import 'package:otzaria/plugins/services/plugin_shortcut_service.dart';
 import 'package:otzaria/plugins/services/plugin_path_safety.dart';
 import 'package:otzaria/plugins/services/plugin_network_fetch_service.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_registry.dart';
+import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 
 // ===================================================================
 // Spec-compliant allowlist for settings.get/getMany
@@ -2005,6 +2006,15 @@ class PluginBridgeAdapter {
     OpenedTab? currentTab,
     String? currentRef,
   ) {
+    // עדיפות ראשונה: ה-selection האחרון שנשלח ב-selection_changed —
+    // כבר מכיל start/end מחושבים נכון.
+    final lastSel = PluginRuntimeDispatcher.instance.lastSelectionPayload;
+    if (lastSel != null &&
+        lastSel['text'] != null &&
+        (lastSel['text'] as String).trim().isNotEmpty) {
+      return lastSel;
+    }
+
     if (currentTab is! TextBookTab) {
       return null;
     }
@@ -2019,14 +2029,35 @@ class PluginBridgeAdapter {
       return null;
     }
 
+    // חישוב start/end כ-visible char offsets בתוך שורת foundIndex.
+    int? charStart;
+    int? charEnd;
+    final baseIndex =
+        state.visibleIndices.isNotEmpty ? state.visibleIndices.first : 0;
+    final visibleLines = state.visibleIndices
+        .where((i) => i >= 0 && i < state.content.length)
+        .map((i) => state.content[i])
+        .toList();
+    final visibleText = visibleLines.join('\n');
+    final cleanText = selectedText.trim();
+    final selectionStart = visibleText.indexOf(cleanText);
+    int foundIndex = currentTab.index;
+    if (selectionStart >= 0) {
+      final before = visibleText.substring(0, selectionStart);
+      final offset = '\n'.allMatches(before).length;
+      foundIndex = baseIndex + offset;
+      charStart = selectionStart - (before.lastIndexOf('\n') + 1);
+      charEnd = charStart + cleanText.split('\n').first.length;
+    }
+
     return {
-      'text': selectedText,
-      'start': state.selectedTextStart,
-      'end': state.selectedTextEnd,
+      'text': cleanText,
+      'start': charStart,
+      'end': charEnd,
       'currentRef': currentRef,
       'currentBook': currentTab.title,
       'currentBookId': currentTab.title,
-      'currentIndex': currentTab.index,
+      'currentIndex': foundIndex,
     };
   }
 

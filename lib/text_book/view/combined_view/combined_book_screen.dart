@@ -1275,9 +1275,15 @@ class _CombinedViewState extends State<CombinedView> {
                   widget.onSelectedTextChanged
                       ?.call(fixedPlain, foundIndex, _selectionStartColumn);
 
-                  // שליחת event לפלאגינים עם ה-index המדויק
+                  // שליחת event לפלאגינים עם ה-index המדויק ו-start/end בשורה
                   final selectionText = fixedPlain?.trim() ?? '';
                   if (selectionText.isNotEmpty && loadedState != null) {
+                    // start/end = visible char offsets בתוך שורת foundIndex
+                    final charStart = _selectionStartColumn;
+                    final firstLineText = selectionText.split('\n').first;
+                    final charEnd = charStart != null
+                        ? charStart + firstLineText.length
+                        : null;
                     unawaited(PluginRuntimeDispatcher.instance.dispatchEvent(
                       'reader.selection_changed',
                       {
@@ -1286,6 +1292,8 @@ class _CombinedViewState extends State<CombinedView> {
                         'currentBook': loadedState.book.title,
                         'currentBookId': loadedState.book.title,
                         'currentIndex': foundIndex ?? 0,
+                        'start': charStart,
+                        'end': charEnd,
                       },
                     ));
                   }

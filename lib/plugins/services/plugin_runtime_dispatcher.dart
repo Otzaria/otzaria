@@ -32,6 +32,13 @@ class PluginRuntimeDispatcher {
   // (ה-WebView מוקפא), ולכן מסנכרנים אותו מחדש בהתעוררות.
   Map<String, dynamic>? _lastThemePayload;
 
+  // ה-payload האחרון של reader.selection_changed — משמש ל-getSelection
+  // כשהתוסף שולח קריאה מיידית אחרי ה-event (start/end כבר מחושבים שם).
+  Map<String, dynamic>? _lastSelectionPayload;
+
+  /// מחזיר את ה-selection האחרון שנשלח ב-reader.selection_changed, או null.
+  Map<String, dynamic>? get lastSelectionPayload => _lastSelectionPayload;
+
   /// callback לטעינה מחדש של תוסף — מופעל פר instance כדי שכל
   /// host יוכל לרענן את ה-webview שלו בנפרד.
   final Map<String, Map<PluginInstanceId, Future<void> Function()>>
@@ -298,6 +305,11 @@ class PluginRuntimeDispatcher {
   Future<void> dispatchEvent(String topic, Map<String, dynamic> payload) async {
     if (_shutdownMode != _PluginRuntimeShutdownMode.idle) return;
     if (topic == 'theme.changed') _lastThemePayload = payload;
+    if (topic == 'reader.selection_changed') _lastSelectionPayload = payload;
+    if (topic == 'reader.current_ref_changed' ||
+        topic == 'navigation.changed') {
+      _lastSelectionPayload = null;
+    }
     final jsonPayload = jsonEncode(payload);
     debugPrint('PluginRuntimeDispatcher: Dispatching $topic');
 
