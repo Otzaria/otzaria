@@ -4,12 +4,10 @@ import 'package:otzaria/navigation/view/main_window_screen.dart';
 
 void main() {
   group('resolveLibraryPageBuildDecision', () {
-    test('מחזיר placeholder כשמסך הפתיחה אינו ספרייה והספרייה עוד לא נבנתה',
+    test('מחזיר placeholder כשמסך הפתיחה אינו ספרייה והדף האמיתי עוד לא נבנה',
         () {
       final decision = resolveLibraryPageBuildDecision(
-        hasCachedPage: false,
-        previousLibraryEmptyState: null,
-        isLibraryEmpty: false,
+        hasBuiltRealPage: false,
         currentScreen: Screen.reading,
       );
 
@@ -18,32 +16,26 @@ void main() {
 
     test('בונה את הדף האמיתי כשנכנסים לראשונה למסך הספרייה', () {
       final decision = resolveLibraryPageBuildDecision(
-        hasCachedPage: false,
-        previousLibraryEmptyState: null,
-        isLibraryEmpty: false,
+        hasBuiltRealPage: false,
         currentScreen: Screen.library,
       );
 
       expect(decision, LibraryPageBuildDecision.buildRealPage);
     });
 
-    test('בונה מחדש את דף הספרייה כשמצב הריקות השתנה', () {
+    test('שומר את הדף הקיים לאחר שהדף האמיתי כבר נבנה', () {
       final decision = resolveLibraryPageBuildDecision(
-        hasCachedPage: true,
-        previousLibraryEmptyState: false,
-        isLibraryEmpty: true,
+        hasBuiltRealPage: true,
         currentScreen: Screen.reading,
       );
 
-      expect(decision, LibraryPageBuildDecision.buildRealPage);
+      expect(decision, LibraryPageBuildDecision.keepExistingPage);
     });
 
-    test('שומר את הדף הקיים כשאין שינוי מהותי', () {
+    test('שומר את הדף הקיים גם כשחוזרים למסך הספרייה', () {
       final decision = resolveLibraryPageBuildDecision(
-        hasCachedPage: true,
-        previousLibraryEmptyState: false,
-        isLibraryEmpty: false,
-        currentScreen: Screen.reading,
+        hasBuiltRealPage: true,
+        currentScreen: Screen.library,
       );
 
       expect(decision, LibraryPageBuildDecision.keepExistingPage);

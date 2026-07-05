@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/focus_repository.dart';
+import 'package:otzaria/empty_library/empty_library_screen.dart';
 import 'package:otzaria/external_catalog/view/external_catalog_settings_helper.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
@@ -344,7 +345,16 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    return _buildScaffold(context);
+  }
 
+  Future<void> _handleLibraryLoaded() async {
+    await context.read<NavigationBloc>().refreshLibrary();
+    if (!mounted) return;
+    context.read<LibraryBloc>().add(RefreshLibrary());
+  }
+
+  Widget _buildScaffold(BuildContext context) {
     return MultiBlocListener(
       listeners: [
         BlocListener<LibraryBloc, LibraryState>(
@@ -500,7 +510,10 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     required bool dafYomiInline,
   }) {
     final isCompact = settingsState.compactMenuMode;
-    final previewSelected = _isPreviewPanelVisible(settingsState);
+    final isLibraryEmpty =
+        context.select<NavigationBloc, bool>((b) => b.state.isLibraryEmpty);
+    final previewSelected =
+        !isLibraryEmpty && _isPreviewPanelVisible(settingsState);
 
     // ── Trailing items ────────────────────────────────────────────────────
     final trailingItems = <AppTopBarItem>[];
@@ -539,8 +552,10 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               ? FluentIcons.eye_24_filled
               : FluentIcons.eye_24_regular,
           selected: previewSelected,
-          onPressed: () =>
-              _togglePreviewPanel(context.read<SettingsBloc>().state),
+          // אין ספרייה — אין תצוגה מקדימה, לכן הכפתור מושבת.
+          onPressed: isLibraryEmpty
+              ? null
+              : () => _togglePreviewPanel(context.read<SettingsBloc>().state),
         ),
       ),
       AppTopBarItem(
@@ -571,7 +586,14 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       scrollDebounceMs: _kScrollDebounceMs,
       secondaryRowVisible: secondaryRow != null ? _secondaryRowVisible : null,
       leadingItems: [
-        AppTopBarItem(widget: _buildNavActions(context, state, settingsState)),
+        AppTopBarItem(
+          widget: _buildNavActions(
+            context,
+            state,
+            settingsState,
+            isLibraryEmpty: isLibraryEmpty,
+          ),
+        ),
       ],
       center: _buildSearchBar(state, isCompact),
       trailingItems: trailingItems,
@@ -670,8 +692,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   Widget _buildNavActions(
     BuildContext context,
     LibraryState state,
-    SettingsState settingsState,
-  ) {
+    SettingsState settingsState, {
+    required bool isLibraryEmpty,
+  }) {
     final isCompact = settingsState.compactMenuMode;
     final screenWidth = MediaQuery.of(context).size.width;
 
@@ -690,6 +713,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         state,
         settingsState,
         isCompact,
+        isLibraryEmpty: isLibraryEmpty,
       ),
       alwaysInMenu: const [],
       originalOrder: _buildOriginalOrderActions(
@@ -697,6 +721,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         state,
         settingsState,
         isCompact,
+        isLibraryEmpty: isLibraryEmpty,
       ),
       maxVisibleButtons: maxButtons,
       overflowOnRight: true,
@@ -868,10 +893,18 @@ class _LibraryBrowserState extends State<LibraryBrowser>
           viewMode: settingsState.libraryViewMode,
           paneWidthOverride: _previewPaneWidthOverride,
         );
-        final mainContent = _buildContent(state);
+        // כשאין ספרייה מוגדרת מציגים את מסך ההגדרה בתוך אזור התוכן — הסרגל
+        // העליון נשאר, ורק התוכן מתחלף. מגיב לשינוי isLibraryEmpty (למשל אחרי
+        // הורדה/ייבוא) ומחליף לעץ הספרייה.
+        final isLibraryEmpty =
+            ctx.select<NavigationBloc, bool>((b) => b.state.isLibraryEmpty);
+        final mainContent = isLibraryEmpty
+            ? LibrarySetupView(onLibraryLoaded: _handleLibraryLoaded)
+            : _buildContent(state);
 
         return AdaptiveSidePane(
-          isOpen: _isPreviewPanelVisible(settingsState),
+          // אין ספרייה — התצוגה המקדימה סגורה כפויה (אין ספרים להציג).
+          isOpen: !isLibraryEmpty && _isPreviewPanelVisible(settingsState),
           alignment: AlignmentDirectional.centerStart, // שמאל בעברית (RTL)
           mainContent: RepaintBoundary(child: mainContent),
           paneContent: _buildPreviewPane(settingsState),
@@ -1003,20 +1036,25 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     BuildContext context,
     LibraryState state,
     SettingsState settingsState,
-    bool compact,
-  ) {
+    bool compact, {
+    required bool isLibraryEmpty,
+  }) {
     return [
       ActionButtonData.simple(
         compact: compact,
         tooltip: 'חזרה לתיקיה הקודמת',
         icon: FluentIcons.arrow_up_24_regular,
-        onPressed: () => _handleNavigateUp(context, state, settingsState),
+        onPressed: isLibraryEmpty
+            ? null
+            : () => _handleNavigateUp(context, state, settingsState),
       ),
       ActionButtonData.simple(
         compact: compact,
         tooltip: 'חזרה לתיקיה הראשית',
         icon: FluentIcons.home_24_regular,
-        onPressed: () => _handleNavigateHome(context, state, settingsState),
+        onPressed: isLibraryEmpty
+            ? null
+            : () => _handleNavigateHome(context, state, settingsState),
       ),
       if (settingsState.canUseSoftwareAndBookUpdates)
         _buildSyncActionButton(compact: compact),
@@ -1024,7 +1062,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         compact: compact,
         tooltip: 'טעינה מחדש',
         icon: FluentIcons.arrow_clockwise_24_regular,
-        onPressed: _refreshWithPersonalFolders,
+        onPressed: isLibraryEmpty ? null : _refreshWithPersonalFolders,
       ),
     ];
   }
@@ -1033,14 +1071,17 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     BuildContext context,
     LibraryState state,
     SettingsState settingsState,
-    bool compact,
-  ) {
+    bool compact, {
+    required bool isLibraryEmpty,
+  }) {
     return [
       ActionButtonData.simple(
         compact: compact,
         tooltip: 'חזרה לתיקיה הקודמת',
         icon: FluentIcons.arrow_up_24_regular,
-        onPressed: () => _handleNavigateUp(context, state, settingsState),
+        onPressed: isLibraryEmpty
+            ? null
+            : () => _handleNavigateUp(context, state, settingsState),
       ),
       if (settingsState.canUseSoftwareAndBookUpdates)
         _buildSyncActionButton(compact: compact),
@@ -1048,13 +1089,15 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         compact: compact,
         tooltip: 'חזרה לתיקיה הראשית',
         icon: FluentIcons.home_24_regular,
-        onPressed: () => _handleNavigateHome(context, state, settingsState),
+        onPressed: isLibraryEmpty
+            ? null
+            : () => _handleNavigateHome(context, state, settingsState),
       ),
       ActionButtonData.simple(
         compact: compact,
         tooltip: 'טעינה מחדש',
         icon: FluentIcons.arrow_clockwise_24_regular,
-        onPressed: _refreshWithPersonalFolders,
+        onPressed: isLibraryEmpty ? null : _refreshWithPersonalFolders,
       ),
     ];
   }

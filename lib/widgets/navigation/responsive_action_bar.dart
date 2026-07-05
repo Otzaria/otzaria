@@ -337,7 +337,7 @@ class ActionButtonData {
   factory ActionButtonData.simple({
     required IconData icon,
     required String tooltip,
-    required VoidCallback onPressed,
+    required VoidCallback? onPressed,
     required bool compact,
     bool selected = false,
     Key? key,

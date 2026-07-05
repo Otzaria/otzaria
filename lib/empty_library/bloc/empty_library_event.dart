@@ -18,7 +18,79 @@ class PickArchiveFileRequested extends EmptyLibraryEvent {
   List<Object?> get props => [overrideFilePath];
 }
 
-class DownloadLibraryRequested extends EmptyLibraryEvent {}
+class DownloadLibraryRequested extends EmptyLibraryEvent {
+  /// מיקום היעד שאליו תורד הספרייה. null → נתיב ברירת המחדל של האפליקציה.
+  final String? targetPath;
+
+  DownloadLibraryRequested({this.targetPath});
+
+  @override
+  List<Object?> get props => [targetPath];
+}
+
+/// עדכון ספרייה קיימת (מההגדרות) עם גיבוי בטוח של ה-DB הישן.
+/// ה-DB הישן ב-[existingLibraryPath] מגובה, ונמחק לצמיתות רק בהצלחה (ומשוחזר
+/// בכישלון). [isDownload] → הורדה מחדש; אחרת [sourceFolder] הוא תיקייה עם
+/// seforim.db (כש-[isArchive] false) או קובץ ארכיון ZIP/ZST (כש-true).
+class UpdateLibraryRequested extends EmptyLibraryEvent {
+  final bool isDownload;
+  final String? sourceFolder;
+  final String targetPath;
+  final String existingLibraryPath;
+  final bool isArchive;
+
+  UpdateLibraryRequested({
+    required this.isDownload,
+    this.sourceFolder,
+    required this.targetPath,
+    required this.existingLibraryPath,
+    this.isArchive = false,
+  });
+
+  @override
+  List<Object?> get props =>
+      [isDownload, sourceFolder, targetPath, existingLibraryPath, isArchive];
+}
+
+/// ייבוא ספרייה מתיקייה שנבחרה: מזהה אוטומטית את נכסי הספרייה שבתוכה (seforim.db,
+/// קטלוג, מילון, תלמוד בבלי) בגרסה דחוסה או רגילה, ומחלץ/מעתיק כל אחד אל היעד.
+/// [backupExistingPath] — כשמסופק (עדכון במקום), ה-DB הישן בנתיב זה מגובה
+/// ומשוחזר בכישלון.
+class ImportLibraryFolderRequested extends EmptyLibraryEvent {
+  final String sourceFolder;
+  final String targetPath;
+  final String? backupExistingPath;
+
+  ImportLibraryFolderRequested({
+    required this.sourceFolder,
+    required this.targetPath,
+    this.backupExistingPath,
+  });
+
+  @override
+  List<Object?> get props => [sourceFolder, targetPath, backupExistingPath];
+}
+
+/// ייבוא ספרייה קיימת אל [targetPath]: העתקת תיקיית DB או חילוץ ארכיון.
+class ImportExistingLibraryRequested extends EmptyLibraryEvent {
+  /// המקור שנבחר — תיקייה המכילה seforim.db, או קובץ דחוס (zip/zst).
+  final String sourcePath;
+
+  /// מיקום היעד שאליו יועתקו/יחולצו קבצי הספרייה.
+  final String targetPath;
+
+  /// true → [sourcePath] הוא קובץ דחוס; false → תיקייה עם DB קיים.
+  final bool isArchive;
+
+  ImportExistingLibraryRequested({
+    required this.sourcePath,
+    required this.targetPath,
+    required this.isArchive,
+  });
+
+  @override
+  List<Object?> get props => [sourcePath, targetPath, isArchive];
+}
 
 /// בודק מקום פנוי בהתקנה וקובע אם כפתור ההורדה זמין.
 /// נשלח בעת טעינת המסך.

@@ -28,6 +28,8 @@ import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/dialogs/change_location_dialog.dart';
 import 'package:otzaria/settings/tabs/widgets/android_storage_location_card.dart';
+import 'package:otzaria/settings/dialogs/library_setup_dialog.dart';
+import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:path/path.dart' as p;
 
 /// טאב הגדרות ספרייה
@@ -116,7 +118,6 @@ class LibrarySettingsTab extends StatefulWidget {
 }
 
 class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
-  static const _libraryFolderName = 'ספריית אוצריא';
   static const _hebrewBooksFolderName = 'ספרי היברובוקס';
 
   bool _isRemovingHebrewPath = false;
@@ -272,16 +273,61 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
       ? p.dirname(libraryPath)
       : libraryPath;
 
-  /// שורת מיקום הספרייה, האינדקס ונתוני המשתמש — מציגה את תיקיית השורש
-  /// המשותפת, בלי אפשרות ניקוי (הספרייה חיונית לפעולה).
+  /// פריטי כרטיס "מאגר הספרים": כשלא זוהתה ספרייה — כפתור "הגדרת ספריה"
+  /// שפותח את הדיאלוג המאוחד; אחרת שורת המיקום עם תפריט "אפשרויות מיקום".
+  List<Widget> _buildRepositoryCardChildren(
+    BuildContext context,
+    bool libraryEmpty,
+  ) {
+    if (libraryEmpty) {
+      return [
+        SettingsActionTile.text(
+          icon: FluentIcons.folder_add_24_regular,
+          title: 'מיקום הספרייה',
+          subtitle: 'לא זוהתה ספרייה — הגדר מיקום, הורד או ייבא ספרייה',
+          actions: [
+            ActionButton.recommended(
+              text: 'הגדרת ספריה',
+              onPressed: () => _openLibraryDialog(''),
+            ),
+          ],
+        ),
+      ];
+    }
+    return [_buildLibraryLocationWidget(context)];
+  }
+
+  /// פותח את דיאלוג הגדרת/עדכון מיקום הספרייה המאוחד. [booksPath] ריק → מצב
+  /// הגדרה ראשונית; אחרת מצב עדכון/מיקום מחדש של ספרייה קיימת.
+  Future<void> _openLibraryDialog(String booksPath) async {
+    if (!await verifySaferModePassword(context)) return;
+    if (!mounted) return;
+    final defaultRoot =
+        (_defaultLibraryPath == null || _defaultLibraryPath!.isEmpty)
+        ? ''
+        : _libraryRootOf(_defaultLibraryPath!);
+    final configured = await showLibrarySetupDialog(
+      context: context,
+      defaultTargetPath: defaultRoot,
+      currentLibraryPath: booksPath.isEmpty ? null : booksPath,
+    );
+    if (configured) await _refreshAfterLibraryChange();
+  }
+
+  Future<void> _refreshAfterLibraryChange() async {
+    if (!mounted) return;
+    await context.read<NavigationBloc>().refreshLibrary();
+    if (!mounted) return;
+    context.read<LibraryBloc>().add(RefreshLibrary());
+    setState(() {});
+  }
+
+  /// שורת מיקום הספרייה והאינדקס — מציגה את תיקיית השורש המשותפת
+  /// (ההורה של books ו-index), בלי אפשרות ניקוי (הספרייה חיונית לפעולה).
   Widget _buildLibraryLocationWidget(BuildContext context) {
     final booksPath =
         Settings.getValue<String>(SettingsRepository.keyLibraryPath) ?? '';
     final rootPath = booksPath.isEmpty ? '' : _libraryRootOf(booksPath);
-    final defaultRoot =
-        (_defaultLibraryPath == null || _defaultLibraryPath!.isEmpty)
-        ? null
-        : _libraryRootOf(_defaultLibraryPath!);
     final indexPath = _indexPath ?? '';
     final databasesPath = _databasesPath ?? '';
 
@@ -294,26 +340,8 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
         if (!context.mounted) return;
         await _applyLibraryRootChange(root);
       },
-      requestChangeLocation: makeChangeLocationCallback(
-        currentPath: rootPath,
-        folderName: _libraryFolderName,
-        onPathChanged: (root) async {
-          if (!context.mounted) return;
-          await _applyLibraryRootChange(root);
-        },
-        // ה-from של ההעברה הוא תיקיית הספרים בפועל; ה-to הוא השורש שנבחר,
-        // ותחתיו performLibraryMove יוצר books ו-index.
-        onMoveContents: booksPath.isNotEmpty
-            ? (ctx, from, to) =>
-                  performLibraryMove(context: ctx, from: booksPath, to: to)
-            : null,
-        moveContentsWarning:
-            'בזמן העברת הספרייה התוכנה תיסגר ותיטען מחדש, ולא תהיה זמינה עד '
-            'לסיום הפעולה. תחת התיקייה שתבחר ייווצרו "books", "index" '
-            'ו-"databases". רק קבצי הספרייה המזוהים יועברו; קבצים אחרים '
-            'שהוספת לתיקיית הספרייה יישארו במקומם.',
-        defaultPath: defaultRoot,
-      ),
+      requestChangeLocation: (_) => _openLibraryDialog(booksPath),
+      changeLocationLabel: 'מתקדם',
       onOpenFolder: () => _openInFileManager(rootPath),
       onOpenPath: _openInFileManager,
       pathTargets: [
@@ -389,6 +417,11 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
             context.read<LibraryBloc>().add(RefreshLibrary());
           },
           builder: (context, state) {
+            // זיהוי אמיתי של קיום הספרייה (קובץ seforim.db) — לא רק ערך ההגדרה,
+            // כדי שגם הטאב יזהה מצב "אין ספרייה" ויפתח את דיאלוג ההגדרה.
+            final libraryEmpty = context.select<NavigationBloc, bool>(
+              (b) => b.state.isLibraryEmpty,
+            );
             // בניית כפתור בחירת תיקייה רק בדסקטופ והעברה לפאנל
             final hebrewPathWidget = !(Platform.isAndroid || Platform.isIOS)
                 ? _buildHebrewBooksLocationWidget(context)
@@ -407,9 +440,10 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
                         cardId: 'library.repository',
                         title: 'מאגר הספרים',
                         subtitle: 'התיקיה שבה נמצאים תיקיות הספרים והאינדקס',
-                        children: [
-                          _buildLibraryLocationWidget(context),
-                        ],
+                        children: _buildRepositoryCardChildren(
+                          context,
+                          libraryEmpty,
+                        ),
                       ),
                       kSettingsCardSpacing,
                     ],

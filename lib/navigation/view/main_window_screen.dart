@@ -23,8 +23,6 @@ import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/navigation/startup_indexing_decision.dart';
 import 'package:otzaria/navigation/view/startup_work_gate.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
-import 'package:otzaria/empty_library/empty_library_screen.dart';
-import 'package:otzaria/empty_library/bloc/empty_library_bloc.dart';
 import 'package:otzaria/find_ref/bloc/find_ref_bloc.dart';
 import 'package:otzaria/find_ref/view/find_ref_dialog.dart';
 import 'package:otzaria/find_ref/bloc/find_ref_event.dart';
@@ -190,23 +188,18 @@ enum LibraryPageBuildDecision {
 
 @visibleForTesting
 LibraryPageBuildDecision resolveLibraryPageBuildDecision({
-  required bool hasCachedPage,
-  required bool? previousLibraryEmptyState,
-  required bool isLibraryEmpty,
+  required bool hasBuiltRealPage,
   required Screen currentScreen,
 }) {
-  final libraryNeverBuilt = !hasCachedPage || previousLibraryEmptyState == null;
-  final libraryRequested = currentScreen == Screen.library;
-  final libraryStateChanged =
-      !libraryNeverBuilt && previousLibraryEmptyState != isLibraryEmpty;
-
-  if ((libraryNeverBuilt && libraryRequested) || libraryStateChanged) {
-    return LibraryPageBuildDecision.buildRealPage;
+  // LibraryBrowser הוא תמיד עמוד הספרייה (גם כשאין ספרייה — הוא מציג את מסך
+  // ההגדרה בתוך אזור התוכן), ולכן אין צורך לבנותו מחדש על שינוי מצב. בונים אותו
+  // פעם אחת כשהמשתמש מבקש את הספרייה; עד אז placeholder זול.
+  if (hasBuiltRealPage) {
+    return LibraryPageBuildDecision.keepExistingPage;
   }
-  if (libraryNeverBuilt) {
-    return LibraryPageBuildDecision.usePlaceholder;
-  }
-  return LibraryPageBuildDecision.keepExistingPage;
+  return currentScreen == Screen.library
+      ? LibraryPageBuildDecision.buildRealPage
+      : LibraryPageBuildDecision.usePlaceholder;
 }
 
 // Global key for accessing MoreScreen
@@ -249,10 +242,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
   Orientation? _previousOrientation;
   int _currentPageIndex = 0;
 
-  // Keep the pages list as templates; the actual first page (library)
-  // will be built dynamically in build() to allow showing the
-  // EmptyLibraryScreen inside the library tab while keeping the
-  // rest of the application UI available.
+  // עמוד הספרייה נבנה דינמית ב-build(); LibraryBrowser הוא תמיד עמוד הספרייה
+  // ומציג בעצמו את מסך ההגדרה כשאין ספרייה.
   List<Widget> _pages = [];
 
   // שמירת הדפים כדי שלא ייבנו מחדש
@@ -268,11 +259,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
   final GlobalKey _readingScreenKey = GlobalKey();
   final GlobalKey _settingsScreenKey = GlobalKey();
 
-  // שמירת BLoC של EmptyLibrary כדי שלא יאבד את המצב
-  EmptyLibraryBloc? _emptyLibraryBloc;
-
-  // שמירת מצב הספרייה הקודם כדי לזהות שינויים
-  bool? _previousLibraryEmptyState;
+  // האם LibraryBrowser האמיתי כבר נבנה (אחרי שהמשתמש ביקש את הספרייה); עד אז
+  // מוצג placeholder זול.
+  bool _hasBuiltRealLibraryPage = false;
 
   final StartupWorkGate _startupWorkGate = StartupWorkGate();
   final IndexingRepository _indexingRepository = IndexingRepository(
@@ -1270,7 +1259,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
     _calendarCubit.close();
     _removeTourOverlay();
     _tourCubit.close();
-    _emptyLibraryBloc?.close();
     _readerLocationTracker?.dispose();
     pageController.dispose();
     super.dispose();
@@ -2800,45 +2788,23 @@ class MainWindowScreenState extends State<MainWindowScreen>
         ],
         child: BlocBuilder<NavigationBloc, NavigationState>(
           builder: (context, state) {
-            // Build the pages list here so we can inject the EmptyLibraryScreen
-            // into the library page while keeping the rest of the app visible.
-            // נבנה את הדפים רק פעם אחת ונשמור אותם
-            // אם מצב הספרייה השתנה, נבנה מחדש את דף הספרייה.
+            // נבנה את הדפים רק פעם אחת ונשמור אותם.
             //
             // אופטימיזציית bootstrap: LibraryBrowser הוא widget כבד עם BlocBuilder<LibraryBloc>
             // ו-context גלובלי. כש-PageView (ב-index 1=Reading) דורש את שכניו (index 0=Library),
             // הקונסטרקטור והקריאות הראשוניות חוסמות את ה-UI thread. עד שהמשתמש לא ביקש לפתוח
             // את הספרייה, מציגים placeholder ריק; כשהוא יבחר 'ספרייה', ה-BlocBuilder ירוץ שוב
-            // ויחליף ל-LibraryBrowser/EmptyLibraryScreen האמיתיים.
+            // ויחליף ל-LibraryBrowser האמיתי. כשאין ספרייה, LibraryBrowser עצמו מציג את
+            // מסך ההגדרה בתוך אזור התוכן — אין מסך נפרד.
             final libraryBuildDecision = resolveLibraryPageBuildDecision(
-              hasCachedPage: _cachedLibraryPage != null,
-              previousLibraryEmptyState: _previousLibraryEmptyState,
-              isLibraryEmpty: state.isLibraryEmpty,
+              hasBuiltRealPage: _hasBuiltRealLibraryPage,
               currentScreen: state.currentScreen,
             );
 
             if (libraryBuildDecision ==
                 LibraryPageBuildDecision.buildRealPage) {
-              if (state.isLibraryEmpty) {
-                // יצירת BLoC פעם אחת אם עדיין לא קיים
-                _emptyLibraryBloc ??= EmptyLibraryBloc();
-                _cachedLibraryPage = EmptyLibraryScreen(
-                  bloc: _emptyLibraryBloc,
-                  onLibraryLoaded: () async {
-                    await context.read<NavigationBloc>().refreshLibrary();
-                    if (!context.mounted) {
-                      return;
-                    }
-                    context.read<LibraryBloc>().add(RefreshLibrary());
-                  },
-                );
-              } else {
-                // אם הספרייה כבר לא ריקה, נסגור את ה-BLoC
-                _emptyLibraryBloc?.close();
-                _emptyLibraryBloc = null;
-                _cachedLibraryPage = LibraryBrowser(key: libraryBrowserKey);
-              }
-              _previousLibraryEmptyState = state.isLibraryEmpty;
+              _cachedLibraryPage = LibraryBrowser(key: libraryBrowserKey);
+              _hasBuiltRealLibraryPage = true;
             } else if (libraryBuildDecision ==
                 LibraryPageBuildDecision.usePlaceholder) {
               // המשתמש עדיין ב-Reading/Tools/Settings ולא ביקש את הספרייה —

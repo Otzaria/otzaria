@@ -1419,7 +1419,6 @@ void main() {
       expect(seforimRange, isNull, reason: 'אין resume ללא validator חזק');
       expect(seforimIfRange, isNull, reason: 'etag חלש אינו חוקי ב-If-Range');
     });
-
     test('שרת מחזיר 200 ל-If-Range (הקובץ השתנה) → התחלה נקייה מ-0', () async {
       final tempDir = await Directory.systemTemp.createTemp(
         'otzaria-ifrange-200-',
@@ -1504,6 +1503,516 @@ void main() {
       expect(seforimArchiveLen, 100);
       expect(seforimFirstByte, 3);
     });
+
+    test(
+      'ImportExistingLibraryRequested מעתיק תיקיית DB קיימת אל מיקום היעד',
+      () async {
+        final sourceDir = await Directory.systemTemp.createTemp(
+          'otzaria-import-src-',
+        );
+        final targetDir = await Directory.systemTemp.createTemp(
+          'otzaria-import-dst-',
+        );
+        addTearDown(() async {
+          for (final d in [sourceDir, targetDir]) {
+            if (await d.exists()) await d.delete(recursive: true);
+          }
+        });
+
+        await File(
+          path.join(sourceDir.path, DatabaseConstants.databaseFileName),
+        ).writeAsBytes(const [1, 2, 3]);
+
+        await Settings.init(cacheProvider: _MemoryCacheProvider());
+        await Settings.setValue<String>(SettingsRepository.keyLibraryPath, '');
+
+        final bloc = EmptyLibraryBloc();
+        addTearDown(bloc.close);
+
+        final selectedFuture = bloc.stream
+            .where((s) => s is EmptyLibraryDirectorySelected)
+            .cast<EmptyLibraryDirectorySelected>()
+            .first;
+
+        bloc.add(
+          ImportExistingLibraryRequested(
+            sourcePath: sourceDir.path,
+            targetPath: targetDir.path,
+            isArchive: false,
+          ),
+        );
+
+        final selected = await selectedFuture.timeout(
+          const Duration(seconds: 5),
+        );
+
+        expect(selected.selectedPath, targetDir.path);
+        expect(
+          File(
+            path.join(targetDir.path, DatabaseConstants.databaseFileName),
+          ).existsSync(),
+          isTrue,
+        );
+        expect(
+          Settings.getValue<String>(SettingsRepository.keyLibraryPath),
+          targetDir.path,
+        );
+      },
+    );
+
+    test(
+      'ImportExistingLibraryRequested מחלץ ארכיון zst אל מיקום היעד',
+      () async {
+        final sourceDir = await Directory.systemTemp.createTemp(
+          'otzaria-import-zst-src-',
+        );
+        final targetDir = await Directory.systemTemp.createTemp(
+          'otzaria-import-zst-dst-',
+        );
+        addTearDown(() async {
+          for (final d in [sourceDir, targetDir]) {
+            if (await d.exists()) await d.delete(recursive: true);
+          }
+        });
+
+        final archive = File(path.join(sourceDir.path, 'library.zst'));
+        await archive.writeAsString('fake-zst');
+
+        await Settings.init(cacheProvider: _MemoryCacheProvider());
+        await Settings.setValue<String>(SettingsRepository.keyLibraryPath, '');
+
+        String? extractedTo;
+        final bloc = EmptyLibraryBloc(
+          extractCompressedDatabase:
+              (archivePath, outputPath, onProgress) async {
+                extractedTo = outputPath;
+                await File(outputPath).writeAsBytes(const [1, 2, 3]);
+              },
+        );
+        addTearDown(bloc.close);
+
+        final selectedFuture = bloc.stream
+            .where((s) => s is EmptyLibraryDirectorySelected)
+            .cast<EmptyLibraryDirectorySelected>()
+            .first;
+
+        bloc.add(
+          ImportExistingLibraryRequested(
+            sourcePath: archive.path,
+            targetPath: targetDir.path,
+            isArchive: true,
+          ),
+        );
+
+        final selected = await selectedFuture.timeout(
+          const Duration(seconds: 5),
+        );
+
+        expect(
+          extractedTo,
+          path.join(targetDir.path, DatabaseConstants.databaseFileName),
+        );
+        expect(selected.selectedPath, targetDir.path);
+        expect(
+          Settings.getValue<String>(SettingsRepository.keyLibraryPath),
+          targetDir.path,
+        );
+      },
+    );
+
+    test(
+      'DownloadLibraryRequested עם targetPath מוריד אל היעד ולא לברירת המחדל',
+      () async {
+        final defaultDir = await Directory.systemTemp.createTemp(
+          'otzaria-dl-default-',
+        );
+        final targetDir = await Directory.systemTemp.createTemp(
+          'otzaria-dl-target-',
+        );
+        addTearDown(() async {
+          for (final d in [defaultDir, targetDir]) {
+            if (await d.exists()) await d.delete(recursive: true);
+          }
+        });
+
+        await Settings.init(cacheProvider: _MemoryCacheProvider());
+        await Settings.setValue<String>(SettingsRepository.keyLibraryPath, '');
+
+        final client = MockClient((request) async {
+          if (request.url.path.endsWith('/releases/latest')) {
+            return http.Response(
+              jsonEncode({
+                'assets': [
+                  {
+                    'name': 'seforim.db.zst',
+                    'browser_download_url':
+                        'https://example.com/releases/seforim.db.zst',
+                  },
+                ],
+              }),
+              200,
+              headers: const {'content-type': 'application/json'},
+            );
+          }
+          if (request.url.toString() ==
+              'https://example.com/releases/seforim.db.zst') {
+            return http.Response.bytes(utf8.encode('db'), 200);
+          }
+          if (request.url.host == 'github.com' &&
+              request.url.path.endsWith('talmud_bavli_latest.tar.zst')) {
+            return http.Response.bytes(utf8.encode('talmud'), 200);
+          }
+          if (request.url.host == 'github.com' &&
+              request.url.path.endsWith('otzar-HB_catalog.db.zst')) {
+            return http.Response.bytes(utf8.encode('catalog'), 200);
+          }
+          return http.Response('not found', 404);
+        });
+
+        final bloc = EmptyLibraryBloc(
+          httpClient: client,
+          defaultLibraryPathOverride: defaultDir.path,
+          extractCompressedDatabase:
+              (archivePath, outputPath, onProgress) async {
+                await File(outputPath).writeAsBytes(const [1], flush: true);
+              },
+          extractTarArchive: (archivePath, outputDir, onProgress) async {},
+        );
+        addTearDown(bloc.close);
+
+        final selectedFuture = bloc.stream
+            .where((s) => s is EmptyLibraryDirectorySelected)
+            .cast<EmptyLibraryDirectorySelected>()
+            .first;
+
+        bloc.add(DownloadLibraryRequested(targetPath: targetDir.path));
+
+        final selected = await selectedFuture.timeout(
+          const Duration(seconds: 5),
+        );
+
+        expect(selected.selectedPath, targetDir.path);
+        expect(
+          Settings.getValue<String>(SettingsRepository.keyLibraryPath),
+          targetDir.path,
+        );
+      },
+    );
+
+    test(
+      'UpdateLibraryRequested (ייבוא) מעתיק DB חדש ומוחק את הגיבוי בהצלחה',
+      () async {
+        final libDir = await Directory.systemTemp.createTemp(
+          'otzaria-update-lib-',
+        );
+        final srcDir = await Directory.systemTemp.createTemp(
+          'otzaria-update-src-',
+        );
+        addTearDown(() async {
+          for (final d in [libDir, srcDir]) {
+            if (await d.exists()) await d.delete(recursive: true);
+          }
+        });
+
+        final dbName = DatabaseConstants.databaseFileName;
+        await File(path.join(libDir.path, dbName)).writeAsString('old-db');
+        await File(path.join(srcDir.path, dbName)).writeAsString('new-db');
+
+        await Settings.init(cacheProvider: _MemoryCacheProvider());
+        await Settings.setValue<String>(
+          SettingsRepository.keyLibraryPath,
+          libDir.path,
+        );
+
+        final bloc = EmptyLibraryBloc();
+        addTearDown(bloc.close);
+
+        final selectedFuture = bloc.stream
+            .where((s) => s is EmptyLibraryDirectorySelected)
+            .cast<EmptyLibraryDirectorySelected>()
+            .first;
+
+        bloc.add(
+          UpdateLibraryRequested(
+            isDownload: false,
+            sourceFolder: srcDir.path,
+            targetPath: libDir.path,
+            existingLibraryPath: libDir.path,
+          ),
+        );
+
+        await selectedFuture.timeout(const Duration(seconds: 5));
+
+        // הקובץ החדש הוחלף במקום הישן, והגיבוי הזמני נמחק.
+        expect(
+          await File(path.join(libDir.path, dbName)).readAsString(),
+          'new-db',
+        );
+        final backups = Directory.systemTemp
+            .listSync()
+            .whereType<Directory>()
+            .where(
+              (d) => path.basename(d.path).startsWith('otzaria_db_backup_'),
+            );
+        expect(backups, isEmpty);
+      },
+    );
+
+    test(
+      'UpdateLibraryRequested (ייבוא) משחזר את הגיבוי כשהמקור חסר seforim.db',
+      () async {
+        final libDir = await Directory.systemTemp.createTemp(
+          'otzaria-update-lib2-',
+        );
+        final srcDir = await Directory.systemTemp.createTemp(
+          'otzaria-update-src2-',
+        );
+        addTearDown(() async {
+          for (final d in [libDir, srcDir]) {
+            if (await d.exists()) await d.delete(recursive: true);
+          }
+        });
+
+        final dbName = DatabaseConstants.databaseFileName;
+        await File(path.join(libDir.path, dbName)).writeAsString('old-db');
+        // srcDir ריק — אין seforim.db, לכן ההעתקה תיכשל.
+
+        await Settings.init(cacheProvider: _MemoryCacheProvider());
+        await Settings.setValue<String>(
+          SettingsRepository.keyLibraryPath,
+          libDir.path,
+        );
+
+        final bloc = EmptyLibraryBloc();
+        addTearDown(bloc.close);
+
+        final errorFuture = bloc.stream
+            .where((s) => s is EmptyLibraryError)
+            .cast<EmptyLibraryError>()
+            .first;
+
+        bloc.add(
+          UpdateLibraryRequested(
+            isDownload: false,
+            sourceFolder: srcDir.path,
+            targetPath: libDir.path,
+            existingLibraryPath: libDir.path,
+          ),
+        );
+
+        await errorFuture.timeout(const Duration(seconds: 5));
+
+        // הקובץ הישן שוחזר, והגיבוי נוקה.
+        expect(
+          await File(path.join(libDir.path, dbName)).readAsString(),
+          'old-db',
+        );
+        final backups = Directory.systemTemp
+            .listSync()
+            .whereType<Directory>()
+            .where(
+              (d) => path.basename(d.path).startsWith('otzaria_db_backup_'),
+            );
+        expect(backups, isEmpty);
+      },
+    );
+
+    test(
+      'UpdateLibraryRequested (isArchive) מגבה, מחלץ ארכיון ליעד, ומוחק את הגיבוי בהצלחה',
+      () async {
+        final libDir = await Directory.systemTemp.createTemp(
+          'otzaria-update-archive-lib-',
+        );
+        final srcDir = await Directory.systemTemp.createTemp(
+          'otzaria-update-archive-src-',
+        );
+        addTearDown(() async {
+          for (final d in [libDir, srcDir]) {
+            if (await d.exists()) await d.delete(recursive: true);
+          }
+        });
+
+        final dbName = DatabaseConstants.databaseFileName;
+        await File(path.join(libDir.path, dbName)).writeAsString('old-db');
+        final archive = File(path.join(srcDir.path, 'library.zst'));
+        await archive.writeAsString('fake-zst');
+
+        await Settings.init(cacheProvider: _MemoryCacheProvider());
+        await Settings.setValue<String>(
+          SettingsRepository.keyLibraryPath,
+          libDir.path,
+        );
+
+        final bloc = EmptyLibraryBloc(
+          extractCompressedDatabase:
+              (archivePath, outputPath, onProgress) async {
+                await File(outputPath).writeAsString('new-db');
+              },
+        );
+        addTearDown(bloc.close);
+
+        final selectedFuture = bloc.stream
+            .where((s) => s is EmptyLibraryDirectorySelected)
+            .cast<EmptyLibraryDirectorySelected>()
+            .first;
+
+        bloc.add(
+          UpdateLibraryRequested(
+            isDownload: false,
+            isArchive: true,
+            sourceFolder: archive.path,
+            targetPath: libDir.path,
+            existingLibraryPath: libDir.path,
+          ),
+        );
+
+        await selectedFuture.timeout(const Duration(seconds: 5));
+
+        expect(
+          await File(path.join(libDir.path, dbName)).readAsString(),
+          'new-db',
+        );
+        final backups = Directory.systemTemp
+            .listSync()
+            .whereType<Directory>()
+            .where(
+              (d) => path.basename(d.path).startsWith('otzaria_db_backup_'),
+            );
+        expect(backups, isEmpty);
+      },
+    );
+
+    test(
+      'ImportLibraryFolderRequested מזהה ומעתיק נכסי ספרייה רגילים מתיקייה',
+      () async {
+        final srcDir = await Directory.systemTemp.createTemp(
+          'otzaria-import-folder-src-',
+        );
+        final targetDir = await Directory.systemTemp.createTemp(
+          'otzaria-import-folder-dst-',
+        );
+        addTearDown(() async {
+          for (final d in [srcDir, targetDir]) {
+            if (await d.exists()) await d.delete(recursive: true);
+          }
+        });
+
+        await File(
+          path.join(srcDir.path, DatabaseConstants.databaseFileName),
+        ).writeAsString('db');
+        await File(
+          path.join(srcDir.path, DatabaseConstants.lexicalDatabaseFileName),
+        ).writeAsString('lex');
+        await File(
+          path.join(
+            srcDir.path,
+            DatabaseConstants.externalCatalogDatabaseFileName,
+          ),
+        ).writeAsString('cat');
+
+        await Settings.init(cacheProvider: _MemoryCacheProvider());
+        await Settings.setValue<String>(SettingsRepository.keyLibraryPath, '');
+
+        final bloc = EmptyLibraryBloc();
+        addTearDown(bloc.close);
+
+        final selectedFuture = bloc.stream
+            .where((s) => s is EmptyLibraryDirectorySelected)
+            .cast<EmptyLibraryDirectorySelected>()
+            .first;
+
+        bloc.add(
+          ImportLibraryFolderRequested(
+            sourceFolder: srcDir.path,
+            targetPath: targetDir.path,
+          ),
+        );
+
+        await selectedFuture.timeout(const Duration(seconds: 5));
+
+        expect(
+          await File(
+            path.join(targetDir.path, DatabaseConstants.databaseFileName),
+          ).exists(),
+          isTrue,
+        );
+        expect(
+          await File(
+            path.join(
+              targetDir.path,
+              DatabaseConstants.lexicalDatabaseFileName,
+            ),
+          ).exists(),
+          isTrue,
+        );
+        expect(
+          await File(
+            path.join(
+              targetDir.path,
+              DatabaseConstants.externalCatalogDatabaseFileName,
+            ),
+          ).exists(),
+          isTrue,
+        );
+        expect(
+          Settings.getValue<String>(SettingsRepository.keyLibraryPath),
+          targetDir.path,
+        );
+      },
+    );
+
+    test(
+      'ImportLibraryFolderRequested מחלץ seforim.db.zst דחוס אם אין גרסה רגילה',
+      () async {
+        final srcDir = await Directory.systemTemp.createTemp(
+          'otzaria-import-folder-zst-src-',
+        );
+        final targetDir = await Directory.systemTemp.createTemp(
+          'otzaria-import-folder-zst-dst-',
+        );
+        addTearDown(() async {
+          for (final d in [srcDir, targetDir]) {
+            if (await d.exists()) await d.delete(recursive: true);
+          }
+        });
+
+        await File(
+          path.join(srcDir.path, DatabaseConstants.databaseArchiveFileName),
+        ).writeAsString('fake-zst');
+
+        await Settings.init(cacheProvider: _MemoryCacheProvider());
+        await Settings.setValue<String>(SettingsRepository.keyLibraryPath, '');
+
+        String? extractedTo;
+        final bloc = EmptyLibraryBloc(
+          extractCompressedDatabase:
+              (archivePath, outputPath, onProgress) async {
+                extractedTo = outputPath;
+                await File(outputPath).writeAsString('db');
+              },
+        );
+        addTearDown(bloc.close);
+
+        final selectedFuture = bloc.stream
+            .where((s) => s is EmptyLibraryDirectorySelected)
+            .cast<EmptyLibraryDirectorySelected>()
+            .first;
+
+        bloc.add(
+          ImportLibraryFolderRequested(
+            sourceFolder: srcDir.path,
+            targetPath: targetDir.path,
+          ),
+        );
+
+        await selectedFuture.timeout(const Duration(seconds: 5));
+
+        expect(
+          extractedTo,
+          path.join(targetDir.path, DatabaseConstants.databaseFileName),
+        );
+      },
+    );
 
     test(
       'StorageLocationSelected שומר את שורש הספרייה ומרענן מצב התחלה',

@@ -168,6 +168,14 @@ class AppPaths {
     return InstallMode.perUser;
   }
 
+  /// תיקיית השורש (ההורה של books/index) עבור נתיב ספרייה נתון. כשהנתיב הוא
+  /// תת-תיקיית "books" — השורש הוא ההורה; אחרת (למשל חבילת FULL עם ספרייה
+  /// מצורפת שאינה בתת-תיקיית books) הנתיב עצמו הוא השורש.
+  static String libraryRootOf(String libraryPath) =>
+      p.basename(libraryPath).toLowerCase() == 'books'
+          ? p.dirname(libraryPath)
+          : libraryPath;
+
   /// מחזיר את נתיב ברירת המחדל של הספרייה.
   ///
   /// בהתקנה מערכתית הנתיב נשאר תחת שורש הנתונים המשותף. אחרת הוא יושב תחת

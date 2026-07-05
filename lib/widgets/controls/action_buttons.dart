@@ -349,7 +349,8 @@ class ToolbarActionButton extends StatelessWidget {
   final String tooltip;
   final IconData icon;
   final Widget? iconWidget;
-  final VoidCallback onPressed;
+  // null → הכפתור מוצג מושבת (עמעום ולחיצה מנוטרלת).
+  final VoidCallback? onPressed;
   final bool selected;
   final String? label;
   final bool compact;
@@ -369,11 +370,16 @@ class ToolbarActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final bool disabled = onPressed == null;
 
-    final Color bg =
-        selected ? cs.onSurface.withValues(alpha: 0.12) : Colors.transparent;
-    final Color fg = selected ? cs.onSecondaryContainer : cs.onSurfaceVariant;
+    final Color bg = selected && !disabled
+        ? cs.onSurface.withValues(alpha: 0.12)
+        : Colors.transparent;
+    final Color fg = disabled
+        ? theme.disabledColor
+        : (selected ? cs.onSecondaryContainer : cs.onSurfaceVariant);
 
     const double iconSize = 20;
     final double fontSize = compact ? 12 : 14;

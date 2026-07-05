@@ -156,6 +156,47 @@ double _segGroupWidth(List<SegmentOption<dynamic>> options) {
 
 // ── SettingsActionTile ────────────────────────────────────────────────────────
 
+/// עיגול בחירה (radio) לא-אינטראקטיבי — הבחירה מתבצעת בהקשה על השורה כולה.
+class _RadioIndicator extends StatelessWidget {
+  final bool selected;
+
+  const _RadioIndicator({required this.selected});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final color = selected ? cs.primary : cs.onSurfaceVariant;
+    // תופס בדיוק את שטח אייקון רגיל (24) — כדי שהיישור והמרווח יהיו זהים
+    // לשורות עם אייקון, בלי מרווח כפול.
+    return SizedBox(
+      width: 24,
+      height: 24,
+      child: Center(
+        child: Container(
+          width: 20,
+          height: 20,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: color, width: 2),
+          ),
+          child: selected
+              ? Center(
+                  child: Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: color,
+                    ),
+                  ),
+                )
+              : null,
+        ),
+      ),
+    );
+  }
+}
+
 /// שורת הגדרה רספונסיבית — מקור האמת לפריסה, מרווחים וסגנון כל שורות ההגדרות.
 ///
 /// ### בנאים בסיסיים
@@ -188,6 +229,8 @@ class SettingsActionTile extends StatelessWidget {
   final bool enabled;
   // כשהtitle גולש לשורה נוספת, actions יגלשו אוטומטית מתחת לטקסט ולא ידחסו אותו
   final bool responsiveActions;
+  // ווידג'ט leading מותאם (למשל רדיו) שגובר על האייקון.
+  final Widget? leading;
   // טקסט גולמי לבדיקת גלישה עם TextPainter — מאוכלס רק ב-.text() ו-.path()
   final String? _rawTitle;
 
@@ -203,6 +246,7 @@ class SettingsActionTile extends StatelessWidget {
     this.focusNode,
     this.enabled = true,
     this.responsiveActions = true,
+    this.leading,
   })  : _rawTitle = null,
         assert(icon == null || rtlIcon == null,
             'העבר icon או rtlIcon — לא שניהם יחד');
@@ -221,6 +265,7 @@ class SettingsActionTile extends StatelessWidget {
     this.focusNode,
     this.enabled = true,
     this.responsiveActions = true,
+    this.leading,
   })  : assert(icon == null || rtlIcon == null,
             'העבר icon או rtlIcon — לא שניהם יחד'),
         _rawTitle = title,
@@ -228,6 +273,26 @@ class SettingsActionTile extends StatelessWidget {
         subtitle = subtitle != null
             ? _settingSubtitle(subtitle, color: subtitleColor, ltr: subtitleLtr)
             : null;
+
+  /// שורת בחירה (radio) — עיגול רדיו כ-leading במקום אייקון, כותרת/תת-כותרת,
+  /// וכפתורי פעולה אופציונליים ב-[actions] שגולשים מתחת לטקסט במסך צר.
+  /// הבחירה מתבצעת בהקשה על כל השורה ([onTap]).
+  static Widget radioOption({
+    Key? key,
+    required String title,
+    String? subtitle,
+    required bool selected,
+    VoidCallback? onTap,
+    List<Widget> actions = const [],
+  }) =>
+      SettingsActionTile.text(
+        key: key,
+        title: title,
+        subtitle: subtitle,
+        leading: _RadioIndicator(selected: selected),
+        actions: actions,
+        onTap: onTap,
+      );
 
   /// קונסטרקטור ייעודי לנתיבי קבצים — מאכוף LTR ומוסיף סימני U+200E אחרי מפרידים.
   /// [responsiveActions] מופעל כברירת מחדל כדי שהכפתורים לא ידחסו את הנתיב.
@@ -244,6 +309,7 @@ class SettingsActionTile extends StatelessWidget {
     this.focusNode,
     this.enabled = true,
     this.responsiveActions = true,
+    this.leading,
   })  : assert(icon == null || rtlIcon == null,
             'העבר icon או rtlIcon — לא שניהם יחד'),
         _rawTitle = title,
@@ -274,6 +340,7 @@ class SettingsActionTile extends StatelessWidget {
     bool clearPathEnabled = true,
     List<PathTarget>? pathTargets,
     void Function(String path)? onOpenPath,
+    String changeLocationLabel = 'שינוי מיקום...',
   }) =>
       _PathTile(
         key: key,
@@ -289,6 +356,7 @@ class SettingsActionTile extends StatelessWidget {
         clearPathEnabled: clearPathEnabled,
         pathTargets: pathTargets,
         onOpenPath: onOpenPath,
+        changeLocationLabel: changeLocationLabel,
       );
 
   /// שורת on/off עם [CustomSwitch].
@@ -379,7 +447,8 @@ class SettingsActionTile extends StatelessWidget {
   static String _formatPath(String path) =>
       path.replaceAllMapped(_pathSeparatorRegExp, (m) => '${m[0]!}‎');
 
-  Widget? _buildIcon() => _buildSettingIcon(icon, rtlIcon, iconColor);
+  Widget? _buildIcon() =>
+      leading ?? _buildSettingIcon(icon, rtlIcon, iconColor);
 
   Widget _buildListTile() => ListTile(
         focusNode: focusNode,
@@ -831,6 +900,7 @@ class _PathTile extends StatelessWidget {
   final bool clearPathEnabled;
   final List<PathTarget>? pathTargets;
   final void Function(String path)? onOpenPath;
+  final String changeLocationLabel;
 
   const _PathTile({
     super.key,
@@ -846,6 +916,7 @@ class _PathTile extends StatelessWidget {
     this.clearPathEnabled = true,
     this.pathTargets,
     this.onOpenPath,
+    this.changeLocationLabel = 'שינוי מיקום...',
   });
 
   @override
@@ -866,6 +937,7 @@ class _PathTile extends StatelessWidget {
           clearPathEnabled: clearPathEnabled,
           pathTargets: pathTargets,
           onOpenPath: onOpenPath,
+          changeLocationLabel: changeLocationLabel,
         ),
       ],
     );
@@ -884,6 +956,7 @@ class _PathMenuButton extends StatefulWidget {
   final bool clearPathEnabled;
   final List<PathTarget>? pathTargets;
   final void Function(String path)? onOpenPath;
+  final String changeLocationLabel;
 
   const _PathMenuButton({
     required this.currentPath,
@@ -895,6 +968,7 @@ class _PathMenuButton extends StatefulWidget {
     this.clearPathEnabled = true,
     this.pathTargets,
     this.onOpenPath,
+    this.changeLocationLabel = 'שינוי מיקום...',
   });
 
   @override
@@ -926,9 +1000,9 @@ class _PathMenuButtonState extends State<_PathMenuButton> {
         icon: FluentIcons.folder_open_24_regular,
         enabled: hasPath || hasTargets,
       ),
-      const AppMenuEntry(
+      AppMenuEntry(
         value: _PathMenuAction.changeLocation,
-        label: 'שינוי מיקום...',
+        label: widget.changeLocationLabel,
         icon: FluentIcons.folder_arrow_right_24_regular,
       ),
       AppMenuEntry(
