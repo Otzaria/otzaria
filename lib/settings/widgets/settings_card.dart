@@ -224,6 +224,9 @@ class SettingsActionTile extends StatelessWidget {
   final Widget title;
   final Widget? subtitle;
   final List<Widget> actions;
+  // ווידג'ט שנשאר צמוד לטקסט תמיד (לדוגמה: צ'בֺרן של ExpandableSection) —
+  // בניגוד ל-actions, לא גולש מתחת לטקסט ב-layout האנכי.
+  final Widget? pinnedTrailing;
   final VoidCallback? onTap;
   final FocusNode? focusNode;
   final bool enabled;
@@ -242,6 +245,7 @@ class SettingsActionTile extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.actions = const [],
+    this.pinnedTrailing,
     this.onTap,
     this.focusNode,
     this.enabled = true,
@@ -261,6 +265,7 @@ class SettingsActionTile extends StatelessWidget {
     bool subtitleLtr = false,
     Color? subtitleColor,
     this.actions = const [],
+    this.pinnedTrailing,
     this.onTap,
     this.focusNode,
     this.enabled = true,
@@ -305,6 +310,7 @@ class SettingsActionTile extends StatelessWidget {
     required String? path,
     required String placeholder,
     this.actions = const [],
+    this.pinnedTrailing,
     this.onTap,
     this.focusNode,
     this.enabled = true,
@@ -450,6 +456,21 @@ class SettingsActionTile extends StatelessWidget {
   Widget? _buildIcon() =>
       leading ?? _buildSettingIcon(icon, rtlIcon, iconColor);
 
+  Widget? _buildTrailing() {
+    if (actions.isEmpty) return pinnedTrailing;
+    final actionsWrap = Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: actions,
+    );
+    if (pinnedTrailing == null) return actionsWrap;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [actionsWrap, const SizedBox(width: 8), pinnedTrailing!],
+    );
+  }
+
   Widget _buildListTile() => ListTile(
         focusNode: focusNode,
         enabled: enabled,
@@ -457,14 +478,7 @@ class SettingsActionTile extends StatelessWidget {
         leading: _buildIcon(),
         title: title,
         subtitle: subtitle,
-        trailing: actions.isEmpty
-            ? null
-            : Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: actions,
-              ),
+        trailing: _buildTrailing(),
       );
 
   // בודק עם TextPainter אם הטקסט יגלוש כשה-actions יהיו ב-trailing.
@@ -474,8 +488,13 @@ class SettingsActionTile extends StatelessWidget {
     const iconAreaWidth = 56.0;
     const hPadding = 32.0;
     final actionsEst = actions.length * 170.0;
-    final textWidth =
-        containerWidth - iconAreaWidth - hPadding - actionsEst - 8.0;
+    final pinnedEst = pinnedTrailing != null ? 48.0 : 0.0;
+    final textWidth = containerWidth -
+        iconAreaWidth -
+        hPadding -
+        actionsEst -
+        pinnedEst -
+        8.0;
     if (textWidth <= 80) return true;
 
     final titlePainter = TextPainter(
@@ -516,6 +535,10 @@ class SettingsActionTile extends StatelessWidget {
                   ],
                 ),
               ),
+              if (pinnedTrailing != null) ...[
+                const SizedBox(width: 8),
+                pinnedTrailing!,
+              ],
             ],
           ),
           if (actions.isNotEmpty) ...[

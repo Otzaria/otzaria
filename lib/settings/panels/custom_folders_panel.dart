@@ -381,105 +381,62 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
     // קבצי PDF/Word נקראים תמיד מהקבצים — אין משמעות ל"עותק עצמאי".
     final binaryOnly = kind == _FolderContentKind.binaryOnly;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Icon(
-                FluentIcons.folder_24_filled,
-                color: cs.primary,
-                size: 20,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      folder.name,
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                    Text(
-                      folder.path,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: cs.onSurfaceVariant,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              if (showFolderSpinner)
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 8),
-                  child: SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                ),
-              Builder(
-                builder: (buttonContext) => IconButton(
-                  icon: const Icon(
-                    FluentIcons.more_vertical_24_regular,
-                    size: 18,
-                  ),
-                  onPressed: isSyncing
-                      ? null
-                      : () => _showFolderMenu(buttonContext, folder),
-                  tooltip: 'אפשרויות',
-                ),
-              ),
-            ],
+    return SettingsActionTile.path(
+      icon: FluentIcons.folder_24_filled,
+      iconColor: cs.primary,
+      title: folder.name,
+      path: folder.path,
+      placeholder: '',
+      // הכפתור נשאר צמוד לטקסט תמיד — בניגוד ל-actions, לא גולש למטה במסך צר.
+      pinnedTrailing: Builder(
+        builder: (buttonContext) => IconButton(
+          icon: const Icon(FluentIcons.more_vertical_24_regular, size: 18),
+          onPressed: isSyncing
+              ? null
+              : () => _showFolderMenu(buttonContext, folder),
+          tooltip: 'אפשרויות',
+        ),
+      ),
+      actions: [
+        if (showFolderSpinner)
+          const SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
           ),
-          const SizedBox(height: 8),
-          // בחירת מצב אחסון. כשהתיקייה מכילה רק PDF/Word אין בחירה (הם
-          // תמיד נקראים מהקבצים), ולכן מוצגת תווית במקום הפקד.
-          if (!binaryOnly)
-            Align(
-              alignment: Alignment.centerRight,
-              child: Opacity(
-                opacity: isSyncing ? 0.5 : 1.0,
-                child: IgnorePointer(
-                  ignoring: isSyncing,
-                  child: AppSegmentedControl<bool>(
-                    currentValue: folder.addToDatabase,
-                    onChanged: (value) => _setStorageMode(folder, value),
-                    options: const [
-                      SegmentOption(
-                        value: false,
-                        label: 'קריאה מהקבצים',
-                        icon: FluentIcons.document_24_regular,
-                      ),
-                      SegmentOption(
-                        value: true,
-                        label: 'עותק עצמאי',
-                        icon: FluentIcons.database_24_regular,
-                      ),
-                    ],
+        // בחירת מצב אחסון. כשהתיקייה מכילה רק PDF/Word אין בחירה (הם
+        // תמיד נקראים מהקבצים), ולכן מוצגת תווית במקום הפקד.
+        if (!binaryOnly)
+          Opacity(
+            opacity: isSyncing ? 0.5 : 1.0,
+            child: IgnorePointer(
+              ignoring: isSyncing,
+              child: AppSegmentedControl<bool>(
+                currentValue: folder.addToDatabase,
+                onChanged: (value) => _setStorageMode(folder, value),
+                options: const [
+                  SegmentOption(
+                    value: false,
+                    label: 'קריאה מהקבצים',
+                    icon: FluentIcons.document_24_regular,
                   ),
-                ),
-              ),
-            )
-          else
-            Align(
-              alignment: Alignment.centerRight,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Text(
-                  'קבצי PDF/Word — נקראים ישירות מהקבצים',
-                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
-                ),
+                  SegmentOption(
+                    value: true,
+                    label: 'עותק עצמאי',
+                    icon: FluentIcons.database_24_regular,
+                  ),
+                ],
               ),
             ),
-        ],
-      ),
+          )
+        else
+          Text(
+            'קבצי PDF/Word — נקראים ישירות מהקבצים',
+            style: AppTextStyles.settingSubtitle.copyWith(
+              color: cs.onSurfaceVariant,
+            ),
+          ),
+      ],
     );
   }
 
