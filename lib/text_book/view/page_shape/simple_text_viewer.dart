@@ -55,6 +55,8 @@ import 'package:otzaria/tools/dictionary/dictionary_context_menu_entries.dart';
 import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository.dart';
 import 'package:otzaria/utils/text/word_at_position.dart';
 import 'package:otzaria/plugins/services/context_menu_registry.dart';
+import 'package:otzaria/plugins/services/plugin_highlight_registry.dart';
+import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
 import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart';
 import 'package:otzaria/text_book/utils/note_inline_render.dart';
 import 'package:otzaria/text_book/utils/reading_segments.dart';
@@ -558,6 +560,19 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     }
 
     widget.selectionSyncController?.addListener(_handleExternalSelectionChange);
+
+    // האזנה לשינויים בהדגשות פלאגינים — rebuild כשמתווסף/נמחק highlight
+    if (widget.isMainText) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final state = context.read<TextBookBloc>().state;
+        if (state is TextBookLoaded) {
+          PluginHighlightRegistry.instance
+              .notifierFor(state.book.title)
+              .addListener(_onPluginHighlightsChanged);
+        }
+      });
+    }
   }
 
   bool _handleCommentaryKeyEvent(KeyEvent event) {
@@ -616,6 +631,14 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     }
     _selectionFocusNode.dispose();
     _keyboardFocusNode?.dispose();
+    if (widget.isMainText) {
+      final state = context.read<TextBookBloc>().state;
+      if (state is TextBookLoaded) {
+        PluginHighlightRegistry.instance
+            .notifierFor(state.book.title)
+            .removeListener(_onPluginHighlightsChanged);
+      }
+    }
     super.dispose();
   }
 
@@ -637,6 +660,10 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         !sameSourceIdentity(oldTab.book, newTab.book)) {
       _loadSourceBanner();
     }
+  }
+
+  void _onPluginHighlightsChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _loadSourceBanner() async {
@@ -2124,7 +2151,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
               // הזרקת סימוני הערות אישיות inline (רק בטקסט הראשי).
               final bool hasInlineNotes =
                   widget.isMainText && notesForLine.isNotEmpty;
-              final annotatedData = hasInlineNotes
+              var annotatedData = hasInlineNotes
                   ? buildAnnotatedLineHtml(
                       rawLine: data,
                       notesForLine: notesForLine,
@@ -2132,6 +2159,28 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                       underlineColor: Theme.of(context).colorScheme.primary,
                     )
                   : data;
+
+              // הדגשות פלאגינים — רק בטקסט הראשי.
+              if (widget.isMainText) {
+                final bookId = state.book.title;
+                final pluginHighlights = PluginHighlightRegistry.instance
+                    .highlightsFor(bookId)
+                    .where((h) =>
+                        h.index == primaryLineIndex &&
+                        h.start != null &&
+                        h.end != null)
+                    .toList();
+                for (final h in pluginHighlights) {
+                  annotatedData = wrapVisibleRange(
+                    html: annotatedData,
+                    start: h.start!,
+                    end: h.end!,
+                    openTag:
+                        '<span style="background-color:${h.color ?? '#FFF176'}">',
+                    closeTag: '</span>',
+                  );
+                }
+              }
 
               final textWidget = FutureBuilder<bool>(
                 future: removeNikudFuture,

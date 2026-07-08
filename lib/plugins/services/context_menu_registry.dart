@@ -152,6 +152,7 @@ List<AppContextMenuEntry> buildPluginContextMenuEntries(
       final buttons = group.children
           .map((child) => AppContextMenuEntry(
                 label: child.label,
+                color: child.color,
                 icon: fluentIconFromName(child.icon),
                 onTap: () => dispatch(child.id),
               ))

@@ -1393,14 +1393,12 @@ class _PluginButtonRow extends StatelessWidget {
           ],
           // הכפתורים
           ...buttons.map((btn) {
-            final isColorSwatch = btn.icon == null &&
-                btn.label != null &&
-                (btn.label!.startsWith('#') || _isNamedColor(btn.label!));
+            final hasColor = btn.color != null;
 
             return Padding(
               padding: const EdgeInsets.only(left: 4),
               child: Tooltip(
-                message: isColorSwatch ? '' : (btn.label ?? ''),
+                message: btn.label ?? '',
                 waitDuration: const Duration(milliseconds: 500),
                 child: InkWell(
                   onTap: () => onButtonTap(btn),
@@ -1409,9 +1407,9 @@ class _PluginButtonRow extends StatelessWidget {
                     width: buttonSize,
                     height: buttonSize,
                     child: Center(
-                      child: isColorSwatch
+                      child: hasColor
                           ? _ColorSwatch(
-                              colorString: btn.label!,
+                              colorString: btn.color!,
                               size: colorSwatchSize,
                             )
                           : btn.icon != null
@@ -1437,22 +1435,6 @@ class _PluginButtonRow extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  static bool _isNamedColor(String s) {
-    const named = {
-      'red',
-      'blue',
-      'yellow',
-      'green',
-      'orange',
-      'pink',
-      'purple',
-      'cyan',
-      'white',
-      'black',
-    };
-    return named.contains(s.toLowerCase());
   }
 }
 

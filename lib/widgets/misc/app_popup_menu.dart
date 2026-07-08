@@ -100,6 +100,10 @@ class AppContextMenuEntry {
   final String? label;
   final Widget? labelWidget;
   final IconData? icon;
+
+  /// CSS color string (e.g. "#f1e784ff") — מציג גוש צבע בכפתורי buttonRow.
+  final String? color;
+
   final bool enabled;
   final bool isDivider;
   final bool isDestructive;
@@ -130,6 +134,7 @@ class AppContextMenuEntry {
     this.key,
     this.labelWidget,
     this.icon,
+    this.color,
     this.enabled = true,
     this.isDestructive = false,
     this.isSelected = false,
@@ -152,6 +157,7 @@ class AppContextMenuEntry {
         label = null,
         labelWidget = null,
         icon = null,
+        color = null,
         enabled = true,
         isDivider = false,
         isButtonRow = false,
@@ -170,6 +176,7 @@ class AppContextMenuEntry {
         label = null,
         labelWidget = null,
         icon = null,
+        color = null,
         enabled = false,
         isDivider = true,
         isButtonRow = false,
@@ -192,6 +199,7 @@ class AppContextMenuEntry {
   })  : key = null,
         labelWidget = null,
         icon = null,
+        color = null,
         enabled = true,
         isDivider = false,
         isButtonRow = true,

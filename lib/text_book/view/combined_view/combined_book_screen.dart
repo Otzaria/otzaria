@@ -55,6 +55,7 @@ import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart'
     as inline_notes;
 import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
+import 'package:otzaria/plugins/services/plugin_highlight_registry.dart';
 import 'package:otzaria/text_book/utils/note_inline_render.dart';
 import 'package:otzaria/text_book/utils/reading_segments.dart';
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
@@ -327,6 +328,11 @@ class _CombinedViewState extends State<CombinedView> {
     _selectionManager.addListener(_onSelectionModeChanged);
     widget.selectionSyncController?.addListener(_handleExternalSelectionChange);
 
+    // האזנה לשינויים בהדגשות פלאגינים — rebuild כשמתווסף/נמחק highlight
+    PluginHighlightRegistry.instance
+        .notifierFor(widget.tab.book.title)
+        .addListener(_onPluginHighlightsChanged);
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context
@@ -400,6 +406,9 @@ class _CombinedViewState extends State<CombinedView> {
 
   @override
   void dispose() {
+    PluginHighlightRegistry.instance
+        .notifierFor(widget.tab.book.title)
+        .removeListener(_onPluginHighlightsChanged);
     _previewScrollController?.dispose();
     widget.tab.positionsListener.itemPositions.removeListener(_onScroll);
     widget.tab.positionsListener.itemPositions.removeListener(_updateTabIndex);
@@ -415,6 +424,10 @@ class _CombinedViewState extends State<CombinedView> {
     _selectionManager.removeListener(_onSelectionModeChanged);
     _selectionManager.dispose();
     super.dispose();
+  }
+
+  void _onPluginHighlightsChanged() {
+    if (mounted) setState(() {});
   }
 
   void _handleExternalSelectionChange() {
@@ -1710,6 +1723,26 @@ class _CombinedViewState extends State<CombinedView> {
                         // סמני עוגן-מילה — לפני כל עיבוד שמוסיף תוכן גלוי.
                         data = _injectAnchorMarkersForLine(
                             data, primaryLineIndex, state);
+
+                        // הדגשות פלאגינים — לפני buildAnnotatedLineHtml.
+                        final pluginHighlights = PluginHighlightRegistry
+                            .instance
+                            .highlightsFor(state.book.title)
+                            .where((h) =>
+                                h.index == primaryLineIndex &&
+                                h.start != null &&
+                                h.end != null)
+                            .toList();
+                        for (final h in pluginHighlights) {
+                          data = wrapVisibleRange(
+                            html: data,
+                            start: h.start!,
+                            end: h.end!,
+                            openTag:
+                                '<span style="background-color:${h.color ?? '#FFF176'}">',
+                            closeTag: '</span>',
+                          );
+                        }
 
                         // איסוף קישורי inline (start/end מתייחסים לטקסט המקורי)
                         List<Link> linksForLine = const [];
