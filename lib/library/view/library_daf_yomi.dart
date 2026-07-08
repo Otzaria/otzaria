@@ -1,79 +1,60 @@
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
-import 'package:otzaria/theme/app_tokens.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kosher_dart/kosher_dart.dart';
+import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
+import 'package:otzaria/navigation/bloc/navigation_event.dart';
+import 'package:otzaria/navigation/bloc/navigation_state.dart';
+import 'package:otzaria/navigation/view/main_window_screen.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
+import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 
-/// ווידג'ט דף יומי — 2 מצבי תצוגה.
-///
-/// • [compact] = false (touch/ברירת מחדל):
-///   אזור לחיצה אחד — טקסט בשתי שורות.
-///
-/// • [compact] = true (desktop):
-///   גרסה דחוסה. כשיש מספיק רוחב ([inlineDate] = true) —
-///   תאריך ודף מוצגים בשורה אחת (" • " ביניהם).
-///   כשהמסך צר — מוצגים בשתי שורות קצרות.
+/// ווידג'ט תאריך עברי + דף יומי — 2 כפתורי [ToolbarGhostButton]:
+/// כפתור התאריך (עם אייקון לוח שנה) פותח את לוח השנה,
+/// וכפתור הדף היומי פותח את הדף.
 ///
 /// **אחריות:**
-/// • מציג תאריך עברי + דף יומי.
+/// • מציג תאריך עברי + דף יומי, ומנווט ללוח השנה בלחיצה.
 /// • פתיחת הדף היומי מטופלת דרך [onDafYomiTap].
-/// • ניווט ללוח השנה הוא אחריות של הסרגל המכיל.
-class LibraryDafYomi extends StatelessWidget {
+class LibraryDafYomi extends StatefulWidget {
   final Function(String tractate, String daf) onDafYomiTap;
 
-  /// true = מצב desktop — גרסה דחוסה
-  final bool compact;
-
-  /// true = תאריך ודף באותה שורה (רלוונטי רק ב-compact)
-  final bool inlineDate;
-
-  /// רוחב מקסימלי של הווידג'ט (כדי למנוע overflow)
-  final double? maxWidth;
+  /// כשאין ספרייה אין דף לפתוח — כפתור הדף היומי מוצג מושבת (התאריך נשאר פעיל).
+  final bool dafEnabled;
 
   const LibraryDafYomi({
     super.key,
     required this.onDafYomiTap,
-    this.compact = false,
-    this.inlineDate = false,
-    this.maxWidth,
+    this.dafEnabled = true,
   });
 
-  static const _toolbarTextHeightBehavior = TextHeightBehavior(
-    applyHeightToFirstAscent: false,
-    applyHeightToLastDescent: false,
-  );
+  @override
+  State<LibraryDafYomi> createState() => _LibraryDafYomiState();
+}
 
-  TextStyle _primaryTextStyle(
-    BuildContext context, {
-    required bool isCompact,
-    required bool emphasized,
-  }) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final baseStyle = (isCompact
-            ? theme.textTheme.labelSmall
-            : theme.textTheme.labelMedium) ??
-        const TextStyle();
-    return baseStyle.copyWith(
-      color: cs.onSecondaryContainer,
-      fontWeight: emphasized ? FontWeight.w700 : FontWeight.w500,
-      fontSize: isCompact ? 11 : 12,
-      height: 1.0,
-    );
+class _LibraryDafYomiState extends State<LibraryDafYomi> {
+  void _openCalendar() {
+    context.read<NavigationBloc>().add(const NavigateToScreen(Screen.more));
+    // ToolsScreen נבנה lazy ב-PageView, ולכן בלחיצה הראשונה ייתכן ש-
+    // moreScreenKey.currentState עדיין null. ניסיונות חוזרים עם hop קצר
+    // מבטיחים שהלוח ייפתח גם בפעם הראשונה שנכנסים למסך הכלים.
+    _resetCalendarWhenAvailable();
   }
 
-  TextStyle _secondaryTextStyle(BuildContext context,
-      {required bool isCompact}) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final baseStyle =
-        (isCompact ? theme.textTheme.labelSmall : theme.textTheme.bodySmall) ??
-            const TextStyle();
-    return baseStyle.copyWith(
-      color: cs.onSecondaryContainer.withValues(alpha: 0.84),
-      fontWeight: FontWeight.w400,
-      fontSize: isCompact ? 10.5 : 11,
-      height: 1.0,
-    );
+  void _resetCalendarWhenAvailable({int attemptsLeft = 6}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final toolsState = moreScreenKey.currentState;
+      if (toolsState != null) {
+        toolsState.resetToCalendar();
+        return;
+      }
+      if (attemptsLeft <= 0) return;
+      Future<void>.delayed(const Duration(milliseconds: 50), () {
+        if (!mounted) return;
+        _resetCalendarWhenAvailable(attemptsLeft: attemptsLeft - 1);
+      });
+    });
   }
 
   @override
@@ -84,150 +65,30 @@ class LibraryDafYomi extends StatelessWidget {
     final dafText = '$tractate ${formatAmud(dafAmud)}';
     final dateText = getHebrewDateFormattedAsString(DateTime.now());
 
-    final Widget content = compact
-        ? _buildCompact(context, dateText, dafText, tractate, dafAmud)
-        : _buildStandard(context, dateText, dafText, tractate, dafAmud);
-
-    if (maxWidth != null) {
-      return ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxWidth!),
-        child: content,
-      );
-    }
-    return content;
-  }
-
-  // ── Touch / standard ────────────────────────────────────────────────────
-
-  Widget _buildStandard(
-    BuildContext context,
-    String dateText,
-    String dafText,
-    String tractate,
-    int dafAmud,
-  ) {
-    final dateStyle =
-        _primaryTextStyle(context, isCompact: true, emphasized: true);
-    final dafStyle = _secondaryTextStyle(context, isCompact: true);
-
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: AppTokens.borderRadiusAll,
-      ),
-      child: Tooltip(
-        message: 'פתח דף יומי',
-        child: InkWell(
-          onTap: () => onDafYomiTap(tractate, formatAmud(dafAmud)),
-          borderRadius: AppTokens.borderRadiusAll,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  dateText,
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                  style: dateStyle,
-                  textHeightBehavior: _toolbarTextHeightBehavior,
-                  strutStyle: StrutStyle.fromTextStyle(
-                    dateStyle,
-                    forceStrutHeight: true,
-                    leading: 0,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  'דף היומי: $dafText',
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                  style: dafStyle,
-                  textHeightBehavior: _toolbarTextHeightBehavior,
-                  strutStyle: StrutStyle.fromTextStyle(
-                    dafStyle,
-                    forceStrutHeight: true,
-                    leading: 0,
-                  ),
-                ),
-              ],
-            ),
+    final content = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Tooltip(
+          message: 'פתח לוח שנה',
+          child: ToolbarGhostButton(
+            text: dateText,
+            icon: FluentIcons.calendar_24_regular,
+            onPressed: _openCalendar,
           ),
         ),
-      ),
-    );
-  }
-
-  // ── Desktop / compact ────────────────────────────────────────────────────
-
-  Widget _buildCompact(
-    BuildContext context,
-    String dateText,
-    String dafText,
-    String tractate,
-    int dafAmud,
-  ) {
-    final dateStyle =
-        _primaryTextStyle(context, isCompact: true, emphasized: true);
-    final dafStyle = _secondaryTextStyle(context, isCompact: true);
-    final inlineStyle =
-        _primaryTextStyle(context, isCompact: true, emphasized: false);
-
-    // תצוגה inline: תאריך • דף יומי בשורה אחת
-    final textWidget = inlineDate
-        ? Text(
-            '$dateText  •  $dafText',
-            overflow: TextOverflow.ellipsis,
-            maxLines: 1,
-            style: inlineStyle,
-            textHeightBehavior: _toolbarTextHeightBehavior,
-            strutStyle: StrutStyle.fromTextStyle(
-              inlineStyle,
-              forceStrutHeight: true,
-              leading: 0,
-            ),
-          )
-        : Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                dateText,
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-                style: dateStyle,
-                textHeightBehavior: _toolbarTextHeightBehavior,
-                strutStyle: StrutStyle.fromTextStyle(
-                  dateStyle,
-                  forceStrutHeight: true,
-                  leading: 0,
-                ),
-              ),
-              Text(
-                dafText,
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-                style: dafStyle,
-                textHeightBehavior: _toolbarTextHeightBehavior,
-                strutStyle: StrutStyle.fromTextStyle(
-                  dafStyle,
-                  forceStrutHeight: true,
-                  leading: 0,
-                ),
-              ),
-            ],
-          );
-
-    return Tooltip(
-      message: 'פתח דף יומי: $dafText',
-      child: InkWell(
-        onTap: () => onDafYomiTap(tractate, formatAmud(dafAmud)),
-        borderRadius: AppTokens.borderRadiusAll,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: textWidget,
+        Tooltip(
+          message: 'פתח דף יומי: $dafText',
+          child: ToolbarGhostButton(
+            text: dafText,
+            icon: FluentIcons.book_24_regular,
+            onPressed: widget.dafEnabled
+                ? () => widget.onDafYomiTap(tractate, formatAmud(dafAmud))
+                : null,
+          ),
         ),
-      ),
+      ],
     );
+
+    return content;
   }
 }

@@ -329,3 +329,49 @@ class _AppTopBarState extends State<AppTopBar>
     );
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  ToolbarGhostButton
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// [ActionButton.ghost] בצבע מושתק (טקסט ואייקון) המתאים לצבע האייקונים
+/// הלא-נבחרים ב-[ToolbarActionButton] — לשימוש כפריט טקסטואלי בתוך סרגל.
+class ToolbarGhostButton extends StatelessWidget {
+  final String text;
+  final IconData? icon;
+  final VoidCallback? onPressed;
+  final bool isLoading;
+
+  const ToolbarGhostButton({
+    super.key,
+    required this.text,
+    this.icon,
+    required this.onPressed,
+    this.isLoading = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    // מיזוג עם סגנון התמה (ולא החלפתו) — שומר על roundedShape וה-overlay
+    // ומחליף רק את צבע הטקסט/אייקון לגוון המושתק של הסרגל.
+    final mergedStyle =
+        (theme.textButtonTheme.style ?? const ButtonStyle()).copyWith(
+      foregroundColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.disabled)
+            ? theme.disabledColor
+            : cs.onSurfaceVariant,
+      ),
+    );
+    return TextButtonTheme(
+      data: TextButtonThemeData(style: mergedStyle),
+      child: ActionButton.ghost(
+        text: text,
+        icon: icon,
+        onPressed: onPressed,
+        isLoading: isLoading,
+      ),
+    );
+  }
+}

@@ -33,8 +33,6 @@ import 'package:otzaria/utils/navigation/open_book.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
-import 'package:otzaria/navigation/bloc/navigation_event.dart';
-import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -518,26 +516,15 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     // ── Trailing items ────────────────────────────────────────────────────
     final trailingItems = <AppTopBarItem>[];
 
-    // LibraryDafYomi: בשורה הראשית כשיש מקום, אחרת בשורה שניה
+    // LibraryDafYomi (תאריך + דף יומי): בשורה הראשית כשיש מקום, אחרת בשורה שניה
     if (dafYomiInline) {
       trailingItems.add(
         AppTopBarItem(
           widget: LibraryDafYomi(
-            compact: isCompact,
-            inlineDate: isCompact, // desktop: date + daf בשורה אחת
-            maxWidth: 240,
+            dafEnabled: !isLibraryEmpty,
             onDafYomiTap: (tractate, daf) =>
                 openDafYomiBook(context, tractate, ' $daf.'),
           ),
-        ),
-      );
-    }
-
-    // אייקון לוח שנה — בשורה העליונה כשהדף היומי שם, אחרת יורד לשורה השנייה
-    if (dafYomiInline) {
-      trailingItems.add(
-        AppTopBarItem(
-          widget: _buildCalendarButton(context, isCompact: isCompact),
         ),
       );
     }
@@ -579,6 +566,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       context,
       settingsState,
       showDafYomi: !dafYomiInline,
+      isLibraryEmpty: isLibraryEmpty,
     );
 
     return AppTopBar(
@@ -601,53 +589,15 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     );
   }
 
-  // ── Calendar button ──────────────────────────────────────────────────────
-
-  Widget _buildCalendarButton(
-    BuildContext context, {
-    required bool isCompact,
-  }) {
-    return ToolbarActionButton(
-      compact: isCompact,
-      tooltip: 'פתח לוח שנה',
-      icon: FluentIcons.calendar_24_regular,
-      onPressed: () {
-        context.read<NavigationBloc>().add(
-          const NavigateToScreen(Screen.more),
-        );
-        // ToolsScreen נבנה lazy ב-PageView, ולכן בלחיצה הראשונה ייתכן ש-
-        // moreScreenKey.currentState עדיין null. ניסיונות חוזרים עם hop קצר
-        // מבטיחים שהלוח ייפתח גם בפעם הראשונה שנכנסים למסך הכלים.
-        _resetCalendarWhenAvailable();
-      },
-    );
-  }
-
-  void _resetCalendarWhenAvailable({int attemptsLeft = 6}) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final toolsState = moreScreenKey.currentState;
-      if (toolsState != null) {
-        toolsState.resetToCalendar();
-        return;
-      }
-      if (attemptsLeft <= 0) return;
-      Future<void>.delayed(const Duration(milliseconds: 50), () {
-        if (!mounted) return;
-        _resetCalendarWhenAvailable(attemptsLeft: attemptsLeft - 1);
-      });
-    });
-  }
-
   // ── Secondary row ─────────────────────────────────────────────────────────
 
   Widget? _buildSecondaryRow(
     BuildContext context,
     SettingsState settingsState, {
     required bool showDafYomi,
+    required bool isLibraryEmpty,
   }) {
     final cs = Theme.of(context).colorScheme;
-    final isCompact = settingsState.compactMenuMode;
 
     final children = <Widget>[];
 
@@ -655,18 +605,12 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       children.add(
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              LibraryDafYomi(
-                compact: isCompact,
-                inlineDate: false,
-                maxWidth: 320,
-                onDafYomiTap: (tractate, daf) =>
-                    openDafYomiBook(context, tractate, ' $daf.'),
-              ),
-              _buildCalendarButton(context, isCompact: isCompact),
-            ],
+          child: Center(
+            child: LibraryDafYomi(
+              dafEnabled: !isLibraryEmpty,
+              onDafYomiTap: (tractate, daf) =>
+                  openDafYomiBook(context, tractate, ' $daf.'),
+            ),
           ),
         ),
       );

@@ -598,7 +598,7 @@ class _CalendarTopBarState extends State<CalendarTopBar>
             icon: FluentIcons.chevron_right_24_regular,
             onPressed: _withClose(widget.onNextPeriod),
           );
-          final todayBtn = ActionButton.recommended(
+          final todayBtn = ToolbarGhostButton(
             text: 'היום',
             onPressed: _withClose(widget.onJumpToToday),
           );
