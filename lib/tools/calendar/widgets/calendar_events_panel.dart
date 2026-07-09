@@ -4,9 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/calendar/utils/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
-import 'package:otzaria/widgets/controls/action_buttons.dart';
-import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
-import 'package:otzaria/widgets/layout/app_card.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 
 /// פאנל האירועים של לוח השנה.
@@ -95,7 +93,7 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                 ),
               ),
               const SizedBox(width: 8),
-              ToolbarActionButton(
+              BarButton.icon(
                 tooltip: widget.state.searchInDescriptions
                     ? 'חפש רק בכותרת'
                     : 'חפש גם בתיאור',
@@ -121,7 +119,7 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                 onPressed: () => widget.onCreateEvent(),
               ),
               if (widget.state.googleCalendarEnabled)
-                ToolbarActionButton(
+                BarButton.icon(
                   tooltip: widget.state.googleCalendarConnected
                       ? 'סנכרן Google'
                       : 'חבר ל-Google',
@@ -198,7 +196,7 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                 final actionButtons = Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    ToolbarActionButton(
+                    BarButton.icon(
                       tooltip: 'ערוך אירוע',
                       icon: FluentIcons.edit_24_regular,
                       onPressed: () => widget.onCreateEvent(
@@ -363,7 +361,7 @@ class _DeleteEventAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (iconOnly) {
-      return ToolbarActionButton(
+      return BarButton.icon(
         tooltip: 'מחק אירוע',
         icon: FluentIcons.delete_24_regular,
         onPressed: onPressed,

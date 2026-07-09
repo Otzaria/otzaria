@@ -3,8 +3,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:logging/logging.dart';
 import 'package:otzaria/theme/theme_exports.dart';
-import 'package:otzaria/widgets/controls/action_buttons.dart';
-import 'package:otzaria/widgets/layout/app_card.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 import '../models/book_model.dart';
 import '../models/progress_model.dart';
 import '../providers/shamor_zachor_progress_provider.dart';
@@ -262,7 +261,7 @@ class _BookCardWidgetState extends State<BookCardWidget> {
                     ),
                     if (widget.onDelete != null) ...[
                       const SizedBox(width: 8),
-                      ToolbarActionButton(
+                      BarButton.icon(
                         tooltip: 'הסר ספר',
                         icon: FluentIcons.delete_24_regular,
                         onPressed: widget.onDelete!,

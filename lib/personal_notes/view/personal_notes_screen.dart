@@ -18,7 +18,6 @@ import 'package:otzaria/personal_notes/widgets/personal_note_editor.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_editor_dialog.dart';
 import 'package:otzaria/personal_notes/widgets/personal_notes_export_dialog.dart';
 import 'package:otzaria/personal_notes/utils/note_location_ref.dart';
-import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
@@ -35,9 +34,8 @@ import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
-import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
-import 'package:otzaria/widgets/layout/app_card.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 
@@ -395,7 +393,7 @@ class _PersonalNotesManagerScreenState
           ),
           trailingItems: [
             AppTopBarItem(
-              widget: ToolbarActionButton(
+              widget: BarButton.icon(
                 compact: isCompact,
                 tooltip: _dateRange != null
                     ? 'סינון תאריך פעיל - לחץ לשינוי'
@@ -407,7 +405,7 @@ class _PersonalNotesManagerScreenState
               ),
             ),
             AppTopBarItem(
-              widget: ToolbarActionButton(
+              widget: BarButton.icon(
                 compact: isCompact,
                 tooltip: 'רענן',
                 icon: FluentIcons.arrow_clockwise_24_regular,
@@ -415,7 +413,7 @@ class _PersonalNotesManagerScreenState
               ),
             ),
             AppTopBarItem(
-              widget: ToolbarActionButton(
+              widget: BarButton.icon(
                 compact: isCompact,
                 tooltip: 'גיבוי הערות',
                 icon: FluentIcons.arrow_download_24_regular,
@@ -423,7 +421,7 @@ class _PersonalNotesManagerScreenState
               ),
             ),
             AppTopBarItem(
-              widget: ToolbarActionButton(
+              widget: BarButton.icon(
                 compact: isCompact,
                 tooltip: 'ייצוא לטקסט',
                 icon: FluentIcons.document_text_24_regular,
@@ -431,7 +429,7 @@ class _PersonalNotesManagerScreenState
               ),
             ),
             AppTopBarItem(
-              widget: ToolbarActionButton(
+              widget: BarButton.icon(
                 compact: isCompact,
                 tooltip: 'ייבוא הערות',
                 icon: FluentIcons.arrow_upload_24_regular,
@@ -1176,24 +1174,24 @@ class _PersonalNotesManagerScreenState
                 spacing: 6,
                 runSpacing: 6,
                 children: [
-                  ToolbarActionButton(
+                  BarButton.icon(
                     tooltip: 'עריכה',
                     icon: FluentIcons.edit_24_regular,
                     onPressed: () => _editNote(note),
                   ),
                   if (isMissing)
-                    ToolbarActionButton(
+                    BarButton.icon(
                       tooltip: 'מיקום מחדש',
                       icon: FluentIcons.location_24_regular,
                       onPressed: () => _repositionMissing(note),
                     ),
                   if (!isMissing)
-                    ToolbarActionButton(
+                    BarButton.icon(
                       tooltip: 'פתח ספר בשורה',
                       icon: FluentIcons.book_open_24_regular,
                       onPressed: () => _openNoteInBook(note),
                     ),
-                  ToolbarActionButton(
+                  BarButton.icon(
                     tooltip: 'מחיקה',
                     icon: FluentIcons.delete_24_regular,
                     onPressed: () => _deleteNote(note),

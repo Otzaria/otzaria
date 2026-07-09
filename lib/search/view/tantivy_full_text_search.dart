@@ -3,7 +3,7 @@ import 'package:otzaria/theme/app_tokens.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
-import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
@@ -451,7 +451,7 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
                   AppTopBar(
                     leadingItems: [
                       AppTopBarItem(
-                        widget: ToolbarActionButton(
+                        widget: BarButton.icon(
                           tooltip: 'הצג/הסתר עץ ספרים',
                           icon: FluentIcons.line_horizontal_3_20_regular,
                           compact: context
@@ -495,7 +495,7 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              ToolbarActionButton(
+                              BarButton.icon(
                                 tooltip: 'ערוך חיפוש',
                                 icon: FluentIcons.edit_24_regular,
                                 compact: context
@@ -625,8 +625,7 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
     final facetNames = state.searchScopeFacets
         // facets ממדיים (/era/, /author/, /base) אינם קטגוריות — לא
         // נכללים ברשימת "חיפוש בקטגוריות" (כמו בתנאי ההצגה של הבאנר).
-        .where(
-            (facet) => facet != '/' && !FacetHelper.isDimensionFacet(facet))
+        .where((facet) => facet != '/' && !FacetHelper.isDimensionFacet(facet))
         .map((facet) {
       // facet בפורמט "/תנ"ך" או "/תנ"ך/ראשונים" - ניקח את החלק האחרון
       final parts = facet.split('/').where((p) => p.isNotEmpty).toList();

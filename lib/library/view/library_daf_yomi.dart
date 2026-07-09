@@ -7,9 +7,9 @@ import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/navigation/view/main_window_screen.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
-import 'package:otzaria/widgets/navigation/app_top_bar.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 
-/// ווידג'ט תאריך עברי + דף יומי — 2 כפתורי [ToolbarGhostButton]:
+/// ווידג'ט תאריך עברי + דף יומי — 2 כפתורי [BarButton.text]:
 /// כפתור התאריך (עם אייקון לוח שנה) פותח את לוח השנה,
 /// וכפתור הדף היומי פותח את הדף.
 ///
@@ -70,7 +70,7 @@ class _LibraryDafYomiState extends State<LibraryDafYomi> {
       children: [
         Tooltip(
           message: 'פתח לוח שנה',
-          child: ToolbarGhostButton(
+          child: BarButton.text(
             text: dateText,
             icon: FluentIcons.calendar_24_regular,
             onPressed: _openCalendar,
@@ -78,7 +78,7 @@ class _LibraryDafYomiState extends State<LibraryDafYomi> {
         ),
         Tooltip(
           message: 'פתח דף יומי: $dafText',
-          child: ToolbarGhostButton(
+          child: BarButton.text(
             text: dafText,
             icon: FluentIcons.book_24_regular,
             onPressed: widget.dafEnabled

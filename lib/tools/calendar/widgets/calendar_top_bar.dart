@@ -27,8 +27,8 @@ import 'package:otzaria/tools/calendar/dialogs/jump_to_date_dialog.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_side_panel.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
-import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/core/messages/tools_messages.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 
@@ -586,24 +586,24 @@ class _CalendarTopBarState extends State<CalendarTopBar>
           final isCompact = settingsState.compactMenuMode;
 
           // ── כפתורים משותפים ───────────────────────────────────────────────
-          final prevBtn = ToolbarActionButton(
+          final prevBtn = BarButton.icon(
             compact: isCompact,
             tooltip: 'קודם',
             icon: FluentIcons.chevron_left_24_regular,
             onPressed: _withClose(widget.onPreviousPeriod),
           );
-          final nextBtn = ToolbarActionButton(
+          final nextBtn = BarButton.icon(
             compact: isCompact,
             tooltip: 'הבא',
             icon: FluentIcons.chevron_right_24_regular,
             onPressed: _withClose(widget.onNextPeriod),
           );
-          final todayBtn = ToolbarGhostButton(
+          final todayBtn = BarButton.text(
             text: 'היום',
             onPressed: _withClose(widget.onJumpToToday),
           );
           // כשהחיפוש פתוח — כפתור ה-jump הופך לכפתור סגירה עם אייקון X
-          final jumpBtn = ToolbarActionButton(
+          final jumpBtn = BarButton.icon(
             compact: isCompact,
             tooltip: widget.isJumpToDateSearchOpen
                 ? 'סגור מעבר לתאריך'
@@ -624,7 +624,7 @@ class _CalendarTopBarState extends State<CalendarTopBar>
             selected: widget.isJumpToDateSearchOpen,
             onPressed: widget.onToggleJumpToDateSearch,
           );
-          final settingsBtn = ToolbarActionButton(
+          final settingsBtn = BarButton.icon(
             compact: isCompact,
             tooltip: 'הגדרות לוח שנה',
             icon: widget.isSettingsPanelOpen
@@ -633,7 +633,7 @@ class _CalendarTopBarState extends State<CalendarTopBar>
             selected: widget.isSettingsPanelOpen,
             onPressed: _withClose(widget.onToggleSettingsPanel),
           );
-          final eventsBtn = ToolbarActionButton(
+          final eventsBtn = BarButton.icon(
             compact: isCompact,
             tooltip: 'אירועים',
             icon: widget.isSidePanelVisible &&
@@ -644,7 +644,7 @@ class _CalendarTopBarState extends State<CalendarTopBar>
                 widget.activeSidePanelView == CalendarSidePanelView.events,
             onPressed: _withClose(widget.onToggleEventsPanel),
           );
-          final timesBtn = ToolbarActionButton(
+          final timesBtn = BarButton.icon(
             compact: isCompact,
             tooltip: 'זמנים',
             icon: widget.isSidePanelVisible &&
@@ -655,7 +655,7 @@ class _CalendarTopBarState extends State<CalendarTopBar>
                 widget.activeSidePanelView == CalendarSidePanelView.times,
             onPressed: _withClose(widget.onToggleTimesPanel),
           );
-          final printBtn = ToolbarActionButton(
+          final printBtn = BarButton.icon(
             compact: isCompact,
             tooltip: 'הדפסה',
             icon: FluentIcons.print_24_regular,

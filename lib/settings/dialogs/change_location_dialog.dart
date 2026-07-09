@@ -24,7 +24,6 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/settings/widgets/settings_card.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/utils/move_directory.dart';
-import 'package:otzaria/widgets/dialogs/reusable_items_dialog.dart';
 import 'package:otzaria/widgets/misc/restart_widget.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 

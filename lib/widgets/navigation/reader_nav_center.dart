@@ -2,7 +2,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/settings_exports.dart';
-import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 
 /// אזור המרכז האחיד לסרגלי הקריאה: [prev-major] [prev-minor] | כותרת | [next-minor] [next-major].
 ///
@@ -39,7 +39,7 @@ class ReaderNavCenter extends StatelessWidget {
     final isCompact = context.read<SettingsBloc>().state.compactMenuMode;
     const gap = 4.0;
     const minTitleWidth = 80.0;
-    // כל ToolbarActionButton עטוף ב-Padding(horizontal:2) → 4px לרוחב הכולל.
+    // כל BarButton.icon עטוף ב-Padding(horizontal:2) → 4px לרוחב הכולל.
     const buttonPadding = 4.0;
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -65,13 +65,13 @@ class ReaderNavCenter extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (showMajor)
-              ToolbarActionButton(
+              BarButton.icon(
                 tooltip: prevMajorTooltip,
                 icon: FluentIcons.arrow_previous_24_filled,
                 compact: forceCompact,
                 onPressed: onPrevMajor,
               ),
-            ToolbarActionButton(
+            BarButton.icon(
               tooltip: prevMinorTooltip,
               icon: FluentIcons.chevron_left_24_regular,
               compact: forceCompact,
@@ -92,14 +92,14 @@ class ReaderNavCenter extends StatelessWidget {
                 child: FittedBox(fit: BoxFit.scaleDown, child: afterTitle!),
               ),
             const SizedBox(width: gap),
-            ToolbarActionButton(
+            BarButton.icon(
               tooltip: nextMinorTooltip,
               icon: FluentIcons.chevron_right_24_regular,
               compact: forceCompact,
               onPressed: onNextMinor,
             ),
             if (showMajor)
-              ToolbarActionButton(
+              BarButton.icon(
                 tooltip: nextMajorTooltip,
                 icon: FluentIcons.arrow_next_24_filled,
                 compact: forceCompact,

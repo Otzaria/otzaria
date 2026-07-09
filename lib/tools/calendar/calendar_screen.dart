@@ -9,7 +9,6 @@ import 'package:otzaria/printing/view/printing_screen.dart';
 import 'package:otzaria/shortcuts/key_map.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
-import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/layout/floating_panel.dart'
     show kMainPanelMinWidth, kSideBySideMinWidth;
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
@@ -27,7 +26,7 @@ import 'package:otzaria/tools/calendar/widgets/calendar_main_panel.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_top_bar.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_print_helpers.dart'
     as print_helper;
-import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 
 export 'package:otzaria/tools/calendar/utils/calendar_cubit.dart';
 
@@ -527,7 +526,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
                   PositionedDirectional(
                     top: 4,
                     start: 4,
-                    child: ToolbarActionButton(
+                    child: BarButton.icon(
                       tooltip: 'סגור חלונית',
                       icon: FluentIcons.dismiss_24_regular,
                       onPressed: _handleSidebarClosedByUser,

@@ -8,7 +8,7 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -246,8 +246,8 @@ class AppPopupMenuButton<T> extends StatefulWidget {
   final bool enabled;
   final T? initialValue;
 
-  /// כשמוגדר, הכפתור יוצג כ-ToolbarActionButton (סרגל כלים) במקום IconButton.
-  /// הערך [icon] (Widget) ישמש כ-iconWidget ב-ToolbarActionButton.
+  /// כשמוגדר, הכפתור יוצג כ-BarButton.icon (סרגל) במקום IconButton.
+  /// הערך [icon] (Widget) ישמש כ-iconWidget ב-BarButton.icon.
   final IconData? iconData;
 
   /// כשמוגדר, הכפתור יוצג עם רקע טוני קבוע (secondaryContainer),
@@ -360,13 +360,13 @@ class _AppPopupMenuButtonState<T> extends State<AppPopupMenuButton<T>> {
         ),
       );
     } else if (widget.iconData != null) {
-      // מצב Toolbar: ToolbarActionButton עם אייקון מסוגנן
+      // מצב Toolbar: BarButton.icon עם אייקון מסוגנן
       final isCompact = context.read<SettingsBloc>().state.compactMenuMode;
       trigger = Opacity(
         opacity: widget.enabled ? 1.0 : 0.38,
         child: IgnorePointer(
           ignoring: !widget.enabled,
-          child: ToolbarActionButton(
+          child: BarButton.icon(
             tooltip: widget.tooltip ?? '',
             icon: widget.iconData!,
             iconWidget: widget.icon,

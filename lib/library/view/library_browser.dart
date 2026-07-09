@@ -532,7 +532,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     trailingItems.addAll([
       AppTopBarItem(
         dividerBefore: true,
-        widget: ToolbarActionButton(
+        widget: BarButton.icon(
           compact: isCompact,
           tooltip: previewSelected ? 'הסתר תצוגה מקדימה' : 'הצג תצוגה מקדימה',
           icon: previewSelected
@@ -548,7 +548,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       AppTopBarItem(
         widget: ValueListenableBuilder<bool>(
           valueListenable: _settingsPanelOpen,
-          builder: (context, isOpen, _) => ToolbarActionButton(
+          builder: (context, isOpen, _) => BarButton.icon(
             compact: isCompact,
             tooltip: isOpen ? 'סגור הגדרות ספרייה' : 'הגדרות ספרייה',
             icon: isOpen
@@ -930,7 +930,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
             _ when isBusy => state.message,
             _ => 'עדכון ספרייה',
           };
-          return ToolbarActionButton(
+          return BarButton.icon(
             compact: compact,
             tooltip: tooltip,
             icon: icon,

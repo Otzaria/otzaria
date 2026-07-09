@@ -1,11 +1,14 @@
-// Barrel re-export — כל הווידג'טים שהיו כאן פוצלו לקבצים נפרדים.
+// Barrel re-export — כל הווידג'טים.
 //
 // דיאלוגים M3:
-//   → lib/widgets/dialogs/app_dialogs.dart
+//   → lib/widgets/dialogs/dialogs_exports.dart
 //
 // כפתורי פעולה (ActionButton.recommended / .neutral / .ghost,
-// SecondaryIconButton, PrimaryIconButton, ToolbarActionButton):
+// SecondaryIconButton, PrimaryIconButton):
 //   → lib/widgets/controls/action_buttons.dart
+//
+// כפתורי סרגל (BarButton.icon / .text):
+//   → lib/widgets/controls/bar_button.dart
 //
 // Segmented control (AppSegmentedControl, SegmentOption):
 //   → lib/widgets/controls/segmented_control.dart
@@ -16,14 +19,15 @@
 // ToolPanelWrapper:
 //   → lib/widgets/misc/tool_ui_helpers.dart
 
-export 'package:otzaria/widgets/dialogs/app_dialogs.dart';
+export 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 export 'package:otzaria/widgets/controls/action_buttons.dart';
+export 'package:otzaria/widgets/controls/bar_button.dart';
 export 'package:otzaria/widgets/controls/custom_switch.dart';
 export 'package:otzaria/widgets/controls/segmented_control.dart';
-export 'package:otzaria/widgets/misc/tool_ui_helpers.dart';
 export 'package:otzaria/widgets/layout/app_card.dart';
 export 'package:otzaria/widgets/layout/expandable_card.dart';
 export 'package:otzaria/widgets/misc/expanding_chevron.dart';
+export 'package:otzaria/widgets/misc/tool_ui_helpers.dart';
 
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';

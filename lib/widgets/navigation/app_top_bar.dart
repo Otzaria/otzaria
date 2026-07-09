@@ -18,7 +18,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/utils/ui/fullscreen_helper.dart';
-import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/widgets_exports.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  AppTopBarItem
@@ -57,6 +57,11 @@ class AppTopBar extends StatefulWidget {
   /// דיבאונס לעדכון השורה השניה (ms) — מונע rebuild חוזר בגלילה מהירה.
   final int scrollDebounceMs;
 
+  /// override נקודתי לצבע הסרגל — נועד למסך הקריאה בלבד, כדי להתאים את
+  /// הטופ-בר לרקע הקריאה שנבחר (ראו [AppSurfaces.readerTopBarBackground]).
+  /// כשלא מועבר, נשאר `null` וחוזרים לברירת המחדל [AppSurfaces.topBarBackground].
+  final Color? backgroundColor;
+
   const AppTopBar({
     super.key,
     this.leadingItems = const [],
@@ -66,6 +71,7 @@ class AppTopBar extends StatefulWidget {
     this.secondaryRowVisible,
     this.totalHeightNotifier,
     this.scrollDebounceMs = 80,
+    this.backgroundColor,
   });
 
   /// גובה הסרגל לפי מצב compact
@@ -239,7 +245,8 @@ class _AppTopBarState extends State<AppTopBar>
       builder: (context, settingsState) {
         final isCompact = settingsState.compactMenuMode;
         final cs = Theme.of(context).colorScheme;
-        final barColor = AppSurfaces.topBarBackground(context);
+        final barColor =
+            widget.backgroundColor ?? AppSurfaces.topBarBackground(context);
         final shadowColor = cs.shadow.withValues(alpha: 0.14);
         final barH = isCompact ? _kCompactHeight : _kTouchHeight;
         final hPad = isCompact ? 6.0 : 8.0;
@@ -250,7 +257,7 @@ class _AppTopBarState extends State<AppTopBar>
         final leadingItems = [
           if (settingsState.isFullscreen)
             AppTopBarItem(
-              widget: ToolbarActionButton(
+              widget: BarButton.icon(
                 tooltip: 'צא ממסך מלא',
                 icon: FluentIcons.full_screen_minimize_24_regular,
                 compact: isCompact,
@@ -326,52 +333,6 @@ class _AppTopBarState extends State<AppTopBar>
           ],
         );
       },
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  ToolbarGhostButton
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// [ActionButton.ghost] בצבע מושתק (טקסט ואייקון) המתאים לצבע האייקונים
-/// הלא-נבחרים ב-[ToolbarActionButton] — לשימוש כפריט טקסטואלי בתוך סרגל.
-class ToolbarGhostButton extends StatelessWidget {
-  final String text;
-  final IconData? icon;
-  final VoidCallback? onPressed;
-  final bool isLoading;
-
-  const ToolbarGhostButton({
-    super.key,
-    required this.text,
-    this.icon,
-    required this.onPressed,
-    this.isLoading = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    // מיזוג עם סגנון התמה (ולא החלפתו) — שומר על roundedShape וה-overlay
-    // ומחליף רק את צבע הטקסט/אייקון לגוון המושתק של הסרגל.
-    final mergedStyle =
-        (theme.textButtonTheme.style ?? const ButtonStyle()).copyWith(
-      foregroundColor: WidgetStateProperty.resolveWith(
-        (states) => states.contains(WidgetState.disabled)
-            ? theme.disabledColor
-            : cs.onSurfaceVariant,
-      ),
-    );
-    return TextButtonTheme(
-      data: TextButtonThemeData(style: mergedStyle),
-      child: ActionButton.ghost(
-        text: text,
-        icon: icon,
-        onPressed: onPressed,
-        isLoading: isLoading,
-      ),
     );
   }
 }

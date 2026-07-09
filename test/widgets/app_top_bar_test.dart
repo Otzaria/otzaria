@@ -137,36 +137,6 @@ void main() {
       },
     );
   });
-
-  group('ToolbarGhostButton — צבע מושבת', () {
-    testWidgets('onPressed=null פותר את צבע החזית ל-disabledColor',
-        (tester) async {
-      late final Color disabledColor;
-      late final Color enabledColor;
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: Builder(builder: (context) {
-            final theme = Theme.of(context);
-            disabledColor = theme.disabledColor;
-            enabledColor = theme.colorScheme.onSurfaceVariant;
-            return const ToolbarGhostButton(text: 'ט', onPressed: null);
-          }),
-        ),
-      ));
-
-      final ghostTheme = tester.widget<TextButtonTheme>(
-        find
-            .ancestor(
-              of: find.byType(TextButton),
-              matching: find.byType(TextButtonTheme),
-            )
-            .first,
-      );
-      final fg = ghostTheme.data.style!.foregroundColor!;
-      expect(fg.resolve({WidgetState.disabled}), disabledColor);
-      expect(fg.resolve(<WidgetState>{}), enabledColor);
-    });
-  });
 }
 
 Widget _buildBar({
