@@ -35,7 +35,11 @@ enum _FolderContentKind {
 
 /// Widget להוספה וניהול תיקיות מותאמות אישית
 class CustomFoldersPanel extends StatefulWidget {
-  const CustomFoldersPanel({super.key});
+  /// שורת הגדרה נוספת השייכת לאותו כרטיס (למשל מיזוג ספרים אישיים לעץ הספרייה),
+  /// מועברת מהטאב הראשי כי היא תלויה ב-bloc אחר.
+  final Widget? mergeToggle;
+
+  const CustomFoldersPanel({super.key, this.mergeToggle});
 
   @override
   State<CustomFoldersPanel> createState() => _CustomFoldersPanelState();
@@ -291,67 +295,77 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
         final folders = state.folders;
         final isSyncing =
             state.isSyncing || DatabaseLibraryProvider.operationQueue.isBusy;
-        return ExpandableSection(
-          icon: FluentIcons.folder_add_24_regular,
-          title: 'הוסף תיקייה לאוצריא',
-          subtitle: folders.isEmpty
-              ? 'לחץ להוספת תיקיות אישיות'
-              : '${folders.length} תיקיות',
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (folders.isNotEmpty)
-                IconButton(
-                  icon: isSyncing
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(FluentIcons.arrow_clockwise_24_regular),
-                  onPressed: isSyncing
-                      ? null
-                      : () => context.read<CustomFoldersBloc>().add(
-                          const RescanCustomFolders(),
-                        ),
-                  tooltip: 'סרוק מחדש תיקיות אישיות',
-                ),
-              ActionButton.recommended(
-                text: 'הוסף תיקייה',
-                icon: FluentIcons.folder_add_24_regular,
-                onPressed: _addFolder,
-                isLoading: isSyncing,
-              ),
-            ],
-          ),
-          isExpanded: _isExpanded,
-          onTap: () => setState(() => _isExpanded = !_isExpanded),
-          hasContent: folders.isNotEmpty,
+        return SettingsCard(
+          cardId: 'library.custom_folders',
+          title: 'תיקיות מותאמות אישית',
+          subtitle:
+              'לאחר הוספת ספרים חדשים לתיקייה קיימת, יש ללחוץ על סמל הרענון.',
           children: [
-            Container(
-              margin: const EdgeInsets.only(right: 16, left: 16, bottom: 8),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: AppTokens.borderRadiusAll,
-              ),
-              child: Column(
+            ExpandableSection(
+              icon: FluentIcons.folder_add_24_regular,
+              title: 'הוסף תיקייה לאוצריא',
+              subtitle: folders.isEmpty
+                  ? 'לחץ להוספת תיקיות אישיות'
+                  : '${folders.length} תיקיות',
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  _buildStorageLegend(),
-                  Divider(
-                    height: 1,
-                    thickness: 1,
-                    color: Theme.of(context).colorScheme.outlineVariant,
-                  ),
-                  ...folders.map(
-                    (folder) => _buildFolderItem(
-                      folder,
-                      isSyncing,
-                      state.activePath,
+                  if (folders.isNotEmpty)
+                    IconButton(
+                      icon: isSyncing
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(FluentIcons.arrow_clockwise_24_regular),
+                      onPressed: isSyncing
+                          ? null
+                          : () => context
+                              .read<CustomFoldersBloc>()
+                              .add(const RescanCustomFolders()),
+                      tooltip: 'סרוק מחדש תיקיות אישיות',
                     ),
+                  ActionButton.recommended(
+                    text: 'הוסף תיקייה',
+                    icon: FluentIcons.folder_add_24_regular,
+                    onPressed: _addFolder,
+                    isLoading: isSyncing,
                   ),
                 ],
               ),
+              isExpanded: _isExpanded,
+              onTap: () => setState(() => _isExpanded = !_isExpanded),
+              hasContent: folders.isNotEmpty,
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(right: 16, left: 16, bottom: 8),
+                  decoration: BoxDecoration(
+                    color:
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
+                    borderRadius: AppTokens.borderRadiusAll,
+                  ),
+                  child: Column(
+                    children: [
+                      _buildStorageLegend(),
+                      Divider(
+                        height: 1,
+                        thickness: 1,
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      ),
+                      ...folders.map(
+                        (folder) => _buildFolderItem(
+                          folder,
+                          isSyncing,
+                          state.activePath,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
+            if (widget.mergeToggle != null) widget.mergeToggle!,
           ],
         );
       },

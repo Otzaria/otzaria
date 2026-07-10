@@ -474,30 +474,23 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
                     // תיקיות מותאמות אישית (רק בדסקטופ)
                     if (!(Platform.isAndroid || Platform.isIOS)) ...[
                       kSettingsCardSpacing,
-                      SettingsCard(
-                        cardId: 'library.custom_folders',
-                        title: 'תיקיות מותאמות אישית',
-                        subtitle:
-                            'לאחר הוספת ספרים חדשים לתיקייה קיימת, יש ללחוץ על סמל הרענון.',
-                        children: [
-                          const CustomFoldersPanel(),
-                          SettingsActionTile.switchTile(
-                            icon: FluentIcons.person_24_regular,
-                            title: 'מיזוג ספרים אישיים לעץ הספרייה',
-                            subtitle: state.mergeUserBooksIntoLibrary
-                                ? 'תת-התיקיות של התיקייה הנבחרת ימוזגו לקטגוריות הראשיות לפי שם'
-                                : 'תיקיות אישיות יוצגו תחת קטגוריית "ספרים אישיים"',
-                            value: state.mergeUserBooksIntoLibrary,
-                            onChanged: (value) {
-                              // ה-RefreshLibrary מופעל ב-listener למעלה,
-                              // אחרי שהערך החדש נשמר ב-`Settings`. אחרת
-                              // הספרייה היתה נבנית עם הערך הישן.
-                              context.read<SettingsBloc>().add(
-                                UpdateMergeUserBooksIntoLibrary(value),
-                              );
-                            },
-                          ),
-                        ],
+                      CustomFoldersPanel(
+                        mergeToggle: SettingsActionTile.switchTile(
+                          icon: FluentIcons.person_24_regular,
+                          title: 'מיזוג ספרים אישיים לעץ הספרייה',
+                          subtitle: state.mergeUserBooksIntoLibrary
+                              ? 'תת-התיקיות של התיקייה הנבחרת ימוזגו לקטגוריות הראשיות לפי שם'
+                              : 'תיקיות אישיות יוצגו תחת קטגוריית "ספרים אישיים"',
+                          value: state.mergeUserBooksIntoLibrary,
+                          onChanged: (value) {
+                            // ה-RefreshLibrary מופעל ב-listener למעלה,
+                            // אחרי שהערך החדש נשמר ב-`Settings`. אחרת
+                            // הספרייה היתה נבנית עם הערך הישן.
+                            context.read<SettingsBloc>().add(
+                              UpdateMergeUserBooksIntoLibrary(value),
+                            );
+                          },
+                        ),
                       ),
                       kSettingsCardSpacing,
                       SettingsCard(
