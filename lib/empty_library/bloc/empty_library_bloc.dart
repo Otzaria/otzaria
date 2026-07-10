@@ -379,18 +379,37 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
         'otzaria_db_backup_${DateTime.now().millisecondsSinceEpoch}',
       ),
     ).create(recursive: true);
-    for (final suffix in _dbFileSuffixes) {
-      final f = File('${dbFile.path}$suffix');
-      if (await f.exists()) {
-        await f.rename(
-          path.join(
-            backup.path,
-            '${DatabaseConstants.databaseFileName}$suffix',
-          ),
-        );
+    // גיבוי אטומי: אם הזזת קובץ נכשלת באמצע (seforim.db כבר הוזז אך לוואי לא),
+    // מחזירים את מה שכבר הוזז ואז זורקים — אחרת הספרייה נשארת בלי DB ראשי.
+    try {
+      for (final suffix in _dbFileSuffixes) {
+        final f = File('${dbFile.path}$suffix');
+        if (await f.exists()) {
+          await _moveFile(
+            f,
+            path.join(
+              backup.path,
+              '${DatabaseConstants.databaseFileName}$suffix',
+            ),
+          );
+        }
       }
+    } catch (_) {
+      await _restoreDatabaseFiles(backup.path, dir);
+      rethrow;
     }
     return backup.path;
+  }
+
+  /// מעביר קובץ אל [destPath]. rename נכשל בין volumes שונים (temp מול הספרייה)
+  /// עם Cross-device link — במקרה כזה נופלים להעתקה ומחיקה.
+  static Future<void> _moveFile(File file, String destPath) async {
+    try {
+      await file.rename(destPath);
+    } on FileSystemException {
+      await file.copy(destPath);
+      await file.delete();
+    }
   }
 
   /// משחזר את קבצי ה-DB מתיקיית הגיבוי חזרה אל [dir] (דורס אם קיים).
@@ -401,7 +420,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       if (await backupFile.exists()) {
         final dest = File(path.join(dir, name));
         if (await dest.exists()) await dest.delete();
-        await backupFile.rename(dest.path);
+        await _moveFile(backupFile, dest.path);
       }
     }
     await _discardBackupDir(backupDir);
