@@ -142,13 +142,14 @@ void main() {
       expect(find.textContaining('הספרייה הקיימת תוחלף'), findsOneWidget);
     });
 
-    testWidgets('אישור פעיל בהעברה (ברירת מחדל), מושבת בייבוא ללא תיקיית מקור',
+    testWidgets(
+        'אישור מושבת בהעברה ליעד הנוכחי (no-op) ובייבוא ללא תיקיית מקור',
         (tester) async {
       await _openUpdate(tester);
-      // ברירת המחדל "העברה" + יעד נוכחי → אישור פעיל.
-      expect(_actionOnPressed(tester, 'אישור'), isNotNull);
+      // ברירת המחדל "העברה" + יעד זהה למיקום הנוכחי → אין מה להעביר, אישור מושבת.
+      expect(_actionOnPressed(tester, 'אישור'), isNull);
 
-      // פריסת המקטע ומעבר ל"בחירת תיקייה" ללא בחירת מקור → אישור מושבת.
+      // מעבר ל"בחירת תיקייה" ללא בחירת מקור → אישור מושבת.
       await _select(tester, 'מחיקה וייבוא ספרייה');
       await _select(tester, 'בחירת תיקייה מהמחשב');
       expect(_actionOnPressed(tester, 'אישור'), isNull);

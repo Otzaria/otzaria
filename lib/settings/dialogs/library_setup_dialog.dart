@@ -211,7 +211,8 @@ class _LibrarySetupDialogContentState
     if (_targetRoot == null) return false;
     switch (_action) {
       case _LibraryAction.moveContents:
-        return _hasLibrary;
+        // העברת תוכן ליעד זהה למיקום הנוכחי היא no-op — דורש יעד שונה.
+        return _isRelocating;
       case _LibraryAction.download:
         return state.downloadDisabledReason == null;
       case _LibraryAction.chooseFile:

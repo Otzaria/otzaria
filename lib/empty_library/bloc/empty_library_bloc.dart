@@ -373,6 +373,9 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
   Future<String?> _backupDatabaseFiles(String dir) async {
     final dbFile = File(path.join(dir, DatabaseConstants.databaseFileName));
     if (!await dbFile.exists()) return null;
+    // סגירת חיבור ה-RO משחררת את נעילת seforim.db לפני ההזזה — ב-Windows
+    // handle פתוח מונע rename/delete. החיבור ייפתח מחדש בקריאה הבאה.
+    await SqliteDataProvider.instance.dispose();
     final backup = await Directory(
       path.join(
         Directory.systemTemp.path,
