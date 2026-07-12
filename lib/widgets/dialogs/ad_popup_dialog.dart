@@ -348,7 +348,6 @@ class _OrganizationsList extends StatelessWidget {
       'name': 'צבע שחור',
       'phone': '073-888-1234',
       'logo': 'assets/logos/tzeva_shahor.png',
-      'matching': true,
       'phones': [
         '073-888-1250 (דיווח)',
         '073-888-1245 (הרשמה)',
@@ -429,6 +428,7 @@ class _OrganizationsList extends StatelessWidget {
       'name': 'החוטפים הגיעו',
       'phone': '02-800-8080',
       'logo': 'assets/logos/hachotfim_higiu.jpg',
+      'matching': true,
       'details': '''1 - לרישום
 2 - להסרה מרשימת התפוצה
 3 - להגבלת שעות כפי המידע שנמסר בהוראות
@@ -858,7 +858,7 @@ class _ExpandableOrgCardState extends State<_ExpandableOrgCard> {
               ),
             ),
           ),
-          // שורת מצ'ינג — שייכת לכרטיס "צבע שחור", קטנה יותר משורת הארגון.
+          // שורת מצ'ינג — שייכת לכרטיס "החוטפים הגיעו", קטנה יותר משורת הארגון.
           // מוצגת רק בטווח ימי הקמפיין (ראה AdPopupService.isMatchingBannerActive)
           if (widget.org['matching'] == true &&
               AdPopupService.isMatchingBannerActive)
@@ -983,7 +983,7 @@ class _MatchingBannerState extends State<_MatchingBanner>
           );
         },
         child: const Text(
-          "ימי התרמה ל'צבע שחור - נותנים גב', בימים שני-שלישי - תרום כעת!",
+          "ימי התרמה ל'החוטפים הגיעו - עם קדוש', בימים שלישי-רביעי - תרום כעת!",
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 14,
@@ -996,9 +996,9 @@ class _MatchingBannerState extends State<_MatchingBanner>
   }
 }
 
-/// דיאלוג "הידעת?" — הסבר על הוצאות "צבע שחור" עם קישור לתרומה.
+/// דיאלוג "הידעת?" — הסבר על הוצאות "החוטפים הגיעו" עם קישור לתרומה.
 Future<void> _showMatchingDialog(BuildContext context) {
-  const donateUrl = 'https://www.liveraiser.co.il/gav/88888';
+  const donateUrl = 'https://metchy.com/cah/241';
   return showDialog(
     context: context,
     builder: (context) => Dialog(
@@ -1021,9 +1021,12 @@ Future<void> _showMatchingDialog(BuildContext context) {
             ),
             const SizedBox(height: 16),
             const Text(
-              'הוצאת מבזק צבע שחור באזור ירושלים - כ3,000 ש"ח!\n'
-              'באזור הפריפריה זול יותר - אך יש לשלם לדרייברים...\n'
-              'ועוד המון המון הוצאות, פעילויות, חוברות מידע והסברה, ועוד...',
+              'הצצה קטנה להוצאות הארגון:\n'
+              'מעל 180 כינוסים בישיבות\n'
+              'עשרות אלפי שעות שיחה של מוקדנים מנוסים\n'
+              'עו"ד מומחה לטיפול משפטי בכל עצור, מערך ליווי ותמיכה למשפחות העצורים\n'
+              'שליחת צינתוקים לעשרות אלפי נרשמי \'החוטפים הגיעו\' בנסיון מעצר או במחסומים\n'
+              'קבלות פנים לאסירי עולם התורה עם שחרורם מהכלא',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 16,
@@ -1040,7 +1043,7 @@ Future<void> _showMatchingDialog(BuildContext context) {
                 }
               },
               child: const Text(
-                'ההוצאות עצומות - ומימון אין, עזרתך דרושה, לחץ כאן כעת!!!',
+                'החובות עומדים כבר על מאות אלפי ש"ח, לחץ כאן לתרומה כעת!',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 22,
