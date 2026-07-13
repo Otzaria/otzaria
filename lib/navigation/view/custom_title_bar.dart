@@ -159,8 +159,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
   }
 
   bool _useStackedTabs(BuildContext context, NavigationState navState) {
-    final isReading =
-        navState.currentScreen == Screen.reading ||
+    final isReading = navState.currentScreen == Screen.reading ||
         navState.currentScreen == Screen.search;
     if (!isReading) return false;
     return MediaQuery.of(context).orientation == Orientation.portrait;
@@ -176,14 +175,12 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
             // במסך עיון ללא טאבים פתוחים אין תוכן קריאה אמיתי, ולכן המסגרת
             // העליונה נצבעת כשאר מסכי הלוח (רקע לוח + גבול תחתון) במקום ברקע
             // מסך העיון. בחיפוש תמיד קיים טאב, לכן נשאר בסגנון הקריאה.
-            final useReaderStyle =
-                navState.currentScreen == Screen.search ||
+            final useReaderStyle = navState.currentScreen == Screen.search ||
                 (navState.currentScreen == Screen.reading &&
                     context.select((TabsBloc bloc) => bloc.state.hasOpenTabs));
 
             final bool windowsNativeControls = !kIsWeb && Platform.isWindows;
-            final bool showWindowCaption =
-                !kIsWeb &&
+            final bool showWindowCaption = !kIsWeb &&
                 (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
 
             final Widget actionSegment = SizedBox(
@@ -197,7 +194,9 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                       left: 0,
                       right: 0,
                       child: Align(
-                        alignment: AlignmentDirectional.bottomStart,
+                        alignment: windowsNativeControls
+                            ? AlignmentDirectional.bottomEnd
+                            : AlignmentDirectional.bottomStart,
                         child: Container(
                           width: 74,
                           height: 1,
@@ -218,7 +217,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
             Widget? windowCaptionSegment;
             if (showWindowCaption) {
               Widget caption = SizedBox(
-                height: 50,
+                height: 40,
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -247,7 +246,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                     if (!settingsState.isFullscreen)
                       SizedBox(
                         width: _kWindowCaptionButtonsWidth,
-                        height: 50,
+                        height: 40,
                         child: WindowCaption(
                           brightness: Theme.of(context).brightness,
                           backgroundColor: Colors.transparent,
@@ -270,7 +269,11 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
             // ב-Windows כפתורי החלון בפינה הימנית וכפתורי הפעולה בשמאלית, כמו
             // חלון Windows רגיל; בשאר המערכות להפך, לפי ברירת ה-RTL של האפליקציה.
             final List<Widget> topBarChildren = windowsNativeControls
-                ? [windowCaptionSegment!, contentSegment, actionSegment]
+                ? [
+                    if (windowCaptionSegment != null) windowCaptionSegment,
+                    contentSegment,
+                    actionSegment,
+                  ]
                 : [
                     actionSegment,
                     contentSegment,
@@ -322,7 +325,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
         Settings.getValue<String>('key-shortcut-open-history') ?? 'ctrl+h';
     final bookmarksShortcut =
         Settings.getValue<String>('key-shortcut-open-bookmarks') ??
-        'ctrl+shift+b';
+            'ctrl+shift+b';
     final workspaceShortcut =
         Settings.getValue<String>('key-shortcut-switch-workspace') ?? 'ctrl+k';
 
@@ -516,8 +519,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
     // בדסקטופ גרירת-עכבר על טאב מסדרת אותו מיד (כמו כרום); בנייד נדרשת לחיצה
     // ארוכה כדי שהחלקה/גלילה במגע לא תזיז טאב בטעות.
     final platform = Theme.of(context).platform;
-    final isDesktop =
-        platform == TargetPlatform.windows ||
+    final isDesktop = platform == TargetPlatform.windows ||
         platform == TargetPlatform.linux ||
         platform == TargetPlatform.macOS;
 
@@ -608,8 +610,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
             size: 18,
           ),
           tooltip: 'הגדרות תצוגת הספרים',
-          onPressed:
-              widget.onReadingSettingsPressed ??
+          onPressed: widget.onReadingSettingsPressed ??
               () => showReadingSettingsDialog(context),
           style: _kIconButtonStyle,
         ),
@@ -841,8 +842,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
       // הכותרת תמיד ב-Expanded ומתכווצת לאפס בעת הצורך.
       final extrasBudget =
           tabWidth - 2 * (outerPad + innerPad) - (isSelected ? 4 : 0);
-      final showClose =
-          extrasBudget >= 25 &&
+      final showClose = extrasBudget >= 25 &&
           (tabWidth >= _kTabCloseHideBelowWidth || isSelected || isTabHovered);
       final showPin =
           tab.isPinned && (extrasBudget - (showClose ? 25 : 0)) >= 20;
@@ -882,9 +882,8 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                     child: DefaultTextStyle(
                       style: TextStyle(
                         color: colorScheme.onSurface,
-                        fontWeight: isSelected
-                            ? FontWeight.w600
-                            : FontWeight.normal,
+                        fontWeight:
+                            isSelected ? FontWeight.w600 : FontWeight.normal,
                         fontSize: 14,
                       ),
                       child: Row(
@@ -952,9 +951,8 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
         key: isSelected ? tourTabContextMenuTargetKey : null,
         menuBuilder: (menuCtx, _) =>
             _buildTabContextMenuEntries(menuCtx, tab, state),
-        menuItemKeysByLabel: isSelected
-            ? {'הצג לצד': tourTabSideBySideMenuItemTargetKey}
-            : null,
+        menuItemKeysByLabel:
+            isSelected ? {'הצג לצד': tourTabSideBySideMenuItemTargetKey} : null,
         child: StatefulBuilder(
           builder: (context, setLocalState) {
             return MouseRegion(
@@ -1058,9 +1056,8 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
 
     if (tab is! CombinedTab) {
       if (state.tabs.length > 1) {
-        final otherTabsList = state.tabs
-            .where((t) => t != tab && t is! CombinedTab)
-            .toList();
+        final otherTabsList =
+            state.tabs.where((t) => t != tab && t is! CombinedTab).toList();
         final otherTabs = otherTabsList.asMap().entries.map((mapEntry) {
           final isFirst = mapEntry.key == 0;
           final otherTab = mapEntry.value;
@@ -1069,8 +1066,8 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
             label: otherTab.title,
             onTap: () {
               context.read<TabsBloc>().add(
-                EnableSideBySideMode(rightTab: tab, leftTab: otherTab),
-              );
+                    EnableSideBySideMode(rightTab: tab, leftTab: otherTab),
+                  );
             },
           );
         }).toList();
@@ -1089,8 +1086,8 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
         AppContextMenuEntry(
           label: 'חזרה לתצוגה רגילה',
           onTap: () => context.read<TabsBloc>().add(
-            DisableSideBySideMode(state.tabs.indexOf(tab)),
-          ),
+                DisableSideBySideMode(state.tabs.indexOf(tab)),
+              ),
         ),
       ]);
     }
@@ -1234,9 +1231,8 @@ class _CaptionActionButtonState extends State<_CaptionActionButton> {
     final isDark = widget.brightness == Brightness.dark;
 
     Color bgColor = Colors.transparent;
-    Color iconColor = isDark
-        ? Colors.white
-        : Colors.black.withValues(alpha: 0.8956);
+    Color iconColor =
+        isDark ? Colors.white : Colors.black.withValues(alpha: 0.8956);
 
     if (_isHovering) {
       bgColor = isDark
