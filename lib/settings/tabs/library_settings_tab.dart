@@ -59,6 +59,14 @@ class LibrarySettingsTab extends StatefulWidget {
       keywords: ['תיקיות', 'מותאם'],
     ),
     SettingsSearchEntry(
+      id: 'library.android_storage',
+      title: 'מיקום אחסון הספרייה',
+      subtitle: 'העברת הספרייה לכרטיס זיכרון חיצוני או בחזרה לאחסון הפנימי',
+      tab: SettingsTab.library,
+      cardId: 'library.android_storage',
+      keywords: ['sd', 'כרטיס זיכרון', 'אחסון חיצוני', 'כרטיס זיכרון חיצוני'],
+    ),
+    SettingsSearchEntry(
       id: 'library.custom_folders.merge_into_library',
       title: 'מיזוג ספרים אישיים לעץ הספרייה',
       subtitle: 'תת-התיקיות של התיקייה הנבחרת ימוזגו לקטגוריות הראשיות לפי שם',
@@ -115,6 +123,7 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
   bool? _requiresManualReindex;
   String? _defaultLibraryPath;
   String? _indexPath;
+  String? _androidRemovableStorageRoot;
 
   @override
   void initState() {
@@ -125,6 +134,11 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
     AppPaths.getIndexPath().then((path) {
       if (mounted) setState(() => _indexPath = path);
     });
+    if (Platform.isAndroid) {
+      AppPaths.getAndroidRemovableStorageDirectory().then((path) {
+        if (mounted) setState(() => _androidRemovableStorageRoot = path);
+      });
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
@@ -299,6 +313,91 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
     );
   }
 
+  /// מעבירה את הספרייה לשורש [targetRoot] אחרי אישור המשתמש בדיאלוג אזהרה.
+  Future<void> _confirmAndMoveLibrary(
+    BuildContext context, {
+    required String targetRoot,
+    required String confirmContent,
+  }) async {
+    final booksPath =
+        Settings.getValue<String>(SettingsRepository.keyLibraryPath) ?? '';
+    if (booksPath.isEmpty) return;
+
+    final confirmed = await showWarningDialog(
+      context: context,
+      title: 'העברת הספרייה',
+      content: confirmContent,
+      confirmText: 'העבר',
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    await performLibraryMove(context: context, from: booksPath, to: targetRoot);
+  }
+
+  /// כרטיס העברת הספרייה בין האחסון הפנימי לכרטיס זיכרון חיצוני (Android
+  /// בלבד). מוצג רק כשמחובר כרטיס זיכרון חיצוני וקיימת ספרייה קיימת להעברה.
+  Widget? _buildAndroidStorageLocationCard(BuildContext context) {
+    if (!Platform.isAndroid) return null;
+    final sdRoot = _androidRemovableStorageRoot;
+    if (sdRoot == null) return null;
+
+    final booksPath =
+        Settings.getValue<String>(SettingsRepository.keyLibraryPath) ?? '';
+    if (booksPath.isEmpty) return null;
+
+    final currentRoot = _libraryRootOf(booksPath);
+    final isOnSdCard = p.equals(currentRoot, sdRoot);
+    final internalRoot =
+        (_defaultLibraryPath == null || _defaultLibraryPath!.isEmpty)
+            ? null
+            : _libraryRootOf(_defaultLibraryPath!);
+
+    return SettingsCard(
+      cardId: 'library.android_storage',
+      title: 'מיקום אחסון הספרייה',
+      subtitle:
+          'ניתן להעביר את קבצי הספרייה לכרטיס הזיכרון החיצוני כדי לפנות מקום באחסון הפנימי של המכשיר',
+      children: [
+        SettingsActionTile.text(
+          icon: FluentIcons.storage_24_regular,
+          title: isOnSdCard
+              ? 'הספרייה מאוחסנת על כרטיס הזיכרון'
+              : 'הספרייה מאוחסנת באחסון הפנימי',
+          subtitle: isOnSdCard
+              ? 'ניתן להעביר בחזרה לאחסון הפנימי של המכשיר'
+              : 'ניתן להעביר לכרטיס הזיכרון החיצוני כדי לחסוך באחסון הפנימי',
+          actions: [
+            if (isOnSdCard)
+              ActionButton.neutral(
+                text: 'העבר לאחסון פנימי',
+                onPressed: internalRoot == null
+                    ? null
+                    : () => _confirmAndMoveLibrary(
+                          context,
+                          targetRoot: internalRoot,
+                          confirmContent:
+                              'הספרייה תועבר בחזרה לאחסון הפנימי של המכשיר. '
+                              'הפעולה עשויה לקחת מספר דקות, והתוכנה תיטען מחדש בסיומה.',
+                        ),
+              )
+            else
+              ActionButton.recommended(
+                text: 'העבר לכרטיס זיכרון',
+                onPressed: () => _confirmAndMoveLibrary(
+                  context,
+                  targetRoot: sdRoot,
+                  confirmContent:
+                      'הספרייה תועבר לכרטיס הזיכרון החיצוני. אם תוציא את הכרטיס '
+                      'מהמכשיר, האפליקציה לא תוכל לגשת לספרים עד שיוחזר. '
+                      'הפעולה עשויה לקחת מספר דקות, והתוכנה תיטען מחדש בסיומה.',
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
   /// שורת מיקום ספרי היברובוקס — עם אפשרות ניקוי הנתיב
   Widget _buildHebrewBooksLocationWidget(BuildContext context) {
     final pathStr =
@@ -364,6 +463,8 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
             final hebrewPathWidget = !(Platform.isAndroid || Platform.isIOS)
                 ? _buildHebrewBooksLocationWidget(context)
                 : null;
+            final androidStorageCard =
+                _buildAndroidStorageLocationCard(context);
 
             return SingleChildScrollView(
               primary: true,
@@ -382,6 +483,10 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
                           _buildLibraryLocationWidget(context),
                         ],
                       ),
+                      kSettingsCardSpacing,
+                    ],
+                    if (androidStorageCard != null) ...[
+                      androidStorageCard,
                       kSettingsCardSpacing,
                     ],
 

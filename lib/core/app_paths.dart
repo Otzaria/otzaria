@@ -107,6 +107,26 @@ class AppPaths {
 
   static String? get cachedDataRootPath => _cachedDataRootPath;
 
+  /// בוחר את נתיב כרטיס הזיכרון החיצוני מתוך רשימת נפחי האחסון של המכשיר.
+  /// index 0 הוא תמיד האחסון הפנימי (getExternalStorageDirectories מבטיח
+  /// זאת) — כרטיס SD/USB מחובר, אם קיים, מופיע רק מ-index 1 ואילך.
+  @visibleForTesting
+  static String? pickRemovableStorageDirectory(List<String> volumePaths) {
+    if (volumePaths.length < 2) return null;
+    return volumePaths[1];
+  }
+
+  /// נתיב תיקייה פרטית של האפליקציה על כרטיס זיכרון חיצוני מחובר (Android
+  /// בלבד), דרך getExternalStorageDirectories — אינו דורש הרשאת אחסון כלשהי
+  /// כי הוא כבר מוגבל לתיקיית האפליקציה על אותו נפח. מחזיר null כשאין כרטיס
+  /// מחובר, או בפלטפורמות שאינן Android.
+  static Future<String?> getAndroidRemovableStorageDirectory() async {
+    if (!Platform.isAndroid) return null;
+    final volumes = await getExternalStorageDirectories();
+    final volumePaths = volumes?.map((d) => d.path).toList() ?? const [];
+    return pickRemovableStorageDirectory(volumePaths);
+  }
+
   /// Detects whether the app is installed system-wide or per-user.
   static Future<InstallMode> detectInstallMode() async {
     // מצב נייד לעולם אינו התקנה מערכתית — הנתונים יושבים ליד ה-executable

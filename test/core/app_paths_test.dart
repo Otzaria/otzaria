@@ -604,6 +604,23 @@ void main() {
           reason: 'נתיבי stale צריכים להיות מנורמלים וללא כפילויות.');
     });
   });
+
+  group('AppPaths.pickRemovableStorageDirectory', () {
+    test('מחזיר null כשיש רק נפח אחסון אחד (פנימי בלבד)', () {
+      expect(AppPaths.pickRemovableStorageDirectory(['/internal']), isNull);
+    });
+
+    test('מחזיר null כשאין אף נפח אחסון', () {
+      expect(AppPaths.pickRemovableStorageDirectory([]), isNull);
+    });
+
+    test('מחזיר את הנפח השני כשקיים כרטיס זיכרון חיצוני', () {
+      expect(
+        AppPaths.pickRemovableStorageDirectory(['/internal', '/sdcard']),
+        '/sdcard',
+      );
+    });
+  });
 }
 
 class _MemoryCacheProvider extends CacheProvider {
