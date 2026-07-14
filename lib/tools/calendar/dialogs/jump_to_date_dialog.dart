@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:otzaria/tools/calendar/widgets/calendar_date_picker_panel.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 
 final DateTime kJumpToDateFirstDate = DateTime(1900);
@@ -26,6 +27,7 @@ class JumpToDatePanel extends StatefulWidget {
   final ValueChanged<DateTime> onDateChanged;
   final VoidCallback onCancel;
   final VoidCallback onConfirm;
+  final bool showHebrew;
 
   const JumpToDatePanel({
     super.key,
@@ -34,6 +36,7 @@ class JumpToDatePanel extends StatefulWidget {
     required this.onDateChanged,
     required this.onCancel,
     required this.onConfirm,
+    this.showHebrew = true,
   });
 
   @override
@@ -81,24 +84,16 @@ class _JumpToDatePanelState extends State<JumpToDatePanel> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Divider(),
-        const Text(
-          'בחר תאריך בלוח השנה:',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 10),
-        SizedBox(
-          height: 320,
-          child: Listener(
-            onPointerDown: _handlePointerDown,
-            child: CalendarDatePicker(
-              key: ValueKey(clampJumpToDate(widget.selectedDate)),
-              initialDate: clampJumpToDate(widget.selectedDate),
-              currentDate: clampJumpToDate(widget.currentDate),
-              firstDate: kJumpToDateFirstDate,
-              lastDate: kJumpToDateLastDate,
-              onDateChanged: _onDateChanged,
-            ),
+        const SizedBox(height: 4),
+        Listener(
+          onPointerDown: _handlePointerDown,
+          child: CalendarDatePickerPanel(
+            selectedDate: clampJumpToDate(widget.selectedDate),
+            currentDate: clampJumpToDate(widget.currentDate),
+            firstDate: kJumpToDateFirstDate,
+            lastDate: kJumpToDateLastDate,
+            showHebrew: widget.showHebrew,
+            onDateChanged: _onDateChanged,
           ),
         ),
         const SizedBox(height: 12),

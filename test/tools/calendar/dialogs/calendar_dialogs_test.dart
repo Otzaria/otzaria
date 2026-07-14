@@ -77,6 +77,7 @@ void main() {
             body: JumpToDatePanel(
               selectedDate: initialDate,
               currentDate: initialDate,
+              showHebrew: false,
               onDateChanged: (d) => changedTo = d,
               onCancel: () {},
               onConfirm: () => confirmed = true,
@@ -108,6 +109,7 @@ void main() {
             body: JumpToDatePanel(
               selectedDate: initialDate,
               currentDate: initialDate,
+              showHebrew: false,
               onDateChanged: (d) => changedTo = d,
               onCancel: () {},
               onConfirm: () => confirmed = true,
@@ -136,6 +138,7 @@ void main() {
             body: JumpToDatePanel(
               selectedDate: initialDate,
               currentDate: initialDate,
+              showHebrew: false,
               onDateChanged: (_) {},
               onCancel: () {},
               onConfirm: () => confirmed = true,

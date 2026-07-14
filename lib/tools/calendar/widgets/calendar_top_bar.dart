@@ -24,6 +24,7 @@ import 'package:kosher_dart/kosher_dart.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tools/calendar/utils/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/dialogs/jump_to_date_dialog.dart';
+import 'package:otzaria/tools/calendar/widgets/calendar_date_picker_panel.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_side_panel.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
@@ -92,6 +93,7 @@ class _CalendarTopBarState extends State<CalendarTopBar>
   late final FocusNode _jumpDateFocusNode;
   late final FocusNode _dialogFocusNode;
   late DateTime _pendingJumpDate;
+  bool _jumpShowHebrew = true;
   final GlobalKey _jumpSearchBarKey = GlobalKey();
   final OverlayPortalController _overlayPortalController =
       OverlayPortalController();
@@ -260,6 +262,7 @@ class _CalendarTopBarState extends State<CalendarTopBar>
 
   void _prepareJumpDateSearch() {
     _pendingJumpDate = clampJumpToDate(widget.state.selectedGregorianDate);
+    _jumpShowHebrew = calendarDefaultShowHebrew(widget.state.calendarType);
     _jumpDateController.clear();
   }
 
@@ -417,14 +420,27 @@ class _CalendarTopBarState extends State<CalendarTopBar>
                     children: [
                       Padding(
                         padding: const EdgeInsets.only(bottom: 4),
-                        child: Text(
-                          'מעבר לתאריך',
-                          style: Theme.of(context).textTheme.titleMedium,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'מעבר לתאריך',
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                            ),
+                            CalendarTypeToggleButton(
+                              showHebrew: _jumpShowHebrew,
+                              onPressed: () => setState(
+                                () => _jumpShowHebrew = !_jumpShowHebrew,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       JumpToDatePanel(
                         selectedDate: _pendingJumpDate,
                         currentDate: widget.state.selectedGregorianDate,
+                        showHebrew: _jumpShowHebrew,
                         onDateChanged: (date) {
                           setState(() {
                             _pendingJumpDate = date;
