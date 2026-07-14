@@ -24,8 +24,8 @@ class AdPopupService {
 
   /// טווח התאריכים (כולל) שבו שורת המצ'ינג מוצגת ומהבהבת. מחוץ לטווח היא נסתרת.
   /// לשינוי — ערוך את שני התאריכים. פורמט: [שנה, חודש, יום].
-  static const List<int> _matchingStart = [2026, 7, 4];
-  static const List<int> _matchingEnd = [2026, 7, 8];
+  static const List<int> _matchingStart = [2026, 7, 12];
+  static const List<int> _matchingEnd = [2026, 7, 16];
 
   /// האם שורת המצ'ינג פעילה כעת (לפי הטווח שלמעלה)
   static bool get isMatchingBannerActive {
