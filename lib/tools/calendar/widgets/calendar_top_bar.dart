@@ -110,13 +110,10 @@ class _CalendarTopBarState extends State<CalendarTopBar>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // סגירת החיפוש כשהאפליקציה עוברת לרקע או מאבדת פוקוס
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.hidden) {
-      if (widget.isJumpToDateSearchOpen) {
-        widget.onCloseJumpToDateSearch();
-      }
+    // סגירה רק בהעברה אמיתית לרקע (paused). inactive/hidden נשלחים גם כשהחלון
+    // מאבד פוקוס ל-OS — ואז החיפוש צריך להישאר פתוח, כמו כל דיאלוג.
+    if (state == AppLifecycleState.paused && widget.isJumpToDateSearchOpen) {
+      widget.onCloseJumpToDateSearch();
     }
   }
 
