@@ -97,12 +97,12 @@ installer/otzaria-0.9.95-windows-silent.exe
 installer/otzaria-0.9.95-windows-full-silent.exe
 # End generated Windows installers
 
-pubspec.lock
+
 flutter/
 
 seforim.db
 LOG.txt
-pubspec.lock
+
 macos/Podfile.lock
 macos/Flutter/GeneratedPluginRegistrant.swift
 isolate.pdf
