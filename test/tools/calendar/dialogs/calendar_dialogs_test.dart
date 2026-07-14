@@ -17,6 +17,48 @@ void main() {
       );
     });
 
+    group('parseCalendarDate — לועזי', () {
+      DateTime? parse(String input) => parseCalendarDate(input,
+          currentJewishYear: 5786, currentGregorianYear: 2026);
+
+      test('שנה בת 4 ספרות', () {
+        expect(parse('15/3/2025'), DateTime(2025, 3, 15));
+      });
+      test('שנה בת 2 ספרות → 20xx', () {
+        expect(parse('12/7/26'), DateTime(2026, 7, 12));
+      });
+      test('מפריד רווח / נקודה / מקף', () {
+        expect(parse('12 7'), DateTime(2026, 7, 12));
+        expect(parse('12.7.26'), DateTime(2026, 7, 12));
+        expect(parse('12-7'), DateTime(2026, 7, 12));
+      });
+      test('חודש ללא שנה → שנה נוכחית', () {
+        expect(parse('12/7'), DateTime(2026, 7, 12));
+      });
+      test('שם חודש עם/בלי הקידומת ב', () {
+        expect(parse('12/אוגוסט/26'), DateTime(2026, 8, 12));
+        expect(parse('12 באוגוסט 26'), DateTime(2026, 8, 12));
+      });
+      test('תאריך לא חוקי נדחה', () {
+        expect(parse('31/02/2026'), isNull);
+      });
+    });
+
+    group('parseCalendarDate — עברי', () {
+      test('שנה מקוצרת (2 אותיות) שווה לשנה מלאה', () {
+        final full = parseCalendarDate('טו תמוז תשפו', currentJewishYear: 5786);
+        final short = parseCalendarDate('טו תמוז פו', currentJewishYear: 5786);
+        expect(full, isNotNull);
+        expect(short, equals(full));
+      });
+      test('שנה חסרה → שנה עברית נוכחית', () {
+        final withYear =
+            parseCalendarDate('טו תמוז תשפו', currentJewishYear: 5786);
+        final noYear = parseCalendarDate('טו תמוז', currentJewishYear: 5786);
+        expect(noYear, equals(withYear));
+      });
+    });
+
     testWidgets('invalid gregorian date is rejected', (tester) async {
       DateTime? parsedDate;
 
