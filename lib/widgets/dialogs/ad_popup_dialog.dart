@@ -349,11 +349,6 @@ class _OrganizationsList extends StatelessWidget {
       'phone': '073-888-1234',
       'logo': 'assets/logos/tzeva_shahor.png',
       'matching': true,
-      'phones': [
-        '073-888-1250 (דיווח)',
-        '073-888-1245 (הרשמה)',
-        '073-888-1234 (הרשמה)'
-      ],
       'details': '''**לדיווח בעת ניסיון מעצר הקש כוכבית**
 0 - הרשמה לקבלת התרעות
 1 - היסטוריית ההתרעות
